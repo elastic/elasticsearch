@@ -25,7 +25,7 @@ import java.util.function.Function;
 
 public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
-    private final Map<String, DocValuesField<?>> localCacheScriptFieldData = new HashMap<>(4);
+    private final Map<String, DocValuesField> localCacheScriptFieldData = new HashMap<>(4);
     private final Map<String, ScriptDocValues<?>> localCacheFieldData = new HashMap<>(4);
     private final Function<String, MappedFieldType> fieldTypeLookup;
     private final Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup;
@@ -45,8 +45,8 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         this.docId = docId;
     }
 
-    public DocValuesField<?> getScriptField(String fieldName) {
-        DocValuesField<?> field = localCacheScriptFieldData.get(fieldName);
+    public DocValuesField getScriptField(String fieldName) {
+        DocValuesField field = localCacheScriptFieldData.get(fieldName);
 
         if (field == null) {
             final MappedFieldType fieldType = fieldTypeLookup.apply(fieldName);
@@ -57,9 +57,9 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
             // Load the field data on behalf of the script. Otherwise, it would require
             // additional permissions to deal with pagedbytes/ramusagestimator/etc.
-            field = AccessController.doPrivileged(new PrivilegedAction<DocValuesField<?>>() {
+            field = AccessController.doPrivileged(new PrivilegedAction<DocValuesField>() {
                 @Override
-                public DocValuesField<?> run() {
+                public DocValuesField run() {
                     return fieldDataLookup.apply(fieldType).load(reader).getScriptField(fieldName);
                 }
             });

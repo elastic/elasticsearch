@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.apache.lucene.search.grouping;
+package org.elasticsearch.lucene.grouping;
 
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
@@ -23,19 +23,19 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Represents hits returned by {@link CollapsingTopDocsCollector#getTopDocs()}.
+ * Represents hits returned by {@link SinglePassGroupingCollector#getTopGroups(int)}}.
  */
-public final class CollapseTopFieldDocs extends TopFieldDocs {
-    /** The field used for collapsing **/
+public final class TopFieldGroups extends TopFieldDocs {
+    /** The field used for grouping **/
     public final String field;
-    /** The collapse value for each top doc */
-    public final Object[] collapseValues;
+    /** The group value for each top doc */
+    public final Object[] groupValues;
 
-    public CollapseTopFieldDocs(String field, TotalHits totalHits, ScoreDoc[] scoreDocs,
-                                SortField[] sortFields, Object[] values) {
+    public TopFieldGroups(String field, TotalHits totalHits, ScoreDoc[] scoreDocs,
+                          SortField[] sortFields, Object[] values) {
         super(totalHits, scoreDocs, sortFields);
         this.field = field;
-        this.collapseValues = values;
+        this.groupValues = values;
     }
 
     // Refers to one hit:
@@ -100,7 +100,7 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
         final FieldComparator<?>[] comparators;
         final int[] reverseMul;
 
-        MergeSortQueue(Sort sort, CollapseTopFieldDocs[] shardHits) {
+        MergeSortQueue(Sort sort, TopFieldGroups[] shardHits) {
             super(shardHits.length);
             this.shardHits = new ScoreDoc[shardHits.length][];
             for (int shardIDX = 0; shardIDX < shardHits.length; shardIDX++) {
@@ -149,16 +149,16 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
     }
 
     /**
-     * Returns a new CollapseTopDocs, containing topN collapsed results across
-     * the provided CollapseTopDocs, sorting by score. Each {@link CollapseTopFieldDocs} instance must be sorted.
-     **/
-    public static CollapseTopFieldDocs merge(Sort sort, int start, int size,
-                                             CollapseTopFieldDocs[] shardHits, boolean setShardIndex) {
-        String collapseField = shardHits[0].field;
+     * Returns a new {@link TopFieldGroups}, containing topN results across the provided {@link TopFieldGroups},
+     * sorting by the specified {@link Sort}.
+     */
+    public static TopFieldGroups merge(Sort sort, int start, int size,
+                                       TopFieldGroups[] shardHits, boolean setShardIndex) {
+        String groupField = shardHits[0].field;
         for (int i = 1; i < shardHits.length; i++) {
-            if (collapseField.equals(shardHits[i].field) == false) {
-                throw new IllegalArgumentException("collapse field differ across shards [" +
-                    collapseField + "] != [" + shardHits[i].field + "]");
+            if (groupField.equals(shardHits[i].field) == false) {
+                throw new IllegalArgumentException("group field differ across shards [" +
+                    groupField + "] != [" + shardHits[i].field + "]");
             }
         }
         final PriorityQueue<ShardRef> queue = new MergeSortQueue(sort, shardHits);
@@ -167,7 +167,7 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
         int availHitCount = 0;
         TotalHits.Relation totalHitsRelation = TotalHits.Relation.EQUAL_TO;
         for(int shardIDX=0;shardIDX<shardHits.length;shardIDX++) {
-            final CollapseTopFieldDocs shard = shardHits[shardIDX];
+            final TopFieldGroups shard = shardHits[shardIDX];
             // totalHits can be non-zero even if no hits were
             // collected, when searchAfter was used:
             totalHitCount += shard.totalHits.value;
@@ -189,7 +189,7 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
             values = new Object[0];
         } else {
             List<ScoreDoc> hitList = new ArrayList<>();
-            List<Object> collapseList = new ArrayList<>();
+            List<Object> groupList = new ArrayList<>();
             int requestedResultWindow = start + size;
             int numIterOnHits = Math.min(availHitCount, requestedResultWindow);
             int hitUpto = 0;
@@ -200,8 +200,8 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
                 }
                 ShardRef ref = queue.top();
                 final ScoreDoc hit = shardHits[ref.shardIndex].scoreDocs[ref.hitIndex];
-                final Object collapseValue = shardHits[ref.shardIndex].collapseValues[ref.hitIndex++];
-                if (seen.contains(collapseValue)) {
+                final Object groupValue = shardHits[ref.shardIndex].groupValues[ref.hitIndex++];
+                if (seen.contains(groupValue)) {
                     if (ref.hitIndex < shardHits[ref.shardIndex].scoreDocs.length) {
                         queue.updateTop();
                     } else {
@@ -209,13 +209,13 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
                     }
                     continue;
                 }
-                seen.add(collapseValue);
+                seen.add(groupValue);
                 if (setShardIndex) {
                     hit.shardIndex = ref.shardIndex;
                 }
                 if (hitUpto >= start) {
                     hitList.add(hit);
-                    collapseList.add(collapseValue);
+                    groupList.add(groupValue);
                 }
 
                 hitUpto++;
@@ -228,9 +228,9 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
                 }
             }
             hits = hitList.toArray(new ScoreDoc[0]);
-            values = collapseList.toArray(new Object[0]);
+            values = groupList.toArray(new Object[0]);
         }
         TotalHits totalHits = new TotalHits(totalHitCount, totalHitsRelation);
-        return new CollapseTopFieldDocs(collapseField, totalHits, hits, sort.getSort(), values);
+        return new TopFieldGroups(groupField, totalHits, hits, sort.getSort(), values);
     }
 }

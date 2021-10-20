@@ -21,6 +21,7 @@ import java.util.Objects;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.sql.proto.Protocol.BINARY_FORMAT_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.CATALOG_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.CLIENT_ID_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.COLUMNAR_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.CURSOR_NAME;
@@ -48,6 +49,7 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     private final String cursor;
     private final String query;
     private final ZoneId zoneId;
+    private final String catalog;
     private final int fetchSize;
     private final TimeValue requestTimeout;
     private final TimeValue pageTimeout;
@@ -65,7 +67,7 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     private final boolean keepOnCompletion;
     private final TimeValue keepAlive;
 
-    public SqlQueryRequest(String query, List<SqlTypedParamValue> params, ZoneId zoneId, int fetchSize,
+    public SqlQueryRequest(String query, List<SqlTypedParamValue> params, ZoneId zoneId, String catalog, int fetchSize,
                            TimeValue requestTimeout, TimeValue pageTimeout, ToXContent filter, Boolean columnar,
                            String cursor, RequestInfo requestInfo, boolean fieldMultiValueLeniency, boolean indexIncludeFrozen,
                            Boolean binaryCommunication, Map<String, Object> runtimeMappings, TimeValue waitForCompletionTimeout,
@@ -74,6 +76,7 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         this.query = query;
         this.params = params;
         this.zoneId = zoneId;
+        this.catalog = catalog;
         this.fetchSize = fetchSize;
         this.requestTimeout = requestTimeout;
         this.pageTimeout = pageTimeout;
@@ -89,17 +92,17 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         this.keepAlive = keepAlive;
     }
 
-    public SqlQueryRequest(String query, List<SqlTypedParamValue> params, ZoneId zoneId, int fetchSize,
+    public SqlQueryRequest(String query, List<SqlTypedParamValue> params, ZoneId zoneId, String catalog, int fetchSize,
                            TimeValue requestTimeout, TimeValue pageTimeout, ToXContent filter, Boolean columnar,
                            String cursor, RequestInfo requestInfo, boolean fieldMultiValueLeniency, boolean indexIncludeFrozen,
                            Boolean binaryCommunication, Map<String, Object> runtimeMappings) {
-        this(query, params, zoneId, fetchSize, requestTimeout, pageTimeout, filter, columnar, cursor, requestInfo, fieldMultiValueLeniency,
-            indexIncludeFrozen, binaryCommunication, runtimeMappings, Protocol.DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT,
-            Protocol.DEFAULT_KEEP_ON_COMPLETION, Protocol.DEFAULT_KEEP_ALIVE);
+        this(query, params, zoneId, catalog, fetchSize, requestTimeout, pageTimeout, filter, columnar, cursor, requestInfo,
+            fieldMultiValueLeniency, indexIncludeFrozen, binaryCommunication, runtimeMappings,
+            Protocol.DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT, Protocol.DEFAULT_KEEP_ON_COMPLETION, Protocol.DEFAULT_KEEP_ALIVE);
     }
     public SqlQueryRequest(String cursor, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo,
                            boolean binaryCommunication) {
-        this("", emptyList(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE, requestTimeout, pageTimeout, null, false,
+        this("", emptyList(), Protocol.TIME_ZONE, null, Protocol.FETCH_SIZE, requestTimeout, pageTimeout, null, false,
                 cursor, requestInfo, Protocol.FIELD_MULTI_VALUE_LENIENCY, Protocol.INDEX_INCLUDE_FROZEN, binaryCommunication, emptyMap());
     }
 
@@ -130,6 +133,10 @@ public class SqlQueryRequest extends AbstractSqlRequest {
      */
     public ZoneId zoneId() {
         return zoneId;
+    }
+
+    public String catalog() {
+        return catalog;
     }
 
 
@@ -213,6 +220,7 @@ public class SqlQueryRequest extends AbstractSqlRequest {
                 && Objects.equals(query, that.query)
                 && Objects.equals(params, that.params)
                 && Objects.equals(zoneId, that.zoneId)
+                && Objects.equals(catalog, that.catalog)
                 && Objects.equals(requestTimeout, that.requestTimeout)
                 && Objects.equals(pageTimeout, that.pageTimeout)
                 && Objects.equals(filter, that.filter)
@@ -229,7 +237,7 @@ public class SqlQueryRequest extends AbstractSqlRequest {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), query, zoneId, fetchSize, requestTimeout, pageTimeout,
+        return Objects.hash(super.hashCode(), query, zoneId, catalog, fetchSize, requestTimeout, pageTimeout,
                 filter, columnar, cursor, fieldMultiValueLeniency, indexIncludeFrozen, binaryCommunication, runtimeMappings,
                 waitForCompletionTimeout, keepOnCompletion, keepAlive);
     }
@@ -255,6 +263,9 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         }
         if (zoneId != null) {
             builder.field(TIME_ZONE_NAME, zoneId.getId());
+        }
+        if (catalog != null) {
+            builder.field(CATALOG_NAME, catalog);
         }
         if (fetchSize != Protocol.FETCH_SIZE) {
             builder.field(FETCH_SIZE_NAME, fetchSize);

@@ -98,6 +98,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure{ task ->
   task.skipTest("vectors/50_vector_stats/Usage stats on vector fields", "not supported for compatibility")
   task.skipTest("roles/30_prohibited_role_query/Test use prohibited query inside role query", "put role request with a term lookup (deprecated) and type. Requires validation in REST layer")
   task.skipTest("ml/jobs_crud/Test create job with delimited format", "removing undocumented functionality")
+  task.skipTest("ml/jobs_get_stats/Test get job stats after uploading data prompting the creation of some stats", "https://github.com/elastic/elasticsearch/issues/79518")
   task.skipTest("ml/datafeeds_crud/Test update datafeed to point to missing job", "behaviour change #44752 - not allowing to update datafeed job_id")
   task.skipTest("ml/datafeeds_crud/Test update datafeed to point to different job", "behaviour change #44752 - not allowing to update datafeed job_id")
   task.skipTest("ml/datafeeds_crud/Test update datafeed to point to job already attached to another datafeed", "behaviour change #44752 - not allowing to update datafeed job_id")

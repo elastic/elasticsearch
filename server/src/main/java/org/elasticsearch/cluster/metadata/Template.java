@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -27,6 +28,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -47,8 +49,18 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
 
     static {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Settings.fromXContent(p), SETTINGS);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) ->
-            new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(p.mapOrdered()))), MAPPINGS);
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
+            XContentParser.Token token = p.currentToken();
+            if (token == XContentParser.Token.VALUE_STRING) {
+                return new CompressedXContent(Base64.getDecoder().decode(p.text()));
+            } else if(token == XContentParser.Token.VALUE_EMBEDDED_OBJECT){
+                return new CompressedXContent(p.binaryValue());
+            } else if (token == XContentParser.Token.START_OBJECT){
+                return new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(p.mapOrdered())));
+            } else {
+                throw new IllegalArgumentException("Unexpected token: " + token);
+            }
+        }, MAPPINGS, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             Map<String, AliasMetadata> aliasMap = new HashMap<>();
             while ((p.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -160,11 +172,17 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
             builder.endObject();
         }
         if (this.mappings != null) {
-            Map<String, Object> uncompressedMapping =
-                XContentHelper.convertToMap(this.mappings.uncompressed(), true, XContentType.JSON).v2();
-            if (uncompressedMapping.size() > 0) {
-                builder.field(MAPPINGS.getPreferredName());
-                builder.map(reduceMapping(uncompressedMapping));
+            String context = params.param(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API);
+            boolean binary = params.paramAsBoolean("binary", false);
+            if (Metadata.CONTEXT_MODE_API.equals(context) || binary == false) {
+                Map<String, Object> uncompressedMapping =
+                    XContentHelper.convertToMap(this.mappings.uncompressed(), true, XContentType.JSON).v2();
+                if (uncompressedMapping.size() > 0) {
+                    builder.field(MAPPINGS.getPreferredName());
+                    builder.map(reduceMapping(uncompressedMapping));
+                }
+            } else {
+                builder.field(MAPPINGS.getPreferredName(), mappings.compressed());
             }
         }
         if (this.aliases != null) {

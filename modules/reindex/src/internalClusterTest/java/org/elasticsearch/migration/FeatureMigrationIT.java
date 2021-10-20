@@ -227,15 +227,17 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         String indexName = Optional.ofNullable(descriptor.getPrimaryIndex()).orElse(descriptor.getIndexPattern().replace("*", "old"));
         CreateIndexRequestBuilder createRequest = prepareCreate(indexName);
         createRequest.setWaitForActiveShards(ActiveShardCount.ALL);
-        if (descriptor.getSettings() != null) {
-            createRequest.setSettings(Settings.builder().put("index.version.created", Version.CURRENT).build());
-        } else {
+        if (SystemIndexDescriptor.DEFAULT_SETTINGS.equals(descriptor.getSettings())) {
+            // unmanaged
             createRequest.setSettings(
                 createSimpleSettings(
                     Version.V_7_0_0,
                     descriptor.isInternal() ? INTERNAL_UNMANAGED_FLAG_VALUE : EXTERNAL_UNMANAGED_FLAG_VALUE
                 )
             );
+        } else {
+            // managed
+            createRequest.setSettings(Settings.builder().put("index.version.created", Version.CURRENT).build());
         }
         if (descriptor.getMappings() == null) {
             createRequest.setMapping(createSimpleMapping(false, descriptor.isInternal()));
@@ -247,7 +249,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         for (int i = 0; i < INDEX_DOC_COUNT; i++) {
             docs.add(client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("some_field", "words words"));
         }
-        indexRandom(true, docs);
+        indexRandom(true, false, docs);
         IndicesStatsResponse indexStats = client().admin().indices().prepareStats(indexName).setDocs(true).get();
         assertThat(indexStats.getIndex(indexName).getTotal().getDocs().getCount(), is((long) INDEX_DOC_COUNT));
     }

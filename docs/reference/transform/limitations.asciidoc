@@ -283,5 +283,5 @@ The {transforms} management page in {kib} lists up to 1000 {transforms}.
 === {kib} might not support every {transform} configuration option
 
 There might be configuration options available via the {transform} APIs that are 
-not supported in {kib}. For an exhoustive list of configuration options, refer 
+not supported in {kib}. For an exhaustive list of configuration options, refer 
 to the <<transform-apis,documentation>>.

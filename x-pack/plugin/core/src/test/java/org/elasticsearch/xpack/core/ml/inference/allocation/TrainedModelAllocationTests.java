@@ -13,9 +13,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentTaskParamsTests;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,9 +32,7 @@ import static org.hamcrest.Matchers.is;
 public class TrainedModelAllocationTests extends AbstractSerializingTestCase<TrainedModelAllocation> {
 
     public static TrainedModelAllocation randomInstance() {
-        TrainedModelAllocation.Builder builder = TrainedModelAllocation.Builder.empty(
-            new StartTrainedModelDeploymentAction.TaskParams(randomAlphaOfLength(10), randomNonNegativeLong(), 1, 1)
-        );
+        TrainedModelAllocation.Builder builder = TrainedModelAllocation.Builder.empty(randomParams());
         List<String> nodes = Stream.generate(() -> randomAlphaOfLength(10)).limit(randomInt(5)).collect(Collectors.toList());
         for (String node : nodes) {
             if (randomBoolean()) {
@@ -249,7 +248,7 @@ public class TrainedModelAllocationTests extends AbstractSerializingTestCase<Tra
     }
 
     private static StartTrainedModelDeploymentAction.TaskParams randomParams() {
-        return new StartTrainedModelDeploymentAction.TaskParams(randomAlphaOfLength(10), randomNonNegativeLong(), 1, 1);
+        return StartTrainedModelDeploymentTaskParamsTests.createRandom();
     }
 
     private static void assertUnchanged(

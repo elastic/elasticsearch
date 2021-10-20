@@ -392,7 +392,11 @@ public class DeploymentManager {
             this.task = Objects.requireNonNull(task);
             resultProcessor = new PyTorchResultProcessor(task.getModelId());
             this.stateStreamer = new PyTorchStateStreamer(client, executorService, xContentRegistry);
-            this.executorService = new ProcessWorkerExecutorService(threadPool.getThreadContext(), "pytorch_inference", 1024);
+            this.executorService = new ProcessWorkerExecutorService(
+                threadPool.getThreadContext(),
+                "pytorch_inference",
+                task.getParams().getQueueCapacity()
+            );
         }
 
         PyTorchResultProcessor getResultProcessor() {

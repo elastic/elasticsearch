@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.snapshots;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -407,6 +409,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
+    @Repeat(iterations = 100)
     public void testGetSnapshotsWithSnapshotInProgress() throws Exception {
         createRepository("test-repo", "mock", Settings.builder().put("location", randomRepoPath()).put("block_on_data", true));
 
@@ -427,14 +430,10 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             if (snapshots.size() != 1) {
                 return false;
             }
-            SnapshotsInProgress.Entry entry = snapshotsInProgress.snapshot(snapshots.iterator().next());
-            List<SnapshotsInProgress.ShardState> statuses = entry.shards()
-                .stream()
-                .map(e -> e.getValue().state())
-                .collect(Collectors.toList());
-            return statuses.size() > 1
-                && statuses.stream().filter(s -> s == SnapshotsInProgress.ShardState.SUCCESS).count() == statuses.size() - 1
-                && statuses.stream().filter(s -> s == SnapshotsInProgress.ShardState.INIT).count() == 1;
+            var shards = snapshotsInProgress.snapshot(snapshots.iterator().next()).shards();
+            long initShards = shards.stream().filter(e -> e.getValue().state() == SnapshotsInProgress.ShardState.INIT).count();
+            long successShards = shards.stream().filter(e -> e.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS).count();
+            return successShards == shards.size() - 1 && initShards == 1;
         });
 
         GetSnapshotsResponse response1 = client().admin()

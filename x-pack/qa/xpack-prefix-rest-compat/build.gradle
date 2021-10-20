@@ -15,30 +15,23 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 /**
  * This project exists to test the _xpack prefix for REST compatibility. The _xpack prefix was removed from the specification, but still supported
- * in 7.x. This project re-introduces the _xpack prefix in the specification only for compatibility testing purposes.
+ * in 7.x. This project re-introduces the _xpack prefix in the specification but only for compatibility testing purposes.
  */
 
 configurations {
-  compatApiSpec
   compatXpackTests
 }
 
+int compatVersion = VersionProperties.getElasticsearchVersion().getMajor() - 1;
+
 dependencies {
-  testImplementation project(xpackModule('core'))
-  testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation project(':test:framework')
-  testImplementation(testArtifact(xpackProject('plugin')))
-  compatApiSpec project(path: ':rest-api-spec', configuration: 'restCompatSpecs')
-  compatApiSpec project(path: ':x-pack:plugin', configuration: 'restCompatSpecs')
+  "yamlRestTestV${compatVersion}CompatImplementation" project(':test:framework')
+  "yamlRestTestV${compatVersion}CompatImplementation"(testArtifact(xpackProject('plugin')))
   compatXpackTests project(path: ':x-pack:plugin', configuration: 'restCompatTests')
 }
 
-// let the the compatible yaml REST tests see the classpath of test (needed to see AbstractXPackRestTest)
-int compatVersion = VersionProperties.getElasticsearchVersion().getMajor() - 1;
-GradleUtils.extendSourceSet(project, "test", "yamlRestTestV${compatVersion}Compat")
 
-
-// copy the transformed compatible rest tests from the x-pack compatible tests
+// copy the already transformed compatible rest tests from the x-pack compatible tests
 Provider<CopyRestTestsTask> copyXpackRestCompatTestTask = project.getTasks()
   .register("copyXpackRestCompatTestTask", CopyRestTestsTask.class, task -> {
     task.dependsOn(configurations.compatXpackTests);
@@ -50,7 +43,6 @@ Provider<CopyRestTestsTask> copyXpackRestCompatTestTask = project.getTasks()
         config.getSingleFile().toPath()
       )
     )
-task.dependsOn()
   })
 
 // location for keys and certificates
@@ -80,8 +72,7 @@ tasks.named("processYamlRestTestV${compatVersion}CompatResources").configure {
   dependsOn("copyExtraResources")
 }
 
-
-// ensure we run the transformation after our custom copy
+// ensure we run this transformation after our custom copy
 tasks.named("yamlRestTestV${compatVersion}CompatTransform").configure( t -> {
   t.dependsOn(copyXpackRestCompatTestTask)
 })
@@ -118,9 +109,7 @@ testClusters.configureEach {
   }
 }
 
-
-
-// transform the transformed x-pack compatibility tests
+// transform (again) the (already) transformed x-pack compatibility tests to test the xpack prefixes
 tasks.named("yamlRestTestV7CompatTransform").configure{ task ->
 
   task.replaceKeyInDo("license.delete", "xpack-license.delete")

@@ -38,7 +38,7 @@ import java.util.stream.Collectors;
  */
 public class FeatureMigrationResults implements Metadata.Custom {
     public static final String TYPE = "system_index_migration";
-    private static final Version MIGRATION_ADDED_VERSION = Version.V_8_0_0;
+    public static final Version MIGRATION_ADDED_VERSION = Version.V_8_0_0;
 
     private static final ParseField RESULTS_FIELD = new ParseField("results");
 

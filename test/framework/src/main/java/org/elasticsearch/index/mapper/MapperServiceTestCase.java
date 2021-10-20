@@ -536,9 +536,28 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
     protected SearchExecutionContext createSearchExecutionContext(MapperService mapperService) {
         final SimilarityService similarityService = new SimilarityService(mapperService.getIndexSettings(), null, Map.of());
-        return new SearchExecutionContext(0, 1, mapperService.getIndexSettings(), null, null, mapperService,
-            mapperService.mappingLookup(), similarityService, null, xContentRegistry(), writableRegistry(),
-            null, null, () -> 0L, null, null, () -> true, null, Collections.emptyMap());
+        final long nowInMillis = randomNonNegativeLong();
+        return new SearchExecutionContext(
+            0,
+            0,
+            mapperService.getIndexSettings(),
+            null,
+            (ft, idxName, lookup) -> ft.fielddataBuilder(idxName, lookup).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
+            mapperService,
+            mapperService.mappingLookup(),
+            similarityService,
+            null,
+            xContentRegistry(),
+            writableRegistry(),
+            null,
+            null,
+            () -> nowInMillis,
+            null,
+            null,
+            () -> true,
+            null,
+            Collections.emptyMap()
+        );
     }
 
     protected BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup() {

@@ -28,8 +28,6 @@ public class NerConfig implements NlpConfig {
 
     public static final String NAME = "ner";
 
-    public static NerConfig EMPTY_PARAMS = new NerConfig(null, null, null, null);
-
     public static NerConfig fromXContentStrict(XContentParser parser) {
         return STRICT_PARSER.apply(parser, null);
     }

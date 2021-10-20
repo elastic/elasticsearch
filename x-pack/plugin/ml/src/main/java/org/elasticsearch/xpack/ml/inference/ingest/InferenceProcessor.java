@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
@@ -368,25 +369,25 @@ public class InferenceProcessor extends AbstractProcessor {
                 checkSupportedVersion(ClassificationConfig.EMPTY_PARAMS);
                 return ClassificationConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(FillMaskConfig.NAME)) {
-                checkSupportedVersion(FillMaskConfig.EMPTY_PARAMS);
+                checkNlpSupported(FillMaskConfig.NAME);
                 return FillMaskConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(NerConfig.NAME)) {
-                checkSupportedVersion(NerConfig.EMPTY_PARAMS);
+                checkNlpSupported(NerConfig.NAME);
                 return NerConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(PassThroughConfig.NAME)) {
-                checkSupportedVersion(PassThroughConfig.EMPTY_PARAMS);
+                checkNlpSupported(PassThroughConfig.NAME);
                 return PassThroughConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(RegressionConfig.NAME.getPreferredName())) {
                 checkSupportedVersion(RegressionConfig.EMPTY_PARAMS);
                 return RegressionConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(TextClassificationConfig.NAME)) {
-                checkSupportedVersion(TextClassificationConfig.EMPTY_PARAMS);
+                checkNlpSupported(TextClassificationConfig.NAME);
                 return TextClassificationConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(TextEmbeddingConfig.NAME)) {
-                checkSupportedVersion(TextEmbeddingConfig.EMPTY_PARAMS);
+                checkNlpSupported(TextEmbeddingConfig.NAME);
                 return TextEmbeddingConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(ZeroShotClassificationConfig.NAME)) {
-                checkSupportedVersion(ZeroShotClassificationConfig.EMPTY_PARAMS);
+                checkNlpSupported(ZeroShotClassificationConfig.NAME);
                 return ZeroShotClassificationConfigUpdate.fromMap(valueMap);
             }
             // TODO missing update types
@@ -394,6 +395,15 @@ public class InferenceProcessor extends AbstractProcessor {
                 throw ExceptionsHelper.badRequestException("unrecognized inference configuration type {}. Supported types {}",
                     configMap.keySet(),
                     Arrays.asList(ClassificationConfig.NAME.getPreferredName(), RegressionConfig.NAME.getPreferredName()));
+            }
+        }
+
+        void checkNlpSupported(String taskType) {
+            if (NlpConfig.MINIMUM_NLP_SUPPORTED_VERSION.after(minNodeVersion)) {
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INFERENCE_CONFIG_NOT_SUPPORTED_ON_VERSION,
+                    taskType,
+                    NlpConfig.MINIMUM_NLP_SUPPORTED_VERSION,
+                    minNodeVersion));
             }
         }
 

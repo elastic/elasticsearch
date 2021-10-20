@@ -26,8 +26,6 @@ public class TextEmbeddingConfig implements NlpConfig {
 
     public static final String NAME = "text_embedding";
 
-    public static TextEmbeddingConfig EMPTY_PARAMS = new TextEmbeddingConfig(null, null, null);
-
     public static TextEmbeddingConfig fromXContentStrict(XContentParser parser) {
         return STRICT_PARSER.apply(parser, null);
     }

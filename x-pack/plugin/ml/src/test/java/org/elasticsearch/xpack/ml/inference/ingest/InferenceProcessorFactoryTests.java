@@ -231,6 +231,30 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             equalTo("Configuration [classification] requires minimum node version [7.6.0] (current minimum node version [7.5.0]"));
     }
 
+    public void testCreateProcessorWithTooOldMinNodeVersionNlp() throws IOException {
+        InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
+            clusterService,
+            Settings.EMPTY);
+        processorFactory.accept(builderClusterStateWithModelReferences(Version.V_7_5_0, "model1"));
+
+        for (String name : List.of(
+            FillMaskConfig.NAME,
+            NerConfig.NAME,
+            PassThroughConfig.NAME,
+            TextClassificationConfig.NAME,
+            TextEmbeddingConfig.NAME,
+            ZeroShotClassificationConfig.NAME
+        )) {
+            ElasticsearchException ex = expectThrows(
+                ElasticsearchException.class,
+                () -> processorFactory.inferenceConfigUpdateFromMap(Map.of(name, Map.of()))
+            );
+            assertThat(
+                ex.getMessage(),
+                equalTo("Configuration [" + name +"] requires minimum node version [8.0.0] (current minimum node version [7.5.0]"));
+        }
+    }
+
     public void testCreateProcessorWithEmptyConfigNotSupportedOnOldNode() throws IOException {
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
             clusterService,

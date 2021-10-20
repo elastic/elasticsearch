@@ -27,14 +27,6 @@ public class TextClassificationConfig implements NlpConfig {
 
     public static final String NAME = "text_classification";
 
-    public static final TextClassificationConfig EMPTY_PARAMS = new TextClassificationConfig(
-        null,
-        null,
-        List.of("meeting", "requirements"),
-        null,
-        null
-    );
-
     public static TextClassificationConfig fromXContentStrict(XContentParser parser) {
         return STRICT_PARSER.apply(parser, null).build();
     }

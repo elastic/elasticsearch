@@ -149,6 +149,9 @@ public class StatsCollectorTests extends BaseCollectorTestCase {
         assertThat(document.getType(), is(AutoFollowStatsMonitoringDoc.TYPE));
         assertThat(document.getId(), nullValue());
         assertThat(document.stats(), is(autoFollowStats));
+
+        assertWarnings("[xpack.monitoring.collection.ccr.stats.timeout] setting was deprecated in Elasticsearch and will be removed in " +
+            "a future release! See the breaking changes documentation for the next major version.");
     }
 
     private List<FollowStatsAction.StatsResponse> mockStatuses() {

@@ -11,6 +11,7 @@ public final class AuthenticationField {
     public static final String AUTHENTICATION_KEY = "_xpack_security_authentication";
     public static final String PRIVILEGE_CATEGORY_KEY = "_security_privilege_category";
     public static final String PRIVILEGE_CATEGORY_VALUE_OPERATOR = "operator";
+    public static final String PRIVILEGE_CATEGORY_VALUE_EMPTY = "__empty";
 
     private AuthenticationField() {}
 }

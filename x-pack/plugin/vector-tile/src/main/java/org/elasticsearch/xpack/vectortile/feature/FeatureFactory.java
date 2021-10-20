@@ -56,13 +56,19 @@ public class FeatureFactory {
     private final CoordinateSequenceFilter sequenceFilter;
     // pixel precision of the tile in the mercator projection.
     private final double pixelPrecision;
+    // size of the buffer in pixels for the clip envelope. we choose a values that makes sure
+    // we have values outside the tile for polygon crossing the tile so the outline of the
+    // tile is not part of the final result.
+    // TODO: consider exposing this parameter so users have control of the buffer's size.
+    private static final int BUFFER_SIZE_PIXELS = 5;
 
     public FeatureFactory(int z, int x, int y, int extent) {
         this.pixelPrecision = 2 * SphericalMercatorUtils.MERCATOR_BOUNDS / ((1L << z) * extent);
         final Rectangle r = SphericalMercatorUtils.recToSphericalMercator(GeoTileUtils.toBoundingBox(x, y, z));
         final Envelope tileEnvelope = new Envelope(r.getMinX(), r.getMaxX(), r.getMinY(), r.getMaxY());
         final Envelope clipEnvelope = new Envelope(tileEnvelope);
-        clipEnvelope.expandBy(this.pixelPrecision, this.pixelPrecision);
+        // expand enough the clip envelope to prevent visual artefacts
+        clipEnvelope.expandBy(BUFFER_SIZE_PIXELS * this.pixelPrecision, BUFFER_SIZE_PIXELS * this.pixelPrecision);
         final GeometryFactory geomFactory = new GeometryFactory();
         this.builder = new JTSGeometryBuilder(geomFactory);
         this.clipTile = geomFactory.toGeometry(clipEnvelope);

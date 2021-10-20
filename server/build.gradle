@@ -6,6 +6,8 @@
  * Side Public License, v 1.
  */
 
+import org.elasticsearch.gradle.internal.info.BuildParams
+
 apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.optional-base'
 apply plugin: 'elasticsearch.publish'
@@ -125,6 +127,12 @@ def generatePluginsList = tasks.register("generatePluginsList") {
 
 tasks.named("processResources").configure {
     dependsOn generateModulesList, generatePluginsList
+}
+
+if (BuildParams.isSnapshotBuild() == false) {
+    tasks.named("test").configure {
+        systemProperty 'es.index_mode_feature_flag_registered', 'true'
+    }
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -249,9 +257,6 @@ tasks.named('splitPackagesAudit').configure {
   ignoreClasses 'org.apache.lucene.queries.BinaryDocValuesRangeQuery',
     'org.apache.lucene.queries.BlendedTermQuery',
     'org.apache.lucene.queries.SpanMatchNoDocsQuery',
-    'org.apache.lucene.search.grouping.CollapseTopFieldDocs',
-    'org.apache.lucene.search.grouping.CollapsingDocValuesSource',
-    'org.apache.lucene.search.grouping.CollapsingTopDocsCollector',
     'org.apache.lucene.search.vectorhighlight.CustomFieldQuery',
 
     // These are tricky because Lucene itself splits the index package,

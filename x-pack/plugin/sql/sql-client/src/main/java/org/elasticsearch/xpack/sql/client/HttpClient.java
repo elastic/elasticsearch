@@ -66,7 +66,7 @@ public class HttpClient {
     public SqlQueryResponse basicQuery(String query, int fetchSize) throws SQLException {
         // TODO allow customizing the time zone - this is what session set/reset/get should be about
         // method called only from CLI
-        SqlQueryRequest sqlRequest = new SqlQueryRequest(query, emptyList(), Protocol.TIME_ZONE,
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(query, emptyList(), Protocol.TIME_ZONE, null,
                 fetchSize,
                 TimeValue.timeValueMillis(cfg.queryTimeout()),
                 TimeValue.timeValueMillis(cfg.pageTimeout()),

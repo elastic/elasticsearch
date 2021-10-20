@@ -9,6 +9,7 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -17,8 +18,11 @@ import java.io.IOException;
  * Repository conflict exception
  */
 public class RepositoryConflictException extends RepositoryException {
-    public RepositoryConflictException(String repository, String message) {
+    private final String backwardCompatibleMessage;
+
+    public RepositoryConflictException(String repository, String message, String backwardCompatibleMessage) {
         super(repository, message);
+        this.backwardCompatibleMessage = backwardCompatibleMessage;
     }
 
     @Override
@@ -26,7 +30,18 @@ public class RepositoryConflictException extends RepositoryException {
         return RestStatus.CONFLICT;
     }
 
+    public String getBackwardCompatibleMessage() {
+        return backwardCompatibleMessage;
+    }
+
     public RepositoryConflictException(StreamInput in) throws IOException {
         super(in);
+        this.backwardCompatibleMessage = in.readString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(backwardCompatibleMessage);
     }
 }

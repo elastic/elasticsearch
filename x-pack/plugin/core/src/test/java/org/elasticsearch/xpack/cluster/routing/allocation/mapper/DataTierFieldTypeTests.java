@@ -95,7 +95,7 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
         assertEquals(singletonList("data_warm"), valueFetcher.fetchValues(lookup, ignoredValues));
 
         ValueFetcher emptyValueFetcher = ft.valueFetcher(createContextWithoutSetting(), null);
-        assertTrue(emptyValueFetcher.fetchValues(lookup, ignoredValues).isEmpty());
+        assertEquals(singletonList("data_content"), emptyValueFetcher.fetchValues(lookup, ignoredValues));
     }
 
     private SearchExecutionContext createContext() {

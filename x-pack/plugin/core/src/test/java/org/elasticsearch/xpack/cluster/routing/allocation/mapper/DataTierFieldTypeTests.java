@@ -74,7 +74,7 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
     public void testExistsQuery() {
         MappedFieldType ft = DataTierFieldMapper.DataTierFieldType.INSTANCE;
         assertEquals(new MatchAllDocsQuery(), ft.existsQuery(createContext()));
-        assertEquals(new MatchNoDocsQuery(), ft.existsQuery(createContextWithoutSetting()));
+        assertEquals(new MatchAllDocsQuery(), ft.existsQuery(createContextWithoutSetting()));
     }
 
     public void testRegexpQuery() {

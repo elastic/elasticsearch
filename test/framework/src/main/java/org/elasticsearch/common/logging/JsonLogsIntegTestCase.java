@@ -9,7 +9,7 @@
 package org.elasticsearch.common.logging;
 
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.BufferedReader;

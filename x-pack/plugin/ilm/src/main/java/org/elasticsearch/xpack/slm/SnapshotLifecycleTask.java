@@ -22,9 +22,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -48,7 +48,7 @@ import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK
 
 public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
-    private static Logger logger = LogManager.getLogger(SnapshotLifecycleTask.class);
+    private static final Logger logger = LogManager.getLogger(SnapshotLifecycleTask.class);
 
     private final Client client;
     private final ClusterService clusterService;

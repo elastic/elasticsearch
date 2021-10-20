@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -59,7 +60,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     };
 
     public static MockAllocationService createAllocationService() {
-        return createAllocationService(Settings.Builder.EMPTY_SETTINGS);
+        return createAllocationService(Settings.EMPTY);
     }
 
     public static MockAllocationService createAllocationService(Settings settings) {
@@ -128,12 +129,16 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
     }
 
+    protected static DiscoveryNode newNode(String nodeName, String nodeId, Set<DiscoveryNodeRole> roles) {
+        return new DiscoveryNode(nodeName, nodeId, buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
+    }
+
     protected static DiscoveryNode newNode(String nodeId, Version version) {
         return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(), MASTER_DATA_ROLES, version);
     }
 
     protected  static ClusterState startRandomInitializingShard(ClusterState clusterState, AllocationService strategy) {
-        List<ShardRouting> initializingShards = clusterState.getRoutingNodes().shardsWithState(INITIALIZING);
+        List<ShardRouting> initializingShards = RoutingNodesHelper.shardsWithState(clusterState.getRoutingNodes(), INITIALIZING);
         if (initializingShards.isEmpty()) {
             return clusterState;
         }
@@ -173,8 +178,8 @@ public abstract class ESAllocationTestCase extends ESTestCase {
      *
      * @return the cluster state after completing the reroute.
      */
-    public static ClusterState startInitializingShardsAndReroute(AllocationService allocationService, ClusterState clusterState) {
-        return startShardsAndReroute(allocationService, clusterState, clusterState.routingTable().shardsWithState(INITIALIZING));
+    public static ClusterState startInitializingShardsAndReroute(AllocationService allocationService, ClusterState state) {
+        return startShardsAndReroute(allocationService, state, RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), INITIALIZING));
     }
 
     /**

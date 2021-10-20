@@ -17,12 +17,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -121,26 +121,14 @@ public class TemplateUtils {
      * Checks if a versioned template exists, and if it exists checks if the version is greater than or equal to the current version.
      * @param templateName Name of the index template
      * @param state Cluster state
-     * @param versionComposableTemplateExpected In which version of Elasticsearch did this template switch to being a composable template?
-     *                                          <code>null</code> means the template hasn't been switched yet.
      */
-    public static boolean checkTemplateExistsAndVersionIsGTECurrentVersion(String templateName, ClusterState state,
-                                                                           Version versionComposableTemplateExpected) {
-        if (versionComposableTemplateExpected != null && state.nodes().getMinNodeVersion().onOrAfter(versionComposableTemplateExpected)) {
-            ComposableIndexTemplate templateMetadata = state.metadata().templatesV2().get(templateName);
-            if (templateMetadata == null) {
-                return false;
-            }
-
-            return templateMetadata.version() != null && templateMetadata.version() >= Version.CURRENT.id;
-        } else {
-            IndexTemplateMetadata templateMetadata = state.metadata().templates().get(templateName);
-            if (templateMetadata == null) {
-                return false;
-            }
-
-            return templateMetadata.version() != null && templateMetadata.version() >= Version.CURRENT.id;
+    public static boolean checkTemplateExistsAndVersionIsGTECurrentVersion(String templateName, ClusterState state) {
+        ComposableIndexTemplate templateMetadata = state.metadata().templatesV2().get(templateName);
+        if (templateMetadata == null) {
+            return false;
         }
+
+        return templateMetadata.version() != null && templateMetadata.version() >= Version.CURRENT.id;
     }
 
     /**

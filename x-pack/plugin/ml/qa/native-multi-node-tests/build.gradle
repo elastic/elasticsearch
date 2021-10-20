@@ -4,9 +4,16 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation(testArtifact(project(xpackModule('ml'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
   javaRestTestImplementation project(path: ':modules:ingest-common')
+  javaRestTestImplementation project(path: ':modules:reindex')
+  javaRestTestImplementation project(path: ':modules:transport-netty4')
+  javaRestTestImplementation project(path: xpackModule('autoscaling'))
   javaRestTestImplementation project(path: xpackModule('data-streams'))
+  javaRestTestImplementation project(path: xpackModule('ilm'))
+  javaRestTestImplementation project(path: xpackModule('monitoring'))
   javaRestTestImplementation project(path: xpackModule('transform'))
+  javaRestTestImplementation project(":client:rest-high-level")
 }
 
 // location for keys and certificates
@@ -33,7 +40,6 @@ testClusters.configureEach {
   testDistribution = 'DEFAULT'
 
   setting 'xpack.security.enabled', 'true'
-  setting 'xpack.monitoring.elasticsearch.collection.enabled', 'false'
   setting 'xpack.ml.enabled', 'true'
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.security.authc.token.enabled', 'true'

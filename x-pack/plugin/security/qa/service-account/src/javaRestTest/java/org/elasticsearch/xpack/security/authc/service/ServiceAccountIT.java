@@ -14,14 +14,14 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
@@ -113,7 +113,17 @@ public class ServiceAccountIT extends ESRestTestCase {
         + "          \"allow_restricted_indices\": true\n"
         + "        }\n"
         + "      ],\n"
-        + "      \"applications\": [],\n"
+        + "      \"applications\": ["
+        + "        {\n"
+        + "          \"application\" : \"kibana-*\",\n"
+        + "          \"privileges\" : [\n"
+        + "            \"reserved_fleet-setup\"\n"
+        + "          ],\n"
+        + "          \"resources\" : [\n"
+        + "            \"*\"\n"
+        + "          ]\n"
+        + "        }"
+        + "      ],\n"
         + "      \"run_as\": [],\n"
         + "      \"metadata\": {},\n"
         + "      \"transient_metadata\": {\n"

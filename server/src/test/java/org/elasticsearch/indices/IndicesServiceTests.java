@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -62,7 +63,6 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.hamcrest.RegexMatcher;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -351,7 +351,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
                                                           .metadata(Metadata.builder(csWithIndex.metadata()).remove(index.getName()))
                                                           .build();
         indicesService.verifyIndexIsDeleted(index, withoutIndex);
-        assertFalse("index files should be deleted", Files.exists(nodeEnv.indexPath(index)));
+        assertFalse("index files should be deleted", FileSystemUtils.exists(nodeEnv.indexPaths(index)));
     }
 
     public void testDanglingIndicesWithAliasConflict() throws Exception {

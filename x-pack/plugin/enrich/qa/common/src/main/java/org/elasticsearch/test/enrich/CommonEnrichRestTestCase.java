@@ -12,9 +12,9 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -210,8 +210,10 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         );
         assertTrue(
             exc.getMessage()
-                .contains("Could not delete policy [my_policy] because" + " a pipeline is referencing it [my_pipeline, another_pipeline]")
+                .contains("Could not delete policy [my_policy] because a pipeline is referencing it [")
         );
+        assertTrue(exc.getMessage().contains("another_pipeline"));
+        assertTrue(exc.getMessage().contains("my_pipeline"));
 
         // delete the pipelines so the policies can be deleted
         client().performRequest(new Request("DELETE", "/_ingest/pipeline/my_pipeline"));

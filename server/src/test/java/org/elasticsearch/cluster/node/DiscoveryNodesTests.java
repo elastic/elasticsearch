@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.node;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
@@ -38,7 +39,7 @@ public class DiscoveryNodesTests extends ESTestCase {
 
     public void testResolveNodeByIdOrName() {
         DiscoveryNodes discoveryNodes = buildDiscoveryNodes();
-        DiscoveryNode[] nodes = discoveryNodes.getNodes().values().toArray(DiscoveryNode.class);
+        DiscoveryNode[] nodes = discoveryNodes.getNodes().values().toArray(DiscoveryNode[]::new);
         DiscoveryNode node = randomFrom(nodes);
         DiscoveryNode resolvedNode = discoveryNodes.resolveNode(randomBoolean() ? node.getId() : node.getName());
         assertThat(resolvedNode.getId(), equalTo(node.getId()));
@@ -82,8 +83,7 @@ public class DiscoveryNodesTests extends ESTestCase {
         assertThat(discoveryNodes.resolveNodes("_all"), arrayContainingInAnyOrder(allNodes));
 
         final String[] nonMasterNodes =
-                StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
-                        .map(n -> n.value)
+                discoveryNodes.getNodes().values().stream()
                         .filter(n -> n.isMasterNode() == false)
                         .map(DiscoveryNode::getId)
                         .toArray(String[]::new);
@@ -96,15 +96,13 @@ public class DiscoveryNodesTests extends ESTestCase {
         final DiscoveryNodes discoveryNodes = buildDiscoveryNodes();
 
         final String[] coordinatorOnlyNodes =
-                StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
-                    .map(n -> n.value)
+                discoveryNodes.getNodes().values().stream()
                     .filter(n -> n.canContainData() == false && n.isIngestNode() == false && n.isMasterNode() == false)
                     .map(DiscoveryNode::getId)
                     .toArray(String[]::new);
 
         final String[] nonCoordinatorOnlyNodes =
-                StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
-                    .map(n -> n.value)
+                discoveryNodes.getNodes().values().stream()
                     .filter(n -> n.isMasterNode() || n.canContainData() || n.isIngestNode())
                     .map(DiscoveryNode::getId)
                     .toArray(String[]::new);
@@ -135,7 +133,7 @@ public class DiscoveryNodesTests extends ESTestCase {
             expectedNodeIdsSet.add(nodeId);
         }
         int numNodeNames = randomIntBetween(0, 3);
-        DiscoveryNode[] nodes = discoveryNodes.getNodes().values().toArray(DiscoveryNode.class);
+        DiscoveryNode[] nodes = discoveryNodes.getNodes().values().toArray(DiscoveryNode[]::new);
         for (int i = 0; i < numNodeNames; i++) {
             DiscoveryNode discoveryNode = randomFrom(nodes);
             nodeSelectors.add(discoveryNode.getName());
@@ -309,52 +307,38 @@ public class DiscoveryNodesTests extends ESTestCase {
         }, MASTER_ELIGIBLE(DiscoveryNodeRole.MASTER_ROLE.roleName() + ":true") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
-                Set<String> ids = new HashSet<>();
-                nodes.getMasterNodes().keysIt().forEachRemaining(ids::add);
-                return ids;
+                return nodes.getMasterNodes().keySet();
             }
         }, DATA(DiscoveryNodeRole.DATA_ROLE.roleName() + ":true") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
-                Set<String> ids = new HashSet<>();
-                nodes.getDataNodes().keysIt().forEachRemaining(ids::add);
-                return ids;
+                return nodes.getDataNodes().keySet();
             }
         }, INGEST(DiscoveryNodeRole.INGEST_ROLE.roleName() + ":true") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
-                Set<String> ids = new HashSet<>();
-                nodes.getIngestNodes().keysIt().forEachRemaining(ids::add);
-                return ids;
+                return nodes.getIngestNodes().keySet();
             }
         }, COORDINATING_ONLY(DiscoveryNode.COORDINATING_ONLY + ":true") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
-                Set<String> ids = new HashSet<>();
-                nodes.getCoordinatingOnlyNodes().keysIt().forEachRemaining(ids::add);
-                return ids;
+                return nodes.getCoordinatingOnlyNodes().keySet();
             }
         }, CUSTOM_ATTRIBUTE("attr:value") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
-                Set<String> ids = new HashSet<>();
-                nodes.getNodes().valuesIt().forEachRemaining(node -> {
-                    if ("value".equals(node.getAttributes().get("attr"))) {
-                        ids.add(node.getId());
-                    }
-                });
-                return ids;
+                return nodes.getNodes().values().stream()
+                    .filter(node -> "value".equals(node.getAttributes().get("attr")))
+                    .map(DiscoveryNode::getId)
+                    .collect(Collectors.toSet());
             }
         }, CUSTOM_ROLE("custom_role:true") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
-                Set<String> ids = new HashSet<>();
-                nodes.getNodes().valuesIt().forEachRemaining(node -> {
-                    if (node.getRoles().stream().anyMatch(role -> role.roleName().equals("custom_role"))) {
-                        ids.add(node.getId());
-                    }
-                });
-                return ids;
+                return nodes.getNodes().values().stream()
+                    .filter(node->node.getRoles().stream().anyMatch(role -> role.roleName().equals("custom_role")))
+                    .map(DiscoveryNode::getId)
+                    .collect(Collectors.toSet());
             }
         };
 

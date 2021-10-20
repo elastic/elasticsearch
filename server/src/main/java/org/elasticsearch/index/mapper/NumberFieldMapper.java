@@ -32,8 +32,8 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
@@ -1038,6 +1038,21 @@ public class NumberFieldMapper extends FieldMapper {
         @Override
         public String typeName() {
             return type.name;
+        }
+
+        /**
+         * This method reinterprets a double precision value based on the maximum precision of the stored number field.  Mostly this
+         * corrects for unrepresentable values which have different approximations when cast from floats than when parsed as doubles.
+         * It may seem strange to convert a double to a double, and it is.  This function's goal is to reduce the precision
+         * on the double in the case that the backing number type would have parsed the value differently.  This is to address
+         * the problem where (e.g.) 0.04F &lt; 0.04D, which causes problems for range aggregations.
+         */
+        public double reduceToStoredPrecision(double value) {
+            if (Double.isInfinite(value)) {
+                // Trying to parse infinite values into ints/longs throws. Understandably.
+                return value;
+            }
+          return type.parse(value, false).doubleValue();
         }
 
         public NumericType numericType() {

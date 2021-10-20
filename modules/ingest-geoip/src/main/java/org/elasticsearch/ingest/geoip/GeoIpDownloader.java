@@ -21,10 +21,10 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -64,6 +64,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
 
     public static final String GEOIP_DOWNLOADER = "geoip-downloader";
     static final String DATABASES_INDEX = ".geoip_databases";
+    static final String DATABASES_INDEX_PATTERN = DATABASES_INDEX + "*";
     static final int MAX_CHUNK_SIZE = 1024 * 1024;
 
     private final Client client;

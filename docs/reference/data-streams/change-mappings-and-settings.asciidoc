@@ -521,7 +521,7 @@ lowers the `indices.lifecycle.poll_interval` setting to `1m` (one minute).
 ----
 PUT /_cluster/settings
 {
-  "transient": {
+  "persistent": {
     "indices.lifecycle.poll_interval": "1m"
   }
 }
@@ -577,7 +577,8 @@ stream's oldest backing index.
       "status": "GREEN",
       "template": "my-data-stream-template",
       "hidden": false,
-      "system": false
+      "system": false,
+      "allow_custom_routing": false
     }
   ]
 }
@@ -657,7 +658,7 @@ The following update cluster settings API request resets the
 ----
 PUT /_cluster/settings
 {
-  "transient": {
+  "persistent": {
     "indices.lifecycle.poll_interval": null
   }
 }

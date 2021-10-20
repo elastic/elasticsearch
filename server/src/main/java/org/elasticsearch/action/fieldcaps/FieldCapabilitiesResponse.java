@@ -12,11 +12,11 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Tuple;
 
@@ -151,11 +151,11 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
             throw new IllegalStateException("cannot serialize non-merged response");
         }
         builder.startObject();
-        builder.field(INDICES_FIELD.getPreferredName(), indices);
+        builder.array(INDICES_FIELD.getPreferredName(), indices);
         builder.field(FIELDS_FIELD.getPreferredName(), responseMap);
         if (this.failures.size() > 0) {
             builder.field(FAILED_INDICES_FIELD.getPreferredName(), getFailedIndices().length);
-            builder.field(FAILURES_FIELD.getPreferredName(), failures);
+            builder.xContentList(FAILURES_FIELD.getPreferredName(), failures);
         }
         builder.endObject();
         return builder;

@@ -9,8 +9,8 @@ package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.MustacheFactory;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;

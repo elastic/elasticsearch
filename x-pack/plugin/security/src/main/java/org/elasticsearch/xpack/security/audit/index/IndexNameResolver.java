@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.security.audit.index;
 
-import org.joda.time.DateTime;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 
 public class IndexNameResolver {
 
@@ -21,7 +21,7 @@ public class IndexNameResolver {
         private final DateTimeFormatter formatter;
 
         Rollover(String format) {
-            this.formatter = DateTimeFormat.forPattern(format);
+            this.formatter = DateTimeFormatter.ofPattern(format, Locale.ROOT);
         }
 
         DateTimeFormatter formatter() {
@@ -31,11 +31,11 @@ public class IndexNameResolver {
 
     private IndexNameResolver() {}
 
-    public static String resolve(DateTime timestamp, Rollover rollover) {
-        return rollover.formatter().print(timestamp);
+    public static String resolve(ZonedDateTime timestamp, Rollover rollover) {
+        return rollover.formatter().format(timestamp);
     }
 
-    public static String resolve(String indexNamePrefix, DateTime timestamp, Rollover rollover) {
+    public static String resolve(String indexNamePrefix, ZonedDateTime timestamp, Rollover rollover) {
         return indexNamePrefix + resolve(timestamp, rollover);
     }
 }

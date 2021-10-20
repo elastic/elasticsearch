@@ -11,10 +11,14 @@ class org.elasticsearch.xpack.unsignedlong.UnsignedLongScriptDocValues {
   long getValue()
 }
 
-
-class org.elasticsearch.script.field.Field {
-    org.elasticsearch.script.field.Converter UnsignedLong @augmented[augmented_canonical_class_name="org.elasticsearch.xpack.unsignedlong.UnsignedLongField"]
+class org.elasticsearch.xpack.unsignedlong.UnsignedLongField @dynamic_type {
+  long getValue(long)
+  long getValue(int, long)
+  List getValues()
+  BigInteger getBigInteger(BigInteger)
+  BigInteger getBigInteger(int, BigInteger)
+  List getBigIntegers()
 }
 
-class org.elasticsearch.xpack.unsignedlong.UnsignedLongField @no_import {
+class org.elasticsearch.xpack.unsignedlong.UnsignedLongDocValuesField @dynamic_type {
 }

@@ -8,7 +8,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -227,6 +229,20 @@ public final class MappingLookup {
         return completionFields.contains(field) ? CompletionFieldMapper.postingsFormat() : null;
     }
 
+    /**
+     * Returns the knn vectors format for a particular field
+     * @param field the field to retrieve a knn vectors format for
+     * @return the knn vectors format for the field, or {@code null} if the default format should be used
+     */
+    public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
+        Mapper fieldMapper = fieldMappers.get(field);
+        if (fieldMapper instanceof PerFieldKnnVectorsFormatFieldMapper) {
+            return ((PerFieldKnnVectorsFormatFieldMapper) fieldMapper).getKnnVectorsFormatForField();
+        } else {
+            return null;
+        }
+    }
+
     void checkLimits(IndexSettings settings) {
         checkFieldLimit(settings.getMappingTotalFieldsLimit());
         checkObjectDepthLimit(settings.getMappingDepthLimit());
@@ -387,6 +403,19 @@ public final class MappingLookup {
     public boolean isDataStreamTimestampFieldEnabled() {
         DataStreamTimestampFieldMapper dtfm = mapping.getMetadataMapperByClass(DataStreamTimestampFieldMapper.class);
         return dtfm != null && dtfm.isEnabled();
+    }
+
+    /**
+     * Returns if this mapping contains a timestamp field that is of type date, indexed and has doc values.
+     * @return {@code true} if contains a timestamp field of type date that is indexed and has doc values, {@code false} otherwise.
+     */
+    public boolean hasTimestampField() {
+        final MappedFieldType mappedFieldType = fieldTypesLookup().get(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+        if (mappedFieldType instanceof DateFieldMapper.DateFieldType) {
+            return mappedFieldType.isSearchable() && mappedFieldType.hasDocValues();
+        } else {
+            return false;
+        }
     }
 
     /**

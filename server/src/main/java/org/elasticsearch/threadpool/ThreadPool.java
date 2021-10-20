@@ -24,8 +24,8 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.ReportingService;
 
@@ -62,6 +62,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String ANALYZE = "analyze";
         public static final String WRITE = "write";
         public static final String SEARCH = "search";
+        public static final String SEARCH_COORDINATION = "search_coordination";
         public static final String AUTO_COMPLETE = "auto_complete";
         public static final String SEARCH_THROTTLED = "search_throttled";
         public static final String MANAGEMENT = "management";
@@ -114,6 +115,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         entry(Names.ANALYZE, ThreadPoolType.FIXED),
         entry(Names.WRITE, ThreadPoolType.FIXED),
         entry(Names.SEARCH, ThreadPoolType.FIXED),
+        entry(Names.SEARCH_COORDINATION, ThreadPoolType.FIXED),
         entry(Names.MANAGEMENT, ThreadPoolType.SCALING),
         entry(Names.FLUSH, ThreadPoolType.SCALING),
         entry(Names.REFRESH, ThreadPoolType.SCALING),
@@ -184,6 +186,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         builders.put(Names.GET, new FixedExecutorBuilder(settings, Names.GET, allocatedProcessors, 1000, false));
         builders.put(Names.ANALYZE, new FixedExecutorBuilder(settings, Names.ANALYZE, 1, 16, false));
         builders.put(Names.SEARCH, new FixedExecutorBuilder(settings, Names.SEARCH, searchThreadPoolSize(allocatedProcessors), 1000, true));
+        builders.put(Names.SEARCH_COORDINATION, new FixedExecutorBuilder(settings, Names.SEARCH_COORDINATION, halfProcMaxAt5, 1000, true));
         builders.put(
             Names.AUTO_COMPLETE,
             new FixedExecutorBuilder(settings, Names.AUTO_COMPLETE, Math.max(allocatedProcessors / 4, 1), 100, true)

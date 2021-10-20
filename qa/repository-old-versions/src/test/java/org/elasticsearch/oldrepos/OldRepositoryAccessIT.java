@@ -48,8 +48,10 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         Version oldVersion = Version.fromString(System.getProperty("tests.es.version"));
 
         int oldEsPort = Integer.parseInt(System.getProperty("tests.es.port"));
-        try (RestHighLevelClient client = new RestHighLevelClient(RestClient.builder(adminClient().getNodes().toArray(new Node[0])));
-             RestClient oldEs = RestClient.builder(new HttpHost("127.0.0.1", oldEsPort)).build()) {
+        try (
+            RestHighLevelClient client = new RestHighLevelClient(RestClient.builder(adminClient().getNodes().toArray(new Node[0])));
+            RestClient oldEs = RestClient.builder(new HttpHost("127.0.0.1", oldEsPort)).build()
+        ) {
             try {
                 Request createIndex = new Request("PUT", "/test");
                 int numberOfShards = randomIntBetween(1, 3);
@@ -74,14 +76,19 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                 oldEs.performRequest(createSnapshotRequest);
 
                 // register repo on new ES
-                ElasticsearchAssertions.assertAcked(client.snapshot().createRepository(
-                    new PutRepositoryRequest("testrepo").type("fs").settings(
-                        Settings.builder().put("location", repoLocation).build()), RequestOptions.DEFAULT));
+                ElasticsearchAssertions.assertAcked(
+                    client.snapshot()
+                        .createRepository(
+                            new PutRepositoryRequest("testrepo").type("fs")
+                                .settings(Settings.builder().put("location", repoLocation).build()),
+                            RequestOptions.DEFAULT
+                        )
+                );
 
                 // list snapshots on new ES
-                List<SnapshotInfo> snapshotInfos =
-                    client.snapshot().get(new GetSnapshotsRequest("testrepo").snapshots(new String[] {"_all"}),
-                    RequestOptions.DEFAULT).getSnapshots();
+                List<SnapshotInfo> snapshotInfos = client.snapshot()
+                    .get(new GetSnapshotsRequest("testrepo").snapshots(new String[] { "_all" }), RequestOptions.DEFAULT)
+                    .getSnapshots();
                 assertThat(snapshotInfos, hasSize(1));
                 SnapshotInfo snapshotInfo = snapshotInfos.get(0);
                 assertEquals("snap1", snapshotInfo.snapshotId().getName());
@@ -94,9 +101,9 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                 assertEquals(oldVersion, snapshotInfo.version());
 
                 // list specific snapshot on new ES
-                snapshotInfos =
-                    client.snapshot().get(new GetSnapshotsRequest("testrepo").snapshots(new String[] {"snap1"}),
-                        RequestOptions.DEFAULT).getSnapshots();
+                snapshotInfos = client.snapshot()
+                    .get(new GetSnapshotsRequest("testrepo").snapshots(new String[] { "snap1" }), RequestOptions.DEFAULT)
+                    .getSnapshots();
                 assertThat(snapshotInfos, hasSize(1));
                 snapshotInfo = snapshotInfos.get(0);
                 assertEquals("snap1", snapshotInfo.snapshotId().getName());
@@ -108,11 +115,9 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                 assertEquals(0, snapshotInfo.failedShards());
                 assertEquals(oldVersion, snapshotInfo.version());
 
-
                 // list advanced snapshot info on new ES
-                SnapshotsStatusResponse snapshotsStatusResponse = client.snapshot().status(
-                    new SnapshotsStatusRequest("testrepo").snapshots(new String[]{"snap1"}),
-                    RequestOptions.DEFAULT);
+                SnapshotsStatusResponse snapshotsStatusResponse = client.snapshot()
+                    .status(new SnapshotsStatusRequest("testrepo").snapshots(new String[] { "snap1" }), RequestOptions.DEFAULT);
                 assertThat(snapshotsStatusResponse.getSnapshots(), hasSize(1));
                 SnapshotStatus snapshotStatus = snapshotsStatusResponse.getSnapshots().get(0);
                 assertEquals("snap1", snapshotStatus.getSnapshot().getSnapshotId().getName());

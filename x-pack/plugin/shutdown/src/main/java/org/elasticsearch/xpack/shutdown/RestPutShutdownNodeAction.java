@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.shutdown;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;

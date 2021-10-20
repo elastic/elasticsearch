@@ -62,6 +62,8 @@ public class JdbcConfiguration extends ConnectionConfiguration {
     // really, the way to move forward is to specify a calendar or the timezone manually
     static final String TIME_ZONE_DEFAULT = TimeZone.getDefault().getID();
 
+    public static final String CATALOG = "catalog";
+
     static final String FIELD_MULTI_VALUE_LENIENCY = "field.multi.value.leniency";
     static final String FIELD_MULTI_VALUE_LENIENCY_DEFAULT = "true";
 
@@ -71,7 +73,7 @@ public class JdbcConfiguration extends ConnectionConfiguration {
 
     // options that don't change at runtime
     private static final Set<String> OPTION_NAMES = new LinkedHashSet<>(
-            Arrays.asList(TIME_ZONE, FIELD_MULTI_VALUE_LENIENCY, INDEX_INCLUDE_FROZEN, DEBUG, DEBUG_OUTPUT, DEBUG_FLUSH_ALWAYS));
+            Arrays.asList(TIME_ZONE, CATALOG, FIELD_MULTI_VALUE_LENIENCY, INDEX_INCLUDE_FROZEN, DEBUG, DEBUG_OUTPUT, DEBUG_FLUSH_ALWAYS));
 
     static {
         // trigger version initialization
@@ -81,15 +83,14 @@ public class JdbcConfiguration extends ConnectionConfiguration {
         ClientVersion.CURRENT.toString();
     }
 
-    // immutable properties
     private final boolean debug;
     private final String debugOut;
     private final boolean flushAlways;
 
-    // mutable ones
-    private ZoneId zoneId;
-    private boolean fieldMultiValueLeniency;
-    private boolean includeFrozen;
+    private final ZoneId zoneId;
+    private final String catalog;
+    private final boolean fieldMultiValueLeniency;
+    private final boolean includeFrozen;
 
     public static JdbcConfiguration create(String u, Properties props, int loginTimeoutSeconds) throws JdbcSQLException {
         URI uri = parseUrl(u);
@@ -175,6 +176,7 @@ public class JdbcConfiguration extends ConnectionConfiguration {
 
         this.zoneId = parseValue(TIME_ZONE, props.getProperty(TIME_ZONE, TIME_ZONE_DEFAULT),
                 s -> TimeZone.getTimeZone(s).toZoneId().normalized());
+        this.catalog = props.getProperty(CATALOG);
         this.fieldMultiValueLeniency = parseValue(FIELD_MULTI_VALUE_LENIENCY,
                 props.getProperty(FIELD_MULTI_VALUE_LENIENCY, FIELD_MULTI_VALUE_LENIENCY_DEFAULT), Boolean::parseBoolean);
         this.includeFrozen = parseValue(INDEX_INCLUDE_FROZEN, props.getProperty(INDEX_INCLUDE_FROZEN, INDEX_INCLUDE_FROZEN_DEFAULT),
@@ -204,6 +206,10 @@ public class JdbcConfiguration extends ConnectionConfiguration {
 
     public TimeZone timeZone() {
         return zoneId != null ? TimeZone.getTimeZone(zoneId) : null;
+    }
+
+    String catalog() {
+        return catalog;
     }
 
     public boolean fieldMultiValueLeniency() {

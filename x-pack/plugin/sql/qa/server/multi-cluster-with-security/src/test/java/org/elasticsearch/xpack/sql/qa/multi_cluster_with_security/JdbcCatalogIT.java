@@ -70,6 +70,7 @@ public class JdbcCatalogIT extends JdbcIntegrationTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79548")
     public void testCatalogDependentCommands() throws Exception {
         for (String query : List.of("SHOW TABLES", "SHOW COLUMNS FROM \"" + INDEX_NAME + "\"", "DESCRIBE \"" + INDEX_NAME + "\"")) {
             try (Connection es = esJdbc()) {

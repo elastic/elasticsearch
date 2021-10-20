@@ -320,6 +320,10 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         return SECURITY_DEFAULT_SETTINGS.configRoles();
     }
 
+    protected String configOperatorUsers() {
+        return SECURITY_DEFAULT_SETTINGS.configOperatorUsers();
+    }
+
     /**
      * Allows to override the node client username (used while sending requests to the test cluster) when the
      * {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
@@ -386,6 +390,11 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         @Override
         protected String configRoles() {
             return SecurityIntegTestCase.this.configRoles();
+        }
+
+        @Override
+        protected String configOperatorUsers() {
+            return SecurityIntegTestCase.this.configOperatorUsers();
         }
 
         @Override

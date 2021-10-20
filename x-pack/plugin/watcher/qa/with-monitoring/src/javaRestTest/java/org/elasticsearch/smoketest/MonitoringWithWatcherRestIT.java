@@ -61,37 +61,6 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
         assertMonitoringWatchHasBeenOverWritten(watchId);
     }
 
-    public void testThatHttpExporterAddsWatches() throws Exception {
-        String watchId = createMonitoringWatch();
-        String httpHost = getHttpHost();
-
-        Request request = new Request("PUT", "/_cluster/settings");
-        request.setJsonEntity(Strings.toString(jsonBuilder().startObject()
-                .startObject("persistent")
-                    .field("xpack.monitoring.exporters.my_http_exporter.type", "http")
-                    .field("xpack.monitoring.exporters.my_http_exporter.host", httpHost)
-                    .field("xpack.monitoring.exporters.my_http_exporter.cluster_alerts.management.enabled", true)
-                .endObject().endObject()));
-        adminClient().performRequest(request);
-
-        assertTotalWatchCount(WATCH_IDS.length);
-
-        assertMonitoringWatchHasBeenOverWritten(watchId);
-
-        assertWarnings(
-            "[xpack.monitoring.exporters.my_http_exporter.type] setting was deprecated in Elasticsearch and will be removed in a " +
-                "future release! See the breaking changes documentation for the next major version.",
-            "[xpack.monitoring.exporters.my_http_exporter.host] setting was deprecated in Elasticsearch and will be removed in a " +
-                "future release! See the breaking changes documentation for the next major version.",
-            "[xpack.monitoring.exporters.my_http_exporter.cluster_alerts.management.enabled] setting was deprecated in Elasticsearch " +
-                "and will be removed in a future release! See the breaking changes documentation for the next major version.",
-            "[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! " +
-                "See the breaking changes documentation for the next major version.",
-            "[xpack.monitoring.collection.interval] setting was deprecated in Elasticsearch and will be removed in a future release! " +
-                "See the breaking changes documentation for the next major version."
-        );
-    }
-
     private void assertMonitoringWatchHasBeenOverWritten(String watchId) throws Exception {
         assertBusy(() -> {
             ObjectPath path = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_watcher/watch/" + watchId)));

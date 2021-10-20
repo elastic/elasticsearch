@@ -122,7 +122,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
     private final BiFunction<Environment, String, CommandLineHttpClient> clientFunction;
 
     public AutoConfigureNode(BiFunction<Environment, String, CommandLineHttpClient> clientFunction) {
-        super("Generates all the necessary security configuration for the initial node of a new secure cluster");
+        super("Generates all the necessary security configuration for a node in a secured cluster");
         // This "cli utility" is invoked from the node startup script, where it is passed all the
         // node startup options unfiltered. It cannot consume most of them, but it does need to inspect the `-E` ones.
         parser.allowsUnrecognizedOptions();

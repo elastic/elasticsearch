@@ -11,6 +11,7 @@ package org.elasticsearch.packaging.test;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.packaging.util.Archives;
+import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.xpack.core.security.EnrollmentToken;
@@ -36,6 +37,7 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
     }
 
     public void test20EnrollToClusterWithEmptyTokenValue() throws Exception {
+        assumeTrue("something in our tests wrap the error code to 1 on windows", distribution.platform != Distribution.Platform.WINDOWS);
         Shell.Result result = Archives.runElasticsearchStartCommand(installation, sh, null, List.of("--enrollment-token"), false);
         assertThat(result.exitCode, equalTo(ExitCodes.USAGE));
         verifySecurityNotAutoConfigured(installation);

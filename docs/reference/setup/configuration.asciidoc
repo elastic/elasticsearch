@@ -142,8 +142,8 @@ feature to configure all cluster settings. This method lets {ess} automatically
 reject unsafe settings that could break your cluster.
 
 If you run {es} on your own hardware, use the <<cluster-update-settings,cluster
-update settings API>> to configure dynamic cluster settings. Use
-`elasticsearch.yml` for static cluster settings and node settings only. The API
+update settings API>> to configure dynamic cluster settings. Only use
+`elasticsearch.yml` for static cluster settings and node settings. The API
 doesn't require a restart and ensures a setting's value is the same on all
 nodes.
 ====

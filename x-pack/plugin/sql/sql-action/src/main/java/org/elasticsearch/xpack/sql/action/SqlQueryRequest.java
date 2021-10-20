@@ -91,10 +91,10 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     }
 
     public SqlQueryRequest(String query, List<SqlTypedParamValue> params, QueryBuilder filter, Map<String, Object> runtimeMappings,
-                           ZoneId zoneId, int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, Boolean columnar,
+                           ZoneId zoneId, String catalog, int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, Boolean columnar,
                            String cursor, RequestInfo requestInfo, boolean fieldMultiValueLeniency, boolean indexIncludeFrozen,
                            TimeValue waitForCompletionTimeout, boolean keepOnCompletion, TimeValue keepAlive) {
-        super(query, params, filter, runtimeMappings, zoneId, fetchSize, requestTimeout, pageTimeout, requestInfo);
+        super(query, params, filter, runtimeMappings, zoneId, catalog, fetchSize, requestTimeout, pageTimeout, requestInfo);
         this.cursor = cursor;
         this.columnar = columnar;
         this.fieldMultiValueLeniency = fieldMultiValueLeniency;
@@ -266,7 +266,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // This is needed just to test round-trip compatibility with proto.SqlQueryRequest
-        return new org.elasticsearch.xpack.sql.proto.SqlQueryRequest(query(), params(), zoneId(), fetchSize(), requestTimeout(),
+        return new org.elasticsearch.xpack.sql.proto.SqlQueryRequest(query(), params(), zoneId(), catalog(), fetchSize(), requestTimeout(),
                 pageTimeout(), filter(), columnar(), cursor(), requestInfo(), fieldMultiValueLeniency(), indexIncludeFrozen(),
                 binaryCommunication(), runtimeMappings(), waitForCompletionTimeout(), keepOnCompletion(), keepAlive())
             .toXContent(builder, params);

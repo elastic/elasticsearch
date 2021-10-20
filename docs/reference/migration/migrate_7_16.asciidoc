@@ -348,13 +348,14 @@ To override the defaults, configure the `script.cache.max_size`,
 `script.max_compilations_rate`, and `script.cache.expire` settings.
 ====
 
-.Attempting to store nanosecond resolution in a date field is deprecated.
+.Attempting to store nanosecond resolution in a `date` field is deprecated.
 [%collapsible]
 ====
 *Details* +
-Attempting to store a nanosecond resolution in a date field is deprecated.
-This behaviour was allowed so far, but was always resulting in resolution loss.
-A {ref}/date.html[`date`] field can only store up to millisecond resolutions.
+Attempting to store a nanosecond resolution in a {ref}/date.html[`date`] field is deprecated.
+While previously allowed, these attempts always resulted in resolution loss.
+A `date` field can only store up to millisecond resolutions.
+
 *Impact* +
 If you attempt to store a nanosecond resolution in a `date` type field, {es} will
 emit a deprecation warning. To avoid deprecation warnings, use a

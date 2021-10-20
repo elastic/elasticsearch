@@ -321,4 +321,30 @@ avoid deprecation warnings and opt into the future behaviour, include the query
 parameter `?return_200_for_cluster_health_timeout` in your request.
 ====
 
+[[script-context-cache-deprecated]]
+.The script context cache is deprecated
+[%collapsible]
+====
+*Details* +
+Setting `script.max_compilations_rate` to `use-context` and
+configuring context-specific caches is deprecated.
+
+Context-specific caches are no longer needed to prevent system scripts
+from triggering rate limits.
+
+Configure the general cache to control the max compilation rate, cache size, and
+cache expiration for your scripts.
+
+*Impact* +
+Remove `script.max_compilations_rate: use-context` and the context-specific cache
+settings: `script.context.$CONTEXT.cache_max_size`,
+`script.context.$CONTEXT.max_compilations_rate`, `script.context.$CONTEXT.cache_expire`.
+
+The general cache defaults to a max size of 3000 with a rate limit of 150/5m,
+which allows 150 compilations per 5 minute period.  By default, the entries in the
+cache do not expire.
+
+To override the defaults, configure the `script.cache.max_size`,
+`script.max_compilations_rate`, and `script.cache.expire` settings.
+====
 // end::notable-breaking-changes[]

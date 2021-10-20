@@ -1,0 +1,89 @@
+[role="xpack"]
+[testenv="basic"]
+[[upgrade-transforms]]
+= Upgrade {transforms} API
+
+[subs="attributes"]
+++++
+<titleabbrev>Upgrade {transforms}</titleabbrev>
+++++
+
+Upgrades all {transforms}.
+
+[[upgrade-transforms-request]]
+== {api-request-title}
+
+`POST _transform/_upgrade`
+
+[[upgrade-transforms-prereqs]]
+== {api-prereq-title}
+
+Requires the following privileges:
+
+* cluster: `manage_transform` (the `transform_admin` built-in role grants this
+  privilege)
+
+
+[[upgrade-transforms-desc]]
+== {api-description-title}
+
+{transforms-cap} are compatible across minor versions and between supported 
+major versions. However, over time, the format of {transform} configuration 
+information may change. This API identifies {transforms} which have a legacy 
+configuration format and upgrades them to the latest version; including clean up 
+of the internal data structures that store {transform} state and checkpoints. 
+{transform-cap} upgrade does not effect the source and destination indices.
+
+If a {transform} upgrade step fails, the upgrade stops, and an error is returned 
+about the underlying issue. Resolve the issue then re-run the process again. A 
+summary is returned when the upgrade is finished.
+
+For a major version update – for example, from 7.16 to 8.0 –, it is recommended 
+to have a recent cluster backup prior to performing a {transform} upgrade which 
+can be run either before or after an {es} upgrade. However, it is recommended to 
+perform it before upgrading {es} to the next major version to ensure 
+{ctransforms} remain running.
+
+
+[IMPORTANT]
+====
+
+* When {es} {security-features} are enabled, your {transform} remembers the 
+roles of the user who created or updated it last. In contrast to 
+<<update-transform,update transform>>, a {transform} upgrade does not change the 
+stored roles, therefore the role used to read source data and write to the 
+destination index remains unchanged.
+
+====
+
+
+[[upgrade-transforms-query-parms]]
+== {api-query-parms-title}
+
+`dry_run`::
+  (Optional, Boolean) When `true`, only checks for updates but does not execute 
+  them. Defaults to `false`.
+
+
+[[upgrade-transforms-example]]
+== {api-examples-title}
+
+To upgrade the legacy {transforms} to the latest configuration format, perform 
+the following API call:
+
+[source,console]
+--------------------------------------------------
+POST _transform/_upgrade
+--------------------------------------------------
+// TEST[setup:simple_kibana_continuous_pivot]
+
+When all {transforms} are upgraded, you receive a summary:
+
+[source,console-result]
+----
+{
+  "updated": 2,
+  "no_action": 1
+}
+----
+// TESTRESPONSE[skip:TBD]

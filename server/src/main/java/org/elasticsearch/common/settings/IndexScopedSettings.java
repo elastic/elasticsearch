@@ -10,6 +10,7 @@ package org.elasticsearch.common.settings;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -158,6 +159,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING,
             DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS,
             ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP,
+            DataTier.TIER_PREFERENCE_SETTING,
 
             // validate that built-in similarities don't get redefined
             Setting.groupSetting(
@@ -182,6 +184,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         }
         Set<Setting<?>> result = new HashSet<>(ALWAYS_ENABLED_BUILT_IN_INDEX_SETTINGS);
         result.add(IndexSettings.MODE);
+        result.add(IndexMetadata.INDEX_ROUTING_PATH);
         return Set.copyOf(result);
     }
 

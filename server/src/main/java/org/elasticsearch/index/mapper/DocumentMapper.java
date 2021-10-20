@@ -11,6 +11,8 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.IndexSettings;
 
+import java.util.List;
+
 public class DocumentMapper {
     private final String type;
     private final CompressedXContent mappingSource;
@@ -87,8 +89,13 @@ public class DocumentMapper {
         if (settings.getIndexSortConfig().hasIndexSort() && mappers().hasNested()) {
             throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
         }
+        List<String> routingPaths = settings.getIndexMetadata().getRoutingPaths();
+        if (false == routingPaths.isEmpty()) {
+            mappingLookup.getMapping().getRoot().validateRoutingPath(routingPaths);
+        }
         if (checkLimits) {
             this.mappingLookup.checkLimits(settings);
         }
+        settings.getMode().validateMapping(mappingLookup);
     }
 }

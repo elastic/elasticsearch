@@ -1,8 +1,6 @@
 setup:
   - skip:
       features: headers
-      version: " - 7.2.99"
-      reason: "dense_vector functions were added from 7.3"
 
   - do:
       indices.create:
@@ -20,6 +18,7 @@ setup:
                 dims: 5
                 index: true
                 similarity: dot_product
+
   - do:
       index:
         index: test-index

@@ -17,6 +17,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+import static org.elasticsearch.upgrades.FeatureMigrationResults.MIGRATION_ADDED_VERSION;
+
 /**
  * The params used to initialize {@link SystemIndexMigrator} when it's initially kicked off.
  *
@@ -62,7 +64,7 @@ public class SystemIndexMigrationTaskParams implements PersistentTaskParams {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_8_0_0;
+        return MIGRATION_ADDED_VERSION;
     }
 
     @Override public boolean equals(Object obj) {

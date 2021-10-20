@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -1554,6 +1555,205 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 + " removed in a future release! See the breaking changes documentation for the next major version.",
             "[script.context.moving-function.cache_expire] setting was deprecated in Elasticsearch and will be removed in a future" +
                 " release! See the breaking changes documentation for the next major version.");
+    }
+
+    static List<DeprecationChecks.NodeDeprecationCheck<Settings, PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue>>
+        MONITORING_SETTINGS_CHECKS = Arrays.asList(
+        NodeDeprecationChecks::checkMonitoringSettingHistoryDuration,
+        NodeDeprecationChecks::checkMonitoringSettingCollectIndexRecovery,
+        NodeDeprecationChecks::checkMonitoringSettingCollectIndices,
+        NodeDeprecationChecks::checkMonitoringSettingCollectCcrTimeout,
+        NodeDeprecationChecks::checkMonitoringSettingCollectEnrichStatsTimeout,
+        NodeDeprecationChecks::checkMonitoringSettingCollectIndexRecoveryStatsTimeout,
+        NodeDeprecationChecks::checkMonitoringSettingCollectIndexStatsTimeout,
+        NodeDeprecationChecks::checkMonitoringSettingCollectMlJobStatsTimeout,
+        NodeDeprecationChecks::checkMonitoringSettingCollectNodeStatsTimeout,
+        NodeDeprecationChecks::checkMonitoringSettingCollectClusterStatsTimeout,
+        NodeDeprecationChecks::checkMonitoringSettingExportersHost,
+        NodeDeprecationChecks::checkMonitoringSettingExportersBulkTimeout,
+        NodeDeprecationChecks::checkMonitoringSettingExportersConnectionTimeout,
+        NodeDeprecationChecks::checkMonitoringSettingExportersConnectionReadTimeout,
+        NodeDeprecationChecks::checkMonitoringSettingExportersAuthUsername,
+        NodeDeprecationChecks::checkMonitoringSettingExportersAuthPass,
+        NodeDeprecationChecks::checkMonitoringSettingExportersSSL,
+        NodeDeprecationChecks::checkMonitoringSettingExportersProxyBase,
+        NodeDeprecationChecks::checkMonitoringSettingExportersSniffEnabled,
+        NodeDeprecationChecks::checkMonitoringSettingExportersHeaders,
+        NodeDeprecationChecks::checkMonitoringSettingExportersTemplateTimeout,
+        NodeDeprecationChecks::checkMonitoringSettingExportersMasterTimeout,
+        NodeDeprecationChecks::checkMonitoringSettingExportersEnabled,
+        NodeDeprecationChecks::checkMonitoringSettingExportersType,
+        NodeDeprecationChecks::checkMonitoringSettingExportersAlertsEnabled,
+        NodeDeprecationChecks::checkMonitoringSettingExportersAlertsBlacklist,
+        NodeDeprecationChecks::checkMonitoringSettingExportersIndexNameTimeFormat,
+        NodeDeprecationChecks::checkMonitoringSettingDecommissionAlerts,
+        NodeDeprecationChecks::checkMonitoringSettingEsCollectionEnabled,
+        NodeDeprecationChecks::checkMonitoringSettingCollectionEnabled,
+        NodeDeprecationChecks::checkMonitoringSettingCollectionInterval
+    );
+
+    void monitoringSetting(String settingKey, String value) {
+        Settings settings = Settings.builder()
+            .put(settingKey, value)
+            .build();
+        final XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(MONITORING_SETTINGS_CHECKS, c -> c.apply(settings, null,
+            ClusterState.EMPTY_STATE, licenseState));
+        final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-settings";
+        assertThat(issues, hasItem(
+            new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "setting ["+settingKey+"] is deprecated and will be removed after 8.0",
+                expectedUrl,
+                "the setting ["+settingKey+"] is currently set to ["+value+"], remove this setting",
+                false, null)));
+    }
+
+    void monitoringExporterSetting(String suffix, String value) {
+        String settingKey = "xpack.monitoring.exporters.test." + suffix;
+        Settings settings = Settings.builder()
+            .put(settingKey, value)
+            .build();
+        final XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(MONITORING_SETTINGS_CHECKS, c -> c.apply(settings, null,
+            ClusterState.EMPTY_STATE, licenseState));
+        final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-settings";
+        assertThat(issues, hasItem(
+            new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "The ["+settingKey+"] settings are deprecated and will be removed after 8.0",
+                expectedUrl,
+                "Remove the following settings from elasticsearch.yml: ["+settingKey+"]",
+                false, null)));
+    }
+
+    void monitoringExporterGroupedSetting(String suffix, String value) {
+        String settingKey = "xpack.monitoring.exporters.test." + suffix;
+        String subSettingKey = settingKey + ".subsetting";
+        Settings settings = Settings.builder()
+            .put(subSettingKey, value)
+            .build();
+        final XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(MONITORING_SETTINGS_CHECKS, c -> c.apply(settings, null,
+            ClusterState.EMPTY_STATE, licenseState));
+        final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-settings";
+        assertThat(issues, hasItem(
+            new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "The ["+settingKey+".*] settings are deprecated and will be removed after 8.0",
+                expectedUrl,
+                "Remove the following settings from elasticsearch.yml: ["+subSettingKey+"]",
+                false, null)));
+    }
+
+    void monitoringExporterSecureSetting(String suffix, String value) {
+        String settingKey = "xpack.monitoring.exporters.test." + suffix;
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(settingKey, value);
+        Settings settings = Settings.builder()
+            .setSecureSettings(secureSettings)
+            .build();
+        final XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(MONITORING_SETTINGS_CHECKS, c -> c.apply(settings, null,
+            ClusterState.EMPTY_STATE, licenseState));
+        final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-settings";
+        assertThat(issues, hasItem(
+            new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "The ["+settingKey+"] settings are deprecated and will be removed after 8.0",
+                expectedUrl,
+                "Remove the following settings from the keystore: ["+settingKey+"]",
+                false, null)));
+    }
+
+    public void testCheckMonitoringSettingHistoryDuration() {
+        monitoringSetting("xpack.monitoring.history.duration", "7d");
+    }
+    public void testCheckMonitoringSettingCollectIndexRecovery() {
+        monitoringSetting("xpack.monitoring.collection.index.recovery.active_only", "true");
+    }
+    public void testCheckMonitoringSettingCollectIndices() {
+        monitoringSetting("xpack.monitoring.collection.indices", "[test1,test2]");
+    }
+    public void testCheckMonitoringSettingCollectCcrTimeout() {
+        monitoringSetting("xpack.monitoring.collection.ccr.stats.timeout", "10s");
+    }
+    public void testCheckMonitoringSettingCollectEnrichStatsTimeout() {
+        monitoringSetting("xpack.monitoring.collection.enrich.stats.timeout", "10s");
+    }
+    public void testCheckMonitoringSettingCollectIndexRecoveryStatsTimeout() {
+        monitoringSetting("xpack.monitoring.collection.index.recovery.timeout", "10s");
+    }
+    public void testCheckMonitoringSettingCollectIndexStatsTimeout() {
+        monitoringSetting("xpack.monitoring.collection.index.stats.timeout", "10s");
+    }
+    public void testCheckMonitoringSettingCollectMlJobStatsTimeout() {
+        monitoringSetting("xpack.monitoring.collection.ml.job.stats.timeout", "10s");
+    }
+    public void testCheckMonitoringSettingCollectNodeStatsTimeout() {
+        monitoringSetting("xpack.monitoring.collection.node.stats.timeout", "10s");
+    }
+    public void testCheckMonitoringSettingCollectClusterStatsTimeout() {
+        monitoringSetting("xpack.monitoring.collection.cluster.stats.timeout", "10s");
+    }
+    public void testCheckMonitoringSettingExportersHost() {
+        monitoringExporterSetting("host", "abcdef");
+    }
+    public void testCheckMonitoringSettingExportersBulkTimeout() {
+        monitoringExporterSetting("bulk.timeout", "10s");
+    }
+    public void testCheckMonitoringSettingExportersConnectionTimeout() {
+        monitoringExporterSetting("connection.timeout", "10s");
+    }
+    public void testCheckMonitoringSettingExportersConnectionReadTimeout() {
+        monitoringExporterSetting("connection.read_timeout", "10s");
+    }
+    public void testCheckMonitoringSettingExportersAuthUsername() {
+        monitoringExporterSetting("auth.username", "abcdef");
+    }
+    public void testCheckMonitoringSettingExportersAuthPass() {
+        monitoringExporterSecureSetting("auth.secure_password", "abcdef");
+    }
+    public void testCheckMonitoringSettingExportersSSL() {
+        monitoringExporterGroupedSetting("ssl", "abcdef");
+    }
+    public void testCheckMonitoringSettingExportersProxyBase() {
+        monitoringExporterSetting("proxy.base_path", "abcdef");
+    }
+    public void testCheckMonitoringSettingExportersSniffEnabled() {
+        monitoringExporterSetting("sniff.enabled", "true");
+    }
+    public void testCheckMonitoringSettingExportersHeaders() {
+        monitoringExporterGroupedSetting("headers", "abcdef");
+    }
+    public void testCheckMonitoringSettingExportersTemplateTimeout() {
+        monitoringExporterSetting("index.template.master_timeout", "10s");
+    }
+    public void testCheckMonitoringSettingExportersMasterTimeout() {
+        monitoringExporterSetting("wait_master.timeout", "10s");
+    }
+    public void testCheckMonitoringSettingExportersEnabled() {
+        monitoringExporterSetting("enabled", "true");
+    }
+    public void testCheckMonitoringSettingExportersType() {
+        monitoringExporterSetting("type", "local");
+    }
+    public void testCheckMonitoringSettingExportersAlertsEnabled() {
+        monitoringExporterSetting("cluster_alerts.management.enabled", "true");
+    }
+    public void testCheckMonitoringSettingExportersAlertsBlacklist() {
+        monitoringExporterSetting("cluster_alerts.management.blacklist", "[abcdef,ghijkl]");
+    }
+    public void testCheckMonitoringSettingExportersIndexNameTimeFormat() {
+        monitoringExporterSetting("index.name.time_format", "yyyy-mm-dd");
+    }
+    public void testCheckMonitoringSettingDecomissionAlerts() {
+        monitoringSetting("xpack.monitoring.migration.decommission_alerts", "true");
+    }
+    public void testCheckMonitoringSettingEsCollectionEnabled() {
+        monitoringSetting("xpack.monitoring.elasticsearch.collection.enabled", "true");
+    }
+    public void testCheckMonitoringSettingCollectionEnabled() {
+        monitoringSetting("xpack.monitoring.collection.enabled", "true");
+    }
+    public void testCheckMonitoringSettingCollectionInterval() {
+        monitoringSetting("xpack.monitoring.collection.interval", "10s");
     }
 
     public void testExporterUseIngestPipelineSettings() {

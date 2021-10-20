@@ -69,7 +69,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
     private final CheckedBiFunction<String, XContentParser, T, IOException> fallbackReader;
 
     /**
-     * @param codec          code name
+     * @param codec          codec name
      * @param blobNameFormat format of the blobname in {@link String#format} format
      * @param reader         prototype object that can deserialize T from XContent
      * @param fallbackReader fallback prototype object that can deserialize T from XContent in case reader fails

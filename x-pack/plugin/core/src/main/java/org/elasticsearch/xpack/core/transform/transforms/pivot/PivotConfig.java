@@ -187,7 +187,7 @@ public class PivotConfig implements Writeable, ToXContentObject {
                     Level.WARNING,
                     "Transform [" + id + "] uses deprecated max_page_search_size",
                     TransformDeprecations.BREAKING_CHANGES_BASE_URL,
-                    "[max_page_search_size] is deprecated inside pivot please use settings instead",
+                    "[max_page_search_size] is deprecated inside pivot. Use settings instead.",
                     false,
                     null
                 )

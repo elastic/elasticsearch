@@ -99,7 +99,6 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79300")
     public void testUpdateByQuery() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final boolean scriptEnabled = randomBoolean();
@@ -135,7 +134,6 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79300")
     public void testDeleteByQuery() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         executeConcurrentUpdatesOnSubsetOfDocs(indexName,

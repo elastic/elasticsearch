@@ -249,7 +249,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         for (int i = 0; i < INDEX_DOC_COUNT; i++) {
             docs.add(client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("some_field", "words words"));
         }
-        indexRandom(true, false, docs);
+        indexRandom(true, docs);
         IndicesStatsResponse indexStats = client().admin().indices().prepareStats(indexName).setDocs(true).get();
         assertThat(indexStats.getIndex(indexName).getTotal().getDocs().getCount(), is((long) INDEX_DOC_COUNT));
     }

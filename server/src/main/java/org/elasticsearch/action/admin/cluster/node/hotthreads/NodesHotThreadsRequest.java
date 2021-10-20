@@ -36,7 +36,7 @@ public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequ
         type = HotThreads.ReportType.of(in.readString());
         interval = in.readTimeValue();
         snapshots = in.readInt();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
             sortOrder = HotThreads.SortOrder.of(in.readString());
         }
     }
@@ -118,7 +118,7 @@ public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequ
         out.writeString(type.getTypeValue());
         out.writeTimeValue(interval);
         out.writeInt(snapshots);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
             out.writeString(sortOrder.getOrderValue());
         }
     }

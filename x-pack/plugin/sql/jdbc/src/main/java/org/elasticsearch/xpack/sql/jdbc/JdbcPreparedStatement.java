@@ -49,8 +49,8 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
 
     final PreparedQuery query;
 
-    JdbcPreparedStatement(JdbcConnection con, JdbcConfiguration info, String sql) throws SQLException {
-        super(con, info);
+    JdbcPreparedStatement(JdbcConnection con, String sql) throws SQLException {
+        super(con);
         this.query = PreparedQuery.prepare(sql);
     }
 

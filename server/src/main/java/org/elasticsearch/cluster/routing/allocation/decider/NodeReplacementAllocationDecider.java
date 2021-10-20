@@ -97,6 +97,17 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
         }
     }
 
+    @Override
+    public Decision canAllocateReplicaWhenThereIsRetentionLease(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        if (isReplacementTargetName(allocation, node.node().getName())) {
+            return Decision.single(Decision.Type.YES, NAME,
+                "node [%s] is a node replacement target and can have a previously allocated replica re-allocated to it",
+                node.nodeId());
+        } else {
+            return canAllocate(shardRouting, node, allocation);
+        }
+    }
+
     /**
      * Returns true if there are any node replacements ongoing in the cluster
      */

@@ -45,13 +45,13 @@ enable <<deprecation-logging, deprecation logging>>.
 ====
 *Details* +
 Orchestrated environments such as {ess} and Elastic Cloud Enterprise rely on
-the <<cluster-routing-disk-threshold,disk thresholds>> in {es} to operate the
-cluster correctly. For example the disk thresholds help determine how large an
-auto-scaled cluster should be. Disabling these disk thresholds prevents the
-orchestration system from working correctly, so starting in 7.16.0 the
-`cluster.routing.allocation.disk.threshold_enabled` setting is an
-<<operator-only-dynamic-cluster-settings, operator only>> setting which cannot
-be changed by end-users.
+the {ref}/modules-cluster.html#cluster-routing-disk-threshold[disk thresholds]
+in {es} to operate the cluster correctly. For example the disk thresholds help
+determine how large an auto-scaled cluster should be. Disabling these disk
+thresholds prevents the orchestration system from working correctly, so starting
+in 7.16.0 the `cluster.routing.allocation.disk.threshold_enabled` setting is an
+{ref}/operator-only-functionality.html#operator-only-dynamic-cluster-settings[operator only]
+setting which cannot be changed by end-users.
 
 *Impact* +
 Discontinue use of this setting in orchestrated environments such as {ess} and

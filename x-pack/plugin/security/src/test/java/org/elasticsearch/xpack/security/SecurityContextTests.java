@@ -15,7 +15,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.authc.ApiKeyServiceField;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -32,8 +31,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -152,10 +149,10 @@ public class SecurityContextTests extends ESTestCase {
         User user = new User("test", null, new User("authUser"));
         RealmRef authBy = new RealmRef("_es_api_key", "_es_api_key", "node1");
         final Map<String, Object> metadata = Map.of(
-            ApiKeyServiceField.API_KEY_ID_KEY, randomAlphaOfLengthBetween(1, 10),
-            ApiKeyServiceField.API_KEY_NAME_KEY, randomAlphaOfLengthBetween(1, 10),
-            ApiKeyServiceField.API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}"),
-            ApiKeyServiceField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}")
+            AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLengthBetween(1, 10),
+            AuthenticationField.API_KEY_NAME_KEY, randomAlphaOfLengthBetween(1, 10),
+            AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}"),
+            AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}")
         );
         final Authentication original = new Authentication(user, authBy, authBy, Version.V_8_0_0,
             AuthenticationType.API_KEY, metadata);
@@ -165,9 +162,9 @@ public class SecurityContextTests extends ESTestCase {
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
             Authentication authentication = securityContext.getAuthentication();
             assertEquals(Map.of("a role", Map.of("cluster", List.of("all"))),
-                authentication.getMetadata().get(ApiKeyServiceField.API_KEY_ROLE_DESCRIPTORS_KEY));
+                authentication.getMetadata().get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY));
             assertEquals(Map.of("limitedBy role", Map.of("cluster", List.of("all"))),
-                authentication.getMetadata().get(ApiKeyServiceField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY));
+                authentication.getMetadata().get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY));
         }, Version.V_7_8_0);
 
         // If target is new node, no need to rewrite the new style API key metadata
@@ -181,10 +178,10 @@ public class SecurityContextTests extends ESTestCase {
         User user = new User("test", null, new User("authUser"));
         RealmRef authBy = new RealmRef("_es_api_key", "_es_api_key", "node1");
         final Map<String, Object> metadata = Map.of(
-            ApiKeyServiceField.API_KEY_ID_KEY, randomAlphaOfLengthBetween(1, 10),
-            ApiKeyServiceField.API_KEY_NAME_KEY, randomAlphaOfLengthBetween(1, 10),
-            ApiKeyServiceField.API_KEY_ROLE_DESCRIPTORS_KEY, Map.of("a role", Map.of("cluster", List.of("all"))),
-            ApiKeyServiceField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, Map.of("limitedBy role", Map.of("cluster", List.of("all")))
+            AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLengthBetween(1, 10),
+            AuthenticationField.API_KEY_NAME_KEY, randomAlphaOfLengthBetween(1, 10),
+            AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, Map.of("a role", Map.of("cluster", List.of("all"))),
+            AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, Map.of("limitedBy role", Map.of("cluster", List.of("all")))
         );
         final Authentication original = new Authentication(user, authBy, authBy, Version.V_7_8_0, AuthenticationType.API_KEY, metadata);
         original.writeToContext(threadContext);
@@ -200,10 +197,10 @@ public class SecurityContextTests extends ESTestCase {
             Authentication authentication = securityContext.getAuthentication();
             assertEquals("{\"a role\":{\"cluster\":[\"all\"]}}",
                 ((BytesReference) authentication.getMetadata()
-                    .get(ApiKeyServiceField.API_KEY_ROLE_DESCRIPTORS_KEY)).utf8ToString());
+                    .get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)).utf8ToString());
             assertEquals("{\"limitedBy role\":{\"cluster\":[\"all\"]}}",
                 ((BytesReference) authentication.getMetadata()
-                    .get(ApiKeyServiceField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)).utf8ToString());
+                    .get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)).utf8ToString());
         }, VersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, Version.CURRENT));
     }
 }

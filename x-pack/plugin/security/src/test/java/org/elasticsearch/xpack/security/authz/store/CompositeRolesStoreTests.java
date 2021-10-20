@@ -49,10 +49,10 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
-import org.elasticsearch.xpack.core.security.authc.ApiKeyServiceField;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
@@ -1374,11 +1374,11 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             Version.CURRENT,
             AuthenticationType.API_KEY,
-            Map.of(ApiKeyServiceField.API_KEY_ID_KEY,
+            Map.of(AuthenticationField.API_KEY_ID_KEY,
                 "key-id-1",
-                ApiKeyServiceField.API_KEY_ROLE_DESCRIPTORS_KEY,
+                AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
                 roleBytes,
-                ApiKeyServiceField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
                 limitedByRoleBytes));
         doCallRealMethod().when(apiKeyService).getApiKeyIdAndRoleBytes(eq(authentication), anyBoolean());
 
@@ -1396,11 +1396,11 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             Version.CURRENT,
             AuthenticationType.API_KEY,
-            Map.of(ApiKeyServiceField.API_KEY_ID_KEY,
+            Map.of(AuthenticationField.API_KEY_ID_KEY,
                 "key-id-2",
-                ApiKeyServiceField.API_KEY_ROLE_DESCRIPTORS_KEY,
+                AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
                 roleBytes,
-                ApiKeyServiceField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
                 limitedByRoleBytes));
         doCallRealMethod().when(apiKeyService).getApiKeyIdAndRoleBytes(eq(authentication), anyBoolean());
         roleFuture = new PlainActionFuture<>();
@@ -1417,11 +1417,11 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             Version.CURRENT,
             AuthenticationType.API_KEY,
-            Map.of(ApiKeyServiceField.API_KEY_ID_KEY,
+            Map.of(AuthenticationField.API_KEY_ID_KEY,
                 "key-id-3",
-                ApiKeyServiceField.API_KEY_ROLE_DESCRIPTORS_KEY,
+                AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
                 anotherRoleBytes,
-                ApiKeyServiceField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
                 limitedByRoleBytes));
         doCallRealMethod().when(apiKeyService).getApiKeyIdAndRoleBytes(eq(authentication), anyBoolean());
         roleFuture = new PlainActionFuture<>();

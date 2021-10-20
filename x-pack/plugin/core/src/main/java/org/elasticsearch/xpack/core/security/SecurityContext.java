@@ -19,7 +19,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.xpack.core.security.authc.ApiKeyServiceField;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
@@ -181,21 +180,21 @@ public class SecurityContext {
             if (authentication.getVersion().onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)
                 && streamVersion.before(VERSION_API_KEY_ROLES_AS_BYTES)) {
                 metadata = new HashMap<>(metadata);
-                metadata.put(ApiKeyServiceField.API_KEY_ROLE_DESCRIPTORS_KEY,
+                metadata.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
                     convertRoleDescriptorsBytesToMap(
-                        (BytesReference) metadata.get(ApiKeyServiceField.API_KEY_ROLE_DESCRIPTORS_KEY)));
-                metadata.put(ApiKeyServiceField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                        (BytesReference) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)));
+                metadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
                     convertRoleDescriptorsBytesToMap(
-                        (BytesReference) metadata.get(ApiKeyServiceField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)));
+                        (BytesReference) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)));
             } else if (authentication.getVersion().before(VERSION_API_KEY_ROLES_AS_BYTES)
                 && streamVersion.onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)) {
                 metadata = new HashMap<>(metadata);
-                metadata.put(ApiKeyServiceField.API_KEY_ROLE_DESCRIPTORS_KEY,
+                metadata.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
                     convertRoleDescriptorsMapToBytes(
-                        (Map<String, Object>) metadata.get(ApiKeyServiceField.API_KEY_ROLE_DESCRIPTORS_KEY)));
-                metadata.put(ApiKeyServiceField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                        (Map<String, Object>) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)));
+                metadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
                     convertRoleDescriptorsMapToBytes(
-                        (Map<String, Object>) metadata.get(ApiKeyServiceField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)));
+                        (Map<String, Object>) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)));
             }
         }
         return metadata;

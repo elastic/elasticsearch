@@ -186,7 +186,7 @@ public class AuthenticationTests extends ESTestCase {
             null,
             VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT),
             AuthenticationType.API_KEY,
-            Map.of(ApiKeyServiceField.API_KEY_ID_KEY, apiKeyId));
+            Map.of(AuthenticationField.API_KEY_ID_KEY, apiKeyId));
     }
 
     private boolean realmIsSingleton(RealmRef realmRef) {

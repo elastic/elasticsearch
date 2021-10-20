@@ -85,11 +85,8 @@ import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
-import org.elasticsearch.xpack.core.security.authc.ApiKeyServiceField;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.*;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -391,7 +388,7 @@ public class ApiKeyService {
             throw new IllegalArgumentException("API Key authn result must be successful");
         }
         final User user = authResult.getUser();
-        final RealmRef authenticatedBy = new RealmRef(ApiKeyServiceField.API_KEY_REALM_NAME, ApiKeyServiceField.API_KEY_REALM_TYPE,
+        final RealmRef authenticatedBy = new RealmRef(AuthenticationField.API_KEY_REALM_NAME, AuthenticationField.API_KEY_REALM_TYPE,
             nodeName);
         return new Authentication(user, authenticatedBy, null, Version.CURRENT, Authentication.AuthenticationType.API_KEY,
             authResult.getMetadata());
@@ -473,11 +470,11 @@ public class ApiKeyService {
             .before(VERSION_API_KEY_ROLES_AS_BYTES) : "This method only applies to authentication objects created before v7.9.0";
 
         final Map<String, Object> metadata = authentication.getMetadata();
-        final String apiKeyId = (String) metadata.get(ApiKeyServiceField.API_KEY_ID_KEY);
+        final String apiKeyId = (String) metadata.get(AuthenticationField.API_KEY_ID_KEY);
         @SuppressWarnings("unchecked") final Map<String, Object> roleDescriptors =
-            (Map<String, Object>) metadata.get(ApiKeyServiceField.API_KEY_ROLE_DESCRIPTORS_KEY);
+            (Map<String, Object>) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY);
         @SuppressWarnings("unchecked") final Map<String, Object> authnRoleDescriptors =
-            (Map<String, Object>) metadata.get(ApiKeyServiceField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY);
+            (Map<String, Object>) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY);
 
         if (roleDescriptors == null && authnRoleDescriptors == null) {
             listener.onFailure(new ElasticsearchSecurityException("no role descriptors found for API key"));
@@ -500,14 +497,14 @@ public class ApiKeyService {
 
         final Map<String, Object> metadata = authentication.getMetadata();
         final BytesReference bytesReference = (BytesReference) metadata.get(limitedBy
-            ? ApiKeyServiceField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY : ApiKeyServiceField.API_KEY_ROLE_DESCRIPTORS_KEY);
+            ? AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY : AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY);
         if (limitedBy && bytesReference.length() == 2 && "{}".equals(bytesReference.utf8ToString())) {
-            if (ServiceAccountSettings.REALM_NAME.equals(metadata.get(ApiKeyServiceField.API_KEY_CREATOR_REALM_NAME))
+            if (ServiceAccountSettings.REALM_NAME.equals(metadata.get(AuthenticationField.API_KEY_CREATOR_REALM_NAME))
                 && "elastic/fleet-server".equals(authentication.getUser().principal())) {
-                return new Tuple<>((String) metadata.get(ApiKeyServiceField.API_KEY_ID_KEY), FLEET_SERVER_ROLE_DESCRIPTOR_BYTES_V_7_14);
+                return new Tuple<>((String) metadata.get(AuthenticationField.API_KEY_ID_KEY), FLEET_SERVER_ROLE_DESCRIPTOR_BYTES_V_7_14);
             }
         }
-        return new Tuple<>((String) metadata.get(ApiKeyServiceField.API_KEY_ID_KEY), bytesReference);
+        return new Tuple<>((String) metadata.get(AuthenticationField.API_KEY_ID_KEY), bytesReference);
     }
 
     public static class ApiKeyRoleDescriptors {
@@ -696,14 +693,14 @@ public class ApiKeyService {
             Map<String, Object> metadata = (Map<String, Object>) apiKeyDoc.creator.get("metadata");
             final User apiKeyUser = new User(principal, Strings.EMPTY_ARRAY, fullName, email, metadata, true);
             final Map<String, Object> authResultMetadata = new HashMap<>();
-            authResultMetadata.put(ApiKeyServiceField.API_KEY_CREATOR_REALM_NAME, apiKeyDoc.creator.get("realm"));
-            authResultMetadata.put(ApiKeyServiceField.API_KEY_CREATOR_REALM_TYPE, apiKeyDoc.creator.get("realm_type"));
-            authResultMetadata.put(ApiKeyServiceField.API_KEY_ROLE_DESCRIPTORS_KEY, apiKeyDoc.roleDescriptorsBytes);
-            authResultMetadata.put(ApiKeyServiceField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, apiKeyDoc.limitedByRoleDescriptorsBytes);
-            authResultMetadata.put(ApiKeyServiceField.API_KEY_ID_KEY, credentials.getId());
-            authResultMetadata.put(ApiKeyServiceField.API_KEY_NAME_KEY, apiKeyDoc.name);
+            authResultMetadata.put(AuthenticationField.API_KEY_CREATOR_REALM_NAME, apiKeyDoc.creator.get("realm"));
+            authResultMetadata.put(AuthenticationField.API_KEY_CREATOR_REALM_TYPE, apiKeyDoc.creator.get("realm_type"));
+            authResultMetadata.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, apiKeyDoc.roleDescriptorsBytes);
+            authResultMetadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, apiKeyDoc.limitedByRoleDescriptorsBytes);
+            authResultMetadata.put(AuthenticationField.API_KEY_ID_KEY, credentials.getId());
+            authResultMetadata.put(AuthenticationField.API_KEY_NAME_KEY, apiKeyDoc.name);
             if (apiKeyDoc.metadataFlattened != null) {
-                authResultMetadata.put(ApiKeyServiceField.API_KEY_METADATA_KEY, apiKeyDoc.metadataFlattened);
+                authResultMetadata.put(AuthenticationField.API_KEY_METADATA_KEY, apiKeyDoc.metadataFlattened);
             }
             listener.onResponse(AuthenticationResult.success(apiKeyUser, authResultMetadata));
         } else {
@@ -750,7 +747,7 @@ public class ApiKeyService {
     public static boolean isApiKeyAuthentication(Authentication authentication) {
         final Authentication.AuthenticationType authType = authentication.getAuthenticationType();
         if (Authentication.AuthenticationType.API_KEY == authType) {
-            assert ApiKeyServiceField.API_KEY_REALM_TYPE.equals(authentication.getAuthenticatedBy().getType())
+            assert AuthenticationField.API_KEY_REALM_TYPE.equals(authentication.getAuthenticatedBy().getType())
                 : "API key authentication must have API key realm type";
             return true;
         } else {
@@ -1216,7 +1213,7 @@ public class ApiKeyService {
 
     /**
      * Returns realm name for the authenticated user.
-     * If the user is authenticated by realm type {@value ApiKeyServiceField#API_KEY_REALM_TYPE}
+     * If the user is authenticated by realm type {@value AuthenticationField#API_KEY_REALM_TYPE}
      * then it will return the realm name of user who created this API key.
      *
      * @param authentication {@link Authentication}
@@ -1224,7 +1221,7 @@ public class ApiKeyService {
      */
     public static String getCreatorRealmName(final Authentication authentication) {
         if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
-            return (String) authentication.getMetadata().get(ApiKeyServiceField.API_KEY_CREATOR_REALM_NAME);
+            return (String) authentication.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME);
         } else {
             return authentication.getSourceRealm().getName();
         }
@@ -1232,7 +1229,7 @@ public class ApiKeyService {
 
     /**
      * Returns realm type for the authenticated user.
-     * If the user is authenticated by realm type {@value ApiKeyServiceField#API_KEY_REALM_TYPE}
+     * If the user is authenticated by realm type {@value AuthenticationField#API_KEY_REALM_TYPE}
      * then it will return the realm name of user who created this API key.
      *
      * @param authentication {@link Authentication}
@@ -1240,7 +1237,7 @@ public class ApiKeyService {
      */
     public static String getCreatorRealmType(final Authentication authentication) {
         if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
-            return (String) authentication.getMetadata().get(ApiKeyServiceField.API_KEY_CREATOR_REALM_TYPE);
+            return (String) authentication.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_TYPE);
         } else {
             return authentication.getSourceRealm().getType();
         }
@@ -1257,7 +1254,7 @@ public class ApiKeyService {
             throw new IllegalArgumentException("authentication type must be [api_key], got ["
                 + authentication.getAuthenticationType().name().toLowerCase(Locale.ROOT) + "]");
         }
-        final Object apiKeyMetadata = authentication.getMetadata().get(ApiKeyServiceField.API_KEY_METADATA_KEY);
+        final Object apiKeyMetadata = authentication.getMetadata().get(AuthenticationField.API_KEY_METADATA_KEY);
         if (apiKeyMetadata != null) {
             final Tuple<XContentType, Map<String, Object>> tuple =
                 XContentHelper.convertToMap((BytesReference) apiKeyMetadata, false, XContentType.JSON);

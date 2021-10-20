@@ -161,8 +161,8 @@ public class Authentication implements ToXContentObject {
      */
     public boolean canAccessResourcesOf(Authentication other) {
         if (AuthenticationType.API_KEY == getAuthenticationType() && AuthenticationType.API_KEY == other.getAuthenticationType()) {
-            final boolean sameKeyId = getMetadata().get(ApiKeyServiceField.API_KEY_ID_KEY)
-                .equals(other.getMetadata().get(ApiKeyServiceField.API_KEY_ID_KEY));
+            final boolean sameKeyId = getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
+                .equals(other.getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
             if (sameKeyId) {
                 assert getUser().principal().equals(other.getUser().principal()) :
                     "The same API key ID cannot be attributed to two different usernames";
@@ -266,12 +266,12 @@ public class Authentication implements ToXContentObject {
      */
     private Map<String, Object> verifyApiKeyInfoAndCreateApiKeyInfoMap() throws IllegalArgumentException {
         if (isApiKey()) {
-            final String apiKeyId = (String) this.metadata.get(ApiKeyServiceField.API_KEY_ID_KEY);
+            final String apiKeyId = (String) this.metadata.get(AuthenticationField.API_KEY_ID_KEY);
             if (apiKeyId == null) { // checks for both errors: 1) metadata.containsKey==false, 2) metadata.get==null
                 throw new IllegalArgumentException("If AuthenticationType=API_KEY, User metadata must contain non-null API KEY id");
             }
-            if (this.metadata.containsKey(ApiKeyServiceField.API_KEY_NAME_KEY)) { // handle older API KEYs where name was not mandatory
-                final String apiKeyName = (String) this.metadata.get(ApiKeyServiceField.API_KEY_NAME_KEY);
+            if (this.metadata.containsKey(AuthenticationField.API_KEY_NAME_KEY)) { // handle older API KEYs where name was not mandatory
+                final String apiKeyName = (String) this.metadata.get(AuthenticationField.API_KEY_NAME_KEY);
                 if (apiKeyName == null) {
                     throw new IllegalArgumentException("If AuthenticationType=API_KEY, User metadata with API KEY name must be non-null");
                 }

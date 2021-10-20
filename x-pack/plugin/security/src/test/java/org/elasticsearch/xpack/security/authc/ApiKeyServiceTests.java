@@ -59,10 +59,10 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
-import org.elasticsearch.xpack.core.security.authc.ApiKeyServiceField;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
@@ -114,7 +114,7 @@ import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesSto
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
-import static org.elasticsearch.xpack.core.security.authc.ApiKeyServiceField.API_KEY_METADATA_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_METADATA_KEY;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -283,10 +283,10 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(auth.getUser().principal(), is("hulk"));
         assertThat(auth.getUser().fullName(), is("Bruce Banner"));
         assertThat(auth.getUser().email(), is("hulk@test.com"));
-        assertThat(auth.getMetadata().get(ApiKeyServiceField.API_KEY_CREATOR_REALM_NAME), is("realm1"));
-        assertThat(auth.getMetadata().get(ApiKeyServiceField.API_KEY_CREATOR_REALM_TYPE), is("native"));
-        assertThat(auth.getMetadata().get(ApiKeyServiceField.API_KEY_ID_KEY), is(id));
-        assertThat(auth.getMetadata().get(ApiKeyServiceField.API_KEY_NAME_KEY), is("test"));
+        assertThat(auth.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME), is("realm1"));
+        assertThat(auth.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_TYPE), is("native"));
+        assertThat(auth.getMetadata().get(AuthenticationField.API_KEY_ID_KEY), is(id));
+        assertThat(auth.getMetadata().get(AuthenticationField.API_KEY_NAME_KEY), is("test"));
         checkAuthApiKeyMetadata(metadata, auth);
     }
 
@@ -447,10 +447,10 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(result.getUser().email(), is("test@user.com"));
         assertThat(result.getUser().roles(), is(emptyArray()));
         assertThat(result.getUser().metadata(), is(Collections.emptyMap()));
-        assertThat(result.getMetadata().get(ApiKeyServiceField.API_KEY_ROLE_DESCRIPTORS_KEY), equalTo(apiKeyDoc.roleDescriptorsBytes));
-        assertThat(result.getMetadata().get(ApiKeyServiceField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
+        assertThat(result.getMetadata().get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY), equalTo(apiKeyDoc.roleDescriptorsBytes));
+        assertThat(result.getMetadata().get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
             equalTo(apiKeyDoc.limitedByRoleDescriptorsBytes));
-        assertThat(result.getMetadata().get(ApiKeyServiceField.API_KEY_CREATOR_REALM_NAME), is("realm1"));
+        assertThat(result.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME), is("realm1"));
 
         apiKeyDoc = buildApiKeyDoc(hash, Clock.systemUTC().instant().plus(1L, ChronoUnit.HOURS).toEpochMilli(), false);
         future = new PlainActionFuture<>();
@@ -464,10 +464,10 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(result.getUser().email(), is("test@user.com"));
         assertThat(result.getUser().roles(), is(emptyArray()));
         assertThat(result.getUser().metadata(), is(Collections.emptyMap()));
-        assertThat(result.getMetadata().get(ApiKeyServiceField.API_KEY_ROLE_DESCRIPTORS_KEY), equalTo(apiKeyDoc.roleDescriptorsBytes));
-        assertThat(result.getMetadata().get(ApiKeyServiceField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
+        assertThat(result.getMetadata().get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY), equalTo(apiKeyDoc.roleDescriptorsBytes));
+        assertThat(result.getMetadata().get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
             equalTo(apiKeyDoc.limitedByRoleDescriptorsBytes));
-        assertThat(result.getMetadata().get(ApiKeyServiceField.API_KEY_CREATOR_REALM_NAME), is("realm1"));
+        assertThat(result.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME), is("realm1"));
 
         apiKeyDoc = buildApiKeyDoc(hash, Clock.systemUTC().instant().minus(1L, ChronoUnit.HOURS).toEpochMilli(), false);
         future = new PlainActionFuture<>();
@@ -502,10 +502,10 @@ public class ApiKeyServiceTests extends ESTestCase {
                 false);
         }
         Map<String, Object> authMetadata = new HashMap<>();
-        authMetadata.put(ApiKeyServiceField.API_KEY_ID_KEY, randomAlphaOfLength(12));
-        authMetadata.put(ApiKeyServiceField.API_KEY_ROLE_DESCRIPTORS_KEY,
+        authMetadata.put(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLength(12));
+        authMetadata.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
             Collections.singletonMap(SUPERUSER_ROLE_DESCRIPTOR.getName(), superUserRdMap));
-        authMetadata.put(ApiKeyServiceField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+        authMetadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
             Collections.singletonMap(SUPERUSER_ROLE_DESCRIPTOR.getName(), superUserRdMap));
 
         final Authentication authentication = new Authentication(new User("joe"), new RealmRef("apikey", "apikey", "node"), null,
@@ -523,7 +523,7 @@ public class ApiKeyServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testGetRolesForApiKey() throws Exception {
         Map<String, Object> authMetadata = new HashMap<>();
-        authMetadata.put(ApiKeyServiceField.API_KEY_ID_KEY, randomAlphaOfLength(12));
+        authMetadata.put(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLength(12));
         boolean emptyApiKeyRoleDescriptor = randomBoolean();
         final RoleDescriptor roleARoleDescriptor = new RoleDescriptor("a role", new String[] { "monitor" },
             new RoleDescriptor.IndicesPrivileges[] {
@@ -534,7 +534,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             roleARDMap = XContentHelper.convertToMap(XContentType.JSON.xContent(),
                 BytesReference.bytes(roleARoleDescriptor.toXContent(builder, ToXContent.EMPTY_PARAMS, true)).streamInput(), false);
         }
-        authMetadata.put(ApiKeyServiceField.API_KEY_ROLE_DESCRIPTORS_KEY,
+        authMetadata.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
             (emptyApiKeyRoleDescriptor) ? randomFrom(Arrays.asList(null, Collections.emptyMap()))
                 : Collections.singletonMap("a role", roleARDMap));
 
@@ -550,7 +550,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                     .streamInput(),
                 false);
         }
-        authMetadata.put(ApiKeyServiceField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, Collections.singletonMap("limited role", limitedRdMap));
+        authMetadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, Collections.singletonMap("limited role", limitedRdMap));
 
         final Authentication authentication = new Authentication(new User("joe"), new RealmRef("apikey", "apikey", "node"), null,
             VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_8_1),
@@ -586,11 +586,11 @@ public class ApiKeyServiceTests extends ESTestCase {
     public void testGetApiKeyIdAndRoleBytes() {
         Map<String, Object> authMetadata = new HashMap<>();
         final String apiKeyId = randomAlphaOfLength(12);
-        authMetadata.put(ApiKeyServiceField.API_KEY_ID_KEY, apiKeyId);
+        authMetadata.put(AuthenticationField.API_KEY_ID_KEY, apiKeyId);
         final BytesReference roleBytes = new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}");
         final BytesReference limitedByRoleBytes = new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}");
-        authMetadata.put(ApiKeyServiceField.API_KEY_ROLE_DESCRIPTORS_KEY, roleBytes);
-        authMetadata.put(ApiKeyServiceField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleBytes);
+        authMetadata.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, roleBytes);
+        authMetadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleBytes);
 
         final Authentication authentication = new Authentication(new User("joe"), new RealmRef("apikey", "apikey", "node"), null,
             Version.CURRENT, AuthenticationType.API_KEY, authMetadata);
@@ -1292,14 +1292,14 @@ public class ApiKeyServiceTests extends ESTestCase {
                 // maybe remove realm name to simulate old API Key authentication
                 assert authenticationResult.getStatus() == AuthenticationResult.Status.SUCCESS;
                 Map<String, Object> authenticationResultMetadata = new HashMap<>(authenticationResult.getMetadata());
-                authenticationResultMetadata.remove(ApiKeyServiceField.API_KEY_CREATOR_REALM_NAME);
+                authenticationResultMetadata.remove(AuthenticationField.API_KEY_CREATOR_REALM_NAME);
                 authenticationResult = AuthenticationResult.success(authenticationResult.getUser(), authenticationResultMetadata);
             }
             if (randomBoolean()) {
                 // simulate authentication with nameless API Key, see https://github.com/elastic/elasticsearch/issues/59484
                 assert authenticationResult.getStatus() == AuthenticationResult.Status.SUCCESS;
                 Map<String, Object> authenticationResultMetadata = new HashMap<>(authenticationResult.getMetadata());
-                authenticationResultMetadata.remove(ApiKeyServiceField.API_KEY_NAME_KEY);
+                authenticationResultMetadata.remove(AuthenticationField.API_KEY_NAME_KEY);
                 authenticationResult = AuthenticationResult.success(authenticationResult.getUser(), authenticationResultMetadata);
             }
 

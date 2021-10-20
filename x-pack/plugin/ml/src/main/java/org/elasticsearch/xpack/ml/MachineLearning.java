@@ -483,9 +483,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         return Collections.singletonMap(InferenceProcessor.TYPE, inferenceFactory);
     }
 
-    // This is not used in v7 and higher, but users are still prevented from setting it directly to avoid confusion
-    private static final String PRE_V7_ML_ENABLED_NODE_ATTR = "ml.enabled";
-    public static final String MAX_OPEN_JOBS_NODE_ATTR = "ml.max_open_jobs";
+    // This is not used in v8 and higher, but users are still prevented from setting it directly to avoid confusion
+    private static final String PRE_V8_MAX_OPEN_JOBS_NODE_ATTR = "ml.max_open_jobs";
     public static final String MACHINE_MEMORY_NODE_ATTR = "ml.machine_memory";
     public static final String MAX_JVM_SIZE_NODE_ATTR = "ml.max_jvm_size";
     public static final Setting<Integer> CONCURRENT_JOB_ALLOCATIONS =
@@ -622,7 +621,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     public static boolean isMlNode(DiscoveryNode node) {
         Map<String, String> nodeAttributes = node.getAttributes();
         try {
-            return Integer.parseInt(nodeAttributes.get(MAX_OPEN_JOBS_NODE_ATTR)) > 0;
+            return Long.parseLong(nodeAttributes.get(MACHINE_MEMORY_NODE_ATTR)) > 0;
         } catch (NumberFormatException e) {
             return false;
         }
@@ -652,29 +651,24 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     }
 
     public Settings additionalSettings() {
-        String mlEnabledNodeAttrName = "node.attr." + PRE_V7_ML_ENABLED_NODE_ATTR;
-        String maxOpenJobsPerNodeNodeAttrName = "node.attr." + MAX_OPEN_JOBS_NODE_ATTR;
+        String maxOpenJobsPerNodeNodeAttrName = "node.attr." + PRE_V8_MAX_OPEN_JOBS_NODE_ATTR;
         String machineMemoryAttrName = "node.attr." + MACHINE_MEMORY_NODE_ATTR;
         String jvmSizeAttrName = "node.attr." + MAX_JVM_SIZE_NODE_ATTR;
 
         if (enabled == false) {
-            disallowMlNodeAttributes(mlEnabledNodeAttrName, maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName);
+            disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName, jvmSizeAttrName);
             return Settings.EMPTY;
         }
 
         Settings.Builder additionalSettings = Settings.builder();
         if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.ML_ROLE)) {
-            // TODO: stop setting this attribute in 8.0.0 but disallow it (like mlEnabledNodeAttrName below)
-            // The ML UI will need to be changed to check machineMemoryAttrName instead before this is done
-            addMlNodeAttribute(additionalSettings, maxOpenJobsPerNodeNodeAttrName,
-                    String.valueOf(MAX_OPEN_JOBS_PER_NODE.get(settings)));
             addMlNodeAttribute(additionalSettings, machineMemoryAttrName,
                     Long.toString(OsProbe.getInstance().osStats().getMem().getAdjustedTotal().getBytes()));
             addMlNodeAttribute(additionalSettings, jvmSizeAttrName, Long.toString(Runtime.getRuntime().maxMemory()));
-            // This is not used in v7 and higher, but users are still prevented from setting it directly to avoid confusion
-            disallowMlNodeAttributes(mlEnabledNodeAttrName);
+            // This is not used in v8 and higher, but users are still prevented from setting it directly to avoid confusion
+            disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName);
         } else {
-            disallowMlNodeAttributes(mlEnabledNodeAttrName,
+            disallowMlNodeAttributes(
                 maxOpenJobsPerNodeNodeAttrName,
                 machineMemoryAttrName,
                 jvmSizeAttrName

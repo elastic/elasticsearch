@@ -55,7 +55,7 @@ public class NodesHotThreadsRequestTests extends ESTestCase {
             out.setVersion(previous);
             request.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                in.setVersion(latest);
+                in.setVersion(previous);
                 NodesHotThreadsRequest deserialized = new NodesHotThreadsRequest(in);
                 assertEquals(request.threads(), deserialized.threads());
                 assertEquals(request.ignoreIdleThreads(), deserialized.ignoreIdleThreads());

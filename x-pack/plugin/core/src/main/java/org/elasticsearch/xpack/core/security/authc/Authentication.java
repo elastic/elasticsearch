@@ -58,7 +58,8 @@ public class Authentication implements ToXContentObject {
         this.version = version;
         this.type = type;
         this.metadata = metadata;
-        this.verifyApiKeyInfoAndCreateApiKeyInfoMap(); // authentication.api_key={"id":"ab12", "name":"my-key"}
+        assert this.metadata.get(AuthenticationField.API_KEY_ID_KEY) != null; // always present, never null
+        assert this.metadata.containsKey(AuthenticationField.API_KEY_ID_KEY); // always present, null for old keys
     }
 
     public Authentication(StreamInput in) throws IOException {
@@ -72,7 +73,8 @@ public class Authentication implements ToXContentObject {
         this.version = in.getVersion();
         type = AuthenticationType.values()[in.readVInt()];
         metadata = in.readMap();
-        this.verifyApiKeyInfoAndCreateApiKeyInfoMap(); // authentication.api_key={"id":"ab12", "name":"my-key"}
+        assert this.metadata.get(AuthenticationField.API_KEY_ID_KEY) != null; // always present, never null
+        assert this.metadata.containsKey(AuthenticationField.API_KEY_ID_KEY); // always present, null for old keys
     }
 
     public User getUser() {
@@ -254,7 +256,21 @@ public class Authentication implements ToXContentObject {
         builder.endObject();
         builder.field(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), getAuthenticationType().name().toLowerCase(Locale.ROOT));
         if (isApiKey()) {
-            builder.field("api_key", verifyApiKeyInfoAndCreateApiKeyInfoMap()); // authentication.api_key={"id":"ab12", "name":"my-key"}
+            final String apiKeyId   = (String) this.metadata.get(AuthenticationField.API_KEY_ID_KEY);
+            final String apiKeyName = (String) this.metadata.get(AuthenticationField.API_KEY_NAME_KEY);
+            if (apiKeyId == null) {
+                if (apiKeyName == null) {
+                    builder.field("api_key", Collections.emptyMap());
+                } else {
+                    builder.field("api_key", Map.of("name", apiKeyName));
+                }
+            } else {
+                if (apiKeyName == null) {
+                    builder.field("api_key", Map.of("id", apiKeyId));
+                } else {
+                    builder.field("api_key", Map.of("id", apiKeyId, "name", apiKeyName));
+                }
+            }
         }
     }
 
@@ -266,18 +282,6 @@ public class Authentication implements ToXContentObject {
      */
     private Map<String, Object> verifyApiKeyInfoAndCreateApiKeyInfoMap() throws IllegalArgumentException {
         if (isApiKey()) {
-            final String apiKeyId = (String) this.metadata.get(AuthenticationField.API_KEY_ID_KEY);
-            if (apiKeyId == null) { // checks for both errors: 1) metadata.containsKey==false, 2) metadata.get==null
-                throw new IllegalArgumentException("If AuthenticationType=API_KEY, User metadata must contain non-null API KEY id");
-            }
-            if (this.metadata.containsKey(AuthenticationField.API_KEY_NAME_KEY)) { // handle older API KEYs where name was not mandatory
-                final String apiKeyName = (String) this.metadata.get(AuthenticationField.API_KEY_NAME_KEY);
-                if (apiKeyName == null) {
-                    throw new IllegalArgumentException("If AuthenticationType=API_KEY, User metadata with API KEY name must be non-null");
-                }
-                return Map.of("id", apiKeyId, "name", apiKeyName); // newer API KEYs include name
-            }
-            return Map.of("id", apiKeyId);                           // older API KEYs lack name
         }
         return null;
     }

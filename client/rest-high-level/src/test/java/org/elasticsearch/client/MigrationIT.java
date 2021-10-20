@@ -23,8 +23,8 @@ import java.util.Optional;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 
 public class MigrationIT extends ESRestHighLevelClientTestCase {
 
@@ -60,11 +60,8 @@ public class MigrationIT extends ESRestHighLevelClientTestCase {
     public void testPostFeatureUpgradeStatus() throws IOException {
         PostFeatureUpgradeRequest request = new PostFeatureUpgradeRequest();
         PostFeatureUpgradeResponse response = highLevelClient().migration().postFeatureUpgrade(request, RequestOptions.DEFAULT);
-        assertThat(response.isAccepted(), equalTo(true));
-        assertThat(response.getFeatures().size(), equalTo(1));
-        PostFeatureUpgradeResponse.Feature feature = response.getFeatures().get(0);
-        assertThat(feature.getFeatureName(), equalTo("security"));
-        assertThat(response.getReason(), nullValue());
-        assertThat(response.getElasticsearchException(), nullValue());
+        assertThat(response.isAccepted(), equalTo(false));
+        assertThat(response.getFeatures(), hasSize(0));
+        assertThat(response.getReason(), equalTo("No system indices require migration"));
     }
 }

@@ -139,7 +139,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        final boolean inEnrollmentMode = Strings.isNullOrEmpty(enrollmentTokenParam.value(options)) == false;
+        final boolean inEnrollmentMode = options.has(enrollmentTokenParam);
 
         // skipping security auto configuration because node considered as restarting.
         for (Path dataPath : env.dataFiles()) {

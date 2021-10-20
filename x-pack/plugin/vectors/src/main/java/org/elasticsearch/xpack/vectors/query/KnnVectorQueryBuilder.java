@@ -87,13 +87,17 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 + DenseVectorFieldMapper.CONTENT_TYPE + "] fields");
         }
 
+        if (context.getNestedParent(fieldType.name()) != null) {
+            throw new IllegalArgumentException("[" + NAME + "] queries are not supported on nested fields");
+        }
+
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) fieldType;
         if (queryVector.length != vectorFieldType.dims()) {
             throw new IllegalArgumentException("the query vector has a different dimension [" + queryVector.length + "] "
                 + "than the index vectors [" + vectorFieldType.dims() + "]");
         }
         if (vectorFieldType.isSearchable() == false) {
-            throw new IllegalArgumentException("[" + "[" + NAME + "] queries are not supported if [index] is disabled");
+            throw new IllegalArgumentException("[" + NAME + "] queries are not supported if [index] is disabled");
         }
         return new KnnVectorQuery(fieldType.name(), queryVector, numCands);
     }

@@ -42,7 +42,7 @@ import java.util.stream.Collectors;
  * A class that represents the data in a repository, as captured in the
  * repository's index blob.
  */
-public class RepositoryData {
+public final class RepositoryData {
 
     /**
      * The generation value indicating the repository has no index generational files.

@@ -45,7 +45,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   /* Set up tasks to unzip and run the old versions of ES before running the integration tests.
    * To avoid testing against too many old versions, always pick first and last version per major
    */
-  for (String versionString : ['1.0.0', '1.7.6', '2.0.0', '2.4.5', '5.0.0', '5.6.16', '6.0.0', '6.8.18']) {
+  for (String versionString : ['5.0.0', '5.6.16', '6.0.0', '6.8.18']) {
     Version version = Version.fromString(versionString)
     String packageName = version.major == 1 ? 'org.elasticsearch' : 'org.elasticsearch.distribution.zip'
     String artifact = "${packageName}:elasticsearch:${version}@zip"

@@ -76,7 +76,9 @@ class AuthenticatorChain {
             // this happens when the license state changes between the call to authenticate and the actual invocation
             // to get the realm list
             logger.debug("No realms available, failing authentication");
-            listener.onResponse(null);
+            originalListener.onResponse(null);
+            return;
+        }
         // Check whether authentication is an operator user and mark the threadContext if necessary
         // before returning the authentication object
         final ActionListener<Authentication> listener = originalListener.map(authentication -> {

@@ -25,11 +25,12 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class BaseEnrollmentTokenGenerator {
+    public static final long ENROLL_API_KEY_EXPIRATION_MINUTES = 30L;
 
     public BaseEnrollmentTokenGenerator() {
     }
 
-    static String getCaFingerprint(SSLService sslService) throws Exception {
+    static String getHttpsCaFingerprint(SSLService sslService) throws Exception {
         final SslKeyConfig keyConfig = sslService.getHttpTransportSSLConfiguration().getKeyConfig();
         if (keyConfig instanceof StoreKeyConfig == false) {
             throw new IllegalStateException("Unable to create an enrollment token. Elasticsearch node HTTP layer SSL configuration is " +

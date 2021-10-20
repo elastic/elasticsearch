@@ -217,7 +217,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         fieldMultiValueLeniency = in.readBoolean();
         indexIncludeFrozen = in.readBoolean();
         binaryCommunication = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO: V_7_14_0
+        if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
             this.waitForCompletionTimeout = in.readOptionalTimeValue();
             this.keepOnCompletion = in.readBoolean();
             this.keepAlive = in.readOptionalTimeValue();
@@ -232,7 +232,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         out.writeBoolean(fieldMultiValueLeniency);
         out.writeBoolean(indexIncludeFrozen);
         out.writeOptionalBoolean(binaryCommunication);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO: V_7_14_0
+        if (out.getVersion().onOrAfter(Version.V_7_14_0)) {
             out.writeOptionalTimeValue(waitForCompletionTimeout);
             out.writeBoolean(keepOnCompletion);
             out.writeOptionalTimeValue(keepAlive);

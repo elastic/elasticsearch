@@ -332,6 +332,8 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
     }
 
     void prepareModelToLoad(StartTrainedModelDeploymentAction.TaskParams taskParams) {
+        logger.debug(() -> new ParameterizedMessage("[{}] preparing to load model with task params: {}",
+            taskParams.getModelId(), taskParams));
         TrainedModelDeploymentTask task = (TrainedModelDeploymentTask) taskManager.register(
             TRAINED_MODEL_ALLOCATION_TASK_TYPE,
             TRAINED_MODEL_ALLOCATION_TASK_NAME_PREFIX + taskParams.getModelId(),

@@ -392,6 +392,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     public static final LicensedFeature.Persistent CUSTOM_ROLE_PROVIDERS_FEATURE =
         LicensedFeature.persistent(null, "security-roles-provider", License.OperationMode.PLATINUM);
 
+    public static final LicensedFeature.Momentary OPERATOR_PRIVILEGES_FEATURE =
+        LicensedFeature.momentary(null, "operator-privileges", License.OperationMode.ENTERPRISE);
+
     private static final Logger logger = LogManager.getLogger(Security.class);
 
     public static final SystemIndexDescriptor SECURITY_MAIN_INDEX_DESCRIPTOR = getSecurityMainIndexDescriptor();

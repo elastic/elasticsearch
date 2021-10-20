@@ -9,6 +9,7 @@
 package org.elasticsearch.packaging.test;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.xpack.core.security.EnrollmentToken;
@@ -35,7 +36,7 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
 
     public void test20EnrollToClusterWithEmptyTokenValue() throws Exception {
         Shell.Result result = Archives.runElasticsearchStartCommand(installation, sh, null, List.of("--enrollment-token"), false);
-        assertThat(result.exitCode, equalTo(65));
+        assertThat(result.exitCode, equalTo(ExitCodes.DATA_ERROR));
         verifySecurityNotAutoConfigured(installation);
     }
 
@@ -47,7 +48,7 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
             List.of("--enrollment-token", "somerandomcharsthatarenotabase64encodedjsonstructure"),
             false
         );
-        assertThat(result.exitCode, equalTo(65));
+        assertThat(result.exitCode, equalTo(ExitCodes.DATA_ERROR));
         verifySecurityNotAutoConfigured(installation);
     }
 
@@ -62,7 +63,7 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
             List.of("--enrollment-token", generateMockEnrollmentToken()),
             false
         );
-        assertThat(result.exitCode, equalTo(78));
+        assertThat(result.exitCode, equalTo(ExitCodes.NOOP));
         verifySecurityNotAutoConfigured(installation);
     }
 
@@ -75,8 +76,8 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
             List.of("--enrollment-token", generateMockEnrollmentToken(), "some-other-token", "some-other-token", "some-other-token"),
             false
         );
-        // Assert we used the first value which is a proper enrollment token but failed because the node is already configured ( 78 )
-        assertThat(result.exitCode, equalTo(78));
+        // Assert we used the first value which is a proper enrollment token but failed because the node is already configured ( 80 )
+        assertThat(result.exitCode, equalTo(ExitCodes.NOOP));
         verifySecurityNotAutoConfigured(installation);
     }
 
@@ -96,8 +97,8 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
             ),
             false
         );
-        // Assert we used the last named parameter which is a proper enrollment token but failed because the node is already configured (78)
-        assertThat(result.exitCode, equalTo(78));
+        // Assert we used the last named parameter which is a proper enrollment token but failed because the node is already configured (80)
+        assertThat(result.exitCode, equalTo(ExitCodes.NOOP));
     }
 
     private String generateMockEnrollmentToken() throws Exception {

@@ -235,6 +235,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             + DEFAULT_ELECTION_DELAY
             // perhaps there is an election collision requiring another publication (which times out) and a term bump
             + defaultMillis(PUBLISH_TIMEOUT_SETTING) + DEFAULT_ELECTION_DELAY
+            // very rarely there is another election collision requiring another publication (which times out) and a term bump
+            + defaultMillis(PUBLISH_TIMEOUT_SETTING) + DEFAULT_ELECTION_DELAY
             // then wait for the new leader to notice that the old leader is unresponsive
             + (defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING) + defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING))
             * defaultInt(FOLLOWER_CHECK_RETRY_COUNT_SETTING)
@@ -1029,8 +1031,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 masterService = new AckedFakeThreadPoolMasterService(localNode.getId(), "test", threadPool,
                     runnable -> deterministicTaskQueue.scheduleNow(onNode(runnable)));
                 final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-                clusterApplierService = new DisruptableClusterApplierService(localNode.getId(), settings, clusterSettings,
-                    deterministicTaskQueue, threadPool);
+                clusterApplierService = new DisruptableClusterApplierService(
+                    localNode.getId(),
+                    localNode.getEphemeralId(),
+                    settings,
+                    clusterSettings,
+                    deterministicTaskQueue,
+                    threadPool);
                 clusterService = new ClusterService(settings, clusterSettings, masterService, clusterApplierService);
                 clusterService.setNodeConnectionsService(
                     new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService));
@@ -1442,15 +1449,23 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
     static class DisruptableClusterApplierService extends ClusterApplierService {
         private final String nodeName;
+        private final String nodeId;
         private final DeterministicTaskQueue deterministicTaskQueue;
         private final ThreadPool threadPool;
         ClusterStateApplyResponse clusterStateApplyResponse = ClusterStateApplyResponse.SUCCEED;
         private boolean applicationMayFail;
 
-        DisruptableClusterApplierService(String nodeName, Settings settings, ClusterSettings clusterSettings,
-                                         DeterministicTaskQueue deterministicTaskQueue, ThreadPool threadPool) {
+        DisruptableClusterApplierService(
+            String nodeName,
+            String nodeId,
+            Settings settings,
+            ClusterSettings clusterSettings,
+            DeterministicTaskQueue deterministicTaskQueue,
+            ThreadPool threadPool
+        ) {
             super(nodeName, settings, clusterSettings, threadPool);
             this.nodeName = nodeName;
+            this.nodeId = nodeId;
             this.deterministicTaskQueue = deterministicTaskQueue;
             this.threadPool = threadPool;
             addStateApplier(event -> {
@@ -1470,7 +1485,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
         @Override
         protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
-            return new MockSinglePrioritizingExecutor(nodeName, deterministicTaskQueue, threadPool);
+            return new MockSinglePrioritizingExecutor(nodeName, nodeId, deterministicTaskQueue, threadPool);
         }
 
         @Override

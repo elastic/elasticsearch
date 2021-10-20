@@ -74,7 +74,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
             randomLongBetween(0, utcMillis("2050-01-01")),
             roundingInfos,
             roundingIndex,
-            randomNumericDocValueFormat()
+            randomDateDocValueFormat()
         );
     }
 
@@ -111,7 +111,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         long startingDate = randomLongBetween(0, utcMillis("2050-01-01"));
         RoundingInfo[] roundingInfos = AutoDateHistogramAggregationBuilder.buildRoundings(null, null);
         int roundingIndex = between(0, roundingInfos.length - 1);
-        DocValueFormat format = randomNumericDocValueFormat();
+        DocValueFormat format = randomDateDocValueFormat();
         List<InternalAutoDateHistogram> result = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             long thisResultStart = startingDate;

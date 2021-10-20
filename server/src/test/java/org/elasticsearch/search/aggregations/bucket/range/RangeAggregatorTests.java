@@ -433,11 +433,11 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     public void testSubAggCollectsFromSingleBucketIfOneRange() throws IOException {
         RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("test").field(NUMBER_FIELD_NAME)
             .addRange(0d, 10d)
-            .subAggregation(aggCardinality("c"));
+            .subAggregation(aggCardinalityUpperBound("c"));
 
         simpleTestCase(aggregationBuilder, new MatchAllDocsQuery(), range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
-            InternalAggCardinality pc = ranges.get(0).getAggregations().get("c");
+            InternalAggCardinalityUpperBound pc = ranges.get(0).getAggregations().get("c");
             assertThat(pc.cardinality(), equalTo(CardinalityUpperBound.ONE));
         });
     }
@@ -446,11 +446,11 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("test").field(NUMBER_FIELD_NAME)
             .addRange(0d, 10d)
             .addRange(10d, 100d)
-            .subAggregation(aggCardinality("c"));
+            .subAggregation(aggCardinalityUpperBound("c"));
 
         simpleTestCase(aggregationBuilder, new MatchAllDocsQuery(), range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
-            InternalAggCardinality pc = ranges.get(0).getAggregations().get("c");
+            InternalAggCardinalityUpperBound pc = ranges.get(0).getAggregations().get("c");
             assertThat(pc.cardinality().map(i -> i), equalTo(2));
             pc = ranges.get(1).getAggregations().get("c");
             assertThat(pc.cardinality().map(i -> i), equalTo(2));

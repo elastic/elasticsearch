@@ -134,15 +134,14 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             }
 
             Bucket<?> that = (Bucket<?>) o;
-            return bucketOrd == that.bucketOrd
-                && Double.compare(that.score, score) == 0
+            return Double.compare(that.score, score) == 0
                 && Objects.equals(aggregations, that.aggregations)
                 && Objects.equals(format, that.format);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(getClass(), bucketOrd, aggregations, score, format);
+            return Objects.hash(getClass(), aggregations, score, format);
         }
 
         @Override

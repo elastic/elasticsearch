@@ -545,9 +545,13 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         verifyDeleteWatches(EXPECTED_WATCHES);
         verifyNoMoreInteractions(client);
 
-        assertWarnings("[xpack.monitoring.exporters._http.index.template.create_legacy_templates] setting was deprecated in " +
-            "Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next " +
-            "major version.");
+        assertWarnings(
+            "[xpack.monitoring.exporters._http.index.template.create_legacy_templates] setting was deprecated in " +
+                "Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next " +
+                "major version.",
+            "[xpack.monitoring.migration.decommission_alerts] setting was deprecated in Elasticsearch and will be " +
+                "removed in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testSuccessfulChecksOnElectedMasterNode() {

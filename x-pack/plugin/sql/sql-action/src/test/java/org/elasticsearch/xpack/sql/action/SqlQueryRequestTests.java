@@ -36,6 +36,7 @@ import static org.elasticsearch.xpack.ql.TestUtils.randomRuntimeMappings;
 import static org.elasticsearch.xpack.sql.action.SqlTestUtils.randomFilter;
 import static org.elasticsearch.xpack.sql.action.SqlTestUtils.randomFilterOrNull;
 import static org.elasticsearch.xpack.sql.proto.Protocol.BINARY_FORMAT_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.CATALOG_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.CLIENT_ID_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.COLUMNAR_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.CURSOR_NAME;
@@ -84,7 +85,7 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
     @Override
     protected SqlQueryRequest createTestInstance() {
         return new SqlQueryRequest(randomAlphaOfLength(10), randomParameters(), SqlTestUtils.randomFilterOrNull(random()),
-                randomRuntimeMappings(), randomZone(), between(1, Integer.MAX_VALUE), randomTV(),
+                randomRuntimeMappings(), randomZone(), randomAlphaOfLength(10), between(1, Integer.MAX_VALUE), randomTV(),
                 randomTV(), randomBoolean(), randomAlphaOfLength(10), requestInfo,
                 randomBoolean(), randomBoolean(), randomTV(), randomBoolean(), randomTVGreaterThan(MIN_KEEP_ALIVE)
         );
@@ -103,6 +104,7 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
                 request -> request.query(randomValueOtherThan(request.query(), () -> randomAlphaOfLength(5))),
                 request -> request.params(randomValueOtherThan(request.params(), this::randomParameters)),
                 request -> request.zoneId(randomValueOtherThan(request.zoneId(), ESTestCase::randomZone)),
+                request -> request.catalog(randomValueOtherThan(request.catalog(), () -> randomAlphaOfLength(10))),
                 request -> request.fetchSize(randomValueOtherThan(request.fetchSize(), () -> between(1, Integer.MAX_VALUE))),
                 request -> request.requestTimeout(randomValueOtherThan(request.requestTimeout(), this::randomTV)),
                 request -> request.filter(randomValueOtherThan(request.filter(),
@@ -114,9 +116,9 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
                 request -> request.keepAlive(randomValueOtherThan(request.keepAlive(), () -> randomTVGreaterThan(MIN_KEEP_ALIVE)))
         );
         SqlQueryRequest newRequest = new SqlQueryRequest(instance.query(), instance.params(), instance.filter(), instance.runtimeMappings(),
-                instance.zoneId(), instance.fetchSize(), instance.requestTimeout(), instance.pageTimeout(), instance.columnar(),
-                instance.cursor(), instance.requestInfo(), instance.fieldMultiValueLeniency(), instance.indexIncludeFrozen(),
-                instance.waitForCompletionTimeout(), instance.keepOnCompletion(), instance.keepAlive());
+                instance.zoneId(), instance.catalog(), instance.fetchSize(), instance.requestTimeout(), instance.pageTimeout(),
+                instance.columnar(), instance.cursor(), instance.requestInfo(), instance.fieldMultiValueLeniency(),
+                instance.indexIncludeFrozen(), instance.waitForCompletionTimeout(), instance.keepOnCompletion(), instance.keepAlive());
         mutator.accept(newRequest);
         return newRequest;
     }
@@ -231,6 +233,9 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
         }
         if (request.zoneId() != null) {
             builder.field(TIME_ZONE_NAME, request.zoneId().getId());
+        }
+        if (request.catalog() != null) {
+            builder.field(CATALOG_NAME, request.catalog());
         }
         if (request.fetchSize() != Protocol.FETCH_SIZE) {
             builder.field(FETCH_SIZE_NAME, request.fetchSize());

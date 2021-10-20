@@ -91,7 +91,10 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
             String value = DataTier.TIER_PREFERENCE_SETTING.get(settings);
 
             if (Strings.hasText(value) == false) {
-                return null;
+                // Starting in 8.0 we should always have a default preference of data_content
+                // but in 7.x it is possible to have null so we default here to make terms_enum
+                // api work. See https://github.com/elastic/elasticsearch/issues/79200
+                return DataTier.DATA_CONTENT;
             }
 
             // Tier preference can be a comma-delimited list of tiers, ordered by preference

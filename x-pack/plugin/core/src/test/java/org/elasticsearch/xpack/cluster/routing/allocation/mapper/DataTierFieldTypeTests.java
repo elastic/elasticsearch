@@ -48,8 +48,8 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
         assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("Data_Warm", null, false, createContext()));
         assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("noSuchRole", null, createContext()));
 
-        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("data_*", null, createContextWithoutSetting()));
-        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("*", null, createContextWithoutSetting()));
+        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("data_*", null, createContextWithoutSetting()));
+        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("*", null, createContextWithoutSetting()));
     }
 
     public void testTermQuery() {
@@ -74,7 +74,7 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
     public void testExistsQuery() {
         MappedFieldType ft = DataTierFieldMapper.DataTierFieldType.INSTANCE;
         assertEquals(new MatchAllDocsQuery(), ft.existsQuery(createContext()));
-        assertEquals(new MatchNoDocsQuery(), ft.existsQuery(createContextWithoutSetting()));
+        assertEquals(new MatchAllDocsQuery(), ft.existsQuery(createContextWithoutSetting()));
     }
 
     public void testRegexpQuery() {
@@ -95,7 +95,7 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
         assertEquals(singletonList("data_warm"), valueFetcher.fetchValues(lookup, ignoredValues));
 
         ValueFetcher emptyValueFetcher = ft.valueFetcher(createContextWithoutSetting(), null);
-        assertTrue(emptyValueFetcher.fetchValues(lookup, ignoredValues).isEmpty());
+        assertEquals(singletonList("data_content"), emptyValueFetcher.fetchValues(lookup, ignoredValues));
     }
 
     private SearchExecutionContext createContext() {

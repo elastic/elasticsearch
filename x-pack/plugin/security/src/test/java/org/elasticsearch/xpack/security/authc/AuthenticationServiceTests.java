@@ -683,7 +683,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThat(result.v1().getAuthenticationType(), is(AuthenticationType.REALM));
             verifyZeroInteractions(auditTrail);
             verifyZeroInteractions(firstRealm, secondRealm);
-            verifyZeroInteractions(operatorPrivilegesService);
+            verify(operatorPrivilegesService, times(1)).maybeMarkOperatorUser(result.v1(), threadContext);
         });
     }
 
@@ -947,7 +947,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                     assertThat(ctxAuth, sameInstance(authRef.get()));
                     assertThat(threadContext1.getHeader(AuthenticationField.AUTHENTICATION_KEY), sameInstance(authHeaderRef.get()));
                     setCompletedToTrue(completed);
-                    verifyZeroInteractions(operatorPrivilegesService);
+                    verify(operatorPrivilegesService, times(1)).maybeMarkOperatorUser(ctxAuth, threadContext1);
                 }, this::logAndFail));
             assertTrue(completed.compareAndSet(true, false));
             verifyNoMoreInteractions(firstRealm);
@@ -995,7 +995,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                     assertThat(result.getUser(), equalTo(user1));
                     assertThat(result.getAuthenticationType(), is(AuthenticationType.REALM));
                     setCompletedToTrue(completed);
-                    verifyZeroInteractions(operatorPrivilegesService);
+                    verify(operatorPrivilegesService, times(1)).maybeMarkOperatorUser(result, threadPool2.getThreadContext());
                 }, this::logAndFail));
             assertTrue(completed.get());
             verifyNoMoreInteractions(firstRealm);

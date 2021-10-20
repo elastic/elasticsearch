@@ -24,7 +24,7 @@ and to trigger an automated system upgrade that might potentially involve downti
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the `manage`
-<<privileges-list-cluster,cluster privilege>> to use this API. (TODO: true?)
+<<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[feature-upgrade-api-example]]
 ==== {api-examples-title}
@@ -144,6 +144,7 @@ Example response:
   ]
 }
 --------------------------------------------------
+// TESTRESPONSE[skip: can't actually upgrade system indices in these tests]
 
 This tells us that the security index is being upgraded. To check the
 overall status of the upgrade, call the endpoint with GET.

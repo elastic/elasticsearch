@@ -131,7 +131,16 @@ public class DeprecationChecks {
                     NodeDeprecationChecks::checkRolesCacheTTLSizeSetting,
                     NodeDeprecationChecks::checkMaxLocalStorageNodesSetting,
                     NodeDeprecationChecks::checkSamlNameIdFormatSetting,
-                    NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting
+                    NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
+                    NodeDeprecationChecks::checkSingleDataNodeWatermarkSetting,
+                    NodeDeprecationChecks::checkExporterUseIngestPipelineSettings,
+                    NodeDeprecationChecks::checkExporterPipelineMasterTimeoutSetting,
+                    NodeDeprecationChecks::checkExporterCreateLegacyTemplateSetting,
+                    NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
+                    NodeDeprecationChecks::checkScriptContextCache,
+                    NodeDeprecationChecks::checkScriptContextCompilationsRateLimitSetting,
+                    NodeDeprecationChecks::checkScriptContextCacheSizeSetting,
+                    NodeDeprecationChecks::checkScriptContextCacheExpirationSetting
                 )
             ).collect(Collectors.toList());
         }

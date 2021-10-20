@@ -168,7 +168,7 @@ public class AzureStorageServiceTests extends ESTestCase {
             plugin.reload(Settings.EMPTY);
             // existing client untouched
             assertThat(client11.getSyncClient().getAccountUrl(), equalTo("https://myaccount1.blob.core.windows.net"));
-            // new client also untouched
+            // client is no longer registered
             final SettingsException e =
                 expectThrows(SettingsException.class, () -> azureStorageService.client("azure1", LocationMode.PRIMARY_ONLY));
             assertThat(e.getMessage(), equalTo("Unable to find client with name [azure1]"));

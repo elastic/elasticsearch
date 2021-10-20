@@ -7,11 +7,6 @@ from an {es} index, transform it, and store it in another index. Let's use the
 {kibana-ref}/add-sample-data.html[{kib} sample data] to demonstrate how you can
 pivot and summarize your data with {transforms}.
 
-NOTE: {transforms-cap} might have more configuration options provided by the 
-APIs than the options available in {kib}. For example, you can set an ingest 
-pipeline for `dest` by calling the <<put-transform>>. For all the {transform} 
-configuration options, refer to the <<transform-apis,documentation>>.
-
 . Verify that your environment is set up properly to use {transforms}. If the
 {es} {security-features} are enabled, to complete this tutorial you need a user
 that has authority to preview and create {transforms}. You must also have
@@ -245,6 +240,11 @@ can use the preview {transform} API to preview the mappings it will use for the
 destination index. In {kib}, if you copied the API request to your 
 clipboard, paste it into the console, then refer to the `generated_dest_index` 
 object in the API response.
+
+NOTE: {transforms-cap} might have more configuration options provided by the 
+APIs than the options available in {kib}. For example, you can set an ingest 
+pipeline for `dest` by calling the <<put-transform>>. For all the {transform} 
+configuration options, refer to the <<transform-apis,documentation>>.
 
 .API example
 [%collapsible]

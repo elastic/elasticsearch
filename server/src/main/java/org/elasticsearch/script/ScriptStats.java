@@ -8,7 +8,6 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -60,20 +59,16 @@ public class ScriptStats implements Writeable, ToXContentFragment {
     public ScriptStats(StreamInput in) throws IOException {
         compilations = in.readVLong();
         cacheEvictions = in.readVLong();
-        compilationLimitTriggered = in.getVersion().onOrAfter(Version.V_7_0_0) ? in.readVLong() : 0;
-        contextStats = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readList(ScriptContextStats::new) : Collections.emptyList();
+        compilationLimitTriggered = in.readVLong();
+        contextStats = in.readList(ScriptContextStats::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(compilations);
         out.writeVLong(cacheEvictions);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeVLong(compilationLimitTriggered);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
-            out.writeList(contextStats);
-        }
+        out.writeVLong(compilationLimitTriggered);
+        out.writeList(contextStats);
     }
 
     public List<ScriptContextStats> getContextStats() {
@@ -109,13 +104,11 @@ public class ScriptStats implements Writeable, ToXContentFragment {
         builder.field(Fields.COMPILATIONS, compilations);
         builder.field(Fields.CACHE_EVICTIONS, cacheEvictions);
         builder.field(Fields.COMPILATION_LIMIT_TRIGGERED, compilationLimitTriggered);
-        /* TODO(stu): master only
         builder.startArray(Fields.CONTEXTS);
         for (ScriptContextStats contextStats: contextStats) {
             contextStats.toXContent(builder, params);
         }
         builder.endArray();
-         */
         builder.endObject();
         return builder;
     }

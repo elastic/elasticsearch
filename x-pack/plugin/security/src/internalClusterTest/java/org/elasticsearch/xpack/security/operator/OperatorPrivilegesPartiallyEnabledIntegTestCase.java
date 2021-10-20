@@ -52,6 +52,7 @@ public class OperatorPrivilegesPartiallyEnabledIntegTestCase extends SecurityInt
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
+        // randomly enable/disable operator privileges
         builder.put("xpack.security.operator_privileges.enabled", randomBoolean());
         return builder.build();
     }
@@ -70,7 +71,7 @@ public class OperatorPrivilegesPartiallyEnabledIntegTestCase extends SecurityInt
         getShutdownRequest.setOptions(getShutdownRequest.getOptions().toBuilder().addHeader("Authorization", OPERATOR_AUTH_HEADER));
 
         // RestClient round-robin requests to each node, we run the requests in a loop so that each node
-        // has a chance to handle at least one operator-only request.
+        // has a chance to handle at least one operator-only request (does not matter which one).
         // They must all be successful to prove that any node in a cluster with partially enabled operator privileges
         // can handle operator-only actions with no error.
         for (int i = 0; i < cluster().size(); i++) {

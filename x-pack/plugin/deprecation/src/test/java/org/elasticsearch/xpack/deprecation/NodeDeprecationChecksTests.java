@@ -1484,11 +1484,11 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             NodeDeprecationChecks.checkScriptContextCompilationsRateLimitSetting(settings, null, null, null),
             equalTo(
                 new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                    "settings [script.context.field.max_compilations_rate,script.context.score.max_compilations_rate] for context"
-                        + " specific rate limits are deprecated and will not be available in a future version."
-                        + " Use [script.max_compilations_rate] to rate limit the compilation"
-                        + " of user scripts, system scripts are exempt.",
-                    "https://ela.st/es-deprecation-7-script-context-max-compile",
+                    "Setting context-specific rate limits"
+                        + " [script.context.field.max_compilations_rate,script.context.score.max_compilations_rate] is deprecated."
+                        + " Use [script.max_compilations_rate] to rate limit the compilation of user scripts."
+                        + " Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
+                    "https://ela.st/es-deprecation-7-script-context-cache",
                     "[script.context.field.max_compilations_rate,script.context.score.max_compilations_rate] is deprecated and"
                             + " will be removed in a future release",
                     false, null)));
@@ -1512,10 +1512,11 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             NodeDeprecationChecks.checkScriptContextCacheSizeSetting(settings, null, null, null),
             equalTo(
                 new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                    "settings [script.context.filter.cache_max_size,script.context.update.cache_max_size] for context"
-                        + " specific script cache sizes are deprecated and will not be available in a future version."
-                        + " Use [script.cache.max_size] to size the context cache for all scripts.",
-                    "https://ela.st/es-deprecation-7-script-context-size",
+                    "Setting a context-specific cache size"
+                        + " [script.context.filter.cache_max_size,script.context.update.cache_max_size] is deprecated."
+                        + " Use [script.cache.max_size] to configure the size of the general cache for scripts."
+                        + " Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
+                    "https://ela.st/es-deprecation-7-script-context-cache",
                     "[script.context.filter.cache_max_size,script.context.update.cache_max_size] is deprecated and will be" +
                             " removed in a future release",
                     false, null)));
@@ -1538,10 +1539,11 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             NodeDeprecationChecks.checkScriptContextCacheExpirationSetting(settings, null, null, null),
             equalTo(
                 new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                    "settings [script.context.interval.cache_expire,script.context.moving-function.cache_expire] for context"
-                        + " specific script cache expiration are deprecated and will not be available in a future version."
-                        + " Use [script.cache.expire] to set the cache expiration all scripts.",
-                    "https://ela.st/es-deprecation-7-script-context-expire-deprecated",
+                        "Setting a context-specific cache expiration"
+                        + " [script.context.interval.cache_expire,script.context.moving-function.cache_expire] is deprecated."
+                        + " Use [script.cache.expire] to configure the expiration of the general cache."
+                        + " Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
+                    "https://ela.st/es-deprecation-7-script-context-cache",
                     "[script.context.interval.cache_expire,script.context.moving-function.cache_expire] is deprecated and will be"
                             + " removed in a future release",
                     false, null)));

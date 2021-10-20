@@ -1015,11 +1015,12 @@ class NodeDeprecationChecks {
                 c -> maxSetting.getConcreteSettingForNamespace(c).getKey()
             ).collect(Collectors.joining(","));
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                String.format(Locale.ROOT, "settings [" + maxSettings + "] for context specific rate limits are deprecated and will"
-                    + " not be available in a future version."
-                    + " Use [" + ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey() + "] to rate limit the compilation"
-                    + " of user scripts, system scripts are exempt.", maxSettings),
-                "https://ela.st/es-deprecation-7-script-context-max-compile",
+                    String.format(Locale.ROOT,
+                    "Setting context-specific rate limits [%s] is deprecated."
+                            + " Use [%s] to rate limit the compilation of user scripts."
+                            + " Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
+                        maxSettings, ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey()),
+                "https://ela.st/es-deprecation-7-script-context-cache",
                 String.format(Locale.ROOT, "[%s] is deprecated and will be removed in a future release", maxSettings),
                 false, null);
         }
@@ -1037,12 +1038,12 @@ class NodeDeprecationChecks {
                 c -> cacheSizeSetting.getConcreteSettingForNamespace(c).getKey()
             ).collect(Collectors.joining(","));
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                String.format(Locale.ROOT, "settings [" + cacheSizeSettings + "] for context specific script cache sizes are"
-                        + " deprecated and will not be available in a future version."
-                        + " Use [" + ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING.getKey() + "] to size the context cache for all"
-                        + " scripts.",
-                    cacheSizeSettings),
-                "https://ela.st/es-deprecation-7-script-context-size",
+                String.format(Locale.ROOT,
+                    "Setting a context-specific cache size [%s] is deprecated."
+                    + " Use [%s] to configure the size of the general cache for scripts."
+                    + " Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
+                    cacheSizeSettings, ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING.getKey()),
+                "https://ela.st/es-deprecation-7-script-context-cache",
                 String.format(Locale.ROOT, "[%s] is deprecated and will be removed in a future release", cacheSizeSettings),
                 false, null);
         }
@@ -1060,12 +1061,12 @@ class NodeDeprecationChecks {
                 c -> cacheExpireSetting.getConcreteSettingForNamespace(c).getKey()
             ).collect(Collectors.joining(","));
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                String.format(Locale.ROOT, "settings [" + cacheExpireSettings + "] for context specific script cache expiration are"
-                        + " deprecated and will not be available in a future version."
-                        + " Use [" + ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.getKey() + "]"
-                        + " to set the cache expiration all scripts.",
-                    cacheExpireSettings),
-                "https://ela.st/es-deprecation-7-script-context-expire-deprecated",
+                String.format(Locale.ROOT,
+                        "Setting a context-specific cache expiration [%s] is deprecated."
+                        + " Use [%s] to configure the expiration of the general cache."
+                        + " Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
+                        cacheExpireSettings, ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.getKey()),
+                "https://ela.st/es-deprecation-7-script-context-cache",
                 String.format(Locale.ROOT, "[%s] is deprecated and will be removed in a future release", cacheExpireSettings),
                 false, null);
         }

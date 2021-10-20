@@ -322,87 +322,29 @@ parameter `?return_200_for_cluster_health_timeout` in your request.
 ====
 
 [[script-context-cache-deprecated]]
-.`use-context` is a deprecated value for the `script.max_compilations_rate` setting.
+.The script context cache is deprecated
 [%collapsible]
 ====
 *Details* +
-`use-context` is a deprecated value for the `script.max_compilations_rate`
-setting.  This is a part of the deprecation of the context-specific script
-cache.
+Setting `script.max_compilations_rate` to `use-context` and
+configuring context-specific caches is deprecated.
 
-Previously, you could set this setting to `use-context` to have a
-script cache, compilation rate limit settings, cache expiration and
-cache size per context.
+Context-specific caches are no longer needed to prevent system scripts
+from triggering rate limits.
 
-However, these settings were used to handle system scripts triggering
-compilation rate limits and to compensate for an undersized general script
-cache.
-Now, system scripts are exempt from compilation rate limiting and
-the general script cache size is able to be set dynamically.
+Configure the general cache to control the max compilation rate, cache size, and
+cache expiration for your scripts.
 
 *Impact* +
-To avoid deprecation warnings, do not set `script.max_compilations_rate` to
-`use-context`.
+Remove `script.max_compilations_rate: use-context` and the context-specific cache
+settings: `script.context.$CONTEXT.cache_max_size`,
+`script.context.$CONTEXT.max_compilations_rate`, `script.context.$CONTEXT.cache_expire`.
 
-Instead, remove the setting to use the default or set it to a custom rate limit,
-such as `200/10m`, which allows 200 compilations for every 10 minute period.
-====
+The general cache defaults to a max size of 3000 with a rate limit of 150/5m,
+which allows 150 compilations per 5 minute period.  By default, the entries in the
+cache do not expire.
 
-[[script-context-cache-max-compile-deprecated]]
-.The `script.context.$CONTEXT.max_compilations_rate` setting has been deprecated.
-[%collapsible]
-====
-*Details* +
-Script context-specific compilation rate limit settings have been deprecated.
-Use `script.max_compilations_rate` to set the rate limit for all user scripts
-instead. This is a part of the deprecation of the context-specific script
-cache.
-
-The context-specific settings were used to handle system scripts triggering
-compilation rate limits and to compensate for an undersized general script
-cache.
-
-Now, system scripts are exempt from compilation rate limiting and
-the general script cache size is dynamically updatable with a higher default
-size.
-
-*Impact* +
-To avoid deprecation warnings, do not use the
-`script.context.$CONTEXT.max_compilations_rate` family of settings.  Instead,
-set `script.max_compilations_rate` to the highest value from that family
-of settings.
-====
-
-[[script-context-cache-size-deprecated]]
-.The `script.context.$CONTEXT.cache_max_size` setting has been deprecated.
-[%collapsible]
-====
-*Details* +
-Script context-specific cache settings have been deprecated. This is a part
-of the deprecation of the context-specific script cache.
-
-Use `script.cache.max_size` to set the size of the script cache for all scripts.
-
-*Impact* +
-To avoid deprecation warnings, discontinue use of the
-`script.context.$CONTEXT.cache_max_size` family of settings.  Set
-`script.cache.max_size` to be large enough for all scripts you use.
-See the `compilations` value from <<cluster-nodes-stats,node stats API>>
-for help setting the max size.
-====
-
-[[script-context-cache-expire-deprecated]]
-.The `script.context.$CONTEXT.cache_expire` setting has been deprecated.
-[%collapsible]
-====
-*Details* +
-Script context-specific cache settings have been deprecated.  Use
-`script.cache.expire` to set the expiration of scripts in the script cache
-for all scripts.
-
-*Impact* +
-To avoid deprecation warnings, discontinue use of the
-`script.context.$CONTEXT.cache_expire` family of settings.  Use
-`script.cache.expire` instead.
+To override the defaults, configure the `script.cache.max_size`,
+`script.max_compilations_rate`, and `script.cache.expire` settings.
 ====
 // end::notable-breaking-changes[]

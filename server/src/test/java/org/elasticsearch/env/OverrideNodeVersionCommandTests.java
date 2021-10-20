@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
@@ -45,9 +44,13 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
             nodePaths = nodeEnvironment.nodeDataPaths();
             nodeId = nodeEnvironment.nodeId();
 
-            try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(nodePaths, nodeId,
-                xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
-                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L).createWriter()) {
+            try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(
+                nodePaths,
+                nodeId,
+                xContentRegistry(),
+                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                () -> 0L
+            ).createWriter()) {
                 writer.writeFullStateAndCommit(1L, ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
                     .persistentSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), true).build()).build())
                     .build());
@@ -57,10 +60,13 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
 
     @After
     public void checkClusterStateIntact() throws IOException {
-        assertTrue(Metadata.SETTING_READ_ONLY_SETTING.get(new PersistedClusterStateService(nodePaths, nodeId,
-            xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L)
-            .loadBestOnDiskState().metadata.persistentSettings()));
+        assertTrue(Metadata.SETTING_READ_ONLY_SETTING.get(new PersistedClusterStateService(
+            nodePaths,
+            nodeId,
+            xContentRegistry(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            () -> 0L
+        ).loadBestOnDiskState().metadata.persistentSettings()));
     }
 
     public void testFailsOnEmptyPath() {

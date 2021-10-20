@@ -10,14 +10,30 @@ package org.elasticsearch.gateway;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.mockfile.ExtrasFS;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -26,20 +42,19 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.gateway.PersistedClusterStateService.Writer;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -55,13 +70,23 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.IntPredicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.apache.lucene.index.IndexWriter.WRITE_LOCK_NAME;
+import static org.elasticsearch.gateway.PersistedClusterStateService.GLOBAL_TYPE_NAME;
+import static org.elasticsearch.gateway.PersistedClusterStateService.INDEX_TYPE_NAME;
+import static org.elasticsearch.gateway.PersistedClusterStateService.IS_LAST_PAGE;
+import static org.elasticsearch.gateway.PersistedClusterStateService.IS_NOT_LAST_PAGE;
+import static org.elasticsearch.gateway.PersistedClusterStateService.LAST_PAGE_FIELD_NAME;
+import static org.elasticsearch.gateway.PersistedClusterStateService.METADATA_DIRECTORY_NAME;
+import static org.elasticsearch.gateway.PersistedClusterStateService.PAGE_FIELD_NAME;
+import static org.elasticsearch.gateway.PersistedClusterStateService.TYPE_FIELD_NAME;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
@@ -73,9 +98,18 @@ import static org.hamcrest.Matchers.startsWith;
 public class PersistedClusterStateServiceTests extends ESTestCase {
 
     private PersistedClusterStateService newPersistedClusterStateService(NodeEnvironment nodeEnvironment) {
-        return new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            () -> 0L);
+
+        final Settings.Builder settings = Settings.builder();
+        if (randomBoolean()) {
+            settings.put(PersistedClusterStateService.DOCUMENT_PAGE_SIZE.getKey(), ByteSizeValue.ofBytes(randomLongBetween(1, 1024)));
+        }
+
+        return new PersistedClusterStateService(
+            nodeEnvironment,
+            xContentRegistry(),
+            new ClusterSettings(settings.build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            () -> 0L
+        );
     }
 
     public void testPersistsAndReloadsTerm() throws IOException {
@@ -212,17 +246,22 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
 
         final Path[] combinedPaths = Stream.concat(Arrays.stream(dataPaths1), Arrays.stream(dataPaths2)).toArray(Path[]::new);
 
-        final String failure = expectThrows(IllegalStateException.class, () -> newNodeEnvironment(combinedPaths)).getMessage();
+        final String failure = expectThrows(CorruptStateException.class, () -> newNodeEnvironment(combinedPaths)).getMessage();
         assertThat(failure,
             allOf(containsString("unexpected node ID in metadata"), containsString(nodeIds[0]), containsString(nodeIds[1])));
         assertTrue("[" + failure + "] should match " + Arrays.toString(dataPaths2),
             Arrays.stream(dataPaths2).anyMatch(p -> failure.contains(p.toString())));
 
         // verify that loadBestOnDiskState has same check
-        final String message = expectThrows(IllegalStateException.class,
-            () -> new PersistedClusterStateService(combinedPaths, nodeIds[0], xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
+        final String message = expectThrows(
+            CorruptStateException.class,
+            () -> new PersistedClusterStateService(
+                combinedPaths,
+                nodeIds[0],
+                xContentRegistry(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                () -> 0L).loadBestOnDiskState()).getMessage();
+                () -> 0L).loadBestOnDiskState()
+        ).getMessage();
         assertThat(message,
             allOf(containsString("belongs to a node with ID"), containsString(nodeIds[0]), containsString(nodeIds[1])));
         assertTrue("[" + message + "] should match " + Arrays.toString(dataPaths2),
@@ -273,8 +312,10 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         }
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
-            final String message = expectThrows(IllegalStateException.class,
-                () -> newPersistedClusterStateService(nodeEnvironment).loadBestOnDiskState()).getMessage();
+            final String message = expectThrows(
+                CorruptStateException.class,
+                () -> newPersistedClusterStateService(nodeEnvironment).loadBestOnDiskState()
+            ).getMessage();
             assertThat(message,
                 allOf(containsString("mismatched cluster UUIDs in metadata"), containsString(clusterUUID1), containsString(clusterUUID2)));
             assertTrue("[" + message + "] should match " + Arrays.toString(dataPaths1),
@@ -331,8 +372,10 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         }
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
-            final String message = expectThrows(IllegalStateException.class,
-                () -> newPersistedClusterStateService(nodeEnvironment).loadBestOnDiskState()).getMessage();
+            final String message = expectThrows(
+                CorruptStateException.class,
+                () -> newPersistedClusterStateService(nodeEnvironment).loadBestOnDiskState()
+            ).getMessage();
             assertThat(message, allOf(
                     containsString("inconsistent terms found"),
                     containsString(Long.toString(staleCurrentTerm)),
@@ -348,9 +391,11 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         final AtomicBoolean throwException = new AtomicBoolean();
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
-            final PersistedClusterStateService persistedClusterStateService
-                = new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L) {
+            final PersistedClusterStateService persistedClusterStateService = new PersistedClusterStateService(
+                nodeEnvironment,
+                xContentRegistry(),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L
+            ) {
                 @Override
                 Directory createDirectory(Path path) throws IOException {
                     return new FilterDirectory(super.createDirectory(path)) {
@@ -386,9 +431,12 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         final AtomicBoolean throwException = new AtomicBoolean();
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
-            final PersistedClusterStateService persistedClusterStateService
-                = new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L) {
+            final PersistedClusterStateService persistedClusterStateService = new PersistedClusterStateService(
+                nodeEnvironment,
+                xContentRegistry(),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                () -> 0L
+            ) {
                 @Override
                 Directory createDirectory(Path path) throws IOException {
                     return new FilterDirectory(super.createDirectory(path)) {
@@ -421,9 +469,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 assertFalse(writer.isOpen());
             }
 
-            // check if we can open writer again
+            // noinspection EmptyTryBlock since we are just checking we can open the writer again
             try (Writer ignored = persistedClusterStateService.createWriter()) {
-
             }
         }
     }
@@ -432,9 +479,12 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         final AtomicBoolean throwException = new AtomicBoolean();
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
-            final PersistedClusterStateService persistedClusterStateService
-                = new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L) {
+            final PersistedClusterStateService persistedClusterStateService = new PersistedClusterStateService(
+                nodeEnvironment,
+                xContentRegistry(),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                () -> 0L
+            ) {
                 @Override
                 Directory createDirectory(Path path) throws IOException {
                     return new FilterDirectory(super.createDirectory(path)) {
@@ -469,9 +519,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 assertFalse(writer.isOpen());
             }
 
-            // check if we can open writer again
+            // noinspection EmptyTryBlock since we are just checking we can open the writer again
             try (Writer ignored = persistedClusterStateService.createWriter()) {
-
             }
         }
     }
@@ -488,7 +537,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             }
 
             final Path brokenPath = randomFrom(nodeEnvironment.nodeDataPaths());
-            try (Directory directory = newFSDirectory(brokenPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))) {
+            try (Directory directory = newFSDirectory(brokenPath.resolve(METADATA_DIRECTORY_NAME))) {
                 final IndexWriterConfig indexWriterConfig = new IndexWriterConfig();
                 indexWriterConfig.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
                 try (IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
@@ -496,7 +545,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 }
             }
 
-            final String message = expectThrows(IllegalStateException.class,
+            final String message = expectThrows(CorruptStateException.class,
                 () -> newPersistedClusterStateService(nodeEnvironment).loadBestOnDiskState()).getMessage();
             assertThat(message, allOf(containsString("no global metadata found"), containsString(brokenPath.toString())));
         }
@@ -527,7 +576,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 }
             }
 
-            final String message = expectThrows(IllegalStateException.class,
+            final String message = expectThrows(CorruptStateException.class,
                 () -> newPersistedClusterStateService(nodeEnvironment).loadBestOnDiskState()).getMessage();
             assertThat(message, allOf(containsString("duplicate global metadata found"), containsString(brokenPath.toString())));
         }
@@ -573,7 +622,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 }
             }
 
-            final String message = expectThrows(IllegalStateException.class,
+            final String message = expectThrows(CorruptStateException.class,
                 () -> newPersistedClusterStateService(nodeEnvironment).loadBestOnDiskState()).getMessage();
             assertThat(message, allOf(
                 containsString("duplicate metadata found"),
@@ -766,6 +815,116 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         }
     }
 
+    public void testHandlesShuffledDocuments() throws IOException {
+        final Path dataPath = createTempDir();
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(new Path[]{dataPath})) {
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
+
+            final Metadata.Builder metadata = Metadata.builder();
+            for (int i = between(5, 20); i >= 0; i--) {
+                metadata.put(IndexMetadata.builder("test-" + i)
+                    .settings(Settings.builder()
+                        .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                        .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))));
+            }
+
+            final Settings.Builder persistentSettings = Settings.builder();
+            persistentSettings.put(
+                PersistedClusterStateService.SLOW_WRITE_LOGGING_THRESHOLD.getKey(),
+                TimeValue.timeValueMillis(randomLongBetween(0, 10000)));
+            metadata.persistentSettings(persistentSettings.build());
+
+            final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
+            try (Writer writer = persistedClusterStateService.createWriter()) {
+                writer.writeFullStateAndCommit(0L, clusterState);
+            }
+
+            final List<Document> documents = new ArrayList<>();
+            final Map<String, String> commitUserData;
+
+            try (Directory directory = new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME));
+                 DirectoryReader reader = DirectoryReader.open(directory)) {
+                commitUserData = reader.getIndexCommit().getUserData();
+                final IndexSearcher indexSearcher = new IndexSearcher(reader);
+                indexSearcher.setQueryCache(null);
+                for (String typeName : new String[]{GLOBAL_TYPE_NAME, INDEX_TYPE_NAME}) {
+                    final Query query = new TermQuery(new Term(TYPE_FIELD_NAME, typeName));
+                    final Weight weight = indexSearcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 0.0f);
+                    for (LeafReaderContext leafReaderContext : indexSearcher.getIndexReader().leaves()) {
+                        final Scorer scorer = weight.scorer(leafReaderContext);
+                        final Bits liveDocs = leafReaderContext.reader().getLiveDocs();
+                        final IntPredicate isLiveDoc = liveDocs == null ? i -> true : liveDocs::get;
+                        final DocIdSetIterator docIdSetIterator = scorer.iterator();
+                        while (docIdSetIterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                            if (isLiveDoc.test(docIdSetIterator.docID())) {
+                                final Document document = leafReaderContext.reader().document(docIdSetIterator.docID());
+                                document.add(new StringField(TYPE_FIELD_NAME, typeName, Field.Store.NO));
+                                documents.add(document);
+                            }
+                        }
+                    }
+                }
+            }
+
+            Randomness.shuffle(documents);
+
+            try (Directory directory = new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME))) {
+                final IndexWriterConfig indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
+                indexWriterConfig.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+                try (IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
+                    for (Document document : documents) {
+                        indexWriter.addDocument(document);
+                    }
+                    indexWriter.setLiveCommitData(commitUserData.entrySet());
+                    indexWriter.commit();
+                }
+            }
+
+            final ClusterState loadedState = loadPersistedClusterState(persistedClusterStateService);
+            assertEquals(clusterState.metadata().indices(), loadedState.metadata().indices());
+            assertEquals(clusterState.metadata().persistentSettings(), loadedState.metadata().persistentSettings());
+
+            // Now corrupt one of the docs, breaking pagination invariants, and ensure it yields a CorruptStateException
+
+            final int corruptIndex = between(0, documents.size() - 1);
+            final Document corruptDocument = documents.get(corruptIndex);
+            final int corruptDocPage = corruptDocument.getField(PAGE_FIELD_NAME).numericValue().intValue();
+            final boolean corruptDocIsLastPage = corruptDocument.getField(LAST_PAGE_FIELD_NAME).numericValue().intValue() == IS_LAST_PAGE;
+            final boolean isOnlyPageForIndex = corruptDocument.getField(TYPE_FIELD_NAME).stringValue().equals(INDEX_TYPE_NAME)
+                    && corruptDocPage == 0 && corruptDocIsLastPage;
+            if (isOnlyPageForIndex == false // don't remove the only doc for an index, this just loses the index and doesn't corrupt
+                && rarely()) {
+                documents.remove(between(0, documents.size() - 1));
+            } else {
+                if (randomBoolean()) {
+                    corruptDocument.removeFields(PAGE_FIELD_NAME);
+                    corruptDocument.add(new StoredField(
+                        PAGE_FIELD_NAME,
+                        randomValueOtherThan(corruptDocPage, () -> between(0, corruptDocPage + 10))));
+                } else {
+                    corruptDocument.removeFields(LAST_PAGE_FIELD_NAME);
+                    corruptDocument.add(new StoredField(LAST_PAGE_FIELD_NAME, corruptDocIsLastPage ? IS_NOT_LAST_PAGE : IS_LAST_PAGE));
+                }
+            }
+
+            try (Directory directory = new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME))) {
+                final IndexWriterConfig indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
+                indexWriterConfig.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+                try (IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
+                    for (Document document : documents) {
+                        indexWriter.addDocument(document);
+                    }
+                    indexWriter.setLiveCommitData(commitUserData.entrySet());
+                    indexWriter.commit();
+                }
+            }
+
+            expectThrows(CorruptStateException.class, () -> loadPersistedClusterState(persistedClusterStateService));
+        }
+    }
+
     @TestLogging(value = "org.elasticsearch.gateway:WARN", reason = "to ensure that we log gateway events on WARN level")
     public void testSlowLogging() throws IOException, IllegalAccessException {
         final long slowWriteLoggingThresholdMillis;
@@ -790,8 +949,11 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
 
         final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
-            PersistedClusterStateService persistedClusterStateService = new PersistedClusterStateService(nodeEnvironment,
-                    xContentRegistry(), getBigArrays(), clusterSettings, () -> currentTime.getAndAdd(writeDurationMillis.get()));
+            PersistedClusterStateService persistedClusterStateService = new PersistedClusterStateService(
+                nodeEnvironment,
+                xContentRegistry(),
+                clusterSettings,
+                () -> currentTime.getAndAdd(writeDurationMillis.get()));
 
             try (Writer writer = persistedClusterStateService.createWriter()) {
                 assertExpectedLogs(1L, null, clusterState, writer, new MockLogAppender.SeenEventExpectation(
@@ -875,7 +1037,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     .collect(Collectors.toList())));
             }
 
-            assertThat(expectThrows(IllegalStateException.class, persistedClusterStateService::loadBestOnDiskState).getMessage(), allOf(
+            assertThat(expectThrows(CorruptStateException.class, persistedClusterStateService::loadBestOnDiskState).getMessage(), allOf(
                     startsWith("the index containing the cluster metadata under the data path ["),
                     endsWith("] has been changed by an external force after it was last written by Elasticsearch and is now unreadable")));
         }
@@ -932,12 +1094,6 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
 
     private static ClusterState clusterStateFromMetadata(long version, Metadata metadata) {
         return ClusterState.builder(ClusterName.DEFAULT).version(version).metadata(metadata).build();
-    }
-
-    private static BigArrays getBigArrays() {
-        return usually()
-                ? BigArrays.NON_RECYCLING_INSTANCE
-                : new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
     }
 
 }

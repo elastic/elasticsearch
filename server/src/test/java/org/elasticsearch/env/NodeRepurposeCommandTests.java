@@ -18,11 +18,10 @@ import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
@@ -64,9 +63,13 @@ public class NodeRepurposeCommandTests extends ESTestCase {
         try (NodeEnvironment nodeEnvironment = new NodeEnvironment(dataMasterSettings, environment)) {
             nodePaths = nodeEnvironment.nodeDataPaths();
             final String nodeId = randomAlphaOfLength(10);
-            try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(nodePaths, nodeId,
-                xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
-                new ClusterSettings(dataMasterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L).createWriter()) {
+            try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(
+                nodePaths,
+                nodeId,
+                xContentRegistry(),
+                new ClusterSettings(dataMasterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                () -> 0L
+            ).createWriter()) {
                 writer.writeFullStateAndCommit(1L, ClusterState.EMPTY_STATE);
             }
         }

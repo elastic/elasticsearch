@@ -488,8 +488,10 @@ public class Node implements Closeable {
             BigArrays bigArrays = createBigArrays(pageCacheRecycler, circuitBreakerService);
             modules.add(settingsModule);
             final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry);
-            final PersistedClusterStateService lucenePersistedStateFactory
-                = new PersistedClusterStateService(nodeEnvironment, xContentRegistry, bigArrays, clusterService.getClusterSettings(),
+            final PersistedClusterStateService persistedClusterStateService = new PersistedClusterStateService(
+                nodeEnvironment,
+                xContentRegistry,
+                clusterService.getClusterSettings(),
                 threadPool::relativeTimeInMillis);
 
             // collect engine factory providers from plugins
@@ -720,7 +722,7 @@ public class Node implements Closeable {
                     b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
                     b.bind(MetadataUpgrader.class).toInstance(metadataUpgrader);
                     b.bind(MetaStateService.class).toInstance(metaStateService);
-                    b.bind(PersistedClusterStateService.class).toInstance(lucenePersistedStateFactory);
+                    b.bind(PersistedClusterStateService.class).toInstance(persistedClusterStateService);
                     b.bind(IndicesService.class).toInstance(indicesService);
                     b.bind(AliasValidator.class).toInstance(aliasValidator);
                     b.bind(MetadataCreateIndexService.class).toInstance(metadataCreateIndexService);

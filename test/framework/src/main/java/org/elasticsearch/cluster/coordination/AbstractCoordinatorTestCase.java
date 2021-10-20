@@ -46,6 +46,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -780,7 +781,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     if (rarely()) {
                         nodeEnvironment = newNodeEnvironment();
                         nodeEnvironments.add(nodeEnvironment);
-                        final MockGatewayMetaState gatewayMetaState = new MockGatewayMetaState(localNode, bigArrays);
+                        final MockGatewayMetaState gatewayMetaState = new MockGatewayMetaState(localNode);
                         gatewayMetaState.start(Settings.EMPTY, nodeEnvironment, xContentRegistry());
                         delegate = gatewayMetaState.getPersistedState();
                     } else {
@@ -802,17 +803,26 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         nodeEnvironment = oldState.nodeEnvironment;
                         final Metadata updatedMetadata = adaptGlobalMetadata.apply(oldState.getLastAcceptedState().metadata());
                         final long updatedTerm = adaptCurrentTerm.apply(oldState.getCurrentTerm());
+
+                        final Settings.Builder writerSettings = Settings.builder();
+                        if (randomBoolean()) {
+                            writerSettings.put(
+                                PersistedClusterStateService.DOCUMENT_PAGE_SIZE.getKey(),
+                                ByteSizeValue.ofBytes(randomLongBetween(1, 1024)));
+                        }
+
                         if (updatedMetadata != oldState.getLastAcceptedState().metadata() || updatedTerm != oldState.getCurrentTerm()) {
-                            try (PersistedClusterStateService.Writer writer =
-                                     new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), bigArrays,
-                                         new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                                         deterministicTaskQueue::getCurrentTimeMillis)
-                                         .createWriter()) {
+                            try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(
+                                nodeEnvironment,
+                                xContentRegistry(),
+                                new ClusterSettings(writerSettings.build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                                deterministicTaskQueue::getCurrentTimeMillis
+                            ).createWriter()) {
                                 writer.writeFullStateAndCommit(updatedTerm,
                                     ClusterState.builder(oldState.getLastAcceptedState()).metadata(updatedMetadata).build());
                             }
                         }
-                        final MockGatewayMetaState gatewayMetaState = new MockGatewayMetaState(newLocalNode, bigArrays);
+                        final MockGatewayMetaState gatewayMetaState = new MockGatewayMetaState(newLocalNode);
                         gatewayMetaState.start(Settings.EMPTY, nodeEnvironment, xContentRegistry());
                         delegate = gatewayMetaState.getPersistedState();
                     } else {

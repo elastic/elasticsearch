@@ -9,7 +9,6 @@ package org.elasticsearch.cluster.coordination;
 
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.LockObtainFailedException;
@@ -30,7 +29,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -112,8 +110,12 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         }
 
         String nodeId = nodeMetadata.nodeId();
-        return new PersistedClusterStateService(dataPaths, nodeId, namedXContentRegistry, BigArrays.NON_RECYCLING_INSTANCE,
-            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L);
+        return new PersistedClusterStateService(
+            dataPaths,
+            nodeId,
+            namedXContentRegistry,
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            () -> 0L);
     }
 
     public static ClusterState clusterState(Environment environment, PersistedClusterStateService.OnDiskState onDiskState) {

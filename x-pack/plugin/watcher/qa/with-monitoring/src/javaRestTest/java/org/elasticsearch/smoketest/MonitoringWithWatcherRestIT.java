@@ -77,6 +77,19 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
         assertTotalWatchCount(WATCH_IDS.length);
 
         assertMonitoringWatchHasBeenOverWritten(watchId);
+
+        assertWarnings(
+            "[xpack.monitoring.exporters.my_http_exporter.type] setting was deprecated in Elasticsearch and will be removed in a " +
+                "future release! See the breaking changes documentation for the next major version.",
+            "[xpack.monitoring.exporters.my_http_exporter.host] setting was deprecated in Elasticsearch and will be removed in a " +
+                "future release! See the breaking changes documentation for the next major version.",
+            "[xpack.monitoring.exporters.my_http_exporter.cluster_alerts.management.enabled] setting was deprecated in Elasticsearch " +
+                "and will be removed in a future release! See the breaking changes documentation for the next major version.",
+            "[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+                "See the breaking changes documentation for the next major version.",
+            "[xpack.monitoring.collection.interval] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+                "See the breaking changes documentation for the next major version."
+        );
     }
 
     private void assertMonitoringWatchHasBeenOverWritten(String watchId) throws Exception {

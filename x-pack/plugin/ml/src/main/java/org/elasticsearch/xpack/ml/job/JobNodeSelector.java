@@ -115,7 +115,6 @@ public class JobNodeSelector {
         long mostAvailableMemory = capableNodes.stream()
             .map(n -> nodeLoadDetector.detectNodeLoad(
                 clusterState,
-                true,
                 n,
                 maxOpenJobs,
                 maxMachineMemoryPercent,
@@ -171,7 +170,6 @@ public class JobNodeSelector {
             }
             NodeLoad currentLoad = nodeLoadDetector.detectNodeLoad(
                 clusterState,
-                true, // Remove in 8.0.0
                 node,
                 dynamicMaxOpenJobs,
                 maxMachineMemoryPercent,

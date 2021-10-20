@@ -18,6 +18,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.Security;
 
 public class OperatorPrivileges {
 
@@ -68,14 +69,22 @@ public class OperatorPrivileges {
             if (false == shouldProcess()) {
                 return;
             }
+            final User user = authentication.getUser();
             // Let internal users pass, they are exempt from marking and checking
-            if (User.isInternal(authentication.getUser())) {
+            // Also check run_as, it is impossible to run_as internal users, but just to be extra safe
+            if (User.isInternal(user) && false == user.isRunAs()) {
+                return;
+            }
+            // The header is already set by previous authentication either on this node or a remote node
+            if (threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY) != null) {
                 return;
             }
             // An operator user must not be a run_as user, it also must be recognised by the operatorUserStore
-            if (false == authentication.getUser().isRunAs() && fileOperatorUsersStore.isOperatorUser(authentication)) {
-                logger.debug("Marking user [{}] as an operator", authentication.getUser());
+            if (false == user.isRunAs() && fileOperatorUsersStore.isOperatorUser(authentication)) {
+                logger.debug("Marking user [{}] as an operator", user);
                 threadContext.putHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY, AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR);
+            } else {
+                threadContext.putHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY, AuthenticationField.PRIVILEGE_CATEGORY_VALUE_EMPTY);
             }
         }
 
@@ -110,7 +119,7 @@ public class OperatorPrivileges {
         }
 
         private boolean shouldProcess() {
-            return licenseState.checkFeature(XPackLicenseState.Feature.OPERATOR_PRIVILEGES);
+            return Security.OPERATOR_PRIVILEGES_FEATURE.check(licenseState);
         }
     }
 

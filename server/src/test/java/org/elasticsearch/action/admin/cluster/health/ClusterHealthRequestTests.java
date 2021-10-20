@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
@@ -16,12 +15,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 
 import java.util.Locale;
 
-import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
-import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 public class ClusterHealthRequestTests extends ESTestCase {
@@ -49,84 +45,6 @@ public class ClusterHealthRequestTests extends ESTestCase {
     public void testRequestReturnsHiddenIndicesByDefault() {
         final ClusterHealthRequest defaultRequest = new ClusterHealthRequest();
         assertTrue(defaultRequest.indicesOptions().expandWildcardsHidden());
-    }
-
-    public void testBwcSerialization() throws Exception {
-        for (int runs = 0; runs < randomIntBetween(5, 20); runs++) {
-            // Generate a random cluster health request in version < 7.2.0 and serializes it
-            final BytesStreamOutput out = new BytesStreamOutput();
-            out.setVersion(randomVersionBetween(random(), VersionUtils.getFirstVersion(), getPreviousVersion(Version.V_7_2_0)));
-
-            final ClusterHealthRequest expected = randomRequest();
-            {
-                expected.getParentTask().writeTo(out);
-                out.writeTimeValue(expected.masterNodeTimeout());
-                out.writeBoolean(expected.local());
-                if (expected.indices() == null) {
-                    out.writeVInt(0);
-                } else {
-                    out.writeVInt(expected.indices().length);
-                    for (String index : expected.indices()) {
-                        out.writeString(index);
-                    }
-                }
-                out.writeTimeValue(expected.timeout());
-                if (expected.waitForStatus() == null) {
-                    out.writeBoolean(false);
-                } else {
-                    out.writeBoolean(true);
-                    out.writeByte(expected.waitForStatus().value());
-                }
-                out.writeBoolean(expected.waitForNoRelocatingShards());
-                expected.waitForActiveShards().writeTo(out);
-                out.writeString(expected.waitForNodes());
-                if (expected.waitForEvents() == null) {
-                    out.writeBoolean(false);
-                } else {
-                    out.writeBoolean(true);
-                    Priority.writeTo(expected.waitForEvents(), out);
-                }
-                out.writeBoolean(expected.waitForNoInitializingShards());
-            }
-
-            // Deserialize and check the cluster health request
-            final StreamInput in = out.bytes().streamInput();
-            in.setVersion(out.getVersion());
-            final ClusterHealthRequest actual = new ClusterHealthRequest(in);
-
-            assertThat(actual.waitForStatus(), equalTo(expected.waitForStatus()));
-            assertThat(actual.waitForNodes(), equalTo(expected.waitForNodes()));
-            assertThat(actual.waitForNoInitializingShards(), equalTo(expected.waitForNoInitializingShards()));
-            assertThat(actual.waitForNoRelocatingShards(), equalTo(expected.waitForNoRelocatingShards()));
-            assertThat(actual.waitForActiveShards(), equalTo(expected.waitForActiveShards()));
-            assertThat(actual.waitForEvents(), equalTo(expected.waitForEvents()));
-            assertIndicesEquals(actual.indices(), expected.indices());
-            assertThat(actual.indicesOptions(), equalTo(IndicesOptions.lenientExpandOpen()));
-        }
-
-        for (int runs = 0; runs < randomIntBetween(5, 20); runs++) {
-            // Generate a random cluster health request in current version
-            final ClusterHealthRequest expected = randomRequest();
-
-            // Serialize to node in version < 7.2.0
-            final BytesStreamOutput out = new BytesStreamOutput();
-            out.setVersion(randomVersionBetween(random(), VersionUtils.getFirstVersion(), getPreviousVersion(Version.V_7_2_0)));
-            expected.writeTo(out);
-
-            // Deserialize and check the cluster health request
-            final StreamInput in = out.bytes().streamInput();
-            in.setVersion(out.getVersion());
-            final ClusterHealthRequest actual = new ClusterHealthRequest(in);
-
-            assertThat(actual.waitForStatus(), equalTo(expected.waitForStatus()));
-            assertThat(actual.waitForNodes(), equalTo(expected.waitForNodes()));
-            assertThat(actual.waitForNoInitializingShards(), equalTo(expected.waitForNoInitializingShards()));
-            assertThat(actual.waitForNoRelocatingShards(), equalTo(expected.waitForNoRelocatingShards()));
-            assertThat(actual.waitForActiveShards(), equalTo(expected.waitForActiveShards()));
-            assertThat(actual.waitForEvents(), equalTo(expected.waitForEvents()));
-            assertIndicesEquals(actual.indices(), expected.indices());
-            assertThat(actual.indicesOptions(), equalTo(IndicesOptions.lenientExpandOpen()));
-        }
     }
 
     private ClusterHealthRequest randomRequest() {

@@ -54,7 +54,7 @@ public class FileOperatorUsersStore {
     public FileOperatorUsersStore(Environment env, ResourceWatcherService watcherService) {
         this.file =  XPackPlugin.resolveConfigFile(env, "operator_users.yml");
         this.operatorUsersDescriptor = parseFile(this.file, logger);
-        FileWatcher watcher = new FileWatcher(file.getParent());
+        FileWatcher watcher = new FileWatcher(file.getParent(), true);
         watcher.addListener(new FileOperatorUsersStore.FileListener());
         try {
             watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);

@@ -10,7 +10,7 @@ package org.elasticsearch.script.field;
 
 import java.io.IOException;
 
-public interface DocValuesField<T> extends Field<T> {
+public interface DocValuesField extends Field {
 
     /** Set the current document ID. */
     void setNextDocId(int docId) throws IOException;

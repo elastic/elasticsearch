@@ -22,4 +22,3 @@ public class XPackRestIT extends AbstractXPackRestTest {
         return createParameters();
     }
 }
-

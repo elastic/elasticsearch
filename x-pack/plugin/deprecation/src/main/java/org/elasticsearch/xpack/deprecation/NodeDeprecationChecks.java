@@ -495,9 +495,10 @@ class NodeDeprecationChecks {
         List<String> dataPaths = Environment.PATH_DATA_SETTING.get(nodeSettings);
         if (dataPaths.size() > 1) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                "multiple [path.data] entries are deprecated, use a single data directory",
+                "Specifying multiple data paths is deprecated",
                 "https://ela.st/es-deprecation-7-multiple-paths",
-                "Multiple data paths are deprecated. Instead, use RAID or other system level features to utilize multiple disks.",
+                "The [path.data] setting contains a list of paths. Specify a single path as a string. Use RAID or other system level " +
+                    "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0. ",
             false, null);
         }
         return null;
@@ -973,7 +974,7 @@ class NodeDeprecationChecks {
                                                              final XPackLicenseState licenseState) {
         return checkRemovedSetting(settings,
             NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING,
-            "https://ela.st/es-deprecation-7-node-local-storage-setting",
+            "https://ela.st/es-deprecation-7-max-local-storage-nodes",
             "All nodes require local storage in 8.0 and cannot share data paths.",
             DeprecationIssue.Level.CRITICAL
         );

@@ -36,7 +36,7 @@ public class MlDeprecationChecker implements DeprecationChecker {
         } else {
             return Optional.of(new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "Datafeed [" + datafeedConfig.getId() + "] uses deprecated query options",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html#breaking_70_search_changes",
+                "https://ela.st/es-deprecation-7-datafeed-query-options",
                 deprecations.toString(), false, null));
         }
     }
@@ -48,8 +48,7 @@ public class MlDeprecationChecker implements DeprecationChecker {
         } else {
             return Optional.of(new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "Datafeed [" + datafeedConfig.getId() + "] uses deprecated aggregation options",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
-                    "#breaking_70_aggregations_changes", deprecations.toString(), false, null));
+                "https://ela.st/es-deprecation-7-datafeed-aggregation-options", deprecations.toString(), false, null));
         }
     }
 
@@ -75,7 +74,7 @@ public class MlDeprecationChecker implements DeprecationChecker {
                     modelSnapshot.getJobId(),
                     modelSnapshot.getMinVersion()
                 ),
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/ml-upgrade-job-model-snapshot.html",
+                "https://ela.st/es-deprecation-7-model-snapshot-minimum-version",
                 details.toString(),
                 false,
                 Map.of("job_id", modelSnapshot.getJobId(), "snapshot_id", modelSnapshot.getSnapshotId()))

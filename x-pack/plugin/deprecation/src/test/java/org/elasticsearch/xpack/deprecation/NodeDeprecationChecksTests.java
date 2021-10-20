@@ -601,10 +601,11 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
         assertThat(
             issue.getMessage(),
-            equalTo("multiple [path.data] entries are deprecated, use a single data directory"));
+            equalTo("Specifying multiple data paths is deprecated"));
         assertThat(
             issue.getDetails(),
-            equalTo("Multiple data paths are deprecated. Instead, use RAID or other system level features to utilize multiple disks."));
+            equalTo("The [path.data] setting contains a list of paths. Specify a single path as a string. Use RAID or other system level " +
+                "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0. "));
         String url =
             "https://ela.st/es-deprecation-7-multiple-paths";
         assertThat(issue.getUrl(), equalTo(url));
@@ -1368,7 +1369,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     public void testCheckMaxLocalStorageNodesSetting() {
         String settingKey = NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey();
         String settingValue = Integer.toString(randomIntBetween(1, 100));
-        String url = "https://ela.st/es-deprecation-7-node-local-storage-setting";
+        String url = "https://ela.st/es-deprecation-7-max-local-storage-nodes";
         checkSimpleSetting(settingKey, settingValue, url, NodeDeprecationChecks::checkMaxLocalStorageNodesSetting,
             "All nodes require local storage in 8.0 and cannot share data paths.");
     }

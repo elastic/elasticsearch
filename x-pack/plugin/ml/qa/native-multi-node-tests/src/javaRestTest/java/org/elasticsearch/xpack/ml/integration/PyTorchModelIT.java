@@ -268,7 +268,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         List<Map<String, Object>> stats = (List<Map<String, Object>>)entityAsMap(response).get("deployment_stats");
         assertThat(stats, hasSize(1));
         assertThat(stats.get(0).get("model_id"), equalTo(modelA));
-        assertThat(stats.get(0).get("model_size"), equalTo("1.5kb"));
+        assertThat(stats.get(0).get("model_size_bytes"), equalTo((int)RAW_MODEL_SIZE));
         List<Map<String, Object>> nodes = (List<Map<String, Object>>)stats.get(0).get("nodes");
         // 2 of the 3 nodes in the cluster are ML nodes
         assertThat(nodes, hasSize(2));

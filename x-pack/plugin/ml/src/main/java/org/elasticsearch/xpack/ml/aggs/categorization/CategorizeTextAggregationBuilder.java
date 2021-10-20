@@ -123,7 +123,7 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
 
     public CategorizeTextAggregationBuilder setMaxUniqueTokens(int maxUniqueTokens) {
         this.maxUniqueTokens = maxUniqueTokens;
-        if (maxUniqueTokens <= 0) {
+        if (maxUniqueTokens <= 0 || maxUniqueTokens > MAX_MAX_UNIQUE_TOKENS) {
             throw ExceptionsHelper.badRequestException(
                 "[{}] must be greater than 0 and less than [{}]. Found [{}] in [{}]",
                 MAX_UNIQUE_TOKENS.getPreferredName(),
@@ -191,7 +191,7 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
 
     public CategorizeTextAggregationBuilder setMaxMatchedTokens(int maxMatchedTokens) {
         this.maxMatchedTokens = maxMatchedTokens;
-        if (maxMatchedTokens <= 0) {
+        if (maxMatchedTokens <= 0 || maxMatchedTokens > MAX_MAX_MATCHED_TOKENS) {
             throw ExceptionsHelper.badRequestException(
                 "[{}] must be greater than 0 and less than [{}]. Found [{}] in [{}]",
                 MAX_MATCHED_TOKENS.getPreferredName(),

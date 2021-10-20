@@ -675,7 +675,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 .fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); })
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
                 .load(ctx)
-                .getScriptValues();
+                .getScriptField("test").getScriptDocValues();
 
             fieldData.setNextDocId(0);
 
@@ -686,7 +686,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 })
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
                 .load(reader.getContext())
-                .getScriptValues();
+                .getScriptField("test").getScriptDocValues();
             indexData.setNextDocId(0);
 
             // compare index and search time fielddata

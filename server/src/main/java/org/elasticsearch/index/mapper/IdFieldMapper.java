@@ -32,6 +32,8 @@ import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.script.field.DocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -211,8 +213,8 @@ public class IdFieldMapper extends MetadataFieldMapper {
             }
 
             @Override
-            public ScriptDocValues<?> getScriptValues() {
-                return new ScriptDocValues.Strings(getBytesValues());
+            public DocValuesField getScriptField(String name) {
+                return new DelegateDocValuesField(new ScriptDocValues.Strings(getBytesValues()), name);
             }
 
             @Override

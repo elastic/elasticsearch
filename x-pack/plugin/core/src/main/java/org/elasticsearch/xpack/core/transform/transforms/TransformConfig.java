@@ -399,7 +399,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                     Level.CRITICAL,
                     "Transform [" + id + "] is too old",
                     TransformDeprecations.BREAKING_CHANGES_BASE_URL,
-                    "The configuration uses an old format, you can use [_update] or [_upgrade] to update",
+                    "Use the upgrade transforms API to fix your transforms.",
                     false,
                     null
                 )

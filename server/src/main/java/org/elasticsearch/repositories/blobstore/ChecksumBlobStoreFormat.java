@@ -34,7 +34,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.io.ByteArrayInputStream;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -75,8 +74,12 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
      * @param reader         prototype object that can deserialize T from XContent
      * @param fallbackReader fallback prototype object that can deserialize T from XContent in case reader fails
      */
-    public ChecksumBlobStoreFormat(String codec, String blobNameFormat, CheckedBiFunction<String, XContentParser, T, IOException> reader,
-                                   @Nullable CheckedBiFunction<String, XContentParser, T, IOException> fallbackReader) {
+    public ChecksumBlobStoreFormat(
+        String codec,
+        String blobNameFormat,
+        CheckedBiFunction<String, XContentParser, T, IOException> reader,
+        @Nullable CheckedBiFunction<String, XContentParser, T, IOException> fallbackReader
+    ) {
         this.reader = reader;
         this.blobNameFormat = blobNameFormat;
         this.codec = codec;
@@ -134,8 +137,10 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
                     result = reader.apply(repoName, parser);
                     XContentParserUtils.ensureExpectedToken(null, parser.nextToken(), parser);
                 } catch (Exception e) {
-                    try (XContentParser parser = XContentType.SMILE.xContent()
-                            .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytesReference.streamInput())) {
+                    try (
+                        XContentParser parser = XContentType.SMILE.xContent()
+                            .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytesReference.streamInput())
+                    ) {
                         result = fallbackReader.apply(repoName, parser);
                         XContentParserUtils.ensureExpectedToken(null, parser.nextToken(), parser);
                     }

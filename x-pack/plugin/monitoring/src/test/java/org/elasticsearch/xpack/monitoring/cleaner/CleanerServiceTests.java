@@ -53,10 +53,15 @@ public class CleanerServiceTests extends ESTestCase {
         // invalid setting
         expectedException.expect(IllegalArgumentException.class);
 
-        TimeValue expected = TimeValue.timeValueHours(1);
-        Settings settings = Settings.builder().put(MonitoringField.HISTORY_DURATION.getKey(), expected.getStringRep()).build();
+        try {
+            TimeValue expected = TimeValue.timeValueHours(1);
+            Settings settings = Settings.builder().put(MonitoringField.HISTORY_DURATION.getKey(), expected.getStringRep()).build();
 
-        new CleanerService(settings, clusterSettings, threadPool, licenseState);
+            new CleanerService(settings, clusterSettings, threadPool, licenseState);
+        } finally {
+            assertWarnings("[xpack.monitoring.history.duration] setting was deprecated in Elasticsearch and will be removed in " +
+                "a future release! See the breaking changes documentation for the next major version.");
+        }
     }
 
     public void testGetRetention() {
@@ -64,6 +69,9 @@ public class CleanerServiceTests extends ESTestCase {
         Settings settings = Settings.builder().put(MonitoringField.HISTORY_DURATION.getKey(), expected.getStringRep()).build();
 
         assertEquals(expected, new CleanerService(settings, clusterSettings, threadPool, licenseState).getRetention());
+
+        assertWarnings("[xpack.monitoring.history.duration] setting was deprecated in Elasticsearch and will be removed in " +
+            "a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testSetGlobalRetention() {

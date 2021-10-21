@@ -50,6 +50,10 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
         }
     }
 
+    public CsvTestCase csvTestCase() {
+        return testCase;
+    }
+
     @Override
     protected void assertResults(ResultSet expected, ResultSet elastic) throws SQLException {
         Logger log = logEsResultSet() ? logger : null;

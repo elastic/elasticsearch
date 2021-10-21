@@ -187,13 +187,13 @@ public final class CompressedXContent {
     }
 
     // package private for testing
-    static boolean equalsWhenUncompressed(byte[] bytes1, byte[] bytes2) {
+    static boolean equalsWhenUncompressed(byte[] compressed1, byte[] compressed2) {
         try (InflaterAndBuffer inflaterAndBuffer1 = inflater1.get();
              InflaterAndBuffer inflaterAndBuffer2 = inflater2.get()) {
             final Inflater inf1 = inflaterAndBuffer1.inflater;
             final Inflater inf2 = inflaterAndBuffer2.inflater;
-            setInflaterInput(bytes1, inf1);
-            setInflaterInput(bytes2, inf2);
+            setInflaterInput(compressed1, inf1);
+            setInflaterInput(compressed2, inf2);
             final ByteBuffer buf1 = inflaterAndBuffer1.buffer;
             assert assertBufferIsCleared(buf1);
             final ByteBuffer buf2 =  inflaterAndBuffer2.buffer;

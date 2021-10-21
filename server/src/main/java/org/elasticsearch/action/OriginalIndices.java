@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * Used to keep track of original indices within internal (e.g. shard level) requests
@@ -66,5 +67,20 @@ public final class OriginalIndices implements IndicesRequest {
             "indices=" + Arrays.toString(indices) +
             ", indicesOptions=" + indicesOptions +
             '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        OriginalIndices that = (OriginalIndices) o;
+        return Arrays.equals(indices, that.indices) && Objects.equals(indicesOptions, that.indicesOptions);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(indicesOptions);
+        result = 31 * result + Arrays.hashCode(indices);
+        return result;
     }
 }

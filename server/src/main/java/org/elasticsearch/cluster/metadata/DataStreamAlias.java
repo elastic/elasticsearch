@@ -139,6 +139,10 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
         return filter;
     }
 
+    public boolean filteringRequired() {
+        return filter != null;
+    }
+
     /**
      * Returns a new {@link DataStreamAlias} instance with the provided data stream name added to it as a new member.
      * If the provided isWriteDataStream is set to <code>true</code> then the provided data stream is also set as write data stream.

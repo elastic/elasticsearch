@@ -8,7 +8,6 @@
 
 package org.elasticsearch.packaging.test;
 
-import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.test.PackagingTestCase.AwaitsFix;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
@@ -19,7 +18,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assume.assumeFalse;
@@ -30,6 +28,7 @@ public class PluginCliTests extends PackagingTestCase {
 
     private static final String EXAMPLE_PLUGIN_NAME = "custom-settings";
     private static final Path EXAMPLE_PLUGIN_ZIP;
+
     static {
         // re-read before each test so the plugin path can be manipulated within tests
         EXAMPLE_PLUGIN_ZIP = Paths.get(System.getProperty("tests.example-plugin", "/dummy/path"));
@@ -58,6 +57,7 @@ public class PluginCliTests extends PackagingTestCase {
 
     public void test10Install() throws Exception {
         install();
+        setFileSuperuser("test_superuser", "test_superuser_password");
     }
 
     public void test20SymlinkPluginsDir() throws Exception {
@@ -69,13 +69,16 @@ public class PluginCliTests extends PackagingTestCase {
         Path linkedPlugins = createTempDir("symlinked-plugins");
         Platforms.onLinux(() -> sh.run("chown elasticsearch:elasticsearch " + linkedPlugins.toString()));
         Files.createSymbolicLink(pluginsDir, linkedPlugins);
+        // Packaged installation don't get autoconfigured yet
+        // TODO: Remove this in https://github.com/elastic/elasticsearch/pull/75144
+        String protocol = distribution.isPackage() ? "http" : "https";
         assertWithExamplePlugin(installResult -> {
             assertWhileRunning(() -> {
-                final String pluginsResponse = makeRequest(Request.Get("http://localhost:9200/_cat/plugins?h=component")).strip();
+                final String pluginsResponse = makeRequest(protocol + "://localhost:9200/_cat/plugins?h=component").strip();
                 assertThat(pluginsResponse, equalTo(EXAMPLE_PLUGIN_NAME));
 
                 String settingsPath = "_cluster/settings?include_defaults&filter_path=defaults.custom.simple";
-                final String settingsResponse = makeRequest(Request.Get("http://localhost:9200/" + settingsPath)).strip();
+                final String settingsResponse = makeRequest(protocol + "://localhost:9200/" + settingsPath).strip();
                 assertThat(settingsResponse, equalTo("{\"defaults\":{\"custom\":{\"simple\":\"foo\"}}}"));
             });
         });

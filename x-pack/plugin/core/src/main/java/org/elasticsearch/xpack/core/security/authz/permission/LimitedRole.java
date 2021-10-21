@@ -57,6 +57,11 @@ public final class LimitedRole extends Role {
     }
 
     @Override
+    public boolean hasFieldOrDocumentLevelSecurity() {
+        return super.hasFieldOrDocumentLevelSecurity() || limitedBy.hasFieldOrDocumentLevelSecurity();
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (this == o) {
             return true;
@@ -84,7 +89,6 @@ public final class LimitedRole extends Role {
             super.authorize(action, requestedIndicesOrAliases, aliasAndIndexLookup, fieldPermissionsCache);
         IndicesAccessControl limitedByIndicesAccessControl = limitedBy.authorize(action, requestedIndicesOrAliases, aliasAndIndexLookup,
                 fieldPermissionsCache);
-
         return indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
     }
 

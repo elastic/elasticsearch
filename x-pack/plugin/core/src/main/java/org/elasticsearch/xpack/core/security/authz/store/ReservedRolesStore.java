@@ -402,10 +402,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("apm-*")
                     .privileges("read", "read_cross_cluster").build(),
-                // Data telemetry reads mappings, metadata and stats of indices (excluding security and async search indices)
+                // Data telemetry reads mappings, metadata and stats of indices
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("/@&~(\\.security.*)&~(\\.async-search.*)/")
-                    .allowRestrictedIndices(true)
+                    .indices("*")
                     .privileges("view_index_metadata", "monitor").build(),
                 // Endpoint diagnostic information. Kibana reads from these indices to send telemetry
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -452,7 +451,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .privileges("read", "view_index_metadata")
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("metrics-endpoint.metadata_current_default", "metrics-endpoint.metadata_united_default")
+                    .indices("metrics-endpoint.metadata_current_default", ".metrics-endpoint.metadata_current_default",
+                        ".metrics-endpoint.metadata_united_default")
                     .privileges("create_index", "delete_index", "read", "index")
                     .build(),
             },

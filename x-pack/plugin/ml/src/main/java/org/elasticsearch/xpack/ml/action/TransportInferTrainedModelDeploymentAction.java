@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -15,6 +16,7 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -72,6 +74,12 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
             throw org.elasticsearch.ExceptionsHelper.convertToElastic(taskOperationFailures.get(0).getCause());
         } else if (failedNodeExceptions.isEmpty() == false) {
             throw org.elasticsearch.ExceptionsHelper.convertToElastic(failedNodeExceptions.get(0));
+        } else if (tasks.isEmpty()) {
+            throw new ElasticsearchStatusException(
+                "[{}] unable to find deployment task for inference please stop and start the deployment or try again momentarily",
+                RestStatus.NOT_FOUND,
+                request.getDeploymentId()
+            );
         } else {
             return tasks.get(0);
         }
@@ -83,10 +91,11 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
         task.infer(
             request.getDocs().get(0),
             request.getUpdate(),
-            request.getTimeout(),
+            request.getInferenceTimeout(),
             ActionListener.wrap(
                 pyTorchResult -> listener.onResponse(new InferTrainedModelDeploymentAction.Response(pyTorchResult)),
-                listener::onFailure)
+                listener::onFailure
+            )
         );
     }
 }

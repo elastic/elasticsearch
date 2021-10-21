@@ -9,20 +9,15 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.test.ESTestCase;
-import org.joda.time.DateTimeZone;
 
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.Month;
 import java.time.Year;
 import java.time.YearMonth;
-import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
 
 import static org.elasticsearch.common.time.DateUtils.clampToNanosRange;
 import static org.elasticsearch.common.time.DateUtils.toInstant;
@@ -34,34 +29,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class DateUtilsTests extends ESTestCase {
-    // list of ignored timezones.
-    // These should be cleaned up when all tested jdks (oracle, adoptopenjdk, openjdk etc) have the timezone db included
-    // see when a timezone was included in jdk version here https://www.oracle.com/java/technologies/tzdata-versions.html
-    private static final Set<String> IGNORE = new HashSet<>(Arrays.asList(
-        "Eire", "Europe/Dublin", // dublin timezone in joda does not account for DST
-        "Asia/Qostanay", // part of tzdata2018h
-        "America/Godthab", // part of tzdata2020a (maps to America/Nuuk)
-        "America/Nuuk"// part of tzdata2020a
-    ));
-
-
-    public void testTimezoneIds() {
-        assertNull(DateUtils.dateTimeZoneToZoneId(null));
-        assertNull(DateUtils.zoneIdToDateTimeZone(null));
-        for (String jodaId : DateTimeZone.getAvailableIDs()) {
-            if (IGNORE.contains(jodaId)) continue;
-            DateTimeZone jodaTz = DateTimeZone.forID(jodaId);
-            ZoneId zoneId = DateUtils.dateTimeZoneToZoneId(jodaTz); // does not throw
-            long now = 0;
-            assertThat(jodaId, zoneId.getRules().getOffset(Instant.ofEpochMilli(now)).getTotalSeconds() * 1000,
-                equalTo(jodaTz.getOffset(now)));
-            if (DateUtils.DEPRECATED_SHORT_TIMEZONES.containsKey(jodaTz.getID())) {
-                assertWarnings("Use of short timezone id " + jodaId + " is deprecated. Use " + zoneId.getId() + " instead");
-            }
-            // roundtrip does not throw either
-            assertNotNull(DateUtils.zoneIdToDateTimeZone(zoneId));
-        }
-    }
 
     public void testInstantToLong() {
         assertThat(toLong(Instant.EPOCH), is(0L));

@@ -49,7 +49,6 @@ public class IndexFieldMapperTests extends MapperServiceTestCase {
             IndexFieldMapper.IndexFieldType ft = (IndexFieldMapper.IndexFieldType) mapperService.fieldType("_index");
             SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
             SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
-            // when(searchExecutionContext.getFullyQualifiedIndex()).thenReturn(new Index(index, "indexUUid"));
             ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null);
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);

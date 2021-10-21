@@ -183,7 +183,7 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
 
             private void collectFromSource(int doc, long owningBucketOrd, CategorizationTokenTree categorizer) throws IOException {
                 sourceLookup.setSegmentAndDocument(ctx, doc);
-                Iterator<String> itr = sourceLookup.extractRawValues(sourceFieldName).stream().map(obj -> {
+                Iterator<String> itr = sourceLookup.extractRawValuesWithoutCaching(sourceFieldName).stream().map(obj -> {
                     if (obj == null) {
                         return null;
                     }

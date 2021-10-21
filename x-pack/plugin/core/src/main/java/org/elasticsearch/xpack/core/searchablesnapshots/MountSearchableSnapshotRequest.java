@@ -11,17 +11,17 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.cluster.routing.allocation.DataTier;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -38,7 +38,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearchableSnapshotRequest> {
 
     public static final ConstructingObjectParser<MountSearchableSnapshotRequest, RestRequest> PARSER = new ConstructingObjectParser<>(
-        "mount_searchable_snapshot", true,
+        "mount_searchable_snapshot", false,
         (a, request) -> new MountSearchableSnapshotRequest(
             Objects.requireNonNullElse((String)a[1], (String)a[0]),
             Objects.requireNonNull(request.param("repository")),
@@ -73,7 +73,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
     private final String snapshotName;
     private final String snapshotIndexName;
     private final Settings indexSettings;
-    private final String[] ignoredIndexSettings;
+    private final String[] ignoreIndexSettings;
     private final boolean waitForCompletion;
     private final Storage storage;
 
@@ -86,7 +86,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
             String snapshotName,
             String snapshotIndexName,
             Settings indexSettings,
-            String[] ignoredIndexSettings,
+            String[] ignoreIndexSettings,
             boolean waitForCompletion,
             Storage storage) {
         this.mountedIndexName = Objects.requireNonNull(mountedIndexName);
@@ -94,7 +94,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         this.snapshotName = Objects.requireNonNull(snapshotName);
         this.snapshotIndexName = Objects.requireNonNull(snapshotIndexName);
         this.indexSettings = Objects.requireNonNull(indexSettings);
-        this.ignoredIndexSettings = Objects.requireNonNull(ignoredIndexSettings);
+        this.ignoreIndexSettings = Objects.requireNonNull(ignoreIndexSettings);
         this.waitForCompletion = waitForCompletion;
         this.storage = storage;
     }
@@ -106,7 +106,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         this.snapshotName = in.readString();
         this.snapshotIndexName = in.readString();
         this.indexSettings = readSettingsFromStream(in);
-        this.ignoredIndexSettings = in.readStringArray();
+        this.ignoreIndexSettings = in.readStringArray();
         this.waitForCompletion = in.readBoolean();
         if (in.getVersion().onOrAfter(SHARED_CACHE_VERSION)) {
             this.storage = Storage.readFromStream(in);
@@ -123,7 +123,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         out.writeString(snapshotName);
         out.writeString(snapshotIndexName);
         writeSettingsToStream(indexSettings, out);
-        out.writeStringArray(ignoredIndexSettings);
+        out.writeStringArray(ignoreIndexSettings);
         out.writeBoolean(waitForCompletion);
         if (out.getVersion().onOrAfter(SHARED_CACHE_VERSION)) {
             storage.writeTo(out);
@@ -189,7 +189,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
      * @return the names of settings that should be removed from the index when it is mounted
      */
     public String[] ignoreIndexSettings() {
-        return ignoredIndexSettings;
+        return ignoreIndexSettings;
     }
 
     /**
@@ -216,7 +216,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
             Objects.equals(snapshotName, that.snapshotName) &&
             Objects.equals(snapshotIndexName, that.snapshotIndexName) &&
             Objects.equals(indexSettings, that.indexSettings) &&
-            Arrays.equals(ignoredIndexSettings, that.ignoredIndexSettings) &&
+            Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings) &&
             Objects.equals(masterNodeTimeout, that.masterNodeTimeout);
     }
 
@@ -224,7 +224,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
     public int hashCode() {
         int result = Objects.hash(mountedIndexName, repositoryName, snapshotName, snapshotIndexName, indexSettings, waitForCompletion,
             masterNodeTimeout, storage);
-        result = 31 * result + Arrays.hashCode(ignoredIndexSettings);
+        result = 31 * result + Arrays.hashCode(ignoreIndexSettings);
         return result;
     }
 

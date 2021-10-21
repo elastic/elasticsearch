@@ -88,7 +88,7 @@ public class SearchableSnapshotsDocumentationIT extends ESRestHighLevelClientTes
             .put("index.number_of_replicas", 0)
             .build();
         request.indexSettings(indexSettings); // <8>
-        request.ignoredIndexSettings(
+        request.ignoreIndexSettings(
             new String[]{"index.refresh_interval"}); // <9>
         // end::searchable-snapshots-mount-snapshot-request
 

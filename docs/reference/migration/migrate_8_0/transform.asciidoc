@@ -15,7 +15,7 @@ that is no longer supported.
 
 
 *Impact* +
-Use the {ref}/upgrade-transforms.html[upgrade {transforms API}] to fix your
+Use the {ref}/upgrade-transforms.html[upgrade {transforms} API] to fix your
 {transforms}. This upgrade does not affect the source or destination indices.
 ====
 // end::notable-breaking-changes[]

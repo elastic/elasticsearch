@@ -58,8 +58,7 @@ public class Authentication implements ToXContentObject {
         this.version = version;
         this.type = type;
         this.metadata = metadata;
-        assert this.metadata.get(AuthenticationField.API_KEY_ID_KEY) != null; // always present, never null
-        assert this.metadata.containsKey(AuthenticationField.API_KEY_ID_KEY); // always present, null for old keys
+        this.assertApiKeyMetadata();
     }
 
     public Authentication(StreamInput in) throws IOException {
@@ -73,8 +72,14 @@ public class Authentication implements ToXContentObject {
         this.version = in.getVersion();
         type = AuthenticationType.values()[in.readVInt()];
         metadata = in.readMap();
-        assert this.metadata.get(AuthenticationField.API_KEY_ID_KEY) != null; // always present, never null
-        assert this.metadata.containsKey(AuthenticationField.API_KEY_ID_KEY); // always present, null for old keys
+        this.assertApiKeyMetadata();
+    }
+
+    private void assertApiKeyMetadata() {
+        assert (AuthenticationType.API_KEY.equals(this.type)) && (this.metadata.get(AuthenticationField.API_KEY_ID_KEY) != null)
+            : "API KEY authentication requires metadata to contain API KEY id, and the value must be non-null.";
+        assert (AuthenticationType.API_KEY.equals(this.type)) && (this.metadata.containsKey(AuthenticationField.API_KEY_NAME_KEY))
+            : "API KEY authentication requires metadata to contain API KEY name; the value may be null for older keys.";
     }
 
     public User getUser() {

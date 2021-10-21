@@ -118,6 +118,7 @@ public class NodeService implements Closeable {
                 discoveryStats ? coordinator.stats() : null,
                 ingest ? ingestService.stats() : null,
                 adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null,
+                scriptCache ? scriptService.cacheStats() : null,
                 indexingPressure ? this.indexingPressure.stats() : null);
     }
 

@@ -74,7 +74,8 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
                     .map(fsInfoPath -> diskUsageFunction.apply(discoveryNode, fsInfoPath))
                     .toArray(FsInfo.Path[]::new)), nodeStats.getTransport(),
                 nodeStats.getHttp(), nodeStats.getBreaker(), nodeStats.getScriptStats(), nodeStats.getDiscoveryStats(),
-                nodeStats.getIngestStats(), nodeStats.getAdaptiveSelectionStats(), nodeStats.getIndexingPressureStats());
+                nodeStats.getIngestStats(), nodeStats.getAdaptiveSelectionStats(), nodeStats.getScriptCacheStats(),
+                nodeStats.getIndexingPressureStats());
         }).collect(Collectors.toList());
     }
 

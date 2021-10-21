@@ -135,18 +135,19 @@ indices. If `false`, the request doesn't restore aliases. Defaults to `true`.
 +
 --
 (Optional, Boolean)
-If `false`, the global state is not restored. Defaults to `false`.
+If `true`, restore the cluster state. Defaults to `false`.
 
-If `true`, the current global state is included in the restore operation.
+The cluster state includes:
 
-The global state includes:
-
-* Persistent cluster settings
-* Index templates
-* Legacy index templates
-* Ingest pipelines
-* {ilm-init} lifecycle policies
-* For snapshots taken after 7.12.0, data stored in system indices, such as Watches and task records, replacing any existing configuration (configurable via `feature_states`)
+// tag::cluster-state-contents[]
+* <<cluster-setting-types,Persistent cluster settings>>
+* <<index-templates,Index templates>>
+* <<indices-templates-v1,Legacy index templates>>
+* <<ingest,Ingest pipelines>>
+* <<index-lifecycle-management,{ilm-init} policies>>
+* For snapshots taken after 7.12.0, data stored in system indices, such as
+  Watches and task records.
+// end::cluster-state-contents[]
 
 If `include_global_state` is `true` then the restore operation merges the
 legacy index templates in your cluster with the templates contained in the
@@ -154,6 +155,9 @@ snapshot, replacing any existing ones whose name matches one in the snapshot.
 It completely removes all persistent settings, non-legacy index templates,
 ingest pipelines and {ilm-init} lifecycle policies that exist in your cluster
 and replaces them with the corresponding items from the snapshot.
+
+You can use the `feature_states` parameter to configure how system indices
+are restored from the cluster state.
 --
 
 [[restore-snapshot-api-feature-states]]

@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -269,28 +270,32 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
     @Override
     public void deleteOldIndices(ActionListener<Boolean> listener) {
         ClusterState state = clusterService.state();
+        Set<String> indicesToDelete = new HashSet<>();
 
-        Set<String> indicesToDelete = new HashSet<>(
-            Arrays.asList(
-                indexNameExpressionResolver.concreteIndexNames(
-                    state,
-                    IndicesOptions.LENIENT_EXPAND_OPEN,
-                    TransformInternalIndexConstants.INDEX_NAME_PATTERN
+        // use the transform context as we access system indexes
+        try (ThreadContext.StoredContext ctx = client.threadPool().getThreadContext().stashWithOrigin(TRANSFORM_ORIGIN)) {
+            indicesToDelete.addAll(
+                Arrays.asList(
+                    indexNameExpressionResolver.concreteIndexNames(
+                        state,
+                        IndicesOptions.lenientExpandHidden(),
+                        TransformInternalIndexConstants.INDEX_NAME_PATTERN
+                    )
                 )
-            )
-        );
+            );
 
-        indicesToDelete.addAll(
-            Arrays.asList(
-                indexNameExpressionResolver.concreteIndexNames(
-                    state,
-                    IndicesOptions.LENIENT_EXPAND_OPEN,
-                    TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
+            indicesToDelete.addAll(
+                Arrays.asList(
+                    indexNameExpressionResolver.concreteIndexNames(
+                        state,
+                        IndicesOptions.lenientExpandHidden(),
+                        TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
+                    )
                 )
-            )
-        );
+            );
 
-        indicesToDelete.remove(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
+            indicesToDelete.remove(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
+        }
 
         if (indicesToDelete.isEmpty()) {
             listener.onResponse(true);

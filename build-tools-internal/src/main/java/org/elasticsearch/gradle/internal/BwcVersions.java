@@ -10,16 +10,17 @@ package org.elasticsearch.gradle.internal;
 import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
-import java.util.SortedSet;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -27,9 +28,7 @@ import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 
 /**
@@ -40,27 +39,13 @@ import static java.util.Collections.unmodifiableList;
  * On top of this, figure out which of these are unreleased and provide the branch they can be built from.
  * <p>
  * Note that in this context, currentVersion is the unreleased version this build operates on.
- * At any point in time there will surely be four such unreleased versions being worked on,
- * thus currentVersion will be one of these.
+ * At any point in time there will be at least three such versions and potentially four in the case of a staged release.
  * <p>
- * Considering:
- * <dl>
- *     <dt>M, M &gt; 0</dt>
- *     <dd>last released major</dd>
- *     <dt>N, N &gt; 0</dt>
- *     <dd>last released minor</dd>
- * </dl>
- *
  * <ul>
- * <li>the unreleased <b>major</b>, M+1.0.0 on the `master` branch</li>
- * <li>the unreleased <b>minor</b>,  M.N.0 on the `M.x` (x is literal) branch</li>
- * <li>the unreleased <b>bugfix</b>, M.N.c (c &gt; 0) on the `M.N` branch</li>
+ * <li>the current version on the `master` branch</li>
+ * <li>the staged next <b>minor</b> on the `M.N` branch</li>
+ * <li>the unreleased <b>bugfix</b>, `M.N-1` branch</li>
  * <li>the unreleased <b>maintenance</b>, M-1.d.e ( d &gt; 0, e &gt; 0) on the `(M-1).d` branch</li>
- * </ul>
- * In addition to these, there will be a fifth one when a minor reaches feature freeze, we call this the <i>staged</i>
- * version:
- * <ul>
- * <li>the unreleased <b>staged</b>, M.N-2.0 (N &gt; 2) on the `M.(N-2)` branch</li>
  * </ul>
  * <p>
  * Each build is only concerned with versions before it, as those are the ones that need to be tested
@@ -71,7 +56,7 @@ import static java.util.Collections.unmodifiableList;
  * We can reliably figure out which the unreleased versions are due to the convention of always adding the next unreleased
  * version number to server in all branches when a version is released.
  * E.x when M.N.c is released M.N.c+1 is added to the Version class mentioned above in all the following branches:
- *  `M.N`, `M.x` and `master` so we can reliably assume that the leafs of the version tree are unreleased.
+ *  `M.N`, and `master` so we can reliably assume that the leafs of the version tree are unreleased.
  * This convention is enforced by checking the versions we consider to be unreleased against an
  * authoritative source (maven central).
  * We are then able to map the unreleased version to branches in git and Gradle projects that are capable of checking
@@ -80,87 +65,55 @@ import static java.util.Collections.unmodifiableList;
 public class BwcVersions {
 
     private static final Pattern LINE_PATTERN = Pattern.compile(
-        "\\W+public static final Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)? .*"
+        "\\W+public static final Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)? .*?LUCENE_(\\d+)_(\\d+)_(\\d+)\\);"
     );
+    private static final Version MINIMUM_WIRE_COMPATIBLE_VERSION = Version.fromString("7.16.0");
 
-    private final Version currentVersion;
-    private final Map<Integer, List<Version>> groupByMajor;
+    private final VersionPair currentVersion;
+    private final List<VersionPair> versions;
     private final Map<Version, UnreleasedVersionInfo> unreleased;
-
-    public class UnreleasedVersionInfo {
-        public final Version version;
-        public final String branch;
-        public final String gradleProjectPath;
-
-        UnreleasedVersionInfo(Version version, String branch, String gradleProjectPath) {
-            this.version = version;
-            this.branch = branch;
-            this.gradleProjectPath = gradleProjectPath;
-        }
-    }
 
     public BwcVersions(List<String> versionLines) {
         this(versionLines, Version.fromString(VersionProperties.getElasticsearch()));
     }
 
-    protected BwcVersions(List<String> versionLines, Version currentVersionProperty) {
-        this(
-            versionLines.stream()
-                .map(LINE_PATTERN::matcher)
-                .filter(Matcher::matches)
-                .map(
-                    match -> new Version(
-                        Integer.parseInt(match.group(1)),
-                        Integer.parseInt(match.group(2)),
-                        Integer.parseInt(match.group(3))
-                    )
-                )
-                .collect(Collectors.toCollection(TreeSet::new)),
-            currentVersionProperty
-        );
-    }
-
-    // for testkit tests, until BwcVersions is extracted into an extension
-    public BwcVersions(SortedSet<Version> allVersions, Version currentVersionProperty) {
+    public BwcVersions(Version currentVersionProperty, List<VersionPair> allVersions) {
         if (allVersions.isEmpty()) {
             throw new IllegalArgumentException("Could not parse any versions");
         }
 
-        currentVersion = allVersions.last();
-
-        groupByMajor = allVersions.stream()
-            // We only care about the last 2 majors when it comes to BWC.
-            // It might take us time to remove the older ones from versionLines, so we allow them to exist.
-            .filter(version -> version.getMajor() > currentVersion.getMajor() - 2)
-            .collect(Collectors.groupingBy(Version::getMajor, Collectors.toList()));
-
+        this.versions = allVersions;
+        this.currentVersion = allVersions.get(allVersions.size() - 1);
         assertCurrentVersionMatchesParsed(currentVersionProperty);
 
-        assertNoOlderThanTwoMajors();
-
-        Map<Version, UnreleasedVersionInfo> unreleased = new HashMap<>();
-        for (Version unreleasedVersion : getUnreleased()) {
-            unreleased.put(
-                unreleasedVersion,
-                new UnreleasedVersionInfo(unreleasedVersion, getBranchFor(unreleasedVersion), getGradleProjectPathFor(unreleasedVersion))
-            );
-        }
-        this.unreleased = Collections.unmodifiableMap(unreleased);
+        this.unreleased = computeUnreleased();
     }
 
-    private void assertNoOlderThanTwoMajors() {
-        Set<Integer> majors = groupByMajor.keySet();
-        if (majors.size() != 2 && currentVersion.getMinor() != 0 && currentVersion.getRevision() != 0) {
-            throw new IllegalStateException("Expected exactly 2 majors in parsed versions but found: " + majors);
-        }
+    // Visible for testing
+    BwcVersions(List<String> versionLines, Version currentVersionProperty) {
+        this(currentVersionProperty, parseVersionLines(versionLines));
+    }
+
+    private static List<VersionPair> parseVersionLines(List<String> versionLines) {
+        return versionLines.stream()
+            .map(LINE_PATTERN::matcher)
+            .filter(Matcher::matches)
+            .map(
+                match -> new VersionPair(
+                    new Version(Integer.parseInt(match.group(1)), Integer.parseInt(match.group(2)), Integer.parseInt(match.group(3))),
+                    new Version(Integer.parseInt(match.group(5)), Integer.parseInt(match.group(6)), Integer.parseInt(match.group(7)))
+                )
+            )
+            .sorted()
+            .toList();
     }
 
     private void assertCurrentVersionMatchesParsed(Version currentVersionProperty) {
-        if (currentVersionProperty.equals(currentVersion) == false) {
+        if (currentVersionProperty.equals(currentVersion.elasticsearch) == false) {
             throw new IllegalStateException(
                 "Parsed versions latest version does not match the one configured in build properties. "
                     + "Parsed latest version is "
-                    + currentVersion
+                    + currentVersion.elasticsearch
                     + " but the build has "
                     + currentVersionProperty
             );
@@ -175,130 +128,78 @@ public class BwcVersions {
     }
 
     public void forPreviousUnreleased(Consumer<UnreleasedVersionInfo> consumer) {
-        List<UnreleasedVersionInfo> collect = filterSupportedVersions(
-            getUnreleased().stream().filter(version -> version.equals(currentVersion) == false).collect(Collectors.toList())
-        ).stream()
-            .map(version -> new UnreleasedVersionInfo(version, getBranchFor(version), getGradleProjectPathFor(version)))
-            .collect(Collectors.toList());
-
-        collect.forEach(consumer::accept);
-    }
-
-    private String getGradleProjectPathFor(Version version) {
-        // We have Gradle projects set up to check out and build unreleased versions based on the our branching
-        // conventions described in this classes javadoc
-        if (version.equals(currentVersion)) {
-            return ":distribution";
-        }
-
-        Map<Integer, List<Version>> releasedMajorGroupedByMinor = getReleasedMajorGroupedByMinor();
-
-        if (version.getRevision() == 0) {
-            List<Version> unreleasedStagedOrMinor = getUnreleased().stream().filter(v -> v.getRevision() == 0).collect(Collectors.toList());
-            if (unreleasedStagedOrMinor.size() > 2) {
-                if (unreleasedStagedOrMinor.get(unreleasedStagedOrMinor.size() - 2).equals(version)) {
-                    return ":distribution:bwc:minor";
-                } else {
-                    return ":distribution:bwc:staged";
-                }
-            } else {
-                return ":distribution:bwc:minor";
-            }
-        } else {
-            if (releasedMajorGroupedByMinor.getOrDefault(version.getMinor(), emptyList()).contains(version)) {
-                return ":distribution:bwc:bugfix";
-            } else {
-                return ":distribution:bwc:maintenance";
-            }
-        }
+        filterSupportedVersions(
+            getUnreleased().stream().filter(version -> version.equals(currentVersion.elasticsearch) == false).collect(Collectors.toList())
+        ).stream().map(unreleased::get).forEach(consumer);
     }
 
     private String getBranchFor(Version version) {
-        // based on the rules described in this classes javadoc, figure out the branch on which an unreleased version
-        // lives.
-        // We do this based on the Gradle project path because there's a direct correlation, so we dont have to duplicate
-        // the logic from there
-        switch (getGradleProjectPathFor(version)) {
-            case ":distribution":
-                return "master";
-            case ":distribution:bwc:minor":
-                // The .x branch will always point to the latest minor (for that major), so a "minor" project will be on the .x branch
-                // unless there is more recent (higher) minor.
-                final Version latestInMajor = getLatestVersionByKey(groupByMajor, version.getMajor());
-                if (latestInMajor.getMinor() == version.getMinor()) {
-                    return version.getMajor() + ".x";
-                } else {
-                    return version.getMajor() + "." + version.getMinor();
-                }
-            case ":distribution:bwc:staged":
-            case ":distribution:bwc:maintenance":
-            case ":distribution:bwc:bugfix":
-                return version.getMajor() + "." + version.getMinor();
-            default:
-                throw new IllegalStateException("Unexpected Gradle project name");
+        if (version.equals(currentVersion.elasticsearch)) {
+            // Just assume the current branch is 'master'. It's actually not important, we never check out the current branch.
+            return "master";
+        } else {
+            return version.getMajor() + "." + version.getMinor();
         }
+    }
+
+    private Map<Version, UnreleasedVersionInfo> computeUnreleased() {
+        Set<VersionPair> unreleased = new TreeSet<>();
+        // The current version is being worked, is always unreleased
+        unreleased.add(currentVersion);
+        // Recurse for all unreleased versions starting from the current version
+        addUnreleased(unreleased, currentVersion, 0);
+
+        // Grab the latest version from the previous major if necessary as well, this is going to be a maintenance release
+        VersionPair maintenance = versions.stream()
+            .filter(v -> v.elasticsearch.getMajor() == currentVersion.elasticsearch.getMajor() - 1)
+            .sorted(Comparator.reverseOrder())
+            .findFirst()
+            .orElseThrow();
+        // This is considered the maintenance release only if we haven't yet encountered it
+        boolean hasMaintenanceRelease = unreleased.add(maintenance);
+
+        List<VersionPair> unreleasedList = unreleased.stream().sorted(Comparator.reverseOrder()).toList();
+        Map<Version, UnreleasedVersionInfo> result = new TreeMap<>();
+        for (int i = 0; i < unreleasedList.size(); i++) {
+            Version esVersion = unreleasedList.get(i).elasticsearch;
+            // This is either a new minor or staged release
+            if (currentVersion.elasticsearch.equals(esVersion)) {
+                result.put(esVersion, new UnreleasedVersionInfo(esVersion, getBranchFor(esVersion), ":distribution"));
+            } else if (esVersion.getRevision() == 0) {
+                // If there are two upcoming unreleased minors then this one is the new minor
+                if (unreleasedList.get(i + 1).elasticsearch.getRevision() == 0) {
+                    result.put(esVersion, new UnreleasedVersionInfo(esVersion, getBranchFor(esVersion), ":distribution:bwc:minor"));
+                } else {
+                    result.put(esVersion, new UnreleasedVersionInfo(esVersion, getBranchFor(esVersion), ":distribution:bwc:staged"));
+                }
+            } else {
+                // If this is the oldest unreleased version and we have a maintenance release
+                if (i == unreleasedList.size() - 1 && hasMaintenanceRelease) {
+                    result.put(esVersion, new UnreleasedVersionInfo(esVersion, getBranchFor(esVersion), ":distribution:bwc:maintenance"));
+                } else {
+                    result.put(esVersion, new UnreleasedVersionInfo(esVersion, getBranchFor(esVersion), ":distribution:bwc:bugfix"));
+                }
+            }
+        }
+
+        return Collections.unmodifiableMap(result);
     }
 
     public List<Version> getUnreleased() {
-        List<Version> unreleased = new ArrayList<>();
-        // The current version is being worked, is always unreleased
-        unreleased.add(currentVersion);
-
-        // the tip of the previous major is unreleased for sure, be it a minor or a bugfix
-        final Version latestOfPreviousMajor = getLatestVersionByKey(this.groupByMajor, currentVersion.getMajor() - 1);
-        unreleased.add(latestOfPreviousMajor);
-        if (latestOfPreviousMajor.getRevision() == 0) {
-            // if the previous major is a x.y.0 release, then the tip of the minor before that (y-1) is also unreleased
-            final Version previousMinor = getLatestInMinor(latestOfPreviousMajor.getMajor(), latestOfPreviousMajor.getMinor() - 1);
-            if (previousMinor != null) {
-                unreleased.add(previousMinor);
-            }
-        }
-
-        final Map<Integer, List<Version>> groupByMinor = getReleasedMajorGroupedByMinor();
-        int greatestMinor = groupByMinor.keySet().stream().max(Integer::compareTo).orElse(0);
-
-        // the last bugfix for this minor series is always unreleased
-        unreleased.add(getLatestVersionByKey(groupByMinor, greatestMinor));
-
-        if (groupByMinor.get(greatestMinor).size() == 1) {
-            // we found an unreleased minor
-            unreleased.add(getLatestVersionByKey(groupByMinor, greatestMinor - 1));
-            if (groupByMinor.getOrDefault(greatestMinor - 1, emptyList()).size() == 1) {
-                // we found that the previous minor is staged but not yet released
-                // in this case, the minor before that has a bugfix, should there be such a minor
-                if (greatestMinor >= 2) {
-                    unreleased.add(getLatestVersionByKey(groupByMinor, greatestMinor - 2));
-                }
-            }
-        }
-
-        return unmodifiableList(unreleased.stream().sorted().distinct().collect(Collectors.toList()));
+        return unreleased.keySet().stream().sorted().toList();
     }
 
-    private Version getLatestInMinor(int major, int minor) {
-        return groupByMajor.get(major).stream().filter(v -> v.getMinor() == minor).max(Version::compareTo).orElse(null);
-    }
+    private void addUnreleased(Set<VersionPair> unreleased, VersionPair current, int index) {
+        if (current.elasticsearch.getRevision() == 0) {
+            // If the current version is a new minor, the next version is also unreleased
+            VersionPair next = versions.get(versions.size() - (index + 2));
+            unreleased.add(next);
 
-    private Version getLatestVersionByKey(Map<Integer, List<Version>> groupByMajor, int key) {
-        return groupByMajor.getOrDefault(key, emptyList())
-            .stream()
-            .max(Version::compareTo)
-            .orElseThrow(() -> new IllegalStateException("Unexpected number of versions in collection"));
-    }
-
-    private Map<Integer, List<Version>> getReleasedMajorGroupedByMinor() {
-        List<Version> currentMajorVersions = groupByMajor.get(currentVersion.getMajor());
-        List<Version> previousMajorVersions = groupByMajor.get(currentVersion.getMajor() - 1);
-
-        final Map<Integer, List<Version>> groupByMinor;
-        if (currentMajorVersions.size() == 1) {
-            // Current is an unreleased major: x.0.0 so we have to look for other unreleased versions in the previous major
-            groupByMinor = previousMajorVersions.stream().collect(Collectors.groupingBy(Version::getMinor, Collectors.toList()));
+            // Keep looking through versions until we find the end of unreleased versions
+            addUnreleased(unreleased, next, index + 1);
         } else {
-            groupByMinor = currentMajorVersions.stream().collect(Collectors.groupingBy(Version::getMinor, Collectors.toList()));
+            unreleased.add(current);
         }
-        return groupByMinor;
     }
 
     public void compareToAuthoritative(List<Version> authoritativeReleasedVersions) {
@@ -326,20 +227,13 @@ public class BwcVersions {
     }
 
     private List<Version> getReleased() {
-        List<Version> unreleased = getUnreleased();
-        return groupByMajor.values()
-            .stream()
-            .flatMap(Collection::stream)
-            .filter(each -> unreleased.contains(each) == false)
-            .collect(Collectors.toList());
+        return versions.stream().map(v -> v.elasticsearch).filter(v -> unreleased.containsKey(v) == false).toList();
     }
 
     public List<Version> getIndexCompatible() {
-        var indexCompatibles = Stream.concat(
-            groupByMajor.get(currentVersion.getMajor() - 1).stream(),
-            groupByMajor.get(currentVersion.getMajor()).stream()
-        ).collect(Collectors.toList());
-        return unmodifiableList(filterSupportedVersions(indexCompatibles));
+        return filterSupportedVersions(
+            versions.stream().filter(v -> v.lucene.getMajor() >= (currentVersion.lucene.getMajor() - 1)).map(v -> v.elasticsearch).toList()
+        );
     }
 
     public void withIndexCompatiple(BiConsumer<Version, String> versionAction) {
@@ -351,16 +245,9 @@ public class BwcVersions {
     }
 
     public List<Version> getWireCompatible() {
-        List<Version> wireCompat = new ArrayList<>();
-        List<Version> prevMajors = groupByMajor.get(currentVersion.getMajor() - 1);
-        int minor = prevMajors.get(prevMajors.size() - 1).getMinor();
-        for (int i = prevMajors.size() - 1; i > 0 && prevMajors.get(i).getMinor() == minor; i--) {
-            wireCompat.add(prevMajors.get(i));
-        }
-        wireCompat.addAll(groupByMajor.get(currentVersion.getMajor()));
-        wireCompat.sort(Version::compareTo);
-
-        return unmodifiableList(filterSupportedVersions(wireCompat));
+        return filterSupportedVersions(
+            versions.stream().map(v -> v.elasticsearch).filter(v -> v.compareTo(MINIMUM_WIRE_COMPATIBLE_VERSION) >= 0).toList()
+        );
     }
 
     public void withWireCompatiple(BiConsumer<Version, String> versionAction) {
@@ -389,4 +276,44 @@ public class BwcVersions {
         return unmodifiableList(unreleasedWireCompatible);
     }
 
+    public static class UnreleasedVersionInfo {
+        public final Version version;
+        public final String branch;
+        public final String gradleProjectPath;
+
+        public UnreleasedVersionInfo(Version version, String branch, String gradleProjectPath) {
+            this.version = version;
+            this.branch = branch;
+            this.gradleProjectPath = gradleProjectPath;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            UnreleasedVersionInfo that = (UnreleasedVersionInfo) o;
+            return version.equals(that.version) && branch.equals(that.branch) && gradleProjectPath.equals(that.gradleProjectPath);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(version, branch, gradleProjectPath);
+        }
+    }
+
+    public static class VersionPair implements Comparable<VersionPair> {
+        public final Version elasticsearch;
+        public final Version lucene;
+
+        public VersionPair(Version elasticsearch, Version lucene) {
+            this.elasticsearch = elasticsearch;
+            this.lucene = lucene;
+        }
+
+        @Override
+        public int compareTo(@NotNull VersionPair o) {
+            // For ordering purposes, sort by Elasticsearch version
+            return this.elasticsearch.compareTo(o.elasticsearch);
+        }
+    }
 }

@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 
 import java.util.IdentityHashMap;
@@ -47,28 +48,10 @@ public interface ClusterStateTaskExecutor<T> {
      */
     default String describeTasks(List<T> tasks) {
         final StringBuilder output = new StringBuilder();
-        int len = 0;
-        final int count = tasks.size();
-        int i = 0;
-        for (; i < count; i++) {
-            T task = tasks.get(i);
-            String t = task.toString();
-            if (t.length() > 0) {
-                if (len > 0) {
-                    output.append(", ");
-                }
-                len += t.length();
-                output.append(t);
-            }
-            // don't render additional task descriptions beyond 1024 chars
-            if (len > 1024) {
-                break;
-            }
-        }
-        final int remaining = count - i;
-        if (remaining > 0) {
-            output.append(", ").append(remaining).append(" additional tasks");
-        }
+        Strings.collectionToDelimitedStringWithLimit(
+            (Iterable<String>) () -> tasks.stream().map(Object::toString).filter(s -> s.isEmpty() == false).iterator(),
+            ", ", "", "", 1024, output
+        );
         return output.toString();
     }
 

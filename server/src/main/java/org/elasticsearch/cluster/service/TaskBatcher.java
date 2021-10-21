@@ -140,21 +140,19 @@ public abstract class TaskBatcher {
                                          List<BatchedTask> toExecute,
                                          Map<String, List<BatchedTask>> processTasksBySource) {
         final StringBuilder output = new StringBuilder();
-        int len = 0;
         int count = 0;
         int taskCount = 0;
         for (Map.Entry<String, List<BatchedTask>> entry : processTasksBySource.entrySet()) {
             String tasks = updateTask.describeTasks(entry.getValue());
             final String description = tasks.isEmpty() ? entry.getKey() : entry.getKey() + "[" + tasks + "]";
-            if (len > 0) {
+            if (output.length() > 0) {
                 output.append(", ");
             }
-            len += description.length();
             count++;
             taskCount += entry.getValue().size();
             output.append(description);
             // don't render additional task descriptions beyond 8k chars
-            if (len > 8 * 1024) {
+            if (output.length() > 8 * 1024) {
                 break;
             }
         }

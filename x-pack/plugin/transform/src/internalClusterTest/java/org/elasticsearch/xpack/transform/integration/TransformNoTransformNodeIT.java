@@ -59,7 +59,7 @@ public class TransformNoTransformNodeIT extends TransformSingleNodeTestCase {
     public void testPreviewTransform() {
         String transformId = "transform-1";
         TransformConfig config = randomConfig(transformId);
-        PreviewTransformAction.Request request = new PreviewTransformAction.Request(config);
+        PreviewTransformAction.Request request = new PreviewTransformAction.Request(config, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
             () -> client().execute(PreviewTransformAction.INSTANCE, request).actionGet()

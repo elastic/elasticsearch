@@ -75,6 +75,8 @@ public abstract class AbstractSnapshotBasedRecoveryRestTestCase extends ESRestTe
         assertMatchQueryReturnsAllDocuments(indexName, numDocs);
 
         deleteSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME, false);
+
+        assert false;
     }
 
     private void waitUntilGlobalCheckpointIsStable(String index) throws Exception {

@@ -361,6 +361,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         assertPeerRecoveryWasSuccessful(recoveryState, sourceNode, targetNode);
 
         assertDocumentsAreEqual(indexName, numDocs);
+        assert false;
     }
 
     public void testRateLimitingIsEnforced() throws Exception {

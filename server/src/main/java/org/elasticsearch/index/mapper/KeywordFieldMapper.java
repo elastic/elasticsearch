@@ -441,16 +441,18 @@ public final class KeywordFieldMapper extends FieldMapper {
         public void validateMatchedRoutingPath() {
             if (false == isDimension) {
                 throw new IllegalArgumentException(
-                    "All fields that match routing_path must be unscripted keyword time_series_dimensions but ["
+                    "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                        + "and without the [script] parameter. ["
                         + name()
-                        + "] was not a time_series_dimension"
+                        + "] was not [time_series_dimension: true]."
                 );
             }
             if (scriptValues != null) {
                 throw new IllegalArgumentException(
-                    "All fields that match routing_path must be unscripted keyword time_series_dimensions but ["
+                    "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                        + "and without the [script] parameter. ["
                         + name()
-                        + "] was scripted"
+                        + "] has a [script] parameter."
                 );
             }
         }

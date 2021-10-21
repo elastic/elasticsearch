@@ -112,7 +112,7 @@ non keyword matches routing_path:
       reason: introduced in 8.0.0
 
   - do:
-      catch: /All fields that match routing_path must be unscripted keyword time_series_dimensions but \[@timestamp\] was \[date\]/
+      catch: '/All fields that match routing_path must be keywords with \[time_series_dimension: true\] and without the \[script\] parameter. \[dim.foo\] was a runtime \[keyword\]./'
       indices.create:
           index: test_index
           body:
@@ -215,7 +215,7 @@ runtime field matching routing path:
         body:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim": {"foo": "a"}}'
-  - match: {items.0.index.error.reason: "All fields that match routing_path must be unscripted keyword time_series_dimensions but [dim.foo] was a runtime [keyword]"}
+  - match: {items.0.index.error.reason: "All fields that match routing_path must be keywords with [time_series_dimension: true] and without the [script] parameter. [dim.foo] was a runtime [keyword]."}
 
 ---
 "dynamic: false matches routing_path":

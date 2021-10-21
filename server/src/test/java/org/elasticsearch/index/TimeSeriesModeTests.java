@@ -128,7 +128,10 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         })));
         assertThat(
             e.getMessage(),
-            equalTo("All fields that match routing_path must be unscripted keyword time_series_dimensions but [dim.o] was [object]")
+            equalTo(
+                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                    + "and without the [script] parameter. [dim.o] was [object]."
+            )
         );
     }
 
@@ -146,8 +149,8 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "All fields that match routing_path must be unscripted keyword time_series_dimensions but "
-                    + "[dim.non_dim] was not a time_series_dimension"
+                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                    + "and without the [script] parameter. [dim.non_dim] was not [time_series_dimension: true]."
             )
         );
     }
@@ -165,7 +168,10 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         })));
         assertThat(
             e.getMessage(),
-            equalTo("All fields that match routing_path must be unscripted keyword time_series_dimensions but [dim.non_kwd] was [integer]")
+            equalTo(
+                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                    + "and without the [script] parameter. [dim.non_kwd] was [integer]."
+            )
         );
     }
 
@@ -183,7 +189,10 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         })));
         assertThat(
             e.getMessage(),
-            equalTo("All fields that match routing_path must be unscripted keyword time_series_dimensions but [dim.kwd] was scripted")
+            equalTo(
+                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                    + "and without the [script] parameter. [dim.kwd] has a [script] parameter."
+            )
         );
     }
 
@@ -199,8 +208,8 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "All fields that match routing_path must be unscripted keyword "
-                    + "time_series_dimensions but [dim.kwd] was a runtime [keyword]"
+                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                    + "and without the [script] parameter. [dim.kwd] was a runtime [keyword]."
             )
         );
     }

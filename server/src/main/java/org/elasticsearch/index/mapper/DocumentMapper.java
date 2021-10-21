@@ -98,9 +98,10 @@ public class DocumentMapper {
             for (String objectName : mappingLookup.objectMappers().keySet()) {
                 if (Regex.simpleMatch(path, objectName)) {
                     throw new IllegalArgumentException(
-                        "All fields that match routing_path must be unscripted keyword time_series_dimensions but ["
+                        "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                            + "and without the [script] parameter. ["
                             + objectName
-                            + "] was [object]"
+                            + "] was [object]."
                     );
                 }
             }

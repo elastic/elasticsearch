@@ -77,7 +77,7 @@ Name of the snapshot repository.
 
 `<snapshot>`::
 (Required, string)
-Name of the snapshot. Supports <<api-date-math-index-names,date math>>. Must be
+Name of the snapshot. Supports <<date-math-index-names,date math>>. Must be
 unique within the snapshot repository.
 
 [[create-snapshot-api-query-params]]

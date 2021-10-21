@@ -67,7 +67,6 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
         for (int i = 0; i < 5; i++) {
             res.setTimedOut(randomBoolean());
             assertEquals(RestStatus.OK, res.status(RestApiVersion.V_7));
-            assertWarnings(true, new DeprecationWarning(Level.WARN, ClusterHealthResponse.CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG));
         }
     }
 

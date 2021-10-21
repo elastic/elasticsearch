@@ -318,13 +318,13 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
 
     @Override
     public RestStatus status(RestApiVersion restApiVersion) {
-        if (return200ForClusterHealthTimeout) {
-            deprecationLogger.warn(DeprecationCategory.API, "cluster_health_request_timeout",
-                CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG);
-        }
         // Legacy behaviour
         if (isTimedOut() && restApiVersion == RestApiVersion.V_7 && return200ForClusterHealthTimeout == false) {
             return RestStatus.REQUEST_TIMEOUT;
+        }
+        if (return200ForClusterHealthTimeout && restApiVersion == RestApiVersion.V_8) {
+            deprecationLogger.warn(DeprecationCategory.API, "cluster_health_request_timeout",
+                CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG);
         }
         return RestStatus.OK;
     }

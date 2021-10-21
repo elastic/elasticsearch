@@ -87,7 +87,17 @@ public final class AuthenticateResponse implements ToXContentObject {
     @Nullable
     private final Map<String, Object> token;
     @Nullable
-    private final ApiKeyInfo apikeyinfo; // authentication.api_key={"id":"abc123","name":"my-api-key"}
+    private final ApiKeyInfo apikeyinfo;
+
+    public AuthenticateResponse(User user, boolean enabled, RealmInfo authenticationRealm,
+                                RealmInfo lookupRealm, String authenticationType) {
+        this(user, enabled, authenticationRealm, lookupRealm, authenticationType, null);
+    }
+
+    public AuthenticateResponse(User user, boolean enabled, RealmInfo authenticationRealm,
+                                RealmInfo lookupRealm, String authenticationType, @Nullable Map<String, Object> token) {
+        this(user, enabled, authenticationRealm, lookupRealm, authenticationType, null, null);
+    }
 
     public AuthenticateResponse(User user, boolean enabled, RealmInfo authenticationRealm,
                                 RealmInfo lookupRealm, String authenticationType, @Nullable Map<String, Object> token,

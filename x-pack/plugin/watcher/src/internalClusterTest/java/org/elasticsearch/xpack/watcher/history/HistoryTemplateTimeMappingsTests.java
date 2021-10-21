@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.watcher.history;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
@@ -46,7 +47,8 @@ public class HistoryTemplateTimeMappingsTests extends AbstractWatcherIntegration
 
         assertWatchWithMinimumActionsCount("_id", ExecutionState.EXECUTED, 1);
         assertBusy(() -> {
-            GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings().get();
+            GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings()
+                .setIndicesOptions(IndicesOptions.strictExpandHidden()).get();
             assertThat(mappingsResponse, notNullValue());
             assertThat(mappingsResponse.getMappings().isEmpty(), is(false));
             for (ObjectObjectCursor<String, MappingMetadata> metadatas : mappingsResponse.getMappings()) {

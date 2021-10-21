@@ -65,8 +65,9 @@ public final class CompressedXContent {
             setInflaterInput(compressed, inflater);
             do {
                 buffer.clear();
-                while (inflater.inflate(buffer) > 0 && buffer.hasRemaining()) ;
-                crc32.update(buffer.flip());
+                if (inflater.inflate(buffer) > 0) {
+                    crc32.update(buffer.flip());
+                }
             } while (inflater.finished() == false);
             return (int) crc32.getValue();
         } catch (DataFormatException e) {

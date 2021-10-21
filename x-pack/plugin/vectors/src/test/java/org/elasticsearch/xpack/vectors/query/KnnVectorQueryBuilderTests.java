@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.Collection;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class KnnVectorQueryBuilderTests extends AbstractQueryTestCase<KnnVectorQueryBuilder> {
     private static final String VECTOR_FIELD = "vector";
@@ -74,8 +75,13 @@ public class KnnVectorQueryBuilderTests extends AbstractQueryTestCase<KnnVectorQ
 
     @Override
     protected void doAssertLuceneQuery(KnnVectorQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
-        // TODO: expose getters on KnnVectorQuery and assert more here
         assertTrue(query instanceof KnnVectorQuery);
+        KnnVectorQuery knnVectorQuery = (KnnVectorQuery) query;
+
+        // The field should always be resolved to the concrete field
+        assertThat(knnVectorQuery, equalTo(new KnnVectorQuery(VECTOR_FIELD,
+            queryBuilder.queryVector(),
+            queryBuilder.numCands())));
     }
 
     public void testWrongDimension()  {

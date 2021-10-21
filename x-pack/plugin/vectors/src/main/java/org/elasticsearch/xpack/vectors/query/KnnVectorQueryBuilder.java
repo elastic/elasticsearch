@@ -53,6 +53,14 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         return fieldName;
     }
 
+    public float[] queryVector() {
+        return queryVector;
+    }
+
+    public int numCands() {
+        return numCands;
+    }
+
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);

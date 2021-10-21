@@ -37,6 +37,7 @@ tasks.named("yamlRestTest").configure {
     'ml/calendar_crud/Test delete job from non existing calendar',
     // These are searching tests with aggregations, and do not call any ML endpoints
     'ml/categorization_agg/Test categorization agg simple',
+    'ml/categorization_agg/Test categorization aggregation against unsupported field',
     'ml/categorization_agg/Test categorization aggregation with poor settings',
     'ml/custom_all_field/Test querying custom all field',
     'ml/datafeeds_crud/Test delete datafeed with missing id',

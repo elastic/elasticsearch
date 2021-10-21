@@ -93,7 +93,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=tokenizer]
 (array of strings or objects)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=filter]
 =====
-end::categorization-analyzer[]
 
 `shard_size`::
 (Optional, integer)

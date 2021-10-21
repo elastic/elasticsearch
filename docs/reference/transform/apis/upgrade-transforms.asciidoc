@@ -67,11 +67,11 @@ destination index remains unchanged.
 [[upgrade-transforms-response-body]]
 == {api-response-body-title}
 
-`no_action`::
-  (integer) The number of {transforms} that don't require upgrading.
-
 `needs_update`::
   (integer) The number of {transforms} that need to be upgraded.
+
+`no_action`::
+  (integer) The number of {transforms} that don't require upgrading.
 
 `updated`:: 
   (integer) The number of {transforms} that have been upgraded.

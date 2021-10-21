@@ -20,7 +20,7 @@ ATTEMPT_SECURITY_AUTO_CONFIG=true
 DAEMONIZE=false
 ENROLL_TO_CLUSTER=false
 # Store original arg array as we will be shifting through it below
-ARG_LIST=($@)
+ARG_LIST=("$@")
 
 while [ $# -gt 0 ]; do
    if [[ $1 == "--enrollment-token" ]]; then

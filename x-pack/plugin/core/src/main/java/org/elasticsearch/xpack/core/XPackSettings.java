@@ -74,6 +74,10 @@ public class XPackSettings {
     public static final Setting<Boolean> TRANSPORT_SSL_ENABLED = Setting.boolSetting("xpack.security.transport.ssl.enabled", false,
             Property.NodeScope);
 
+   /** Setting for disabling SSL check by telling that we have an external one, like via a Kubernetes ingress. Defaults to false. */
+   public static final Setting<Boolean> TRANSPORT_SSL_EXTERNAL = Setting.boolSetting("xpack.security.transport.ssl.external", false,
+            Property.NodeScope);
+
     /** Setting for enabling or disabling http ssl. Defaults to false. */
     public static final Setting<Boolean> HTTP_SSL_ENABLED = Setting.boolSetting("xpack.security.http.ssl.enabled", false,
             Setting.Property.NodeScope);
@@ -221,6 +225,7 @@ public class XPackSettings {
         settings.add(WATCHER_ENABLED);
         settings.add(DLS_FLS_ENABLED);
         settings.add(TRANSPORT_SSL_ENABLED);
+        settings.add(TRANSPORT_SSL_EXTERNAL);
         settings.add(HTTP_SSL_ENABLED);
         settings.add(RESERVED_REALM_ENABLED_SETTING);
         settings.add(TOKEN_SERVICE_ENABLED_SETTING);

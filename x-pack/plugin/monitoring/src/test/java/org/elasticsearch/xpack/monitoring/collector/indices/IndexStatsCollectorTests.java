@@ -170,6 +170,9 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
                 assertThat(indexStatsDocument.getIndexRoutingTable(), is(indicesRoutingTable.get(index)));
             }
         }
+
+        assertWarnings("[xpack.monitoring.collection.index.stats.timeout] setting was deprecated in Elasticsearch and will be removed " +
+            "in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testDoCollectThrowsTimeoutException() throws Exception {
@@ -203,6 +206,9 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         final long interval = randomNonNegativeLong();
 
         expectThrows(ElasticsearchTimeoutException.class, () -> collector.doCollect(node, interval, clusterState));
+
+        assertWarnings("[xpack.monitoring.collection.index.stats.timeout] setting was deprecated in Elasticsearch and will be removed " +
+            "in a future release! See the breaking changes documentation for the next major version.");
     }
 
 }

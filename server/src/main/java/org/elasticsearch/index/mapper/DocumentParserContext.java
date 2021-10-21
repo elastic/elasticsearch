@@ -87,7 +87,6 @@ public abstract class DocumentParserContext {
     private final Function<DateFormatter, MappingParserContext> parserContextFunction;
     private final SourceToParse sourceToParse;
     private final Set<String> ignoredFields;
-    private final Set<String> fieldNameFields;
     private final List<Mapper> dynamicMappers;
     private final Set<String> newFieldsSeen;
     private final Map<String, ObjectMapper> dynamicObjectMappers;
@@ -102,7 +101,6 @@ public abstract class DocumentParserContext {
         this.parserContextFunction = in.parserContextFunction;
         this.sourceToParse = in.sourceToParse;
         this.ignoredFields = in.ignoredFields;
-        this.fieldNameFields = in.fieldNameFields;
         this.dynamicMappers = in.dynamicMappers;
         this.newFieldsSeen = in.newFieldsSeen;
         this.dynamicObjectMappers = in.dynamicObjectMappers;
@@ -122,7 +120,6 @@ public abstract class DocumentParserContext {
         this.parserContextFunction = parserContextFunction;
         this.sourceToParse = source;
         this.ignoredFields = new HashSet<>();
-        this.fieldNameFields = new HashSet<>();
         this.dynamicMappers = new ArrayList<>();
         this.newFieldsSeen = new HashSet<>();
         this.dynamicObjectMappers = new HashMap<>();
@@ -178,14 +175,10 @@ public abstract class DocumentParserContext {
      * or norms.
      */
     public final void addToFieldNames(String field) {
-        fieldNameFields.add(field);
-    }
-
-    /**
-     * Return the collection of fields to be added to the _field_names field
-     */
-    public final Collection<String> getFieldNames() {
-        return Collections.unmodifiableCollection(fieldNameFields);
+        FieldNamesFieldMapper fieldNamesFieldMapper = (FieldNamesFieldMapper) getMetadataMapper(FieldNamesFieldMapper.NAME);
+        if (fieldNamesFieldMapper != null) {
+            fieldNamesFieldMapper.addFieldNames( this, field );
+        }
     }
 
     public final Field version() {

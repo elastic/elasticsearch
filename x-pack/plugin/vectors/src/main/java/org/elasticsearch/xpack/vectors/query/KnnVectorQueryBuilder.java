@@ -86,6 +86,10 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 + DenseVectorFieldMapper.CONTENT_TYPE + "] fields");
         }
 
+        if (context.getNestedParent(fieldType.name()) != null) {
+            throw new IllegalArgumentException("[" + NAME + "] queries are not supported on nested fields");
+        }
+
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) fieldType;
         return vectorFieldType.createKnnQuery(queryVector, numCands);
     }

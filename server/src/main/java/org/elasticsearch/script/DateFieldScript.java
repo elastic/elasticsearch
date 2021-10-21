@@ -19,18 +19,20 @@ import java.util.function.Function;
 public abstract class DateFieldScript extends AbstractLongFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("date_field", Factory.class);
 
-    public static final DateFieldScript.Factory PARSE_FROM_SOURCE
-        = (field, params, lookup, formatter) -> (DateFieldScript.LeafFactory) ctx -> new DateFieldScript
-        (
-            field,
-            params,
-            lookup,
-            formatter,
-            ctx
-        ) {
+    public static final Factory PARSE_FROM_SOURCE = new Factory() {
         @Override
-        public void execute() {
-            emitFromSource();
+        public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup, DateFormatter formatter) {
+            return ctx -> new DateFieldScript(field, params, lookup, formatter, ctx) {
+                @Override
+                public void execute() {
+                    emitFromSource();
+                }
+            };
+        }
+
+        @Override
+        public boolean isResultDeterministic() {
+            return true;
         }
     };
 

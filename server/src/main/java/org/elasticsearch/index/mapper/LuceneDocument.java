@@ -136,4 +136,13 @@ public class LuceneDocument implements Iterable<IndexableField> {
         return null;
     }
 
+    public Number getNumericValue(String name) {
+        for (IndexableField f : fields) {
+            if (f.name().equals(name) && f.numericValue() != null) {
+                return f.numericValue();
+            }
+        }
+        return null;
+    }
+
 }

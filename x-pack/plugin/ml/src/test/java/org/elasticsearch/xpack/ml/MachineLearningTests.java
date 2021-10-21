@@ -164,11 +164,7 @@ public class MachineLearningTests extends ESTestCase {
 
     public void testNoAttributes_givenClash() {
         Settings.Builder builder = Settings.builder();
-        if (randomBoolean()) {
-            builder.put("node.attr.ml.enabled", randomBoolean());
-        } else {
-            builder.put("node.attr.ml.max_open_jobs", randomIntBetween(13, 15));
-        }
+        builder.put("node.attr.ml.max_open_jobs", randomIntBetween(13, 15));
         MachineLearning machineLearning = createMachineLearning(builder.put("path.home", createTempDir()).build());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, machineLearning::additionalSettings);
         assertThat(e.getMessage(), startsWith("Directly setting [node.attr.ml."));
@@ -179,7 +175,7 @@ public class MachineLearningTests extends ESTestCase {
     private MachineLearning createMachineLearning(Settings settings) {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
 
-        return new MachineLearning(settings, null){
+        return new MachineLearning(settings) {
             @Override
             protected XPackLicenseState getLicenseState() {
                 return licenseState;

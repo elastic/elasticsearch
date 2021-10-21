@@ -170,7 +170,8 @@ public class HttpExporter extends Exporter {
 
                     },
                     Property.Dynamic,
-                    Property.NodeScope),
+                    Property.NodeScope,
+                    Property.Deprecated),
                 HTTP_TYPE_DEPENDENCY);
 
     /**
@@ -178,7 +179,8 @@ public class HttpExporter extends Exporter {
      */
     public static final Setting.AffixSetting<TimeValue> BULK_TIMEOUT_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","bulk.timeout",
-                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope), HTTP_TYPE_DEPENDENCY);
+                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope, Property.Deprecated),
+                HTTP_TYPE_DEPENDENCY);
     /**
      * Timeout used for initiating a connection.
      */
@@ -186,7 +188,7 @@ public class HttpExporter extends Exporter {
             Setting.affixKeySetting(
                 "xpack.monitoring.exporters.",
                 "connection.timeout",
-                (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(6), Property.Dynamic, Property.NodeScope),
+                (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(6), Property.Dynamic, Property.NodeScope, Property.Deprecated),
                 HTTP_TYPE_DEPENDENCY);
     /**
      * Timeout used for reading from the connection.
@@ -195,7 +197,8 @@ public class HttpExporter extends Exporter {
             Setting.affixKeySetting(
                 "xpack.monitoring.exporters.",
                 "connection.read_timeout",
-                (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(60), Property.Dynamic, Property.NodeScope),
+                (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(60), Property.Dynamic, Property.NodeScope,
+                    Property.Deprecated),
                 HTTP_TYPE_DEPENDENCY);
     /**
      * Username for basic auth.
@@ -239,7 +242,8 @@ public class HttpExporter extends Exporter {
                         },
                         Property.Dynamic,
                         Property.NodeScope,
-                        Property.Filtered),
+                        Property.Filtered,
+                        Property.Deprecated),
                 HTTP_TYPE_DEPENDENCY);
     /**
      * Secure password for basic auth.
@@ -248,7 +252,7 @@ public class HttpExporter extends Exporter {
         Setting.affixKeySetting(
             "xpack.monitoring.exporters.",
             "auth.secure_password",
-            key -> SecureSetting.secureString(key, null),
+            key -> SecureSetting.secureString(key, null, Setting.Property.Deprecated),
             HTTP_TYPE_DEPENDENCY);
     /**
      * The SSL settings.
@@ -259,7 +263,7 @@ public class HttpExporter extends Exporter {
             Setting.affixKeySetting(
                 "xpack.monitoring.exporters.",
                 "ssl",
-                (key) -> Setting.groupSetting(key + ".", Property.Dynamic, Property.NodeScope, Property.Filtered),
+                (key) -> Setting.groupSetting(key + ".", Property.Dynamic, Property.NodeScope, Property.Filtered, Property.Deprecated),
                 HTTP_TYPE_DEPENDENCY);
 
     /**
@@ -280,14 +284,16 @@ public class HttpExporter extends Exporter {
                             }
                         },
                         Property.Dynamic,
-                        Property.NodeScope),
+                        Property.NodeScope,
+                        Property.Deprecated),
                 HTTP_TYPE_DEPENDENCY);
     /**
      * A boolean setting to enable or disable sniffing for extra connections.
      */
     public static final Setting.AffixSetting<Boolean> SNIFF_ENABLED_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","sniff.enabled",
-                    (key) -> Setting.boolSetting(key, false, Property.Dynamic, Property.NodeScope), HTTP_TYPE_DEPENDENCY);
+                    (key) -> Setting.boolSetting(key, false, Property.Dynamic, Property.NodeScope, Property.Deprecated),
+                HTTP_TYPE_DEPENDENCY);
     /**
      * A parent setting to header key/value pairs, whose names are user defined.
      */
@@ -309,7 +315,8 @@ public class HttpExporter extends Exporter {
                             }
                         },
                         Property.Dynamic,
-                        Property.NodeScope),
+                        Property.NodeScope,
+                        Property.Deprecated),
                 HTTP_TYPE_DEPENDENCY);
     /**
      * Blacklist of headers that the user is not allowed to set.
@@ -322,7 +329,8 @@ public class HttpExporter extends Exporter {
      */
     public static final Setting.AffixSetting<TimeValue> TEMPLATE_CHECK_TIMEOUT_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","index.template.master_timeout",
-                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope), HTTP_TYPE_DEPENDENCY);
+                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope, Property.Deprecated),
+                HTTP_TYPE_DEPENDENCY);
     /**
      * Minimum supported version of the remote monitoring cluster (same major).
      */

@@ -4,7 +4,7 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 
 esplugin {
   name 'snapshot-based-recoveries'
-  description 'A plugin to enable snapshot based recoveries'
+  description 'A plugin that enables snapshot based recoveries'
   classname 'org.elasticsearch.xpack.snapshotbasedrecoveries.SnapshotBasedRecoveriesPlugin'
   extendedPlugins = ['x-pack-core']
 }
@@ -12,11 +12,9 @@ archivesBaseName = 'x-pack-snapshot-based-recoveries'
 
 dependencies {
   compileOnly project(":server")
-
   compileOnly project(path: xpackModule('core'))
 
   testImplementation(testArtifact(project(xpackModule('core'))))
-  //internalClusterTestImplementation(testArtifact(project(':server'), 'internalClusterTest'))
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 

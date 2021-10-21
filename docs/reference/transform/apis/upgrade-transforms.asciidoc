@@ -71,8 +71,7 @@ destination index remains unchanged.
   (integer) The number of {transforms} that don't require upgrading.
 
 `needs_update`::
-  (integer) The number of {transforms} that need to be upgraded. This value is 
-  only returned if `dry_run` is `true`.
+  (integer) The number of {transforms} that need to be upgraded.
 
 `updated`:: 
   (integer) The number of {transforms} that have been upgraded.
@@ -96,6 +95,7 @@ When all {transforms} are upgraded, you receive a summary:
 [source,console-result]
 ----
 {
+  "needs_update": 0,
   "updated": 2,
   "no_action": 1
 }

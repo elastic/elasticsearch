@@ -69,16 +69,13 @@ import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.security.auth.x500.X500Principal;
@@ -806,19 +803,6 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         }
     }
 
-    static List<String> removePreviousAutoconfiguration(List<String> existingConfigLines) {
-        // Remove previous auto-configuration
-        return Arrays.stream(
-            existingConfigLines.stream()
-                .collect(Collectors.joining(System.lineSeparator()))
-                .replaceAll(
-                    "(?s)" + Pattern.quote(AUTO_CONFIGURATION_START_MARKER) + ".*?" + Pattern.quote(AUTO_CONFIGURATION_END_MARKER),
-                    ""
-                )
-                .split(System.lineSeparator())
-        ).collect(Collectors.toList());
-    }
-
     private Tuple<PrivateKey, X509Certificate> parseKeyCertFromPem(String pemFormattedKey, String pemFormattedCert) throws UserException {
         final PrivateKey key;
         final X509Certificate cert;
@@ -839,14 +823,6 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 e
             );
         }
-    }
-
-    private Optional<String> getAutoConfigDirName(Environment env) throws IOException {
-        return Files.list(env.configFile())
-            .map(Path::getFileName)
-            .map(Path::toString)
-            .filter(name -> name.startsWith(TLS_CONFIG_DIR_NAME_PREFIX))
-            .findFirst();
     }
 
     @SuppressWarnings("unchecked")

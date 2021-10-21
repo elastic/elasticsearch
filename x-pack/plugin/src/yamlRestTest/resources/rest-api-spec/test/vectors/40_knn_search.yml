@@ -9,6 +9,8 @@ setup:
             properties:
               name:
                 type: keyword
+              group:
+                type: keyword
               vector:
                 type: dense_vector
                 dims: 5
@@ -30,6 +32,7 @@ setup:
         index: test
         body:
           name: cow.jpg
+          group: domestic_animals
           vector: [230.0, 300.33, -34.8988, 15.555, -200.0]
           comments:
             - body: "free the cows"
@@ -41,6 +44,7 @@ setup:
         id: 2
         body:
           name: moose.jpg
+          group: wild_animals
           vector: [-0.5, 100.0, -13, 14.8, -156.0]
           comments:
             - body: "what a great moose"
@@ -52,6 +56,7 @@ setup:
         id: 3
         body:
           name: rabbit.jpg
+          group: domestic_animals
           vector: [0.5, 111.3, -13.0, 14.8, -156.0]
 
   - do:
@@ -123,3 +128,52 @@ setup:
             num_candidates: 3
   - match: { error.root_cause.0.type: "query_shard_exception" }
   - match: { error.root_cause.0.reason: "failed to create query: [knn] queries are not supported on nested fields" }
+
+
+---
+"kNN searches on unfiltered aliases are supported":
+  - do:
+      indices.put_alias:
+        index: test
+        name:  test_alias
+
+  - do:
+      knn_search:
+        index: test_alias
+        body:
+          _source: name
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 2
+            num_candidates: 3
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0._source.name: "moose.jpg"}
+
+  - match: {hits.hits.1._id: "3"}
+  - match: {hits.hits.1._source.name: "rabbit.jpg"}
+
+---
+"kNN searches on filtered aliases are disallowed":
+  - do:
+      indices.put_alias:
+        index: test
+        name:  test_alias2
+        body:
+          filter:
+            term:
+              group: domestic_animals
+
+  - do:
+      catch: bad_request
+      knn_search:
+        index: test_alias2
+        body:
+          knn:
+            field: vector
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+            k: 2
+            num_candidates: 3
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Filtered aliases are not supported, use general aliases or concrete indices instead." }

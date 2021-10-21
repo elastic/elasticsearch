@@ -100,7 +100,9 @@ public class IndicesOptions implements ToXContentFragment {
         ALLOW_NO_INDICES,
         FORBID_ALIASES_TO_MULTIPLE_INDICES,
         FORBID_CLOSED_INDICES,
-        IGNORE_THROTTLED;
+        IGNORE_THROTTLED,
+        // forbidding filtered aliases currently is only used in _knn_search
+        FORBID_FILTERED_ALIASES;
 
         public static final EnumSet<Option> NONE = EnumSet.noneOf(Option.class);
     }
@@ -207,6 +209,13 @@ public class IndicesOptions implements ToXContentFragment {
      */
     public boolean ignoreAliases() {
         return options.contains(Option.IGNORE_ALIASES);
+    }
+
+    /**
+     * @return whether filtered aliases should be forbidden
+     */
+    public boolean forbidFilteredAliases() {
+        return options.contains(Option.FORBID_FILTERED_ALIASES);
     }
 
     /**

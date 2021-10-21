@@ -195,6 +195,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return aliasFilterMap;
     }
 
+    private static void checkForFilteredAliases(Map<String, AliasFilter> aliasFilterMap) {
+        for (AliasFilter aliasFilter : aliasFilterMap.values()) {
+            if (aliasFilter.getQueryBuilder() != null) {
+                throw new IllegalArgumentException("Filtered aliases are not supported, use general aliases or concrete indices instead.");
+            }
+        }
+    }
+
     private Map<String, Float> resolveIndexBoosts(SearchRequest searchRequest, ClusterState clusterState) {
         if (searchRequest.source() == null) {
             return Collections.emptyMap();
@@ -699,6 +707,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchService.getResponseCollectorService(), nodeSearchCounts);
             final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, searchRequest.indices());
             aliasFilter = buildPerIndexAliasFilter(clusterState, indicesAndAliases, indices, remoteAliasMap);
+            if (searchRequest.indicesOptions().forbidFilteredAliases()) {
+                checkForFilteredAliases(aliasFilter);
+            }
             final Map<String, OriginalIndices> finalIndicesMap =
                 buildPerIndexOriginalIndices(clusterState, indicesAndAliases, indices, searchRequest.indicesOptions());
             localShardIterators = StreamSupport.stream(localShardRoutings.spliterator(), false)

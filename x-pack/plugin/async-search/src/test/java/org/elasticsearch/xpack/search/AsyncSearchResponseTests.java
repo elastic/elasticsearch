@@ -14,10 +14,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -151,9 +151,9 @@ public class AsyncSearchResponseTests extends ESTestCase {
                 "  \"id\" : \"id\",\n" +
                 "  \"is_partial\" : true,\n" +
                 "  \"is_running\" : true,\n" +
-                "  \"start_time\" : \"" + XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(date.getTime()) + "\",\n" +
+                "  \"start_time\" : \"" + XContentElasticsearchExtension.DEFAULT_FORMATTER.format(date.toInstant()) + "\",\n" +
                 "  \"start_time_in_millis\" : " + date.getTime() + ",\n" +
-                "  \"expiration_time\" : \"" + XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(date.getTime()) + "\",\n" +
+                "  \"expiration_time\" : \"" + XContentElasticsearchExtension.DEFAULT_FORMATTER.format(date.toInstant()) + "\",\n" +
                 "  \"expiration_time_in_millis\" : " + date.getTime() + "\n" +
                 "}", Strings.toString(builder));
         }

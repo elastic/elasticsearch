@@ -303,7 +303,8 @@ public class BasicTokenizer {
         }
 
         int category = Character.getType(codePoint);
-        return category >= Character.DASH_PUNCTUATION && category <= Character.OTHER_PUNCTUATION;
+        return (category >= Character.DASH_PUNCTUATION && category <= Character.OTHER_PUNCTUATION)
+            || (category >= Character.INITIAL_QUOTE_PUNCTUATION && category <= Character.FINAL_QUOTE_PUNCTUATION);
     }
 
     /**

@@ -23,7 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
@@ -116,7 +116,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             thread.start();
             IndexShard replica = shards.addReplica();
             Future<Void> future = shards.asyncRecoverReplica(replica,
-                (indexShard, node) -> new RecoveryTarget(indexShard, node, null, recoveryListener) {
+                (indexShard, node) -> new RecoveryTarget(indexShard, node, null, null, recoveryListener) {
                     @Override
                     public void cleanFiles(int totalTranslogOps, long globalCheckpoint,
                                            Store.MetadataSnapshot sourceMetadata, ActionListener<Void> listener) {
@@ -193,7 +193,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             thread.start();
             IndexShard replica = shards.addReplica();
             Future<Void> fut = shards.asyncRecoverReplica(replica,
-                (shard, node) -> new RecoveryTarget(shard, node, null, recoveryListener) {
+                (shard, node) -> new RecoveryTarget(shard, node, null, null, recoveryListener) {
                     @Override
                     public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
                         try {

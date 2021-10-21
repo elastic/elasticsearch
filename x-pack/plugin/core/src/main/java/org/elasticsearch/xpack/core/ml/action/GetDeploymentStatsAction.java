@@ -18,9 +18,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -312,7 +312,7 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                 builder.startObject();
                 builder.field("model_id", modelId);
                 if (modelSize != null) {
-                    builder.field("model_size", modelSize);
+                    builder.humanReadableField("model_size_bytes", "model_size", modelSize);
                 }
                 if (inferenceThreads != null) {
                     builder.field(StartTrainedModelDeploymentAction.TaskParams.INFERENCE_THREADS.getPreferredName(), inferenceThreads);

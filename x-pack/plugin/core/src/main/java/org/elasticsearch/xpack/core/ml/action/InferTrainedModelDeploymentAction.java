@@ -14,13 +14,14 @@ import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
@@ -46,6 +47,13 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         super(NAME, InferTrainedModelDeploymentAction.Response::new);
     }
 
+    /**
+     * Request for inference against the deployment.
+     *
+     * The task gets routed to a node that indicates its local model allocation is started
+     *
+     * For indicating timeout, the caller should call `setInferenceTimeout` and not the base class `setTimeout` method
+     */
     public static class Request extends BaseTasksRequest<Request> {
 
         public static final ParseField DEPLOYMENT_ID = new ParseField("deployment_id");
@@ -59,7 +67,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         static {
             PARSER.declareString(Request.Builder::setDeploymentId, DEPLOYMENT_ID);
             PARSER.declareObjectArray(Request.Builder::setDocs, (p, c) -> p.mapOrdered(), DOCS);
-            PARSER.declareString(Request.Builder::setTimeout, TIMEOUT);
+            PARSER.declareString(Request.Builder::setInferenceTimeout, TIMEOUT);
             PARSER.declareNamedObject(
                 Request.Builder::setUpdate,
                 ((p, c, name) -> p.namedObject(InferenceConfigUpdate.class, name, c)),
@@ -67,22 +75,24 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             );
         }
 
-        public static Request parseRequest(String deploymentId, XContentParser parser) {
+        public static Request.Builder parseRequest(String deploymentId, XContentParser parser) {
             Request.Builder builder = PARSER.apply(parser, null);
             if (deploymentId != null) {
                 builder.setDeploymentId(deploymentId);
             }
-            return builder.build();
+            return builder;
         }
 
         private final String deploymentId;
         private final List<Map<String, Object>> docs;
         private final InferenceConfigUpdate update;
+        private final TimeValue inferenceTimeout;
 
-        public Request(String deploymentId, InferenceConfigUpdate update, List<Map<String, Object>> docs) {
+        public Request(String deploymentId, InferenceConfigUpdate update, List<Map<String, Object>> docs, TimeValue inferenceTimeout) {
             this.deploymentId = ExceptionsHelper.requireNonNull(deploymentId, DEPLOYMENT_ID);
             this.docs = ExceptionsHelper.requireNonNull(Collections.unmodifiableList(docs), DOCS);
             this.update = update;
+            this.inferenceTimeout = inferenceTimeout;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -90,6 +100,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             deploymentId = in.readString();
             docs = Collections.unmodifiableList(in.readList(StreamInput::readMap));
             update = in.readOptionalNamedWriteable(InferenceConfigUpdate.class);
+            inferenceTimeout = in.readOptionalTimeValue();
         }
 
         public String getDeploymentId() {
@@ -104,13 +115,18 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             return Optional.ofNullable(update).orElse(new EmptyConfigUpdate());
         }
 
+        public TimeValue getInferenceTimeout() {
+            return inferenceTimeout == null ? DEFAULT_TIMEOUT : inferenceTimeout;
+        }
+
+        /**
+         * This is always null as we want the inference call to handle the timeout, not the tasks framework
+         * @return null
+         */
         @Override
+        @Nullable
         public TimeValue getTimeout() {
-            TimeValue tv = super.getTimeout();
-            if (tv == null) {
-                return DEFAULT_TIMEOUT;
-            }
-            return tv;
+            return null;
         }
 
         @Override
@@ -139,6 +155,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             out.writeString(deploymentId);
             out.writeCollection(docs, StreamOutput::writeMap);
             out.writeOptionalNamedWriteable(update);
+            out.writeOptionalTimeValue(inferenceTimeout);
         }
 
         @Override
@@ -154,12 +171,12 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             return Objects.equals(deploymentId, that.deploymentId)
                 && Objects.equals(docs, that.docs)
                 && Objects.equals(update, that.update)
-                && Objects.equals(getTimeout(), that.getTimeout());
+                && Objects.equals(inferenceTimeout, that.inferenceTimeout);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(deploymentId, update, docs, getTimeout());
+            return Objects.hash(deploymentId, update, docs, inferenceTimeout);
         }
 
         public static class Builder {
@@ -181,7 +198,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
                 return this;
             }
 
-            public Builder setTimeout(TimeValue timeout) {
+            public Builder setInferenceTimeout(TimeValue timeout) {
                 this.timeout = timeout;
                 return this;
             }
@@ -191,16 +208,12 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
                 return this;
             }
 
-            private Builder setTimeout(String timeout) {
-                return setTimeout(TimeValue.parseTimeValue(timeout, TIMEOUT.getPreferredName()));
+            private Builder setInferenceTimeout(String timeout) {
+                return setInferenceTimeout(TimeValue.parseTimeValue(timeout, TIMEOUT.getPreferredName()));
             }
 
             public Request build() {
-                Request request = new Request(deploymentId, update, docs);
-                if (timeout != null) {
-                    request.setTimeout(timeout);
-                }
-                return request;
+                return new Request(deploymentId, update, docs, timeout);
             }
         }
     }

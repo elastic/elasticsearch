@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.watcher.input;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 
 public class InputRegistryTests extends ESTestCase {

@@ -11,10 +11,12 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.MessageSupplier;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStatePublicationEvent;
@@ -48,7 +50,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -159,6 +161,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         ClusterSettings clusterSettings,
         BigArrays bigArrays,
         TransportService transportService,
+        Client client,
         NamedWriteableRegistry namedWriteableRegistry,
         AllocationService allocationService,
         MasterService masterService,
@@ -220,7 +223,13 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.reconfigurator = new Reconfigurator(settings, clusterSettings);
         this.clusterBootstrapService = new ClusterBootstrapService(settings, transportService, this::getFoundPeers,
             this::isInitialConfigurationSet, this::setInitialConfiguration);
-        this.lagDetector = new LagDetector(settings, transportService.getThreadPool(), n -> removeNode(n, "lagging"),
+        this.lagDetector = new LagDetector(
+            settings,
+            transportService.getThreadPool(),
+            new LagDetector.HotThreadsLoggingLagListener(
+                transportService,
+                client,
+                (node, appliedVersion, expectedVersion) -> removeNode(node, "lagging")),
             transportService::getLocalNode);
         this.clusterFormationFailureHelper = new ClusterFormationFailureHelper(settings, this::getClusterFormationState,
             transportService.getThreadPool(), joinHelper::logLastFailedJoinAttempt);
@@ -233,11 +242,15 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     .collect(Collectors.toList()), getCurrentTerm(), electionStrategy, nodeHealthService.getHealth());
     }
 
-    private void onLeaderFailure(Exception e) {
+    private void onLeaderFailure(MessageSupplier message, Exception e) {
         synchronized (mutex) {
             if (mode != Mode.CANDIDATE) {
                 assert lastKnownLeader.isPresent();
-                logger.info(new ParameterizedMessage("master node [{}] failed, restarting discovery", lastKnownLeader.get()), e);
+                if (logger.isDebugEnabled()) {
+                    logger.info(message, e);
+                } else {
+                    logger.info(message);
+                }
             }
             becomeCandidate("onLeaderFailure");
         }
@@ -794,8 +807,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         return new DiscoveryStats(
             new PendingClusterStateStats(0, 0, 0),
             publicationHandler.stats(),
-            getLocalNode().isMasterNode() ? masterService.getClusterStateUpdateStats() : null
-        );
+            getLocalNode().isMasterNode() ? masterService.getClusterStateUpdateStats() : null,
+            clusterApplier.getStats());
     }
 
     public void startInitialJoin() {

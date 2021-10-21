@@ -367,12 +367,16 @@ public class MetadataIndexStateService {
         if (concreteIndices == null || concreteIndices.length == 0) {
             throw new IllegalArgumentException("Index name is required");
         }
+        Metadata metadata = clusterService.state().metadata();
         List<String> writeIndices = new ArrayList<>();
-        SortedMap<String, IndexAbstraction> lookup = clusterService.state().metadata().getIndicesLookup();
+        SortedMap<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
         for (Index index : concreteIndices) {
             IndexAbstraction ia = lookup.get(index.getName());
-            if (ia != null && ia.getParentDataStream() != null && ia.getParentDataStream().getWriteIndex().getIndex().equals(index)) {
-                writeIndices.add(index.getName());
+            if (ia != null && ia.getParentDataStream() != null) {
+                Index writeIndex = metadata.index(ia.getParentDataStream().getWriteIndex()).getIndex();
+                if (writeIndex.equals(index)) {
+                    writeIndices.add(index.getName());
+                }
             }
         }
         if (writeIndices.size() > 0) {

@@ -12,14 +12,15 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
+import org.elasticsearch.xpack.core.ccr.CcrConstants;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -44,7 +45,7 @@ public class CCRInfoTransportAction extends XPackInfoFeatureTransportAction {
 
     @Override
     public boolean available() {
-        return licenseState.isAllowed(XPackLicenseState.Feature.CCR);
+        return CcrConstants.CCR_FEATURE.checkWithoutTracking(licenseState);
     }
 
     @Override

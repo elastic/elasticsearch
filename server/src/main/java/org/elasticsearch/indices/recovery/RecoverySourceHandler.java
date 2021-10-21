@@ -44,6 +44,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
@@ -62,6 +63,7 @@ import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardRecoveryPlan;
+import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transports;
@@ -466,8 +468,10 @@ public class RecoverySourceHandler {
         try {
             StopWatch stopWatch = new StopWatch().start();
             final Store.MetadataSnapshot recoverySourceMetadata;
+            final String shardStateIdentifier;
             try {
                 recoverySourceMetadata = store.getMetadata(snapshot);
+                shardStateIdentifier = SnapshotShardsService.getShardStateId(shard, snapshot);
             } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
                 shard.failShard("recovery", ex);
                 throw ex;
@@ -482,13 +486,15 @@ public class RecoverySourceHandler {
             }
             if (canSkipPhase1(recoverySourceMetadata, request.metadataSnapshot()) == false) {
                 cancellableThreads.checkForCancel();
+                final boolean canUseSnapshots = useSnapshots && request.canDownloadSnapshotFiles();
                 recoveryPlannerService.computeRecoveryPlan(shard.shardId(),
+                    shardStateIdentifier,
                     recoverySourceMetadata,
                     request.metadataSnapshot(),
                     startingSeqNo,
                     translogOps.getAsInt(),
                     getRequest().targetNode().getVersion(),
-                    useSnapshots,
+                    canUseSnapshots,
                     ActionListener.wrap(plan ->
                         recoverFilesFromSourceAndSnapshot(plan, store, stopWatch, listener), listener::onFailure)
                 );
@@ -554,11 +560,15 @@ public class RecoverySourceHandler {
                 phase1ExistingFileNames.size(), new ByteSizeValue(existingTotalSize));
         }
 
+        // We need to pass the ShardRecovery plan between steps instead of capturing it in the closures
+        // since the plan can change after a failure recovering files from the snapshots that cannot be
+        // recovered from the source node, in that case we have to start from scratch using the fallback
+        // recovery plan that would be used in subsequent steps.
         final StepListener<Void> sendFileInfoStep = new StepListener<>();
-        final StepListener<List<StoreFileMetadata>> recoverSnapshotFilesStep = new StepListener<>();
-        final StepListener<Void> sendFilesStep = new StepListener<>();
-        final StepListener<RetentionLease> createRetentionLeaseStep = new StepListener<>();
-        final StepListener<Void> cleanFilesStep = new StepListener<>();
+        final StepListener<Tuple<ShardRecoveryPlan, List<StoreFileMetadata>>> recoverSnapshotFilesStep = new StepListener<>();
+        final StepListener<ShardRecoveryPlan> sendFilesStep = new StepListener<>();
+        final StepListener<Tuple<ShardRecoveryPlan, RetentionLease>> createRetentionLeaseStep = new StepListener<>();
+        final StepListener<ShardRecoveryPlan> cleanFilesStep = new StepListener<>();
 
         final int translogOps = shardRecoveryPlan.getTranslogOps();
         recoveryTarget.receiveFileInfo(filesToRecoverNames,
@@ -569,43 +579,86 @@ public class RecoverySourceHandler {
             sendFileInfoStep
         );
 
-        sendFileInfoStep.whenComplete(r -> recoverSnapshotFiles(shardRecoveryPlan, recoverSnapshotFilesStep), listener::onFailure);
+        sendFileInfoStep.whenComplete(unused -> {
+            recoverSnapshotFiles(shardRecoveryPlan, new ActionListener<>() {
+                @Override
+                public void onResponse(List<StoreFileMetadata> filesFailedToRecoverFromSnapshot) {
+                    recoverSnapshotFilesStep.onResponse(Tuple.tuple(shardRecoveryPlan, filesFailedToRecoverFromSnapshot));
+                }
 
-        recoverSnapshotFilesStep.whenComplete(filesFailedToRecoverFromSnapshot -> {
+                @Override
+                public void onFailure(Exception e) {
+                    if (shardRecoveryPlan.canRecoverSnapshotFilesFromSourceNode() == false &&
+                        e instanceof CancellableThreads.ExecutionCancelledException == false) {
+                        ShardRecoveryPlan fallbackPlan = shardRecoveryPlan.getFallbackPlan();
+                        recoveryTarget.receiveFileInfo(fallbackPlan.getFilesToRecoverNames(),
+                            fallbackPlan.getFilesToRecoverSizes(),
+                            fallbackPlan.getFilesPresentInTargetNames(),
+                            fallbackPlan.getFilesPresentInTargetSizes(),
+                            fallbackPlan.getTranslogOps(),
+                            recoverSnapshotFilesStep.map(r -> Tuple.tuple(fallbackPlan, Collections.emptyList()))
+                        );
+                    } else {
+                        recoverSnapshotFilesStep.onFailure(e);
+                    }
+                }
+            });
+        }, listener::onFailure);
+
+        recoverSnapshotFilesStep.whenComplete(planAndFilesFailedToRecoverFromSnapshot -> {
+            ShardRecoveryPlan recoveryPlan = planAndFilesFailedToRecoverFromSnapshot.v1();
+            List<StoreFileMetadata> filesFailedToRecoverFromSnapshot = planAndFilesFailedToRecoverFromSnapshot.v2();
             final List<StoreFileMetadata> filesToRecoverFromSource;
             if (filesFailedToRecoverFromSnapshot.isEmpty()) {
-                filesToRecoverFromSource = shardRecoveryPlan.getSourceFilesToRecover();
+                filesToRecoverFromSource = recoveryPlan.getSourceFilesToRecover();
             } else {
-                filesToRecoverFromSource = concatLists(shardRecoveryPlan.getSourceFilesToRecover(), filesFailedToRecoverFromSnapshot);
+                filesToRecoverFromSource = concatLists(recoveryPlan.getSourceFilesToRecover(), filesFailedToRecoverFromSnapshot);
             }
 
             sendFiles(store,
-                filesToRecoverFromSource.toArray(new StoreFileMetadata[0]), shardRecoveryPlan::getTranslogOps, sendFilesStep);
+                filesToRecoverFromSource.toArray(new StoreFileMetadata[0]),
+                recoveryPlan::getTranslogOps,
+                sendFilesStep.map(unused -> recoveryPlan)
+            );
         }, listener::onFailure);
 
-        final long startingSeqNo = shardRecoveryPlan.getStartingSeqNo();
-        sendFilesStep.whenComplete(r -> createRetentionLease(startingSeqNo, createRetentionLeaseStep), listener::onFailure);
+        sendFilesStep.whenComplete(recoveryPlan -> {
+            createRetentionLease(recoveryPlan.getStartingSeqNo(),
+                createRetentionLeaseStep.map(retentionLease -> Tuple.tuple(recoveryPlan, retentionLease))
+            );
+        }, listener::onFailure);
 
-        final Store.MetadataSnapshot recoverySourceMetadata = shardRecoveryPlan.getSourceMetadataSnapshot();
-        createRetentionLeaseStep.whenComplete(retentionLease ->
-            {
-                final long lastKnownGlobalCheckpoint = shard.getLastKnownGlobalCheckpoint();
-                assert retentionLease == null || retentionLease.retainingSequenceNumber() - 1 <= lastKnownGlobalCheckpoint
-                    : retentionLease + " vs " + lastKnownGlobalCheckpoint;
-                // Establishes new empty translog on the replica with global checkpoint set to lastKnownGlobalCheckpoint. We want
-                // the commit we just copied to be a safe commit on the replica, so why not set the global checkpoint on the replica
-                // to the max seqno of this commit? Because (in rare corner cases) this commit might not be a safe commit here on
-                // the primary, and in these cases the max seqno would be too high to be valid as a global checkpoint.
-                cleanFiles(store, recoverySourceMetadata, () -> translogOps, lastKnownGlobalCheckpoint, cleanFilesStep);
-            },
-            listener::onFailure);
+        createRetentionLeaseStep.whenComplete(recoveryPlanAndRetentionLease -> {
+            final ShardRecoveryPlan recoveryPlan = recoveryPlanAndRetentionLease.v1();
+            final RetentionLease retentionLease = recoveryPlanAndRetentionLease.v2();
+            final Store.MetadataSnapshot recoverySourceMetadata = recoveryPlan.getSourceMetadataSnapshot();
+            final long lastKnownGlobalCheckpoint = shard.getLastKnownGlobalCheckpoint();
+            assert retentionLease == null || retentionLease.retainingSequenceNumber() - 1 <= lastKnownGlobalCheckpoint
+                : retentionLease + " vs " + lastKnownGlobalCheckpoint;
+            // Establishes new empty translog on the replica with global checkpoint set to lastKnownGlobalCheckpoint. We want
+            // the commit we just copied to be a safe commit on the replica, so why not set the global checkpoint on the replica
+            // to the max seqno of this commit? Because (in rare corner cases) this commit might not be a safe commit here on
+            // the primary, and in these cases the max seqno would be too high to be valid as a global checkpoint.
+            cleanFiles(store,
+                recoverySourceMetadata,
+                () -> translogOps,
+                lastKnownGlobalCheckpoint,
+                cleanFilesStep.map(unused -> recoveryPlan)
+            );
+        }, listener::onFailure);
 
-        cleanFilesStep.whenComplete(r -> {
+        cleanFilesStep.whenComplete(recoveryPlan -> {
             final TimeValue took = stopWatch.totalTime();
             logger.trace("recovery [phase1]: took [{}]", took);
             listener.onResponse(
-                new SendFileResult(filesToRecoverNames, filesToRecoverSizes, totalSize,
-                    phase1ExistingFileNames, phase1ExistingFileSizes, existingTotalSize, took)
+                new SendFileResult(recoveryPlan.getFilesToRecoverNames(),
+                    recoveryPlan.getFilesToRecoverSizes(),
+                    recoveryPlan.getTotalSize(),
+                    recoveryPlan.getFilesPresentInTargetNames(),
+                    recoveryPlan.getFilesPresentInTargetSizes(),
+                    recoveryPlan.getExistingSize(),
+                    took
+                )
             );
         }, listener::onFailure);
     }
@@ -627,6 +680,7 @@ public class RecoverySourceHandler {
     }
 
     private class SnapshotRecoverFileRequestsSender {
+        private final ShardRecoveryPlan shardRecoveryPlan;
         private final ShardRecoveryPlan.SnapshotFilesToRecover snapshotFilesToRecover;
         private final ActionListener<List<StoreFileMetadata>> listener;
         private final CountDown countDown;
@@ -636,6 +690,7 @@ public class RecoverySourceHandler {
         private List<StoreFileMetadata> filesFailedToDownloadFromSnapshot;
 
         SnapshotRecoverFileRequestsSender(ShardRecoveryPlan shardRecoveryPlan, ActionListener<List<StoreFileMetadata>> listener) {
+            this.shardRecoveryPlan = shardRecoveryPlan;
             this.snapshotFilesToRecover = shardRecoveryPlan.getSnapshotFilesToRecover();
             this.listener = listener;
             this.countDown = new CountDown(shardRecoveryPlan.getSnapshotFilesToRecover().size());
@@ -669,7 +724,11 @@ public class RecoverySourceHandler {
                     public void onFailure(Exception e) {
                         logger.warn(new ParameterizedMessage("failed to recover file [{}] from snapshot, " +
                             "will recover from primary instead", snapshotFileToRecover.metadata()), e);
-                        onRequestCompletion(snapshotFileToRecover.metadata(), e);
+                        if (shardRecoveryPlan.canRecoverSnapshotFilesFromSourceNode()) {
+                            onRequestCompletion(snapshotFileToRecover.metadata(), e);
+                        } else {
+                            cancel(e);
+                        }
                     }
                 };
                 requestFuture.addListener(sendRequestListener);
@@ -682,14 +741,14 @@ public class RecoverySourceHandler {
                     ActionListener.runBefore(requestFuture, () -> unTrackOutstandingRequest(requestFuture))
                 );
             } catch (CancellableThreads.ExecutionCancelledException e) {
-                onCancellation(e);
+                cancel(e);
             } catch (Exception e) {
                 unTrackOutstandingRequest(requestFuture);
                 onRequestCompletion(snapshotFileToRecover.metadata(), e);
             }
         }
 
-        void onCancellation(Exception e) {
+        void cancel(Exception e) {
             if (cancelled.compareAndSet(false, true)) {
                 pendingSnapshotFilesToRecover.clear();
                 notifyFailureOnceAllOutstandingRequestAreDone(e);
@@ -727,13 +786,20 @@ public class RecoverySourceHandler {
         private void trackOutstandingRequest(ListenableFuture<Void> future) {
             boolean cancelled;
             synchronized (outstandingRequests) {
-                cancelled = cancellableThreads.isCancelled();
+                cancelled = cancellableThreads.isCancelled() || this.cancelled.get();
                 if (cancelled == false) {
                     outstandingRequests.add(future);
                 }
             }
             if (cancelled) {
                 cancellableThreads.checkForCancel();
+                // If the recover snapshot files operation is cancelled but the recovery is still
+                // valid, it means that some of the snapshot files download failed and the snapshot files
+                // differ from the source index files. In that case we have to cancel all pending operations
+                // and wait until all the in-flight operations are done to reset the recovery and start from
+                // scratch using the source node index files.
+                assert this.cancelled.get();
+                throw new CancellableThreads.ExecutionCancelledException("Recover snapshot files cancelled");
             }
         }
 

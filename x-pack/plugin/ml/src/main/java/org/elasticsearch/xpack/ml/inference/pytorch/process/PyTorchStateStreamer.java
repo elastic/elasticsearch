@@ -12,7 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.ml.inference.persistence.ChunkedTrainedModelRestorer;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 
@@ -68,8 +68,14 @@ public class PyTorchStateStreamer {
         ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(modelId, client, executorService, xContentRegistry);
         restorer.setSearchIndex(index);
         restorer.setSearchSize(1);
-        restorer.restoreModelDefinition(doc -> writeChunk(doc, restoreStream), listener::onResponse, listener::onFailure);
-        logger.debug("model [{}] state restored in [{}] documents from index [{}]", modelId, restorer.getNumDocsWritten(), index);
+        restorer.restoreModelDefinition(
+            doc -> writeChunk(doc, restoreStream),
+            success -> {
+                logger.debug("model [{}] state restored in [{}] documents from index [{}]", modelId, restorer.getNumDocsWritten(), index);
+                listener.onResponse(success);
+            },
+            listener::onFailure
+        );
     }
 
     private boolean writeChunk(TrainedModelDefinitionDoc doc, OutputStream outputStream) throws IOException {

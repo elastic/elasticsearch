@@ -16,11 +16,11 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.script.Script;
@@ -290,7 +290,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 throw new IllegalArgumentException("[copy_to] may not be used to copy from a multi-field: [" + this.name() + "]");
             }
 
-            final String sourceScope = mappers.getNestedScope(this.name());
+            final String sourceScope = mappers.getNestedParent(this.name());
             for (String copyTo : this.copyTo().copyToFields()) {
                 if (mappers.isMultiField(copyTo)) {
                     throw new IllegalArgumentException("[copy_to] may not be used to copy to a multi-field: [" + copyTo + "]");
@@ -299,7 +299,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     throw new IllegalArgumentException("Cannot copy to field [" + copyTo + "] since it is mapped as an object");
                 }
 
-                final String targetScope = mappers.getNestedScope(copyTo);
+                final String targetScope = mappers.getNestedParent(copyTo);
                 checkNestedScopeCompatibility(sourceScope, targetScope);
             }
         }

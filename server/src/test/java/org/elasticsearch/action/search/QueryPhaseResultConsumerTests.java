@@ -11,7 +11,6 @@ package org.elasticsearch.action.search;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
@@ -95,7 +94,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
 
         for (int i = 0; i < 10; i++) {
             SearchShardTarget searchShardTarget = new SearchShardTarget("node", new ShardId("index", "uuid", i),
-                null, OriginalIndices.NONE);
+                null);
             QuerySearchResult querySearchResult = new QuerySearchResult();
             TopDocs topDocs = new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]);
             querySearchResult.topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), new DocValueFormat[0]);

@@ -10,7 +10,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -30,9 +29,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 public class CleanerServiceTests extends ESTestCase {
     @Rule
@@ -57,42 +53,25 @@ public class CleanerServiceTests extends ESTestCase {
         // invalid setting
         expectedException.expect(IllegalArgumentException.class);
 
-        TimeValue expected = TimeValue.timeValueHours(1);
-        Settings settings = Settings.builder().put(MonitoringField.HISTORY_DURATION.getKey(), expected.getStringRep()).build();
+        try {
+            TimeValue expected = TimeValue.timeValueHours(1);
+            Settings settings = Settings.builder().put(MonitoringField.HISTORY_DURATION.getKey(), expected.getStringRep()).build();
 
-        new CleanerService(settings, clusterSettings, threadPool, licenseState);
+            new CleanerService(settings, clusterSettings, threadPool, licenseState);
+        } finally {
+            assertWarnings("[xpack.monitoring.history.duration] setting was deprecated in Elasticsearch and will be removed in " +
+                "a future release! See the breaking changes documentation for the next major version.");
+        }
     }
 
-    public void testGetRetentionWithSettingWithUpdatesAllowed() {
+    public void testGetRetention() {
         TimeValue expected = TimeValue.timeValueHours(25);
         Settings settings = Settings.builder().put(MonitoringField.HISTORY_DURATION.getKey(), expected.getStringRep()).build();
 
-        when(licenseState.checkFeature(Feature.MONITORING_UPDATE_RETENTION)).thenReturn(true);
-
         assertEquals(expected, new CleanerService(settings, clusterSettings, threadPool, licenseState).getRetention());
 
-        verify(licenseState).checkFeature(Feature.MONITORING_UPDATE_RETENTION);
-    }
-
-    public void testGetRetentionDefaultValueWithNoSettings() {
-        when(licenseState.checkFeature(Feature.MONITORING_UPDATE_RETENTION)).thenReturn(true);
-
-        assertEquals(MonitoringField.HISTORY_DURATION.get(Settings.EMPTY),
-                     new CleanerService(Settings.EMPTY, clusterSettings, threadPool, licenseState).getRetention());
-
-        verify(licenseState).checkFeature(Feature.MONITORING_UPDATE_RETENTION);
-    }
-
-    public void testGetRetentionDefaultValueWithSettingsButUpdatesNotAllowed() {
-        TimeValue notExpected = TimeValue.timeValueHours(25);
-        Settings settings = Settings.builder().put(MonitoringField.HISTORY_DURATION.getKey(), notExpected.getStringRep()).build();
-
-        when(licenseState.checkFeature(Feature.MONITORING_UPDATE_RETENTION)).thenReturn(false);
-
-        assertEquals(MonitoringField.HISTORY_DURATION.get(Settings.EMPTY),
-                     new CleanerService(settings, clusterSettings, threadPool, licenseState).getRetention());
-
-        verify(licenseState).checkFeature(Feature.MONITORING_UPDATE_RETENTION);
+        assertWarnings("[xpack.monitoring.history.duration] setting was deprecated in Elasticsearch and will be removed in " +
+            "a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testSetGlobalRetention() {
@@ -100,34 +79,9 @@ public class CleanerServiceTests extends ESTestCase {
         // only thing calling this method and it will use the settings object to validate the time value
         TimeValue expected = TimeValue.timeValueHours(2);
 
-        when(licenseState.checkFeature(Feature.MONITORING_UPDATE_RETENTION)).thenReturn(true);
-
         CleanerService service = new CleanerService(Settings.EMPTY, clusterSettings, threadPool, licenseState);
-
         service.setGlobalRetention(expected);
-
         assertEquals(expected, service.getRetention());
-
-        verify(licenseState, times(2)).checkFeature(Feature.MONITORING_UPDATE_RETENTION); // once by set, once by get
-    }
-
-    public void testSetGlobalRetentionAppliesEvenIfLicenseDisallows() {
-        // Note: I used this value to ensure we're not double-validating the setter; the cluster state should be the
-        // only thing calling this method and it will use the settings object to validate the time value
-        TimeValue expected = TimeValue.timeValueHours(2);
-
-        // required to be true on the second call for it to see it take effect
-        when(licenseState.checkFeature(Feature.MONITORING_UPDATE_RETENTION)).thenReturn(false).thenReturn(true);
-
-        CleanerService service = new CleanerService(Settings.EMPTY, clusterSettings, threadPool, licenseState);
-
-        // uses allow=false
-        service.setGlobalRetention(expected);
-
-        // uses allow=true
-        assertEquals(expected, service.getRetention());
-
-        verify(licenseState, times(2)).checkFeature(Feature.MONITORING_UPDATE_RETENTION);
     }
 
     public void testNextExecutionDelay() {

@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.test.rest.yaml.restspec;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.yaml.YamlXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

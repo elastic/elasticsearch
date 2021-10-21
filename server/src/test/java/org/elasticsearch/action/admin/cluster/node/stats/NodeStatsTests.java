@@ -29,6 +29,7 @@ import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.node.AdaptiveSelectionStats;
 import org.elasticsearch.node.ResponseCollectorService;
+import org.elasticsearch.script.ScriptCacheStats;
 import org.elasticsearch.script.ScriptContextStats;
 import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.test.ESTestCase;
@@ -418,6 +419,34 @@ public class NodeStatsTests extends ESTestCase {
                         assertEquals(aStats.responseTime, bStats.responseTime, 0.01);
                     });
                 }
+                ScriptCacheStats scriptCacheStats = nodeStats.getScriptCacheStats();
+                ScriptCacheStats deserializedScriptCacheStats = deserializedNodeStats.getScriptCacheStats();
+                if (scriptCacheStats == null) {
+                    assertNull(deserializedScriptCacheStats);
+                } else if (deserializedScriptCacheStats.getContextStats() != null) {
+                    Map<String, ScriptStats> deserialized = deserializedScriptCacheStats.getContextStats();
+                    long evictions = 0;
+                    long limited = 0;
+                    long compilations = 0;
+                    Map<String, ScriptStats> stats = scriptCacheStats.getContextStats();
+                    for (String context: stats.keySet()) {
+                        ScriptStats deserStats = deserialized.get(context);
+                        ScriptStats generatedStats = stats.get(context);
+
+                        evictions += generatedStats.getCacheEvictions();
+                        assertEquals(generatedStats.getCacheEvictions(), deserStats.getCacheEvictions());
+
+                        limited += generatedStats.getCompilationLimitTriggered();
+                        assertEquals(generatedStats.getCompilationLimitTriggered(), deserStats.getCompilationLimitTriggered());
+
+                        compilations += generatedStats.getCompilations();
+                        assertEquals(generatedStats.getCompilations(), deserStats.getCompilations());
+                    }
+                    ScriptStats sum = deserializedScriptCacheStats.sum();
+                    assertEquals(evictions, sum.getCacheEvictions());
+                    assertEquals(limited, sum.getCompilationLimitTriggered());
+                    assertEquals(compilations, sum.getCompilations());
+                }
             }
         }
     }
@@ -688,10 +717,11 @@ public class NodeStatsTests extends ESTestCase {
             }
             adaptiveSelectionStats = new AdaptiveSelectionStats(nodeConnections, nodeStats);
         }
+        ScriptCacheStats scriptCacheStats = scriptStats != null ? scriptStats.toScriptCacheStats() : null;
         //TODO NodeIndicesStats are not tested here, way too complicated to create, also they need to be migrated to Writeable yet
         return new NodeStats(node, randomNonNegativeLong(), null, osStats, processStats, jvmStats, threadPoolStats,
                 fsInfo, transportStats, httpStats, allCircuitBreakerStats, scriptStats, discoveryStats,
-                ingestStats, adaptiveSelectionStats, null);
+                ingestStats, adaptiveSelectionStats, scriptCacheStats, null);
     }
 
     private static ScriptContextStats.TimeSeries randomTimeSeries() {

@@ -887,7 +887,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 clusterService, datafeedRunner, mlController, autodetectProcessManager, dataFrameAnalyticsManager, memoryTracker);
         this.mlLifeCycleService.set(mlLifeCycleService);
         MlAssignmentNotifier mlAssignmentNotifier = new MlAssignmentNotifier(anomalyDetectionAuditor, dataFrameAnalyticsAuditor, threadPool,
-            new MlConfigMigrator(settings, client, clusterService, indexNameExpressionResolver), clusterService);
+            clusterService);
 
         MlAutoUpdateService mlAutoUpdateService = new MlAutoUpdateService(threadPool,
             List.of(new DatafeedConfigAutoUpdater(datafeedConfigProvider, indexNameExpressionResolver)));

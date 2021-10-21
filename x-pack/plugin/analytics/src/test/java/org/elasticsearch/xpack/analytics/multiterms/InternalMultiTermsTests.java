@@ -85,7 +85,7 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
     }
 
     private List<InternalMultiTerms.Bucket> randomBuckets() {
-        return Collections.emptyList();
+        return Collections.emptyList();  // NOCOMMIT maybe bad?
     }
 
     @Override

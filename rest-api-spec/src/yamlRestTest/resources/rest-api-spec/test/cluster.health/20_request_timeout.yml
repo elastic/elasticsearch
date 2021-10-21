@@ -43,8 +43,8 @@
 ---
 "cluster health request timeout with 200 response code":
   - skip:
-      version: " - 7.15.99"
-      reason: "return_200_for_cluster_health_timeout was added in 7.16"
+      version: " - 7.99.99"
+      reason: "return_200_for_cluster_health_timeout yields a warning in 8.0"
   - do:
       warnings:
         - '[return_200_for_cluster_health_timeout] parameter is superfluous because the HTTP status code for a cluster health timeout is 200 by default. The parameter has been deprecated and will be removed in a future release.'

@@ -157,7 +157,8 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
 
         @Override
         public int hashCode() {
-            return Objects.hash(update, id, deferValidation, config);
+            // the base class does not implement hashCode, therefore we need to hash timeout ourselves
+            return Objects.hash(getTimeout(), update, id, deferValidation, config);
         }
 
         @Override
@@ -169,10 +170,13 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
                 return false;
             }
             Request other = (Request) obj;
+
+            // the base class does not implement equals, therefore we need to check timeout ourselves
             return Objects.equals(update, other.update)
                 && this.deferValidation == other.deferValidation
                 && this.id.equals(other.id)
-                && Objects.equals(config, other.config);
+                && Objects.equals(config, other.config)
+                && getTimeout().equals(other.getTimeout());
         }
     }
 

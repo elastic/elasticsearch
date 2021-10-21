@@ -13,6 +13,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.compat.UpdateTransformActionPre78;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
 
 import java.io.IOException;
 
@@ -40,6 +41,44 @@ public class UpdateTransformActionRequestTests extends AbstractWireSerializingTr
             request.setConfig(TransformConfigTests.randomTransformConfig());
         }
         return request;
+    }
+
+    @Override
+    protected Request mutateInstance(Request instance) throws IOException {
+        String id = instance.getId();
+        TransformConfigUpdate update = instance.getUpdate();
+        boolean deferValidation = instance.isDeferValidation();
+        TimeValue timeout = instance.getTimeout();
+
+        switch (between(0, 3)) {
+            case 0:
+                id += randomAlphaOfLengthBetween(1, 5);
+                break;
+            case 1:
+                String description = update.getDescription() == null ? "" : update.getDescription();
+                description += randomAlphaOfLengthBetween(1, 5);
+                update = new TransformConfigUpdate(
+                    update.getSource(),
+                    update.getDestination(),
+                    update.getFrequency(),
+                    update.getSyncConfig(),
+                    description,
+                    update.getSettings(),
+                    update.getMetadata(),
+                    update.getRetentionPolicyConfig()
+                );
+                break;
+            case 2:
+                deferValidation ^= true;
+                break;
+            case 3:
+                timeout = new TimeValue(timeout.duration() + randomLongBetween(1, 5), timeout.timeUnit());
+                break;
+            default:
+                throw new AssertionError("Illegal randomization branch");
+        }
+
+        return new Request(update, id, deferValidation, timeout);
     }
 
     public void testBWCPre78() throws IOException {

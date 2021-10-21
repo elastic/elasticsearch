@@ -84,12 +84,15 @@ public class ValidateTransformAction extends ActionType<ValidateTransformAction.
                 return false;
             }
             Request that = (Request) obj;
-            return Objects.equals(config, that.config) && deferValidation == that.deferValidation && super.equals(obj);
+
+            // the base class does not implement equals, therefore we need to check timeout ourselves
+            return Objects.equals(config, that.config) && deferValidation == that.deferValidation && timeout().equals(that.timeout());
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(super.hashCode(), config, deferValidation);
+            // the base class does not implement hashCode, therefore we need to hash timeout ourselves
+            return Objects.hash(timeout(), config, deferValidation);
         }
     }
 

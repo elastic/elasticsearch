@@ -70,7 +70,8 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
 
         @Override
         public int hashCode() {
-            return Objects.hash(super.hashCode(), id);
+            // the base class does not implement hashCode, therefore we need to hash timeout ourselves
+            return Objects.hash(timeout(), id);
         }
 
         @Override
@@ -82,7 +83,8 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(id, other.id) && super.equals(obj);
+            // the base class does not implement equals, therefore we need to check timeout ourselves
+            return Objects.equals(id, other.id) && timeout().equals(other.timeout());
         }
     }
 

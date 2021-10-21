@@ -129,7 +129,8 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public int hashCode() {
-            return Objects.hash(super.hashCode(), config, deferValidation);
+            // the base class does not implement hashCode, therefore we need to hash timeout ourselves
+            return Objects.hash(timeout(), config, deferValidation);
         }
 
         @Override
@@ -141,7 +142,11 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(config, other.config) && this.deferValidation == other.deferValidation && super.equals(obj);
+
+            // the base class does not implement equals, therefore we need to check timeout ourselves
+            return Objects.equals(config, other.config)
+                && this.deferValidation == other.deferValidation
+                && timeout().equals(other.timeout());
         }
     }
 

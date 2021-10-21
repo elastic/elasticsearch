@@ -1248,8 +1248,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 CategorizeTextAggregationBuilder.NAME,
                 CategorizeTextAggregationBuilder::new,
                 CategorizeTextAggregationBuilder.PARSER
-            )
-            .addResultReader(InternalCategorizationAggregation::new)
+            ).addResultReader(InternalCategorizationAggregation::new)
             .setAggregatorRegistrar(s -> s.registerUsage(CategorizeTextAggregationBuilder.NAME))
         );
     }

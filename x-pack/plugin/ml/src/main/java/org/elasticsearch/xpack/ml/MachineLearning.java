@@ -619,6 +619,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
 
     public static boolean isMlNode(DiscoveryNode node) {
+        logger.info("DMR node roles are " + node.getRoles());
         return node.getRoles().contains(DiscoveryNodeRole.ML_ROLE);
     }
 

@@ -15,7 +15,7 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 /**
  * This project exists to test the _xpack prefix for REST compatibility. The _xpack prefix was removed from the specification, but still supported
- * in 7.x. This project re-introduces the _xpack prefix in the specification but only for compatibility testing purposes.
+ * in 7x. This project re-introduces the _xpack prefix in the specification but only for compatibility testing purposes.
  */
 
 configurations {
@@ -30,10 +30,8 @@ dependencies {
   compatXpackTests project(path: ':x-pack:plugin', configuration: 'restCompatTests')
 }
 
-
 // copy the already transformed compatible rest tests from the x-pack compatible tests
-Provider<CopyRestTestsTask> copyXpackRestCompatTestTask = project.getTasks()
-  .register("copyXpackRestCompatTestTask", CopyRestTestsTask.class, task -> {
+tasks.named("copyRestCompatTestTask").configure { task ->
     task.dependsOn(configurations.compatXpackTests);
     task.setXpackConfig(configurations.compatXpackTests);
     task.getIncludeXpack().set(List.of("ml", "rollup", "license", "migration", "ssl"));
@@ -43,7 +41,7 @@ Provider<CopyRestTestsTask> copyXpackRestCompatTestTask = project.getTasks()
         config.getSingleFile().toPath()
       )
     )
-  })
+  }
 
 // location for keys and certificates
 File extraResourceDir = file("$buildDir/extra_resource")
@@ -71,11 +69,6 @@ sourceSets."yamlRestTestV${compatVersion}Compat".resources.srcDir(extraResourceD
 tasks.named("processYamlRestTestV${compatVersion}CompatResources").configure {
   dependsOn("copyExtraResources")
 }
-
-// ensure we run this transformation after our custom copy
-tasks.named("yamlRestTestV${compatVersion}CompatTransform").configure( t -> {
-  t.dependsOn(copyXpackRestCompatTestTask)
-})
 
 testClusters.configureEach {
   testDistribution = 'DEFAULT' // this is important since we use the reindex module in ML

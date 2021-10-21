@@ -27,13 +27,15 @@
       get:
         index: test
         id: 1
-  - length: { _source.attachment: 6 }
+  - length: { _source.attachment: 8 }
   - match: { _source.attachment.content: "Test elasticsearch" }
   - match: { _source.attachment.language: "et" }
   - match: { _source.attachment.author: "David Pilato" }
   - match: { _source.attachment.date: "2016-03-10T08:25:00Z" }
   - match: { _source.attachment.content_length: 19 }
   - match: { _source.attachment.content_type: "application/msword" }
+  - match: { _source.attachment.modifier: "David Pilato" }
+  - match: { _source.attachment.modified: "2016-03-10T08:25:00Z" }
 
 
 ---
@@ -65,10 +67,12 @@
       get:
         index: test
         id: 1
-  - length: { _source.attachment: 6 }
+  - length: { _source.attachment: 8 }
   - match: { _source.attachment.content: "Test elasticsearch" }
   - match: { _source.attachment.language: "et" }
   - match: { _source.attachment.author: "David Pilato" }
   - match: { _source.attachment.date: "2016-03-10T08:24:00Z" }
   - match: { _source.attachment.content_length: 19 }
   - match: { _source.attachment.content_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }
+  - match: { _source.attachment.modifier: "David Pilato" }
+  - match: { _source.attachment.modified: "2016-03-10T08:24:00Z" }

@@ -18,8 +18,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
@@ -61,7 +61,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         IndexAbstraction.DataStream dataStream = indexAbstraction.getParentDataStream();
         if (dataStream != null) {
             assert dataStream.getWriteIndex() != null : "datastream " + dataStream.getName() + " has no write index";
-            if (dataStream.getWriteIndex().getIndex().equals(index) == false) {
+            if (dataStream.getWriteIndex().equals(index) == false) {
                 logger.warn("index [{}] is not the write index for data stream [{}]. skipping rollover for policy [{}]",
                     index.getName(), dataStream.getName(),
                     LifecycleSettings.LIFECYCLE_NAME_SETTING.get(metadata.index(index).getSettings()));

@@ -9,7 +9,6 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -23,6 +22,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
 import java.util.List;

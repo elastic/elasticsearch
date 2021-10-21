@@ -8,14 +8,14 @@
 package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.ingest.IngestDocument;
 
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.hamcrest.Matchers.hasSize;
 
-public class PyTorchPassThroughResultsTests extends AbstractWireSerializingTestCase<PyTorchPassThroughResults> {
+public class PyTorchPassThroughResultsTests extends InferenceResultsTestCase<PyTorchPassThroughResults> {
     @Override
     protected Writeable.Reader<PyTorchPassThroughResults> instanceReader() {
         return PyTorchPassThroughResults::new;
@@ -40,5 +40,13 @@ public class PyTorchPassThroughResultsTests extends AbstractWireSerializingTestC
         Map<String, Object> asMap = testInstance.asMap();
         assertThat(asMap.keySet(), hasSize(1));
         assertArrayEquals(testInstance.getInference(), (double[][]) asMap.get(DEFAULT_RESULTS_FIELD));
+    }
+
+    @Override
+    void assertFieldValues(PyTorchPassThroughResults createdInstance, IngestDocument document, String resultsField) {
+        assertArrayEquals(
+            createdInstance.getInference(),
+            document.getFieldValue(resultsField + "." + createdInstance.getResultsField(), double[][].class)
+        );
     }
 }

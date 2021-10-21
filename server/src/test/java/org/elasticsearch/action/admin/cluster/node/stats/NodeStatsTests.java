@@ -8,12 +8,16 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.cluster.coordination.ClusterStateSerializationStats;
 import org.elasticsearch.cluster.coordination.PendingClusterStateStats;
 import org.elasticsearch.cluster.coordination.PublishClusterStateStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterApplierRecordingService;
+import org.elasticsearch.cluster.service.ClusterApplierRecordingService.Stats.Recording;
 import org.elasticsearch.cluster.service.ClusterStateUpdateStats;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
@@ -430,7 +434,7 @@ public class NodeStatsTests extends ESTestCase {
             long memTotal = randomNonNegativeLong();
             long swapTotal = randomNonNegativeLong();
             osStats = new OsStats(System.currentTimeMillis(), new OsStats.Cpu(randomShort(), loadAverages),
-                    new OsStats.Mem(memTotal, randomLongBetween(0, memTotal)),
+                    new OsStats.Mem(memTotal, randomLongBetween(0, memTotal), randomLongBetween(0, memTotal)),
                     new OsStats.Swap(swapTotal, randomLongBetween(0, swapTotal)),
                     new OsStats.Cgroup(
                         randomAlphaOfLength(8),
@@ -573,6 +577,15 @@ public class NodeStatsTests extends ESTestCase {
             }
             scriptStats = new ScriptStats(stats);
         }
+        ClusterApplierRecordingService.Stats timeTrackerStats;
+        if (randomBoolean()) {
+            timeTrackerStats = new ClusterApplierRecordingService.Stats(
+                randomMap(2, 32, () -> new Tuple<>(randomAlphaOfLength(4), new Recording(randomNonNegativeLong(), randomNonNegativeLong())))
+            );
+        } else {
+            timeTrackerStats = null;
+        }
+
         DiscoveryStats discoveryStats = frequently()
             ? new DiscoveryStats(
             randomBoolean()
@@ -582,7 +595,15 @@ public class NodeStatsTests extends ESTestCase {
                 ? new PublishClusterStateStats(
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
-                randomNonNegativeLong())
+                randomNonNegativeLong(),
+                new ClusterStateSerializationStats(
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong()
+                ))
                 : null,
             randomBoolean()
                 ? new ClusterStateUpdateStats(
@@ -605,7 +626,8 @@ public class NodeStatsTests extends ESTestCase {
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong())
-                : null)
+                : null,
+            timeTrackerStats)
             : null;
         IngestStats ingestStats = null;
         if (frequently()) {

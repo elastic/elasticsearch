@@ -8,10 +8,10 @@
 package org.elasticsearch.client.indices;
 
 import org.elasticsearch.client.core.BroadcastResponse;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * The response object that will be returned when reloading analyzers

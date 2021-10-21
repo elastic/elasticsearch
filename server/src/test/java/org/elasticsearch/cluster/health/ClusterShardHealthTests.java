@@ -8,7 +8,7 @@
 package org.elasticsearch.cluster.health;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;

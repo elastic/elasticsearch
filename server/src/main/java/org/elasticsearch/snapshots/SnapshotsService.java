@@ -8,7 +8,6 @@
 
 package org.elasticsearch.snapshots;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import org.apache.logging.log4j.LogManager;
@@ -127,6 +126,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     public static final Version INDEX_GEN_IN_REPO_DATA_VERSION = Version.V_7_9_0;
 
     public static final Version UUIDS_IN_REPO_DATA_VERSION = Version.V_7_12_0;
+
+    // TODO: Update to 7.16 after backporting
+    public static final Version FILE_INFO_WRITER_UUIDS_IN_SHARD_DATA_VERSION = Version.CURRENT;
 
     public static final Version OLD_SNAPSHOT_FORMAT = Version.V_7_5_0;
 
@@ -1013,11 +1015,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             .collect(Collectors.toSet());
         for (List<SnapshotsInProgress.Entry> repoEntry : snapshotsInProgress.entriesByRepo()) {
             final SnapshotsInProgress.Entry entry = repoEntry.get(0);
-            for (ObjectCursor<ShardSnapshotStatus> value : entry.shardsByRepoShardId().values()) {
-                if (value.value.equals(ShardSnapshotStatus.UNASSIGNED_QUEUED)) {
+            for (ShardSnapshotStatus value : entry.shardsByRepoShardId().values()) {
+                if (value.equals(ShardSnapshotStatus.UNASSIGNED_QUEUED)) {
                     assert reposWithRunningDelete.contains(entry.repository())
                         : "Found shard snapshot waiting to be assigned in [" + entry + "] but it is not blocked by any running delete";
-                } else if (value.value.isActive()) {
+                } else if (value.isActive()) {
                     assert reposWithRunningDelete.contains(entry.repository()) == false
                         : "Found shard snapshot actively executing in ["
                             + entry
@@ -1377,8 +1379,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 // nothing to do for already completed snapshots or clones that run on master anyways
                 return false;
             }
-            for (ObjectCursor<ShardSnapshotStatus> shardStatus : snapshot.shardsByRepoShardId().values()) {
-                final ShardSnapshotStatus shardSnapshotStatus = shardStatus.value;
+            for (ShardSnapshotStatus shardSnapshotStatus : snapshot.shardsByRepoShardId().values()) {
                 if (shardSnapshotStatus.state().completed() == false && removedNodeIds.contains(shardSnapshotStatus.nodeId())) {
                     // Snapshot had an incomplete shard running on a removed node so we need to adjust that shard's snapshot status
                     return true;
@@ -2245,8 +2246,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             // Entry is writing to the repo because it's finalizing on master
             return true;
         }
-        for (ObjectCursor<ShardSnapshotStatus> value : entry.shardsByRepoShardId().values()) {
-            if (value.value.isActive()) {
+        for (ShardSnapshotStatus value : entry.shardsByRepoShardId().values()) {
+            if (value.isActive()) {
                 // Entry is writing to the repo because it's writing to a shard on a data node or waiting to do so for a concrete shard
                 return true;
             }
@@ -2320,6 +2321,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     public static boolean includesUUIDs(Version repositoryMetaVersion) {
         return repositoryMetaVersion.onOrAfter(UUIDS_IN_REPO_DATA_VERSION);
+    }
+
+    public static boolean includeFileInfoWriterUUID(Version repositoryMetaVersion) {
+        return repositoryMetaVersion.onOrAfter(FILE_INFO_WRITER_UUIDS_IN_SHARD_DATA_VERSION);
     }
 
     /** Deletes snapshot from repository

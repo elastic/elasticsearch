@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.elasticsearch.common.xcontent.MediaType;
-import org.elasticsearch.common.xcontent.MediaTypeRegistry;
-import org.elasticsearch.common.xcontent.ParsedMediaType;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.MediaType;
+import org.elasticsearch.xcontent.MediaTypeRegistry;
+import org.elasticsearch.xcontent.ParsedMediaType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.proto.Mode;

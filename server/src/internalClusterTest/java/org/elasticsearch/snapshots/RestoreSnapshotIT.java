@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -32,6 +31,7 @@ import org.elasticsearch.repositories.blobstore.FileRestoreContext;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -590,7 +590,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         client.admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "100b").build())
+            .setPersistentSettings(Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "100b").build())
             .get();
         ActionFuture<RestoreSnapshotResponse> restoreSnapshotResponse = client.admin()
             .cluster()
@@ -612,7 +612,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         client.admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().putNull(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()).build())
+            .setPersistentSettings(Settings.builder().putNull(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()).build())
             .get();
 
         // check that restore now completes quickly (i.e. within 20 seconds)

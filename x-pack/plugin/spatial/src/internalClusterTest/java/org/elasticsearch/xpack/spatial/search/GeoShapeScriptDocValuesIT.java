@@ -4,22 +4,13 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-
-/*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
- */
-
 package org.elasticsearch.xpack.spatial.search;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.geo.GeoBoundingBox;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.LinearRing;
@@ -47,7 +38,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;

@@ -15,8 +15,8 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.io.IOException;
@@ -90,7 +90,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_7_14_2 = new Version(7140299, org.apache.lucene.util.Version.LUCENE_8_9_0);
     public static final Version V_7_15_0 = new Version(7150099, org.apache.lucene.util.Version.LUCENE_8_9_0);
     public static final Version V_7_15_1 = new Version(7150199, org.apache.lucene.util.Version.LUCENE_8_9_0);
-    public static final Version V_7_16_0 = new Version(7160099, org.apache.lucene.util.Version.LUCENE_8_10_0);
+    public static final Version V_7_15_2 = new Version(7150299, org.apache.lucene.util.Version.LUCENE_8_9_0);
+    public static final Version V_7_16_0 = new Version(7160099, org.apache.lucene.util.Version.LUCENE_8_10_1);
     public static final Version V_8_0_0 = new Version(8000099, org.apache.lucene.util.Version.LUCENE_9_0_0);
     public static final Version CURRENT = V_8_0_0;
 

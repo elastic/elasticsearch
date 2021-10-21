@@ -51,7 +51,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -395,7 +395,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         public void recoverReplica(IndexShard replica) throws IOException {
             recoverReplica(replica,
-                (r, sourceNode) -> new RecoveryTarget(r, sourceNode, null, recoveryListener));
+                (r, sourceNode) -> new RecoveryTarget(r, sourceNode, null, null, recoveryListener));
         }
 
         public void recoverReplica(IndexShard replica, BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier)

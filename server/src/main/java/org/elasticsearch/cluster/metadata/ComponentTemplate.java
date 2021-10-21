@@ -11,14 +11,14 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
@@ -129,7 +129,7 @@ public class ComponentTemplate extends AbstractDiffable<ComponentTemplate> imple
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(TEMPLATE.getPreferredName(), this.template);
+        builder.field(TEMPLATE.getPreferredName(), this.template, params);
         if (this.version != null) {
             builder.field(VERSION.getPreferredName(), this.version);
         }

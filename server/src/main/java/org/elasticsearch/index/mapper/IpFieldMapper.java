@@ -22,7 +22,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -32,7 +32,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
-import org.elasticsearch.script.field.IpField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
@@ -360,11 +359,6 @@ public class IpFieldMapper extends FieldMapper {
             @Override
             public int size() {
                 return count;
-            }
-
-            @Override
-            public org.elasticsearch.script.field.Field<String> toField(String fieldName) {
-                return new IpField(fieldName, this);
             }
         }
 

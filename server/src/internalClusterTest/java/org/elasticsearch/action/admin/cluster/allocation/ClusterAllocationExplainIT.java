@@ -29,11 +29,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -701,7 +701,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         prepareIndex(5, 0);
 
         logger.info("--> setting balancing threshold really high, so it won't be met");
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(
             Settings.builder().put("cluster.routing.allocation.balance.threshold", 1000.0f)).get();
 
         logger.info("--> starting another node, with the rebalance threshold so high, it should not get any shards");

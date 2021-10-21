@@ -8,7 +8,7 @@
 package org.elasticsearch.client.ml.util;
 
 import org.elasticsearch.client.core.PageParams;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 public class PageParamsTests extends AbstractXContentTestCase<PageParams> {

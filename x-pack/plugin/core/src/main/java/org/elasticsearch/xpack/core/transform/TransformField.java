@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform;
 
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 
 /*
  * Utility class to hold common fields and strings for transform.
@@ -32,6 +32,7 @@ public final class TransformField {
     public static final ParseField CREATE_TIME = new ParseField("create_time");
     public static final ParseField DESTINATION = new ParseField("dest");
     public static final ParseField SETTINGS = new ParseField("settings");
+    public static final ParseField METADATA = new ParseField("_meta");
     public static final ParseField FREQUENCY = new ParseField("frequency");
     public static final ParseField FORCE = new ParseField("force");
     public static final ParseField MAX_PAGE_SEARCH_SIZE = new ParseField("max_page_search_size");
@@ -44,6 +45,7 @@ public final class TransformField {
     public static final ParseField DELAY = new ParseField("delay");
     // TODO: Rename to "defer_data_validation" or similar to emphasize that not all validation is deferred
     public static final ParseField DEFER_VALIDATION = new ParseField("defer_validation");
+    public static final ParseField DRY_RUN = new ParseField("dry_run");
     public static final ParseField RETENTION_POLICY = new ParseField("retention_policy");
     public static final ParseField MAX_AGE = new ParseField("max_age");
 
@@ -67,10 +69,6 @@ public final class TransformField {
     public static final String TASK_NAME = "data_frame/transforms";
     public static final String REST_BASE_PATH_TRANSFORMS = "/_transform/";
     public static final String REST_BASE_PATH_TRANSFORMS_BY_ID = REST_BASE_PATH_TRANSFORMS + "{id}/";
-
-    // deprecated REST API, to be removed for 8.0.0
-    public static final String REST_BASE_PATH_TRANSFORMS_DEPRECATED = "/_data_frame/transforms/";
-    public static final String REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED = REST_BASE_PATH_TRANSFORMS_DEPRECATED + "{id}/";
 
     public static final String TRANSFORM_ID = "transform_id";
 

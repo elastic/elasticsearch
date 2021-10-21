@@ -149,7 +149,7 @@ public class DelayedAllocationIT extends ESIntegTestCase {
 
     private String findNodeWithShard() {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        List<ShardRouting> startedShards = state.routingTable().shardsWithState(ShardRoutingState.STARTED);
+        List<ShardRouting> startedShards = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED);
         Collections.shuffle(startedShards,random());
         return state.nodes().get(startedShards.get(0).currentNodeId()).getName();
     }

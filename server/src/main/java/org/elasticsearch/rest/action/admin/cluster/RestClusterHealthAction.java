@@ -81,6 +81,9 @@ public class RestClusterHealthAction extends BaseRestHandler {
         if (request.param("wait_for_events") != null) {
             clusterHealthRequest.waitForEvents(Priority.valueOf(request.param("wait_for_events").toUpperCase(Locale.ROOT)));
         }
+        clusterHealthRequest.return200ForClusterHealthTimeout(request.paramAsBoolean(
+            "return_200_for_cluster_health_timeout",
+            clusterHealthRequest.doesReturn200ForClusterHealthTimeout()));
         return clusterHealthRequest;
     }
 

@@ -377,7 +377,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         query = in.readString();
         params = in.readList(AbstractSqlQueryRequest::readSqlTypedParamValue);
         zoneId = in.readZoneId();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO: V_7_16_0
+        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
             catalog = in.readOptionalString();
         }
         fetchSize = in.readVInt();
@@ -408,7 +408,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
             writeSqlTypedParamValue(out, param);
         }
         out.writeZoneId(zoneId);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO: V_7_16_0
+        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
             out.writeOptionalString(catalog);
         }
         out.writeVInt(fetchSize);

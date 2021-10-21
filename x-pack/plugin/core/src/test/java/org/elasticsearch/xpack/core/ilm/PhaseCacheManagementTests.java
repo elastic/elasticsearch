@@ -30,6 +30,7 @@ import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.readStepKeys
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.refreshPhaseDefinition;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.updateIndicesForPolicy;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
@@ -227,7 +228,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
                 "        \"version\" : 1,\n" +
                 "        \"modified_date_in_millis\" : 1578521007076\n" +
                 "      }", "phase", null),
-            contains(new Step.StepKey("phase", "rollover", WaitForRolloverReadyStep.NAME),
+            containsInAnyOrder(new Step.StepKey("phase", "rollover", WaitForRolloverReadyStep.NAME),
                 new Step.StepKey("phase", "rollover", RolloverStep.NAME),
                 new Step.StepKey("phase", "rollover", WaitForActiveShardsStep.NAME),
                 new Step.StepKey("phase", "rollover", UpdateRolloverLifecycleDateStep.NAME),

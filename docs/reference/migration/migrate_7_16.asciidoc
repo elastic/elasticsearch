@@ -88,7 +88,7 @@ logging>>.
 ====
 *Details* +
 In SAML, Identity Providers (IdPs) can either be explicitly configured to
-release a `NameID` with a specific format, or configured to attempt to conform
+release a `NameID` with a specific format, or configured to attempt to conform 
 with the requirements of a Service Provider (SP). The SP declares its
 requirements in the `NameIDPolicy` element of a SAML Authentication Request.
 In {es}, the `nameid_format` SAML realm setting controls the `NameIDPolicy`
@@ -103,9 +103,9 @@ IdP. If you want to retain the previous behavior, set `nameid_format` to
 
 *Impact* +
 If you currently don't configure `nameid_format` explicitly, it's possible
-that your IdP will reject authentication requests from {es} because the requests
+that your IdP will reject authentication requests from {es} because the requests 
 do not specify a `NameID` format (and your IdP is configured to expect one).
-This mismatch can result in a broken SAML configuration. If you're unsure whether
+This mismatch can result in a broken SAML configuration. If you're unsure whether 
 your IdP is explicitly configured to use a certain `NameID` format and you want to retain current behavior
 , try setting `nameid_format` to `urn:oasis:names:tc:SAML:2.0:nameid-format:transient` explicitly.
 ====
@@ -347,19 +347,4 @@ cache do not expire.
 To override the defaults, configure the `script.cache.max_size`,
 `script.max_compilations_rate`, and `script.cache.expire` settings.
 ====
-
-.Attempting to store nanosecond resolution in a `date` field is deprecated.
-[%collapsible]
-====
-*Details* +
-Attempting to store a nanosecond resolution in a {ref}/date.html[`date`] field is deprecated.
-While previously allowed, these attempts always resulted in resolution loss.
-A `date` field can only store up to millisecond resolutions.
-
-*Impact* +
-If you attempt to store a nanosecond resolution in a `date` type field, {es} will
-emit a deprecation warning. To avoid deprecation warnings, use a
-{ref}/date_nanos.html[`date_nanos`] field instead.
-====
-
 // end::notable-breaking-changes[]

@@ -20,7 +20,9 @@ public class TransportTLSBootstrapCheckTests extends AbstractBootstrapCheckTestC
     public void testBootstrapCheckOnEmptyMetadata() {
         assertTrue(new TransportTLSBootstrapCheck().check(emptyContext).isFailure());
         assertTrue(new TransportTLSBootstrapCheck().check(createTestContext(Settings.builder().put("xpack.security.transport.ssl.enabled"
-            , randomBoolean()).build(), Metadata.EMPTY_METADATA)).isFailure());
+            , false).build(), Metadata.EMPTY_METADATA)).isFailure());
+        assertTrue(new TransportTLSBootstrapCheck().check(createTestContext(Settings.builder().put("xpack.security.transport.ssl.enabled"
+            , true).build(), Metadata.EMPTY_METADATA)).isSuccess());
     }
 
     public void testBootstrapCheckFailureOnAnyLicense() throws Exception {

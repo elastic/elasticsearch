@@ -117,8 +117,8 @@ Whether this field is used as a time series dimension.
 
 `time_series_metric`::
 experimental:[]
-Contains metric type if this fields is used as a time series metrics, absent if
-the field is not used as metric.
+Contains metric type if this fields is used as a time series metrics. If
+the field is not used as metric, this property isn't returned.
 
 `indices`::
   The list of indices where this field has the same type family, or null if all indices
@@ -133,12 +133,14 @@ the field is not used as metric.
   indices have the same definition for the field.
 
 `non_dimension_indices`::
-  If this list is present in response then some indices have the field marked as a dimension and other indices, the
-  ones in this list, do not.
+experimental:[]
+If this list is present in response then some indices have the field marked as a dimension and other indices, the
+ones in this list, do not.
 
 `metric_conflicts_indices`::
-  The list of indices where this field is present if these indices don't have the same `time_series_metric` value for
-  this field.
+experimental:[]
+The list of indices where this field is present if these indices don't have the same `time_series_metric` value for
+this field.
 
 `meta`::
   Merged metadata across all indices as a map of string keys to arrays of values.

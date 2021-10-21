@@ -68,13 +68,13 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
 
             doAnswer(inv -> mockPerformRequest((Request) inv.getArguments()[0]))
                     .when(restClient)
-                    .performRequest(argThat(r -> new RequestMatcher("GET", ENDPOINT).matches(r)));
+                    .performRequest(argThat(new RequestMatcher("GET", ENDPOINT)::matches));
 
             doAnswer(inv -> mockPerformRequestAsync(
                         ((Request) inv.getArguments()[0]),
                         (ResponseListener) inv.getArguments()[1]))
                     .when(restClient)
-                    .performRequestAsync(argThat(r -> new RequestMatcher("GET", ENDPOINT).matches(r)), any(ResponseListener.class));
+                    .performRequestAsync(argThat(new RequestMatcher("GET", ENDPOINT)::matches), any(ResponseListener.class));
         }
     }
 

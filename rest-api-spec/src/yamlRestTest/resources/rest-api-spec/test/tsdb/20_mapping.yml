@@ -112,7 +112,7 @@ non keyword matches routing_path:
       reason: introduced in 8.0.0
 
   - do:
-      catch: '/All fields that match routing_path must be keywords with \[time_series_dimension: true\] and without the \[script\] parameter. \[dim.foo\] was a runtime \[keyword\]./'
+      catch: '/All fields that match routing_path must be keywords with \[time_series_dimension: true\] and without the \[script\] parameter. \[@timestamp\] was \[date\]./'
       indices.create:
           index: test_index
           body:

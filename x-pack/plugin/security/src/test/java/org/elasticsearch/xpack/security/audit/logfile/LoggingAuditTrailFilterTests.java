@@ -85,8 +85,8 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
             .put(LoggingAuditTrail.EMIT_HOST_NAME_SETTING.getKey(), randomBoolean())
             .put(LoggingAuditTrail.EMIT_NODE_NAME_SETTING.getKey(), randomBoolean())
             .put(LoggingAuditTrail.EMIT_NODE_ID_SETTING.getKey(), randomBoolean())
-            .put(LoggingAuditTrail.EMIT_CLUSTER_NAME_SETTING.getKey(), true) // randomBoolean())
-            .put(LoggingAuditTrail.EMIT_CLUSTER_UUID_SETTING.getKey(), true) // randomBoolean())
+            .put(LoggingAuditTrail.EMIT_CLUSTER_NAME_SETTING.getKey(), randomBoolean())
+            .put(LoggingAuditTrail.EMIT_CLUSTER_UUID_SETTING.getKey(), randomBoolean())
             .put(LoggingAuditTrail.INCLUDE_REQUEST_BODY.getKey(), randomBoolean())
             .put(LoggingAuditTrail.INCLUDE_EVENT_SETTINGS.getKey(), "_all")
             .build();

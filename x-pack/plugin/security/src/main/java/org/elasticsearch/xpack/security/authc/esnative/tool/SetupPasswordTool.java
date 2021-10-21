@@ -66,7 +66,7 @@ import static java.util.Arrays.asList;
  * if successful. After the elastic user password is set you have to use the
  * `security` API to manipulate passwords.
  *
- * @deprecated Use {@link org.elasticsearch.xpack.security.authc.esnative.tool.ResetElasticPasswordTool} for setting the password of the
+ * @deprecated Use {@link ResetBuiltinPasswordTool} for setting the password of the
  * elastic user and the ChangePassword API for setting the password of the rest of the built-in users when needed.
  */
 @Deprecated

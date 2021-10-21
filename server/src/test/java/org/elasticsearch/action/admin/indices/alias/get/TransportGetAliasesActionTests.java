@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.action.admin.indices.alias.get;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -94,8 +95,11 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         assertThat(result.get("a").size(), equalTo(0));
         assertThat(result.get(".b").size(), equalTo(1));
         assertThat(result.get("c").size(), equalTo(1));
-        assertWarnings("this request accesses system indices: [.b], but in a future major version, direct access to system " +
-            "indices will be prevented by default");
+        assertWarnings(true,
+            new DeprecationWarning(
+                Level.WARN,
+                "this request accesses system indices: [.b], " +
+                    "but in a future major version, direct access to system indices will be prevented by default"));
     }
 
     public void testDeprecationWarningEmittedWhenSystemIndexIsRequested() {
@@ -113,8 +117,11 @@ public class TransportGetAliasesActionTests extends ESTestCase {
                 SystemIndexAccessLevel.NONE, null, EmptySystemIndices.INSTANCE);
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(".b").size(), equalTo(1));
-        assertWarnings("this request accesses system indices: [.b], but in a future major version, direct access to system " +
-            "indices will be prevented by default");
+        assertWarnings(true,
+            new DeprecationWarning(
+                Level.WARN,
+                "this request accesses system indices: [.b], " +
+                    "but in a future major version, direct access to system indices will be prevented by default"));
     }
 
     public void testDeprecationWarningEmittedWhenSystemIndexIsRequestedByAlias() {
@@ -131,8 +138,11 @@ public class TransportGetAliasesActionTests extends ESTestCase {
                 SystemIndexAccessLevel.NONE, null, EmptySystemIndices.INSTANCE);
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(".b").size(), equalTo(1));
-        assertWarnings("this request accesses system indices: [.b], but in a future major version, direct access to system " +
-            "indices will be prevented by default");
+        assertWarnings(true,
+            new DeprecationWarning(
+                Level.WARN,
+                "this request accesses system indices: [.b], " +
+                    "but in a future major version, direct access to system indices will be prevented by default"));
     }
 
     public void testDeprecationWarningNotEmittedWhenSystemAccessAllowed() {

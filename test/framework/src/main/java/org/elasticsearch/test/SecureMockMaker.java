@@ -82,7 +82,7 @@ public class SecureMockMaker implements MockMaker {
     @SuppressWarnings("rawtypes")
     @Override
     public MockHandler getHandler(Object o) {
-        return wrap(() -> delegate.getHandler(o));
+        return delegate.getHandler(o);
     }
 
     @SuppressWarnings("rawtypes")
@@ -96,7 +96,7 @@ public class SecureMockMaker implements MockMaker {
 
     @Override
     public TypeMockability isTypeMockable(Class<?> type) {
-        return wrap(() -> delegate.isTypeMockable(type));
+        return delegate.isTypeMockable(type);
     }
 
     @Override

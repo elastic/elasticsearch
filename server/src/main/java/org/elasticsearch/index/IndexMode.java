@@ -39,6 +39,7 @@ public enum IndexMode {
             }
         }
 
+        @Override
         public void validateMapping(MappingLookup lookup) {};
 
         @Override
@@ -66,6 +67,7 @@ public enum IndexMode {
             return tsdbMode() + " is incompatible with [" + unsupported.getKey() + "]";
         }
 
+        @Override
         public void validateMapping(MappingLookup lookup) {
             if (((RoutingFieldMapper) lookup.getMapper(RoutingFieldMapper.NAME)).required()) {
                 throw new IllegalArgumentException(routingRequiredBad());

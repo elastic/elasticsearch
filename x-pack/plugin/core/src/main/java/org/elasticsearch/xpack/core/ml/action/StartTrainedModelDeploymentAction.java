@@ -60,6 +60,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         public static final ParseField WAIT_FOR = new ParseField("wait_for");
         public static final ParseField INFERENCE_THREADS = TaskParams.INFERENCE_THREADS;
         public static final ParseField MODEL_THREADS = TaskParams.MODEL_THREADS;
+        public static final ParseField QUEUE_CAPACITY = TaskParams.QUEUE_CAPACITY;
 
         public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
@@ -69,6 +70,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             PARSER.declareString((request, waitFor) -> request.setWaitForState(AllocationStatus.State.fromString(waitFor)), WAIT_FOR);
             PARSER.declareInt(Request::setInferenceThreads, INFERENCE_THREADS);
             PARSER.declareInt(Request::setModelThreads, MODEL_THREADS);
+            PARSER.declareInt(Request::setQueueCapacity, QUEUE_CAPACITY);
         }
 
         public static Request parseRequest(String modelId, XContentParser parser) {
@@ -87,6 +89,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         private AllocationStatus.State waitForState = AllocationStatus.State.STARTED;
         private int modelThreads = 1;
         private int inferenceThreads = 1;
+        private int queueCapacity = 1024;
 
         private Request() {}
 
@@ -101,6 +104,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             waitForState = in.readEnum(AllocationStatus.State.class);
             modelThreads = in.readVInt();
             inferenceThreads = in.readVInt();
+            queueCapacity = in.readVInt();
         }
 
         public final void setModelId(String modelId) {
@@ -144,6 +148,14 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             this.inferenceThreads = inferenceThreads;
         }
 
+        public int getQueueCapacity() {
+            return queueCapacity;
+        }
+
+        public void setQueueCapacity(int queueCapacity) {
+            this.queueCapacity = queueCapacity;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
@@ -152,6 +164,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             out.writeEnum(waitForState);
             out.writeVInt(modelThreads);
             out.writeVInt(inferenceThreads);
+            out.writeVInt(queueCapacity);
         }
 
         @Override
@@ -162,6 +175,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             builder.field(WAIT_FOR.getPreferredName(), waitForState);
             builder.field(MODEL_THREADS.getPreferredName(), modelThreads);
             builder.field(INFERENCE_THREADS.getPreferredName(), inferenceThreads);
+            builder.field(QUEUE_CAPACITY.getPreferredName(), queueCapacity);
             builder.endObject();
             return builder;
         }
@@ -183,12 +197,15 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             if (inferenceThreads < 1) {
                 validationException.addValidationError("[" + INFERENCE_THREADS + "] must be a positive integer");
             }
+            if (queueCapacity < 1) {
+                validationException.addValidationError("[" + QUEUE_CAPACITY + "] must be a positive integer");
+            }
             return validationException.validationErrors().isEmpty() ? null : validationException;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(modelId, timeout, waitForState, modelThreads, inferenceThreads);
+            return Objects.hash(modelId, timeout, waitForState, modelThreads, inferenceThreads, queueCapacity);
         }
 
         @Override
@@ -204,7 +221,8 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 && Objects.equals(timeout, other.timeout)
                 && Objects.equals(waitForState, other.waitForState)
                 && modelThreads == other.modelThreads
-                && inferenceThreads == other.inferenceThreads;
+                && inferenceThreads == other.inferenceThreads
+                && queueCapacity == other.queueCapacity;
         }
 
         @Override
@@ -226,16 +244,20 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         private static final ParseField MODEL_BYTES = new ParseField("model_bytes");
         public static final ParseField MODEL_THREADS = new ParseField("model_threads");
         public static final ParseField INFERENCE_THREADS = new ParseField("inference_threads");
+        public static final ParseField QUEUE_CAPACITY = new ParseField("queue_capacity");
+
         private static final ConstructingObjectParser<TaskParams, Void> PARSER = new ConstructingObjectParser<>(
             "trained_model_deployment_params",
             true,
-            a -> new TaskParams((String)a[0], (Long)a[1], (int) a[2], (int) a[3])
+            a -> new TaskParams((String)a[0], (Long)a[1], (int) a[2], (int) a[3], (int) a[4])
         );
+
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), TrainedModelConfig.MODEL_ID);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), MODEL_BYTES);
             PARSER.declareInt(ConstructingObjectParser.constructorArg(), INFERENCE_THREADS);
             PARSER.declareInt(ConstructingObjectParser.constructorArg(), MODEL_THREADS);
+            PARSER.declareInt(ConstructingObjectParser.constructorArg(), QUEUE_CAPACITY);
         }
 
         public static TaskParams fromXContent(XContentParser parser) {
@@ -253,28 +275,22 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         private final long modelBytes;
         private final int inferenceThreads;
         private final int modelThreads;
+        private final int queueCapacity;
 
-        public TaskParams(String modelId, long modelBytes, int inferenceThreads, int modelThreads) {
+        public TaskParams(String modelId, long modelBytes, int inferenceThreads, int modelThreads, int queueCapacity) {
             this.modelId = Objects.requireNonNull(modelId);
             this.modelBytes = modelBytes;
-            if (modelBytes < 0) {
-                throw new IllegalArgumentException("modelBytes must be non-negative");
-            }
             this.inferenceThreads = inferenceThreads;
-            if (inferenceThreads < 1) {
-                throw new IllegalArgumentException(INFERENCE_THREADS + " must be positive");
-            }
             this.modelThreads = modelThreads;
-            if (modelThreads < 1) {
-                throw new IllegalArgumentException(MODEL_THREADS + " must be positive");
-            }
+            this.queueCapacity = queueCapacity;
         }
 
         public TaskParams(StreamInput in) throws IOException {
             this.modelId = in.readString();
-            this.modelBytes = in.readVLong();
+            this.modelBytes = in.readLong();
             this.inferenceThreads = in.readVInt();
             this.modelThreads = in.readVInt();
+            this.queueCapacity = in.readVInt();
         }
 
         public String getModelId() {
@@ -293,9 +309,10 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(modelId);
-            out.writeVLong(modelBytes);
+            out.writeLong(modelBytes);
             out.writeVInt(inferenceThreads);
             out.writeVInt(modelThreads);
+            out.writeVInt(queueCapacity);
         }
 
         @Override
@@ -305,13 +322,14 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             builder.field(MODEL_BYTES.getPreferredName(), modelBytes);
             builder.field(INFERENCE_THREADS.getPreferredName(), inferenceThreads);
             builder.field(MODEL_THREADS.getPreferredName(), modelThreads);
+            builder.field(QUEUE_CAPACITY.getPreferredName(), queueCapacity);
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(modelId, modelBytes, inferenceThreads, modelThreads);
+            return Objects.hash(modelId, modelBytes, inferenceThreads, modelThreads, queueCapacity);
         }
 
         @Override
@@ -323,7 +341,8 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             return Objects.equals(modelId, other.modelId)
                 && modelBytes == other.modelBytes
                 && inferenceThreads == other.inferenceThreads
-                && modelThreads == other.modelThreads;
+                && modelThreads == other.modelThreads
+                && queueCapacity == other.queueCapacity;
         }
 
         @Override
@@ -341,6 +360,15 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
 
         public int getModelThreads() {
             return modelThreads;
+        }
+
+        public int getQueueCapacity() {
+            return queueCapacity;
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
         }
     }
 

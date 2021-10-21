@@ -368,7 +368,7 @@ public class VectorTileRestIT extends ESRestTestCase {
             final VectorTile.Tile tile = execute(mvtRequest);
             assertThat(tile.getLayersCount(), Matchers.equalTo(3));
             assertLayer(tile, HITS_LAYER, 4096, 33, 2);
-            assertLayer(tile, AGGS_LAYER, 4096, 1, 1);
+            assertLayer(tile, AGGS_LAYER, 4096, 1, 2);
             assertLayer(tile, META_LAYER, 4096, 1, 13);
             assertFeatureType(tile, AGGS_LAYER, VectorTile.Tile.GeomType.POLYGON);
         }
@@ -378,7 +378,7 @@ public class VectorTileRestIT extends ESRestTestCase {
             final VectorTile.Tile tile = execute(mvtRequest);
             assertThat(tile.getLayersCount(), Matchers.equalTo(3));
             assertLayer(tile, HITS_LAYER, 4096, 33, 2);
-            assertLayer(tile, AGGS_LAYER, 4096, 1, 1);
+            assertLayer(tile, AGGS_LAYER, 4096, 1, 2);
             assertLayer(tile, META_LAYER, 4096, 1, 13);
             assertFeatureType(tile, AGGS_LAYER, VectorTile.Tile.GeomType.POINT);
         }
@@ -427,7 +427,7 @@ public class VectorTileRestIT extends ESRestTestCase {
             final VectorTile.Tile tile = execute(mvtRequest);
             assertThat(tile.getLayersCount(), Matchers.equalTo(3));
             assertLayer(tile, HITS_LAYER, 4096, 33, 2);
-            assertLayer(tile, AGGS_LAYER, 4096, 1, 4);
+            assertLayer(tile, AGGS_LAYER, 4096, 1, 2);
             assertLayer(tile, META_LAYER, 4096, 1, 13);
             assertStringTag(getLayer(tile, META_LAYER), getLayer(tile, META_LAYER).getFeatures(0), "hits.total.relation", "eq");
             assertSintTag(getLayer(tile, META_LAYER), getLayer(tile, META_LAYER).getFeatures(0), "hits.total.value", 33);
@@ -438,7 +438,7 @@ public class VectorTileRestIT extends ESRestTestCase {
             final VectorTile.Tile tile = execute(mvtRequest);
             assertThat(tile.getLayersCount(), Matchers.equalTo(3));
             assertLayer(tile, HITS_LAYER, 4096, 33, 2);
-            assertLayer(tile, AGGS_LAYER, 4096, 1, 1);
+            assertLayer(tile, AGGS_LAYER, 4096, 1, 2);
             assertLayer(tile, META_LAYER, 4096, 1, 11);
         }
     }
@@ -463,7 +463,7 @@ public class VectorTileRestIT extends ESRestTestCase {
             final VectorTile.Tile tile = execute(mvtRequest);
             assertThat(tile.getLayersCount(), Matchers.equalTo(3));
             assertLayer(tile, HITS_LAYER, 4096, 33, 2);
-            assertLayer(tile, AGGS_LAYER, 4096, 1, 1);
+            assertLayer(tile, AGGS_LAYER, 4096, 1, 2);
             assertLayer(tile, META_LAYER, 4096, 1, 13);
             assertStringTag(getLayer(tile, META_LAYER), getLayer(tile, META_LAYER).getFeatures(0), "hits.total.relation", "gte");
             assertSintTag(getLayer(tile, META_LAYER), getLayer(tile, META_LAYER).getFeatures(0), "hits.total.value", 1);
@@ -543,7 +543,7 @@ public class VectorTileRestIT extends ESRestTestCase {
             assertLayer(tile, HITS_LAYER, 4096, 34, 2);
             final VectorTile.Tile.Layer layer = getLayer(tile, HITS_LAYER);
             assertThat(layer.getFeatures(0).getType(), Matchers.equalTo(VectorTile.Tile.GeomType.POINT));
-            assertLayer(tile, AGGS_LAYER, 4096, 256 * 256, 1);
+            assertLayer(tile, AGGS_LAYER, 4096, 256 * 256, 2);
             assertLayer(tile, META_LAYER, 4096, 1, 14);
         }
     }

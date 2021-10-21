@@ -329,7 +329,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
                     terminal.errorPrintln("   This tool used the keystore at " + KeyStoreWrapper.keystorePath(env.configFile()));
                     terminal.errorPrintln("");
                     terminal.errorPrintln(
-                        "You can use `elasticsearch-reset-elastic-password` CLI tool to reset the password of the '" + elasticUser
+                        "You can use the `elasticsearch-reset-elastic-password` CLI tool to reset the password of the '" + elasticUser
                             + "' user"
                     );
                     terminal.errorPrintln("");

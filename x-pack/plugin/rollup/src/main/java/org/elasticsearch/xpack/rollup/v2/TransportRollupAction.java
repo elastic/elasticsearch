@@ -40,6 +40,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -116,6 +117,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         } else {
             rollupIndexName = request.getRollupIndex();
         }
+        validExistsRollupIndex(state, rollupIndexName);
 
         String tmpIndexName = ".rolluptmp-" + rollupIndexName;
 
@@ -198,6 +200,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                     );
                 }
 
+                @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     // index created
                     // 3.
@@ -394,5 +397,19 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 listener.onFailure(new ElasticsearchException("Unable to delete temp rollup index [" + tmpIndex + "]", e));
             }
         });
+    }
+
+    private void validExistsRollupIndex(ClusterState state, String rollupIndex) {
+        if (state.metadata().hasIndex(rollupIndex)) {
+            throw new InvalidIndexNameException(rollupIndex, "rollup index already exists");
+        }
+
+        if (state.metadata().hasAlias(rollupIndex)) {
+            throw new InvalidIndexNameException(rollupIndex, "rollup index already exists as alias");
+        }
+
+        if (state.metadata().dataStreams().containsKey(rollupIndex)) {
+            throw new InvalidIndexNameException(rollupIndex, "rollup index already exists as data stream");
+        }
     }
 }

@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
@@ -33,6 +34,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
@@ -186,8 +188,40 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         bulkIndex(sourceSupplier);
         rollup(index, rollupIndex, config);
         assertRollupIndex(config, index, rollupIndex);
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> rollup(index, rollupIndex, config));
-        assertThat(exception.getMessage(), containsString("Unable to rollup index [" + index + "]"));
+        InvalidIndexNameException exception = expectThrows(InvalidIndexNameException.class, () -> rollup(index, rollupIndex, config));
+        assertThat(exception.getMessage(), equalTo("Invalid index name [" + rollupIndex + "], rollup index already exists"));
+    }
+
+    public void testCannotRollupToExistingAlias() {
+        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
+        RollupActionConfig config = new RollupActionConfig(
+            new RollupActionGroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("categorical_1")),
+            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max")))
+        );
+        String aliasName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        client().admin()
+            .indices()
+            .prepareCreate(randomAlphaOfLength(6).toLowerCase(Locale.ROOT))
+            .setSettings(Settings.builder().put("index.number_of_shards", 1).build())
+            .addAlias(new Alias(aliasName))
+            .get();
+
+        InvalidIndexNameException exception = expectThrows(InvalidIndexNameException.class, () -> rollup(index, aliasName, config));
+        assertThat(exception.getMessage(), equalTo("Invalid index name [" + aliasName + "], rollup index already exists as alias"));
+    }
+
+    public void testCannotRollupToExistingDataStream() throws Exception {
+        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
+        RollupActionConfig config = new RollupActionConfig(
+            new RollupActionGroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("categorical_1")),
+            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max")))
+        );
+        String datsStreamName = createDataStream();
+        InvalidIndexNameException exception = expectThrows(InvalidIndexNameException.class, () -> rollup(index, datsStreamName, config));
+        assertThat(
+            exception.getMessage(),
+            equalTo("Invalid index name [" + datsStreamName + "], rollup index already exists as data stream")
+        );
     }
 
     public void testTemporaryIndexCannotBeCreatedAlreadyExists() {

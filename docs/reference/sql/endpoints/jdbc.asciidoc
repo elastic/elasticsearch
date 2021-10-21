@@ -88,20 +88,20 @@ Timezone used by the driver _per connection_ indicated by its `ID`.
 [discrete]
 ===== Network
 
-`connect.timeout` (default 30s)::
-Connection timeout (in seconds). That is the maximum amount of time waiting to make a connection to the server.
+`connect.timeout` (default 30000ms)::
+Connection timeout (in milliseconds). That is the maximum amount of time waiting to make a connection to the server.
 
-`network.timeout` (default 60s)::
-Network timeout (in seconds). That is the maximum amount of time waiting for the network.
+`network.timeout` (default 60000ms)::
+Network timeout (in milliseconds). That is the maximum amount of time waiting for the network.
 
-`page.timeout` (default 45s)::
-Page timeout (in seconds). That is the maximum amount of time waiting for a page.
+`page.timeout` (default 45000ms)::
+Page timeout (in milliseconds). That is the maximum amount of time waiting for a page.
 
 `page.size` (default 1000)::
 Page size (in entries). The number of results returned per page by the server.
 
-`query.timeout` (default 90s)::
-Query timeout (in seconds). That is the maximum amount of time waiting for a query to return.
+`query.timeout` (default 90000ms)::
+Query timeout (in milliseconds). That is the maximum amount of time waiting for a query to return.
 
 [[jdbc-cfg-auth]]
 [discrete]

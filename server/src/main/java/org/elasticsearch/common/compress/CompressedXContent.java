@@ -194,6 +194,8 @@ public final class CompressedXContent {
         if (Arrays.equals(bytes, that.bytes)) {
             return true;
         }
+        // compression is not entirely deterministic in all cases depending on hwo the compressed bytes were assembled, check uncompressed
+        // equality
         return equals(bytes, that.bytes);
     }
 

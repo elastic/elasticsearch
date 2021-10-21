@@ -48,11 +48,9 @@ PUT _ingest/pipeline/my-pipeline-id
 [[put-pipeline-api-query-params]]
 ==== {api-query-parms-title}
 
-tag::if_version[]
 `if_version`::
 (Optional, integer) Perform the operation only if the pipeline has this
 version.
-end::if_version[]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 

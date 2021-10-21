@@ -115,6 +115,26 @@ public class SmileXContent implements XContent {
     }
 
     @Override
+    public XContentParser createParser(
+        NamedXContentRegistry xContentRegistry,
+        DeprecationHandler deprecationHandler,
+        byte[] data,
+        int offset,
+        int length,
+        FilterPath[] includes,
+        FilterPath[] excludes
+    ) throws IOException {
+        return new SmileXContentParser(
+            xContentRegistry,
+            deprecationHandler,
+            smileFactory.createParser(new ByteArrayInputStream(data, offset, length)),
+            RestApiVersion.current(),
+            includes,
+            excludes
+        );
+    }
+
+    @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry,
             DeprecationHandler deprecationHandler, Reader reader) throws IOException {
         return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(reader));

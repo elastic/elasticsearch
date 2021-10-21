@@ -96,6 +96,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptService;
@@ -143,6 +144,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -184,7 +186,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
         plugins.add(new AggCardinalityUpperBoundPlugin());
         SearchModule searchModule = new SearchModule(Settings.EMPTY, plugins);
         valuesSourceRegistry = searchModule.getValuesSourceRegistry();
-        namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
+        namedWriteableRegistry = new NamedWriteableRegistry(
+            Stream.concat(
+                searchModule.getNamedWriteables().stream(),
+                plugins.stream().flatMap(p -> p instanceof Plugin ? ((Plugin) p).getNamedWriteables().stream() : Stream.empty())
+            ).collect(toList())
+        );
     }
 
     @Before

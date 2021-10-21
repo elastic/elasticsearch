@@ -55,19 +55,19 @@ endif::[]
 
 |7.0–7.15
 a|
-. https://www.elastic.co/guide/en/elasticsearch/reference/{prev-major-version}/rolling-upgrades.html[Rolling upgrade] to {prev-major-version}
+. {ref-7x}/rolling-upgrades.html[Rolling upgrade] to 7.16
 . <<rolling-upgrades,Rolling upgrade>> to {version}
 
 |6.8
 a|
-. https://www.elastic.co/guide/en/elasticsearch/reference/{prev-major-version}/rolling-upgrades.html[Rolling upgrade] to {prev-major-version}
+. {ref-7x}/rolling-upgrades.html[Rolling upgrade] to 7.16
 . <<rolling-upgrades,Rolling upgrade>> to {version}
 
 |6.0–6.7
 a|
 
 . https://www.elastic.co/guide/en/elasticsearch/reference/6.8/rolling-upgrades.html[Rolling upgrade] to 6.8
-. https://www.elastic.co/guide/en/elasticsearch/reference/{prev-major-version}/rolling-upgrades.html[Rolling upgrade] to {prev-major-version}
+. {ref-7x}/rolling-upgrades.html[Rolling upgrade] to 7.16
 . <<rolling-upgrades,Rolling upgrade>> to {version}
 |====
 

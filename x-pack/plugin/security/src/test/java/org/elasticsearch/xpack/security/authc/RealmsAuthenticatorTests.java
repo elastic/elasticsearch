@@ -123,16 +123,16 @@ public class RealmsAuthenticatorTests extends ESTestCase {
 
         when(successfulRealm.supports(authenticationToken)).thenReturn(true);
         doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked") final ActionListener<AuthenticationResult> listener =
-                (ActionListener<AuthenticationResult>) invocationOnMock.getArguments()[1];
+            @SuppressWarnings("unchecked") final ActionListener<AuthenticationResult<User>> listener =
+                (ActionListener<AuthenticationResult<User>>) invocationOnMock.getArguments()[1];
             listener.onResponse(AuthenticationResult.success(user));
             return null;
         }).when(successfulRealm).authenticate(eq(authenticationToken), any());
 
         when(unsuccessfulRealm.supports(authenticationToken)).thenReturn(randomBoolean());
         doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked") final ActionListener<AuthenticationResult> listener =
-                (ActionListener<AuthenticationResult>) invocationOnMock.getArguments()[1];
+            @SuppressWarnings("unchecked") final ActionListener<AuthenticationResult<User>> listener =
+                (ActionListener<AuthenticationResult<User>>) invocationOnMock.getArguments()[1];
             listener.onResponse(AuthenticationResult.unsuccessful("unsuccessful", null));
             return null;
         }).when(unsuccessfulRealm).authenticate(eq(authenticationToken), any());
@@ -229,10 +229,10 @@ public class RealmsAuthenticatorTests extends ESTestCase {
         assertThat(expectThrows(ElasticsearchSecurityException.class, future::actionGet), is(e));
     }
 
-    private void configureRealmAuthResponse(Realm realm, AuthenticationResult authenticationResult) {
+    private void configureRealmAuthResponse(Realm realm, AuthenticationResult<User> authenticationResult) {
         doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked") final ActionListener<AuthenticationResult> listener =
-                (ActionListener<AuthenticationResult>) invocationOnMock.getArguments()[1];
+            @SuppressWarnings("unchecked") final ActionListener<AuthenticationResult<User>> listener =
+                (ActionListener<AuthenticationResult<User>>) invocationOnMock.getArguments()[1];
             listener.onResponse(authenticationResult);
             return null;
         }).when(realm).authenticate(eq(authenticationToken), any());

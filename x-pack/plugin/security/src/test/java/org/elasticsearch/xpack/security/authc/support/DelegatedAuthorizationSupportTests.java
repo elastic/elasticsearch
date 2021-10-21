@@ -82,11 +82,11 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
         final XPackLicenseState license = getLicenseState(true);
         final DelegatedAuthorizationSupport das = new DelegatedAuthorizationSupport(realms, buildRealmConfig("r", Settings.EMPTY), license);
         assertThat(das.hasDelegation(), equalTo(false));
-        final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         das.resolve("any", future);
-        final AuthenticationResult result = future.get();
+        final AuthenticationResult<User> result = future.get();
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
-        assertThat(result.getUser(), nullValue());
+        assertThat(result.getValue(), nullValue());
         assertThat(result.getMessage(), equalTo("No [authorization_realms] have been configured"));
     }
 
@@ -127,11 +127,11 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
         randomFrom(useRealms).registerUser(user);
         final DelegatedAuthorizationSupport das = new DelegatedAuthorizationSupport(realms, buildRealmConfig("r", settings), license);
         assertThat(das.hasDelegation(), equalTo(true));
-        final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         das.resolve("my_user", future);
-        final AuthenticationResult result = future.get();
+        final AuthenticationResult<User> result = future.get();
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
-        assertThat(result.getUser(), sameInstance(user));
+        assertThat(result.getValue(), sameInstance(user));
     }
 
     public void testRealmsAreOrdered() throws Exception {
@@ -151,12 +151,12 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
 
         final DelegatedAuthorizationSupport das = new DelegatedAuthorizationSupport(realms, buildRealmConfig("r", settings), license);
         assertThat(das.hasDelegation(), equalTo(true));
-        final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         das.resolve(username, future);
-        final AuthenticationResult result = future.get();
+        final AuthenticationResult<User> result = future.get();
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
-        assertThat(result.getUser(), sameInstance(users.get(0)));
-        assertThat(result.getUser().roles(), arrayContaining("role_" + useRealms.get(0).name()));
+        assertThat(result.getValue(), sameInstance(users.get(0)));
+        assertThat(result.getValue().roles(), arrayContaining("role_" + useRealms.get(0).name()));
     }
 
     public void testNoMatchInDelegationList() throws Exception {
@@ -167,11 +167,11 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
             .build();
         final DelegatedAuthorizationSupport das = new DelegatedAuthorizationSupport(realms, buildRealmConfig("r", settings), license);
         assertThat(das.hasDelegation(), equalTo(true));
-        final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         das.resolve("my_user", future);
-        final AuthenticationResult result = future.get();
+        final AuthenticationResult<User> result = future.get();
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
-        assertThat(result.getUser(), nullValue());
+        assertThat(result.getValue(), nullValue());
         assertThat(result.getMessage(), equalTo("the principal [my_user] was authenticated, but no user could be found in realms [" +
             collectionToDelimitedString(useRealms.stream().map(Realm::toString).collect(Collectors.toList()), ",") + "]"));
     }
@@ -183,11 +183,11 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
             .build();
         final DelegatedAuthorizationSupport das = new DelegatedAuthorizationSupport(realms, buildRealmConfig("r", settings), license);
         assertThat(das.hasDelegation(), equalTo(true));
-        final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         das.resolve("my_user", future);
-        final AuthenticationResult result = future.get();
+        final AuthenticationResult<User> result = future.get();
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
-        assertThat(result.getUser(), nullValue());
+        assertThat(result.getValue(), nullValue());
         assertThat(result.getMessage(), equalTo("authorization_realms are not permitted"));
         assertThat(result.getException(), instanceOf(ElasticsearchSecurityException.class));
         assertThat(result.getException().getMessage(), equalTo("current license is non-compliant for [authorization_realms]"));

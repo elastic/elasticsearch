@@ -133,7 +133,7 @@ class RealmsAuthenticator implements Authenticator {
         final Map<Realm, Tuple<String, Exception>> messages = new LinkedHashMap<>();
 
         final AtomicReference<Authentication.RealmRef> authenticatedByRef = new AtomicReference<>();
-        final AtomicReference<AuthenticationResult> authenticationResultRef = new AtomicReference<>();
+        final AtomicReference<AuthenticationResult<User>> authenticationResultRef = new AtomicReference<>();
 
         final BiConsumer<Realm, ActionListener<User>> realmAuthenticatingConsumer = (realm, userListener) -> {
             if (realm.supports(authenticationToken)) {
@@ -155,7 +155,7 @@ class RealmsAuthenticator implements Authenticator {
                         if (lastSuccessfulAuthCache != null && startInvalidation == numInvalidation.get()) {
                             lastSuccessfulAuthCache.put(authenticationToken.principal(), realm);
                         }
-                        userListener.onResponse(result.getUser());
+                        userListener.onResponse(result.getValue());
                     } else {
                         // the user was not authenticated, call this so we can audit the correct event
                         context.getRequest().realmAuthenticationFailed(authenticationToken, realm.name());
@@ -196,7 +196,7 @@ class RealmsAuthenticator implements Authenticator {
                     if (user == null) {
                         consumeNullUser(context, messages, listener);
                     } else {
-                        final AuthenticationResult result = authenticationResultRef.get();
+                        final AuthenticationResult<User> result = authenticationResultRef.get();
                         assert result != null : "authentication result must not be null when user is not null";
                         context.getThreadContext().putTransient(AuthenticationResult.THREAD_CONTEXT_KEY, result);
                         listener.onResponse(Authenticator.Result.success(

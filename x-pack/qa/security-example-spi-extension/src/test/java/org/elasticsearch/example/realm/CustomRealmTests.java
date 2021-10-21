@@ -37,9 +37,9 @@ public class CustomRealmTests extends ESTestCase {
             TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings)));
         SecureString password = CustomRealm.DEFAULT_KNOWN_PW.clone();
         UsernamePasswordToken token = new UsernamePasswordToken(CustomRealm.DEFAULT_KNOWN_USER, password);
-        PlainActionFuture<AuthenticationResult> plainActionFuture = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> plainActionFuture = new PlainActionFuture<>();
         realm.authenticate(token, plainActionFuture);
-        User user = plainActionFuture.actionGet().getUser();
+        User user = plainActionFuture.actionGet().getValue();
         assertThat(user, notNullValue());
         assertThat(List.of(user.roles()), equalTo(CustomRealm.DEFAULT_ROLES));
         assertThat(user.principal(), equalTo(CustomRealm.DEFAULT_KNOWN_USER));
@@ -64,9 +64,9 @@ public class CustomRealmTests extends ESTestCase {
             new ThreadContext(settings)
         ));
         UsernamePasswordToken token = new UsernamePasswordToken("skroob", new SecureString(password.toCharArray()));
-        PlainActionFuture<AuthenticationResult> plainActionFuture = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> plainActionFuture = new PlainActionFuture<>();
         realm.authenticate(token, plainActionFuture);
-        User user = plainActionFuture.actionGet().getUser();
+        User user = plainActionFuture.actionGet().getValue();
         assertThat(user, notNullValue());
         assertThat(user.roles(), arrayContaining("president", "villain"));
         assertThat(user.principal(), equalTo("skroob"));
@@ -81,9 +81,9 @@ public class CustomRealmTests extends ESTestCase {
             TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings)));
         SecureString password = CustomRealm.DEFAULT_KNOWN_PW.clone();
         UsernamePasswordToken token = new UsernamePasswordToken(CustomRealm.DEFAULT_KNOWN_USER + "1", password);
-        PlainActionFuture<AuthenticationResult> plainActionFuture = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> plainActionFuture = new PlainActionFuture<>();
         realm.authenticate(token, plainActionFuture);
-        final AuthenticationResult result = plainActionFuture.actionGet();
+        final AuthenticationResult<User> result = plainActionFuture.actionGet();
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
     }
 }

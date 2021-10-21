@@ -39,7 +39,7 @@ public class NativeRealm extends CachingUsernamePasswordRealm {
     }
 
     @Override
-    protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
+    protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult<User>> listener) {
         userStore.verifyPassword(token.principal(), token.credentials(), listener);
     }
 

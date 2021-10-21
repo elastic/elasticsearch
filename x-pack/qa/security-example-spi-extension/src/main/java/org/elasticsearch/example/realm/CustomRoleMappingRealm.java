@@ -56,7 +56,7 @@ public class CustomRoleMappingRealm extends Realm implements CachingRealm {
     }
 
     @Override
-    public void authenticate(AuthenticationToken authToken, ActionListener<AuthenticationResult> listener) {
+    public void authenticate(AuthenticationToken authToken, ActionListener<AuthenticationResult<User>> listener) {
         listener.onResponse(AuthenticationResult.notHandled());
     }
 

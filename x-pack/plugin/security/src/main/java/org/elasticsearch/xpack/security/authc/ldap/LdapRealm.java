@@ -123,11 +123,11 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
      * This user will then be passed to the listener
      */
     @Override
-    protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
+    protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult<User>> listener) {
         assert delegatedRealms != null : "Realm has not been initialized correctly";
         // we submit to the threadpool because authentication using LDAP will execute blocking I/O for a bind request and we don't want
         // network threads stuck waiting for a socket to connect. After the bind, then all interaction with LDAP should be async
-        final CancellableLdapRunnable<AuthenticationResult> cancellableLdapRunnable = new CancellableLdapRunnable<>(listener,
+        final CancellableLdapRunnable<AuthenticationResult<User>> cancellableLdapRunnable = new CancellableLdapRunnable<>(listener,
                 ex -> AuthenticationResult.unsuccessful("Authentication against realm [" + this.toString() + "] failed", ex),
                 () -> sessionFactory.session(token.principal(), token.credentials(),
                         contextPreservingListener(new LdapSessionActionListener("authenticate", token.principal(), listener))), logger
@@ -141,8 +141,8 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
         if (sessionFactory.supportsUnauthenticatedSession()) {
             // we submit to the threadpool because authentication using LDAP will execute blocking I/O for a bind request and we don't want
             // network threads stuck waiting for a socket to connect. After the bind, then all interaction with LDAP should be async
-            final ActionListener<AuthenticationResult> sessionListener = ActionListener.wrap(
-                    result -> userActionListener.onResponse(result.getUser()),
+            final ActionListener<AuthenticationResult<User>> sessionListener = ActionListener.wrap(
+                    result -> userActionListener.onResponse(result.getValue()),
                     userActionListener::onFailure);
             final CancellableLdapRunnable<User> cancellableLdapRunnable = new CancellableLdapRunnable<>(userActionListener, e -> null,
                     () -> sessionFactory.unauthenticatedSession(username,
@@ -185,7 +185,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
         }, listener::onFailure));
     }
 
-    private static void buildUser(LdapSession session, String username, ActionListener<AuthenticationResult> listener,
+    private static void buildUser(LdapSession session, String username, ActionListener<AuthenticationResult<User>> listener,
                                   UserRoleMapper roleMapper, DelegatedAuthorizationSupport delegatedAuthz) {
         assert delegatedAuthz != null : "DelegatedAuthorizationSupport is null";
         if (session == null) {
@@ -198,7 +198,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
     }
 
     @Override
-    protected void handleCachedAuthentication(User user, ActionListener<AuthenticationResult> listener) {
+    protected void handleCachedAuthentication(User user, ActionListener<AuthenticationResult<User>> listener) {
         if (delegatedRealms.hasDelegation()) {
             delegatedRealms.resolve(user.principal(), listener);
         } else {
@@ -207,7 +207,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
     }
 
     private static void lookupUserFromSession(String username, LdapSession session, UserRoleMapper roleMapper,
-                                              ActionListener<AuthenticationResult> listener) {
+                                              ActionListener<AuthenticationResult<User>> listener) {
         boolean loadingGroups = false;
         try {
             final Consumer<Exception> onFailure = e -> {
@@ -250,9 +250,9 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
         private final AtomicReference<LdapSession> ldapSessionAtomicReference = new AtomicReference<>();
         private String action;
         private final String username;
-        private final ActionListener<AuthenticationResult> resultListener;
+        private final ActionListener<AuthenticationResult<User>> resultListener;
 
-        LdapSessionActionListener(String action, String username, ActionListener<AuthenticationResult> resultListener) {
+        LdapSessionActionListener(String action, String username, ActionListener<AuthenticationResult<User>> resultListener) {
             this.action = action;
             this.username = username;
             this.resultListener = resultListener;

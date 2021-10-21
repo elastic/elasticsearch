@@ -264,7 +264,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
                 env, threadContext);
             final CachingUsernamePasswordRealm mockRealm = new CachingUsernamePasswordRealm(realmConfig, threadPool) {
                 @Override
-                protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
+                protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult<User>> listener) {
                     listener.onResponse(AuthenticationResult.notHandled());
                 }
 

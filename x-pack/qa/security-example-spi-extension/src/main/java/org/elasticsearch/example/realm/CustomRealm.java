@@ -81,7 +81,7 @@ public class CustomRealm extends Realm {
     }
 
     @Override
-    public void authenticate(AuthenticationToken authToken, ActionListener<AuthenticationResult> listener) {
+    public void authenticate(AuthenticationToken authToken, ActionListener<AuthenticationResult<User>> listener) {
         UsernamePasswordToken token = (UsernamePasswordToken)authToken;
         final String actualUser = token.principal();
         if (username.equals(actualUser)) {

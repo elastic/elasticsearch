@@ -76,12 +76,12 @@ public class DelegatedAuthorizationSupport {
     /**
      * Attempts to find the user specified by {@code username} in one of the delegated realms.
      * The realms are searched in the order specified during construction.
-     * Returns a {@link AuthenticationResult#success(User) successful result} if a {@link User}
+     * Returns a {@link AuthenticationResult#success(Object) successful result} if a {@link User}
      * was found, otherwise returns an
      * {@link AuthenticationResult#unsuccessful(String, Exception) unsuccessful result}
      * with a meaningful diagnostic message.
      */
-    public void resolve(String username, ActionListener<AuthenticationResult> resultListener) {
+    public void resolve(String username, ActionListener<AuthenticationResult<User>> resultListener) {
         boolean authzOk = Security.DELEGATED_AUTHORIZATION_FEATURE.check(licenseState);
         if (authzOk == false) {
             resultListener.onResponse(AuthenticationResult.unsuccessful(

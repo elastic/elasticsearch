@@ -141,6 +141,8 @@ public class DelegatePkiAuthenticationResponseTests extends AbstractXContentTest
             metadata.put(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLengthBetween(1, 10));
             if (randomBoolean()) {
                 metadata.put(AuthenticationField.API_KEY_NAME_KEY, randomAlphaOfLengthBetween(1, 10));
+            } else {
+                metadata.put(AuthenticationField.API_KEY_NAME_KEY, null);
             }
         }
         return new Authentication(

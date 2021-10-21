@@ -224,12 +224,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         verify(trainedModelProvider, times(1)).getTrainedModelForInference(eq(model3), eq(false), any());
 
         // model 3 has been loaded and evicted exactly once
-        verify(trainedModelStatsService, times(1)).queueStats(argThat(new ArgumentMatcher<>() {
-            @Override
-            public boolean matches(final Object o) {
-                return ((InferenceStats)o).getModelId().equals(model3);
-            }
-        }), anyBoolean());
+        verify(trainedModelStatsService, times(1)).queueStats(argThat(o -> o.getModelId().equals(model3)), anyBoolean());
 
         // Load model 3, should invalidate 1 and 2
         for(int i = 0; i < 10; i++) {
@@ -239,18 +234,8 @@ public class ModelLoadingServiceTests extends ESTestCase {
         }
         verify(trainedModelProvider, times(2)).getTrainedModelForInference(eq(model3), eq(false), any());
 
-        verify(trainedModelStatsService, atMost(2)).queueStats(argThat(new ArgumentMatcher<>() {
-            @Override
-            public boolean matches(final Object o) {
-                return ((InferenceStats)o).getModelId().equals(model1);
-            }
-        }), anyBoolean());
-        verify(trainedModelStatsService, atMost(2)).queueStats(argThat(new ArgumentMatcher<>() {
-            @Override
-            public boolean matches(final Object o) {
-                return ((InferenceStats)o).getModelId().equals(model2);
-            }
-        }), anyBoolean());
+        verify(trainedModelStatsService, atMost(2)).queueStats(argThat(o -> o.getModelId().equals(model1)), anyBoolean());
+        verify(trainedModelStatsService, atMost(2)).queueStats(argThat(o -> o.getModelId().equals(model2)), anyBoolean());
 
         // Load model 1, should invalidate 3
         for(int i = 0; i < 10; i++) {
@@ -259,12 +244,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             assertThat(future1.get(), is(not(nullValue())));
         }
         verify(trainedModelProvider, atMost(3)).getTrainedModelForInference(eq(model1), eq(false), any());
-        verify(trainedModelStatsService, times(2)).queueStats(argThat(new ArgumentMatcher<>() {
-            @Override
-            public boolean matches(final Object o) {
-                return ((InferenceStats)o).getModelId().equals(model3);
-            }
-        }), anyBoolean());
+        verify(trainedModelStatsService, times(2)).queueStats(argThat(o -> o.getModelId().equals(model3)), anyBoolean());
 
         // Load model 2
         for(int i = 0; i < 10; i++) {

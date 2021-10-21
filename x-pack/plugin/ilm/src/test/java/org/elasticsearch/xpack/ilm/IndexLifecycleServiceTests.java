@@ -345,18 +345,9 @@ public class IndexLifecycleServiceTests extends ESTestCase {
                 Priority actualPriority = null;
 
                 @Override
-                public boolean matches(Object argument) {
-                    if (argument instanceof OperationModeUpdateTask == false) {
-                        return false;
-                    }
-                    actualPriority = ((OperationModeUpdateTask) argument).priority();
+                public boolean matches(OperationModeUpdateTask other) {
+                    actualPriority = other.priority();
                     return actualPriority == expectedPriority;
-                }
-
-                @Override
-                public void describeTo(Description description) {
-                    description.appendText("the cluster state update task priority must be "+ expectedPriority+" but got: ")
-                        .appendText(actualPriority.name());
                 }
             })
         );

@@ -401,11 +401,11 @@ public final class GeoIpProcessor extends AbstractProcessor {
             }
 
             DatabaseReaderLazyLoader lazyLoader = databaseRegistry.getDatabase(databaseFile);
-            if (lazyLoader == null && databaseRegistry.getAvailableDatabases().isEmpty() == false) {
+            if (useDatabaseUnavailableProcessor(lazyLoader, databaseRegistry.getAvailableDatabases())) {
+                return new DatabaseUnavailableProcessor(processorTag, description, databaseFile);
+            } else if (lazyLoader == null) {
                 throw newConfigurationException(TYPE, processorTag,
                     "database_file", "database file [" + databaseFile + "] doesn't exist");
-            } else if (lazyLoader == null && databaseRegistry.getAvailableDatabases().isEmpty()) {
-                return new DatabaseUnavailableProcessor(processorTag, description, databaseFile);
             }
             final String databaseType;
             try {
@@ -439,7 +439,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             }
             CheckedSupplier<DatabaseReaderLazyLoader, IOException> supplier = () -> {
                 DatabaseReaderLazyLoader loader = databaseRegistry.getDatabase(databaseFile);
-                if (loader == null && databaseRegistry.getAvailableDatabases().isEmpty() == false) {
+                if (useDatabaseUnavailableProcessor(loader, databaseRegistry.getAvailableDatabases())) {
                     return null;
                 } else if (loader == null) {
                     throw new ResourceNotFoundException("database file [" + databaseFile + "] doesn't exist");
@@ -470,8 +470,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
                 boolean valid = metadata.isValid(currentState.metadata().settings());
                 if (valid && metadata.isCloseToExpiration()) {
-                    HeaderWarning.addWarning("database [{}] was not updated for over 25 days, geoip processor will stop working if there " +
-                        "is no update for 30 days", databaseFile);
+                    HeaderWarning.addWarning(DeprecationLogger.CRITICAL, "database [{}] was not updated for over 25 days, geoip processor" +
+                        " will stop working if there is no update for 30 days", databaseFile);
                 }
 
                 return valid;
@@ -479,6 +479,11 @@ public final class GeoIpProcessor extends AbstractProcessor {
             return new GeoIpProcessor(processorTag, description, ipField, supplier, isValid, targetField, properties, ignoreMissing,
                 firstOnly, databaseFile);
         }
+
+        private static boolean useDatabaseUnavailableProcessor(DatabaseReaderLazyLoader loader, Set<String> availableDatabases) {
+            return loader == null && availableDatabases.isEmpty();
+        }
+
     }
 
     // Geoip2's AddressNotFoundException is checked and due to the fact that we need run their code

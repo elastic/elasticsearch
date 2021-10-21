@@ -25,7 +25,6 @@ import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
 import org.elasticsearch.client.sniff.Sniffer;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
@@ -35,11 +34,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.license.XPackLicenseState.Feature;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.Monitoring;
@@ -49,7 +48,6 @@ import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringMigrationCoordinator;
 
-import javax.net.ssl.SSLContext;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -64,6 +62,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import javax.net.ssl.SSLContext;
 
 import static java.util.Map.entry;
 
@@ -171,7 +170,8 @@ public class HttpExporter extends Exporter {
 
                     },
                     Property.Dynamic,
-                    Property.NodeScope),
+                    Property.NodeScope,
+                    Property.Deprecated),
                 HTTP_TYPE_DEPENDENCY);
 
     /**
@@ -179,7 +179,8 @@ public class HttpExporter extends Exporter {
      */
     public static final Setting.AffixSetting<TimeValue> BULK_TIMEOUT_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","bulk.timeout",
-                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope), HTTP_TYPE_DEPENDENCY);
+                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope, Property.Deprecated),
+                HTTP_TYPE_DEPENDENCY);
     /**
      * Timeout used for initiating a connection.
      */
@@ -187,7 +188,7 @@ public class HttpExporter extends Exporter {
             Setting.affixKeySetting(
                 "xpack.monitoring.exporters.",
                 "connection.timeout",
-                (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(6), Property.Dynamic, Property.NodeScope),
+                (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(6), Property.Dynamic, Property.NodeScope, Property.Deprecated),
                 HTTP_TYPE_DEPENDENCY);
     /**
      * Timeout used for reading from the connection.
@@ -196,7 +197,8 @@ public class HttpExporter extends Exporter {
             Setting.affixKeySetting(
                 "xpack.monitoring.exporters.",
                 "connection.read_timeout",
-                (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(60), Property.Dynamic, Property.NodeScope),
+                (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(60), Property.Dynamic, Property.NodeScope,
+                    Property.Deprecated),
                 HTTP_TYPE_DEPENDENCY);
     /**
      * Username for basic auth.
@@ -240,7 +242,8 @@ public class HttpExporter extends Exporter {
                         },
                         Property.Dynamic,
                         Property.NodeScope,
-                        Property.Filtered),
+                        Property.Filtered,
+                        Property.Deprecated),
                 HTTP_TYPE_DEPENDENCY);
     /**
      * Secure password for basic auth.
@@ -249,7 +252,7 @@ public class HttpExporter extends Exporter {
         Setting.affixKeySetting(
             "xpack.monitoring.exporters.",
             "auth.secure_password",
-            key -> SecureSetting.secureString(key, null),
+            key -> SecureSetting.secureString(key, null, Setting.Property.Deprecated),
             HTTP_TYPE_DEPENDENCY);
     /**
      * The SSL settings.
@@ -260,7 +263,7 @@ public class HttpExporter extends Exporter {
             Setting.affixKeySetting(
                 "xpack.monitoring.exporters.",
                 "ssl",
-                (key) -> Setting.groupSetting(key + ".", Property.Dynamic, Property.NodeScope, Property.Filtered),
+                (key) -> Setting.groupSetting(key + ".", Property.Dynamic, Property.NodeScope, Property.Filtered, Property.Deprecated),
                 HTTP_TYPE_DEPENDENCY);
 
     /**
@@ -281,14 +284,16 @@ public class HttpExporter extends Exporter {
                             }
                         },
                         Property.Dynamic,
-                        Property.NodeScope),
+                        Property.NodeScope,
+                        Property.Deprecated),
                 HTTP_TYPE_DEPENDENCY);
     /**
      * A boolean setting to enable or disable sniffing for extra connections.
      */
     public static final Setting.AffixSetting<Boolean> SNIFF_ENABLED_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","sniff.enabled",
-                    (key) -> Setting.boolSetting(key, false, Property.Dynamic, Property.NodeScope), HTTP_TYPE_DEPENDENCY);
+                    (key) -> Setting.boolSetting(key, false, Property.Dynamic, Property.NodeScope, Property.Deprecated),
+                HTTP_TYPE_DEPENDENCY);
     /**
      * A parent setting to header key/value pairs, whose names are user defined.
      */
@@ -310,7 +315,8 @@ public class HttpExporter extends Exporter {
                             }
                         },
                         Property.Dynamic,
-                        Property.NodeScope),
+                        Property.NodeScope,
+                        Property.Deprecated),
                 HTTP_TYPE_DEPENDENCY);
     /**
      * Blacklist of headers that the user is not allowed to set.
@@ -323,7 +329,8 @@ public class HttpExporter extends Exporter {
      */
     public static final Setting.AffixSetting<TimeValue> TEMPLATE_CHECK_TIMEOUT_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","index.template.master_timeout",
-                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope), HTTP_TYPE_DEPENDENCY);
+                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope, Property.Deprecated),
+                HTTP_TYPE_DEPENDENCY);
     /**
      * Minimum supported version of the remote monitoring cluster (same major).
      */
@@ -884,7 +891,7 @@ public class HttpExporter extends Exporter {
 
     @Override
     public void openBulk(final ActionListener<ExportBulk> listener) {
-        final boolean canUseClusterAlerts = config.licenseState().checkFeature(Feature.MONITORING_CLUSTER_ALERTS);
+        final boolean canUseClusterAlerts = Monitoring.MONITORING_CLUSTER_ALERTS_FEATURE.check(config.licenseState());
 
         // if this changes between updates, then we need to add OR remove the watches
         if (clusterAlertsAllowed.compareAndSet(canUseClusterAlerts == false, canUseClusterAlerts)) {

@@ -137,7 +137,7 @@ public class DefaultSearchContextTests extends ESTestCase {
             contextWithoutScroll.close();
 
             // resultWindow greater than maxResultWindow and scrollContext is null
-            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> contextWithoutScroll.preProcess(false));
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> contextWithoutScroll.preProcess());
             assertThat(exception.getMessage(), equalTo("Result window is too large, from + size must be less than or equal to:"
                 + " [" + maxResultWindow + "] but was [310]. See the scroll api for a more efficient way to request large data sets. "
                 + "This limit can be set by changing the [" + IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey()
@@ -150,7 +150,7 @@ public class DefaultSearchContextTests extends ESTestCase {
             DefaultSearchContext context1 = new DefaultSearchContext(readerContext, shardSearchRequest, target, null,
                 timeout, null, false);
             context1.from(300);
-            exception = expectThrows(IllegalArgumentException.class, () -> context1.preProcess(false));
+            exception = expectThrows(IllegalArgumentException.class, () -> context1.preProcess());
             assertThat(exception.getMessage(), equalTo("Batch size is too large, size must be less than or equal to: ["
                 + maxResultWindow + "] but was [310]. Scroll batch sizes cost as much memory as result windows so they are "
                 + "controlled by the [" + IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey() + "] index level setting."));
@@ -165,12 +165,12 @@ public class DefaultSearchContextTests extends ESTestCase {
             when(rescoreContext.getWindowSize()).thenReturn(500);
             context1.addRescore(rescoreContext);
 
-            exception = expectThrows(IllegalArgumentException.class, () -> context1.preProcess(false));
+            exception = expectThrows(IllegalArgumentException.class, () -> context1.preProcess());
             assertThat(exception.getMessage(), equalTo("Cannot use [sort] option in conjunction with [rescore]."));
 
             // rescore is null but sort is not null and rescoreContext.getWindowSize() exceeds maxResultWindow
             context1.sort(null);
-            exception = expectThrows(IllegalArgumentException.class, () -> context1.preProcess(false));
+            exception = expectThrows(IllegalArgumentException.class, () -> context1.preProcess());
 
             assertThat(exception.getMessage(), equalTo("Rescore window [" + rescoreContext.getWindowSize() + "] is too large. "
                 + "It must be less than [" + maxRescoreWindow + "]. This prevents allocating massive heaps for storing the results "
@@ -196,7 +196,7 @@ public class DefaultSearchContextTests extends ESTestCase {
             when(sliceBuilder.getMax()).thenReturn(numSlices);
             context2.sliceBuilder(sliceBuilder);
 
-            exception = expectThrows(IllegalArgumentException.class, () -> context2.preProcess(false));
+            exception = expectThrows(IllegalArgumentException.class, () -> context2.preProcess());
             assertThat(exception.getMessage(), equalTo("The number of slices [" + numSlices + "] is too large. It must "
                 + "be less than [" + maxSlicesPerScroll + "]. This limit can be set by changing the [" +
                 IndexSettings.MAX_SLICES_PER_SCROLL.getKey() + "] index level setting."));
@@ -208,7 +208,7 @@ public class DefaultSearchContextTests extends ESTestCase {
             DefaultSearchContext context3 = new DefaultSearchContext(readerContext, shardSearchRequest, target, null,
                 timeout, null, false);
             ParsedQuery parsedQuery = ParsedQuery.parsedMatchAllQuery();
-            context3.sliceBuilder(null).parsedQuery(parsedQuery).preProcess(false);
+            context3.sliceBuilder(null).parsedQuery(parsedQuery).preProcess();
             assertEquals(context3.query(), context3.buildFilteredQuery(parsedQuery.query()));
 
             when(searchExecutionContext.getIndexSettings()).thenReturn(indexSettings);
@@ -219,9 +219,9 @@ public class DefaultSearchContextTests extends ESTestCase {
                 searcherSupplier.get(), randomNonNegativeLong(), false);
             DefaultSearchContext context4 =
                 new DefaultSearchContext(readerContext, shardSearchRequest, target, null, timeout, null, false);
-            context4.sliceBuilder(new SliceBuilder(1,2)).parsedQuery(parsedQuery).preProcess(false);
+            context4.sliceBuilder(new SliceBuilder(1,2)).parsedQuery(parsedQuery).preProcess();
             Query query1 = context4.query();
-            context4.sliceBuilder(new SliceBuilder(0,2)).parsedQuery(parsedQuery).preProcess(false);
+            context4.sliceBuilder(new SliceBuilder(0,2)).parsedQuery(parsedQuery).preProcess();
             Query query2 = context4.query();
             assertTrue(query1 instanceof MatchNoDocsQuery || query2 instanceof MatchNoDocsQuery);
 

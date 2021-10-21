@@ -29,8 +29,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 
 public class ShardPathTests extends ESTestCase {
@@ -188,8 +188,8 @@ public class ShardPathTests extends ESTestCase {
 
     public void testShardPathSelection() throws IOException {
         try (NodeEnvironment env = newNodeEnvironment(Settings.builder().build())) {
-            NodeEnvironment.NodePath path = env.nodePaths()[0];
-            assertEquals(path, ShardPath.getPathWithMostFreeSpace(env));
+            NodeEnvironment.NodePath[] paths = env.nodePaths();
+            assertThat(List.of(paths), hasItem(ShardPath.getPathWithMostFreeSpace(env)));
             ShardId shardId = new ShardId("foo", "0xDEADBEEF", 0);
 
             Settings indexSettings = Settings.builder()
@@ -198,7 +198,13 @@ public class ShardPathTests extends ESTestCase {
 
             ShardPath shardPath = ShardPath.selectNewPathForShard(env, shardId, idxSettings, 1L, new HashMap<>());
             assertNotNull(shardPath.getDataPath());
-            assertEquals(path.indicesPath.resolve("0xDEADBEEF").resolve("0"), shardPath.getDataPath());
+
+            List<Path> indexPaths = new ArrayList<>();
+            for (NodeEnvironment.NodePath nodePath : paths) {
+                indexPaths.add(nodePath.indicesPath.resolve("0xDEADBEEF").resolve("0"));
+            }
+
+            assertThat(indexPaths, hasItem(shardPath.getDataPath()));
             assertEquals("0xDEADBEEF", shardPath.getShardId().getIndex().getUUID());
             assertEquals("foo", shardPath.getShardId().getIndexName());
             assertFalse(shardPath.isCustomDataPath());
@@ -237,9 +243,8 @@ public class ShardPathTests extends ESTestCase {
                 }
                 ShardPath.deleteLeftoverShardDirectory(logger, env, lock, idxSettings, shardPaths -> {
                     List<Path> envPathList = Arrays.asList(envPaths);
-                    assertEquals(envPaths.length, shardPaths.length);
                     for (Path path : shardPaths) {
-                        assertThat(envPathList, contains(path));
+                        assertThat(envPathList, hasItem(path));
                     }
                 });
                 for (Path path : envPaths) {

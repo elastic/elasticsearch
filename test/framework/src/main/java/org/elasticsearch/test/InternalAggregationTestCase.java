@@ -533,14 +533,6 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return path -> false;
     }
     
-    public static DocValueFormat randomDocValueFormat() {
-        Supplier<DocValueFormat> randomDocValueFormat = randomFrom(
-            InternalAggregationTestCase::randomNumericDocValueFormat,
-            InternalAggregationTestCase::randomDateDocValueFormat
-        );
-        return randomDocValueFormat.get();
-    }
-
     /**
      * A random {@link DocValueFormat} that can be used in aggregations which
      * compute numbers.

@@ -77,7 +77,7 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
     }
 
     private List<DocValueFormat> randomFormats(int size) {
-        return randomList(size, size, InternalAggregationTestCase::randomDocValueFormat);
+        return randomList(size, size, InternalAggregationTestCase::randomNumericDocValueFormat);
     }
 
     private List<InternalMultiTerms.KeyConverter> randomKeyConverters(int size) {

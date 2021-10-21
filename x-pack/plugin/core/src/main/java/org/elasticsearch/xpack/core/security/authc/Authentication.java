@@ -75,13 +75,6 @@ public class Authentication implements ToXContentObject {
         this.assertApiKeyMetadata();
     }
 
-    private void assertApiKeyMetadata() {
-        assert (AuthenticationType.API_KEY.equals(this.type)) && (this.metadata.get(AuthenticationField.API_KEY_ID_KEY) != null)
-            : "API KEY authentication requires metadata to contain API KEY id, and the value must be non-null.";
-        assert (AuthenticationType.API_KEY.equals(this.type)) && (this.metadata.containsKey(AuthenticationField.API_KEY_NAME_KEY))
-            : "API KEY authentication requires metadata to contain API KEY name; the value may be null for older keys.";
-    }
-
     public User getUser() {
         return user;
     }
@@ -261,34 +254,22 @@ public class Authentication implements ToXContentObject {
         builder.endObject();
         builder.field(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), getAuthenticationType().name().toLowerCase(Locale.ROOT));
         if (isApiKey()) {
-            final String apiKeyId   = (String) this.metadata.get(AuthenticationField.API_KEY_ID_KEY);
+            this.assertApiKeyMetadata();
+            final String apiKeyId = (String) this.metadata.get(AuthenticationField.API_KEY_ID_KEY);
             final String apiKeyName = (String) this.metadata.get(AuthenticationField.API_KEY_NAME_KEY);
-            if (apiKeyId == null) {
-                if (apiKeyName == null) {
-                    builder.field("api_key", Collections.emptyMap());
-                } else {
-                    builder.field("api_key", Map.of("name", apiKeyName));
-                }
+            if (apiKeyName == null) {
+                builder.field("api_key", Map.of("id", apiKeyId));
             } else {
-                if (apiKeyName == null) {
-                    builder.field("api_key", Map.of("id", apiKeyId));
-                } else {
-                    builder.field("api_key", Map.of("id", apiKeyId, "name", apiKeyName));
-                }
+                builder.field("api_key", Map.of("id", apiKeyId, "name", apiKeyName));
             }
         }
     }
 
-    /**
-     * If authenticationType=API_KEY then validate and return API KEY info map, otherwise return null map.
-     *
-     * @return Map of API KEY info, or null for other authentication types.
-     * @throws IllegalArgumentException Error if API KEY id is missing or null, or if API KEY name present but null.
-     */
-    private Map<String, Object> verifyApiKeyInfoAndCreateApiKeyInfoMap() throws IllegalArgumentException {
-        if (isApiKey()) {
-        }
-        return null;
+    private void assertApiKeyMetadata() {
+        assert (AuthenticationType.API_KEY.equals(this.type)) && (this.metadata.get(AuthenticationField.API_KEY_ID_KEY) != null)
+            : "API KEY authentication requires metadata to contain API KEY id, and the value must be non-null.";
+        assert (AuthenticationType.API_KEY.equals(this.type)) && (this.metadata.containsKey(AuthenticationField.API_KEY_NAME_KEY))
+            : "API KEY authentication requires metadata to contain API KEY name; the value may be null for older keys.";
     }
 
     @Override

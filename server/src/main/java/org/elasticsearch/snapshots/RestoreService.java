@@ -54,7 +54,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.regex.Regex;
@@ -374,9 +373,19 @@ public class RestoreService implements ClusterStateApplier {
             .collect(Collectors.toSet());
         requestIndices.addAll(dataStreamIndices);
 
+        // Strip system indices out of the list of "available" indices - these should only come from feature states.
+        List<String> availableNonSystemIndices = new ArrayList<>(snapshotInfo.indices());
+        {
+            Set<String> systemIndicesInSnapshot = snapshotInfo.featureStates()
+                .stream()
+                .flatMap(state -> state.getIndices().stream())
+                .collect(Collectors.toSet());
+            availableNonSystemIndices.removeAll(systemIndicesInSnapshot);
+        }
+
         // Resolve the indices that were directly requested
         final List<String> requestedIndicesInSnapshot = filterIndices(
-            snapshotInfo.indices(),
+            availableNonSystemIndices,
             requestIndices.toArray(String[]::new),
             request.indicesOptions()
         );
@@ -398,16 +407,8 @@ public class RestoreService implements ClusterStateApplier {
             metadataBuilder.put(snapshotIndexMetaData, false);
         }
 
-        // log a deprecation warning if the any of the indexes to delete were included in the request and the snapshot
-        // is from a version that should have feature states
-        if (snapshotInfo.version().onOrAfter(Version.V_7_12_0) && explicitlyRequestedSystemIndices.isEmpty() == false) {
-            deprecationLogger.critical(
-                DeprecationCategory.API,
-                "restore-system-index-from-snapshot",
-                "Restoring system indices by name is deprecated. Use feature states instead. System indices: "
-                    + explicitlyRequestedSystemIndices
-            );
-        }
+        assert explicitlyRequestedSystemIndices
+            .size() == 0 : "it should be impossible to reach this point with explicitly requested system indices";
 
         // Now we can start the actual restore process by adding shards to be recovered in the cluster state
         // and updating cluster metadata (global and index) as needed

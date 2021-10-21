@@ -22,7 +22,9 @@
   <!-- Intentionally doesn't have a package declaration to test logging
     configuration of classes that aren't in packages. -->
   <suppress files="test[/\\]framework[/\\]src[/\\]test[/\\]java[/\\]Dummy.java" checks=".*" />
-  <!--  <suppress files="test[/\\]framework[/\\]src[/\\]test[/\\]java[/\\]Dummy.java" checks="PackageDeclaration" />-->
+
+  <!-- package-info java files can contain multiple javadoc statements in header  -->
+  <suppress files=".+package\-info\.java" id="DuplicateHeaderJavadoc" />
 
   <!-- Intentionally has long example curl commands to coincide with sibling Painless tests. -->
   <suppress files="modules[/\\]lang-painless[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]painless[/\\]ContextExampleTests.java" checks="LineLength" />

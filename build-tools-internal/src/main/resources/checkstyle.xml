@@ -13,9 +13,6 @@
 
   <module name="SuppressWarningsFilter" />
 
-  <module name="BeforeExecutionExclusionFileFilter">
-    <property name="fileNamePattern" value="package\-info\.java$"/>
-  </module>
   <module name="RegexpMultiline">
     <property name="id" value="DuplicateHeaderJavadoc" />
     <property name="format" value="^\s*\/\*\n(\s\*[A-Za-z0-9 \.\/\;\,\.\-\(\)\\\x{22}\/\:\@\=\'\]\[\_\x{3E}\x{3C}]*\n)+(\s\*\/)\s+package" />

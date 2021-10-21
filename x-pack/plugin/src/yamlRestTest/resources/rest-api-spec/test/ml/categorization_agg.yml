@@ -96,7 +96,7 @@ setup:
             "aggs": {
               "categories": {
                 "categorize_text": {
-                  "field": "value",
+                  "field": "value"
                 }
               }
             }
@@ -106,7 +106,7 @@ setup:
 "Test categorization aggregation with poor settings":
 
   - do:
-      catch: /\[max_unique_tokens\] must be greater than 0 and less than \[100\]/
+      catch: /\[max_unique_tokens\] must be greater than 0 and less than or equal \[100\]/
       search:
         index: to_categorize
         body: >
@@ -122,7 +122,7 @@ setup:
             }
           }
   - do:
-      catch: /\[max_unique_tokens\] must be greater than 0 and less than \[100\]/
+      catch: /\[max_unique_tokens\] must be greater than 0 and less than or equal \[100\]/
       search:
         index: to_categorize
         body: >

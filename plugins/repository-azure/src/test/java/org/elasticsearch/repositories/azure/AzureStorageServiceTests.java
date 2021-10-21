@@ -9,6 +9,7 @@
 package org.elasticsearch.repositories.azure;
 
 import com.azure.storage.common.policy.RequestRetryOptions;
+
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
@@ -163,14 +164,14 @@ public class AzureStorageServiceTests extends ESTestCase {
             final AzureStorageService azureStorageService = plugin.azureStoreService.get();
             AzureBlobServiceClient client11 = azureStorageService.client("azure1", LocationMode.PRIMARY_ONLY);
             assertThat(client11.getSyncClient().getAccountUrl(), equalTo("https://myaccount1.blob.core.windows.net"));
-            // reinit with empty settings
-            final SettingsException e = expectThrows(SettingsException.class, () -> plugin.reload(Settings.EMPTY));
-            assertThat(e.getMessage(), is("If you want to use an azure repository, you need to define a client configuration."));
+            // reinit with empty settings is okay
+            plugin.reload(Settings.EMPTY);
             // existing client untouched
             assertThat(client11.getSyncClient().getAccountUrl(), equalTo("https://myaccount1.blob.core.windows.net"));
-            // new client also untouched
-            AzureBlobServiceClient client21 = azureStorageService.client("azure1", LocationMode.PRIMARY_ONLY);
-            assertThat(client21.getSyncClient().getAccountUrl(), equalTo("https://myaccount1.blob.core.windows.net"));
+            // client is no longer registered
+            final SettingsException e =
+                expectThrows(SettingsException.class, () -> azureStorageService.client("azure1", LocationMode.PRIMARY_ONLY));
+            assertThat(e.getMessage(), equalTo("Unable to find client with name [azure1]"));
         }
     }
 

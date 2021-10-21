@@ -1,0 +1,50 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+package org.elasticsearch.upgrades;
+
+import org.elasticsearch.Version;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.test.AbstractNamedWriteableTestCase;
+
+import java.io.IOException;
+import java.util.Collections;
+
+public class SystemIndexMigrationTaskParamsTests extends AbstractNamedWriteableTestCase<SystemIndexMigrationTaskParams> {
+
+    // NOTE: This test case does not currently implement mutateInstance, because all instances of the class
+    // are equal and have the same hashcode (for now).
+
+    @Override
+    protected SystemIndexMigrationTaskParams createTestInstance() {
+        return new SystemIndexMigrationTaskParams();
+    }
+
+    @Override
+    protected SystemIndexMigrationTaskParams copyInstance(SystemIndexMigrationTaskParams instance, Version version) throws IOException {
+        return new SystemIndexMigrationTaskParams();
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(
+            Collections.singletonList(
+                new NamedWriteableRegistry.Entry(
+                    SystemIndexMigrationTaskParams.class,
+                    SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME,
+                    SystemIndexMigrationTaskParams::new
+                )
+            )
+        );
+    }
+
+    @Override
+    protected Class<SystemIndexMigrationTaskParams> categoryClass() {
+        return SystemIndexMigrationTaskParams.class;
+    }
+}

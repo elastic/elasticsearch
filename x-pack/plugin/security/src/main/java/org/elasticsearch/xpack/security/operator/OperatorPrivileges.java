@@ -66,17 +66,23 @@ public class OperatorPrivileges {
         }
 
         public void maybeMarkOperatorUser(Authentication authentication, ThreadContext threadContext) {
-            if (false == shouldProcess()) {
+            // Always mark the thread context for operator users regardless of license state which is enforced at check time
+            final User user = authentication.getUser();
+            // Let internal users pass, they are exempt from marking and checking
+            // Also check run_as, it is impossible to run_as internal users, but just to be extra safe
+            if (User.isInternal(user) && false == user.isRunAs()) {
                 return;
             }
-            // Let internal users pass, they are exempt from marking and checking
-            if (User.isInternal(authentication.getUser())) {
+            // The header is already set by previous authentication either on this node or a remote node
+            if (threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY) != null) {
                 return;
             }
             // An operator user must not be a run_as user, it also must be recognised by the operatorUserStore
-            if (false == authentication.getUser().isRunAs() && fileOperatorUsersStore.isOperatorUser(authentication)) {
-                logger.debug("Marking user [{}] as an operator", authentication.getUser());
+            if (false == user.isRunAs() && fileOperatorUsersStore.isOperatorUser(authentication)) {
+                logger.debug("Marking user [{}] as an operator", user);
                 threadContext.putHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY, AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR);
+            } else {
+                threadContext.putHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY, AuthenticationField.PRIVILEGE_CATEGORY_VALUE_EMPTY);
             }
         }
 

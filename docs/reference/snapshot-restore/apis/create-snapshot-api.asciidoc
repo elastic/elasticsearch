@@ -4,8 +4,8 @@
 <titleabbrev>Create snapshot</titleabbrev>
 ++++
 
-Takes a snapshot of a cluster or specified data streams and indices. See
-<<snapshots-take-snapshot>>.
+<<snapshots-take-snapshot,Takes a snapshot>> of a cluster or specified data
+streams and indices.
 
 ////
 [source,console]

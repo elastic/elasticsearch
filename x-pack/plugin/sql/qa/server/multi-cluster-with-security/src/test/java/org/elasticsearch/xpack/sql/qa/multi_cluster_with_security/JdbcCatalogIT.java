@@ -71,7 +71,11 @@ public class JdbcCatalogIT extends JdbcIntegrationTestCase {
     }
 
     public void testCatalogDependentCommands() throws Exception {
-        for (String query : List.of("SHOW TABLES", "SHOW COLUMNS FROM \"" + INDEX_NAME + "\"", "DESCRIBE \"" + INDEX_NAME + "\"")) {
+        for (String query : List.of(
+            "SHOW TABLES \"" + INDEX_NAME + "\"",
+            "SHOW COLUMNS FROM \"" + INDEX_NAME + "\"",
+            "DESCRIBE \"" + INDEX_NAME + "\""
+        )) {
             try (Connection es = esJdbc()) {
                 PreparedStatement ps = es.prepareStatement(query);
                 ResultSet rs = ps.executeQuery();

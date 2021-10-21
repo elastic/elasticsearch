@@ -22,8 +22,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
-import org.apache.lucene.search.grouping.CollapsingTopDocsCollector;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -40,10 +38,10 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * This test is adapted from {@link CollapsingTopDocsCollectorTests} with
+ * This test is adapted from {@link SinglePassGroupingCollectorTests} with
  * modifications to test {@link FieldDoc after} parameter.
  */
-public class CollapsingTopDocsCollectorSearchAfterTests extends ESTestCase {
+public class SinglePassGroupingCollectorSearchAfterTests extends ESTestCase {
     interface CollapsingDocValuesProducer<T extends Comparable<?>> {
         T randomGroup(int maxGroup);
         void add(Document doc, T value);
@@ -99,16 +97,16 @@ public class CollapsingTopDocsCollectorSearchAfterTests extends ESTestCase {
             expectedNumGroups++;
         }
 
-        FieldDoc after = new FieldDoc(Integer.MAX_VALUE, 0, new Object[]{sortedValues.get(randomIndex)});
-        CollapsingTopDocsCollector<?> collapsingCollector = numeric
-            ? CollapsingTopDocsCollector.createNumeric("field", fieldType, sort, expectedNumGroups, after)
-            : CollapsingTopDocsCollector.createKeyword("field", fieldType, sort, expectedNumGroups, after);
+        FieldDoc after = new FieldDoc(Integer.MAX_VALUE, 0, new Object[]{ sortedValues.get(randomIndex) });
+        SinglePassGroupingCollector<?> collapsingCollector = numeric
+            ? SinglePassGroupingCollector.createNumeric("field", fieldType, sort, expectedNumGroups, after)
+            : SinglePassGroupingCollector.createKeyword("field", fieldType, sort, expectedNumGroups, after);
 
         TopFieldCollector topFieldCollector = TopFieldCollector.create(sort, totalHits, after, Integer.MAX_VALUE);
         Query query = new MatchAllDocsQuery();
         searcher.search(query, collapsingCollector);
         searcher.search(query, topFieldCollector);
-        CollapseTopFieldDocs collapseTopFieldDocs = collapsingCollector.getTopDocs();
+        TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
         TopFieldDocs topDocs = topFieldCollector.topDocs();
         assertEquals(sortField.getField(), collapseTopFieldDocs.field);
         assertEquals(totalHits, collapseTopFieldDocs.totalHits.value);

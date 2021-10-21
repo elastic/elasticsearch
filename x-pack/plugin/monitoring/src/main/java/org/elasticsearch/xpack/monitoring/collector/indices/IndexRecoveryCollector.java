@@ -44,7 +44,7 @@ public class IndexRecoveryCollector extends Collector {
      */
     public static final Setting<Boolean> INDEX_RECOVERY_ACTIVE_ONLY =
             boolSetting(collectionSetting("index.recovery.active_only"), false, Setting.Property.Dynamic, Setting.Property.NodeScope,
-                Setting.Property.Deprecated);
+                Setting.Property.DeprecatedWarning);
 
     private final Client client;
 

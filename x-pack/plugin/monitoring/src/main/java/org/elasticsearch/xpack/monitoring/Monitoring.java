@@ -89,7 +89,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         true, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Deprecated);
 
     public static final Setting<Boolean> MIGRATION_DECOMMISSION_ALERTS = boolSetting("xpack.monitoring.migration.decommission_alerts",
-        false, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Deprecated);
+        false, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.DeprecatedWarning);
 
     public static final LicensedFeature.Momentary MONITORING_CLUSTER_ALERTS_FEATURE =
         LicensedFeature.momentary("monitoring", "cluster-alerts", License.OperationMode.STANDARD);

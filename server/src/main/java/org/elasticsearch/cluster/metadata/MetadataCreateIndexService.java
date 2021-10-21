@@ -357,6 +357,13 @@ public class MetadataCreateIndexService {
                 return applyCreateIndexRequestForSystemDataStream(currentState, request, silent, metadataTransformer);
             }
 
+            if (systemIndices.isSystemIndex(request.index())
+                && request.settings().hasValue(SETTING_INDEX_HIDDEN)
+                && "false".equals(request.settings().get(SETTING_INDEX_HIDDEN))) {
+                    throw new IllegalArgumentException("System indices must have " + IndexMetadata.SETTING_INDEX_HIDDEN +
+                        " set to true.");
+                }
+
             // Hidden indices apply templates slightly differently (ignoring wildcard '*'
             // templates), so we need to check to see if the request is creating a hidden index
             // prior to resolving which templates it matches

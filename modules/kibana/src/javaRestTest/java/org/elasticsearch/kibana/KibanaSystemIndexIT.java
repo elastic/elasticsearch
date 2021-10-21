@@ -14,6 +14,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -23,6 +24,7 @@ import java.util.Arrays;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class KibanaSystemIndexIT extends ESRestTestCase {
@@ -216,6 +218,26 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
         request.setJsonEntity("{ \"index.blocks.read_only\" : false }");
         response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
+    }
+
+    public void testCannotCreateVisibleSystemIndex() {
+        Request request = request("PUT", "/" + indexName);
+        request.setJsonEntity("{\"settings\": {\"index.hidden\":\"false\"}}");
+        ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(exception.getResponse().getStatusLine().getStatusCode(), is(400));
+        assertThat(exception.getMessage(), containsString("System indices must have index.hidden set to true."));
+    }
+
+    public void testCannotSetVisible() throws IOException {
+        Request putIndexRequest = request("PUT", "/" + indexName);
+        Response response = client().performRequest(putIndexRequest);
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
+
+        Request putSettingsRequest = request("PUT", "/" + indexName + "/_settings");
+        putSettingsRequest.setJsonEntity("{ \"index.hidden\" : false }");
+        ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(putSettingsRequest));
+        assertThat(exception.getResponse().getStatusLine().getStatusCode(), is(400));
+        assertThat(exception.getMessage(), containsString("System indices must have index.hidden set to true."));
     }
 
     public void testGetIndex() throws IOException {

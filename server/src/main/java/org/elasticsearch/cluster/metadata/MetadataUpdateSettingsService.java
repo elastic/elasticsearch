@@ -30,6 +30,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -39,6 +40,7 @@ import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
 import static org.elasticsearch.index.IndexSettings.same;
 
 /**
@@ -55,16 +57,18 @@ public class MetadataUpdateSettingsService {
     private final IndicesService indicesService;
     private final ShardLimitValidator shardLimitValidator;
     private final ThreadPool threadPool;
+    private final SystemIndices systemIndices;
 
     public MetadataUpdateSettingsService(ClusterService clusterService, AllocationService allocationService,
                                          IndexScopedSettings indexScopedSettings, IndicesService indicesService,
-                                         ShardLimitValidator shardLimitValidator, ThreadPool threadPool) {
+                                         ShardLimitValidator shardLimitValidator, ThreadPool threadPool, SystemIndices systemIndices) {
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.allocationService = allocationService;
         this.indexScopedSettings = indexScopedSettings;
         this.indicesService = indicesService;
         this.shardLimitValidator = shardLimitValidator;
+        this.systemIndices = systemIndices;
     }
 
     public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request,
@@ -110,6 +114,7 @@ public class MetadataUpdateSettingsService {
                 // on an open index
                 Set<Index> openIndices = new HashSet<>();
                 Set<Index> closeIndices = new HashSet<>();
+                Set<Index> systemIndicesInRequest = new HashSet<>();
                 final String[] actualIndices = new String[request.indices().length];
                 for (int i = 0; i < request.indices().length; i++) {
                     Index index = request.indices()[i];
@@ -120,6 +125,16 @@ public class MetadataUpdateSettingsService {
                     } else {
                         closeIndices.add(index);
                     }
+                    if (systemIndices.isSystemIndex(index)) {
+                        systemIndicesInRequest.add(index);
+                    }
+                }
+
+                if (systemIndicesInRequest.size() > 0
+                    && normalizedSettings.hasValue(SETTING_INDEX_HIDDEN)
+                    && "false".equals(normalizedSettings.get(SETTING_INDEX_HIDDEN))) {
+                    throw new IllegalArgumentException("System indices must have " + IndexMetadata.SETTING_INDEX_HIDDEN +
+                        " set to true.");
                 }
 
                 if (skippedSettings.isEmpty() == false && openIndices.isEmpty() == false) {

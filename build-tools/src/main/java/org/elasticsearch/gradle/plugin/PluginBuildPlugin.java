@@ -73,13 +73,6 @@ public class PluginBuildPlugin implements Plugin<Project> {
 
         final var bundleTask = createBundleTasks(project, extension);
         project.afterEvaluate(project1 -> {
-            project1.getExtensions().getByType(PluginPropertiesExtension.class).getExtendedPlugins().forEach(pluginName -> {
-                // Auto add dependent modules to the test cluster
-                if (project1.findProject(":modules:" + pluginName) != null) {
-                    NamedDomainObjectContainer<ElasticsearchCluster> testClusters = testClusters(project, "testClusters");
-                    testClusters.configureEach(elasticsearchCluster -> elasticsearchCluster.module(":modules:" + pluginName));
-                }
-            });
             final var extension1 = project1.getExtensions().getByType(PluginPropertiesExtension.class);
             configurePublishing(project1, extension1);
             var name = extension1.getName();
@@ -120,7 +113,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
 
         // allow running ES with this plugin in the foreground of a build
         var testClusters = testClusters(project, TestClustersPlugin.EXTENSION_NAME);
-        var runCluster = testClusters.register("runtTask", c -> {
+        var runCluster = testClusters.register("runTask", c -> {
             if (GradleUtils.isModuleProject(project.getPath())) {
                 c.module(bundleTask.flatMap((Transformer<Provider<RegularFile>, Zip>) zip -> zip.getArchiveFile()));
             } else {

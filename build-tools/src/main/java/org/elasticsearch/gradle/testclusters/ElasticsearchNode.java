@@ -14,13 +14,13 @@ import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.LazyPropertyList;
 import org.elasticsearch.gradle.LazyPropertyMap;
-import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.LoggedExec;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.PropertyNormalization;
 import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.transform.UnzipTransform;
 import org.elasticsearch.gradle.util.Pair;
 import org.gradle.api.Action;
@@ -650,8 +650,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
      */
     private void copyExtraJars() {
         List<File> extraJarFiles = this.extraJarConfigurations.stream()
-                .flatMap(fileCollection -> fileCollection.getFiles().stream())
-                .collect(Collectors.toList());
+            .flatMap(fileCollection -> fileCollection.getFiles().stream())
+            .collect(Collectors.toList());
 
         if (extraJarFiles.isEmpty() == false) {
             logToProcessStdout("Setting up " + this.extraJarConfigurations.size() + " additional jar dependencies");

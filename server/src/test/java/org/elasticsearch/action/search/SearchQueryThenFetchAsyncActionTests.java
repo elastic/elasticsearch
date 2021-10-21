@@ -12,7 +12,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
+import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
@@ -100,11 +100,11 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                     numWithTopDocs.incrementAndGet();
                 }
                 QuerySearchResult queryResult = new QuerySearchResult(new ShardSearchContextId("N/A", 123),
-                    new SearchShardTarget("node1", new ShardId("idx", "na", shardId), null, OriginalIndices.NONE), null);
+                    new SearchShardTarget("node1", new ShardId("idx", "na", shardId), null), null);
                 SortField sortField = new SortField("timestamp", SortField.Type.LONG);
                 if (withCollapse) {
                     queryResult.topDocs(new TopDocsAndMaxScore(
-                            new CollapseTopFieldDocs(
+                            new TopFieldGroups(
                                 "collapse_field",
                                 new TotalHits(1, withScroll ? TotalHits.Relation.EQUAL_TO : TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
                                 new FieldDoc[]{
@@ -313,7 +313,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                                          SearchTask task, SearchActionListener<? super SearchPhaseResult> listener) {
                 int shardId = request.shardId().id();
                 QuerySearchResult queryResult = new QuerySearchResult(new ShardSearchContextId("N/A", 123),
-                    new SearchShardTarget("node1", new ShardId("idx", "na", shardId), null, OriginalIndices.NONE), null);
+                    new SearchShardTarget("node1", new ShardId("idx", "na", shardId), null), null);
                 SortField sortField = new SortField("timestamp", SortField.Type.LONG);
                 if (shardId == 0) {
                     queryResult.topDocs(new TopDocsAndMaxScore(new TopFieldDocs(
@@ -412,7 +412,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                                          SearchTask task, SearchActionListener<? super SearchPhaseResult> listener) {
                 int shardId = request.shardId().id();
                 QuerySearchResult queryResult = new QuerySearchResult(new ShardSearchContextId("N/A", 123),
-                    new SearchShardTarget("node1", new ShardId("idx", "na", shardId), null, OriginalIndices.NONE), null);
+                    new SearchShardTarget("node1", new ShardId("idx", "na", shardId), null), null);
                 SortField sortField = new SortField("timestamp", SortField.Type.LONG);
                 if (shardId == 0) {
                     queryResult.topDocs(new TopDocsAndMaxScore(new TopFieldDocs(
@@ -471,7 +471,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         assertThat(phase.totalHits.value, equalTo(2L));
         assertThat(phase.totalHits.relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
 
-        SearchShardTarget searchShardTarget = new SearchShardTarget("node3", shardIt.shardId(), null, OriginalIndices.NONE);
+        SearchShardTarget searchShardTarget = new SearchShardTarget("node3", shardIt.shardId(), null);
         SearchActionListener<SearchPhaseResult> listener = new SearchActionListener<SearchPhaseResult>(searchShardTarget, 0) {
             @Override
             public void onFailure(Exception e) { }

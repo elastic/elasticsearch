@@ -21,6 +21,7 @@ import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -62,7 +63,7 @@ public class EnvironmentTests extends ESTestCase {
         final Path pathHome = createTempDir().toAbsolutePath();
         final Settings settings = Settings.builder().put("path.home", pathHome).build();
         final Environment environment = new Environment(settings, null);
-        assertThat(environment.dataFile(), equalTo(pathHome.resolve("data")));
+        assertThat(environment.dataFiles(), equalTo(new Path[]{pathHome.resolve("data")}));
     }
 
     public void testPathDataNotSetInEnvironmentIfNotSet() {
@@ -70,6 +71,15 @@ public class EnvironmentTests extends ESTestCase {
         assertFalse(Environment.PATH_DATA_SETTING.exists(settings));
         final Environment environment = new Environment(settings, null);
         assertFalse(Environment.PATH_DATA_SETTING.exists(environment.settings()));
+    }
+
+    public void testPathDataLegacyCommaList() {
+        final Settings settings = Settings.builder()
+            .put("path.home", createTempDir().toAbsolutePath())
+            .put("path.data", createTempDir().toAbsolutePath() + "," + createTempDir().toAbsolutePath())
+            .build();
+        final Environment environment = new Environment(settings, null);
+        assertThat(environment.dataFiles(), arrayWithSize(2));
     }
 
     public void testPathLogsWhenNotSet() {
@@ -140,8 +150,9 @@ public class EnvironmentTests extends ESTestCase {
 
         final Path home = PathUtils.get(homePath);
 
-        final String dataPath = Environment.PATH_DATA_SETTING.get(environment.settings());
-        assertPath(dataPath, home.resolve("data"));
+        final List<String> dataPaths = Environment.PATH_DATA_SETTING.get(environment.settings());
+        assertThat(dataPaths, hasSize(1));
+        assertPath(dataPaths.get(0), home.resolve("data"));
 
         final String logPath = Environment.PATH_LOGS_SETTING.get(environment.settings());
         assertPath(logPath, home.resolve("logs"));
@@ -170,6 +181,11 @@ public class EnvironmentTests extends ESTestCase {
         {
             final Settings settings = Settings.builder()
                 .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString()).build();
+            assertThat(Environment.dataPathUsesList(settings), is(true));
+        }
+        {
+            final Settings settings = Settings.builder()
+                .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString() + "," + createTempDir().toString()).build();
             assertThat(Environment.dataPathUsesList(settings), is(true));
         }
     }

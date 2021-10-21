@@ -240,8 +240,9 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
         ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
         request.persistentSettings(persistentSettings);
         request.transientSettings(transientSettings);
+        RequestOptions options = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build();
         assertTrue(execute(
-            request, highLevelClient().cluster()::putSettings, highLevelClient().cluster()::putSettingsAsync).isAcknowledged());
+            request, highLevelClient().cluster()::putSettings, highLevelClient().cluster()::putSettingsAsync, options).isAcknowledged());
     }
 
     protected void putConflictPipeline() throws IOException {
@@ -316,9 +317,10 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
         String transportAddress = (String) nodesResponse.get("transport_address");
 
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.transientSettings(singletonMap("cluster.remote." + remoteClusterName + ".seeds", transportAddress));
+        updateSettingsRequest.persistentSettings(singletonMap("cluster.remote." + remoteClusterName + ".seeds", transportAddress));
+        RequestOptions options = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build();
         ClusterUpdateSettingsResponse updateSettingsResponse =
-                restHighLevelClient.cluster().putSettings(updateSettingsRequest, RequestOptions.DEFAULT);
+                restHighLevelClient.cluster().putSettings(updateSettingsRequest, options);
         assertThat(updateSettingsResponse.isAcknowledged(), is(true));
 
         assertBusy(() -> {

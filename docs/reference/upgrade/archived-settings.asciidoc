@@ -22,7 +22,7 @@ GET _cluster/settings?flat_settings=true&filter_path=persistent.archived*
 ----
 
 You can remove archived cluster settings using the
-<<cluster-update-settings,update cluster settings API>>.
+<<cluster-update-settings,cluster update settings API>>.
 
 [source,console]
 ----

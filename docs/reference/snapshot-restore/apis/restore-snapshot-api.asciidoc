@@ -139,11 +139,9 @@ indices. If `false`, the request doesn't restore aliases. Defaults to `true`.
 +
 --
 (Optional, Boolean)
-If `false`, the global state is not restored. Defaults to `false`.
+If `true`, restore the cluster state. Defaults to `false`.
 
-If `true`, the current global state is included in the restore operation.
-
-The global state includes:
+The cluster state includes:
 
 // tag::cluster-state-contents[]
 * <<cluster-setting-types,Persistent cluster settings>>

@@ -98,7 +98,7 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(COMPONENT_TEMPLATE.getPreferredName());
         for (Map.Entry<String, ComponentTemplate> template : componentTemplates.entrySet()) {
-            builder.field(template.getKey(), template.getValue());
+            builder.field(template.getKey(), template.getValue(), params);
         }
         builder.endObject();
         return builder;

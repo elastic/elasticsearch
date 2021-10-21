@@ -81,7 +81,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
 
         // copy compatible rest specs
         Configuration bwcMinorConfig = project.getConfigurations().create(BWC_MINOR_CONFIG_NAME);
-        Dependency bwcMinor = project.getDependencies().project(Map.of("path", ":distribution:bwc:minor", "configuration", "checkout"));
+        Dependency bwcMinor = project.getDependencies().project(Map.of("path", ":distribution:bwc:staged", "configuration", "checkout"));
         project.getDependencies().add(bwcMinorConfig.getName(), bwcMinor);
 
         Provider<CopyRestApiTask> copyCompatYamlSpecTask = project.getTasks()
@@ -213,7 +213,6 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
             testTask.mustRunAfter(project.getTasks().named(InternalYamlRestTestPlugin.SOURCE_SET_NAME));
             testTask.onlyIf(t -> isEnabled(project));
         });
-
 
         setupTestDependenciesDefaults(project, yamlCompatTestSourceSet);
 

@@ -19,8 +19,8 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -71,15 +71,6 @@ import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpgradeTransformsAction;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
-import org.elasticsearch.xpack.core.transform.action.compat.DeleteTransformActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.GetTransformActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.GetTransformStatsActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.PreviewTransformActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.PutTransformActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.StartTransformActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.StopTransformActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.UpdateTransformActionDeprecated;
-import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.action.TransportDeleteTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportGetTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportGetTransformStatsAction;
@@ -91,14 +82,6 @@ import org.elasticsearch.xpack.transform.action.TransportStopTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportUpdateTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportUpgradeTransformsAction;
 import org.elasticsearch.xpack.transform.action.TransportValidateTransformAction;
-import org.elasticsearch.xpack.transform.action.compat.TransportDeleteTransformActionDeprecated;
-import org.elasticsearch.xpack.transform.action.compat.TransportGetTransformActionDeprecated;
-import org.elasticsearch.xpack.transform.action.compat.TransportGetTransformStatsActionDeprecated;
-import org.elasticsearch.xpack.transform.action.compat.TransportPreviewTransformActionDeprecated;
-import org.elasticsearch.xpack.transform.action.compat.TransportPutTransformActionDeprecated;
-import org.elasticsearch.xpack.transform.action.compat.TransportStartTransformActionDeprecated;
-import org.elasticsearch.xpack.transform.action.compat.TransportStopTransformActionDeprecated;
-import org.elasticsearch.xpack.transform.action.compat.TransportUpdateTransformActionDeprecated;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
@@ -114,14 +97,6 @@ import org.elasticsearch.xpack.transform.rest.action.RestStartTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestStopTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestUpdateTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestUpgradeTransformsAction;
-import org.elasticsearch.xpack.transform.rest.action.compat.RestDeleteTransformActionDeprecated;
-import org.elasticsearch.xpack.transform.rest.action.compat.RestGetTransformActionDeprecated;
-import org.elasticsearch.xpack.transform.rest.action.compat.RestGetTransformStatsActionDeprecated;
-import org.elasticsearch.xpack.transform.rest.action.compat.RestPreviewTransformActionDeprecated;
-import org.elasticsearch.xpack.transform.rest.action.compat.RestPutTransformActionDeprecated;
-import org.elasticsearch.xpack.transform.rest.action.compat.RestStartTransformActionDeprecated;
-import org.elasticsearch.xpack.transform.rest.action.compat.RestStopTransformActionDeprecated;
-import org.elasticsearch.xpack.transform.rest.action.compat.RestUpdateTransformActionDeprecated;
 import org.elasticsearch.xpack.transform.transforms.TransformPersistentTasksExecutor;
 
 import java.io.IOException;
@@ -131,10 +106,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
 
+import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.transform.TransformMessages.FAILED_TO_UNSET_RESET_MODE;
 import static org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants.AUDIT_INDEX_PATTERN;
 import static org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants.TRANSFORM_PREFIX;
@@ -193,17 +167,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new RestPreviewTransformAction(),
             new RestUpdateTransformAction(),
             new RestCatTransformAction(),
-            new RestUpgradeTransformsAction(),
-
-            // deprecated endpoints, to be removed for 8.0.0
-            new RestPutTransformActionDeprecated(),
-            new RestStartTransformActionDeprecated(),
-            new RestStopTransformActionDeprecated(),
-            new RestDeleteTransformActionDeprecated(),
-            new RestGetTransformActionDeprecated(),
-            new RestGetTransformStatsActionDeprecated(),
-            new RestPreviewTransformActionDeprecated(),
-            new RestUpdateTransformActionDeprecated()
+            new RestUpgradeTransformsAction()
         );
     }
 
@@ -222,16 +186,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new ActionHandler<>(SetResetModeAction.INSTANCE, TransportSetTransformResetModeAction.class),
             new ActionHandler<>(ValidateTransformAction.INSTANCE, TransportValidateTransformAction.class),
             new ActionHandler<>(UpgradeTransformsAction.INSTANCE, TransportUpgradeTransformsAction.class),
-
-            // deprecated actions, to be removed for 8.0.0
-            new ActionHandler<>(PutTransformActionDeprecated.INSTANCE, TransportPutTransformActionDeprecated.class),
-            new ActionHandler<>(StartTransformActionDeprecated.INSTANCE, TransportStartTransformActionDeprecated.class),
-            new ActionHandler<>(StopTransformActionDeprecated.INSTANCE, TransportStopTransformActionDeprecated.class),
-            new ActionHandler<>(DeleteTransformActionDeprecated.INSTANCE, TransportDeleteTransformActionDeprecated.class),
-            new ActionHandler<>(GetTransformActionDeprecated.INSTANCE, TransportGetTransformActionDeprecated.class),
-            new ActionHandler<>(GetTransformStatsActionDeprecated.INSTANCE, TransportGetTransformStatsActionDeprecated.class),
-            new ActionHandler<>(PreviewTransformActionDeprecated.INSTANCE, TransportPreviewTransformActionDeprecated.class),
-            new ActionHandler<>(UpdateTransformActionDeprecated.INSTANCE, TransportUpdateTransformActionDeprecated.class),
 
             // usage and info
             new ActionHandler<>(XPackUsageFeatureAction.TRANSFORM, TransformUsageTransportAction.class),
@@ -281,18 +235,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         transformServices.set(new TransformServices(configManager, checkpointService, auditor, scheduler));
 
         return Arrays.asList(transformServices.get(), new TransformClusterStateListener(clusterService, client));
-    }
-
-    @Override
-    public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
-        return templates -> {
-            try {
-                templates.put(TransformInternalIndexConstants.AUDIT_INDEX, TransformInternalIndex.getAuditIndexTemplateMetadata());
-            } catch (IOException e) {
-                logger.warn("Error creating transform audit index", e);
-            }
-            return templates;
-        };
     }
 
     @Override
@@ -352,10 +294,10 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     @Override
     public void cleanUpFeature(
         ClusterService clusterService,
-        Client client,
+        Client unwrappedClient,
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> finalListener
     ) {
-
+        OriginSettingClient client = new OriginSettingClient(unwrappedClient, TRANSFORM_ORIGIN);
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> unsetResetModeListener = ActionListener.wrap(
             success -> client.execute(
                 SetResetModeAction.INSTANCE,

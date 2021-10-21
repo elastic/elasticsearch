@@ -15,8 +15,11 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Map;
 
 public class ScriptStats implements Writeable, ToXContentFragment {
     private final List<ScriptContextStats> contextStats;
@@ -24,9 +27,11 @@ public class ScriptStats implements Writeable, ToXContentFragment {
     private final long cacheEvictions;
     private final long compilationLimitTriggered;
 
-
     public ScriptStats(List<ScriptContextStats> contextStats) {
-        this.contextStats = contextStats.stream().sorted().collect(Collectors.toUnmodifiableList());
+        ArrayList<ScriptContextStats> ctxStats = new ArrayList<>(contextStats.size());
+        ctxStats.addAll(contextStats);
+        ctxStats.sort(ScriptContextStats::compareTo);
+        this.contextStats = Collections.unmodifiableList(ctxStats);
         long compilations = 0;
         long cacheEvictions = 0;
         long compilationLimitTriggered = 0;
@@ -38,6 +43,17 @@ public class ScriptStats implements Writeable, ToXContentFragment {
         this.compilations = compilations;
         this.cacheEvictions = cacheEvictions;
         this.compilationLimitTriggered = compilationLimitTriggered;
+    }
+
+    public ScriptStats(long compilations, long cacheEvictions, long compilationLimitTriggered) {
+        this.contextStats = Collections.emptyList();
+        this.compilations = compilations;
+        this.cacheEvictions = cacheEvictions;
+        this.compilationLimitTriggered = compilationLimitTriggered;
+    }
+
+    public ScriptStats(ScriptContextStats context) {
+        this(context.getCompilations(), context.getCacheEvictions(), context.getCompilationLimitTriggered());
     }
 
     public ScriptStats(StreamInput in) throws IOException {
@@ -69,6 +85,17 @@ public class ScriptStats implements Writeable, ToXContentFragment {
 
     public long getCompilationLimitTriggered() {
         return compilationLimitTriggered;
+    }
+
+    public ScriptCacheStats toScriptCacheStats() {
+        if (contextStats.isEmpty()) {
+            return new ScriptCacheStats(this);
+        }
+        Map<String, ScriptStats> contexts = new HashMap<>(contextStats.size());
+        for (ScriptContextStats contextStats : contextStats) {
+            contexts.put(contextStats.getContext(), new ScriptStats(contextStats));
+        }
+        return new ScriptCacheStats(contexts);
     }
 
     @Override

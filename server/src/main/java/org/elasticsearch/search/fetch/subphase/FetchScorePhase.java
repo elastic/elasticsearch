@@ -27,7 +27,7 @@ public class FetchScorePhase implements FetchSubPhase {
             return null;
         }
         final IndexSearcher searcher = context.searcher();
-        final Weight weight = searcher.createWeight(searcher.rewrite(context.query()), ScoreMode.COMPLETE, 1);
+        final Weight weight = searcher.createWeight(context.rewrittenQuery(), ScoreMode.COMPLETE, 1);
         return new FetchSubPhaseProcessor() {
 
             Scorer scorer;

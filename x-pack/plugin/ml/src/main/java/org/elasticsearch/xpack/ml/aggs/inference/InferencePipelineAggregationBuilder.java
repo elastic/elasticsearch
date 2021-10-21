@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregatio
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
@@ -229,7 +230,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
             modelLoadingService.get().getModelForSearch(modelId, listener.delegateFailure((delegate, model) -> {
                 loadedModel.set(model);
 
-                boolean isLicensed = licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING) ||
+                boolean isLicensed = MachineLearningField.ML_API_FEATURE.check(licenseState) ||
                     licenseState.isAllowedByLicense(model.getLicenseLevel());
                 if (isLicensed) {
                     delegate.onResponse(null);

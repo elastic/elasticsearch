@@ -15,7 +15,8 @@ public class TransformDeprecations {
     public static final String UPGRADE_TRANSFFORM_URL = REFERENCE_BASE_URL + "upgrade-transforms.html";
 
     // breaking changes base url for the _next_ major release
-    public static final String BREAKING_CHANGES_BASE_URL = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html";
+    public static final String BREAKING_CHANGES_BASE_URL =
+        "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html";
 
     public static final String QUERY_BREAKING_CHANGES_URL = BREAKING_CHANGES_BASE_URL + "#breaking_80_search_changes";
 

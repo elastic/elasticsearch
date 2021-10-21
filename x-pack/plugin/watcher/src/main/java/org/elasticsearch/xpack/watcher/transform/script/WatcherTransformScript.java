@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.watcher.transform.script;
 
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.script.ScriptCache;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
@@ -46,5 +45,5 @@ public abstract class WatcherTransformScript {
     }
 
     public static ScriptContext<Factory> CONTEXT = new ScriptContext<>("watcher_transform", Factory.class,
-        200, TimeValue.timeValueMillis(0), ScriptCache.UNLIMITED_COMPILATION_RATE.asTuple(), true);
+        200, TimeValue.timeValueMillis(0), false, true);
 }

@@ -27,7 +27,7 @@ See also <<release-highlights>> and <<es-release-notes>>.
 *Details* +
 In 7.9, {es} added built-in index templates for the `metrics-*-*` and
 `logs-*-*` index patterns, each with a priority of `100`.
-{ingest-guide}/fleet.html[{agent}] uses these templates to
+{fleet-guide}/fleet.html[{agent}] uses these templates to
 create data streams.
 
 *Impact* +

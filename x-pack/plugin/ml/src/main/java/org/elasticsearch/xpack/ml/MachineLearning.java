@@ -619,12 +619,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
 
     public static boolean isMlNode(DiscoveryNode node) {
-        Map<String, String> nodeAttributes = node.getAttributes();
-        try {
-            return Long.parseLong(nodeAttributes.get(MACHINE_MEMORY_NODE_ATTR)) > 0;
-        } catch (NumberFormatException e) {
-            return false;
-        }
+        return node.getRoles().contains(DiscoveryNodeRole.ML_ROLE);
     }
 
     public List<Setting<?>> getSettings() {

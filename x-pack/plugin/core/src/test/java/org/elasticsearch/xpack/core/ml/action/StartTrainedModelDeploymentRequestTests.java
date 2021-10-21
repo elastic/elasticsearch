@@ -107,7 +107,7 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractSerializing
         ActionRequestValidationException e = request.validate();
 
         assertThat(e, is(not(nullValue())));
-        assertThat(e.getMessage(), containsString("[queue_capacity] must be in [1, 10000]"));
+        assertThat(e.getMessage(), containsString("[queue_capacity] must be a positive integer"));
     }
 
     public void testValidate_GivenQueueCapacityIsNegative() {
@@ -117,17 +117,7 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractSerializing
         ActionRequestValidationException e = request.validate();
 
         assertThat(e, is(not(nullValue())));
-        assertThat(e.getMessage(), containsString("[queue_capacity] must be in [1, 10000]"));
-    }
-
-    public void testValidate_GivenQueueCapacityIsGreaterThan10000() {
-        Request request = createRandom();
-        request.setQueueCapacity(randomIntBetween(10001, Integer.MAX_VALUE));
-
-        ActionRequestValidationException e = request.validate();
-
-        assertThat(e, is(not(nullValue())));
-        assertThat(e.getMessage(), containsString("[queue_capacity] must be in [1, 10000]"));
+        assertThat(e.getMessage(), containsString("[queue_capacity] must be a positive integer"));
     }
 
     public void testDefaults() {

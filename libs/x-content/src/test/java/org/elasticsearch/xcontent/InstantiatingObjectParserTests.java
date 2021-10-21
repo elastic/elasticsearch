@@ -8,11 +8,8 @@
 
 package org.elasticsearch.xcontent;
 
-import org.elasticsearch.xcontent.InstantiatingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ParserConstructor;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -217,8 +214,10 @@ public class InstantiatingObjectParserTests extends ESTestCase {
         InstantiatingObjectParser.Builder<Annotations, Void> builder = InstantiatingObjectParser.builder("foo", Annotations.class);
         builder.declareInt(constructorArg(), new ParseField("a"));
         builder.declareString(constructorArg(), new ParseField("b"));
+        builder.declareInt(constructorArg(), new ParseField("c"));
+        builder.declareString(constructorArg(), new ParseField("d"));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
-        assertThat(e.getMessage(), containsString("Annotated constructor doesn't have 2 arguments in the class"));
+        assertThat(e.getMessage(), containsString("Annotated constructor doesn't have 4 or 5 arguments in the class"));
     }
 
     public void testDoubleDeclarationThrowsException() throws IOException {
@@ -240,4 +239,80 @@ public class InstantiatingObjectParserTests extends ESTestCase {
         assertThat(exception, instanceOf(IllegalArgumentException.class));
         assertThat(exception.getMessage(), startsWith("Parser already registered for name=[name]"));
     }
+
+    public static class ContextArgument {
+        final String context;
+        final int a;
+        final String b;
+        final long c;
+
+        public ContextArgument() {
+            this(1, "2", 3);
+        }
+
+        public ContextArgument(int a, String b) {
+            this(a, b, -1);
+        }
+
+
+        public ContextArgument(int a, String b, long c) {
+            this(null, a, b, c);
+        }
+
+        public ContextArgument(String context, int a, String b, long c) {
+            this.context = context;
+            this.a = a;
+            this.b = b;
+            this.c = c;
+        }
+
+        @ParserConstructor
+        public ContextArgument(String context, int a, String b, String c) {
+            this.context = context;
+            this.a = a;
+            this.b = b;
+            this.c = Long.parseLong(c);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ContextArgument that = (ContextArgument) o;
+            return a == that.a &&
+                c == that.c &&
+                Objects.equals(b, that.b);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(a, b, c);
+        }
+    }
+
+    public void testContextAsArgument() throws IOException {
+        InstantiatingObjectParser.Builder<ContextArgument, String> builder = InstantiatingObjectParser.builder(
+            "foo",
+            ContextArgument.class
+        );
+        builder.declareInt(constructorArg(), new ParseField("a"));
+        builder.declareString(constructorArg(), new ParseField("b"));
+        builder.declareString(constructorArg(), new ParseField("c"));
+        InstantiatingObjectParser<ContextArgument, String> parser = builder.build();
+        try (XContentParser contentParser = createParser(JsonXContent.jsonXContent, "{\"a\": 5, \"b\":\"6\", \"c\": \"7\"}")) {
+            assertThat(parser.parse(contentParser, "context"), equalTo(new ContextArgument("context", 5, "6", 7)));
+        }
+    }
+
+    public void testContextAsArgumentWrongArgumentNumber() {
+        InstantiatingObjectParser.Builder<ContextArgument, String> builder = InstantiatingObjectParser.builder(
+            "foo",
+            ContextArgument.class
+        );
+        builder.declareInt(constructorArg(), new ParseField("a"));
+        builder.declareString(constructorArg(), new ParseField("b"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
+        assertThat(e.getMessage(), containsString("Annotated constructor doesn't have 2 or 3 arguments in the class"));
+    }
+
 }

@@ -245,8 +245,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             if (XPackSettings.SECURITY_ENABLED.get(settings)) {
                 // TODO we should really validate that all nodes have xpack installed and are consistently configured but this
                 // should happen on a different level and not in this code
-                if (XPackLicenseState.isTransportTlsRequired(newLicense, settings)
-                    && XPackSettings.TRANSPORT_SSL_ENABLED.get(settings) == false
+                if (XPackSettings.TRANSPORT_SSL_ENABLED.get(settings) == false
                     && isProductionMode(settings, clusterService.localNode())) {
                     // security is on but TLS is not configured we gonna fail the entire request and throw an exception
                     throw new IllegalStateException("Cannot install a [" + newLicense.operationMode() +

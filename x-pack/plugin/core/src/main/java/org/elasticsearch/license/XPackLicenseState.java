@@ -10,12 +10,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -459,25 +457,6 @@ public class XPackLicenseState {
 
     public static boolean isFipsAllowedForOperationMode(final OperationMode operationMode) {
         return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM);
-    }
-
-    public static boolean isTransportTlsRequired(License license, Settings settings) {
-        if (license == null) {
-            return false;
-        }
-        switch (license.operationMode()) {
-            case STANDARD:
-            case GOLD:
-            case PLATINUM:
-            case ENTERPRISE:
-            case BASIC:
-                return XPackSettings.SECURITY_ENABLED.get(settings);
-            case MISSING:
-            case TRIAL:
-                return false;
-            default:
-                throw new AssertionError("unknown operation mode [" + license.operationMode() + "]");
-        }
     }
 
     public static boolean isCcrAllowedForOperationMode(final OperationMode operationMode) {

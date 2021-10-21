@@ -172,7 +172,7 @@ public class SourceLookup implements Map<String, Object> {
      * @param path The path from which to extract the values from source
      * @return The list of found values or an empty list if none are found
      */
-    public List<Object> extractRawValuesOptimized(String path) {
+    public List<Object> extractRawValuesWithoutCaching(String path) {
         if (source != null) {
             return XContentMapValues.extractRawValues(path, source);
         }

@@ -43,8 +43,8 @@
 ---
 "cluster health request timeout with 200 response code":
   - skip:
-      version: " - 7.99.99"
-      reason: "return_200_for_cluster_health_timeout yields a warning in 8.0"
+      version: " - 7.15.99"
+      reason: "return_200_for_cluster_health_timeout was added in 7.16"
       features: "warnings"
   - do:
       warnings:

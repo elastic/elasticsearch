@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
-[[match-enrich-policy-type]]
-=== Example: Enrich your data based on exact values
+[[range-enrich-policy-type]]
+=== Example: Enrich your data based on matching a value against a range
 
 `range` <<enrich-policy,enrich policies>> match enrich data to incoming
 documents based on a singular value that can be expressed as part of a range, such as

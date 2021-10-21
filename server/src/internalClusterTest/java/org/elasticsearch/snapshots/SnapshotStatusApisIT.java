@@ -21,9 +21,11 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -427,7 +429,9 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             if (snapshots.size() != 1) {
                 return false;
             }
-            var shards = snapshotsInProgress.snapshot(snapshots.iterator().next()).shards();
+            ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = snapshotsInProgress.snapshot(
+                snapshots.iterator().next()
+            ).shards();
             long initShards = shards.stream().filter(e -> e.getValue().state() == SnapshotsInProgress.ShardState.INIT).count();
             long successShards = shards.stream().filter(e -> e.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS).count();
             return successShards == shards.size() - 1 && initShards == 1;

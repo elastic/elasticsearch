@@ -140,8 +140,8 @@ include::restore-snapshot-api.asciidoc[tag=cluster-state-contents]
 `indices`::
 (Optional, string or array of strings)
 Comma-separated list of data streams and indices to include in the snapshot.
-Supports <<api-multi-index,multi-index syntax>>. Defaults to an empty array
-(`[]`), which includes all data streams and indices, including system indices.
+Supports <<multi-index,multi-index syntax>>. Defaults to an empty array (`[]`),
+which includes all data streams and indices, including system indices.
 +
 To exclude all data streams and indices, use `-*` or `none`.
 

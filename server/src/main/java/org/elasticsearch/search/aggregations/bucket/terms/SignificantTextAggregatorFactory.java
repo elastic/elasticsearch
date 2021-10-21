@@ -363,7 +363,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
          * Extract values from {@code _source}.
          */
         protected List<Object> extractRawValues(String field) {
-            return sourceLookup.extractRawValues(field);
+            return sourceLookup.extractRawValuesWithoutCaching(field);
         }
 
         @Override

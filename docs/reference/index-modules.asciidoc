@@ -331,6 +331,7 @@ pipeline attempts to change the `_index` field, the indexing request will fail.
 
 [[index-mapping-dimension-fields-limit]]
 `index.mapping.dimension_fields.limit`::
+experimental:[] 
 For internal use by Elastic only. Maximum number of time series dimensions for
 the index. Defaults to `16`.
 +

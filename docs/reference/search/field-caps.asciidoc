@@ -112,10 +112,13 @@ field types are all described as the `keyword` type family.
   Whether this field can be aggregated on all indices.
 
 `time_series_dimension`::
-  Whether this field is used as a time series dimension.
+experimental:[]
+Whether this field is used as a time series dimension.
 
 `time_series_metric`::
-  Contains metric type if this fields is used as a time series metrics, absent if the field is not used as metric.
+experimental:[]
+Contains metric type if this fields is used as a time series metrics, absent if
+the field is not used as metric.
 
 `indices`::
   The list of indices where this field has the same type family, or null if all indices

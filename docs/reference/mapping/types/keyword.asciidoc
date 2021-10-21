@@ -149,6 +149,7 @@ The following parameters are accepted by `keyword` fields:
 
 // tag::dimension[]
 `time_series_dimension`::
+experimental:[]
 (Optional, Boolean) For internal use by Elastic only. Marks the field as a time
 series dimension. Defaults to `false`.
 +

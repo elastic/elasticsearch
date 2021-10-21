@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -38,13 +39,8 @@ import java.util.zip.Inflater;
  */
 public final class CompressedXContent {
 
-    private static final ThreadLocal<Inflater> inflater1 = ThreadLocal.withInitial(() -> new Inflater(true));
-    private static final ThreadLocal<ByteBuffer> buffer1 =
-        ThreadLocal.withInitial(() -> ByteBuffer.allocate(DeflateCompressor.BUFFER_SIZE));
-
-    private static final ThreadLocal<Inflater> inflater2 = ThreadLocal.withInitial(() -> new Inflater(true));
-    private static final ThreadLocal<ByteBuffer> buffer2 =
-        ThreadLocal.withInitial(() -> ByteBuffer.allocate(DeflateCompressor.BUFFER_SIZE));
+    private static final ThreadLocal<InflaterAndBuffer> inflater1 = ThreadLocal.withInitial(InflaterAndBuffer::new);
+    private static final ThreadLocal<InflaterAndBuffer> inflater2 = ThreadLocal.withInitial(InflaterAndBuffer::new);
 
     private static int crc32(BytesReference data) {
         CRC32 crc32 = new CRC32();
@@ -58,31 +54,22 @@ public final class CompressedXContent {
     }
 
     private static int crc32FromCompressed(byte[] compressed) {
-        final Inflater inflater = inflater1.get();
-        final ByteBuffer buffer = buffer1.get();
         CRC32 crc32 = new CRC32();
-        try {
+        try (InflaterAndBuffer inflaterAndBuffer = inflater1.get()) {
+            final Inflater inflater = inflaterAndBuffer.inflater;
+            final ByteBuffer buffer = inflaterAndBuffer.buffer;
+            assert assertBufferIsCleared(buffer);
             setInflaterInput(compressed, inflater);
             do {
-                buffer.clear();
                 if (inflater.inflate(buffer) > 0) {
                     crc32.update(buffer.flip());
                 }
+                buffer.clear();
             } while (inflater.finished() == false);
             return (int) crc32.getValue();
         } catch (DataFormatException e) {
             throw new ElasticsearchException(e);
-        } finally {
-            inflater.reset();
         }
-    }
-
-    /**
-     * Set the given bytes as inflater input, accounting for the fact that they start with our header of size
-     * {@link DeflateCompressor#HEADER_SIZE}.
-     */
-    private static void setInflaterInput(byte[] compressed, Inflater inflater) {
-        inflater.setInput(compressed, DeflateCompressor.HEADER_SIZE, compressed.length - DeflateCompressor.HEADER_SIZE);
     }
 
     private final byte[] bytes;
@@ -196,34 +183,37 @@ public final class CompressedXContent {
         }
         // compression is not entirely deterministic in all cases depending on hwo the compressed bytes were assembled, check uncompressed
         // equality
-        return equals(bytes, that.bytes);
+        return equalsWhenUncompressed(bytes, that.bytes);
     }
 
-    private static boolean equals(byte[] bytes1, byte[] bytes2) {
-        final Inflater inf1 = inflater1.get();
-        final Inflater def2 = inflater2.get();
-        final ByteBuffer buf1 = buffer1.get();
-        final ByteBuffer buf2 = buffer2.get();
-        try {
+    // package private for testing
+    static boolean equalsWhenUncompressed(byte[] bytes1, byte[] bytes2) {
+        try (InflaterAndBuffer inflaterAndBuffer1 = inflater1.get();
+             InflaterAndBuffer inflaterAndBuffer2 = inflater2.get()) {
+            final Inflater inf1 = inflaterAndBuffer1.inflater;
+            final Inflater inf2 = inflaterAndBuffer2.inflater;
             setInflaterInput(bytes1, inf1);
-            setInflaterInput(bytes2, def2);
+            setInflaterInput(bytes2, inf2);
+            final ByteBuffer buf1 = inflaterAndBuffer1.buffer;
+            assert assertBufferIsCleared(buf1);
+            final ByteBuffer buf2 =  inflaterAndBuffer2.buffer;
+            assert assertBufferIsCleared(buf2);
             while (true) {
-                buf1.clear();
-                buf2.clear();
                 while (inf1.inflate(buf1) > 0 && buf1.hasRemaining()) ;
-                while (def2.inflate(buf2) > 0 && buf2.hasRemaining()) ;
+                while (inf2.inflate(buf2) > 0 && buf2.hasRemaining()) ;
                 if (buf1.flip().equals(buf2.flip()) == false) {
                     return false;
                 }
                 if (inf1.finished()) {
-                    return def2.finished();
+                    // if the first inflater is done but the second one still has data we fail here, if it's the other way around we fail
+                    // on the next round because we will only read bytes into 2
+                    return inf2.finished();
                 }
+                buf1.clear();
+                buf2.clear();
             }
         } catch (DataFormatException e) {
             throw new ElasticsearchException(e);
-        } finally {
-            inf1.reset();
-            def2.reset();
         }
     }
 
@@ -235,5 +225,33 @@ public final class CompressedXContent {
     @Override
     public String toString() {
         return string();
+    }
+
+    /**
+     * Set the given bytes as inflater input, accounting for the fact that they start with our header of size
+     * {@link DeflateCompressor#HEADER_SIZE}.
+     */
+    private static void setInflaterInput(byte[] compressed, Inflater inflater) {
+        inflater.setInput(compressed, DeflateCompressor.HEADER_SIZE, compressed.length - DeflateCompressor.HEADER_SIZE);
+    }
+
+    private static boolean assertBufferIsCleared(ByteBuffer buffer) {
+        assert buffer.limit() == buffer.capacity()
+            : "buffer limit != capacity, was [" + buffer.limit() + "] and [" + buffer.capacity() + "]";
+        assert buffer.position() == 0 : "buffer position != 0, was [" + buffer.position() + "]";
+        return true;
+    }
+
+    private static final class InflaterAndBuffer implements Releasable {
+
+        private final ByteBuffer buffer = ByteBuffer.allocate(DeflateCompressor.BUFFER_SIZE);
+
+        private final Inflater inflater = new Inflater(true);
+
+        @Override
+        public void close() {
+            inflater.reset();
+            buffer.clear();
+        }
     }
 }

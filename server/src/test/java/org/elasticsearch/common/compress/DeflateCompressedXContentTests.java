@@ -111,15 +111,27 @@ public class DeflateCompressedXContentTests extends ESTestCase {
 
     public void testEquals() throws IOException {
         final String[] randomJSON =
-            generateRandomStringArray(randomIntBetween(1, 1000), randomIntBetween(1, 512), false, true);
+            generateRandomStringArray(1000, randomIntBetween(1, 512), false, true);
         assertNotNull(randomJSON);
-        final BytesReference jsonDirect =
-            BytesReference.bytes(XContentFactory.jsonBuilder().startObject().stringListField("arr", Arrays.asList(randomJSON)).endObject());
-        final CompressedXContent one =
-            new CompressedXContent(jsonDirect);
-        final CompressedXContent sameAsOne =
-            new CompressedXContent((builder, params) ->
-                builder.stringListField("arr", Arrays.asList(randomJSON)), XContentType.JSON, ToXContent.EMPTY_PARAMS);
+        final BytesReference jsonDirect = BytesReference.bytes(
+            XContentFactory.jsonBuilder().startObject().stringListField("arr", Arrays.asList(randomJSON)).endObject());
+        final CompressedXContent one = new CompressedXContent(jsonDirect);
+        final CompressedXContent sameAsOne = new CompressedXContent((builder, params) ->
+            builder.stringListField("arr", Arrays.asList(randomJSON)), XContentType.JSON, ToXContent.EMPTY_PARAMS);
         assertEquals(one, sameAsOne);
+    }
+
+    public void testEqualsWhenUncompressed() throws IOException {
+        final String[] randomJSON1 =
+            generateRandomStringArray(randomIntBetween(1, 1000), randomIntBetween(1, 512), false, false);
+        final String[] randomJSON2 = randomValueOtherThanMany(
+            arr -> Arrays.equals(arr, randomJSON1),
+            () -> generateRandomStringArray(randomIntBetween(1, 1000), randomIntBetween(1, 512), false, true)
+        );
+        final CompressedXContent one = new CompressedXContent((builder, params) ->
+                builder.stringListField("arr", Arrays.asList(randomJSON1)), XContentType.JSON, ToXContent.EMPTY_PARAMS);
+        final CompressedXContent two = new CompressedXContent((builder, params) ->
+                builder.stringListField("arr", Arrays.asList(randomJSON2)), XContentType.JSON, ToXContent.EMPTY_PARAMS);
+        assertFalse(CompressedXContent.equalsWhenUncompressed(one.compressed(), two.compressed()));
     }
 }

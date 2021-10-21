@@ -14,8 +14,10 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -49,6 +51,7 @@ import static org.elasticsearch.xpack.transform.persistence.TransformInternalInd
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
 
 public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
@@ -56,7 +59,13 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
     @Before
     public void createComponents() {
-        transformConfigManager = new IndexBasedTransformConfigManager(client(), xContentRegistry());
+        ClusterService clusterService = mock(ClusterService.class);
+        transformConfigManager = new IndexBasedTransformConfigManager(
+            clusterService,
+            TestIndexNameExpressionResolver.newInstance(),
+            client(),
+            xContentRegistry()
+        );
     }
 
     public void testGetMissingTransform() throws InterruptedException {

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
@@ -29,6 +31,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
@@ -57,6 +60,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
         for (int i = 0; i < 5; i++) {
             res.setTimedOut(randomBoolean());
             assertEquals(RestStatus.OK, res.status(RestApiVersion.V_8));
+            assertWarnings(true, new DeprecationWarning(Level.WARN, ClusterHealthResponse.CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG));
         }
     }
 
@@ -65,6 +69,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
         for (int i = 0; i < 5; i++) {
             res.setTimedOut(randomBoolean());
             assertEquals(RestStatus.OK, res.status(RestApiVersion.V_7));
+            assertWarnings(true, new DeprecationWarning(Level.WARN, ClusterHealthResponse.CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG));
         }
     }
 

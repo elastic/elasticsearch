@@ -378,7 +378,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         for (ObjectObjectCursor<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> c : entry.shardsByRepoShardId()) {
             if (c.value.state() == SnapshotsInProgress.ShardState.SUCCESS) {
                 successfulShards++;
-            } else if (c.value.state() == SnapshotsInProgress.ShardState.FAILED) {
+            } else if (c.value.state().failed() && c.value.state().completed()) {
                 shardFailures.add(new SnapshotShardFailure(c.value.nodeId(), entry.shardId(c.key), c.value.reason()));
             }
         }

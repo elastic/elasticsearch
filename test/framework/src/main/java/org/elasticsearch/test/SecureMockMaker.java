@@ -40,7 +40,7 @@ public class SecureMockMaker implements MockMaker {
         // the test framework from the call stack, so that we only need to grant privileges
         // to mockito itself.
         DomainCombiner combiner = (current, assigned) -> Arrays.stream(current)
-            .filter(pd -> getFilePath(pd.getCodeSource().getLocation()).contains("mockito-core"))
+            .filter(pd -> pd.getCodeSource() != null && getFilePath(pd.getCodeSource().getLocation()).contains("mockito-core"))
             .findFirst()
             .map(pd -> new ProtectionDomain[]{ pd })
             .orElse(current);

@@ -208,7 +208,7 @@ POST _reindex
 
 [discrete]
 [[restore-new-cluster]]
-==== Restore to a new cluster
+=== Restore to a new cluster
 
 Some {es} features, such as the <<geoip-processor,GeoIP processor>>,
 automatically create system indices at startup. To avoid naming conflicts with

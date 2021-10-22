@@ -898,6 +898,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     }
 
     public static boolean isGlobalStateEquals(Metadata metadata1, Metadata metadata2) {
+        if (metadata1 == metadata2) {
+            return true;
+        }
         if (metadata1.coordinationMetadata.equals(metadata2.coordinationMetadata) == false) {
             return false;
         }
@@ -979,6 +982,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
     private static class MetadataDiff implements Diff<Metadata> {
 
+        private static final Version RECORD_EMPTY_VERSION = Version.V_7_16_0;
+
         private final long version;
         private final String clusterUUID;
         private boolean clusterUUIDCommitted;
@@ -989,8 +994,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         private final Diff<ImmutableOpenMap<String, IndexMetadata>> indices;
         private final Diff<ImmutableOpenMap<String, IndexTemplateMetadata>> templates;
         private final Diff<ImmutableOpenMap<String, Custom>> customs;
+        private final boolean isEmpty;
 
         MetadataDiff(Metadata before, Metadata after) {
+            isEmpty = before == after;
             clusterUUID = after.clusterUUID;
             clusterUUIDCommitted = after.clusterUUIDCommitted;
             version = after.version;
@@ -1009,6 +1016,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 new DiffableUtils.DiffableValueReader<>(IndexTemplateMetadata::readFrom, IndexTemplateMetadata::readDiffFrom);
 
         MetadataDiff(StreamInput in) throws IOException {
+            isEmpty = in.getVersion().onOrAfter(RECORD_EMPTY_VERSION) && in.readBoolean();
             clusterUUID = in.readString();
             if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
                 clusterUUIDCommitted = in.readBoolean();
@@ -1033,6 +1041,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            if (out.getVersion().onOrAfter(RECORD_EMPTY_VERSION)) {
+                out.writeBoolean(isEmpty);
+            }
             out.writeString(clusterUUID);
             if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
                 out.writeBoolean(clusterUUIDCommitted);
@@ -1053,6 +1064,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
         @Override
         public Metadata apply(Metadata part) {
+            if (isEmpty) {
+                return part;
+            }
             Builder builder = builder();
             builder.clusterUUID(clusterUUID);
             builder.clusterUUIDCommitted(clusterUUIDCommitted);

@@ -207,7 +207,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
      * @param includeEmpty             if true, a shard iterator will be added for non-assigned shards as well
      */
     public GroupShardsIterator<ShardIterator> allActiveShardsGrouped(String[] indices, boolean includeEmpty) {
-        return allSatisfyingPredicateShardsGrouped(indices, includeEmpty, ACTIVE_PREDICATE);
+        return allSatisfyingPredicateShardsGrouped(indices, includeEmpty, ShardRouting::active);
     }
 
     /**
@@ -216,11 +216,8 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
      * @param includeEmpty if true, a shard iterator will be added for non-assigned shards as well
      */
     public GroupShardsIterator<ShardIterator> allAssignedShardsGrouped(String[] indices, boolean includeEmpty) {
-        return allSatisfyingPredicateShardsGrouped(indices, includeEmpty, ASSIGNED_PREDICATE);
+        return allSatisfyingPredicateShardsGrouped(indices, includeEmpty, ShardRouting::assignedToNode);
     }
-
-    private static Predicate<ShardRouting> ACTIVE_PREDICATE = ShardRouting::active;
-    private static Predicate<ShardRouting> ASSIGNED_PREDICATE = ShardRouting::assignedToNode;
 
     private GroupShardsIterator<ShardIterator> allSatisfyingPredicateShardsGrouped(String[] indices, boolean includeEmpty,
                                                                                    Predicate<ShardRouting> predicate) {
@@ -361,6 +358,10 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
 
         @Override
         public RoutingTable apply(RoutingTable part) {
+            final ImmutableOpenMap<String, IndexRoutingTable> updatedRouting = indicesRouting.apply(part.indicesRouting);
+            if (part.version == version && updatedRouting == part.indicesRouting) {
+                return part;
+            }
             return new RoutingTable(version, indicesRouting.apply(part.indicesRouting));
         }
 

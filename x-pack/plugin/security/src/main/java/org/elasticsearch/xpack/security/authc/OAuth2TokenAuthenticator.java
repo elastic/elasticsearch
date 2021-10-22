@@ -13,6 +13,8 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 
 class OAuth2TokenAuthenticator implements Authenticator {
@@ -36,18 +38,18 @@ class OAuth2TokenAuthenticator implements Authenticator {
     }
 
     @Override
-    public void authenticate(Context context, ActionListener<Authenticator.Result> listener) {
+    public void authenticate(Context context, ActionListener<AuthenticationResult<Authentication>> listener) {
         final AuthenticationToken authenticationToken = context.getMostRecentAuthenticationToken();
         if (false == authenticationToken instanceof BearerToken) {
-            listener.onResponse(Authenticator.Result.notHandled());
+            listener.onResponse(AuthenticationResult.notHandled());
             return;
         }
         final BearerToken bearerToken = (BearerToken) authenticationToken;
         tokenService.tryAuthenticateToken(bearerToken.credentials(), ActionListener.wrap(userToken -> {
             if (userToken != null) {
-                listener.onResponse(Authenticator.Result.success(userToken.getAuthentication()));
+                listener.onResponse(AuthenticationResult.success(userToken.getAuthentication()));
             } else {
-                listener.onResponse(Authenticator.Result.unsuccessful("invalid token", null));
+                listener.onResponse(AuthenticationResult.unsuccessful("invalid token", null));
             }
         }, e -> {
             logger.debug(new ParameterizedMessage("Failed to validate token authentication for request [{}]", context.getRequest()), e);

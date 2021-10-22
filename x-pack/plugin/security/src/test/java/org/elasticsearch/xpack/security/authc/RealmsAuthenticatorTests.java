@@ -139,11 +139,11 @@ public class RealmsAuthenticatorTests extends ESTestCase {
 
         final Authenticator.Context context = createAuthenticatorContext();
         context.addAuthenticationToken(authenticationToken);
-        final PlainActionFuture<Authenticator.Result> future = new PlainActionFuture<>();
+        final PlainActionFuture<AuthenticationResult<Authentication>> future = new PlainActionFuture<>();
         realmsAuthenticator.authenticate(context, future);
-        final Authenticator.Result result = future.actionGet();
-        assertThat(result.getStatus(), is(Authenticator.Status.SUCCESS));
-        final Authentication authentication = result.getAuthentication();
+        final AuthenticationResult<Authentication> result = future.actionGet();
+        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+        final Authentication authentication = result.getValue();
         assertThat(authentication.getUser(), is(user));
         assertThat(authentication.getAuthenticatedBy(),
             equalTo(new Authentication.RealmRef(successfulRealm.name(), successfulRealm.type(), nodeName)));
@@ -179,7 +179,7 @@ public class RealmsAuthenticatorTests extends ESTestCase {
                 "Authentication failed using realms [realm1/realm1,realm2/reaml2]."
                 + " Realms [realm3/realm3] were skipped because they are not permitted on the current license"
             ));
-            final PlainActionFuture<Authenticator.Result> future = new PlainActionFuture<>();
+            final PlainActionFuture<AuthenticationResult<Authentication>> future = new PlainActionFuture<>();
             realmsAuthenticator.authenticate(context, future);
             assertThat(expectThrows(ElasticsearchSecurityException.class, future::actionGet), is(e));
         } finally {

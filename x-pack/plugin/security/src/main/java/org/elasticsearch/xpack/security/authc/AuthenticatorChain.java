@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
@@ -122,10 +123,10 @@ class AuthenticatorChain {
         // each Authenticator (and optionally asks it to extract the authenticationToken).
         // Depending on the authentication result from each Authenticator, the iteration may stop earlier
         // because of either a successful authentication or a not-continuable failure.
-        final IteratingActionListener<Authenticator.Result, Authenticator> iteratingActionListener = new IteratingActionListener<>(
+        final IteratingActionListener<AuthenticationResult<Authentication>, Authenticator> iterListener = new IteratingActionListener<>(
             ActionListener.wrap(result -> {
-                if (result.getStatus() == Authenticator.Status.SUCCESS) {
-                    maybeLookupRunAsUser(context, result.getAuthentication(), listener);
+                if (result.getStatus() == AuthenticationResult.Status.SUCCESS) {
+                    maybeLookupRunAsUser(context, result.getValue(), listener);
                 } else {
                     if (context.shouldHandleNullToken()) {
                         handleNullToken(context, listener);
@@ -138,11 +139,11 @@ class AuthenticatorChain {
             allAuthenticators,
             context.getThreadContext(),
             Function.identity(),
-            result -> result.getStatus() == Authenticator.Status.UNSUCCESSFUL || result.getStatus() == Authenticator.Status.NOT_HANDLED);
-        iteratingActionListener.run();
+            result -> result.getStatus() == AuthenticationResult.Status.CONTINUE);
+        iterListener.run();
     }
 
-    private BiConsumer<Authenticator, ActionListener<Authenticator.Result>> getAuthenticatorConsumer(
+    private BiConsumer<Authenticator, ActionListener<AuthenticationResult<Authentication>>> getAuthenticatorConsumer(
         Authenticator.Context context,
         boolean shouldExtractCredentials
     ) {
@@ -156,19 +157,19 @@ class AuthenticatorChain {
                         listener.onFailure(e);
                     } else { // other exceptions like illegal argument
                         context.addUnsuccessfulMessage(authenticator.name() + ": " + e.getMessage());
-                        listener.onResponse(Authenticator.Result.unsuccessful(e.getMessage(), e));
+                        listener.onResponse(AuthenticationResult.unsuccessful(e.getMessage(), e));
                     }
                     return;
                 }
                 if (authenticationToken == null) {
-                    listener.onResponse(Authenticator.Result.notHandled());
+                    listener.onResponse(AuthenticationResult.notHandled());
                     return;
                 }
                 context.addAuthenticationToken(authenticationToken);
             }
             context.setHandleNullToken(context.shouldHandleNullToken() && authenticator.canBeFollowedByNullTokenHandler());
             authenticator.authenticate(context, ActionListener.wrap(result -> {
-                if (result.getStatus() == Authenticator.Status.UNSUCCESSFUL) {
+                if (result.getStatus() == AuthenticationResult.Status.CONTINUE && result.getMessage() != null) {
                     context.addUnsuccessfulMessage(authenticator.name() + ": " + result.getMessage());
                 }
                 listener.onResponse(result);

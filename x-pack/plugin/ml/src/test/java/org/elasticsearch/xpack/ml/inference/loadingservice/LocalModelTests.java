@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeNode;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
-import org.mockito.ArgumentMatcher;
 
 import java.io.IOException;
 import java.util.Arrays;

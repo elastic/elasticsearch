@@ -165,7 +165,6 @@ import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
-import org.hamcrest.Description;
 import org.junit.Before;
 import org.mockito.ArgumentMatcher;
 import org.mockito.Matchers;

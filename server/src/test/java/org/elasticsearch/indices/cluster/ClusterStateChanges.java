@@ -212,8 +212,7 @@ public class ClusterStateChanges {
             indexMetadataVerifier, indicesService, shardLimitValidator, client, threadPool);
         MetadataDeleteIndexService deleteIndexService = new MetadataDeleteIndexService(SETTINGS, clusterService, allocationService);
         MetadataUpdateSettingsService metadataUpdateSettingsService = new MetadataUpdateSettingsService(clusterService,
-            allocationService, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, indicesService, shardLimitValidator, threadPool,
-            EmptySystemIndices.INSTANCE);
+            allocationService, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, indicesService, shardLimitValidator, threadPool);
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(SETTINGS, clusterService, indicesService,
             allocationService, new AliasValidator(), shardLimitValidator, environment,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, threadPool, xContentRegistry, EmptySystemIndices.INSTANCE, true);

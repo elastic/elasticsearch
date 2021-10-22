@@ -21,6 +21,7 @@ import org.junit.Assert;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Random;
 
@@ -118,6 +119,7 @@ public class DeflateCompressedXContentTests extends ESTestCase {
         final CompressedXContent one = new CompressedXContent(jsonDirect);
         final CompressedXContent sameAsOne = new CompressedXContent((builder, params) ->
             builder.stringListField("arr", Arrays.asList(randomJSON)), XContentType.JSON, ToXContent.EMPTY_PARAMS);
+        assertFalse(Arrays.equals(one.compressed(), sameAsOne.compressed()));
         assertEquals(one, sameAsOne);
     }
 
@@ -133,5 +135,12 @@ public class DeflateCompressedXContentTests extends ESTestCase {
         final CompressedXContent two = new CompressedXContent((builder, params) ->
                 builder.stringListField("arr", Arrays.asList(randomJSON2)), XContentType.JSON, ToXContent.EMPTY_PARAMS);
         assertFalse(CompressedXContent.equalsWhenUncompressed(one.compressed(), two.compressed()));
+    }
+
+    public void testEqualsCrcCollision() throws IOException {
+        final CompressedXContent content1 = new CompressedXContent("{\"d\":\"68&A<\"}".getBytes(StandardCharsets.UTF_8));
+        final CompressedXContent content2 = new CompressedXContent("{\"d\":\"gZG- \"}".getBytes(StandardCharsets.UTF_8));
+        assertEquals(content1.hashCode(), content2.hashCode()); // the inputs are a known CRC32 collision
+        assertNotEquals(content1, content2);
     }
 }

@@ -244,9 +244,9 @@ public final class CompressedXContent {
 
     private static final class InflaterAndBuffer implements Releasable {
 
-        private final ByteBuffer buffer = ByteBuffer.allocate(DeflateCompressor.BUFFER_SIZE);
+        final ByteBuffer buffer = ByteBuffer.allocate(DeflateCompressor.BUFFER_SIZE);
 
-        private final Inflater inflater = new Inflater(true);
+        final Inflater inflater = new Inflater(true);
 
         @Override
         public void close() {

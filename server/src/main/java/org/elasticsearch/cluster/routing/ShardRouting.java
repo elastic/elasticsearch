@@ -44,7 +44,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     private final RecoverySource recoverySource;
     private final UnassignedInfo unassignedInfo;
     private final AllocationId allocationId;
-    private final transient List<ShardRouting> asList;
+    private final List<ShardRouting> asList;
     private final long expectedShardSize;
     @Nullable
     private final ShardRouting targetRelocatingShard;

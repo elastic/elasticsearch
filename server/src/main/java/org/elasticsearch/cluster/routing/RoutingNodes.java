@@ -148,6 +148,39 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         }
     }
 
+    private RoutingNodes(RoutingNodes routingNodes) {
+        this.readOnly = false;
+        for (Map.Entry<String, RoutingNode> entry : routingNodes.nodesToShards.entrySet()) {
+            this.nodesToShards.put(entry.getKey(), entry.getValue().copy());
+        }
+        for (Map.Entry<ShardId, List<ShardRouting>> entry : routingNodes.assignedShards.entrySet()) {
+            this.assignedShards.put(entry.getKey(), new ArrayList<>(entry.getValue()));
+        }
+        this.unassignedShards.ignoredPrimaries = routingNodes.unassignedShards.ignoredPrimaries;
+        this.unassignedShards.primaries = routingNodes.unassignedShards.primaries;
+        this.unassignedShards.unassigned.addAll(routingNodes.unassignedShards.unassigned);
+        this.unassignedShards.ignored.addAll(routingNodes.unassignedShards.ignored);
+
+        this.inactivePrimaryCount = routingNodes.inactivePrimaryCount;
+        this.inactiveShardCount = routingNodes.inactiveShardCount;
+        this.relocatingShards = routingNodes.relocatingShards;
+        this.activeShardCount = routingNodes.activeShardCount;
+        this.totalShardCount = routingNodes.totalShardCount;
+        for (Map.Entry<String, Set<String>> entry : routingNodes.attributeValuesByAttribute.entrySet()) {
+            this.attributeValuesByAttribute.put(entry.getKey(), new HashSet<>(entry.getValue()));
+        }
+        for (Map.Entry<String, Recoveries> entry : routingNodes.recoveriesPerNode.entrySet()) {
+            final Recoveries copy = new Recoveries();
+            copy.incoming = entry.getValue().incoming;
+            copy.outgoing = entry.getValue().outgoing;
+            this.recoveriesPerNode.put(entry.getKey(), copy);
+        }
+    }
+
+    public RoutingNodes mutableCopy() {
+        return new RoutingNodes(this);
+    }
+
     private void addRecovery(ShardRouting routing) {
         updateRecoveryCounts(routing, true, findAssignedPrimaryIfPeerRecovery(routing));
     }

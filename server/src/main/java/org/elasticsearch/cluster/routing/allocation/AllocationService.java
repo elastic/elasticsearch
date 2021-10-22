@@ -543,7 +543,7 @@ public class AllocationService {
      * Create a mutable {@link RoutingNodes}. This is a costly operation so this must only be called once!
      */
     private RoutingNodes getMutableRoutingNodes(ClusterState clusterState) {
-        return new RoutingNodes(clusterState, false);
+        return clusterState.getRoutingNodes().mutableCopy();
     }
 
     /** override this to control time based decisions during allocation */

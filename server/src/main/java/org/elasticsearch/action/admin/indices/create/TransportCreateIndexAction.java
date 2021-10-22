@@ -75,7 +75,8 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         final String indexName  = indexNameExpressionResolver.resolveDateMathExpression(request.index(), resolvedAt);
 
         final SystemIndexDescriptor mainDescriptor = systemIndices.findMatchingDescriptor(indexName);
-        final boolean isSystemIndex = mainDescriptor != null && mainDescriptor.isAutomaticallyManaged();
+        final boolean isSystemIndex = mainDescriptor != null;
+        final boolean isManagedSystemIndex = isSystemIndex && mainDescriptor.isAutomaticallyManaged();
         if (mainDescriptor != null && mainDescriptor.isNetNew()) {
             final SystemIndexAccessLevel systemIndexAccessLevel = systemIndices.getSystemIndexAccessLevel(threadPool.getThreadContext());
             if (systemIndexAccessLevel != SystemIndexAccessLevel.ALL) {
@@ -92,14 +93,20 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             }
         }
 
-        if (Objects.nonNull(mainDescriptor)
-            && Objects.nonNull(request.settings())
-            && request.settings().hasValue(SETTING_INDEX_HIDDEN)
-            && "false".equals(request.settings().get(SETTING_INDEX_HIDDEN))) {
-            final String message = "Cannot create system index [" + indexName + "] with [index.hidden] set to 'false'";
-            logger.warn(message);
-            listener.onFailure(new IllegalStateException(message));
-            return;
+        if (isSystemIndex) {
+            if (Objects.isNull(request.settings())) {
+                request.settings(SystemIndexDescriptor.DEFAULT_SETTINGS);
+            } else if (false == request.settings().hasValue(SETTING_INDEX_HIDDEN)) {
+                request.settings(Settings.builder()
+                    .put(request.settings())
+                    .put(SETTING_INDEX_HIDDEN, true)
+                    .build());
+            } else if ("false".equals(request.settings().get(SETTING_INDEX_HIDDEN))) {
+                final String message = "Cannot create system index [" + indexName + "] with [index.hidden] set to 'false'";
+                logger.warn(message);
+                listener.onFailure(new IllegalStateException(message));
+                return;
+            }
         }
 
         final CreateIndexClusterStateUpdateRequest updateRequest;
@@ -108,7 +115,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         // different mappings, settings etc. This is so that rolling upgrade scenarios still work.
         // We check this via the request's origin. Eventually, `SystemIndexManager` will reconfigure
         // the index to the latest settings.
-        if (isSystemIndex && Strings.isNullOrEmpty(request.origin())) {
+        if (isManagedSystemIndex && Strings.isNullOrEmpty(request.origin())) {
             final SystemIndexDescriptor descriptor =
                 mainDescriptor.getDescriptorCompatibleWith(state.nodes().getSmallestNonClientNodeVersion());
             if (descriptor == null) {

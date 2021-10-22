@@ -30,6 +30,7 @@ import org.mockito.ArgumentCaptor;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -54,6 +55,7 @@ public class TransportCreateIndexActionTests extends ESTestCase {
         ))
     );
 
+    private MetadataCreateIndexService metadataCreateIndexService;
     private TransportCreateIndexAction action;
 
     @Before
@@ -62,7 +64,7 @@ public class TransportCreateIndexActionTests extends ESTestCase {
         super.setUp();
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, SYSTEM_INDICES);
-        MetadataCreateIndexService metadataCreateIndexService = mock(MetadataCreateIndexService.class);
+        this.metadataCreateIndexService = mock(MetadataCreateIndexService.class);
         this.action = new TransportCreateIndexAction(
             mock(TransportService.class),
             mock(ClusterService.class),
@@ -90,10 +92,29 @@ public class TransportCreateIndexActionTests extends ESTestCase {
 
         ArgumentCaptor<Exception> exceptionArgumentCaptor = ArgumentCaptor.forClass(Exception.class);
         verify(mockListener, times(0)).onResponse(any());
+        verify(metadataCreateIndexService, times(0)).createIndex(any(), any());
         verify(mockListener, times(1)).onFailure(exceptionArgumentCaptor.capture());
 
         Exception e = exceptionArgumentCaptor.getValue();
         assertThat(e.getMessage(), equalTo("Cannot create system index [.my-system] with [index.hidden] set to 'false'"));
+    }
+
+    public void testSystemIndicesCreatedHiddenByDefault() {
+        CreateIndexRequest request = new CreateIndexRequest();
+        request.index(SYSTEM_INDEX_NAME);
+
+        @SuppressWarnings("unchecked")
+        ActionListener<CreateIndexResponse> mockListener = mock(ActionListener.class);
+
+        action.masterOperation(mock(Task.class), request, CLUSTER_STATE, mockListener);
+
+        ArgumentCaptor<CreateIndexClusterStateUpdateRequest> createRequestArgumentCaptor
+            = ArgumentCaptor.forClass(CreateIndexClusterStateUpdateRequest.class);
+        verify(mockListener, times(0)).onFailure(any());
+        verify(metadataCreateIndexService, times(1)).createIndex(createRequestArgumentCaptor.capture(), any());
+
+        CreateIndexClusterStateUpdateRequest processedRequest = createRequestArgumentCaptor.getValue();
+        assertTrue(processedRequest.settings().getAsBoolean(SETTING_INDEX_HIDDEN, false));
     }
 
 }

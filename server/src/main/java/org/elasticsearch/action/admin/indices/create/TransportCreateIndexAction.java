@@ -35,6 +35,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
+
 /**
  * Create index action.
  */
@@ -88,6 +90,16 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
                     throw systemIndices.netNewSystemIndexAccessException(threadPool.getThreadContext(), List.of(indexName));
                 }
             }
+        }
+
+        if (Objects.nonNull(mainDescriptor)
+            && Objects.nonNull(request.settings())
+            && request.settings().hasValue(SETTING_INDEX_HIDDEN)
+            && "false".equals(request.settings().get(SETTING_INDEX_HIDDEN))) {
+            final String message = "Cannot create system index [" + indexName + "] with [index.hidden] set to 'false'";
+            logger.warn(message);
+            listener.onFailure(new IllegalStateException(message));
+            return;
         }
 
         final CreateIndexClusterStateUpdateRequest updateRequest;

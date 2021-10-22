@@ -6,9 +6,8 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.test;
+package org.elasticsearch.test.mockito;
 
-import org.elasticsearch.cli.SuppressForbidden;
 import org.mockito.MockedConstruction;
 import org.mockito.internal.creation.bytebuddy.SubclassByteBuddyMockMaker;
 import org.mockito.internal.util.reflection.LenientCopyTool;
@@ -16,59 +15,26 @@ import org.mockito.invocation.MockHandler;
 import org.mockito.mock.MockCreationSettings;
 import org.mockito.plugins.MockMaker;
 
-import java.net.URL;
-import java.security.AccessControlContext;
-import java.security.AccessController;
-import java.security.DomainCombiner;
-import java.security.PrivilegedAction;
-import java.security.ProtectionDomain;
-import java.util.Arrays;
 import java.util.Optional;
 import java.util.function.Function;
-import java.util.function.Supplier;
+
+import static org.elasticsearch.test.mockito.SecureMockUtil.wrap;
 
 /**
  * A {@link MockMaker} that works with {@link SecurityManager}.
  */
 public class SecureMockMaker implements MockMaker {
 
-    private static final AccessControlContext context;
-    static {
-        // This combiner extracts the protection domain of mockito if it exists and
-        // uses only that. Without it, the mock maker delegated calls would run with
-        // the Elasticsearch test framework on the call stack. This effectively removes
-        // the test framework from the call stack, so that we only need to grant privileges
-        // to mockito itself.
-        DomainCombiner combiner = (current, assigned) -> Arrays.stream(current)
-            .filter(pd -> pd.getCodeSource() != null && getFilePath(pd.getCodeSource().getLocation()).contains("mockito-core"))
-            .findFirst()
-            .map(pd -> new ProtectionDomain[]{ pd })
-            .orElse(current);
-
-        AccessControlContext acc = new AccessControlContext(AccessController.getContext(), combiner);
-
-        // getContext must be called with the new acc so that a combined context will be created
-        context = AccessController.doPrivileged((PrivilegedAction<AccessControlContext>) AccessController::getContext, acc);
+    // delegates to initializing util, which we don't want to have public
+    public static void init() {
+        SecureMockUtil.init();
     }
-
-    @SuppressForbidden(reason = "needed to get file path for comparison")
-    private static String getFilePath(URL url) {
-        return url.getFile();
-    }
-
-    // forces static init to run
-    public static void init() {}
 
     // TODO: consider using InlineByteBuddyMockMaker, but this requires using a java agent for instrumentation
     private final SubclassByteBuddyMockMaker delegate;
 
     public SecureMockMaker() {
         delegate = wrap(SubclassByteBuddyMockMaker::new);
-    }
-
-    // wrap the given call to play nice with SecurityManager
-    private static <T> T wrap(Supplier<T> call) {
-        return AccessController.doPrivileged((PrivilegedAction<T>) call::get, context);
     }
 
     @SuppressWarnings("rawtypes")

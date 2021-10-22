@@ -64,7 +64,15 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
         this.docValuesFunc = docValuesFunc;
         this.rounding = rounding;
         this.bits = missingBucket ? new BitArray(Math.min(size, 100), bigArrays) : null;
-        this.values = bigArrays.newLongArray(Math.min(size, 100), false);
+        boolean success = false;
+        try {
+            this.values = bigArrays.newLongArray(Math.min(size, 100), false);
+            success = true;
+        } finally {
+            if (success == false) {
+                close();
+            }
+        }
     }
 
     @Override

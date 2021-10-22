@@ -97,27 +97,37 @@ class SignificanceLookup {
                 public void close() {}
             };
         }
-        return new BackgroundFrequencyForBytes() {
-            private final BytesRefHash termToPosition = new BytesRefHash(1, bigArrays);
-            private LongArray positionToFreq = bigArrays.newLongArray(1, false);
+        final BytesRefHash termToPosition = new BytesRefHash(1, bigArrays);
+        boolean success = false;
+        try {
+            BackgroundFrequencyForBytes b = new BackgroundFrequencyForBytes() {
+                private LongArray positionToFreq = bigArrays.newLongArray(1, false);
 
-            @Override
-            public long freq(BytesRef term) throws IOException {
-                long position = termToPosition.add(term);
-                if (position < 0) {
-                    return positionToFreq.get(-1 - position);
+                @Override
+                public long freq(BytesRef term) throws IOException {
+                    long position = termToPosition.add(term);
+                    if (position < 0) {
+                        return positionToFreq.get(-1 - position);
+                    }
+                    long freq = getBackgroundFrequency(term);
+                    positionToFreq = bigArrays.grow(positionToFreq, position + 1);
+                    positionToFreq.set(position, freq);
+                    return freq;
                 }
-                long freq = getBackgroundFrequency(term);
-                positionToFreq = bigArrays.grow(positionToFreq, position + 1);
-                positionToFreq.set(position, freq);
-                return freq;
-            }
 
-            @Override
-            public void close() {
-                Releasables.close(termToPosition, positionToFreq);
+                @Override
+                public void close() {
+                    Releasables.close(termToPosition, positionToFreq);
+                }
+            };
+            success = true;
+            return b;
+        } finally {
+            if (success == false) {
+                termToPosition.close();
             }
-        };
+        }
+
     }
 
     /**
@@ -142,27 +152,37 @@ class SignificanceLookup {
                 public void close() {}
             };
         }
-        return new BackgroundFrequencyForLong() {
-            private final LongHash termToPosition = new LongHash(1, bigArrays);
-            private LongArray positionToFreq = bigArrays.newLongArray(1, false);
+        final LongHash termToPosition = new LongHash(1, bigArrays);
+        boolean success = false;
+        try {
+            BackgroundFrequencyForLong b = new BackgroundFrequencyForLong() {
 
-            @Override
-            public long freq(long term) throws IOException {
-                long position = termToPosition.add(term);
-                if (position < 0) {
-                    return positionToFreq.get(-1 - position);
+                private LongArray positionToFreq = bigArrays.newLongArray(1, false);
+
+                @Override
+                public long freq(long term) throws IOException {
+                    long position = termToPosition.add(term);
+                    if (position < 0) {
+                        return positionToFreq.get(-1 - position);
+                    }
+                    long freq = getBackgroundFrequency(term);
+                    positionToFreq = bigArrays.grow(positionToFreq, position + 1);
+                    positionToFreq.set(position, freq);
+                    return freq;
                 }
-                long freq = getBackgroundFrequency(term);
-                positionToFreq = bigArrays.grow(positionToFreq, position + 1);
-                positionToFreq.set(position, freq);
-                return freq;
-            }
 
-            @Override
-            public void close() {
-                Releasables.close(termToPosition, positionToFreq);
+                @Override
+                public void close() {
+                    Releasables.close(termToPosition, positionToFreq);
+                }
+            };
+            success = true;
+            return b;
+        } finally {
+            if (success == false) {
+                termToPosition.close();
             }
-        };
+        }
     }
 
     /**

@@ -90,7 +90,15 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         this.breakerConsumer = breakerConsumer;
         this.docValuesFunc = docValuesFunc;
         this.valuesOrd = bigArrays.newLongArray(Math.min(size, 100), false);
-        this.valuesUnmapped = bigArrays.newObjectArray(Math.min(size, 100));
+        boolean success = false;
+        try {
+            this.valuesUnmapped = bigArrays.newObjectArray(Math.min(size, 100));
+            success = true;
+        } finally {
+            if (success == false) {
+                close();
+            }
+        }
     }
 
     /**

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.analytics.topmetrics;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -90,8 +91,33 @@ public class TopMetricsAggregatorFactory extends AggregatorFactory {
                 CoreValuesSourceType.NUMERIC
             );
             MetricValuesSupplier supplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, vsConfig);
-            metricValues[i] = supplier.build(size, context.bigArrays(), config.getFieldName(), vsConfig);
+            boolean success = false;
+            try {
+                metricValues[i] = supplier.build(size, context.bigArrays(), config.getFieldName(), vsConfig);
+                success = true;
+            } finally {
+                if (success == false) {
+                    Releasables.close(metricValues);
+                }
+            }
         }
-        return new TopMetricsAggregator(name, context, parent, metadata, size, sortBuilders.get(0), metricValues);
+        boolean success = false;
+        try {
+            final TopMetricsAggregator aggregator = new TopMetricsAggregator(
+                name,
+                context,
+                parent,
+                metadata,
+                size,
+                sortBuilders.get(0),
+                metricValues
+            );
+            success = true;
+            return aggregator;
+        } finally {
+            if (success == false) {
+                Releasables.close(metricValues);
+            }
+        }
     }
 }

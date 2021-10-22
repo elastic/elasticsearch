@@ -159,7 +159,16 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
 
         MergeBucketsPhase(DoubleArray buffer, int bufferSize) {
             // Cluster the documents to reduce the number of buckets
-            bucketBufferedDocs(buffer, bufferSize, mergePhaseInitialBucketCount(shardSize));
+            boolean success = false;
+            try {
+                bucketBufferedDocs(buffer, bufferSize, mergePhaseInitialBucketCount(shardSize));
+                success = true;
+            } finally {
+                if (success == false) {
+                    close();
+                    clusterMaxes = clusterMins = clusterCentroids = clusterSizes = null;
+                }
+            }
 
             if (bufferSize > 1) {
                 updateAvgBucketDistance();

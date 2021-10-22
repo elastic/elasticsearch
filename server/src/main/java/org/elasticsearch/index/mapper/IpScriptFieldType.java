@@ -69,7 +69,8 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
         Script script,
         Map<String, String> meta
     ) {
-        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta);
+        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
+            script, scriptFactory.isResultDeterministic(), meta);
     }
 
     @Override
@@ -99,7 +100,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
 
     @Override
     public Query existsQuery(SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new IpScriptFieldExistsQuery(script, leafFactory(context), name());
     }
 
@@ -113,7 +114,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
         DateMathParser parser,
         SearchExecutionContext context
     ) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return IpFieldMapper.IpFieldType.rangeQuery(
             lowerTerm,
             upperTerm,
@@ -131,7 +132,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
 
     @Override
     public Query termQuery(Object value, SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         if (value instanceof InetAddress) {
             return inetAddressQuery((InetAddress) value, context);
         }
@@ -149,7 +150,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
 
     @Override
     public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         BytesRefHash terms = new BytesRefHash(values.size(), BigArrays.NON_RECYCLING_INSTANCE);
         List<Query> cidrQueries = null;
         for (Object value : values) {

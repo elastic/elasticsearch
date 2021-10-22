@@ -70,9 +70,9 @@ setup:
   - match: { snapshot.shards.failed: 0 }
   - match: { snapshot.shards.successful: 1 }
 
-  # Returns an illegal state exception
+  # Returns a repository conflict exception
   - do:
-      catch: request
+      catch: conflict
       snapshot.delete_repository:
         repository: repository-fs
 

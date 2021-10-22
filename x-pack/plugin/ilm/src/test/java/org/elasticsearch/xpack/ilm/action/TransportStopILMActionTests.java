@@ -22,7 +22,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ilm.StopILMRequest;
 import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
-import org.hamcrest.Description;
 import org.mockito.ArgumentMatcher;
 
 import static java.util.Collections.emptyMap;

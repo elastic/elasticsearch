@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.core.ilm.ShrinkStep;
 import org.elasticsearch.xpack.core.ilm.ShrunkShardsAllocatedStep;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
-import org.hamcrest.Description;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentMatcher;

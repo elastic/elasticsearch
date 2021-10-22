@@ -46,7 +46,6 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -705,7 +704,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                     .put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, String.valueOf(DEFAULT_NODE_SIZE))
                     .put(MachineLearning.MAX_JVM_SIZE_NODE_ATTR, String.valueOf(DEFAULT_JVM_SIZE))
                     .map(),
-                new HashSet<>(List.of(DiscoveryNodeRole.MASTER_ROLE)),
+                Set.of(DiscoveryNodeRole.ML_ROLE),
                 Version.CURRENT))
             .collect(Collectors.toList());
     }

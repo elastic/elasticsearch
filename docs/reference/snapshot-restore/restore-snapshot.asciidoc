@@ -79,14 +79,19 @@ GET _snapshot/my_repository/*?verbose=false
 You can restore a snapshot using {kib}'s *Snapshot and Restore* feature or the
 <<restore-snapshot-api,restore snapshot API>>.
 
-In most cases, you only need to restore a specific index or data stream from a
-snapshot. However, you can't restore an existing open index.
+By default, a restore request attempts to restore all indices and data streams
+in a snapshot, including system indices. However, you can't restore an
+existing open index.
 
-To avoid conflicts with existing indices and data streams, use one of the
-following methods:
+If you're restoring data to a pre-existing cluster, use one of the
+following methods to avoid conflicts with existing indices and data streams:
 
 * <<delete-restore>>
 * <<rename-on-restore>>
+
+Some {es} features automatically create system indices on cluster startup. To
+avoid conflicts with these system indices when restoring data to a new cluster,
+see <<restore-new-cluster>>.
 
 [discrete]
 [[delete-restore]]
@@ -115,14 +120,8 @@ DELETE _data_stream/logs-my_app-default
 ----
 // TEST[setup:setup-snapshots]
 
-By default, a restore request attempts to restore all indices and data
-streams in the snapshot, including system indices. If your cluster already
-contains one or more of these system indices, the request will return an error.
-
-To avoid this error, specify the indices and data streams to restore. To exclude
-system indices and other index names that begin with a dot (`.`), append the
-`-.*` wildcard pattern. To restore all indices and data streams except dot
-indices, use `*,-.*`.
+In the restore request, explicitly specify any indices and data streams to
+restore.
 
 [source,console]
 ----
@@ -206,6 +205,74 @@ POST _reindex
 }
 ----
 // TEST[continued]
+
+[discrete]
+[[restore-new-cluster]]
+==== Restore to a new cluster
+
+Some {es} features, such as the <<geoip-processor,GeoIP processor>>,
+automatically create system indices at startup. To avoid naming conflicts with
+these indices, use the `*,-.*` wildcard pattern in your restore request. This
+pattern excludes system indices and other indices that begin with a dot (`.`).
+
+////
+[source,console]
+----
+# Delete an index
+DELETE my-index
+
+# Delete a data stream
+DELETE _data_stream/logs-my_app-default
+----
+// TEST[setup:setup-snapshots]
+////
+
+[source,console]
+----
+POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore 
+{
+  "indices": "*,-.*"
+}
+----
+// TEST[continued]
+// TEST[s/_restore/_restore?wait_for_completion=true/]
+
+If your snapshot includes the related feature state, you can also restore the
+system indices and other configuration data for a specific feature.
+
+NOTE: You can't restore specific feature states in {kib}.
+
+To view a snapshot's feature states, use the get snapshot API.
+
+[source,console]
+----
+GET _snapshot/my_repository/my_snapshot_2099.05.06
+----
+// TEST[setup:setup-snapshots]
+
+To restore a feature state, specify the `feature_name` from the response in the
+restore snapshot API's <<restore-snapshot-api-feature-states,`feature_states`>>
+parameter. When you restore a feature state, {es} closes and overwrites any
+existing indices that are part of the feature state.
+
+WARNING: Restoring the `security` feature state can overwrite system indices
+used for authentication. If you use {ess}, ensure you have access to the {ess}
+Console before restoring the `security` feature state. If you run {es} on your
+own hardware, <<restore-create-file-realm-user,create a superuser in the file
+realm>> to ensure you'll still be able to access your cluster.
+
+[source,console]
+----
+POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore 
+{
+  "indices": "*,-.*",
+  "feature_states": [ "geoip" ]
+}
+----
+// TEST[setup:setup-snapshots]
+// TEST[s/_restore/_restore?wait_for_completion=true/]
+// TEST[s/"\*\,\-\.\*",/"-*"/]
+// TEST[s/"feature_states": \[ "geoip" \]//]
 
 [discrete]
 [[restore-entire-cluster]]
@@ -297,19 +364,25 @@ POST _watcher/_start
 ////
 --
 
-. If you use {es} security features, log in to a node host, navigate to the {es}
+
+. {blank}
++
+--
+[[restore-create-file-realm-user]]
+If you use {es} security features, log in to a node host, navigate to the {es}
 installation directory, and add a user with the `superuser` role to the file
 realm using the <<users-command,`elasticsearch-users`>> tool.
-+
+
 For example, the following command creates a user named `restore_user`.
-+
+
 [source,sh]
 ----
 ./bin/elasticsearch-users useradd restore_user -p my_password -r superuser
 ----
-+
+
 Use this file realm user to authenticate requests until the restore operation is
 complete.
+--
 
 . Use the <<cluster-update-settings,cluster update settings API>> to set
 <<action-destructive-requires-name,`action.destructive_requires_name`>> to

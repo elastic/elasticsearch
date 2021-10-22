@@ -223,8 +223,10 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
         Request request = request("PUT", "/" + indexName);
         request.setJsonEntity("{\"settings\": {\"index.hidden\":\"false\"}}");
         ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(request));
-        assertThat(exception.getMessage(), containsString(
-            "Cannot create system index [" + indexName + "] with [index.hidden] set to 'false'"));
+        assertThat(
+            exception.getMessage(),
+            containsString("Cannot create system index [" + indexName + "] with [index.hidden] set to 'false'")
+        );
     }
 
     public void testCannotSetVisible() throws IOException {
@@ -235,8 +237,7 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
         Request putSettingsRequest = request("PUT", "/" + indexName + "/_settings");
         putSettingsRequest.setJsonEntity("{ \"index.hidden\" : false }");
         ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(putSettingsRequest));
-        assertThat(exception.getMessage(), containsString(
-            "Cannot set [index.hidden] to 'false' on system indices: [" + indexName + "]"));
+        assertThat(exception.getMessage(), containsString("Cannot set [index.hidden] to 'false' on system indices: [" + indexName + "]"));
     }
 
     public void testGetIndex() throws IOException {

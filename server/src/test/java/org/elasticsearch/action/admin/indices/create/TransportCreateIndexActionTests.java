@@ -36,7 +36,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-public class TransportCreateIndexActionTest extends ESTestCase {
+public class TransportCreateIndexActionTests extends ESTestCase {
 
     private static final ClusterState CLUSTER_STATE = ClusterState.builder(new ClusterName("test"))
         .metadata(Metadata.builder().build())
@@ -74,7 +74,7 @@ public class TransportCreateIndexActionTest extends ESTestCase {
         );
     }
 
-    public void testSystemIndicesCannotBeSetToHidden() {
+    public void testSystemIndicesCannotBeCreatedUnhidden() {
         CreateIndexRequest request = new CreateIndexRequest();
         request.settings(
             Settings.builder()

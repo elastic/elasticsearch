@@ -407,8 +407,8 @@ public class RestoreService implements ClusterStateApplier {
             metadataBuilder.put(snapshotIndexMetaData, false);
         }
 
-        assert explicitlyRequestedSystemIndices
-            .size() == 0 : "it should be impossible to reach this point with explicitly requested system indices";
+        assert explicitlyRequestedSystemIndices.size() == 0
+            : "it should be impossible to reach this point with explicitly requested system indices";
 
         // Now we can start the actual restore process by adding shards to be recovered in the cluster state
         // and updating cluster metadata (global and index) as needed

@@ -24,7 +24,6 @@ import java.util.Arrays;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class KibanaSystemIndexIT extends ESRestTestCase {

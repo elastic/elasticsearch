@@ -96,7 +96,8 @@ public class DefaultSearchContextTests extends ESTestCase {
         when(indexCache.query()).thenReturn(queryCache);
         when(indexService.cache()).thenReturn(indexCache);
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
-        when(indexService.newSearchExecutionContext(eq(shardId.id()), eq(shardId.id()), anyObject(), anyObject(), nullable(String.class), anyObject()))
+        when(indexService.newSearchExecutionContext(eq(shardId.id()), eq(shardId.id()), anyObject(),
+            anyObject(), nullable(String.class), anyObject()))
             .thenReturn(searchExecutionContext);
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.hasNested()).thenReturn(randomBoolean());

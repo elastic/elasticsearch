@@ -551,6 +551,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
     public static class Builder {
 
+        private ClusterState previous;
+
         private final ClusterName clusterName;
         private long version = 0;
         private String uuid = UNKNOWN_UUID;
@@ -564,6 +566,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         private int minimumMasterNodesOnPublishingMaster = -1;
 
         public Builder(ClusterState state) {
+            this.previous = state;
             this.clusterName = state.clusterName;
             this.version = state.version();
             this.uuid = state.stateUUID();
@@ -667,6 +670,9 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         public ClusterState build() {
             if (UNKNOWN_UUID.equals(uuid)) {
                 uuid = UUIDs.randomBase64UUID();
+            }
+            if (previous != null && routingTable == previous.routingTable && nodes == previous.nodes) {
+                routingNodes = previous.routingNodes;
             }
             return new ClusterState(clusterName, version, uuid, metadata, routingTable, nodes, blocks, customs.build(),
                 minimumMasterNodesOnPublishingMaster, fromDiff, routingNodes);

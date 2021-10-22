@@ -215,7 +215,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         // If there's no relocating shards and shards still on this node, we need to figure out why
         final RoutingAllocation allocation = new RoutingAllocation(
             allocationDeciders,
-            currentState.getRoutingNodes(),
+            currentState::getRoutingNodes,
             currentState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),

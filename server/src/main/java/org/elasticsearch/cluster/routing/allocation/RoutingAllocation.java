@@ -30,6 +30,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableSet;
@@ -43,7 +44,7 @@ public class RoutingAllocation {
 
     private final AllocationDeciders deciders;
 
-    private final RoutingNodes routingNodes;
+    private final Supplier<RoutingNodes> routingNodes;
 
     private final Metadata metadata;
 
@@ -85,8 +86,8 @@ public class RoutingAllocation {
      * @param clusterState cluster state before rerouting
      * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
      */
-    public RoutingAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, ClusterState clusterState, ClusterInfo clusterInfo,
-                             SnapshotShardSizeInfo shardSizeInfo, long currentNanoTime) {
+    public RoutingAllocation(AllocationDeciders deciders, Supplier<RoutingNodes> routingNodes, ClusterState clusterState,
+                             ClusterInfo clusterInfo, SnapshotShardSizeInfo shardSizeInfo, long currentNanoTime) {
         this.deciders = deciders;
         this.routingNodes = routingNodes;
         this.metadata = clusterState.metadata();
@@ -132,7 +133,7 @@ public class RoutingAllocation {
      * @return routing nodes
      */
     public RoutingNodes routingNodes() {
-        return routingNodes;
+        return routingNodes.get();
     }
 
     /**

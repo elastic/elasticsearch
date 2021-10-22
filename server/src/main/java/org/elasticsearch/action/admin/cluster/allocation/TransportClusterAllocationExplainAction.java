@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -72,9 +71,8 @@ public class TransportClusterAllocationExplainAction
     @Override
     protected void masterOperation(final ClusterAllocationExplainRequest request, final ClusterState state,
                                    final ActionListener<ClusterAllocationExplainResponse> listener) {
-        final RoutingNodes routingNodes = state.getRoutingNodes();
         final ClusterInfo clusterInfo = clusterInfoService.getClusterInfo();
-        final RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, state,
+        final RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state::getRoutingNodes, state,
                 clusterInfo, snapshotsInfoService.snapshotShardSizes(), System.nanoTime());
 
         ShardRouting shardRouting = findShardToExplain(request, allocation);

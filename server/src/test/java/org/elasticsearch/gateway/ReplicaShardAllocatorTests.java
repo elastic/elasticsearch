@@ -479,7 +479,8 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                 .metadata(metadata)
                 .routingTable(routingTable)
                 .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3)).build();
-        return new RoutingAllocation(deciders, new RoutingNodes(state, false), state, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY,
+        final RoutingNodes routingNodes = new RoutingNodes(state, false);
+        return new RoutingAllocation(deciders, () -> routingNodes, state, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY,
             System.nanoTime());
     }
 
@@ -503,7 +504,8 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                 .metadata(metadata)
                 .routingTable(routingTable)
                 .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3)).build();
-        return new RoutingAllocation(deciders, new RoutingNodes(state, false), state, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY,
+        final RoutingNodes routingNodes = new RoutingNodes(state, false);
+        return new RoutingAllocation(deciders, () -> routingNodes, state, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY,
             System.nanoTime());
     }
 

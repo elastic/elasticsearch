@@ -81,7 +81,7 @@ public class AllocationDecidersTests extends ESTestCase {
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).build();
         final RoutingAllocation allocation = new RoutingAllocation(deciders,
-            clusterState.getRoutingNodes(), clusterState, null, null,0L);
+            clusterState::getRoutingNodes, clusterState, null, null,0L);
 
         allocation.setDebugMode(mode);
         final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "_message");
@@ -211,7 +211,7 @@ public class AllocationDecidersTests extends ESTestCase {
                 IndexMetadata.builder("idx").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0).build();
 
         final RoutingAllocation allocation = new RoutingAllocation(allocationDeciders,
-                clusterState.getRoutingNodes(), clusterState, null, null,0L);
+                clusterState::getRoutingNodes, clusterState, null, null,0L);
         assertSame(Decision.NO, allocationDeciders.canAllocate(shardRouting, routingNode, allocation));
         assertSame(Decision.NO, allocationDeciders.canRebalance(shardRouting, allocation));
         assertSame(Decision.NO, allocationDeciders.canRemain(shardRouting, routingNode, allocation));

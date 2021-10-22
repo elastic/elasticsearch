@@ -417,7 +417,8 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
             .metadata(metadata)
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3)).build();
-        return new RoutingAllocation(allocationDeciders, new RoutingNodes(state, false), state, null,
+        final RoutingNodes routingNodes = new RoutingNodes(state, false);
+        return new RoutingAllocation(allocationDeciders, () -> routingNodes, state, null,
             new SnapshotShardSizeInfo(ImmutableOpenMap.of()) {
                 @Override
                 public Long getShardSize(ShardRouting shardRouting) {
@@ -451,7 +452,8 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
                 .metadata(metadata)
                 .routingTable(routingTableBuilder.build())
                 .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3)).build();
-        return new RoutingAllocation(deciders, new RoutingNodes(state, false), state, null, null, System.nanoTime());
+        final RoutingNodes routingNodes = new RoutingNodes(state, false);
+        return new RoutingAllocation(deciders, () -> routingNodes, state, null, null, System.nanoTime());
     }
 
     private void assertClusterHealthStatus(RoutingAllocation allocation, ClusterHealthStatus expectedStatus) {

@@ -237,7 +237,7 @@ public class AllocationServiceTests extends ESTestCase {
             .build();
 
         final RoutingAllocation allocation = new RoutingAllocation(new AllocationDeciders(Collections.emptyList()),
-            clusterState.getRoutingNodes(), clusterState, ClusterInfo.EMPTY, null,0L);
+            clusterState::getRoutingNodes, clusterState, ClusterInfo.EMPTY, null,0L);
         allocation.setDebugMode(randomBoolean() ? RoutingAllocation.DebugMode.ON : RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
 
         final ShardAllocationDecision shardAllocationDecision

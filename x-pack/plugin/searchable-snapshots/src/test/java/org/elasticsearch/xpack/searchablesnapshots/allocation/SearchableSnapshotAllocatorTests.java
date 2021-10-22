@@ -253,19 +253,13 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
         long shardSize,
         AllocationDeciders allocationDeciders
     ) {
-        return new RoutingAllocation(
-            allocationDeciders,
-            new RoutingNodes(state, false),
-            state,
-            null,
-            new SnapshotShardSizeInfo(ImmutableOpenMap.of()) {
-                @Override
-                public Long getShardSize(ShardRouting shardRouting) {
-                    return shardSize;
-                }
-            },
-            TimeUnit.MILLISECONDS.toNanos(deterministicTaskQueue.getCurrentTimeMillis())
-        );
+        final RoutingNodes routingNodes = new RoutingNodes(state, false);
+        return new RoutingAllocation(allocationDeciders, () -> routingNodes, state, null, new SnapshotShardSizeInfo(ImmutableOpenMap.of()) {
+            @Override
+            public Long getShardSize(ShardRouting shardRouting) {
+                return shardSize;
+            }
+        }, TimeUnit.MILLISECONDS.toNanos(deterministicTaskQueue.getCurrentTimeMillis()));
     }
 
     private static void allocateAllUnassigned(RoutingAllocation allocation, ExistingShardsAllocator allocator) {

@@ -95,7 +95,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         final ClusterInfo clusterInfo = new ClusterInfo(leastAvailableUsages.build(),
             mostAvailableUsage.build(), shardSizes.build(), null, ImmutableOpenMap.of(),  ImmutableOpenMap.of());
         RoutingAllocation allocation = new RoutingAllocation(new AllocationDeciders(Collections.singleton(decider)),
-            clusterState.getRoutingNodes(), clusterState, clusterInfo, null, System.nanoTime());
+            clusterState::getRoutingNodes, clusterState, clusterInfo, null, System.nanoTime());
         allocation.debugDecision(true);
         Decision decision = decider.canAllocate(test_0, new RoutingNode("node_0", node_0), allocation);
         assertEquals(mostAvailableUsage.toString(), Decision.Type.YES, decision.type());
@@ -150,7 +150,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         ClusterInfo clusterInfo = new ClusterInfo(leastAvailableUsages.build(), mostAvailableUsage.build(),
             shardSizes.build(), null, ImmutableOpenMap.of(),  ImmutableOpenMap.of());
         RoutingAllocation allocation = new RoutingAllocation(new AllocationDeciders(Collections.singleton(decider)),
-            clusterState.getRoutingNodes(), clusterState, clusterInfo, null, System.nanoTime());
+            clusterState::getRoutingNodes, clusterState, clusterInfo, null, System.nanoTime());
         allocation.debugDecision(true);
         Decision decision = decider.canAllocate(test_0, new RoutingNode("node_0", node_0), allocation);
         assertEquals(Decision.Type.NO, decision.type());
@@ -231,7 +231,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         final ClusterInfo clusterInfo = new ClusterInfo(leastAvailableUsages.build(), mostAvailableUsage.build(),
             shardSizes.build(), null, shardRoutingMap.build(), ImmutableOpenMap.of());
         RoutingAllocation allocation = new RoutingAllocation(new AllocationDeciders(Collections.singleton(decider)),
-            clusterState.getRoutingNodes(), clusterState, clusterInfo, null, System.nanoTime());
+            clusterState::getRoutingNodes, clusterState, clusterInfo, null, System.nanoTime());
         allocation.debugDecision(true);
         Decision decision = decider.canRemain(test_0, new RoutingNode("node_0", node_0), allocation);
         assertEquals(Decision.Type.YES, decision.type());
@@ -384,7 +384,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         clusterState = startShardsAndReroute(allocationService, clusterState,
             clusterState.getRoutingTable().index("test").shardsWithState(ShardRoutingState.UNASSIGNED));
 
-        RoutingAllocation allocation = new RoutingAllocation(null, clusterState.getRoutingNodes(), clusterState, info, null,0);
+        RoutingAllocation allocation = new RoutingAllocation(null, clusterState::getRoutingNodes, clusterState, info, null,0);
 
         final Index index = new Index("test", "1234");
         ShardRouting test_0 = ShardRouting.newUnassigned(new ShardId(index, 0), true,
@@ -429,7 +429,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
 
         allocationService.reroute(clusterState, "foo");
         RoutingAllocation allocationWithMissingSourceIndex = new RoutingAllocation(null,
-            clusterStateWithMissingSourceIndex.getRoutingNodes(), clusterStateWithMissingSourceIndex, info, null,0);
+            clusterStateWithMissingSourceIndex::getRoutingNodes, clusterStateWithMissingSourceIndex, info, null,0);
         assertEquals(42L, getExpectedShardSize(target, 42L, allocationWithMissingSourceIndex));
         assertEquals(42L, getExpectedShardSize(target2, 42L, allocationWithMissingSourceIndex));
     }
@@ -512,7 +512,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         final ClusterInfo clusterInfo = new ClusterInfo(usages, usages, shardSizes.build(), null, ImmutableOpenMap.of(),
             ImmutableOpenMap.of());
         RoutingAllocation allocation = new RoutingAllocation(new AllocationDeciders(Collections.singleton(decider)),
-                clusterState.getRoutingNodes(), clusterState, clusterInfo, null, System.nanoTime());
+            clusterState::getRoutingNodes, clusterState, clusterInfo, null, System.nanoTime());
         allocation.debugDecision(true);
         final RoutingNode routingNode = new RoutingNode("node_0", node_0);
         Decision decision = decider.canAllocate(test_0, routingNode, allocation);
@@ -566,7 +566,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         ClusterInfo clusterInfo = new ClusterInfo(leastAvailableUsages.build(), mostAvailableUsage.build(),
             shardSizes.build(), null, ImmutableOpenMap.of(),  ImmutableOpenMap.of());
         RoutingAllocation allocation = new RoutingAllocation(new AllocationDeciders(Collections.singleton(decider)),
-            clusterState.getRoutingNodes(), clusterState, clusterInfo, null, System.nanoTime());
+            clusterState::getRoutingNodes, clusterState, clusterInfo, null, System.nanoTime());
         allocation.debugDecision(true);
         Decision decision = decider.canForceAllocateDuringReplace(test_0, new RoutingNode("node_0", node_0), allocation);
         assertEquals(Decision.Type.NO, decision.type());

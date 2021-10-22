@@ -1013,7 +1013,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
 
         final RoutingAllocation routingAllocation = new RoutingAllocation(
                 new AllocationDeciders(singletonList(decider)),
-                clusterState.getRoutingNodes(),
+                clusterState::getRoutingNodes,
                 clusterState,
                 null,
                 null,

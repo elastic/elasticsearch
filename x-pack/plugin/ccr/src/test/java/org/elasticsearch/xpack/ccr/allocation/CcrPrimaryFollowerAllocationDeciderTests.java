@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -181,7 +180,7 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
     static Decision executeAllocation(ClusterState clusterState, ShardRouting shardRouting, DiscoveryNode node) {
         final AllocationDecider decider = new CcrPrimaryFollowerAllocationDecider();
         final RoutingAllocation routingAllocation = new RoutingAllocation(new AllocationDeciders(Collections.singletonList(decider)),
-            new RoutingNodes(clusterState), clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, System.nanoTime());
+            clusterState::getRoutingNodes, clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, System.nanoTime());
         routingAllocation.debugDecision(true);
         return decider.canAllocate(shardRouting, new RoutingNode(node.getId(), node), routingAllocation);
     }

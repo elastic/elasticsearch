@@ -625,8 +625,9 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
         Index index = clusterState.getMetadata().index("test").getIndex();
         MoveAllocationCommand command = new MoveAllocationCommand(index.getName(), 0, "node1", "node2");
+        final RoutingNodes routingNodes = new RoutingNodes(clusterState, false);
         RoutingAllocation routingAllocation = new RoutingAllocation(new AllocationDeciders(Collections.emptyList()),
-            new RoutingNodes(clusterState, false), clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, System.nanoTime());
+            () -> routingNodes, clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, System.nanoTime());
         logger.info("--> executing move allocation command to non-data node");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> command.execute(routingAllocation, false));
         assertEquals("[move_allocation] can't move [test][0] from " + node1 + " to " +
@@ -664,8 +665,9 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
         Index index = clusterState.getMetadata().index("test").getIndex();
         MoveAllocationCommand command = new MoveAllocationCommand(index.getName(), 0, "node2", "node1");
+        final RoutingNodes routingNodes = new RoutingNodes(clusterState, false);
         RoutingAllocation routingAllocation = new RoutingAllocation(new AllocationDeciders(Collections.emptyList()),
-            new RoutingNodes(clusterState, false), clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, System.nanoTime());
+            () -> routingNodes, clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, System.nanoTime());
         logger.info("--> executing move allocation command from non-data node");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> command.execute(routingAllocation, false));
         assertEquals("[move_allocation] can't move [test][0] from " + node2 + " to " + node1 +

@@ -357,8 +357,9 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
     }
 
     private RoutingAllocation newRoutingAllocation(AllocationDeciders deciders, ClusterState state) {
+        final RoutingNodes routingNodes = new RoutingNodes(state, false);
         RoutingAllocation allocation = new RoutingAllocation(
-            deciders, new RoutingNodes(state, false), state, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, System.nanoTime());
+            deciders, () -> routingNodes, state, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, System.nanoTime());
         allocation.debugDecision(true);
         return allocation;
     }

@@ -63,7 +63,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         assertNull(routingTable.index("idx").shard(0).shards().get(0).currentNodeId());
 
         // after failing the shard we are unassigned since the node is blacklisted and we can't initialize on the other node
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state::getRoutingNodes, state,
             null, null, 0);
         allocation.debugDecision(true);
         Decision.Single decision = (Decision.Single) filterAllocationDecider.canAllocate(
@@ -114,7 +114,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         assertEquals(routingTable.index("idx").shard(0).primaryShard().state(), INITIALIZING);
         assertEquals(routingTable.index("idx").shard(0).primaryShard().currentNodeId(), "node1");
 
-        allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
+        allocation = new RoutingAllocation(allocationDeciders,state::getRoutingNodes, state,
             null, null, 0);
         allocation.debugDecision(true);
         decision = (Decision.Single) filterAllocationDecider.canAllocate(
@@ -151,10 +151,10 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.exclude._tier", "data_cold")
                 .build());
         RoutingTable routingTable = state.routingTable();
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state::getRoutingNodes, state,
             null, null, 0);
         allocation.debugDecision(true);
-        allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
+        allocation = new RoutingAllocation(allocationDeciders, state::getRoutingNodes, state,
             null, null, 0);
         allocation.debugDecision(true);
         Decision.Single decision = (Decision.Single) filterAllocationDecider.canAllocate(

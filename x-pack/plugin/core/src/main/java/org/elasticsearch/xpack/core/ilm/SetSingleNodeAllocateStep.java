@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -86,8 +85,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
             new NodeShutdownAllocationDecider(),
             new NodeReplacementAllocationDecider()
         ));
-        final RoutingNodes routingNodes = clusterState.getRoutingNodes();
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState, null,
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState::getRoutingNodes, clusterState, null,
                 null, System.nanoTime());
         List<String> validNodeIds = new ArrayList<>();
         String indexName = indexMetadata.getIndex().getName();
@@ -97,7 +95,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
             .collect(Collectors.groupingBy(ShardRouting::shardId));
 
         if (routingsByShardId.isEmpty() == false) {
-            for (RoutingNode node : routingNodes) {
+            for (RoutingNode node : clusterState.getRoutingNodes()) {
                 boolean canAllocateOneCopyOfEachShard = routingsByShardId.values().stream() // For each shard
                     .allMatch(shardRoutings -> shardRoutings.stream() // Can we allocate at least one shard copy to this node?
                         .map(shardRouting -> allocationDeciders.canAllocate(shardRouting, node, allocation).type())

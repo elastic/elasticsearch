@@ -151,8 +151,9 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
         Index index = clusterState.getMetadata().index("idx").getIndex();
         ShardRouting primaryShard = clusterState.routingTable().index(index).shard(0).primaryShard();
         RoutingNode routingNode = clusterState.getRoutingNodes().node(primaryShard.currentNodeId());
+        final RoutingNodes routingNodes = new RoutingNodes(clusterState, false);
         RoutingAllocation routingAllocation = new RoutingAllocation(new AllocationDeciders(Collections.emptyList()),
-            new RoutingNodes(clusterState, false), clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, System.nanoTime());
+            () -> routingNodes, clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, System.nanoTime());
 
         // can't force allocate same shard copy to the same node
         ShardRouting newPrimary = TestShardRouting.newShardRouting(primaryShard.shardId(), null, true, ShardRoutingState.UNASSIGNED);

@@ -94,7 +94,19 @@ tasks.named("thirdPartyAudit").configure {
           'org.tukaani.xz.X86Options',
           'org.tukaani.xz.XZ',
           'org.tukaani.xz.XZInputStream',
-          'org.tukaani.xz.XZOutputStream'
+          'org.tukaani.xz.XZOutputStream',
+
+          // mockito
+          'net.bytebuddy.agent.ByteBuddyAgent',
+          'org.mockito.internal.creation.bytebuddy.inject.MockMethodDispatcher',
+          'org.opentest4j.AssertionFailedError'
+  )
+}
+
+tasks.named('thirdPartyAudit').configure {
+  ignoreViolations(
+    'org.objenesis.instantiator.sun.UnsafeFactoryInstantiator',
+    'org.objenesis.instantiator.util.UnsafeUtils'
   )
 }
 

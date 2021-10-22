@@ -2483,7 +2483,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     private ClusterState systemIndexTestClusterState() {
-        Settings settings = Settings.builder().build();
+        Settings settings = Settings.builder().put("index.hidden", "true").build();
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(indexBuilder(".ml-meta", settings).state(State.OPEN).system(true))
             .put(indexBuilder(".watches", settings).state(State.OPEN).system(true))

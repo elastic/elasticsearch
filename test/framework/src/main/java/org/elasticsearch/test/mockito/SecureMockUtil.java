@@ -9,6 +9,7 @@
 package org.elasticsearch.test.mockito;
 
 import org.elasticsearch.cli.SuppressForbidden;
+import org.mockito.plugins.MockMaker;
 
 import java.net.URL;
 import java.security.AccessControlContext;
@@ -21,28 +22,13 @@ import java.util.function.Supplier;
 
 class SecureMockUtil {
 
-    private static final AccessControlContext context;
-    static {
-        // This combiner extracts the protection domain of mockito if it exists and
-        // uses only that. Without it, the mock maker delegated calls would run with
-        // the Elasticsearch test framework on the call stack. This effectively removes
-        // the test framework from the call stack, so that we only need to grant privileges
-        // to mockito itself.
-        DomainCombiner combiner = (current, assigned) -> Arrays.stream(current)
-            .filter(pd -> pd.getCodeSource() != null && getFilePath(pd.getCodeSource().getLocation()).contains("mockito-core"))
-            .findFirst()
-            .map(pd -> new ProtectionDomain[]{ pd })
-            .orElse(current);
-
+    private static final AccessControlContext context = getContext();
+    private static AccessControlContext getContext() {
+        ProtectionDomain[] pda = new ProtectionDomain[] { wrap(MockMaker.class::getProtectionDomain) };
+        DomainCombiner combiner = (current, assigned) -> pda;
         AccessControlContext acc = new AccessControlContext(AccessController.getContext(), combiner);
-
         // getContext must be called with the new acc so that a combined context will be created
-        context = AccessController.doPrivileged((PrivilegedAction<AccessControlContext>) AccessController::getContext, acc);
-    }
-
-    @SuppressForbidden(reason = "needed to get file path for comparison")
-    private static String getFilePath(URL url) {
-        return url.getFile();
+        return AccessController.doPrivileged((PrivilegedAction<AccessControlContext>) AccessController::getContext, acc);
     }
 
     // forces static init to run

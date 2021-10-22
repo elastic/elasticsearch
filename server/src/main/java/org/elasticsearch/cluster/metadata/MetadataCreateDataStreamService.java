@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -194,7 +195,9 @@ public class MetadataCreateDataStreamService {
                     .dataStreamName(dataStreamName)
                     .systemDataStreamDescriptor(systemDataStreamDescriptor);
 
-            if (isSystem == false) {
+            if (isSystem) {
+                createIndexRequest.settings(SystemIndexDescriptor.DEFAULT_SETTINGS);
+            } else {
                 createIndexRequest.settings(MetadataRolloverService.HIDDEN_INDEX_SETTINGS);
             }
 

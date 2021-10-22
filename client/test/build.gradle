@@ -43,6 +43,9 @@ tasks.named('forbiddenApisTest').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 
+// since this client implementation is going away, third party audit is pointless
+tasks.named("thirdPartyAudit").configure { enabled = false }
+
 // JarHell is part of es server, which we don't want to pull in
 // TODO: Not anymore. Now in :libs:elasticsearch-core
 tasks.named("jarHell").configure { enabled = false }

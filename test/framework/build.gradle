@@ -101,9 +101,7 @@ tasks.named("thirdPartyAudit").configure {
           'org.mockito.internal.creation.bytebuddy.inject.MockMethodDispatcher',
           'org.opentest4j.AssertionFailedError'
   )
-}
 
-tasks.named('thirdPartyAudit').configure {
   ignoreViolations(
     'org.objenesis.instantiator.sun.UnsafeFactoryInstantiator',
     'org.objenesis.instantiator.util.UnsafeUtils'

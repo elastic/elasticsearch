@@ -8,6 +8,7 @@
 
 package org.elasticsearch.test;
 
+import org.elasticsearch.cli.SuppressForbidden;
 import org.mockito.MockedConstruction;
 import org.mockito.internal.creation.bytebuddy.SubclassByteBuddyMockMaker;
 import org.mockito.internal.util.reflection.LenientCopyTool;
@@ -15,6 +16,7 @@ import org.mockito.invocation.MockHandler;
 import org.mockito.mock.MockCreationSettings;
 import org.mockito.plugins.MockMaker;
 
+import java.net.URL;
 import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.DomainCombiner;
@@ -38,7 +40,7 @@ public class SecureMockMaker implements MockMaker {
         // the test framework from the call stack, so that we only need to grant privileges
         // to mockito itself.
         DomainCombiner combiner = (current, assigned) -> Arrays.stream(current)
-            .filter(pd -> pd.getCodeSource().getLocation().getFile().contains("mockito-core"))
+            .filter(pd -> getFilePath(pd.getCodeSource().getLocation()).contains("mockito-core"))
             .findFirst()
             .map(pd -> new ProtectionDomain[]{ pd })
             .orElse(current);
@@ -47,6 +49,11 @@ public class SecureMockMaker implements MockMaker {
 
         // getContext must be called with the new acc so that a combined context will be created
         context = AccessController.doPrivileged((PrivilegedAction<AccessControlContext>) AccessController::getContext, acc);
+    }
+
+    @SuppressForbidden(reason = "needed to get file path for comparison")
+    private static String getFilePath(URL url) {
+        return url.getFile();
     }
 
     // forces static init to run

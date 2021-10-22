@@ -26,6 +26,7 @@ import org.junit.Before;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -148,12 +149,12 @@ public class SecurityContextTests extends ESTestCase {
     public void testExecuteAfterRewritingAuthenticationWillConditionallyRewriteNewApiKeyMetadata() throws IOException {
         User user = new User("test", null, new User("authUser"));
         RealmRef authBy = new RealmRef("_es_api_key", "_es_api_key", "node1");
-        final Map<String, Object> metadata = Map.of(
-            AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLengthBetween(1, 10),
-            AuthenticationField.API_KEY_NAME_KEY, randomAlphaOfLengthBetween(1, 10),
-            AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}"),
-            AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}")
-        );
+        final Map<String, Object> metadata = new HashMap<>();
+        metadata.put(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLengthBetween(1, 10));
+        metadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 10));
+        metadata.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}"));
+        metadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+            new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}"));
         final Authentication original = new Authentication(user, authBy, authBy, Version.V_8_0_0,
             AuthenticationType.API_KEY, metadata);
         original.writeToContext(threadContext);
@@ -177,12 +178,12 @@ public class SecurityContextTests extends ESTestCase {
     public void testExecuteAfterRewritingAuthenticationWillConditionallyRewriteOldApiKeyMetadata() throws IOException {
         User user = new User("test", null, new User("authUser"));
         RealmRef authBy = new RealmRef("_es_api_key", "_es_api_key", "node1");
-        final Map<String, Object> metadata = Map.of(
-            AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLengthBetween(1, 10),
-            AuthenticationField.API_KEY_NAME_KEY, randomAlphaOfLengthBetween(1, 10),
-            AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, Map.of("a role", Map.of("cluster", List.of("all"))),
-            AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, Map.of("limitedBy role", Map.of("cluster", List.of("all")))
-        );
+        final Map<String, Object> metadata = new HashMap<>();
+        metadata.put(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLengthBetween(1, 10));
+        metadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 10));
+        metadata.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, Map.of("a role", Map.of("cluster", List.of("all"))));
+        metadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+            Map.of("limitedBy role", Map.of("cluster", List.of("all"))));
         final Authentication original = new Authentication(user, authBy, authBy, Version.V_7_8_0, AuthenticationType.API_KEY, metadata);
         original.writeToContext(threadContext);
 

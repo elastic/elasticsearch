@@ -503,6 +503,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         }
         Map<String, Object> authMetadata = new HashMap<>();
         authMetadata.put(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLength(12));
+        authMetadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLength(12));
         authMetadata.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
             Collections.singletonMap(SUPERUSER_ROLE_DESCRIPTOR.getName(), superUserRdMap));
         authMetadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
@@ -524,6 +525,7 @@ public class ApiKeyServiceTests extends ESTestCase {
     public void testGetRolesForApiKey() throws Exception {
         Map<String, Object> authMetadata = new HashMap<>();
         authMetadata.put(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLength(12));
+        authMetadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLength(12));
         boolean emptyApiKeyRoleDescriptor = randomBoolean();
         final RoleDescriptor roleARoleDescriptor = new RoleDescriptor("a role", new String[] { "monitor" },
             new RoleDescriptor.IndicesPrivileges[] {
@@ -587,6 +589,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         Map<String, Object> authMetadata = new HashMap<>();
         final String apiKeyId = randomAlphaOfLength(12);
         authMetadata.put(AuthenticationField.API_KEY_ID_KEY, apiKeyId);
+        authMetadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLength(12));
         final BytesReference roleBytes = new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}");
         final BytesReference limitedByRoleBytes = new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}");
         authMetadata.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, roleBytes);

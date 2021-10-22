@@ -1369,17 +1369,17 @@ public class CompositeRolesStoreTests extends ESTestCase {
         AuditUtil.getOrGenerateRequestId(threadContext);
         final BytesArray roleBytes = new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}");
         final BytesArray limitedByRoleBytes = new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}");
+        final Map<String, Object> metadata = new HashMap<>();
+        metadata.put(AuthenticationField.API_KEY_ID_KEY, "key-id-1");
+        metadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 16));
+        metadata.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, roleBytes);
+        metadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleBytes);
         Authentication authentication = new Authentication(new User("test api key user", "superuser"),
             new RealmRef("_es_api_key", "_es_api_key", "node"),
             null,
             Version.CURRENT,
             AuthenticationType.API_KEY,
-            Map.of(AuthenticationField.API_KEY_ID_KEY,
-                "key-id-1",
-                AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
-                roleBytes,
-                AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
-                limitedByRoleBytes));
+            metadata);
         doCallRealMethod().when(apiKeyService).getApiKeyIdAndRoleBytes(eq(authentication), anyBoolean());
 
         PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
@@ -1391,17 +1391,17 @@ public class CompositeRolesStoreTests extends ESTestCase {
         verify(apiKeyService).parseRoleDescriptors("key-id-1", limitedByRoleBytes);
 
         // Different API key with the same roles should read from cache
+        final Map<String, Object> metadata2 = new HashMap<>();
+        metadata2.put(AuthenticationField.API_KEY_ID_KEY, "key-id-2");
+        metadata2.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 16));
+        metadata2.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, roleBytes);
+        metadata2.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleBytes);
         authentication = new Authentication(new User("test api key user 2", "superuser"),
             new RealmRef("_es_api_key", "_es_api_key", "node"),
             null,
             Version.CURRENT,
             AuthenticationType.API_KEY,
-            Map.of(AuthenticationField.API_KEY_ID_KEY,
-                "key-id-2",
-                AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
-                roleBytes,
-                AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
-                limitedByRoleBytes));
+            metadata2);
         doCallRealMethod().when(apiKeyService).getApiKeyIdAndRoleBytes(eq(authentication), anyBoolean());
         roleFuture = new PlainActionFuture<>();
         compositeRolesStore.getRoles(authentication.getUser(), authentication, roleFuture);
@@ -1412,17 +1412,17 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         // Different API key with the same limitedBy role should read from cache, new role should be built
         final BytesArray anotherRoleBytes = new BytesArray("{\"b role\": {\"cluster\": [\"manage_security\"]}}");
+        final Map<String, Object> metadata3 = new HashMap<>();
+        metadata3.put(AuthenticationField.API_KEY_ID_KEY, "key-id-3");
+        metadata3.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 16));
+        metadata3.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, anotherRoleBytes);
+        metadata3.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleBytes);
         authentication = new Authentication(new User("test api key user 2", "superuser"),
             new RealmRef("_es_api_key", "_es_api_key", "node"),
             null,
             Version.CURRENT,
             AuthenticationType.API_KEY,
-            Map.of(AuthenticationField.API_KEY_ID_KEY,
-                "key-id-3",
-                AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
-                anotherRoleBytes,
-                AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
-                limitedByRoleBytes));
+            metadata3);
         doCallRealMethod().when(apiKeyService).getApiKeyIdAndRoleBytes(eq(authentication), anyBoolean());
         roleFuture = new PlainActionFuture<>();
         compositeRolesStore.getRoles(authentication.getUser(), authentication, roleFuture);

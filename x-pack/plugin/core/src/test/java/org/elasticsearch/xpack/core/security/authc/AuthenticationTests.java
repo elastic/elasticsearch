@@ -182,19 +182,15 @@ public class AuthenticationTests extends ESTestCase {
 
     public static Authentication randomApiKeyAuthentication(User user, String apiKeyId) {
         final RealmRef apiKeyRealm = new RealmRef("_es_api_key", "_es_api_key", randomAlphaOfLengthBetween(3, 8));
-        final HashMap<String,Object>  apiKeyInfo  = new HashMap<>();
-        apiKeyInfo.put(AuthenticationField.API_KEY_ID_KEY, apiKeyId);
-        if (randomBoolean()) {
-            apiKeyInfo.put(AuthenticationField.API_KEY_NAME_KEY, randomAlphaOfLengthBetween(1, 16));
-        } else {
-            apiKeyInfo.put(AuthenticationField.API_KEY_NAME_KEY, null); // HashMap supports null values
-        }
+        final HashMap<String,Object>  metadata  = new HashMap<>();
+        metadata.put(AuthenticationField.API_KEY_ID_KEY, apiKeyId);
+        metadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 16));
         return new Authentication(user,
             apiKeyRealm,
             null,
             VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT),
             AuthenticationType.API_KEY,
-            apiKeyInfo
+            metadata
         );
     }
 

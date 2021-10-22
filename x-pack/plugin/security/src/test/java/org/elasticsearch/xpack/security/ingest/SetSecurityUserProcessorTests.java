@@ -251,12 +251,11 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         Authentication.RealmRef realmRef = new Authentication.RealmRef(
             AuthenticationField.API_KEY_REALM_NAME, AuthenticationField.API_KEY_REALM_TYPE, "_node_name");
 
-        final Map<String, Object> authMetadata = new HashMap<>(Map.of(
-            AuthenticationField.API_KEY_ID_KEY, "api_key_id",
-            AuthenticationField.API_KEY_NAME_KEY, "api_key_name",
-            AuthenticationField.API_KEY_CREATOR_REALM_NAME, "creator_realm_name",
-            AuthenticationField.API_KEY_CREATOR_REALM_TYPE, "creator_realm_type"
-        ));
+        final Map<String, Object> authMetadata = new HashMap<>();
+        authMetadata.put(AuthenticationField.API_KEY_ID_KEY, "api_key_id");
+        authMetadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : "api_key_name");
+        authMetadata.put(AuthenticationField.API_KEY_CREATOR_REALM_NAME, "creator_realm_name");
+        authMetadata.put(AuthenticationField.API_KEY_CREATOR_REALM_TYPE, "creator_realm_type");
         final Map<String, Object> apiKeyMetadata = ApiKeyTests.randomMetadata();
         if (apiKeyMetadata != null) {
             authMetadata.put(AuthenticationField.API_KEY_METADATA_KEY,
@@ -275,8 +274,9 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
         assertThat(result, aMapWithSize(4));
         final Map<String, Object> apiKeyMap = (Map<String, Object>) result.get("api_key");
-        assertThat(apiKeyMap.get("name"), equalTo("api_key_name"));
-        assertThat(apiKeyMap.get("id"), equalTo("api_key_id"));
+        assertThat(apiKeyMap.get("id"), equalTo(authMetadata.get(AuthenticationField.API_KEY_ID_KEY)));
+        assertThat(apiKeyMap, hasKey("name")); // must be present, even if null or non-null
+        assertThat(apiKeyMap.get("name"), equalTo(authMetadata.get(AuthenticationField.API_KEY_NAME_KEY))); // null or non-null
         if (apiKeyMetadata == null || apiKeyMetadata.isEmpty()) {
             assertNull(apiKeyMap.get("metadata"));
         } else {
@@ -293,12 +293,11 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         Authentication.RealmRef realmRef = new Authentication.RealmRef(
             AuthenticationField.API_KEY_REALM_NAME, AuthenticationField.API_KEY_REALM_TYPE, "_node_name");
 
-        final Map<String, Object> authMetadata = new HashMap<>(Map.of(
-            AuthenticationField.API_KEY_ID_KEY, "api_key_id",
-            AuthenticationField.API_KEY_NAME_KEY, "api_key_name",
-            AuthenticationField.API_KEY_CREATOR_REALM_NAME, "creator_realm_name",
-            AuthenticationField.API_KEY_CREATOR_REALM_TYPE, "creator_realm_type"
-        ));
+        final Map<String, Object> authMetadata = new HashMap<>();
+        authMetadata.put(AuthenticationField.API_KEY_ID_KEY, "api_key_id");
+        authMetadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : "api_key_name");
+        authMetadata.put(AuthenticationField.API_KEY_CREATOR_REALM_NAME, "creator_realm_name");
+        authMetadata.put(AuthenticationField.API_KEY_CREATOR_REALM_TYPE, "creator_realm_type");
         final Map<String, Object> apiKeyMetadata = ApiKeyTests.randomMetadata();
         if (apiKeyMetadata != null) {
             authMetadata.put(AuthenticationField.API_KEY_METADATA_KEY,

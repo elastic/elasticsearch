@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
@@ -34,8 +35,11 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
             ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder()).build();
 
         final String apiKeyId = randomAlphaOfLengthBetween(4, 7);
+        final HashMap<String,Object> metadata = new HashMap<>();
+        metadata.put(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLength(7));
+        metadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 16));
         final Authentication authentication = createMockAuthentication("joe", "_es_api_key",
-            AuthenticationType.API_KEY, Map.of(AuthenticationField.API_KEY_ID_KEY, apiKeyId));
+            AuthenticationType.API_KEY, metadata);
         final TransportRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyId(apiKeyId, randomBoolean());
         final TransportRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyId(apiKeyId, randomBoolean());
 
@@ -49,8 +53,11 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
             ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder()).build();
 
         final String apiKeyId = randomAlphaOfLengthBetween(4, 7);
+        final HashMap<String,Object> metadata = new HashMap<>();
+        metadata.put(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLength(7));
+        metadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 16));
         final Authentication authentication = createMockAuthentication("joe", "_es_api_key",
-            AuthenticationType.API_KEY, Map.of(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLength(7)));
+            AuthenticationType.API_KEY, metadata);
         final TransportRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyId(apiKeyId, randomBoolean());
         final TransportRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyId(apiKeyId, randomBoolean());
 

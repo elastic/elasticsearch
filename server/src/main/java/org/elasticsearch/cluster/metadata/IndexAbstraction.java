@@ -363,7 +363,7 @@ public interface IndexAbstraction {
 
         @Override
         public boolean isHidden() {
-            return isSystem() || dataStream.isHidden();
+            return dataStream.isHidden();
         }
 
         @Override

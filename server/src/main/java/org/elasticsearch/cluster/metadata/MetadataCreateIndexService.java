@@ -97,7 +97,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_R
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -357,13 +356,6 @@ public class MetadataCreateIndexService {
                 return applyCreateIndexRequestForSystemDataStream(currentState, request, silent, metadataTransformer);
             }
 
-            if (systemIndices.isSystemIndex(request.index())
-                && request.settings().hasValue(SETTING_INDEX_HIDDEN)
-                && "false".equals(request.settings().get(SETTING_INDEX_HIDDEN))) {
-                    throw new IllegalArgumentException("System indices must have " + IndexMetadata.SETTING_INDEX_HIDDEN +
-                        " set to true.");
-                }
-
             // Hidden indices apply templates slightly differently (ignoring wildcard '*'
             // templates), so we need to check to see if the request is creating a hidden index
             // prior to resolving which templates it matches
@@ -583,7 +575,7 @@ public class MetadataCreateIndexService {
         final List<Map<String, Object>> mappings =
             collectSystemV2Mappings(template, componentTemplates, xContentRegistry, request.index());
 
-        final Settings aggregatedIndexSettings = Settings.builder().put(aggregateIndexSettings(
+        final Settings aggregatedIndexSettings = aggregateIndexSettings(
             currentState,
             request,
             resolveSettings(template, componentTemplates),
@@ -593,9 +585,7 @@ public class MetadataCreateIndexService {
             shardLimitValidator,
             indexSettingProviders,
             this.enforceDefaultTierPreference
-        ))
-            .put(SETTING_INDEX_HIDDEN, true)
-            .build();
+        );
         final int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         final IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
 

@@ -83,7 +83,6 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_BLOCK;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
@@ -114,31 +113,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     @Before
     public void setupCreateIndexRequestAndAliasValidator() {
-        indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY),
-            new SystemIndices(
-                Map.of(
-                    "test-system-indices",
-                    new SystemIndices.Feature(
-                        "test-system-indices",
-                        "system indices for testing setting application",
-                        List.of(
-                            SystemIndexDescriptor.builder()
-                                .setIndexPattern(".managed-*")
-                                .setPrimaryIndex(".managed-1")
-                                .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
-                                .setSettings(Settings.EMPTY)
-                                .setMappings("{ \"_doc\": { \"_meta\": { \"version\": \"7.4.0\" } } }")
-                                .setVersionMetaKey("version")
-                                .setOrigin("system")
-                                .build(),
-                            SystemIndexDescriptor.builder()
-                                .setIndexPattern(".unmanaged-*")
-                                .setType(SystemIndexDescriptor.Type.INTERNAL_UNMANAGED)
-                                .build()
-                        )
-                    )
-                )
-            ));
+        indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE);
         aliasValidator = new AliasValidator();
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT)
@@ -1105,20 +1080,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertWarnings("[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. " +
             "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type " +
             "as it offers superior or equivalent performance to [simplefs].");
-    }
-
-    public void testRejectSystemIndexWithHiddenIndexFalse() {
-        request = new CreateIndexClusterStateUpdateRequest("create index", ".unmanaged-1", ".unmanaged-1");
-        final Settings.Builder settings = Settings.builder();
-        settings.put(IndexMetadata.SETTING_INDEX_HIDDEN, "true");
-
-        request.settings(settings.build());
-        buildIndexMetadata(".unmanaged-1", List.of(), () -> null, Settings.builder()
-            .put(SETTING_INDEX_HIDDEN, "false")
-            .put(SETTING_NUMBER_OF_SHARDS, "1")
-            .put(SETTING_NUMBER_OF_REPLICAS, "0")
-            .put(SETTING_VERSION_CREATED, Version.CURRENT)
-            .build(), 1, null, true);
     }
 
     private IndexTemplateMetadata addMatchingTemplate(Consumer<IndexTemplateMetadata.Builder> configurator) {

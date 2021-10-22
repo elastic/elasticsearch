@@ -8,6 +8,7 @@
 
 package org.elasticsearch.test;
 
+import org.mockito.MockedConstruction;
 import org.mockito.internal.creation.bytebuddy.SubclassByteBuddyMockMaker;
 import org.mockito.internal.util.reflection.LenientCopyTool;
 import org.mockito.invocation.MockHandler;
@@ -21,6 +22,7 @@ import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -97,6 +99,21 @@ public class SecureMockMaker implements MockMaker {
     @Override
     public TypeMockability isTypeMockable(Class<?> type) {
         return delegate.isTypeMockable(type);
+    }
+
+    @SuppressWarnings("rawtypes")
+    @Override
+    public <T> StaticMockControl<T> createStaticMock(Class<T> type, MockCreationSettings<T> settings, MockHandler handler) {
+        return delegate.createStaticMock(type, settings, handler);
+    }
+
+    @Override
+    public <T> ConstructionMockControl<T> createConstructionMock(
+            Class<T> type,
+            Function<MockedConstruction.Context, MockCreationSettings<T>> settingsFactory,
+            Function<MockedConstruction.Context, MockHandler<T>> handlerFactory,
+            MockedConstruction.MockInitializer<T> mockInitializer) {
+        return delegate.createConstructionMock(type, settingsFactory, handlerFactory, mockInitializer);
     }
 
     @Override

@@ -96,12 +96,10 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
             searchRequest.setJsonEntity("{\"query\": {\"match\":  {\"some_field\":  \"some_value\"}}}");
             searchRequest.addParameter("allow_no_indices", "false");
 
-            try {
-                getRestClient().performRequest(searchRequest);
-            } catch (ResponseException e) {
-                assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
-                assertThat(e.getMessage(), containsString("no such index"));
-            }
+
+            ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(searchRequest));
+            assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+            assertThat(exception.getMessage(), containsString("no such index"));
         }
 
         // Try to index a doc directly

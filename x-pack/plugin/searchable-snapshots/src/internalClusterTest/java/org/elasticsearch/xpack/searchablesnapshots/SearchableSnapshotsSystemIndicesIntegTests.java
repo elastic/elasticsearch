@@ -47,8 +47,7 @@ public class SearchableSnapshotsSystemIndicesIntegTests extends BaseFrozenSearch
     }
 
     private void executeTest(final String indexName, final Client client) throws Exception {
-        final boolean isHidden = randomBoolean();
-        createAndPopulateIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, isHidden));
+        createAndPopulateIndex(indexName, Settings.builder());
 
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createRepository(repositoryName, "fs");

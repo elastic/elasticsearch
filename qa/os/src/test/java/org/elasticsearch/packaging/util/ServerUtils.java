@@ -145,7 +145,7 @@ public class ServerUtils {
         return executor.execute(request).returnResponse();
     }
 
-    // polls every two seconds for Elasticsearch to be running on 9200, possibly waiting for additional sec after Elasticsearch has started
+    // polls every two seconds for Elasticsearch to be running on 9200
     private static void waitForXpack(Installation installation) {
         int retries = 60;
         while (retries > 0) {

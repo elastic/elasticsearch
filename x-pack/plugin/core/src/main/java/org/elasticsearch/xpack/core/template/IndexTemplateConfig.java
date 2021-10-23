@@ -95,4 +95,22 @@ public class IndexTemplateConfig {
             : "index template must have a version property set to the given version property";
         return template.getBytes(StandardCharsets.UTF_8);
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        IndexTemplateConfig that = (IndexTemplateConfig) o;
+        return version == that.version && templateName.equals(that.templateName) && fileName.equals(that.fileName)
+            && versionProperty.equals(that.versionProperty) && variables.equals(that.variables);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(templateName, fileName, version, versionProperty, variables);
+    }
 }

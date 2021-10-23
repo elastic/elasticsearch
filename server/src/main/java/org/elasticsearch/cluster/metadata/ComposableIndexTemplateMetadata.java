@@ -32,6 +32,9 @@ import java.util.Objects;
  */
 public class ComposableIndexTemplateMetadata implements Metadata.Custom {
     public static final String TYPE = "index_template";
+
+    public static final ComposableIndexTemplateMetadata EMPTY = new ComposableIndexTemplateMetadata(org.elasticsearch.core.Map.of());
+
     private static final ParseField INDEX_TEMPLATE = new ParseField("index_template");
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<ComposableIndexTemplateMetadata, Void> PARSER = new ConstructingObjectParser<>(TYPE,

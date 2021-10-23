@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -41,8 +42,8 @@ import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -249,27 +250,38 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         }
     }
 
+    private ComposableIndexTemplateMetadata allComposableTemplatesFoundMeta;
+
     private void addComposableTemplatesIfMissing(ClusterState state) {
+        final ComposableIndexTemplateMetadata meta =
+                state.metadata().custom(ComposableIndexTemplateMetadata.TYPE, ComposableIndexTemplateMetadata.EMPTY);
+        if (allComposableTemplatesFoundMeta == meta) {
+            return;
+        }
         final List<IndexTemplateConfig> indexTemplates = getComposableTemplateConfigs();
+        boolean allFound = true;
         for (IndexTemplateConfig newTemplate : indexTemplates) {
             final String templateName = newTemplate.getTemplateName();
             final AtomicBoolean creationCheck = templateCreationsInProgress.computeIfAbsent(templateName, key -> new AtomicBoolean(false));
             if (creationCheck.compareAndSet(false, true)) {
-                ComposableIndexTemplate currentTemplate = state.metadata().templatesV2().get(templateName);
+                ComposableIndexTemplate currentTemplate = meta.indexTemplates().get(templateName);
                 boolean componentTemplatesAvailable = componentTemplatesExist(state, newTemplate);
                 if (componentTemplatesAvailable == false) {
                     creationCheck.set(false);
                     logger.trace("not adding composable template [{}] for [{}] because its required component templates do not exist",
                         templateName, getOrigin());
+                    allFound = false;
                 } else if (Objects.isNull(currentTemplate)) {
                     logger.debug("adding composable template [{}] for [{}], because it doesn't exist", templateName, getOrigin());
                     putComposableTemplate(newTemplate, creationCheck);
+                    allFound = false;
                 } else if (Objects.isNull(currentTemplate.version()) || newTemplate.getVersion() > currentTemplate.version()) {
                     // IndexTemplateConfig now enforces templates contain a `version` property, so if the template doesn't have one we can
                     // safely assume it's an old version of the template.
                     logger.info("upgrading composable template [{}] for [{}] from version [{}] to version [{}]",
                         templateName, getOrigin(), currentTemplate.version(), newTemplate.getVersion());
                     putComposableTemplate(newTemplate, creationCheck);
+                    allFound = false;
                 } else {
                     creationCheck.set(false);
                     logger.trace("not adding composable template [{}] for [{}], because it already exists at version [{}]",
@@ -278,7 +290,13 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             } else {
                 logger.trace("skipping the creation of composable template [{}] for [{}], because its creation is in progress",
                     templateName, getOrigin());
+                allFound = false;
             }
+        }
+        if (allFound) {
+            allComposableTemplatesFoundMeta = meta;
+        } else {
+            allComposableTemplatesFoundMeta = null;
         }
     }
 
@@ -390,29 +408,40 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         });
     }
 
-    private void addIndexLifecyclePoliciesIfMissing(ClusterState state) {
+    private IndexLifecycleMetadata containsAllPoliciesMetadata;
 
-        Optional<IndexLifecycleMetadata> maybeMeta = Optional.ofNullable(state.metadata().custom(IndexLifecycleMetadata.TYPE));
+    private void addIndexLifecyclePoliciesIfMissing(ClusterState state) {
+        final IndexLifecycleMetadata meta = state.metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
+        if (meta == containsAllPoliciesMetadata) {
+            return;
+        }
+        Map<String, LifecyclePolicy> ilmMetaData = meta.getPolicies();
+
         List<LifecyclePolicy> policies = getPolicyConfigs().stream()
             .map(policyConfig -> policyConfig.load(xContentRegistry))
             .collect(Collectors.toList());
 
+        boolean allFound = true;
         for (LifecyclePolicy policy : policies) {
             final AtomicBoolean creationCheck = policyCreationsInProgress.computeIfAbsent(policy.getName(),
                 key -> new AtomicBoolean(false));
             if (creationCheck.compareAndSet(false, true)) {
-                final boolean policyNeedsToBeCreated = maybeMeta
-                    .flatMap(ilmMeta -> Optional.ofNullable(ilmMeta.getPolicies().get(policy.getName())))
-                    .isPresent() == false;
+                final boolean policyNeedsToBeCreated = ilmMetaData.containsKey(policy.getName()) == false;
                 if (policyNeedsToBeCreated) {
                     logger.debug("adding lifecycle policy [{}] for [{}], because it doesn't exist", policy.getName(), getOrigin());
                     putPolicy(policy, creationCheck);
+                    allFound = false;
                 } else {
                     logger.trace("not adding lifecycle policy [{}] for [{}], because it already exists",
                         policy.getName(), getOrigin());
                     creationCheck.set(false);
                 }
             }
+        }
+        if (allFound) {
+            this.containsAllPoliciesMetadata = meta;
+        } else {
+            containsAllPoliciesMetadata = null;
         }
     }
 

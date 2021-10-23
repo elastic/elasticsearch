@@ -198,7 +198,7 @@ public class ServerUtils {
         }
         if (enrollmentEnabled && httpSslEnabled) {
             assert Files.exists(caCert) == false;
-            List<Path> allAutoconfTLS = FileUtils.lsGlob(configPath, "tls_auto_config_initial_node_*");
+            List<Path> allAutoconfTLS = FileUtils.lsGlob(configPath, "tls_auto_config_*");
             assertThat(allAutoconfTLS.size(), is(1));
             Path autoconfTLSDir = allAutoconfTLS.get(0);
             caCert = autoconfTLSDir.resolve("http_ca.crt");

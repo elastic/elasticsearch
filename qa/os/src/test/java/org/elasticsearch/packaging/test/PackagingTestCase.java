@@ -385,23 +385,11 @@ public abstract class PackagingTestCase extends Assert {
     }
 
     /**
-     * Call {@link PackagingTestCase#awaitElasticsearchStartup} and return a reference to the Shell.Result from
-     * starting elasticsearch
+     * Call {@link PackagingTestCase#awaitElasticsearchStartup}
+     * returning the result.
      */
     public Shell.Result awaitElasticsearchStartupWithResult(Shell.Result result) throws Exception {
-        awaitElasticsearchStartupWithResult(result, 0);
-        return result;
-    }
-
-    /**
-     * Call {@link PackagingTestCase#awaitElasticsearchStartup} but wait {@code additionalDelay} milliseconds more before
-     * returning the result. Useful in order to capture more from the stdout after ES has has successfully started
-     */
-    public Shell.Result awaitElasticsearchStartupWithResult(Shell.Result result, int additionalDelay) throws Exception {
         awaitElasticsearchStartup(result);
-        if (additionalDelay > 0) {
-            Thread.sleep(additionalDelay);
-        }
         return result;
     }
 
@@ -756,7 +744,7 @@ public abstract class PackagingTestCase extends Assert {
             lsResult = sh.run("find \"" + es.config + "\" -type d -maxdepth 1");
         }
         assertNotNull(lsResult.stdout);
-        return Arrays.stream(lsResult.stdout.split("\n")).filter(f -> f.contains("tls_auto_config_initial_node_")).findFirst();
+        return Arrays.stream(lsResult.stdout.split("\n")).filter(f -> f.contains("tls_auto_config_")).findFirst();
     }
 
 }

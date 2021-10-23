@@ -59,7 +59,7 @@ POST /_snapshot/my_repository/my_snapshot/_restore
 }
 ----
 // TEST[s/_restore/_restore?wait_for_completion=true/]
-// TEST[s/"\*\,\-\.\*",/"*,-.*"/]
+// TEST[s/",/"/]
 // TEST[s/"feature_states": \[ "geoip" \]//]
 
 [[restore-snapshot-api-request]]

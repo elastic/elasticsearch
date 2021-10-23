@@ -216,18 +216,6 @@ automatically create system indices at startup. To avoid naming conflicts with
 these indices, use the `-.*` wildcard pattern to exclude system indices and
 other dot (`.`) indices from your restore request.
 
-////
-[source,console]
-----
-# Delete an index
-DELETE my-index
-
-# Delete a data stream
-DELETE _data_stream/logs-my_app-default
-----
-// TEST[setup:setup-snapshots]
-////
-
 For example, the following request uses the `*,-.*` wildcard pattern to restore
 all indices and data streams except dot indices.
 
@@ -238,7 +226,8 @@ POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
   "indices": "*,-.*"
 }
 ----
-// TEST[continued]
+// TEST[setup:setup-snapshots]
+// TEST[s/^/DELETE my-index\nDELETE _data_stream\/logs-my_app-default\n/]
 // TEST[s/_restore/_restore?wait_for_completion=true/]
 
 [discrete]
@@ -284,8 +273,9 @@ POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 }
 ----
 // TEST[setup:setup-snapshots]
+// TEST[s/^/DELETE my-index\nDELETE _data_stream\/logs-my_app-default\n/]
 // TEST[s/_restore/_restore?wait_for_completion=true/]
-// TEST[s/"\*\,\-\.\*",/"-*"/]
+// TEST[s/",/"/]
 // TEST[s/"feature_states": \[ "geoip" \]//]
 
 [discrete]
@@ -318,6 +308,18 @@ the cluster.
 . Temporarily stop indexing and turn off the following features:
 +
 --
+* GeoIP database downloader
++
+[source,console]
+----
+PUT _cluster/settings
+{
+  "persistent": {
+    "ingest.geoip.downloader.enabled": false
+  }
+}
+----
+
 * ILM
 +
 [source,console]
@@ -348,19 +350,18 @@ POST _ml/set_upgrade_mode?enabled=false
 // TEST[continued]
 ////
 
-////
+* Monitoring
++
 [source,console]
 ----
 PUT _cluster/settings
 {
   "persistent": {
-    "xpack.monitoring.collection.enabled": true
+    "xpack.monitoring.collection.enabled": false
   }
 }
 ----
 // TEST[warning:[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version.]
-// TEST[continued]
-////
 
 * Watcher
 +
@@ -400,7 +401,7 @@ complete.
 
 . Use the <<cluster-update-settings,cluster update settings API>> to set
 <<action-destructive-requires-name,`action.destructive_requires_name`>> to
-`false`. This lets you delete indices and data streams using wildcards.
+`false`. This lets you delete data streams and indices using wildcards.
 +
 [source,console]
 ----
@@ -413,15 +414,19 @@ PUT _cluster/settings
 ----
 // TEST[setup:setup-snapshots]
 
-. Delete existing indices and data streams on the cluster.
+. Delete all existing data streams on the cluster.
 +
 [source,console]
 ----
-# Delete all indices
-DELETE *
+DELETE _data_stream/*?expand_wildcards=all
+----
+// TEST[continued]
 
-# Delete all data streams
-DELETE _data_stream/*
+. Delete all existing indices on the cluster.
++
+[source,console]
+----
+DELETE *?expand_wildcards=all
 ----
 // TEST[continued]
 
@@ -443,6 +448,19 @@ POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 features you stopped:
 +
 --
+* GeoIP database downloader
++
+[source,console]
+----
+PUT _cluster/settings
+{
+  "persistent": {
+    "ingest.geoip.downloader.enabled": true
+  }
+}
+----
+//TEST[s/true/false/]
+
 * ILM
 +
 [source,console]
@@ -456,6 +474,20 @@ POST _ilm/start
 ----
 POST _ml/set_upgrade_mode?enabled=false
 ----
+
+* Monitoring
++
+[source,console]
+----
+PUT _cluster/settings
+{
+  "persistent": {
+    "xpack.monitoring.collection.enabled": true
+  }
+}
+----
+// TEST[warning:[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version.]
+// TEST[s/true/false/]
 
 * Watcher
 +

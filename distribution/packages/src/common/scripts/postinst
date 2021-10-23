@@ -72,33 +72,42 @@ if [ "x$IS_UPGRADE" != "xtrue" ]; then
         ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
         ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
         /usr/share/elasticsearch/bin/elasticsearch-cli); then
-            echo "##########         Security autoconfiguration information         ############"
-            echo "#                                                                            #"
-            echo "# Authentication and Authorization are enabled.                              #"
-            echo "# TLS for the transport and the http layers is enabled and configured.       #"
-            echo "#                                                                            #"
-            echo "# The password of the elastic superuser will be set to: ${INITIAL_PASSWORD} #"
-            echo "# upon starting elasticsearch for the first time                             #"
-            echo "#                                                                            #"
-            echo "##############################################################################"
+            echo "--------------------------- Security autoconfiguration information ------------------------------"
+            echo
+            echo "Authentication and Authorization are enabled."
+            echo "TLS for the transport and the http layers is enabled and configured."
+            echo
+            echo "The generated password for the elastic built-in superuser is : ${INITIAL_PASSWORD}"
+            echo
+            echo
+            echo "You can use '/usr/share/bin/elasticsearch-reset-elastic-password' at any time to"
+            echo "reset the password of the elastic built-in superuser."
+            echo
+            echo "You can use '/usr/share/bin/elasticsearch-create-enrollment-token -s node' at any time to"
+            echo "generate an enrollment token for elasticsearch nodes."
+            echo
+            echo "You can use '/usr/share/bin/elasticsearch-create-enrollment-token -s kibana' at any time to"
+            echo "generate an enrollment token for kibana instances."
+            echo
+            echo "-------------------------------------------------------------------------------------------------"
         fi
     else
         if [ $? -eq 80 ]; then
             # ExitCodes.NOOP
-            echo "##########         Security autoconfiguration information         ############"
-            echo "#                                                                            #"
-            echo "# Security features appear to be already configured.                         #"
-            echo "#                                                                            #"
-            echo "##############################################################################"
+            echo "--------------------------- Security autoconfiguration information ------------------------------"
+            echo
+            echo "Security features appear to be already configured."
+            echo
+            echo "-------------------------------------------------------------------------------------------------"
         else
-            echo "##########         Security autoconfiguration information         ############"
-            echo "#                                                                            #"
-            echo "# Failed to auto-configure security features.                                #"
-            echo "# Authentication and Authorization are enabled.                              #"
-            echo "# You can use elasticsearch-reset-elastic-password to set a password         #"
-            echo "# for the elastic user.                                                      #"
-            echo "#                                                                            #"
-            echo "##############################################################################"
+            echo "--------------------------- Security autoconfiguration information ------------------------------"
+            echo
+            echo "Failed to auto-configure security features."
+            echo "Authentication and Authorization are enabled."
+            echo
+            echo "You can use '/usr/share/bin/elasticsearch-reset-elastic-password' at any time to"
+            echo "reset the password of the elastic built-in superuser."
+            echo "-------------------------------------------------------------------------------------------------"
         fi
     fi
     if command -v systemctl >/dev/null; then

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -49,6 +50,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 public class PolicyStepsRegistry {
@@ -89,6 +91,12 @@ public class PolicyStepsRegistry {
 
     Map<String, Map<Step.StepKey, Step>> getStepMap() {
         return stepMap;
+    }
+
+    public void clearCache(List<Index> deleted) {
+        for (Index index : deleted) {
+            cachedSteps.remove(index);
+        }
     }
 
     public void update(IndexLifecycleMetadata meta) {
@@ -238,8 +246,14 @@ public class PolicyStepsRegistry {
         return phaseSteps;
     }
 
+    private final Map<Index, Tuple<IndexMetadata, Step>> cachedSteps = new ConcurrentHashMap<>();
+
     @Nullable
     public Step getStep(final IndexMetadata indexMetadata, final Step.StepKey stepKey) {
+        final Tuple<IndexMetadata, Step> cachedStep = cachedSteps.get(indexMetadata.getIndex());
+        if (cachedStep != null && cachedStep.v1() == indexMetadata && cachedStep.v2().getKey().equals(stepKey)) {
+            return cachedStep.v2();
+        }
         if (ErrorStep.NAME.equals(stepKey.getName())) {
             return new ErrorStep(new Step.StepKey(stepKey.getPhase(), stepKey.getAction(), ErrorStep.NAME));
         }
@@ -271,7 +285,9 @@ public class PolicyStepsRegistry {
                 "] but they were not, steps: " + phaseSteps;
 
         // Return the step that matches the given stepKey or else null if we couldn't find it
-        return phaseSteps.stream().filter(step -> step.getKey().equals(stepKey)).findFirst().orElse(null);
+        final Step s = phaseSteps.stream().filter(step -> step.getKey().equals(stepKey)).findFirst().orElse(null);
+        cachedSteps.put(indexMetadata.getIndex(), Tuple.tuple(indexMetadata, s));
+        return s;
     }
 
     /**

@@ -287,6 +287,7 @@ public class IndexLifecycleService
                 policyRegistry.update(ilmMetadata);
             }
         }
+        policyRegistry.clearCache(event.indicesDeleted());
     }
 
     private void cancelJob() {

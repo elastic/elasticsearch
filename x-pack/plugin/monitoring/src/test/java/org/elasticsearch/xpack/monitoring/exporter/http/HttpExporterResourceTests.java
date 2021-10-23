@@ -870,13 +870,13 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     }
 
     private void verifyGetPipelines(final int called) {
-        verify(client, times(called))
-            .performRequestAsync(argThat(new RequestMatcher(is("GET"), startsWith("/_ingest/pipeline/"))), any(ResponseListener.class));
+        verify(client, times(called)).performRequestAsync(
+            argThat(new RequestMatcher(is("GET"), startsWith("/_ingest/pipeline/"))::matches), any(ResponseListener.class));
     }
 
     private void verifyPutPipelines(final int called) {
-        verify(client, times(called))
-            .performRequestAsync(argThat(new RequestMatcher(is("PUT"), startsWith("/_ingest/pipeline/"))), any(ResponseListener.class));
+        verify(client, times(called)).performRequestAsync(
+            argThat(new RequestMatcher(is("PUT"), startsWith("/_ingest/pipeline/"))::matches), any(ResponseListener.class));
     }
 
     private void verifyWatcherCheck() {

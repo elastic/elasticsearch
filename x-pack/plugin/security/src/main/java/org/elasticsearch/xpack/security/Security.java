@@ -402,6 +402,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         // TODO this is wrong, we should only use the environment that is provided to createComponents
         this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
         if (enabled) {
+            runStartupChecks(settings);
             Automatons.updateConfiguration(settings);
         } else {
             this.bootstrapChecks.set(Collections.emptyList());
@@ -410,7 +411,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
     }
 
-    private void runStartupChecks(Settings settings) {
+    private static void runStartupChecks(Settings settings) {
         validateRealmSettings(settings);
         if (XPackSettings.FIPS_MODE_ENABLED.get(settings)) {
             validateForFips(settings);
@@ -448,7 +449,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         if (enabled == false) {
             return Collections.singletonList(new SecurityUsageServices(null, null, null, null));
         }
-        runStartupChecks(settings);
+
         scriptServiceReference.set(scriptService);
         // We need to construct the checks here while the secure settings are still available.
         // If we wait until #getBoostrapChecks the secure settings will have been cleared/closed.
@@ -491,7 +492,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         // realms construction
         final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, securityIndex.get());
-
         final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(settings, client, securityIndex.get(),
             scriptService);
         final AnonymousUser anonymousUser = new AnonymousUser(settings);

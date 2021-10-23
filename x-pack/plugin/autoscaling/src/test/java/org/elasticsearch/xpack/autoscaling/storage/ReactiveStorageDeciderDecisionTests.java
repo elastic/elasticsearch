@@ -466,7 +466,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     private static RoutingAllocation createRoutingAllocation(ClusterState state, AllocationDeciders allocationDeciders) {
-        RoutingNodes routingNodes = new RoutingNodes(state, false);
+        RoutingNodes routingNodes = state.mutableRoutingNodes();
         return new RoutingAllocation(allocationDeciders, () -> routingNodes, state, createClusterInfo(state), null, System.nanoTime());
     }
 

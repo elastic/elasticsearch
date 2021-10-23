@@ -417,7 +417,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
             .metadata(metadata)
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3)).build();
-        final RoutingNodes routingNodes = new RoutingNodes(state, false);
+        final RoutingNodes routingNodes = state.mutableRoutingNodes();
         return new RoutingAllocation(allocationDeciders, () -> routingNodes, state, null,
             new SnapshotShardSizeInfo(ImmutableOpenMap.of()) {
                 @Override
@@ -452,7 +452,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
                 .metadata(metadata)
                 .routingTable(routingTableBuilder.build())
                 .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3)).build();
-        final RoutingNodes routingNodes = new RoutingNodes(state, false);
+        final RoutingNodes routingNodes = state.mutableRoutingNodes();
         return new RoutingAllocation(deciders, () -> routingNodes, state, null, null, System.nanoTime());
     }
 

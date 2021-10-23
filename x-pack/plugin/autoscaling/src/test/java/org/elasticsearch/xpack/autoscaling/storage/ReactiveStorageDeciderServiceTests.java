@@ -233,7 +233,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         int shardId = randomInt(indexMetadata.getNumberOfShards() - 1);
         IndexShardRoutingTable subjectRoutings = initialClusterState.routingTable()
             .shardRoutingTable(indexMetadata.getIndex().getName(), shardId);
-        final RoutingNodes routingNodes = new RoutingNodes(initialClusterState, false);
+        final RoutingNodes routingNodes = initialClusterState.mutableRoutingNodes();
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(org.elasticsearch.core.List.of()),
             () -> routingNodes,

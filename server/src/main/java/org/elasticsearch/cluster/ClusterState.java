@@ -175,7 +175,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             state.customs(), -1, false, state.routingNodes);
     }
 
-    public ClusterState(ClusterName clusterName, long version, String stateUUID, Metadata metadata, RoutingTable routingTable,
+    private ClusterState(ClusterName clusterName, long version, String stateUUID, Metadata metadata, RoutingTable routingTable,
                         DiscoveryNodes nodes, ClusterBlocks blocks, ImmutableOpenMap<String, Custom> customs,
                         int minimumMasterNodesOnPublishingMaster, boolean wasReadFromDiff, RoutingNodes routingNodes) {
         this.version = version;
@@ -303,15 +303,35 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         return wasReadFromDiff;
     }
 
+    public RoutingNodes mutableRoutingNodes() {
+        final RoutingNodes nodes = this.routingNodes;
+        if (nodes != null) {
+            return nodes.mutableCopy();
+        }
+        return new RoutingNodes(routingTable, this.nodes, false);
+    }
+
     /**
      * Returns a built (on demand) routing nodes view of the routing table.
      */
     public RoutingNodes getRoutingNodes() {
-        if (routingNodes != null) {
+        final RoutingNodes nodes = this.routingNodes;
+        if (nodes != null) {
+            return nodes;
+        }
+        return buildRoutingNodes();
+    }
+
+    private RoutingNodes buildRoutingNodes() {
+        synchronized (this) {
+            RoutingNodes routingNodes = this.routingNodes;
+            if (routingNodes != null) {
+                return routingNodes;
+            }
+            routingNodes = new RoutingNodes(routingTable, this.nodes);
+            this.routingNodes = routingNodes;
             return routingNodes;
         }
-        routingNodes = new RoutingNodes(this);
-        return routingNodes;
     }
 
     @Override

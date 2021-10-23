@@ -292,7 +292,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     private ClusterState randomAllocate(ClusterState state) {
-        final RoutingNodes routingNodes = new RoutingNodes(state, false);
+        final RoutingNodes routingNodes = state.mutableRoutingNodes();
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(org.elasticsearch.core.List.of()),
             () -> routingNodes,
@@ -324,7 +324,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     private ClusterState startAll(ClusterState state) {
-        final RoutingNodes routingNodes = new RoutingNodes(state, false);
+        final RoutingNodes routingNodes = state.mutableRoutingNodes();
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(org.elasticsearch.core.List.of()),
             () -> routingNodes,

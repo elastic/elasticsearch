@@ -509,7 +509,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             newNode.node().getVersion() + "] is the same or newer than snapshot version [" + oldNode.node().getVersion() + "]"));
 
         final RoutingChangesObserver routingChangesObserver = new RoutingChangesObserver.AbstractRoutingChangesObserver();
-        final RoutingNodes routingNodes = new RoutingNodes(clusterState, false);
+        final RoutingNodes routingNodes = clusterState.mutableRoutingNodes();
         final ShardRouting startedPrimary = routingNodes.startShard(logger,
             routingNodes.initializeShard(primaryShard, "newNode", null, 0,
             routingChangesObserver), routingChangesObserver);

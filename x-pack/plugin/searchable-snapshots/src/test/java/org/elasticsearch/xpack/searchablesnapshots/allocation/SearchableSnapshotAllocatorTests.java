@@ -253,7 +253,7 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
         long shardSize,
         AllocationDeciders allocationDeciders
     ) {
-        final RoutingNodes routingNodes = new RoutingNodes(state, false);
+        final RoutingNodes routingNodes = state.mutableRoutingNodes();
         return new RoutingAllocation(allocationDeciders, () -> routingNodes, state, null, new SnapshotShardSizeInfo(ImmutableOpenMap.of()) {
             @Override
             public Long getShardSize(ShardRouting shardRouting) {

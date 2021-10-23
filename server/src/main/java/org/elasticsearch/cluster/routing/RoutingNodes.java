@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.service.MasterService;
@@ -45,8 +46,7 @@ import java.util.stream.StreamSupport;
 
 /**
  * {@link RoutingNodes} represents a copy the routing information contained in the {@link ClusterState cluster state}.
- * It can be either initialized as mutable or immutable (see {@link #RoutingNodes(ClusterState, boolean)}), allowing
- * or disallowing changes to its elements.
+ * It can be either initialized as mutable or immutable, allowing or disallowing changes to its elements.
  *
  * The main methods used to update routing entries are:
  * <ul>
@@ -79,11 +79,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     private final Map<String, Set<String>> attributeValuesByAttribute;
     private final Map<String, Recoveries> recoveriesPerNode;
 
-    public RoutingNodes(ClusterState clusterState) {
-        this(clusterState, true);
+    public RoutingNodes(RoutingTable routingTable, DiscoveryNodes discoveryNodes) {
+        this(routingTable, discoveryNodes, true);
     }
 
-    public RoutingNodes(ClusterState clusterState, boolean readOnly) {
+    public RoutingNodes(RoutingTable routingTable, DiscoveryNodes discoveryNodes, boolean readOnly) {
         this.readOnly = readOnly;
         this.recoveriesPerNode = new HashMap<>();
         this.nodesToShards = new HashMap<>();
@@ -91,11 +91,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         this.unassignedShards = new UnassignedShards(this);
         this.attributeValuesByAttribute = new HashMap<>();
 
-        final RoutingTable routingTable = clusterState.routingTable();
-
         Map<String, LinkedHashMap<ShardId, ShardRouting>> nodesToShards = new HashMap<>();
         // fill in the nodeToShards with the "live" nodes
-        for (DiscoveryNode node : clusterState.nodes().getDataNodes().values()) {
+        for (DiscoveryNode node : discoveryNodes.getDataNodes().values()) {
             nodesToShards.put(node.getId(), new LinkedHashMap<>()); // LinkedHashMap to preserve order
         }
 
@@ -150,7 +148,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         }
         for (Map.Entry<String, LinkedHashMap<ShardId, ShardRouting>> entry : nodesToShards.entrySet()) {
             String nodeId = entry.getKey();
-            this.nodesToShards.put(nodeId, new RoutingNode(nodeId, clusterState.nodes().get(nodeId), entry.getValue()));
+            this.nodesToShards.put(nodeId, new RoutingNode(nodeId, discoveryNodes.get(nodeId), entry.getValue()));
         }
     }
 

@@ -256,7 +256,7 @@ public class DefaultSearchContextTests extends ESTestCase {
             eq(shardId.id()),
             anyObject(),
             anyObject(),
-            anyString(),
+            nullable(String.class),
             anyObject())
         ).thenReturn(searchExecutionContext);
 

@@ -403,6 +403,6 @@ public class SeedHostsResolverTests extends ESTestCase {
         assertThat(transportAddresses, hasSize(1)); // only one of the two is valid and will be used
         assertThat(transportAddresses.get(0).getAddress(), equalTo("127.0.0.1"));
         assertThat(transportAddresses.get(0).getPort(), equalTo(9301));
-        verify(logger).warn(eq("failed to resolve host [127.0.0.1:9300:9300]"), any(ExecutionException.class));
+        verify(logger).warn(eq("failed to resolve host [127.0.0.1:9300:9300]"), any(Exception.class));
     }
 }

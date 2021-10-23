@@ -104,7 +104,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         this.numberOfShards = indexMetadata.getNumberOfShards();
         this.numberOfReplicas = indexMetadata.getNumberOfReplicas();
 
-        shards = new HashMap<>(indexMetadata.getNumberOfShards());
+        shards = new HashMap<>(this.numberOfShards);
         // update the index status
         ClusterHealthStatus computeStatus = ClusterHealthStatus.GREEN;
         int computeActivePrimaryShards = 0;

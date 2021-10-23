@@ -70,7 +70,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     IndexShardRoutingTable(ShardId shardId, List<ShardRouting> shards) {
         this.shardId = shardId;
         this.shuffler = new RotationShardShuffler(Randomness.get().nextInt());
-        this.shards = Collections.unmodifiableList(shards);
+        this.shards = org.elasticsearch.core.List.copyOf(shards);
 
         ShardRouting primary = null;
         List<ShardRouting> replicas = new ArrayList<>();
@@ -657,7 +657,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
     public static class Builder {
 
-        private ShardId shardId;
+        private final ShardId shardId;
         private final List<ShardRouting> shards;
 
         public Builder(IndexShardRoutingTable indexShard) {
@@ -683,7 +683,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         public IndexShardRoutingTable build() {
             // don't allow more than one shard copy with same id to be allocated to same node
             assert distinctNodes(shards) : "more than one shard with same id assigned to same node (shards: " + shards + ")";
-            return new IndexShardRoutingTable(shardId, Collections.unmodifiableList(new ArrayList<>(shards)));
+            return new IndexShardRoutingTable(shardId, shards);
         }
 
         static boolean distinctNodes(List<ShardRouting> shards) {

@@ -69,13 +69,16 @@ import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.security.auth.x500.X500Principal;
@@ -116,6 +119,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
 
     private final OptionSpec<String> enrollmentTokenParam = parser.accepts("enrollment-token", "The enrollment token to use")
         .withRequiredArg();
+    private final OptionSpec<Void> reconfigure = parser.accepts("reconfigure");
     private final BiFunction<Environment, String, CommandLineHttpClient> clientFunction;
 
     public AutoConfigureNode(BiFunction<Environment, String, CommandLineHttpClient> clientFunction) {
@@ -181,14 +185,55 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             );
             notifyOfFailure(inEnrollmentMode, terminal, Terminal.Verbosity.NORMAL, ExitCodes.NOOP, msg);
         }
+        final Environment newEnv;
+        final ZonedDateTime autoConfigDate = ZonedDateTime.now(ZoneOffset.UTC);
+        if (options.has(reconfigure)) {
+            final Optional<String> autoConfigDirName = getAutoConfigDirName(env);
+            terminal.println("");
+            terminal.println("We will now proceed to attempt and reconfigure this node to join an existing cluster," +
+                " using the enrollment token that you provided.");
+            terminal.println("This operation will overwrite the existing configuration. More specifically: ");
+            terminal.println("  - Security configuration will be removed from elasticsearch.yml");
+            if (autoConfigDirName.isPresent()) {
+                terminal.println("  - The " + autoConfigDirName.get() + " directory will be removed");
+            }
+            terminal.println("  - elasticsearch.keystore will be removed, all secure settings already set will be removed");
+            final boolean shouldContinue = terminal.promptYesNo("Do you want to continue with the reconfiguration process", false);
+            if (shouldContinue == false) {
+                throw new UserException(ExitCodes.OK, "User cancelled operation");
+            }
+            try {
+                final List<String> existingConfigLines = Files.readAllLines(ymlPath, StandardCharsets.UTF_8);
+                List<String> existingConfigWithoutAutoconfiguration = removePreviousAutoconfiguration(existingConfigLines);
+                fullyWriteFile(env.configFile(), "elasticsearch.yml", true, stream -> {
+                    try (BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8))) {
+                        for (String l : existingConfigWithoutAutoconfiguration) {
+                            bw.write(l);
+                            bw.newLine();
+                        }
+                    }
+                });
+
+                if (autoConfigDirName.isPresent()) {
+                    deleteDirectory(env.configFile().resolve(autoConfigDirName.get()));
+                }
+                Files.deleteIfExists(keystorePath);
+
+                // rebuild the environment after removing the settings that are added in auto-configuration.
+                newEnv = createEnv(Map.of("path.home", env.settings().get("path.home")));
+            } catch (Throwable t) {
+                throw new UserException(ExitCodes.IO_ERROR, "Unable to backup existing configuration", t);
+            }
+        } else {
+            newEnv = env;
+        }
 
         // only perform auto-configuration if the existing configuration is not conflicting (eg Security already enabled)
         // if it is, silently skip auto configuration
-        checkExistingConfiguration(env.settings(), inEnrollmentMode, terminal);
+        checkExistingConfiguration(newEnv.settings(), inEnrollmentMode, terminal);
 
-        final ZonedDateTime autoConfigDate = ZonedDateTime.now(ZoneOffset.UTC);
         final String instantAutoConfigName = TLS_CONFIG_DIR_NAME_PREFIX + autoConfigDate.toInstant().getEpochSecond();
-        final Path instantAutoConfigDir = env.configFile().resolve(instantAutoConfigName);
+        final Path instantAutoConfigDir = newEnv.configFile().resolve(instantAutoConfigName);
         try {
             // it is useful to pre-create the sub-config dir in order to check that the config dir is writable and that file owners match
             Files.createDirectory(instantAutoConfigDir);
@@ -216,13 +261,13 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         // If the node process works OK given the owner of the config dir, it should also tolerate the auto-created config dir,
         // provided that they both have the same owner and permissions.
         final UserPrincipal newFileOwner = Files.getOwner(instantAutoConfigDir, LinkOption.NOFOLLOW_LINKS);
-        if (false == newFileOwner.equals(Files.getOwner(env.configFile(), LinkOption.NOFOLLOW_LINKS))) {
+        if (false == newFileOwner.equals(Files.getOwner(newEnv.configFile(), LinkOption.NOFOLLOW_LINKS))) {
             deleteDirectory(instantAutoConfigDir);
             // the following is only printed once, if the node starts successfully
             throw new UserException(
                 ExitCodes.CONFIG,
                 "Aborting auto configuration because of config dir ownership mismatch. Config dir is owned by "
-                    + Files.getOwner(env.configFile(), LinkOption.NOFOLLOW_LINKS).getName()
+                    + Files.getOwner(newEnv.configFile(), LinkOption.NOFOLLOW_LINKS).getName()
                     + " but auto-configuration directory would be owned by "
                     + newFileOwner.getName()
             );
@@ -235,6 +280,9 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         final PrivateKey httpKey;
         final X509Certificate httpCert;
         final List<String> transportAddresses;
+        final X500Principal certificatePrincipal = new X500Principal("CN=" + System.getenv("HOSTNAME"));
+        final X500Principal caPrincipal = new X500Principal(AUTO_CONFIG_ALT_DN);
+        final GeneralNames subjectAltNames = getSubjectAltNames();
 
         try {
             if (inEnrollmentMode) {
@@ -250,7 +298,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     throw new UserException(ExitCodes.DATA_ERROR, "Aborting auto configuration. Invalid enrollment token", e);
                 }
 
-                final CommandLineHttpClient client = clientFunction.apply(env, enrollmentToken.getFingerprint());
+                final CommandLineHttpClient client = clientFunction.apply(newEnv, enrollmentToken.getFingerprint());
 
                 // We don't wait for cluster health here. If the user has a token, it means that at least the first node has started
                 // successfully so we expect the cluster to be healthy already. If not, this is a sign of a problem and we should bail.
@@ -314,9 +362,6 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             } else {
                 transportAddresses = List.of();
                 // the transport key-pair is the same across the cluster and is trusted without hostname verification (it is self-signed),
-                final X500Principal certificatePrincipal = new X500Principal("CN=" + System.getenv("HOSTNAME"));
-                final X500Principal caPrincipal = new X500Principal(AUTO_CONFIG_ALT_DN);
-                final GeneralNames subjectAltNames = getSubjectAltNames();
 
                 final KeyPair transportKeyPair = CertGenUtils.generateKeyPair(TRANSPORT_KEY_SIZE);
                 transportKey = transportKeyPair.getPrivate();
@@ -345,10 +390,6 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     "SHA256withRSA"
                 );
             }
-
-            final X500Principal certificatePrincipal = new X500Principal("CN=" + System.getenv("HOSTNAME"));
-            final X500Principal caPrincipal = new X500Principal(AUTO_CONFIG_ALT_DN);
-            final GeneralNames subjectAltNames = getSubjectAltNames();
 
             final KeyPair httpKeyPair = CertGenUtils.generateKeyPair(HTTP_KEY_SIZE);
             httpKey = httpKeyPair.getPrivate();
@@ -381,7 +422,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         }
 
         // save original keystore before updating (replacing)
-        final Path keystoreBackupPath = env.configFile()
+        final Path keystoreBackupPath = newEnv.configFile()
             .resolve(KeyStoreWrapper.KEYSTORE_FILENAME + "." + autoConfigDate.toInstant().getEpochSecond() + ".orig");
         if (Files.exists(keystorePath)) {
             try {
@@ -397,7 +438,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         }
 
         final SetOnce<SecureString> nodeKeystorePassword = new SetOnce<>();
-        try (KeyStoreWrapper nodeKeystore = KeyStoreWrapper.bootstrap(env.configFile(), () -> {
+        try (KeyStoreWrapper nodeKeystore = KeyStoreWrapper.bootstrap(newEnv.configFile(), () -> {
             nodeKeystorePassword.set(new SecureString(terminal.readSecret("", KeyStoreWrapper.MAX_PASSPHRASE_LENGTH)));
             return nodeKeystorePassword.get().clone();
         })) {
@@ -463,7 +504,10 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 nodeKeystore.setString("xpack.security.http.ssl.keystore.secure_password", httpKeystorePassword.getChars());
             }
             // finally overwrites the node keystore (if the keystores have been successfully written)
-            nodeKeystore.save(env.configFile(), nodeKeystorePassword.get() == null ? new char[0] : nodeKeystorePassword.get().getChars());
+            nodeKeystore.save(
+                newEnv.configFile(),
+                nodeKeystorePassword.get() == null ? new char[0] : nodeKeystorePassword.get().getChars()
+            );
         } catch (Throwable t) {
             // restore keystore to revert possible keystore bootstrap
             try {
@@ -489,7 +533,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
 
         try {
             List<String> existingConfigLines = Files.readAllLines(ymlPath, StandardCharsets.UTF_8);
-            fullyWriteFile(env.configFile(), "elasticsearch.yml", true, stream -> {
+            fullyWriteFile(newEnv.configFile(), "elasticsearch.yml", true, stream -> {
                 try (BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8))) {
                     // start with the existing config lines
                     for (String line : existingConfigLines) {
@@ -521,7 +565,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     bw.newLine();
                     bw.newLine();
                     // Set enrollment mode to true unless user explicitly set it to false themselves
-                    if (false == (env.settings().hasValue(XPackSettings.ENROLLMENT_ENABLED.getKey())
+                    if (false == (newEnv.settings().hasValue(XPackSettings.ENROLLMENT_ENABLED.getKey())
                         && false == XPackSettings.ENROLLMENT_ENABLED.get(env.settings()))) {
                         bw.write(XPackSettings.ENROLLMENT_ENABLED.getKey() + ": true");
                         bw.newLine();
@@ -570,8 +614,8 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                         // we have configured TLS on the transport layer with newly generated certs and keys,
                         // hence this node cannot form a multi-node cluster
                         // if we don't set the following the node might trip the discovery bootstrap check
-                        if (false == DiscoveryModule.isSingleNodeDiscovery(env.settings())
-                            && false == ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.exists(env.settings())) {
+                        if (false == DiscoveryModule.isSingleNodeDiscovery(newEnv.settings())
+                            && false == ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.exists(newEnv.settings())) {
                             bw.newLine();
                             bw.write("# The initial node with security auto-configured must form a cluster on its own,");
                             bw.newLine();
@@ -584,12 +628,12 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
 
                     // if any address settings have been set, assume the admin has thought it through wrt to addresses,
                     // and don't try to be smart and mess with that
-                    if (false == (env.settings().hasValue(HttpTransportSettings.SETTING_HTTP_HOST.getKey())
-                        || env.settings().hasValue(HttpTransportSettings.SETTING_HTTP_BIND_HOST.getKey())
-                        || env.settings().hasValue(HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST.getKey())
-                        || env.settings().hasValue(NetworkService.GLOBAL_NETWORK_HOST_SETTING.getKey())
-                        || env.settings().hasValue(NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.getKey())
-                        || env.settings().hasValue(NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.getKey()))) {
+                    if (false == (newEnv.settings().hasValue(HttpTransportSettings.SETTING_HTTP_HOST.getKey())
+                        || newEnv.settings().hasValue(HttpTransportSettings.SETTING_HTTP_BIND_HOST.getKey())
+                        || newEnv.settings().hasValue(HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST.getKey())
+                        || newEnv.settings().hasValue(NetworkService.GLOBAL_NETWORK_HOST_SETTING.getKey())
+                        || newEnv.settings().hasValue(NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.getKey())
+                        || newEnv.settings().hasValue(NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.getKey()))) {
                         bw.newLine();
                         bw.write(
                             "# With security now configured, which includes user authentication over HTTPs, "
@@ -829,4 +873,53 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
     private List<String> getTransportAddresses(Map<String, Object> responseMap) {
         return (List<String>) responseMap.get("nodes_addresses");
     }
+
+    private Optional<String> getAutoConfigDirName(Environment env) throws IOException {
+        return Files.list(env.configFile())
+            .map(Path::getFileName)
+            .map(Path::toString)
+            .filter(name -> name.startsWith(TLS_CONFIG_DIR_NAME_PREFIX))
+            .findFirst();
+    }
+
+    static List<String> removePreviousAutoconfiguration(List<String> existingConfigLines) {
+        // Remove previous auto-configuration
+        return Arrays.stream(
+            existingConfigLines.stream()
+                .collect(Collectors.joining(System.lineSeparator()))
+                .replaceAll(
+                    "(?s)" + Pattern.quote(AUTO_CONFIGURATION_START_MARKER) + ".*?" + Pattern.quote(AUTO_CONFIGURATION_END_MARKER),
+                    ""
+                )
+                .split(System.lineSeparator())
+        ).collect(Collectors.toList());
+    }
+
+    /**
+     * Creates a backup of the existing configuration that we plan on overwriting. We copy the configuration file as we want to keep it
+     * but we move the keystore and the auto-configuration directory so that they won't interfere with the attempt to auto-configure the
+     * node to be part of the existing cluster
+     */
+    private void backupExistingAutoConfiguration(Environment env, ZonedDateTime autoConfigDate) throws IOException {
+        final Path keystorePath = KeyStoreWrapper.keystorePath(env.configFile());
+        final Path keystoreBackupPath = env.configFile()
+            .resolve(KeyStoreWrapper.KEYSTORE_FILENAME + "." + autoConfigDate.toInstant().getEpochSecond() + ".backup");
+        if (Files.exists(keystorePath)) {
+            Files.move(keystorePath, keystoreBackupPath, StandardCopyOption.ATOMIC_MOVE);
+        }
+
+        final Path ymlPath = env.configFile().resolve("elasticsearch.yml");
+        final Path ymlBackupPath = env.configFile()
+            .resolve("elasticsearch.yml" + "." + autoConfigDate.toInstant().getEpochSecond() + ".backup");
+        Files.copy(ymlPath, ymlBackupPath, StandardCopyOption.COPY_ATTRIBUTES);
+
+        final Optional<String> autoConfigDirName = getAutoConfigDirName(env);
+        if (autoConfigDirName.isPresent()) {
+            final Path autoConfigPath = env.configFile().resolve(autoConfigDirName.get());
+            final Path autoConfigBackupPath = env.configFile()
+                .resolve(autoConfigDirName.get() + "." + autoConfigDate.toInstant().getEpochSecond() + ".backup");
+            Files.move(autoConfigPath, autoConfigBackupPath, StandardCopyOption.ATOMIC_MOVE);
+        }
+    }
+
 }

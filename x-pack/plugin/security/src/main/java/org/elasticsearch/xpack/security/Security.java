@@ -465,7 +465,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                                                Supplier<RepositoriesService> repositoriesServiceSupplier) {
         try {
             return createComponents(client, threadPool, clusterService, resourceWatcherService, scriptService, xContentRegistry,
-                environment, nodeEnvironment.loadLastKnownMetadata(), expressionResolver);
+                environment, nodeEnvironment.nodeMetadata(), expressionResolver);
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
         }

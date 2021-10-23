@@ -541,23 +541,6 @@ public final class NodeEnvironment  implements Closeable {
         return metadata;
     }
 
-    /**
-     * loads existing node metadata from disk without attempting to upgrade to current version
-     */
-    public NodeMetadata loadLastKnownMetadata() {
-        try {
-            final Path path = nodePath.path;
-            NodeMetadata metadata = PersistedClusterStateService.nodeMetadata(path);
-            if (metadata == null) {
-                return NodeMetadata.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
-            }
-            return metadata;
-        } catch (IOException e) {
-            logger.warn("Failed to load node metadata from disk", e);
-            return null;
-        }
-    }
-
     public static String generateNodeId(Settings settings) {
         Random random = Randomness.get(settings, NODE_ID_SEED_SETTING);
         return UUIDs.randomBase64UUID(random);
@@ -962,6 +945,13 @@ public final class NodeEnvironment  implements Closeable {
         // confusion with other "metadata" like node settings found in elasticsearch.yml. In future
         // we can encapsulate both (and more) in one NodeMetadata (or NodeSettings) object ala IndexSettings
         return nodeMetadata.nodeId();
+    }
+
+    /**
+     * Returns the loaded NodeMetadata for this node
+     */
+    public NodeMetadata nodeMetadata() {
+        return nodeMetadata;
     }
 
     /**

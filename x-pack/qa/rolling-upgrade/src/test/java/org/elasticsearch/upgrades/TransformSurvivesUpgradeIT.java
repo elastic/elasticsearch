@@ -9,7 +9,6 @@ package org.elasticsearch.upgrades;
 import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -24,38 +23,32 @@ import org.elasticsearch.client.transform.transforms.TransformStats;
 import org.elasticsearch.client.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.junit.Before;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.SortedSet;
-import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.test.rest.XPackRestTestConstants.TRANSFORM_INTERNAL_INDEX_PREFIX;
 import static org.elasticsearch.xpack.test.rest.XPackRestTestConstants.TRANSFORM_INTERNAL_INDEX_PREFIX_DEPRECATED;
-import static org.elasticsearch.xpack.test.rest.XPackRestTestConstants.TRANSFORM_NOTIFICATIONS_INDEX_PREFIX;
-import static org.elasticsearch.xpack.test.rest.XPackRestTestConstants.TRANSFORM_NOTIFICATIONS_INDEX_PREFIX_DEPRECATED;
 import static org.elasticsearch.xpack.test.rest.XPackRestTestConstants.TRANSFORM_TASK_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -66,7 +59,6 @@ import static org.hamcrest.Matchers.oneOf;
 public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
 
     private static final String TRANSFORM_ENDPOINT = "/_transform/";
-    private static final String TRANSFORM_ENDPOINT_DEPRECATED = "/_data_frame/transforms/";
     private static final String CONTINUOUS_TRANSFORM_ID = "continuous-transform-upgrade-job";
     private static final String CONTINUOUS_TRANSFORM_SOURCE = "transform-upgrade-continuous-source";
     private static final List<String> ENTITIES = Stream.iterate(1, n -> n + 1)
@@ -77,30 +69,6 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         .limit(5)
         .map(TimeValue::timeValueMinutes)
         .collect(Collectors.toList());
-
-    @Before
-    public void waitForTemplates() throws Exception {
-        assertBusy(() -> {
-            final Request catRequest = new Request("GET", "_cat/templates?h=n&s=n");
-            final Response catResponse = adminClient().performRequest(catRequest);
-
-            final SortedSet<String> templates = new TreeSet<>(Streams.readAllLines(catResponse.getEntity().getContent()));
-
-            // match notifications index templates, independent of the version, at least 1 should exist
-            SortedSet<String> notificationsDeprecated = templates
-                .tailSet(TRANSFORM_NOTIFICATIONS_INDEX_PREFIX_DEPRECATED);
-            SortedSet<String> notifications = templates.tailSet(TRANSFORM_NOTIFICATIONS_INDEX_PREFIX);
-
-            int foundTemplates = 0;
-            foundTemplates += notificationsDeprecated.isEmpty() ? 0
-                : notificationsDeprecated.first().startsWith(TRANSFORM_NOTIFICATIONS_INDEX_PREFIX_DEPRECATED) ? 1 : 0;
-            foundTemplates += notifications.isEmpty() ? 0 : notifications.first().startsWith(TRANSFORM_NOTIFICATIONS_INDEX_PREFIX) ? 1 : 0;
-
-            if (foundTemplates < 1) {
-                fail("Transform index templates not found. The templates that exist are: " + templates);
-            }
-        });
-    }
 
     protected static void waitForPendingTransformTasks() throws Exception {
         waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(TRANSFORM_TASK_NAME) == false);
@@ -115,13 +83,13 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     /**
-     * The purpose of this test is to ensure that when a job is open through a rolling upgrade we upgrade the results
-     * index mappings when it is assigned to an upgraded node even if no other ML endpoint is called after the upgrade
+     * The purpose of this test is to ensure that when a transform is running through a rolling upgrade it
+     * keeps working and does not fail
      */
     public void testTransformRollingUpgrade() throws Exception {
         Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
         adjustLoggingLevels.setJsonEntity(
-            "{\"transient\": {" +
+            "{\"persistent\": {" +
                 "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"trace\"," +
                 "\"logger.org.elasticsearch.xpack.dataframe\": \"trace\"," +
                 "\"logger.org.elasticsearch.xpack.transform\": \"trace\"" +
@@ -290,10 +258,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private String getTransformEndpoint() {
-        // always hit the destination cluster on the non-deprecated endpoint, sometimes hit the source cluster on the non-deprecated
-        // endpoint, unless we're upgrading from 8.0.0, in which case always hit the non-deprecated endpoint
-        return (CLUSTER_TYPE == ClusterType.UPGRADED) || randomBoolean() || UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0) ?
-            TRANSFORM_ENDPOINT : TRANSFORM_ENDPOINT_DEPRECATED;
+        return TRANSFORM_ENDPOINT;
     }
 
     private void putTransform(String id, TransformConfig config) throws IOException {

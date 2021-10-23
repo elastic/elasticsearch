@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.settings.Settings;
 
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.Matchers.equalTo;
@@ -55,22 +56,22 @@ public class PrimaryNotRelocatedWhileBeingRecoveredTests extends ESAllocationTes
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
         clusterState = startInitializingShardsAndReroute(strategy, clusterState, routingNodes.node("node1"));
 
-        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(5));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(5));
 
         logger.info("start another node, replica will start recovering form primary");
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2"))).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
-        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(5));
-        assertThat(clusterState.routingTable().shardsWithState(INITIALIZING).size(), equalTo(5));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(5));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(5));
 
         logger.info("start another node, make sure the primary is not relocated");
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
-        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(5));
-        assertThat(clusterState.routingTable().shardsWithState(INITIALIZING).size(), equalTo(5));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(5));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(5));
     }
 }

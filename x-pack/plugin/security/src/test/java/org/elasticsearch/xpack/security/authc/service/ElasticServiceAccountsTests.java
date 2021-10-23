@@ -96,6 +96,7 @@ import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -127,7 +128,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         assertThat(serviceAccountRoleDescriptor.getMetadata(), equalTo(reservedRolesStoreRoleDescriptor.getMetadata()));
     }
 
-    public void testElasticFleetPrivileges() {
+    public void testElasticFleetServerPrivileges() {
         final Role role = Role.builder(
             ElasticServiceAccounts.ACCOUNTS.get("elastic/fleet-server").roleDescriptor(), null, RESTRICTED_INDICES_AUTOMATON).build();
         final Authentication authentication = mock(Authentication.class);
@@ -187,6 +188,24 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(dotFleetIndex), is(false));
             assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(dotFleetIndex), is(false));
         });
+
+        final String kibanaApplication = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
+        final String privilegeName = randomAlphaOfLengthBetween(3, 16);
+        assertThat(role.application().grants(
+            new ApplicationPrivilege(
+                kibanaApplication, privilegeName, "reserved_fleet-setup"), "*"),
+            is(true));
+
+        final String otherApplication = randomValueOtherThanMany(s -> s.startsWith("kibana"),
+            () -> randomAlphaOfLengthBetween(3, 8)) + "-" + randomAlphaOfLengthBetween(8, 24);
+        assertThat(role.application().grants(
+                new ApplicationPrivilege(otherApplication, privilegeName, "reserved_fleet-setup"), "*"),
+            is(false));
+
+        assertThat(role.application().grants(
+            new ApplicationPrivilege(kibanaApplication, privilegeName,
+                randomArray(1, 5, String[]::new, () -> randomAlphaOfLengthBetween(3, 16))), "*"),
+            is(false));
     }
 
     public void testElasticServiceAccount() {

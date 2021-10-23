@@ -65,6 +65,10 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         return params.estimateMemoryUsageBytes();
     }
 
+    public TaskParams getParams() {
+        return params;
+    }
+
     public void stop(String reason) {
         logger.debug("[{}] Stopping due to reason [{}]", getModelId(), reason);
         stopped = true;
@@ -115,5 +119,9 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
 
     public Optional<ModelStats> modelStats() {
         return trainedModelAllocationNodeService.modelStats(this);
+    }
+
+    public void setFailed(String reason) {
+        trainedModelAllocationNodeService.failAllocation(this, reason);
     }
 }

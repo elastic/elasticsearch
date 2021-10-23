@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.watcher;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -35,8 +36,8 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -50,7 +51,6 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.ScriptCache;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.WatcherField;
+import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
 import org.elasticsearch.xpack.core.watcher.actions.ActionFactory;
 import org.elasticsearch.xpack.core.watcher.actions.ActionRegistry;
 import org.elasticsearch.xpack.core.watcher.condition.ConditionRegistry;
@@ -80,6 +81,7 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWat
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceAction;
+import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
@@ -191,6 +193,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -201,7 +204,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 
@@ -229,7 +232,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
 
     public static final ScriptContext<TemplateScript.Factory> SCRIPT_TEMPLATE_CONTEXT
         = new ScriptContext<>("xpack_template", TemplateScript.Factory.class,
-        200, TimeValue.timeValueMillis(0), ScriptCache.UNLIMITED_COMPILATION_RATE.asTuple(), true);
+        200, TimeValue.timeValueMillis(0), false, true);
 
     private static final Logger logger = LogManager.getLogger(Watcher.class);
     private WatcherIndexingListener listener;
@@ -667,6 +670,53 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     @Override
     public String getFeatureName() {
         return "watcher";
+    }
+
+    @Override
+    public void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener) {
+        Client originClient = new OriginSettingClient(client, WATCHER_ORIGIN);
+        boolean manuallyStopped = Optional.ofNullable(clusterService.state().metadata().<WatcherMetadata>custom(WatcherMetadata.TYPE))
+            .map(WatcherMetadata::manuallyStopped)
+            .orElse(false);
+
+        if (manuallyStopped == false) {
+            WatcherServiceRequest serviceRequest = new WatcherServiceRequest();
+            serviceRequest.stop();
+            originClient.execute(
+                WatcherServiceAction.INSTANCE,
+                serviceRequest,
+                ActionListener.wrap(
+                    (response) -> { listener.onResponse(Collections.singletonMap("manually_stopped", manuallyStopped)); },
+                    listener::onFailure
+                )
+            );
+        } else {
+            // If Watcher is manually stopped, we don't want to stop it AGAIN, so just call the listener.
+            listener.onResponse(Collections.singletonMap("manually_stopped", manuallyStopped));
+        }
+    }
+
+    @Override
+    public void indicesMigrationComplete(
+        Map<String, Object> preUpgradeMetadata,
+        ClusterService clusterService,
+        Client client,
+        ActionListener<Boolean> listener
+    ) {
+        Client originClient = new OriginSettingClient(client, WATCHER_ORIGIN);
+        boolean manuallyStopped = (boolean) preUpgradeMetadata.getOrDefault("manually_stopped", false);
+        if (manuallyStopped == false) {
+            WatcherServiceRequest serviceRequest = new WatcherServiceRequest();
+            serviceRequest.start();
+            originClient.execute(
+                WatcherServiceAction.INSTANCE,
+                serviceRequest,
+                ActionListener.wrap((response) -> { listener.onResponse(response.isAcknowledged()); }, listener::onFailure)
+            );
+        } else {
+            // Watcher was manually stopped before we got there, don't start it.
+            listener.onResponse(true);
+        }
     }
 
     @Override

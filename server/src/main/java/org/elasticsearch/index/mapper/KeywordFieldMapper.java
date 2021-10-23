@@ -31,7 +31,7 @@ import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -584,4 +584,14 @@ public final class KeywordFieldMapper extends FieldMapper {
         return new Builder(simpleName(), indexAnalyzers, scriptCompiler).dimension(dimension).init(this);
     }
 
+    @Override
+    protected void validateMatchedRoutingPath() {
+        if (false == fieldType().isDimension()) {
+            throw new IllegalArgumentException(
+                "All fields that match routing_path must be keyword time_series_dimensions but ["
+                    + name()
+                    + "] was not a time_series_dimension"
+            );
+        }
+    }
 }

@@ -13,9 +13,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ObjectPath;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.search.SearchHit;
@@ -24,6 +24,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction;
+import org.elasticsearch.xpack.monitoring.MonitoringTemplateRegistry;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringMigrationCoordinator;
 
@@ -34,7 +35,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -58,7 +59,8 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
             .build();
     }
 
-    private final MonitoredSystem system = randomFrom(MonitoredSystem.values());
+    private final MonitoredSystem system = randomFrom(MonitoredSystem.ES, MonitoredSystem.BEATS, MonitoredSystem.KIBANA,
+        MonitoredSystem.LOGSTASH);
 
     public void testCreateWhenResourcesNeedToBeAddedOrUpdated() throws Exception {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/68608", Constants.MAC_OS_X);
@@ -178,7 +180,7 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
     }
 
     private void putTemplate(final Integer version) throws Exception {
-        final String templateName = MonitoringTemplateUtils.templateName(system.getSystem());
+        final String templateName = MonitoringTemplateRegistry.getTemplateConfigForMonitoredSystem(system).getTemplateName();
         final BytesReference source = generateTemplateSource(templateName, version);
 
         assertAcked(client().admin().indices().preparePutTemplate(templateName).setSource(source, XContentType.JSON).get());
@@ -248,7 +250,7 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
     }
 
     private void assertTemplatesExist() {
-        for (String templateName : monitoringTemplateNames()) {
+        for (String templateName : MonitoringTemplateRegistry.TEMPLATE_NAMES) {
             assertTemplateInstalled(templateName);
         }
     }
@@ -310,7 +312,7 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
     }
 
     private void assertTemplateNotUpdated() {
-        final String name = MonitoringTemplateUtils.templateName(system.getSystem());
+        final String name = MonitoringTemplateRegistry.getTemplateConfigForMonitoredSystem(system).getTemplateName();
 
         for (IndexTemplateMetadata template : client().admin().indices().prepareGetTemplates(name).get().getIndexTemplates()) {
             final String docMapping = template.getMappings().toString();

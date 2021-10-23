@@ -21,7 +21,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
@@ -39,6 +38,7 @@ import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -319,7 +319,10 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         writeIndexGen(
             repository,
             repositoryData.withExtraDetails(
-                Collections.singletonMap(snapshotId, new RepositoryData.SnapshotDetails(SnapshotState.PARTIAL, Version.CURRENT, -1, -1))
+                Collections.singletonMap(
+                    snapshotId,
+                    new RepositoryData.SnapshotDetails(SnapshotState.PARTIAL, Version.CURRENT, -1, -1, null)
+                )
             ),
             repositoryData.getGenId()
         );
@@ -376,7 +379,8 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                 randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED),
                 Version.CURRENT,
                 randomNonNegativeLong(),
-                randomNonNegativeLong()
+                randomNonNegativeLong(),
+                randomAlphaOfLength(10)
             );
             repoData = repoData.addSnapshot(
                 snapshotId,

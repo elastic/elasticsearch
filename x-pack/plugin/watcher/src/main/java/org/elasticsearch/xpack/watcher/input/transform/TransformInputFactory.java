@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.input.transform;
 
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.xpack.core.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.core.watcher.transform.Transform;

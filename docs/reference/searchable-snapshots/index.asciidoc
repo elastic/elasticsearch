@@ -132,6 +132,8 @@ slower than with a regular index because a search may need some data that has
 not yet been retrieved into the local copy. If that happens, {es} will eagerly
 retrieve the data needed to complete the search in parallel with the ongoing
 recovery.
++
+Indices managed by {ilm-init} are prefixed with `recovered-` when fully mounted.
 
 [[partially-mounted]]
 Partially mounted index::
@@ -150,6 +152,8 @@ partially mounted index still returns search results quickly, even for
 large data sets, because the layout of data in the repository is heavily
 optimized for search. Many searches will need to retrieve only a small subset of
 the total shard data before returning results.
++
+Indices managed by {ilm-init} are prefixed with `partial-` when partially mounted.
 
 To partially mount an index, you must have one or more nodes with a shared cache
 available. By default, dedicated frozen data tier nodes (nodes with the
@@ -197,6 +201,34 @@ xpack.searchable.snapshot.shared_cache.size: 4TB
 IMPORTANT: You can only configure these settings on nodes with the
 <<data-frozen-node,`data_frozen`>> role. Additionally, nodes with a shared
 cache can only have a single <<path-settings,data path>>.
+
+{es} also uses a dedicated system index named `.snapshot-blob-cache` to speed
+up the recoveries of {search-snap} shards. This index is used as an additional
+caching layer on top of the partially or fully mounted data and contains the
+minimal required data to start the {search-snap} shards. {es} automatically
+deletes the documents that are no longer used in this index. This periodic
+clean up can be tuned using the following settings:
+
+`searchable_snapshots.blob_cache.periodic_cleanup.interval`::
+(<<dynamic-cluster-setting,Dynamic>>)
+The interval at which the periodic cleanup of the `.snapshot-blob-cache`
+index is scheduled. Defaults to every hour (`1h`).
+
+`searchable_snapshots.blob_cache.periodic_cleanup.retention_period`::
+(<<dynamic-cluster-setting,Dynamic>>)
+The retention period to keep obsolete documents in the `.snapshot-blob-cache`
+index. Defaults to every hour (`1h`).
+
+`searchable_snapshots.blob_cache.periodic_cleanup.batch_size`::
+(<<dynamic-cluster-setting,Dynamic>>)
+The number of documents that are searched for and bulk-deleted at once during
+the periodic cleanup of the `.snapshot-blob-cache` index. Defaults to `100`.
+
+`searchable_snapshots.blob_cache.periodic_cleanup.pit_keep_alive`::
+(<<dynamic-cluster-setting,Dynamic>>)
+The value used for the <point-in-time-keep-alive,point-in-time keep alive>>
+requests executed during the periodic cleanup of the `.snapshot-blob-cache`
+index. Defaults to `10m`.
 
 [discrete]
 [[searchable-snapshots-costs]]

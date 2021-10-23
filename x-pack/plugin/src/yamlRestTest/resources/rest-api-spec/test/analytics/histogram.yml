@@ -175,8 +175,8 @@ setup:
 ---
 histogram with time series mappings:
   - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/78443"
+      version: " - 7.99.99"
+      reason: time series mode added in 8.0.0
 
   - do:
 
@@ -186,6 +186,7 @@ histogram with time series mappings:
           settings:
             index:
               mode: time_series
+              routing_path: [metricset, k8s.pod.uid]
               number_of_replicas: 0
               number_of_shards: 2
           mappings:

@@ -15,6 +15,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
@@ -41,6 +42,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -114,7 +116,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         Request loggingSettings = new Request("PUT", "_cluster/settings");
         loggingSettings.setJsonEntity("" +
             "{" +
-            "\"transient\" : {\n" +
+            "\"persistent\" : {\n" +
             "        \"logger.org.elasticsearch.xpack.ml.inference.allocation\" : \"TRACE\",\n" +
             "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : \"TRACE\",\n" +
             "        \"logger.org.elasticsearch.xpack.ml.process.logging\" : \"TRACE\"\n" +
@@ -130,7 +132,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         Request loggingSettings = new Request("PUT", "_cluster/settings");
         loggingSettings.setJsonEntity("" +
             "{" +
-            "\"transient\" : {\n" +
+            "\"persistent\" : {\n" +
             "        \"logger.org.elasticsearch.xpack.ml.inference.allocation\" :null,\n" +
             "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : null,\n" +
             "        \"logger.org.elasticsearch.xpack.ml.process.logging\" : null\n" +
@@ -185,6 +187,17 @@ public class PyTorchModelIT extends ESRestTestCase {
         stopDeployment(modelId);
     }
 
+    public void testEvaluateWithMinimalTimeout() throws IOException {
+        String modelId = "test_evaluate_timeout";
+        createTrainedModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+        ResponseException ex = expectThrows(ResponseException.class, () -> infer("my words", modelId, TimeValue.ZERO));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(429));
+        stopDeployment(modelId);
+    }
+
     public void testDeleteFailureDueToDeployment() throws IOException {
         String modelId = "test_deployed_model_delete";
         createTrainedModel(modelId);
@@ -222,6 +235,17 @@ public class PyTorchModelIT extends ESRestTestCase {
             String statusState = (String)XContentMapValues.extractValue("allocation_status.state", stats.get(0));
             assertThat(stats.toString(), statusState, is(not(nullValue())));
             assertThat(AllocationStatus.State.fromString(statusState), greaterThanOrEqualTo(state));
+            Integer byteSize = (Integer)XContentMapValues.extractValue("model_size_bytes", stats.get(0));
+            assertThat(byteSize, is(not(nullValue())));
+            assertThat(byteSize, equalTo((int)RAW_MODEL_SIZE));
+
+            Response humanResponse = client()
+                .performRequest(new Request("GET", "/_ml/trained_models/" + modelId + "/deployment/_stats?human"));
+            stats = (List<Map<String, Object>>)entityAsMap(humanResponse).get("deployment_stats");
+            assertThat(stats, hasSize(1));
+            String stringBytes = (String)XContentMapValues.extractValue("model_size", stats.get(0));
+            assertThat(stringBytes, is(not(nullValue())));
+            assertThat(stringBytes, equalTo("1.5kb"));
             stopDeployment(model);
         };
 
@@ -230,7 +254,6 @@ public class PyTorchModelIT extends ESRestTestCase {
         assertAtLeast.accept(modelStarted, AllocationStatus.State.FULLY_ALLOCATED);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/1961")
     @SuppressWarnings("unchecked")
     public void testLiveDeploymentStats() throws IOException {
         String modelA = "model_a";
@@ -245,7 +268,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         List<Map<String, Object>> stats = (List<Map<String, Object>>)entityAsMap(response).get("deployment_stats");
         assertThat(stats, hasSize(1));
         assertThat(stats.get(0).get("model_id"), equalTo(modelA));
-        assertThat(stats.get(0).get("model_size"), equalTo("1.5kb"));
+        assertThat(stats.get(0).get("model_size_bytes"), equalTo((int)RAW_MODEL_SIZE));
         List<Map<String, Object>> nodes = (List<Map<String, Object>>)stats.get(0).get("nodes");
         // 2 of the 3 nodes in the cluster are ML nodes
         assertThat(nodes, hasSize(2));
@@ -430,7 +453,8 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     private Response startDeployment(String modelId, String waitForState) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_start?timeout=40s&wait_for=" + waitForState);
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId +
+            "/deployment/_start?timeout=40s&wait_for=" + waitForState + "&inference_threads=1&model_threads=1");
         return client().performRequest(request);
     }
 
@@ -445,6 +469,14 @@ public class PyTorchModelIT extends ESRestTestCase {
 
     private Response getDeploymentStats(String modelId, boolean allowNoMatch) throws IOException {
         Request request = new Request("GET", "/_ml/trained_models/" + modelId + "/deployment/_stats?allow_no_match=" + allowNoMatch);
+        return client().performRequest(request);
+    }
+
+    private Response infer(String input, String modelId, TimeValue timeout) throws IOException {
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer?timeout=" + timeout.toString());
+        request.setJsonEntity("{  " +
+            "\"docs\": [{\"input\":\"" + input + "\"}]\n" +
+            "}");
         return client().performRequest(request);
     }
 

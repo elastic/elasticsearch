@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.ml.aggs.inference;
 
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InvalidAggregationPathException;
@@ -40,7 +40,7 @@ public class InternalInferenceAggregationTests extends InternalAggregationTestCa
 
     @Override
     protected SearchPlugin registerPlugin() {
-        return new MachineLearning(Settings.EMPTY, null);
+        return new MachineLearning(Settings.EMPTY);
     }
 
     @Override

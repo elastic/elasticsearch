@@ -21,7 +21,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.client.ConnectionConfiguration;
@@ -74,7 +74,7 @@ public class JdbcHttpClientRequestTests extends ESTestCase {
         Properties props = new Properties();
         props.setProperty(ConnectionConfiguration.BINARY_COMMUNICATION, Boolean.toString(isBinary));
 
-        JdbcHttpClient httpClient = new JdbcHttpClient(JdbcConfiguration.create(url, props, 0), false);
+        JdbcHttpClient httpClient = new JdbcHttpClient(new JdbcConnection(JdbcConfiguration.create(url, props, 0), false), false);
 
         prepareMockResponse();
         try {

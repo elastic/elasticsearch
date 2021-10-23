@@ -10,7 +10,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
@@ -24,18 +24,18 @@ import static org.mockito.Mockito.when;
 
 public class GraphInfoTransportActionTests extends ESTestCase {
 
-    private XPackLicenseState licenseState;
+    private MockLicenseState licenseState;
 
     @Before
     public void init() throws Exception {
-        licenseState = mock(XPackLicenseState.class);
+        licenseState = mock(MockLicenseState.class);
     }
 
     public void testAvailable() throws Exception {
         GraphInfoTransportAction featureSet = new GraphInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
         boolean available = randomBoolean();
-        when(licenseState.isAllowed(XPackLicenseState.Feature.GRAPH)).thenReturn(available);
+        when(licenseState.isAllowed(Graph.GRAPH_FEATURE)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
 
         var usageAction = new GraphUsageTransportAction(mock(TransportService.class), null, null,

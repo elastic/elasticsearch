@@ -8,9 +8,10 @@
 
 package org.elasticsearch.client.migration;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.AbstractResponseTestCase;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -37,14 +38,18 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractResponseTestCa
             randomList(5,
                 () -> new org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus(
                     randomAlphaOfLengthBetween(3, 20),
-                    randomAlphaOfLengthBetween(5, 9),
-                    randomAlphaOfLengthBetween(4, 16),
-                    randomList(4,
-                        () -> new org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.IndexVersion(
+                    randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
+                    randomFrom(org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.values()),
+                    randomList(
+                        4,
+                        () -> new org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.IndexInfo(
                             randomAlphaOfLengthBetween(3, 20),
-                            randomAlphaOfLengthBetween(5, 9)))
+                            randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
+                            null
+                        )
+                    )
                 )),
-            randomAlphaOfLength(5)
+            randomFrom(org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.values())
         );
     }
 
@@ -58,7 +63,7 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractResponseTestCa
         org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse serverTestInstance,
         GetFeatureUpgradeStatusResponse clientInstance) {
 
-        assertThat(clientInstance.getUpgradeStatus(), equalTo(serverTestInstance.getUpgradeStatus()));
+        assertThat(clientInstance.getUpgradeStatus(), equalTo(serverTestInstance.getUpgradeStatus().toString()));
 
         assertNotNull(serverTestInstance.getFeatureUpgradeStatuses());
         assertNotNull(clientInstance.getFeatureUpgradeStatuses());
@@ -71,18 +76,18 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractResponseTestCa
             GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus clientStatus = clientInstance.getFeatureUpgradeStatuses().get(i);
 
             assertThat(clientStatus.getFeatureName(), equalTo(serverTestStatus.getFeatureName()));
-            assertThat(clientStatus.getMinimumIndexVersion(), equalTo(serverTestStatus.getMinimumIndexVersion()));
-            assertThat(clientStatus.getUpgradeStatus(), equalTo(serverTestStatus.getUpgradeStatus()));
+            assertThat(clientStatus.getMinimumIndexVersion(), equalTo(serverTestStatus.getMinimumIndexVersion().toString()));
+            assertThat(clientStatus.getUpgradeStatus(), equalTo(serverTestStatus.getUpgradeStatus().toString()));
 
             assertThat(clientStatus.getIndexVersions(), hasSize(serverTestStatus.getIndexVersions().size()));
 
             for (int j = 0; i < clientStatus.getIndexVersions().size(); i++) {
-                org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.IndexVersion serverIndexVersion
+                org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.IndexInfo serverIndexInfo
                     = serverTestStatus.getIndexVersions().get(j);
                 GetFeatureUpgradeStatusResponse.IndexVersion clientIndexVersion = clientStatus.getIndexVersions().get(j);
 
-                assertThat(clientIndexVersion.getIndexName(), equalTo(serverIndexVersion.getIndexName()));
-                assertThat(clientIndexVersion.getVersion(), equalTo(serverIndexVersion.getVersion()));
+                assertThat(clientIndexVersion.getIndexName(), equalTo(serverIndexInfo.getIndexName()));
+                assertThat(clientIndexVersion.getVersion(), equalTo(serverIndexInfo.getVersion().toString()));
             }
         }
     }

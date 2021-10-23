@@ -8,12 +8,16 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.cluster.coordination.ClusterStateSerializationStats;
 import org.elasticsearch.cluster.coordination.PendingClusterStateStats;
 import org.elasticsearch.cluster.coordination.PublishClusterStateStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterApplierRecordingService;
+import org.elasticsearch.cluster.service.ClusterApplierRecordingService.Stats.Recording;
 import org.elasticsearch.cluster.service.ClusterStateUpdateStats;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
@@ -25,6 +29,7 @@ import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.node.AdaptiveSelectionStats;
 import org.elasticsearch.node.ResponseCollectorService;
+import org.elasticsearch.script.ScriptCacheStats;
 import org.elasticsearch.script.ScriptContextStats;
 import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.test.ESTestCase;
@@ -414,6 +419,34 @@ public class NodeStatsTests extends ESTestCase {
                         assertEquals(aStats.responseTime, bStats.responseTime, 0.01);
                     });
                 }
+                ScriptCacheStats scriptCacheStats = nodeStats.getScriptCacheStats();
+                ScriptCacheStats deserializedScriptCacheStats = deserializedNodeStats.getScriptCacheStats();
+                if (scriptCacheStats == null) {
+                    assertNull(deserializedScriptCacheStats);
+                } else if (deserializedScriptCacheStats.getContextStats() != null) {
+                    Map<String, ScriptStats> deserialized = deserializedScriptCacheStats.getContextStats();
+                    long evictions = 0;
+                    long limited = 0;
+                    long compilations = 0;
+                    Map<String, ScriptStats> stats = scriptCacheStats.getContextStats();
+                    for (String context: stats.keySet()) {
+                        ScriptStats deserStats = deserialized.get(context);
+                        ScriptStats generatedStats = stats.get(context);
+
+                        evictions += generatedStats.getCacheEvictions();
+                        assertEquals(generatedStats.getCacheEvictions(), deserStats.getCacheEvictions());
+
+                        limited += generatedStats.getCompilationLimitTriggered();
+                        assertEquals(generatedStats.getCompilationLimitTriggered(), deserStats.getCompilationLimitTriggered());
+
+                        compilations += generatedStats.getCompilations();
+                        assertEquals(generatedStats.getCompilations(), deserStats.getCompilations());
+                    }
+                    ScriptStats sum = deserializedScriptCacheStats.sum();
+                    assertEquals(evictions, sum.getCacheEvictions());
+                    assertEquals(limited, sum.getCompilationLimitTriggered());
+                    assertEquals(compilations, sum.getCompilations());
+                }
             }
         }
     }
@@ -430,7 +463,7 @@ public class NodeStatsTests extends ESTestCase {
             long memTotal = randomNonNegativeLong();
             long swapTotal = randomNonNegativeLong();
             osStats = new OsStats(System.currentTimeMillis(), new OsStats.Cpu(randomShort(), loadAverages),
-                    new OsStats.Mem(memTotal, randomLongBetween(0, memTotal)),
+                    new OsStats.Mem(memTotal, randomLongBetween(0, memTotal), randomLongBetween(0, memTotal)),
                     new OsStats.Swap(swapTotal, randomLongBetween(0, swapTotal)),
                     new OsStats.Cgroup(
                         randomAlphaOfLength(8),
@@ -573,6 +606,15 @@ public class NodeStatsTests extends ESTestCase {
             }
             scriptStats = new ScriptStats(stats);
         }
+        ClusterApplierRecordingService.Stats timeTrackerStats;
+        if (randomBoolean()) {
+            timeTrackerStats = new ClusterApplierRecordingService.Stats(
+                randomMap(2, 32, () -> new Tuple<>(randomAlphaOfLength(4), new Recording(randomNonNegativeLong(), randomNonNegativeLong())))
+            );
+        } else {
+            timeTrackerStats = null;
+        }
+
         DiscoveryStats discoveryStats = frequently()
             ? new DiscoveryStats(
             randomBoolean()
@@ -582,7 +624,15 @@ public class NodeStatsTests extends ESTestCase {
                 ? new PublishClusterStateStats(
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
-                randomNonNegativeLong())
+                randomNonNegativeLong(),
+                new ClusterStateSerializationStats(
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong()
+                ))
                 : null,
             randomBoolean()
                 ? new ClusterStateUpdateStats(
@@ -605,7 +655,8 @@ public class NodeStatsTests extends ESTestCase {
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong())
-                : null)
+                : null,
+            timeTrackerStats)
             : null;
         IngestStats ingestStats = null;
         if (frequently()) {
@@ -666,10 +717,11 @@ public class NodeStatsTests extends ESTestCase {
             }
             adaptiveSelectionStats = new AdaptiveSelectionStats(nodeConnections, nodeStats);
         }
+        ScriptCacheStats scriptCacheStats = scriptStats != null ? scriptStats.toScriptCacheStats() : null;
         //TODO NodeIndicesStats are not tested here, way too complicated to create, also they need to be migrated to Writeable yet
         return new NodeStats(node, randomNonNegativeLong(), null, osStats, processStats, jvmStats, threadPoolStats,
                 fsInfo, transportStats, httpStats, allCircuitBreakerStats, scriptStats, discoveryStats,
-                ingestStats, adaptiveSelectionStats, null);
+                ingestStats, adaptiveSelectionStats, scriptCacheStats, null);
     }
 
     private static ScriptContextStats.TimeSeries randomTimeSeries() {

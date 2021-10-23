@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
@@ -91,8 +91,8 @@ public final class FieldAliasMapper extends Mapper {
             throw new MapperParsingException("Invalid [path] value [" + path + "] for field alias [" +
                 name() + "]: an alias cannot refer to another alias.");
         }
-        String aliasScope = mappers.getNestedScope(name);
-        String pathScope = mappers.getNestedScope(path);
+        String aliasScope = mappers.getNestedParent(name);
+        String pathScope = mappers.getNestedParent(path);
 
         if (Objects.equals(aliasScope, pathScope) == false) {
             StringBuilder message = new StringBuilder("Invalid [path] value [" + path + "] for field alias [" +

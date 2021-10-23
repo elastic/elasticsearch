@@ -9,9 +9,10 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 
 import java.io.IOException;
@@ -28,7 +29,7 @@ public class BertRequestBuilderTests extends ESTestCase {
     public void testBuildRequest() throws IOException {
         BertTokenizer tokenizer = BertTokenizer.builder(
             Arrays.asList("Elastic", "##search", "fun", BertTokenizer.CLASS_TOKEN, BertTokenizer.SEPARATOR_TOKEN, BertTokenizer.PAD_TOKEN),
-            new BertTokenization(null, null, 512)
+            new BertTokenization(null, null, 512, Tokenization.Truncate.NONE)
         ).build();
 
         BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer);
@@ -56,7 +57,7 @@ public class BertRequestBuilderTests extends ESTestCase {
     public void testInputTooLarge() throws IOException {
         BertTokenizer tokenizer = BertTokenizer.builder(
             Arrays.asList("Elastic", "##search", "fun", BertTokenizer.CLASS_TOKEN, BertTokenizer.SEPARATOR_TOKEN, BertTokenizer.PAD_TOKEN),
-            new BertTokenization(null, null, 5)
+            new BertTokenization(null, null, 5, Tokenization.Truncate.NONE)
         ).build();
         {
             BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer);
@@ -84,7 +85,7 @@ public class BertRequestBuilderTests extends ESTestCase {
                 "my", "little", "red", "car",
                 "God", "##zilla"
                 ),
-            new BertTokenization(null, null, 512)
+            new BertTokenization(null, null, 512, Tokenization.Truncate.NONE)
         ).build();
 
         BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer);

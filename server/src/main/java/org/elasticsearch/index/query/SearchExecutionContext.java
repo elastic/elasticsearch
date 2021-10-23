@@ -24,8 +24,8 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
@@ -536,6 +536,14 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public final void freezeContext() {
         this.frozen.set(Boolean.TRUE);
+    }
+
+    /**
+     * Marks this context as not cacheable.
+     * This method fails if {@link #freezeContext()} is called before on this context.
+     */
+    public void disableCache() {
+        failIfFrozen();
     }
 
     /**

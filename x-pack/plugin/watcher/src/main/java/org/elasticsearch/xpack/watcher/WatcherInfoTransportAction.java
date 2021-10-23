@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
+import org.elasticsearch.xpack.core.watcher.WatcherField;
 
 public class WatcherInfoTransportAction extends XPackInfoFeatureTransportAction {
 
@@ -36,7 +37,7 @@ public class WatcherInfoTransportAction extends XPackInfoFeatureTransportAction 
 
     @Override
     public boolean available() {
-        return licenseState.isAllowed(XPackLicenseState.Feature.WATCHER);
+        return WatcherField.WATCHER_FEATURE.checkWithoutTracking(licenseState);
     }
 
     @Override

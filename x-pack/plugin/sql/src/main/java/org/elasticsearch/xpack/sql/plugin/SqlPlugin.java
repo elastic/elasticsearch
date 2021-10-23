@@ -17,10 +17,12 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -34,6 +36,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
+import org.elasticsearch.xpack.ql.index.RemoteClusterResolver;
 import org.elasticsearch.xpack.sql.SqlInfoTransportAction;
 import org.elasticsearch.xpack.sql.SqlUsageTransportAction;
 import org.elasticsearch.xpack.sql.action.SqlClearCursorAction;
@@ -49,17 +52,20 @@ import java.util.function.Supplier;
 
 public class SqlPlugin extends Plugin implements ActionPlugin {
 
+    private final LicensedFeature.Momentary JDBC_FEATURE = LicensedFeature.momentary("sql", "jdbc", License.OperationMode.PLATINUM);
+    private final LicensedFeature.Momentary ODBC_FEATURE = LicensedFeature.momentary("sql", "odbc", License.OperationMode.PLATINUM);
+
     private final SqlLicenseChecker sqlLicenseChecker = new SqlLicenseChecker(
         (mode) -> {
             XPackLicenseState licenseState = getLicenseState();
             switch (mode) {
                 case JDBC:
-                    if (licenseState.checkFeature(XPackLicenseState.Feature.JDBC) == false) {
+                    if (JDBC_FEATURE.check(licenseState) == false) {
                         throw LicenseUtils.newComplianceException("jdbc");
                     }
                     break;
                 case ODBC:
-                    if (licenseState.checkFeature(XPackLicenseState.Feature.ODBC) == false) {
+                    if (ODBC_FEATURE.check(licenseState) == false) {
                         throw LicenseUtils.newComplianceException("odbc");
                     }
                     break;
@@ -86,14 +92,17 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
                                                IndexNameExpressionResolver expressionResolver,
                                                Supplier<RepositoriesService> repositoriesServiceSupplier) {
 
-        return createComponents(client, clusterService.getClusterName().value(), namedWriteableRegistry);
+        return createComponents(client, environment.settings(), clusterService, namedWriteableRegistry);
     }
 
     /**
      * Create components used by the sql plugin.
      */
-    Collection<Object> createComponents(Client client, String clusterName, NamedWriteableRegistry namedWriteableRegistry) {
-        IndexResolver indexResolver = new IndexResolver(client, clusterName, SqlDataTypeRegistry.INSTANCE);
+    Collection<Object> createComponents(Client client, Settings settings, ClusterService clusterService,
+                                        NamedWriteableRegistry namedWriteableRegistry) {
+        RemoteClusterResolver remoteClusterResolver = new RemoteClusterResolver(settings, clusterService.getClusterSettings());
+        IndexResolver indexResolver = new IndexResolver(client, clusterService.getClusterName().value(), SqlDataTypeRegistry.INSTANCE,
+            remoteClusterResolver::remoteClusters);
         return Arrays.asList(sqlLicenseChecker, indexResolver, new PlanExecutor(client, indexResolver, namedWriteableRegistry));
     }
 

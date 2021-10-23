@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.watcher.transform.chain;
 
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.core.watcher.transform.Transform;
 import org.elasticsearch.xpack.core.watcher.transform.TransformFactory;

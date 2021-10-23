@@ -14,8 +14,8 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.ByteArray;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

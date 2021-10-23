@@ -322,6 +322,12 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         return buildRoutingNodes();
     }
 
+    public void enrichWithPreviousState(ClusterState previousState) {
+        if (previousState.routingTable == routingTable && previousState.nodes == nodes && previousState.routingNodes != null) {
+            routingNodes = previousState.routingNodes;
+        }
+    }
+
     private RoutingNodes buildRoutingNodes() {
         synchronized (this) {
             RoutingNodes routingNodes = this.routingNodes;

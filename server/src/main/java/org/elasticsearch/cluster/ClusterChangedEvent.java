@@ -48,6 +48,7 @@ public class ClusterChangedEvent {
         this.source = source;
         this.state = state;
         this.previousState = previousState;
+        state.enrichWithPreviousState(previousState);
         this.nodesDelta = state.nodes().delta(previousState.nodes());
     }
 

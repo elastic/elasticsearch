@@ -8,20 +8,19 @@
 
 package org.elasticsearch.test.mockito;
 
-import org.elasticsearch.cli.SuppressForbidden;
 import org.mockito.plugins.MockMaker;
 
-import java.net.URL;
 import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.DomainCombiner;
 import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
-import java.util.Arrays;
 import java.util.function.Supplier;
 
 class SecureMockUtil {
 
+    // we use the protection domain of mockito for wrapped calls so that
+    // Elasticsearch server jar does not need additional permissions
     private static final AccessControlContext context = getContext();
     private static AccessControlContext getContext() {
         ProtectionDomain[] pda = new ProtectionDomain[] { wrap(MockMaker.class::getProtectionDomain) };

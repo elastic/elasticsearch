@@ -221,7 +221,8 @@ public class DatafeedRunnerTests extends ESTestCase {
 
     public void testRealTime_GivenNonStoppingAnalysisProblem() throws Exception {
         Exception cause = new RuntimeException("non-stopping");
-        when(datafeedJob.runLookBack(anyLong(), nullable(Long.class))).thenThrow(new DatafeedJob.AnalysisProblemException(0L, false, cause));
+        when(datafeedJob.runLookBack(anyLong(), nullable(Long.class)))
+            .thenThrow(new DatafeedJob.AnalysisProblemException(0L, false, cause));
 
         Consumer<Exception> handler = mockConsumer();
         StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams(DATAFEED_ID, 0L);

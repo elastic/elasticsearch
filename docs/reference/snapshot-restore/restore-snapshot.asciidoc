@@ -266,7 +266,7 @@ Specify the `feature_name` from the response in the restore snapshot API's
 restore a feature state, {es} closes and overwrites any existing indices for the
 feature with indices from the snapshot.
 
-WARNING: Restoring the `security` feature state can overwrite system indices
+WARNING: Restoring the `security` feature state overwrites system indices
 used for authentication. If you use {ess}, ensure you have access to the {ess}
 Console before restoring the `security` feature state. If you run {es} on your
 own hardware, <<restore-create-file-realm-user,create a superuser in the file
@@ -426,7 +426,7 @@ DELETE _data_stream/*
 // TEST[continued]
 
 . Restore the entire snapshot, including the cluster state. This also restores
-any system indices in the snapshot.
+any feature states and system indices in the snapshot.
 +
 [source,console]
 ----

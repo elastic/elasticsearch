@@ -258,13 +258,13 @@ GET _snapshot/my_repository/my_snapshot_2099.05.06
 ----
 // TEST[setup:setup-snapshots]
 
-The response's `feature_states` property includes a list of features in the
+The response's `feature_states` property contains a list of features in the
 snapshot as well as each feature's indices.
 
-Specify the `feature_name` from the response in the restore snapshot API's
-<<restore-snapshot-api-feature-states,`feature_states`>> parameter. When you
-restore a feature state, {es} closes and overwrites any existing indices for the
-feature with indices from the snapshot.
+To restore a feature state, specify the `feature_name` from the response in the
+restore snapshot API's <<restore-snapshot-api-feature-states,`feature_states`>>
+parameter. When you restore a feature state, {es} closes and overwrites the
+feature's existing indices.
 
 WARNING: Restoring the `security` feature state overwrites system indices
 used for authentication. If you use {ess}, ensure you have access to the {ess}

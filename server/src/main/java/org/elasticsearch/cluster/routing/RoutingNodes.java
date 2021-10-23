@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.routing;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Assertions;
@@ -86,15 +87,14 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     public RoutingNodes(RoutingTable routingTable, DiscoveryNodes discoveryNodes, boolean readOnly) {
         this.readOnly = readOnly;
         this.recoveriesPerNode = new HashMap<>();
-        this.nodesToShards = new HashMap<>();
         this.assignedShards = new HashMap<>();
         this.unassignedShards = new UnassignedShards(this);
         this.attributeValuesByAttribute = new HashMap<>();
 
-        Map<String, LinkedHashMap<ShardId, ShardRouting>> nodesToShards = new HashMap<>();
+        final Map<String, LinkedHashMap<ShardId, ShardRouting>> nodesToShards = new HashMap<>(discoveryNodes.getDataNodes().size());
         // fill in the nodeToShards with the "live" nodes
-        for (DiscoveryNode node : discoveryNodes.getDataNodes().values()) {
-            nodesToShards.put(node.getId(), new LinkedHashMap<>()); // LinkedHashMap to preserve order
+        for (ObjectCursor<String> node : discoveryNodes.getDataNodes().keys()) {
+            nodesToShards.put(node.value, new LinkedHashMap<>()); // LinkedHashMap to preserve order
         }
 
         // fill in the inverse of node -> shards allocated
@@ -109,9 +109,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                     // by the ShardId, as this is common for primary and replicas.
                     // A replica Set might have one (and not more) replicas with the state of RELOCATING.
                     if (shard.assignedToNode()) {
-                        Map<ShardId, ShardRouting> entries = nodesToShards.computeIfAbsent(shard.currentNodeId(),
-                            k -> new LinkedHashMap<>()); // LinkedHashMap to preserve order
-                        ShardRouting previousValue = entries.put(shard.shardId(), shard);
+                        // LinkedHashMap to preserve order
+                        ShardRouting previousValue = nodesToShards.computeIfAbsent(shard.currentNodeId(), k -> new LinkedHashMap<>())
+                            .put(shard.shardId(), shard);
                         if (previousValue != null) {
                             throw new IllegalArgumentException("Cannot have two different shards with same shard id on same node");
                         }
@@ -121,14 +121,12 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                         }
                         if (shard.relocating()) {
                             relocatingShards++;
-                            // LinkedHashMap to preserve order.
-                            // Add the counterpart shard with relocatingNodeId reflecting the source from which
-                            // it's relocating from.
-                            entries = nodesToShards.computeIfAbsent(shard.relocatingNodeId(),
-                                k -> new LinkedHashMap<>());
                             ShardRouting targetShardRouting = shard.getTargetRelocatingShard();
                             addInitialRecovery(targetShardRouting, indexShard.primary);
-                            previousValue = entries.put(targetShardRouting.shardId(), targetShardRouting);
+                            // LinkedHashMap to preserve order.
+                            // Add the counterpart shard with relocatingNodeId reflecting the source from which it's relocating from.
+                            previousValue = nodesToShards.computeIfAbsent(shard.relocatingNodeId(),
+                                k -> new LinkedHashMap<>()).put(targetShardRouting.shardId(), targetShardRouting);
                             if (previousValue != null) {
                                 throw new IllegalArgumentException("Cannot have two different shards with same shard id on same node");
                             }
@@ -146,6 +144,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 }
             }
         }
+        this.nodesToShards = new HashMap<>(nodesToShards.size());
         for (Map.Entry<String, LinkedHashMap<ShardId, ShardRouting>> entry : nodesToShards.entrySet()) {
             String nodeId = entry.getKey();
             this.nodesToShards.put(nodeId, new RoutingNode(nodeId, discoveryNodes.get(nodeId), entry.getValue()));

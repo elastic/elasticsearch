@@ -56,6 +56,12 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         numberOfNodes = clusterState.nodes().getSize();
         numberOfDataNodes = clusterState.nodes().getDataNodes().size();
         indices = new HashMap<>();
+        ClusterHealthStatus computeStatus = ClusterHealthStatus.GREEN;
+        int computeActivePrimaryShards = 0;
+        int computeActiveShards = 0;
+        int computeRelocatingShards = 0;
+        int computeInitializingShards = 0;
+        int computeUnassignedShards = 0;
         for (String index : concreteIndices) {
             IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
             IndexMetadata indexMetadata = clusterState.metadata().index(index);
@@ -66,16 +72,6 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
             ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetadata, indexRoutingTable);
 
             indices.put(indexHealth.getIndex(), indexHealth);
-        }
-
-        ClusterHealthStatus computeStatus = ClusterHealthStatus.GREEN;
-        int computeActivePrimaryShards = 0;
-        int computeActiveShards = 0;
-        int computeRelocatingShards = 0;
-        int computeInitializingShards = 0;
-        int computeUnassignedShards = 0;
-
-        for (ClusterIndexHealth indexHealth : indices.values()) {
             computeActivePrimaryShards += indexHealth.getActivePrimaryShards();
             computeActiveShards += indexHealth.getActiveShards();
             computeRelocatingShards += indexHealth.getRelocatingShards();

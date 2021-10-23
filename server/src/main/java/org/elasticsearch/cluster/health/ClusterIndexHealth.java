@@ -104,12 +104,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         this.numberOfShards = indexMetadata.getNumberOfShards();
         this.numberOfReplicas = indexMetadata.getNumberOfReplicas();
 
-        shards = new HashMap<>();
-        for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
-            int shardId = shardRoutingTable.shardId().id();
-            shards.put(shardId, new ClusterShardHealth(shardId, shardRoutingTable));
-        }
-
+        shards = new HashMap<>(indexMetadata.getNumberOfShards());
         // update the index status
         ClusterHealthStatus computeStatus = ClusterHealthStatus.GREEN;
         int computeActivePrimaryShards = 0;
@@ -117,7 +112,10 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         int computeRelocatingShards = 0;
         int computeInitializingShards = 0;
         int computeUnassignedShards = 0;
-        for (ClusterShardHealth shardHealth : shards.values()) {
+        for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
+            int shardId = shardRoutingTable.shardId().id();
+            final ClusterShardHealth shardHealth = new ClusterShardHealth(shardId, shardRoutingTable);
+            shards.put(shardId, shardHealth);
             if (shardHealth.isPrimaryActive()) {
                 computeActivePrimaryShards++;
             }
@@ -133,6 +131,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
                 computeStatus = ClusterHealthStatus.YELLOW;
             }
         }
+
         if (shards.isEmpty()) { // might be since none has been created yet (two phase index creation)
             computeStatus = ClusterHealthStatus.RED;
         }

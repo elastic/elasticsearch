@@ -10,6 +10,7 @@ In this guide, you'll learn how to:
 
 * Get a list of available snapshots
 * Restore an index or data stream from a snapshot
+* Restore a feature state
 * Restore an entire cluster
 * Monitor the restore operation
 * Cancel an ongoing restore
@@ -80,8 +81,8 @@ You can restore a snapshot using {kib}'s *Snapshot and Restore* feature or the
 <<restore-snapshot-api,restore snapshot API>>.
 
 By default, a restore request attempts to restore all indices and data streams
-in a snapshot, including system indices. However, you can't restore an
-existing open index.
+in a snapshot, including <<system-indices,system indices>>. However, you can't
+restore an existing open index.
 
 If you're restoring data to a pre-existing cluster, use one of the
 following methods to avoid conflicts with existing indices and data streams:
@@ -91,7 +92,7 @@ following methods to avoid conflicts with existing indices and data streams:
 
 Some {es} features automatically create system indices on cluster startup. To
 avoid conflicts with these system indices when restoring data to a new cluster,
-see <<restore-new-cluster>>.
+see <<restore-exclude-system-indices>>.
 
 [discrete]
 [[delete-restore]]
@@ -207,13 +208,13 @@ POST _reindex
 // TEST[continued]
 
 [discrete]
-[[restore-new-cluster]]
-=== Restore to a new cluster
+[[restore-exclude-system-indices]]
+==== Exclude system indices
 
 Some {es} features, such as the <<geoip-processor,GeoIP processor>>,
 automatically create system indices at startup. To avoid naming conflicts with
-these indices, use the `*,-.*` wildcard pattern in your restore request. This
-pattern excludes system indices and other indices that begin with a dot (`.`).
+these indices, use the `-.*` wildcard pattern to exclude system indices and
+other dot (`.`) indices from your restore request.
 
 ////
 [source,console]
@@ -227,6 +228,9 @@ DELETE _data_stream/logs-my_app-default
 // TEST[setup:setup-snapshots]
 ////
 
+For example, the following request uses the `*,-.*` wildcard pattern to restore
+all indices and data streams except dot indices.
+
 [source,console]
 ----
 POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore 
@@ -237,8 +241,12 @@ POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 // TEST[continued]
 // TEST[s/_restore/_restore?wait_for_completion=true/]
 
-If your snapshot includes the related feature state, you can also restore the
-system indices and other configuration data for a specific feature.
+[discrete]
+[[restore-feature-state]]
+=== Restore a feature state
+
+You can restore a feature state to recover system indices and other
+configuration data for a feature from a snapshot.
 
 NOTE: You can't restore specific feature states in {kib}.
 
@@ -250,16 +258,22 @@ GET _snapshot/my_repository/my_snapshot_2099.05.06
 ----
 // TEST[setup:setup-snapshots]
 
-To restore a feature state, specify the `feature_name` from the response in the
-restore snapshot API's <<restore-snapshot-api-feature-states,`feature_states`>>
-parameter. When you restore a feature state, {es} closes and overwrites any
-existing indices that are part of the feature state.
+The response's `feature_states` property includes a list of features in the
+snapshot as well as each feature's indices.
+
+Specify the `feature_name` from the response in the restore snapshot API's
+<<restore-snapshot-api-feature-states,`feature_states`>> parameter. When you
+restore a feature state, {es} closes and overwrites any existing indices for the
+feature with indices from the snapshot.
 
 WARNING: Restoring the `security` feature state can overwrite system indices
 used for authentication. If you use {ess}, ensure you have access to the {ess}
 Console before restoring the `security` feature state. If you run {es} on your
 own hardware, <<restore-create-file-realm-user,create a superuser in the file
 realm>> to ensure you'll still be able to access your cluster.
+
+To avoid accidentally restoring other dot indices, append the `-.*` wildcard
+pattern to the `indices` value.
 
 [source,console]
 ----

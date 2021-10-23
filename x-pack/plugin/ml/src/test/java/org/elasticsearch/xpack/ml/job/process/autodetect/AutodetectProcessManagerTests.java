@@ -515,7 +515,9 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
         // let the communicator throw, simulating a problem with the underlying
         // autodetect, e.g. a crash
-        doThrow(Exception.class).when(autodetectCommunicator).close();
+        doAnswer(inv -> {
+            throw new Exception("an exception occurred");
+        }).when(autodetectCommunicator).close();
 
         // create a jobtask
         JobTask jobTask = mock(JobTask.class);

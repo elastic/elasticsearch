@@ -80,7 +80,7 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
         );
 
         final BlobContainer blobContainer = mock(BlobContainer.class);
-        when(blobContainer.readBlob(anyString(), anyLong(), anyInt())).thenAnswer(invocationOnMock -> {
+        when(blobContainer.readBlob(anyString(), anyLong(), anyLong())).thenAnswer(invocationOnMock -> {
             String name = (String) invocationOnMock.getArguments()[0];
             long position = (long) invocationOnMock.getArguments()[1];
             long length = (long) invocationOnMock.getArguments()[2];

@@ -81,8 +81,9 @@ You can restore a snapshot using {kib}'s *Snapshot and Restore* feature or the
 <<restore-snapshot-api,restore snapshot API>>.
 
 By default, a restore request attempts to restore all indices and data streams
-in a snapshot, including <<system-indices,system indices>>. However, you can't
-restore an existing open index.
+in a snapshot, including <<system-indices,system indices>>. In most cases, you
+only need to restore a specific index or data stream from a snapshot. However,
+you can't restore an existing open index.
 
 If you're restoring data to a pre-existing cluster, use one of the
 following methods to avoid conflicts with existing indices and data streams:

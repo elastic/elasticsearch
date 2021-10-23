@@ -14,6 +14,8 @@ import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.BeforeClass;
 
+import java.util.List;
+
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
 import static org.elasticsearch.packaging.util.FileUtils.getCurrentVersion;
@@ -48,13 +50,11 @@ public class EnrollmentProcessTests extends PackagingTestCase {
         // installation now points to the second node
         installation = installArchive(sh, distribution(), getRootTempDir().resolve("elasticsearch-node2"), getCurrentVersion(), true);
         // auto-configure security using the enrollment token
-        installation.executables().enrollToExistingCluster.run("--enrollment-token " + enrollmentToken);
-        // Verify that the second node was also configured (via enrollment) for security
-        verifySecurityAutoConfigured(installation);
         Shell.Result startSecondNode = awaitElasticsearchStartupWithResult(
-            Archives.startElasticsearchWithTty(installation, sh, null, false)
+            Archives.runElasticsearchStartCommand(installation, sh, null, List.of("--enrollment token", enrollmentToken), false)
         );
         assertThat(startSecondNode.isSuccess(), is(true));
+        verifySecurityAutoConfigured(installation);
         // verify that the two nodes formed a cluster
         assertThat(makeRequest("https://localhost:9200/_cluster/health"), containsString("\"number_of_nodes\":2"));
     }

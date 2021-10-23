@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.core.ilm.ShrinkStep;
 import org.elasticsearch.xpack.core.ilm.ShrunkShardsAllocatedStep;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
-import org.hamcrest.Description;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentMatcher;
@@ -345,18 +344,9 @@ public class IndexLifecycleServiceTests extends ESTestCase {
                 Priority actualPriority = null;
 
                 @Override
-                public boolean matches(Object argument) {
-                    if (argument instanceof OperationModeUpdateTask == false) {
-                        return false;
-                    }
-                    actualPriority = ((OperationModeUpdateTask) argument).priority();
+                public boolean matches(OperationModeUpdateTask other) {
+                    actualPriority = other.priority();
                     return actualPriority == expectedPriority;
-                }
-
-                @Override
-                public void describeTo(Description description) {
-                    description.appendText("the cluster state update task priority must be "+ expectedPriority+" but got: ")
-                        .appendText(actualPriority.name());
                 }
             })
         );

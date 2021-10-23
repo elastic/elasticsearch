@@ -100,7 +100,6 @@ import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -2021,12 +2020,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             verifyZeroInteractions(operatorPrivilegesService);
             final ServiceAccountToken serviceToken = ServiceAccountToken.fromBearerString(new SecureString(bearerString.toCharArray()));
             verify(auditTrail).authenticationFailed(eq(reqId.get()),
-                argThat(new ArgumentMatcher<AuthenticationToken>() {
-                    @Override
-                    public boolean matches(Object o) {
-                        return ((ServiceAccountToken) o).getTokenId().equals(serviceToken.getTokenId());
-                    }
-                }),
+                argThat(o -> ((ServiceAccountToken) o).getTokenId().equals(serviceToken.getTokenId())),
                 eq("_action"), eq(transportRequest));
         }
     }

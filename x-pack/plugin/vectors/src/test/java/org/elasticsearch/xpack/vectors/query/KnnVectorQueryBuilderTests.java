@@ -101,14 +101,6 @@ public class KnnVectorQueryBuilderTests extends AbstractQueryTestCase<KnnVectorQ
         assertThat(e.getMessage(), containsString("[knn] queries are only supported on [dense_vector] fields"));
     }
 
-    public void testUnindexedField() {
-        SearchExecutionContext context = createSearchExecutionContext();
-        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(UNINDEXED_VECTOR_FIELD,
-            new float[]{1.0f, 1.0f, 1.0f}, 10);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.doToQuery(context));
-        assertThat(e.getMessage(), containsString("[knn] queries are not supported if [index] is disabled"));
-    }
-
     @Override
     public void testValidOutput() {
         KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] {1.0f, 2.0f, 3.0f}, 10);

@@ -58,11 +58,11 @@ import java.util.stream.StreamSupport;
  */
 public class RoutingNodes implements Iterable<RoutingNode> {
 
-    private final Map<String, RoutingNode> nodesToShards = new HashMap<>();
+    private final Map<String, RoutingNode> nodesToShards;
 
-    private final UnassignedShards unassignedShards = new UnassignedShards(this);
+    private final UnassignedShards unassignedShards;
 
-    private final Map<ShardId, List<ShardRouting>> assignedShards = new HashMap<>();
+    private final Map<ShardId, List<ShardRouting>> assignedShards;
 
     private final boolean readOnly;
 
@@ -76,8 +76,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     private int totalShardCount = 0;
 
-    private final Map<String, Set<String>> attributeValuesByAttribute = new HashMap<>();
-    private final Map<String, Recoveries> recoveriesPerNode = new HashMap<>();
+    private final Map<String, Set<String>> attributeValuesByAttribute;
+    private final Map<String, Recoveries> recoveriesPerNode;
 
     public RoutingNodes(ClusterState clusterState) {
         this(clusterState, true);
@@ -85,6 +85,12 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     public RoutingNodes(ClusterState clusterState, boolean readOnly) {
         this.readOnly = readOnly;
+        this.recoveriesPerNode = new HashMap<>();
+        this.nodesToShards = new HashMap<>();
+        this.assignedShards = new HashMap<>();
+        this.unassignedShards = new UnassignedShards(this);
+        this.attributeValuesByAttribute = new HashMap<>();
+
         final RoutingTable routingTable = clusterState.routingTable();
 
         Map<String, LinkedHashMap<ShardId, ShardRouting>> nodesToShards = new HashMap<>();
@@ -150,30 +156,28 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     private RoutingNodes(RoutingNodes routingNodes) {
         this.readOnly = false;
+        this.nodesToShards = new HashMap<>(routingNodes.nodesToShards.size());
         for (Map.Entry<String, RoutingNode> entry : routingNodes.nodesToShards.entrySet()) {
             this.nodesToShards.put(entry.getKey(), entry.getValue().copy());
         }
+        this.assignedShards = new HashMap<>(routingNodes.assignedShards.size());
         for (Map.Entry<ShardId, List<ShardRouting>> entry : routingNodes.assignedShards.entrySet()) {
             this.assignedShards.put(entry.getKey(), new ArrayList<>(entry.getValue()));
         }
-        this.unassignedShards.ignoredPrimaries = routingNodes.unassignedShards.ignoredPrimaries;
-        this.unassignedShards.primaries = routingNodes.unassignedShards.primaries;
-        this.unassignedShards.unassigned.addAll(routingNodes.unassignedShards.unassigned);
-        this.unassignedShards.ignored.addAll(routingNodes.unassignedShards.ignored);
+        this.unassignedShards = routingNodes.unassignedShards.copyTo(this);
 
         this.inactivePrimaryCount = routingNodes.inactivePrimaryCount;
         this.inactiveShardCount = routingNodes.inactiveShardCount;
         this.relocatingShards = routingNodes.relocatingShards;
         this.activeShardCount = routingNodes.activeShardCount;
         this.totalShardCount = routingNodes.totalShardCount;
+        this.attributeValuesByAttribute = new HashMap<>(routingNodes.attributeValuesByAttribute.size());
         for (Map.Entry<String, Set<String>> entry : routingNodes.attributeValuesByAttribute.entrySet()) {
             this.attributeValuesByAttribute.put(entry.getKey(), new HashSet<>(entry.getValue()));
         }
+        this.recoveriesPerNode = new HashMap<>(routingNodes.recoveriesPerNode.size());
         for (Map.Entry<String, Recoveries> entry : routingNodes.recoveriesPerNode.entrySet()) {
-            final Recoveries copy = new Recoveries();
-            copy.incoming = entry.getValue().incoming;
-            copy.outgoing = entry.getValue().outgoing;
-            this.recoveriesPerNode.put(entry.getKey(), copy);
+            this.recoveriesPerNode.put(entry.getKey(), entry.getValue().copy());
         }
     }
 
@@ -817,14 +821,26 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         private final List<ShardRouting> unassigned;
         private final List<ShardRouting> ignored;
 
-        private int primaries = 0;
-        private int ignoredPrimaries = 0;
+        private int primaries;
+        private int ignoredPrimaries;
 
         public UnassignedShards(RoutingNodes nodes) {
-            this.nodes = nodes;
-            unassigned = new ArrayList<>();
-            ignored = new ArrayList<>();
+            this(nodes, new ArrayList<>(), new ArrayList<>(), 0, 0);
         }
+
+        private UnassignedShards(RoutingNodes nodes, List<ShardRouting> unassigned, List<ShardRouting> ignored,
+                                 int primaries, int ignoredPrimaries) {
+            this.nodes = nodes;
+            this.unassigned = unassigned;
+            this.ignored = ignored;
+            this.primaries = primaries;
+            this.ignoredPrimaries = ignoredPrimaries;
+        }
+
+        public UnassignedShards copyTo(RoutingNodes newNodes) {
+            return new UnassignedShards(newNodes, new ArrayList<>(unassigned), new ArrayList<>(ignored), primaries, ignoredPrimaries);
+        }
+
 
         public void add(ShardRouting shardRouting) {
             if(shardRouting.primary()) {
@@ -1189,6 +1205,13 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         private static final Recoveries EMPTY = new Recoveries();
         private int incoming = 0;
         private int outgoing = 0;
+
+        public Recoveries copy() {
+            final Recoveries copy = new Recoveries();
+            copy.incoming = incoming;
+            copy.outgoing = outgoing;
+            return copy;
+        }
 
         void addOutgoing(int howMany) {
             assert outgoing + howMany >= 0 : outgoing + howMany+ " must be >= 0";

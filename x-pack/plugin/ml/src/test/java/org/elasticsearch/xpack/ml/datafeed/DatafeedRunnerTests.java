@@ -19,8 +19,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.test.ESTestCase;
@@ -55,6 +55,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests.addJobTask;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyString;
@@ -105,8 +106,6 @@ public class DatafeedRunnerTests extends ESTestCase {
         DiscoveryNode dNode = mock(DiscoveryNode.class);
         when(dNode.getName()).thenReturn("this_node_has_a_name");
         when(clusterService.localNode()).thenReturn(dNode);
-        auditor = mock(AnomalyDetectionAuditor.class);
-
         auditor = mock(AnomalyDetectionAuditor.class);
         threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
@@ -203,7 +202,7 @@ public class DatafeedRunnerTests extends ESTestCase {
 
     public void testRealTime_GivenStoppingAnalysisProblem() throws Exception {
         Exception cause = new RuntimeException("stopping");
-        when(datafeedJob.runLookBack(anyLong(), anyLong())).thenThrow(new DatafeedJob.AnalysisProblemException(0L, true, cause));
+        when(datafeedJob.runLookBack(anyLong(), nullable(Long.class))).thenThrow(new DatafeedJob.AnalysisProblemException(0L, true, cause));
 
         Consumer<Exception> handler = mockConsumer();
         StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams(DATAFEED_ID, 0L);
@@ -222,7 +221,8 @@ public class DatafeedRunnerTests extends ESTestCase {
 
     public void testRealTime_GivenNonStoppingAnalysisProblem() throws Exception {
         Exception cause = new RuntimeException("non-stopping");
-        when(datafeedJob.runLookBack(anyLong(), anyLong())).thenThrow(new DatafeedJob.AnalysisProblemException(0L, false, cause));
+        when(datafeedJob.runLookBack(anyLong(), nullable(Long.class)))
+            .thenThrow(new DatafeedJob.AnalysisProblemException(0L, false, cause));
 
         Consumer<Exception> handler = mockConsumer();
         StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams(DATAFEED_ID, 0L);

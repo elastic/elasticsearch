@@ -135,7 +135,7 @@ public class JobManagerTests extends ESTestCase {
 
         ExecutorService executorService = mock(ExecutorService.class);
         threadPool = mock(ThreadPool.class);
-        org.elasticsearch.mock.orig.Mockito.doAnswer(invocation -> {
+        org.mockito.Mockito.doAnswer(invocation -> {
             ((Runnable) invocation.getArguments()[0]).run();
             return null;
         }).when(executorService).execute(any(Runnable.class));

@@ -856,47 +856,49 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     }
 
     private void verifyVersionCheck() {
-        verify(client).performRequestAsync(argThat(new RequestMatcher(is("GET"), is("/"))), any(ResponseListener.class));
+        verify(client).performRequestAsync(argThat(new RequestMatcher(is("GET"), is("/"))::matches), any(ResponseListener.class));
     }
 
     private void verifyGetTemplates(final int called) {
         verify(client, times(called))
-            .performRequestAsync(argThat(new RequestMatcher(is("GET"), startsWith("/_template/"))), any(ResponseListener.class));
+            .performRequestAsync(argThat(new RequestMatcher(is("GET"), startsWith("/_template/"))::matches), any(ResponseListener.class));
     }
 
     private void verifyPutTemplates(final int called) {
         verify(client, times(called))
-            .performRequestAsync(argThat(new RequestMatcher(is("PUT"), startsWith("/_template/"))), any(ResponseListener.class));
+            .performRequestAsync(argThat(new RequestMatcher(is("PUT"), startsWith("/_template/"))::matches), any(ResponseListener.class));
     }
 
     private void verifyGetPipelines(final int called) {
-        verify(client, times(called))
-            .performRequestAsync(argThat(new RequestMatcher(is("GET"), startsWith("/_ingest/pipeline/"))), any(ResponseListener.class));
+        verify(client, times(called)).performRequestAsync(
+            argThat(new RequestMatcher(is("GET"), startsWith("/_ingest/pipeline/"))::matches), any(ResponseListener.class));
     }
 
     private void verifyPutPipelines(final int called) {
-        verify(client, times(called))
-            .performRequestAsync(argThat(new RequestMatcher(is("PUT"), startsWith("/_ingest/pipeline/"))), any(ResponseListener.class));
+        verify(client, times(called)).performRequestAsync(
+            argThat(new RequestMatcher(is("PUT"), startsWith("/_ingest/pipeline/"))::matches), any(ResponseListener.class));
     }
 
     private void verifyWatcherCheck() {
-        verify(client).performRequestAsync(argThat(new RequestMatcher(is("GET"), is("/_xpack"))), any(ResponseListener.class));
+        verify(client).performRequestAsync(argThat(new RequestMatcher(is("GET"), is("/_xpack"))::matches), any(ResponseListener.class));
     }
 
     private void verifyDeleteWatches(final int called) {
         verify(client, times(called))
-            .performRequestAsync(argThat(new RequestMatcher(is("DELETE"), startsWith("/_watcher/watch/"))),
+            .performRequestAsync(argThat(new RequestMatcher(is("DELETE"), startsWith("/_watcher/watch/"))::matches),
                                  any(ResponseListener.class));
     }
 
     private void verifyGetWatches(final int called) {
         verify(client, times(called))
-            .performRequestAsync(argThat(new RequestMatcher(is("GET"), startsWith("/_watcher/watch/"))), any(ResponseListener.class));
+            .performRequestAsync(argThat(new RequestMatcher(is("GET"), startsWith("/_watcher/watch/"))::matches),
+                any(ResponseListener.class));
     }
 
     private void verifyPutWatches(final int called) {
         verify(client, times(called))
-            .performRequestAsync(argThat(new RequestMatcher(is("PUT"), startsWith("/_watcher/watch/"))), any(ResponseListener.class));
+            .performRequestAsync(argThat(new RequestMatcher(is("PUT"), startsWith("/_watcher/watch/"))::matches),
+                any(ResponseListener.class));
     }
 
     private ClusterService mockClusterService(final ClusterState state) {

@@ -186,11 +186,11 @@ public class PrefixInputStreamTests extends ESTestCase {
         when(mockSource.skip(org.mockito.Matchers.anyLong())).thenAnswer(invocationOnMock -> {
             final long n = (long) invocationOnMock.getArguments()[0];
             if (n <= 0 || bytesRemaining.get() <= 0) {
-                return 0;
+                return 0L;
             }
             int bytesSkipped = 1 + Randomness.get().nextInt(Math.min(bytesRemaining.get(), Math.toIntExact(n)));
             bytesRemaining.addAndGet(-bytesSkipped);
-            return bytesSkipped;
+            return (long) bytesSkipped;
         });
         when(mockSource.available()).thenAnswer(invocationOnMock -> {
             if (bytesRemaining.get() <= 0) {

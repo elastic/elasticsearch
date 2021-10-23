@@ -17,7 +17,7 @@ import org.junit.Before;
 
 import java.util.concurrent.ExecutorService;
 
-import static org.elasticsearch.mock.orig.Mockito.doAnswer;
+import static org.mockito.Mockito.doAnswer;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;

@@ -236,7 +236,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         }
 
         when(restClient
-            .performRequestAsync(argThat(new RequestMatcher("GET", "/")), any()))
+            .performRequestAsync(argThat(new RequestMatcher("GET", "/")::matches), any()))
             .thenAnswer(i -> {
                     ((ResponseListener)i.getArguments()[1]).onSuccess(response);
                     return Cancellable.NO_OP;
@@ -1039,7 +1039,8 @@ public class RestHighLevelClientTests extends ESTestCase {
 
         Build build = new Build(Build.Flavor.DEFAULT, Build.Type.UNKNOWN, "hash", "date", false, version);
         mockGetRoot(restClient, build, setProductHeader);
-        when(restClient.performRequest(argThat(new RequestMatcher("HEAD", "/foo/_source/bar")))).thenReturn(apiResponse);
+        when(restClient.performRequest(argThat(new RequestMatcher("HEAD", "/foo/_source/bar")::matches)))
+            .thenReturn(apiResponse);
 
         RestHighLevelClient highLevelClient =  new RestHighLevelClient(restClient, RestClient::close, Collections.emptyList());
 
@@ -1086,7 +1087,8 @@ public class RestHighLevelClientTests extends ESTestCase {
         when(apiStatus.getStatusCode()).thenReturn(200);
         Response apiResponse = mock(Response.class);
         when(apiResponse.getStatusLine()).thenReturn(apiStatus);
-        when(restClient.performRequest(argThat(new RequestMatcher("HEAD", "/foo/_source/bar")))).thenReturn(apiResponse);
+        when(restClient.performRequest(argThat(new RequestMatcher("HEAD", "/foo/_source/bar")::matches)))
+            .thenReturn(apiResponse);
 
         RestHighLevelClient highLevelClient = new RestHighLevelClient(restClient, RestClient::close, Collections.emptyList());
 
@@ -1124,7 +1126,8 @@ public class RestHighLevelClientTests extends ESTestCase {
         when(apiStatus.getStatusCode()).thenReturn(200);
         Response apiResponse = mock(Response.class);
         when(apiResponse.getStatusLine()).thenReturn(apiStatus);
-        when(restClient.performRequest(argThat(new RequestMatcher("HEAD", "/foo/_source/bar")))).thenReturn(apiResponse);
+        when(restClient.performRequest(argThat(new RequestMatcher("HEAD", "/foo/_source/bar")::matches)))
+            .thenReturn(apiResponse);
 
         RestHighLevelClient highLevelClient =  new RestHighLevelClient(restClient, RestClient::close, Collections.emptyList());
 
@@ -1166,10 +1169,11 @@ public class RestHighLevelClientTests extends ESTestCase {
         when(apiStatus.getStatusCode()).thenReturn(200);
         Response apiResponse = mock(Response.class);
         when(apiResponse.getStatusLine()).thenReturn(apiStatus);
-        when(restClient.performRequest(argThat(new RequestMatcher("HEAD", "/foo/_source/bar")))).thenReturn(apiResponse);
+        when(restClient.performRequest(argThat(new RequestMatcher("HEAD", "/foo/_source/bar")::matches)))
+            .thenReturn(apiResponse);
 
         // Have the verification request fail
-        when(restClient.performRequestAsync(argThat(new RequestMatcher("GET", "/")), any()))
+        when(restClient.performRequestAsync(argThat(new RequestMatcher("GET", "/")::matches), any()))
             .thenAnswer(i -> {
                 ((ResponseListener)i.getArguments()[1]).onFailure(new IOException("Something bad happened"));
                 return Cancellable.NO_OP;
@@ -1198,10 +1202,11 @@ public class RestHighLevelClientTests extends ESTestCase {
         when(apiStatus.getStatusCode()).thenReturn(200);
         Response apiResponse = mock(Response.class);
         when(apiResponse.getStatusLine()).thenReturn(apiStatus);
-        when(restClient.performRequest(argThat(new RequestMatcher("HEAD", "/foo/_source/bar")))).thenReturn(apiResponse);
+        when(restClient.performRequest(argThat(new RequestMatcher("HEAD", "/foo/_source/bar")::matches)))
+            .thenReturn(apiResponse);
 
         // Have the info endpoint used for verification return a 403 (forbidden)
-        when(restClient.performRequestAsync(argThat(new RequestMatcher("GET", "/")), any()))
+        when(restClient.performRequestAsync(argThat(new RequestMatcher("GET", "/")::matches), any()))
             .thenAnswer(i -> {
                 StatusLine infoStatus = mock(StatusLine.class);
                 when(apiStatus.getStatusCode()).thenReturn(HttpStatus.SC_FORBIDDEN);
@@ -1224,7 +1229,8 @@ public class RestHighLevelClientTests extends ESTestCase {
 
         mockGetRoot(restClient);
         Cancellable cancellable = mock(Cancellable.class);
-        when(restClient.performRequestAsync(argThat(new RequestMatcher("HEAD", "/foo/_source/bar")), any())).thenReturn(cancellable);
+        when(restClient.performRequestAsync(argThat(new RequestMatcher("HEAD", "/foo/_source/bar")::matches), any()))
+            .thenReturn(cancellable);
 
         Cancellable result = restHighLevelClient.existsSourceAsync(
             new GetSourceRequest("foo", "bar"),

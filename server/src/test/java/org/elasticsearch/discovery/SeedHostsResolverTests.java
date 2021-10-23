@@ -20,11 +20,11 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -49,7 +49,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.Stack;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
@@ -403,6 +402,6 @@ public class SeedHostsResolverTests extends ESTestCase {
         assertThat(transportAddresses, hasSize(1)); // only one of the two is valid and will be used
         assertThat(transportAddresses.get(0).getAddress(), equalTo("127.0.0.1"));
         assertThat(transportAddresses.get(0).getPort(), equalTo(9301));
-        verify(logger).warn(eq("failed to resolve host [127.0.0.1:9300:9300]"), any(ExecutionException.class));
+        verify(logger).warn(eq("failed to resolve host [127.0.0.1:9300:9300]"), any(Exception.class));
     }
 }

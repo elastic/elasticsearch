@@ -13,6 +13,10 @@ import org.mockito.internal.creation.instance.DefaultInstantiatorProvider;
 import org.mockito.mock.MockCreationSettings;
 import org.mockito.plugins.InstantiatorProvider2;
 
+/**
+ * A wrapper around the default provider which itself just wraps
+ * {@link Instantiator} instances to play nice with {@link SecurityManager}.
+ */
 public class SecureObjectInstantiatorProvider implements InstantiatorProvider2 {
     private final DefaultInstantiatorProvider delegate;
 

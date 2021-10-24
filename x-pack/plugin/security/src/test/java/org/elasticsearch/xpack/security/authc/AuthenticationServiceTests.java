@@ -145,6 +145,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.argThat;
@@ -258,9 +259,9 @@ public class AuthenticationServiceTests extends ESTestCase {
         threadContext = threadPool.getThreadContext();
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
-        when(client.prepareIndex(any(String.class)))
+        when(client.prepareIndex(nullable(String.class)))
             .thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
-        when(client.prepareUpdate(any(String.class), any(String.class)))
+        when(client.prepareUpdate(nullable(String.class), nullable(String.class)))
             .thenReturn(new UpdateRequestBuilder(client, UpdateAction.INSTANCE));
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
@@ -274,7 +275,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             builder.setIndex((String) invocationOnMock.getArguments()[0])
                     .setId((String) invocationOnMock.getArguments()[1]);
             return builder;
-        }).when(client).prepareGet(anyString(), anyString());
+        }).when(client).prepareGet(nullable(String.class), nullable(String.class));
         securityIndex = mock(SecurityIndexManager.class);
         doAnswer(invocationOnMock -> {
             Runnable runnable = (Runnable) invocationOnMock.getArguments()[1];

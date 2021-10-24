@@ -219,6 +219,14 @@ public class RoutingNode implements Iterable<ShardRouting> {
         return count;
     }
 
+    public Iterable<ShardRouting> initializingShardsIter() {
+        return initializingShards;
+    }
+
+    public Iterable<ShardRouting> relocatingShardsIter() {
+        return relocatingShards;
+    }
+
     /**
      * Determine the shards with a specific state
      * @param states set of states which should be listed

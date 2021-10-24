@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -112,7 +111,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
             // count *just the primaries* currently doing recovery on the node and check against primariesInitialRecoveries
 
             int primariesInRecovery = 0;
-            for (ShardRouting shard : node.shardsWithState(ShardRoutingState.INITIALIZING)) {
+            for (ShardRouting shard : node.initializingShardsIter()) {
                 // when a primary shard is INITIALIZING, it can be because of *initial recovery* or *relocation from another node*
                 // we only count initial recoveries here, so we need to make sure that relocating node is null
                 if (shard.primary() && shard.relocatingNodeId() == null) {

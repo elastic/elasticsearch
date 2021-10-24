@@ -15,6 +15,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -75,6 +76,8 @@ public final class Settings implements ToXContentFragment {
 
     public static final Settings EMPTY = new Settings(Collections.emptyMap(), null);
 
+    private static final StringLiteralDeduplicator settingLiteralDeduplicator = new StringLiteralDeduplicator();
+
     /** The raw settings from the full key to raw string value. */
     private final NavigableMap<String, Object> settings;
 
@@ -99,7 +102,43 @@ public final class Settings implements ToXContentFragment {
 
     private Settings(Map<String, Object> settings, SecureSettings secureSettings) {
         // we use a sorted map for consistent serialization when using getAsMap()
-        this.settings = Collections.unmodifiableNavigableMap(new TreeMap<>(settings));
+        final TreeMap<String, Object> tree = new TreeMap<>();
+        for (Map.Entry<String, Object> settingEntry : settings.entrySet()) {
+            final Object value = settingEntry.getValue();
+            final Object internedValue;
+            if (value instanceof String) {
+                internedValue = settingLiteralDeduplicator.deduplicate((String) value);
+            } else if (value instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<String> valueList = (List<String>) value;
+                final int listSize = valueList.size();
+                int notInternedOffset = -1;
+                for (int i = 0; i < listSize; i++) {
+                    final String listValue = valueList.get(i);
+                    final String interned = settingLiteralDeduplicator.deduplicate(listValue);
+                    if (interned != listValue) {
+                        notInternedOffset = i;
+                        break;
+                    }
+                }
+                if (notInternedOffset >= 0) {
+                    final String[] internedArr = new String[listSize];
+                    for (int i = 0; i < notInternedOffset; i++) {
+                        internedArr[i] = valueList.get(i);
+                    }
+                    for (int i = notInternedOffset; i < valueList.size(); i++) {
+                        internedArr[i] = settingLiteralDeduplicator.deduplicate(valueList.get(i));
+                    }
+                    internedValue = org.elasticsearch.core.List.of(internedArr);
+                } else {
+                    internedValue = org.elasticsearch.core.List.copyOf(valueList);
+                }
+            } else {
+                internedValue = value;
+            }
+            tree.put(settingLiteralDeduplicator.deduplicate(settingEntry.getKey()), internedValue);
+        }
+        this.settings = Collections.unmodifiableNavigableMap(tree);
         this.secureSettings = secureSettings;
     }
 
@@ -411,7 +450,7 @@ public final class Settings implements ToXContentFragment {
             if (valueFromPrefix instanceof List) {
                 @SuppressWarnings("unchecked")
                 final List<String> valuesAsList = (List<String>) valueFromPrefix;
-                return Collections.unmodifiableList(valuesAsList);
+                return valuesAsList;
             } else if (commaDelimited) {
                 String[] strings = Strings.splitStringByCommaToArray(get(key));
                 if (strings.length > 0) {
@@ -1189,11 +1228,19 @@ public final class Settings implements ToXContentFragment {
                 }
                 if (entry.getValue() instanceof List) {
                     @SuppressWarnings("unchecked")
-                    final ListIterator<String> li = ((List<String>) entry.getValue()).listIterator();
+                    final List<String> mutableList = new ArrayList<>((List<String>) entry.getValue());
+                    final ListIterator<String> li = mutableList.listIterator();
+                    boolean changed = false;
                     while (li.hasNext()) {
                         final String settingValueRaw = li.next();
                         final String settingValueResolved = propertyPlaceholder.replacePlaceholders(settingValueRaw, placeholderResolver);
-                        li.set(settingValueResolved);
+                        if (settingValueResolved.equals(settingValueRaw) == false) {
+                            li.set(settingValueResolved);
+                            changed = true;
+                        }
+                    }
+                    if (changed) {
+                        entry.setValue(org.elasticsearch.core.List.copyOf(mutableList));
                     }
                     continue;
                 }

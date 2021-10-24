@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage.PhaseStats
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage.PolicyStats;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
@@ -37,7 +36,7 @@ import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.shouldInj
 
 public class IndexLifecycleFeatureSet implements XPackFeatureSet {
 
-    private ClusterService clusterService;
+    private final ClusterService clusterService;
 
     @Inject
     public IndexLifecycleFeatureSet(ClusterService clusterService) {
@@ -71,7 +70,7 @@ public class IndexLifecycleFeatureSet implements XPackFeatureSet {
         if (lifecycleMetadata != null) {
             Map<String, Integer> policyUsage = new HashMap<>();
             metadata.indices().forEach(entry -> {
-                String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(entry.value.getSettings());
+                String policyName = entry.value.getLifecycleName();
                 Integer indicesManaged = policyUsage.get(policyName);
                 if (indicesManaged == null) {
                     indicesManaged = 1;

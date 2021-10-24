@@ -66,7 +66,7 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
     private IndexMetadata getIndexMetadata(String index) {
         Map<String, String> ilmCustom = Collections.singletonMap("rollup_index_name", "rollup-index");
         return IndexMetadata.builder(index).settings(
-            settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, "test-ilm-policy"))
+            settings(Version.CURRENT).put(IndexMetadata.LIFECYCLE_NAME, "test-ilm-policy"))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
             .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
             .build();
@@ -97,10 +97,10 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
 
     public void testPerformActionFailureInvalidExecutionState() {
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(
-            settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, "test-ilm-policy"))
+            settings(Version.CURRENT).put(IndexMetadata.LIFECYCLE_NAME, "test-ilm-policy"))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
             .build();
-        String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        String policyName = indexMetadata.getSettings().get(IndexMetadata.LIFECYCLE_NAME);
         String indexName = indexMetadata.getIndex().getName();
         RollupStep step = createRandomInstance();
         step.performAction(indexMetadata, emptyClusterState(), null, new ActionListener<Void>() {

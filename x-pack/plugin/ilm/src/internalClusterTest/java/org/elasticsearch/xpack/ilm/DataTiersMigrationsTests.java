@@ -11,6 +11,7 @@ import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplai
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
@@ -131,7 +132,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
         assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
 
         Settings settings = Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 1)
-            .put(SETTING_NUMBER_OF_REPLICAS, 1).put(LifecycleSettings.LIFECYCLE_NAME, policy).build();
+            .put(SETTING_NUMBER_OF_REPLICAS, 1).put(IndexMetadata.LIFECYCLE_NAME, policy).build();
         CreateIndexResponse res = client().admin().indices().prepareCreate(managedIndex).setSettings(settings).get();
         assertTrue(res.isAcknowledged());
 
@@ -193,7 +194,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
         assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
 
         Settings settings = Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 1)
-            .put(SETTING_NUMBER_OF_REPLICAS, 1).put(LifecycleSettings.LIFECYCLE_NAME, policy).build();
+            .put(SETTING_NUMBER_OF_REPLICAS, 1).put(IndexMetadata.LIFECYCLE_NAME, policy).build();
         CreateIndexResponse res = client().admin().indices().prepareCreate(managedIndex).setSettings(settings).get();
         assertTrue(res.isAcknowledged());
 

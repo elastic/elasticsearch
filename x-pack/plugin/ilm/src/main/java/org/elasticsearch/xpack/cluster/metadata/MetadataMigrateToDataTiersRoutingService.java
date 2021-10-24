@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.MigrateAction;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseExecutionInfo;
@@ -248,7 +247,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
         String policyName = oldPolicy.getName();
         final List<IndexMetadata> managedIndices =
             currentState.metadata().indices().values().stream()
-                .filter(meta -> policyName.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(meta.getSettings())))
+                .filter(meta -> policyName.equals(meta.getLifecycleName()))
                 .collect(Collectors.toList());
 
         for (IndexMetadata indexMetadata : managedIndices) {

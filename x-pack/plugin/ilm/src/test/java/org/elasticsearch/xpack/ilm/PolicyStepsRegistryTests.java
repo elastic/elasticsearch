@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyTests;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.MigrateAction;
 import org.elasticsearch.xpack.core.ilm.MockStep;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
@@ -102,7 +101,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
                 .put("index.version.created", Version.CURRENT)
-                .put(LifecycleSettings.LIFECYCLE_NAME, "policy")
+                .put(IndexMetadata.LIFECYCLE_NAME, "policy")
                 .build())
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .build();
@@ -142,7 +141,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
                 .put("index.version.created", Version.CURRENT)
-                .put(LifecycleSettings.LIFECYCLE_NAME, "policy")
+                .put(IndexMetadata.LIFECYCLE_NAME, "policy")
                 .build())
             .build();
         SortedMap<String, LifecyclePolicyMetadata> metas = new TreeMap<>();
@@ -170,7 +169,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
                 .put("index.version.created", Version.CURRENT)
-                .put(LifecycleSettings.LIFECYCLE_NAME, "policy")
+                .put(IndexMetadata.LIFECYCLE_NAME, "policy")
                 .build())
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .build();
@@ -209,7 +208,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
                     .put("index.number_of_shards", 1)
                     .put("index.number_of_replicas", 0)
                     .put("index.version.created", Version.CURRENT.id)
-                    .put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                    .put(IndexMetadata.LIFECYCLE_NAME, policyName))
                 .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap()))
             .build();
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
@@ -360,7 +359,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
                     .put("index.number_of_shards", 1)
                     .put("index.number_of_replicas", 0)
                     .put("index.version.created", Version.CURRENT.id)
-                    .put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                    .put(IndexMetadata.LIFECYCLE_NAME, policyName))
                 .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap()))
             .build();
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {

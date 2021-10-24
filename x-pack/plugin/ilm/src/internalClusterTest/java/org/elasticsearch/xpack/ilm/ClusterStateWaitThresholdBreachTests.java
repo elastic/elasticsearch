@@ -114,7 +114,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         // we're configuring a very high number of replicas. this will make ths shrunk index unable to allocate successfully, so ILM will
         // wait in the `shrunk-shards-allocated` step (we don't wait for the original index to be GREEN before)
         Settings settings = Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, numShards)
-            .put(SETTING_NUMBER_OF_REPLICAS, 42).put(LifecycleSettings.LIFECYCLE_NAME, policy)
+            .put(SETTING_NUMBER_OF_REPLICAS, 42).put(IndexMetadata.LIFECYCLE_NAME, policy)
             // configuring the threshold to the minimum value
             .put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "1h")
             .build();

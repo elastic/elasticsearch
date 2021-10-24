@@ -70,8 +70,7 @@ public final class IndexLifecycleTransition {
     public static void validateTransition(IndexMetadata idxMeta, Step.StepKey currentStepKey,
                                           Step.StepKey newStepKey, PolicyStepsRegistry stepRegistry) {
         String indexName = idxMeta.getIndex().getName();
-        Settings indexSettings = idxMeta.getSettings();
-        String indexPolicySetting = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings);
+        String indexPolicySetting = idxMeta.getLifecycleName();
 
         // policy could be updated in-between execution
         if (Strings.isNullOrEmpty(indexPolicySetting)) {
@@ -115,13 +114,11 @@ public final class IndexLifecycleTransition {
         Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(LifecycleExecutionState.fromIndexMetadata(idxMeta));
         validateTransition(idxMeta, currentStepKey, newStepKey, stepRegistry);
 
-        Settings indexSettings = idxMeta.getSettings();
-        String policy = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings);
+        String policy = idxMeta.getLifecycleName();
         logger.info("moving index [{}] from [{}] to [{}] in policy [{}]", index.getName(), currentStepKey, newStepKey, policy);
 
         IndexLifecycleMetadata ilmMeta = state.metadata().custom(IndexLifecycleMetadata.TYPE);
-        LifecyclePolicyMetadata policyMetadata = ilmMeta.getPolicyMetadatas()
-            .get(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings()));
+        LifecyclePolicyMetadata policyMetadata = ilmMeta.getPolicyMetadatas().get(idxMeta.getLifecycleName());
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
         LifecycleExecutionState newLifecycleState = updateExecutionStateToStep(policyMetadata,
             lifecycleState, newStepKey, nowSupplier, forcePhaseDefinitionRefresh);
@@ -138,8 +135,7 @@ public final class IndexLifecycleTransition {
                                                     BiFunction<IndexMetadata, Step.StepKey, Step> stepLookupFunction) throws IOException {
         IndexMetadata idxMeta = clusterState.getMetadata().index(index);
         IndexLifecycleMetadata ilmMeta = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
-        LifecyclePolicyMetadata policyMetadata = ilmMeta.getPolicyMetadatas()
-            .get(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings()));
+        LifecyclePolicyMetadata policyMetadata = ilmMeta.getPolicyMetadatas().get(idxMeta.getLifecycleName());
         XContentBuilder causeXContentBuilder = JsonXContent.contentBuilder();
         causeXContentBuilder.startObject();
         ElasticsearchException.generateThrowableXContent(causeXContentBuilder, STACKTRACE_PARAMS, cause);
@@ -197,8 +193,7 @@ public final class IndexLifecycleTransition {
             IndexLifecycleTransition.validateTransition(indexMetadata, currentStepKey, nextStepKey, stepRegistry);
             IndexLifecycleMetadata ilmMeta = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
 
-            LifecyclePolicyMetadata policyMetadata = ilmMeta.getPolicyMetadatas()
-                .get(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings()));
+            LifecyclePolicyMetadata policyMetadata = ilmMeta.getPolicyMetadatas().get(indexMetadata.getLifecycleName());
             LifecycleExecutionState nextStepState = IndexLifecycleTransition.updateExecutionStateToStep(policyMetadata,
                 lifecycleState, nextStepKey, nowSupplier, true);
             LifecycleExecutionState.Builder retryStepState = LifecycleExecutionState.builder(nextStepState);
@@ -285,7 +280,7 @@ public final class IndexLifecycleTransition {
                                                                                     LongSupplier nowSupplier, LifecyclePolicy oldPolicy,
                                                                                     LifecyclePolicyMetadata newPolicyMetadata,
                                                                                     Client client, XPackLicenseState licenseState) {
-        String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
+        String policyName = indexMetadata.getLifecycleName();
         Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(existingState);
         if (currentStepKey == null) {
             logger.warn("unable to identify what the current step is for index [{}] as part of policy [{}]. the " +
@@ -419,7 +414,7 @@ public final class IndexLifecycleTransition {
         Settings.Builder newSettings = Settings.builder().put(idxSettings);
         boolean notChanged = true;
 
-        notChanged &= Strings.isNullOrEmpty(newSettings.remove(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
+        notChanged &= Strings.isNullOrEmpty(newSettings.remove(IndexMetadata.LIFECYCLE_NAME_SETTING.getKey()));
         notChanged &= Strings.isNullOrEmpty(newSettings.remove(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.getKey()));
         notChanged &= Strings.isNullOrEmpty(newSettings.remove(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.getKey()));
         long newSettingsVersion = notChanged ? indexMetadata.getSettingsVersion() : 1 + indexMetadata.getSettingsVersion();

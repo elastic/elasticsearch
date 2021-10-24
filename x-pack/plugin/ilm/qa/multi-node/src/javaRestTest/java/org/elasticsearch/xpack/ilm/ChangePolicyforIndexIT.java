@@ -19,7 +19,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
@@ -90,7 +89,7 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
         // create the test-index index and set the policy to policy_1
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put("index.routing.allocation.include._name", "javaRestTest-0")
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias").put(LifecycleSettings.LIFECYCLE_NAME, "policy_1").build();
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias").put(IndexMetadata.LIFECYCLE_NAME, "policy_1").build();
         Request createIndexRequest = new Request("PUT", "/" + indexName);
         createIndexRequest.setJsonEntity(
                 "{\n \"settings\": " + Strings.toString(settings) + ", \"aliases\" : { \"alias\": { \"is_write_index\": true } } }");
@@ -138,7 +137,7 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
-            .put(LifecycleSettings.LIFECYCLE_NAME, policyName));
+            .put(IndexMetadata.LIFECYCLE_NAME, policyName));
 
         // Check the index is on the check-rollover-ready step
         assertBusy(() -> assertStep(indexName, new StepKey("hot", RolloverAction.NAME, WaitForRolloverReadyStep.NAME)), 30,

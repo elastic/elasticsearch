@@ -110,7 +110,7 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
         Template t = new Template(Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME, "shrink-policy")
+            .put(IndexMetadata.LIFECYCLE_NAME, "shrink-policy")
             .build(), null, null);
 
         ComposableIndexTemplate template = new ComposableIndexTemplate(

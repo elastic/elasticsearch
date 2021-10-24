@@ -32,8 +32,6 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_NAME_SETTING;
-
 public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
 
     @Inject
@@ -51,7 +49,7 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
                     public ClusterState execute(ClusterState currentState) {
                         String policyToDelete = request.getPolicyName();
                         List<String> indicesUsingPolicy = currentState.metadata().indices().values().stream()
-                            .filter(idxMeta -> LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings()).equals(policyToDelete))
+                            .filter(idxMeta -> idxMeta.getLifecycleName().equals(policyToDelete))
                             .map(idxMeta -> idxMeta.getIndex().getName())
                             .collect(Collectors.toList());
                         if (indicesUsingPolicy.isEmpty() == false) {

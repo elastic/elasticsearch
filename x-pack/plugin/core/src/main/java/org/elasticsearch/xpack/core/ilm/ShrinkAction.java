@@ -170,7 +170,7 @@ public class ShrinkAction implements LifecycleAction {
                 if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {
                     logger.warn("[{}] action is configured for index [{}] in policy [{}] which is mounted as searchable snapshot. " +
                             "Skipping this action", ShrinkAction.NAME, indexMetadata.getIndex().getName(),
-                        LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings()));
+                            indexMetadata.getLifecycleName());
                     return true;
                 }
                 return false;

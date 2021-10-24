@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.core.ilm.AllocationRoutedStep;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
@@ -121,7 +120,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         createIndexWithSettings(client(), index, alias, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+            .put(IndexMetadata.LIFECYCLE_NAME, policy)
             .putNull(DataTier.TIER_PREFERENCE)
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
         );
@@ -249,7 +248,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         createIndexWithSettings(client(), index, alias, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+            .put(IndexMetadata.LIFECYCLE_NAME, policy)
             .putNull(DataTier.TIER_PREFERENCE)
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
         );

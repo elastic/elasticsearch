@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.core.ilm.ClusterStateActionStep;
 import org.elasticsearch.xpack.core.ilm.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -488,7 +487,7 @@ class IndexLifecycleRunner {
         Long origination = calculateOriginationMillis(indexMetadata);
         ilmHistoryStore.putAsync(
             ILMHistoryItem.success(indexMetadata.getIndex().getName(),
-                LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings()),
+                indexMetadata.getLifecycleName(),
                 nowSupplier.getAsLong(),
                 origination == null ? null : (nowSupplier.getAsLong() - origination),
                 LifecycleExecutionState.fromIndexMetadata(indexMetadata)));
@@ -505,7 +504,7 @@ class IndexLifecycleRunner {
         Long origination = calculateOriginationMillis(metadataBeforeDeletion);
         ilmHistoryStore.putAsync(
             ILMHistoryItem.success(metadataBeforeDeletion.getIndex().getName(),
-                LifecycleSettings.LIFECYCLE_NAME_SETTING.get(metadataBeforeDeletion.getSettings()),
+                metadataBeforeDeletion.getLifecycleName(),
                 nowSupplier.getAsLong(),
                 origination == null ? null : (nowSupplier.getAsLong() - origination),
                 LifecycleExecutionState.builder(LifecycleExecutionState.fromIndexMetadata(metadataBeforeDeletion))
@@ -526,7 +525,7 @@ class IndexLifecycleRunner {
         Long origination = calculateOriginationMillis(indexMetadata);
         ilmHistoryStore.putAsync(
             ILMHistoryItem.failure(indexMetadata.getIndex().getName(),
-                LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings()),
+                indexMetadata.getLifecycleName(),
                 nowSupplier.getAsLong(),
                 origination == null ? null : (nowSupplier.getAsLong() - origination),
                 LifecycleExecutionState.fromIndexMetadata(indexMetadata),

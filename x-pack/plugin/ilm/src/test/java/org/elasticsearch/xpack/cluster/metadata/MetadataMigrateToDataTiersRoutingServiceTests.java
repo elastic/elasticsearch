@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.MigrateAction;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.Phase;
@@ -336,7 +335,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
     private Settings.Builder getBaseIndexSettings() {
         return Settings.builder()
-            .put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName)
+            .put(IndexMetadata.LIFECYCLE_NAME, lifecycleName)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);

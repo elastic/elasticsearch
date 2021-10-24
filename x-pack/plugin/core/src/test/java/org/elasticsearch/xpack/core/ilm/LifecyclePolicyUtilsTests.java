@@ -65,7 +65,7 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                         .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy")
+                        .put(IndexMetadata.LIFECYCLE_NAME, "mypolicy")
                         .build()))
                     .build())
                 .build();
@@ -85,12 +85,12 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
                             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                            .put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy")
+                            .put(IndexMetadata.LIFECYCLE_NAME, "mypolicy")
                             .build()))
                     .putCustom(ComposableIndexTemplateMetadata.TYPE,
                         new ComposableIndexTemplateMetadata(Collections.singletonMap("mytemplate",
                             new ComposableIndexTemplate(Collections.singletonList("myds"),
-                                new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy").build(), null, null),
+                                new Template(Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, "mypolicy").build(), null, null),
                                 null, null, null, null, new ComposableIndexTemplate.DataStreamTemplate(false)))))
                     .build())
                 .build();
@@ -108,27 +108,27 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                         .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy")
+                        .put(IndexMetadata.LIFECYCLE_NAME, "mypolicy")
                         .build()))
                 .put(IndexMetadata.builder("another")
                     .settings(Settings.builder()
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                         .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy")
+                        .put(IndexMetadata.LIFECYCLE_NAME, "mypolicy")
                         .build()))
                 .put(IndexMetadata.builder("other")
                     .settings(Settings.builder()
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                         .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put(LifecycleSettings.LIFECYCLE_NAME, "otherpolicy")
+                        .put(IndexMetadata.LIFECYCLE_NAME, "otherpolicy")
                         .build()))
 
                 .putCustom(ComposableIndexTemplateMetadata.TYPE,
                     new ComposableIndexTemplateMetadata(Collections.singletonMap("mytemplate",
                         new ComposableIndexTemplate(Collections.singletonList("myds"),
-                            new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy").build(), null, null),
+                            new Template(Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, "mypolicy").build(), null, null),
                             null, null, null, null, new ComposableIndexTemplate.DataStreamTemplate(false)))));
             // Need to get the real Index instance of myindex:
             mBuilder.put(new DataStream("myds", new DataStream.TimestampField("@timestamp"),

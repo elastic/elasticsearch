@@ -46,7 +46,7 @@ public class UpdateRollupIndexPolicyStep extends AsyncActionStep {
     @Override
     public void performAction(IndexMetadata indexMetadata, ClusterState currentState,
                               ClusterStateObserver observer, ActionListener<Void> listener) {
-        final String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        final String policyName = indexMetadata.getSettings().get(IndexMetadata.LIFECYCLE_NAME);
         final String indexName = indexMetadata.getIndex().getName();
         final LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
         final String rollupIndexName = lifecycleState.getRollupIndexName();
@@ -55,7 +55,7 @@ public class UpdateRollupIndexPolicyStep extends AsyncActionStep {
                 "] and index [" + indexName + "]"));
             return;
         }
-        Settings settings = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, rollupPolicy).build();
+        Settings settings = Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, rollupPolicy).build();
         UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(rollupIndexName)
             .masterNodeTimeout(TimeValue.MAX_VALUE)
             .settings(settings);

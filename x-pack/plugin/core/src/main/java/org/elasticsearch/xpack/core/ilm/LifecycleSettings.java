@@ -18,7 +18,6 @@ import static org.elasticsearch.common.settings.Setting.timeSetting;
  */
 public class LifecycleSettings {
     public static final String LIFECYCLE_POLL_INTERVAL = "indices.lifecycle.poll_interval";
-    public static final String LIFECYCLE_NAME = "index.lifecycle.name";
     public static final String LIFECYCLE_INDEXING_COMPLETE = "index.lifecycle.indexing_complete";
     public static final String LIFECYCLE_ORIGINATION_DATE = "index.lifecycle.origination_date";
     public static final String LIFECYCLE_PARSE_ORIGINATION_DATE = "index.lifecycle.parse_origination_date";
@@ -37,8 +36,6 @@ public class LifecycleSettings {
 
     public static final Setting<TimeValue> LIFECYCLE_POLL_INTERVAL_SETTING = Setting.positiveTimeSetting(LIFECYCLE_POLL_INTERVAL,
         TimeValue.timeValueMinutes(10), Setting.Property.Dynamic, Setting.Property.NodeScope);
-    public static final Setting<String> LIFECYCLE_NAME_SETTING = Setting.simpleString(LIFECYCLE_NAME,
-        Setting.Property.Dynamic, Setting.Property.IndexScope);
     public static final Setting<Boolean> LIFECYCLE_INDEXING_COMPLETE_SETTING = Setting.boolSetting(LIFECYCLE_INDEXING_COMPLETE, false,
         Setting.Property.Dynamic, Setting.Property.IndexScope);
     public static final Setting<Long> LIFECYCLE_ORIGINATION_DATE_SETTING =

@@ -56,7 +56,7 @@ public class CopySettingsStepTests extends AbstractStepTestCase<CopySettingsStep
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
         IndexMetadata.Builder sourceIndexMetadataBuilder =
-            IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(IndexMetadata.LIFECYCLE_NAME, policyName))
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
 
         String indexPrefix = "test-prefix-";
@@ -71,10 +71,10 @@ public class CopySettingsStepTests extends AbstractStepTestCase<CopySettingsStep
         ).build();
 
         CopySettingsStep copySettingsStep = new CopySettingsStep(randomStepKey(), randomStepKey(), indexPrefix,
-            LifecycleSettings.LIFECYCLE_NAME);
+            IndexMetadata.LIFECYCLE_NAME);
 
         ClusterState newClusterState = copySettingsStep.performAction(sourceIndexMetadata.getIndex(), clusterState);
         IndexMetadata newTargetIndexMetadata = newClusterState.metadata().index(targetIndex);
-        assertThat(newTargetIndexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME), is(policyName));
+        assertThat(newTargetIndexMetadata.getSettings().get(IndexMetadata.LIFECYCLE_NAME), is(policyName));
     }
 }

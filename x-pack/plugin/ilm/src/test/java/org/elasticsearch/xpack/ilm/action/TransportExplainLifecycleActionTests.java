@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleExplainResponse;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 import org.elasticsearch.xpack.ilm.IndexLifecycleService;
@@ -70,7 +69,7 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
                 .setPhaseDefinition(PHASE_DEFINITION);
             String indexInErrorStep = "index_in_error";
             IndexMetadata meta = IndexMetadata.builder(indexInErrorStep)
-                .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, "my-policy"))
+                .settings(settings(Version.CURRENT).put(IndexMetadata.LIFECYCLE_NAME, "my-policy"))
                 .numberOfShards(randomIntBetween(1, 5))
                 .numberOfReplicas(randomIntBetween(0, 5))
                 .putCustom(ILM_CUSTOM_METADATA_KEY, errorStepState.build().asMap())
@@ -96,7 +95,7 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
 
             String indexInCheckRolloverStep = "index_in_check_rollover";
             IndexMetadata meta = IndexMetadata.builder(indexInCheckRolloverStep)
-                .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, "my-policy"))
+                .settings(settings(Version.CURRENT).put(IndexMetadata.LIFECYCLE_NAME, "my-policy"))
                 .numberOfShards(randomIntBetween(1, 5))
                 .numberOfReplicas(randomIntBetween(0, 5))
                 .putCustom(ILM_CUSTOM_METADATA_KEY, checkRolloverReadyStepState.build().asMap())
@@ -120,7 +119,7 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
 
             String indexWithMissingPolicy = "index_with_missing_policy";
             IndexMetadata meta = IndexMetadata.builder(indexWithMissingPolicy)
-                .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, "random-policy"))
+                .settings(settings(Version.CURRENT).put(IndexMetadata.LIFECYCLE_NAME, "random-policy"))
                 .numberOfShards(randomIntBetween(1, 5))
                 .numberOfReplicas(randomIntBetween(0, 5))
                 .build();

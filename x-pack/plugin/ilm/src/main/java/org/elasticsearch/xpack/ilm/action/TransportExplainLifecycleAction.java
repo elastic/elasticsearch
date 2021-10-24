@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.core.ilm.ExplainLifecycleRequest;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleResponse;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleExplainResponse;
 import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.PhaseExecutionInfo;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.ilm.IndexLifecycleService;
@@ -87,7 +86,7 @@ public class TransportExplainLifecycleAction
                                                                           NamedXContentRegistry xContentRegistry) throws IOException {
         Settings idxSettings = indexMetadata.getSettings();
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
-        String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxSettings);
+        String policyName = indexMetadata.getLifecycleName();
         String currentPhase = lifecycleState.getPhase();
         String stepInfo = lifecycleState.getStepInfo();
         BytesArray stepInfoBytes = null;

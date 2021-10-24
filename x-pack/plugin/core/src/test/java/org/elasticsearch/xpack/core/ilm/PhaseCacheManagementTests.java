@@ -487,7 +487,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
 
         meta = IndexMetadata.builder(index)
             .settings(Settings.builder()
-                .put(LifecycleSettings.LIFECYCLE_NAME, "my-policy")
+                .put(IndexMetadata.LIFECYCLE_NAME, "my-policy")
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -520,7 +520,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
 
     private IndexMetadata buildIndexMetadata(String policy, LifecycleExecutionState.Builder lifecycleState) {
         return IndexMetadata.builder("index")
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policy))
+            .settings(settings(Version.CURRENT).put(IndexMetadata.LIFECYCLE_NAME, policy))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())

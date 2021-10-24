@@ -69,7 +69,7 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(Version.CURRENT).put(IndexMetadata.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -109,7 +109,7 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(Version.CURRENT).put(IndexMetadata.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -138,7 +138,7 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         newCustomData.setSnapshotRepository("snapshot-repository-will-be-reset");
 
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(Version.CURRENT).put(IndexMetadata.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap())

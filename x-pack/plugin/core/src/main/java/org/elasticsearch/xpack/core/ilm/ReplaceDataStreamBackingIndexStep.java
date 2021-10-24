@@ -67,7 +67,7 @@ public class ReplaceDataStreamBackingIndexStep extends ClusterStateActionStep {
 
         String originalIndex = index.getName();
         String targetIndexName = targetIndexNameSupplier.apply(originalIndex, fromIndexMetadata(originalIndexMetadata));
-        String policyName = originalIndexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        String policyName = originalIndexMetadata.getSettings().get(IndexMetadata.LIFECYCLE_NAME);
         IndexAbstraction indexAbstraction = clusterState.metadata().getIndicesLookup().get(index.getName());
         assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
         IndexAbstraction.DataStream dataStream = indexAbstraction.getParentDataStream();

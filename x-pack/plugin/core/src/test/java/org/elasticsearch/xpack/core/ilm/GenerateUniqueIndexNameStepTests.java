@@ -78,7 +78,7 @@ public class GenerateUniqueIndexNameStepTests extends AbstractStepTestCase<Gener
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
         IndexMetadata.Builder indexMetadataBuilder =
-            IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(IndexMetadata.LIFECYCLE_NAME, policyName))
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
 
         final IndexMetadata indexMetadata = indexMetadataBuilder.build();

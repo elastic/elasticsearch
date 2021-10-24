@@ -595,15 +595,15 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
         createIndexWithSettings(client(), managedIndex1, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-            .put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), originalPolicy));
+            .put(IndexMetadata.LIFECYCLE_NAME_SETTING.getKey(), originalPolicy));
         createIndexWithSettings(client(), managedIndex2, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-            .put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), originalPolicy));
+            .put(IndexMetadata.LIFECYCLE_NAME_SETTING.getKey(), originalPolicy));
         createIndexWithSettings(client(), unmanagedIndex, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10)));
         createIndexWithSettings(client(), managedByOtherPolicyIndex, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-            .put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), otherPolicy));
+            .put(IndexMetadata.LIFECYCLE_NAME_SETTING.getKey(), otherPolicy));
 
         Request deleteRequest = new Request("DELETE", "_ilm/policy/" + originalPolicy);
         ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(deleteRequest));
@@ -627,7 +627,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             alias,
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .put(IndexMetadata.LIFECYCLE_NAME, policy)
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias));
 
         // Index a document
@@ -659,7 +659,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     public void testCanStopILMWithPolicyUsingNonexistentPolicy() throws Exception {
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), randomAlphaOfLengthBetween(5,15)));
+            .put(IndexMetadata.LIFECYCLE_NAME_SETTING.getKey(), randomAlphaOfLengthBetween(5,15)));
 
         Request stopILMRequest = new Request("POST", "_ilm/stop");
         assertOK(client().performRequest(stopILMRequest));
@@ -794,7 +794,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             alias,
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .put(IndexMetadata.LIFECYCLE_NAME, policy)
                 .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, false));
 
         updateIndexSettings(index, Settings.builder()
@@ -861,7 +861,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(LifecycleSettings.LIFECYCLE_NAME, policy),
+                .put(IndexMetadata.LIFECYCLE_NAME, policy),
             randomBoolean());
 
         // Wait for the index to finish the "hot" phase
@@ -915,7 +915,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(LifecycleSettings.LIFECYCLE_NAME, policy),
+                .put(IndexMetadata.LIFECYCLE_NAME, policy),
             randomBoolean());
 
         String[] snapshotName = new String[1];

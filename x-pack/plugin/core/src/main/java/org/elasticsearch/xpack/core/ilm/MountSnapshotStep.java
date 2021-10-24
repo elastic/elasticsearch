@@ -64,7 +64,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
 
         LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
 
-        String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        String policyName = indexMetadata.getSettings().get(IndexMetadata.LIFECYCLE_NAME);
         final String snapshotRepository = lifecycleState.getSnapshotRepository();
         if (Strings.hasText(snapshotRepository) == false) {
             listener.onFailure(new IllegalStateException("snapshot repository is not present for policy [" + policyName + "] and index [" +
@@ -115,7 +115,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             // depending on what ILM execution state was captured at snapshot time, make it's way forward from _that_ step forward in
             // the ILM policy.
             // we'll re-set this setting on the restored index at a later step once we restored a deterministic execution state
-            new String[]{LifecycleSettings.LIFECYCLE_NAME},
+            new String[]{IndexMetadata.LIFECYCLE_NAME},
             // we'll not wait for the snapshot to complete in this step as the async steps are executed from threads that shouldn't
             // perform expensive operations (ie. clusterStateProcessed)
             false,

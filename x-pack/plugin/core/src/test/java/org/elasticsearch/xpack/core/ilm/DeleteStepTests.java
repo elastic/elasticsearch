@@ -121,7 +121,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
         {
             String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
             index1 = IndexMetadata.builder(indexName)
-                .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                .settings(settings(Version.CURRENT).put(IndexMetadata.LIFECYCLE_NAME, policyName))
                 .numberOfShards(randomIntBetween(1, 5))
                 .numberOfReplicas(randomIntBetween(0, 5))
                 .build();
@@ -131,7 +131,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
 
             String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
             sourceIndexMetadata = IndexMetadata.builder(indexName)
-                .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                .settings(settings(Version.CURRENT).put(IndexMetadata.LIFECYCLE_NAME, policyName))
                 .numberOfShards(randomIntBetween(1, 5))
                 .numberOfReplicas(randomIntBetween(0, 5))
                 .build();

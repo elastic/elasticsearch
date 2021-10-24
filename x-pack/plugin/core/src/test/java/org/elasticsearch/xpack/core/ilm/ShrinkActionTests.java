@@ -92,7 +92,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
             .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
                 Collections.singletonMap(policyMetadata.getName(), policyMetadata), OperationMode.RUNNING))
-            .put(IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
+            .put(IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(IndexMetadata.LIFECYCLE_NAME, lifecycleName))
                 .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY,
                     LifecycleExecutionState.builder()
                         .setPhase(step.getKey().getPhase())
@@ -127,7 +127,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
             .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
                 Collections.singletonMap(policyMetadata.getName(), policyMetadata), OperationMode.RUNNING))
-            .put(IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
+            .put(IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(IndexMetadata.LIFECYCLE_NAME, lifecycleName))
                 .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY,
                     LifecycleExecutionState.builder()
                         .setPhase(step.getKey().getPhase())

@@ -62,7 +62,7 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
 
         {
             IndexMetadata.Builder indexMetadataBuilder =
-                IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(IndexMetadata.LIFECYCLE_NAME, policyName))
                     .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
 
             IndexMetadata indexMetadata = indexMetadataBuilder.build();
@@ -76,7 +76,7 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
 
         {
             IndexMetadata.Builder indexMetadataBuilder =
-                IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(IndexMetadata.LIFECYCLE_NAME, policyName))
                     .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
             Map<String, String> ilmCustom = org.elasticsearch.core.Map.of("snapshot_repository", "repository_name");
             indexMetadataBuilder.putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom);
@@ -98,7 +98,7 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
         Map<String, String> ilmCustom = org.elasticsearch.core.Map.of("snapshot_name", snapshotName);
 
         IndexMetadata.Builder indexMetadataBuilder =
-            IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(IndexMetadata.LIFECYCLE_NAME, policyName))
                 .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
         IndexMetadata indexMetadata = indexMetadataBuilder.build();

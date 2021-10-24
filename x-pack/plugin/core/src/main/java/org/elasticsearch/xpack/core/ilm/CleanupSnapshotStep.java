@@ -56,7 +56,7 @@ public class CleanupSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 if (acknowledgedResponse.isAcknowledged() == false) {
-                    String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+                    String policyName = indexMetadata.getSettings().get(IndexMetadata.LIFECYCLE_NAME);
                     throw new ElasticsearchException("cleanup snapshot step request for repository [" + repositoryName + "] and snapshot " +
                         "[" + snapshotName + "] policy [" + policyName + "] and index [" + indexName + "] failed to be acknowledged");
                 }
@@ -70,7 +70,7 @@ public class CleanupSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
                     listener.onResponse(null);
                 } else {
                     if (e instanceof RepositoryMissingException) {
-                        String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+                        String policyName = indexMetadata.getSettings().get(IndexMetadata.LIFECYCLE_NAME);
                         listener.onFailure(new IllegalStateException("repository [" + repositoryName + "] is missing. [" + policyName +
                             "] policy for index [" + indexName + "] cannot continue until the repository is created", e));
                     } else {

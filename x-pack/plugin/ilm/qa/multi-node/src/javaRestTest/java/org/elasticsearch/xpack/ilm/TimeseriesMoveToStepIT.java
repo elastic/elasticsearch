@@ -18,7 +18,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
@@ -60,7 +59,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
         createIndexWithSettings(client(), originalIndex, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put("index.routing.allocation.include._name", "javaRestTest-0")
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+            .put(IndexMetadata.LIFECYCLE_NAME, policy)
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"));
 
         // move to a step
@@ -91,7 +90,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
         createIndexWithSettings(client(), originalIndex, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put("index.routing.allocation.include._name", "javaRestTest-0")
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+            .put(IndexMetadata.LIFECYCLE_NAME, policy)
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias));
 
         // move to a step
@@ -132,7 +131,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
 
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+            .put(IndexMetadata.LIFECYCLE_NAME, policy)
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias));
 
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), index), equalTo(new StepKey("new", "complete", "complete"))));
@@ -169,7 +168,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
         createIndexWithSettings(client(), "test-1", alias, Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .put(IndexMetadata.LIFECYCLE_NAME, policy)
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias),
             true);
 
@@ -210,7 +209,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
         createIndexWithSettings(client(), index, alias, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy));
+            .put(IndexMetadata.LIFECYCLE_NAME, policy));
 
         // move to a step
         Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
@@ -243,7 +242,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
         createIndexWithSettings(client(), index, alias, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy));
+            .put(IndexMetadata.LIFECYCLE_NAME, policy));
 
         // move to a step
         Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
@@ -272,7 +271,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
         createIndexWithSettings(client(), index, alias, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy));
+            .put(IndexMetadata.LIFECYCLE_NAME, policy));
 
         // move to a step
         Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
@@ -300,7 +299,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
         createIndexWithSettings(client(), index, alias, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy));
+            .put(IndexMetadata.LIFECYCLE_NAME, policy));
 
         // move to a step with an invalid request
         Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
@@ -331,7 +330,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
         createIndexWithSettings(client(), index, alias, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy));
+            .put(IndexMetadata.LIFECYCLE_NAME, policy));
 
         // move to a step with an invalid request
         Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);

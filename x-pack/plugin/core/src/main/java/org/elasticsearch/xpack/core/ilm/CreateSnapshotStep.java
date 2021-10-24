@@ -72,7 +72,7 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
 
         final LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
 
-        final String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        final String policyName = indexMetadata.getSettings().get(IndexMetadata.LIFECYCLE_NAME);
         final String snapshotRepository = lifecycleState.getSnapshotRepository();
         if (Strings.hasText(snapshotRepository) == false) {
             listener.onFailure(new IllegalStateException("snapshot repository is not present for policy [" + policyName + "] and index [" +

@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.RollupILMAction;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
@@ -63,7 +62,7 @@ public class RollupActionIT extends ESRestTestCase {
         assertBusy(() -> assertNotNull(getRollupIndexName(index)));
         String rollupIndex = getRollupIndexName(index);
         assertBusy(() -> assertTrue(indexExists(rollupIndex)));
-        assertBusy(() -> assertFalse(getOnlyIndexSettings(client(), rollupIndex).containsKey(LifecycleSettings.LIFECYCLE_NAME)));
+        assertBusy(() -> assertFalse(getOnlyIndexSettings(client(), rollupIndex).containsKey(IndexMetadata.LIFECYCLE_NAME)));
         assertBusy(() -> assertTrue(indexExists(index)));
     }
 
@@ -81,7 +80,7 @@ public class RollupActionIT extends ESRestTestCase {
         assertBusy(() -> assertNotNull(getRollupIndexName(index)));
         String rollupIndex = getRollupIndexName(index);
         assertBusy(() -> assertTrue(indexExists(rollupIndex)));
-        assertBusy(() -> assertThat(getOnlyIndexSettings(client(), rollupIndex).get(LifecycleSettings.LIFECYCLE_NAME), equalTo(policy)));
+        assertBusy(() -> assertThat(getOnlyIndexSettings(client(), rollupIndex).get(IndexMetadata.LIFECYCLE_NAME), equalTo(policy)));
         assertBusy(() -> assertTrue(indexExists(index)));
     }
 

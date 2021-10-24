@@ -42,7 +42,7 @@ public class RollupStep extends AsyncActionStep {
     @Override
     public void performAction(IndexMetadata indexMetadata, ClusterState currentState,
                               ClusterStateObserver observer, ActionListener<Void> listener) {
-        final String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        final String policyName = indexMetadata.getSettings().get(IndexMetadata.LIFECYCLE_NAME);
         final String indexName = indexMetadata.getIndex().getName();
         final LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
         final String rollupIndexName = lifecycleState.getRollupIndexName();

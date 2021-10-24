@@ -11,10 +11,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Step;
 
 import java.util.Objects;
@@ -48,10 +46,9 @@ public class MoveToNextStepUpdateTask extends IndexLifecycleClusterStateUpdateTa
             // Index must have been since deleted, ignore it
             return currentState;
         }
-        Settings indexSettings = indexMetadata.getSettings();
-        LifecycleExecutionState indexILMData = LifecycleExecutionState.fromIndexMetadata(currentState.getMetadata().index(index));
-        if (policy.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings))
-            && currentStepKey.equals(LifecycleExecutionState.getCurrentStepKey(indexILMData))) {
+        if (policy.equals(indexMetadata.getLifecycleName())
+            && currentStepKey.equals(LifecycleExecutionState.getCurrentStepKey(
+                LifecycleExecutionState.fromIndexMetadata(currentState.getMetadata().index(index))))) {
             logger.trace("moving [{}] to next step ({})", index.getName(), nextStepKey);
             return IndexLifecycleTransition.moveClusterStateToStep(index, currentState, nextStepKey, nowSupplier, stepRegistry, false);
         } else {

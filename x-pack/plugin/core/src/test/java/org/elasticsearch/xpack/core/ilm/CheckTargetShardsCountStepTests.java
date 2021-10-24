@@ -50,7 +50,7 @@ public class CheckTargetShardsCountStepTests extends AbstractStepTestCase<CheckT
         String policyName = "test-ilm-policy";
         IndexMetadata indexMetadata =
             IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT)
-                .put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                .put(IndexMetadata.LIFECYCLE_NAME, policyName))
                 .numberOfShards(10).numberOfReplicas(randomIntBetween(0, 5)).build();
 
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
@@ -66,7 +66,7 @@ public class CheckTargetShardsCountStepTests extends AbstractStepTestCase<CheckT
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
         IndexMetadata indexMetadata =
-            IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(IndexMetadata.LIFECYCLE_NAME, policyName))
                 .numberOfShards(10).numberOfReplicas(randomIntBetween(0, 5)).build();
 
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(

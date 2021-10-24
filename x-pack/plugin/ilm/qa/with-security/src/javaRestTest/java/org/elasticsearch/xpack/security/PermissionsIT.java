@@ -31,6 +31,7 @@ import org.elasticsearch.client.slm.GetSnapshotLifecyclePolicyRequest;
 import org.elasticsearch.client.slm.PutSnapshotLifecyclePolicyRequest;
 import org.elasticsearch.client.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.client.slm.SnapshotRetentionConfiguration;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -102,7 +103,7 @@ public class PermissionsIT extends ESRestTestCase {
         request.setJsonEntity(Strings.toString(pollIntervalEntity));
         assertOK(adminClient().performRequest(request));
         indexSettingsWithPolicy = Settings.builder()
-            .put(LifecycleSettings.LIFECYCLE_NAME, deletePolicy)
+            .put(IndexMetadata.LIFECYCLE_NAME, deletePolicy)
             .put("number_of_shards", 1)
             .put("number_of_replicas", 0)
             .build();

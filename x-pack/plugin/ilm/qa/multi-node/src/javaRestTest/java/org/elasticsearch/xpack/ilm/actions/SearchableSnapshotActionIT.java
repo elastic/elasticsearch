@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
@@ -88,7 +87,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true));
 
         createComposableTemplate(client(), randomAlphaOfLengthBetween(5, 10).toLowerCase(), dataStream,
-            new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), null, null));
+            new Template(Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, policy).build(), null, null));
 
         indexDocument(client(), dataStream, true);
 
@@ -125,7 +124,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
         rolloverMaxOneDocCondition(client(), dataStream);
 
-        updateIndexSettings(dataStream, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
+        updateIndexSettings(dataStream, Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, policy));
         assertTrue(waitUntil(() -> {
             try {
                 Integer numberOfSegments = getNumberOfSegments(client(), backingIndexName);
@@ -176,7 +175,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         assertOK(client().performRequest(createPolicyRequest));
 
         createComposableTemplate(client(), randomAlphaOfLengthBetween(5, 10).toLowerCase(), dataStream,
-            new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), null, null));
+            new Template(Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, policy).build(), null, null));
 
         indexDocument(client(), dataStream, true);
 
@@ -237,7 +236,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         createComposableTemplate(client(), randomAlphaOfLengthBetween(5, 10).toLowerCase(), dataStream,
             new Template(Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5)
-                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .put(IndexMetadata.LIFECYCLE_NAME, policy)
                 .build(), null, null)
         );
 
@@ -295,7 +294,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         createComposableTemplate(client(), randomAlphaOfLengthBetween(5, 10).toLowerCase(), dataStream,
             new Template(Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5)
-                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .put(IndexMetadata.LIFECYCLE_NAME, policy)
                 .build(), null, null)
         );
 
@@ -379,7 +378,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         // enable ILM after we indexed a document as otherwise ILM might sometimes run so fast the indexDocument call will fail with
         // `index_not_found_exception`
-        updateIndexSettings(index, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
+        updateIndexSettings(index, Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, policy));
 
         final String searchableSnapMountedIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + index;
 
@@ -426,7 +425,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         // enable ILM after we indexed a document as otherwise ILM might sometimes run so fast the indexDocument call will fail with
         // `index_not_found_exception`
-        updateIndexSettings(index, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
+        updateIndexSettings(index, Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, policy));
 
         final String searchableSnapMountedIndexName = SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX +
             SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + index;
@@ -492,7 +491,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         createComposableTemplate(client(), randomAlphaOfLengthBetween(5, 10).toLowerCase(), dataStream,
             new Template(Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .put(IndexMetadata.LIFECYCLE_NAME, policy)
                 .build(), null, null)
         );
 

@@ -89,7 +89,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .settings(settings(Version.CURRENT)
-                .put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName)
+                .put(IndexMetadata.LIFECYCLE_NAME, lifecycleName)
             )
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
@@ -105,7 +105,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
 
             Settings.Builder builder = Settings.builder();
             builder.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, sourceIndexMetadata.getNumberOfReplicas())
-                .put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName)
+                .put(IndexMetadata.LIFECYCLE_NAME, lifecycleName)
                 .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", (String) null);
             if (step.getNumberOfShards() != null) {
                 builder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, step.getNumberOfShards());
@@ -140,7 +140,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         lifecycleState.setShrinkIndexName(generatedShrunkenIndexName);
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(sourceIndexName)
             .settings(settings(Version.CURRENT)
-                .put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName)
+                .put(IndexMetadata.LIFECYCLE_NAME, lifecycleName)
             )
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))

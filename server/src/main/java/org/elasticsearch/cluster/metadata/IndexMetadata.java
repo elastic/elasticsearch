@@ -103,6 +103,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final String INDEX_ROUTING_EXCLUDE = "index.routing.allocation.exclude._tier";
     public static final Setting<String> INDEX_ROUTING_EXCLUDE_SETTING = Setting.simpleString(INDEX_ROUTING_EXCLUDE,
         DataTier.DATA_TIER_SETTING_VALIDATOR, Property.Dynamic, Property.IndexScope, Property.Deprecated);
+    public static final String LIFECYCLE_NAME = "index.lifecycle.name";
+    public static final Setting<String> LIFECYCLE_NAME_SETTING = Setting.simpleString(LIFECYCLE_NAME,
+        Property.Dynamic, Property.IndexScope);
 
     public enum State {
         OPEN((byte) 0),
@@ -423,6 +426,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final boolean isSearchableSnapshotStore;
     private final boolean isPartialSearchableSnapshotStore;
 
+    private final String indexLifecycleName;
+
     private IndexMetadata(
             final Index index,
             final long version,
@@ -459,7 +464,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final String indexRoutingInclude,
             final String indexRoutingExclude,
             final boolean isSearchableSnapshotStore,
-            final boolean isPartialSearchableSnapshotStore
+            final boolean isPartialSearchableSnapshotStore,
+            final String indexLifecycleName
     ) {
 
         this.index = index;
@@ -505,6 +511,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.indexRoutingExclude = indexRoutingExclude;
         this.isSearchableSnapshotStore = isSearchableSnapshotStore;
         this.isPartialSearchableSnapshotStore = isPartialSearchableSnapshotStore;
+        this.indexLifecycleName = indexLifecycleName;
         assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -633,6 +640,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public boolean isPartialSearchableSnapshotStore() {
         return isPartialSearchableSnapshotStore;
+    }
+
+    public String getLifecycleName() {
+        return indexLifecycleName;
     }
 
     public List<String> getTierPreference() {
@@ -1509,7 +1520,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     INDEX_ROUTING_INCLUDE_SETTING.get(settings),
                     INDEX_ROUTING_EXCLUDE_SETTING.get(settings),
                     SearchableSnapshotsSettings.isSearchableSnapshotStore(settings),
-                    SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(settings)
+                    SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(settings),
+                    LIFECYCLE_NAME_SETTING.get(settings)
             );
         }
 

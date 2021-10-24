@@ -118,7 +118,7 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
     public void testForcemergeFailsOnSomeShards() {
         int numberOfShards = randomIntBetween(2, 5);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, "ilmPolicy"))
+            .settings(settings(Version.CURRENT).put(IndexMetadata.LIFECYCLE_NAME, "ilmPolicy"))
             .numberOfShards(numberOfShards).numberOfReplicas(randomIntBetween(0, 5)).build();
         Index index = indexMetadata.getIndex();
         ForceMergeResponse forceMergeResponse = Mockito.mock(ForceMergeResponse.class);

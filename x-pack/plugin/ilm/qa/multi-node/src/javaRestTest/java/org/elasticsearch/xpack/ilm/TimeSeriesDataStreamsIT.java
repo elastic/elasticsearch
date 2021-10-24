@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.ilm.CheckNotDataStreamWriteIndexStep;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
@@ -263,7 +262,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
 
     private static Settings getLifecycleSettings(String policyName) {
         return Settings.builder()
-            .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
+            .put(IndexMetadata.LIFECYCLE_NAME, policyName)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
             .build();
     }

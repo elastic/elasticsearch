@@ -57,7 +57,7 @@ public class RolloverStep extends AsyncActionStep {
             assert dataStream.getWriteIndex() != null : "datastream " + dataStream.getName() + " has no write index";
             if (dataStream.getWriteIndex().equals(indexMetadata.getIndex()) == false) {
                 logger.warn("index [{}] is not the write index for data stream [{}]. skipping rollover for policy [{}]",
-                    indexName, dataStream.getName(), LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings()));
+                    indexName, dataStream.getName(), indexMetadata.getLifecycleName());
                 listener.onResponse(null);
                 return;
             }

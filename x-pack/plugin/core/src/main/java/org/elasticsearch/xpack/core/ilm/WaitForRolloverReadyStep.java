@@ -63,8 +63,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
             assert dataStream.getWriteIndex() != null : "datastream " + dataStream.getName() + " has no write index";
             if (dataStream.getWriteIndex().equals(index) == false) {
                 logger.warn("index [{}] is not the write index for data stream [{}]. skipping rollover for policy [{}]",
-                    index.getName(), dataStream.getName(),
-                    LifecycleSettings.LIFECYCLE_NAME_SETTING.get(metadata.index(index).getSettings()));
+                    index.getName(), dataStream.getName(), metadata.index(index).getLifecycleName());
                 listener.onResponse(true, EmptyInfo.INSTANCE);
                 return;
             }

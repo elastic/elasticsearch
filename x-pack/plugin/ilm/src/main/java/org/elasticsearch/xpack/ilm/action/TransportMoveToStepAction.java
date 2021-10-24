@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.action.MoveToStepAction;
 import org.elasticsearch.xpack.core.ilm.action.MoveToStepAction.Request;
@@ -51,7 +50,7 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Request
             return;
         }
 
-        final String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
+        final String policyName = indexMetadata.getLifecycleName();
         if (policyName == null) {
             listener.onFailure(new IllegalArgumentException("index [" + request.getIndex() + "] is not managed by ILM"));
             return;

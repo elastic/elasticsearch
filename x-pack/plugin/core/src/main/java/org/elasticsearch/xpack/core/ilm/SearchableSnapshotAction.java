@@ -138,7 +138,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
 
                 IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
                 assert indexMetadata != null : "index " + index.getName() + " must exist in the cluster state";
-                String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
+                String policyName = indexMetadata.getLifecycleName();
                 if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {
                     // The index is already a searchable snapshot, let's see if the repository matches
                     String repo = indexMetadata.getSettings().get(SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY);
@@ -186,7 +186,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         BranchingStep skipGeneratingSnapshotStep =
             new BranchingStep(skipGeneratingSnapshotKey, keyForSnapshotGeneration, waitForDataTierKey, (index, clusterState) -> {
                 IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
-                String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
+                String policyName = indexMetadata.getLifecycleName();
                 LifecycleExecutionState lifecycleExecutionState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
                 if (lifecycleExecutionState.getSnapshotName() == null) {
                     // No name exists, so it must be generated
@@ -233,7 +233,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         CopyExecutionStateStep copyMetadataStep = new CopyExecutionStateStep(copyMetadataKey, copyLifecyclePolicySettingKey,
             (index, executionState) -> getRestoredIndexPrefix(copyMetadataKey) + index, nextStepKey);
         CopySettingsStep copySettingsStep = new CopySettingsStep(copyLifecyclePolicySettingKey, dataStreamCheckBranchingKey,
-            getRestoredIndexPrefix(copyLifecyclePolicySettingKey), LifecycleSettings.LIFECYCLE_NAME);
+            getRestoredIndexPrefix(copyLifecyclePolicySettingKey), IndexMetadata.LIFECYCLE_NAME);
         BranchingStep isDataStreamBranchingStep = new BranchingStep(dataStreamCheckBranchingKey, swapAliasesKey, replaceDataStreamIndexKey,
             (index, clusterState) -> {
                 IndexAbstraction indexAbstraction = clusterState.metadata().getIndicesLookup().get(index.getName());

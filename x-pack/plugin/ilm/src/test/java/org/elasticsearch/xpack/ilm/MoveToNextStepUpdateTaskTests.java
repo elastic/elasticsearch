@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyTests;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -46,7 +45,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         policy = randomAlphaOfLength(10);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
             .settings(settings(Version.CURRENT)
-                .put(LifecycleSettings.LIFECYCLE_NAME, policy))
+                .put(IndexMetadata.LIFECYCLE_NAME, policy))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         index = indexMetadata.getIndex();
         lifecyclePolicy = LifecyclePolicyTests.randomTestLifecyclePolicy(policy);
@@ -160,7 +159,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         clusterState = ClusterState.builder(clusterState)
             .metadata(Metadata.builder(clusterState.metadata())
                 .updateSettings(Settings.builder()
-                    .put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), index.getName())).build();
+                    .put(IndexMetadata.LIFECYCLE_NAME, policy).build(), index.getName())).build();
 
     }
     private void setStateToKey(StepKey stepKey, long now) {

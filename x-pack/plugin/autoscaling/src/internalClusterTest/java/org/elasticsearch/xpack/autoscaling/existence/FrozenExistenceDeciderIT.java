@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.autoscaling.existence;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -97,7 +98,7 @@ public class FrozenExistenceDeciderIT extends AbstractFrozenAutoscalingIntegTest
             .put(indexSettings())
             .put(SETTING_NUMBER_OF_SHARDS, 1)
             .put(SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(LifecycleSettings.LIFECYCLE_NAME, "policy")
+            .put(IndexMetadata.LIFECYCLE_NAME, "policy")
             .build();
         CreateIndexResponse res = client().admin().indices().prepareCreate(INDEX_NAME).setSettings(settings).get();
         assertTrue(res.isAcknowledged());

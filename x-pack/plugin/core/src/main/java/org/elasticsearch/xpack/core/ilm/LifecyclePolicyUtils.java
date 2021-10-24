@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ItemUsage;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
@@ -92,7 +93,7 @@ public class LifecyclePolicyUtils {
     public static ItemUsage calculateUsage(final IndexNameExpressionResolver indexNameExpressionResolver,
                                            final ClusterState state, final String policyName) {
         final List<String> indices = state.metadata().indices().values().stream()
-            .filter(indexMetadata -> policyName.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings())))
+            .filter(indexMetadata -> policyName.equals(indexMetadata.getLifecycleName()))
             .map(indexMetadata -> indexMetadata.getIndex().getName())
             .collect(Collectors.toList());
 
@@ -104,7 +105,7 @@ public class LifecyclePolicyUtils {
                 String indexTemplate = MetadataIndexTemplateService.findV2Template(state.metadata(), dsName, false);
                 if (indexTemplate != null) {
                     Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), indexTemplate);
-                    return policyName.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(settings));
+                    return policyName.equals(IndexMetadata.LIFECYCLE_NAME_SETTING.get(settings));
                 } else {
                     return false;
                 }
@@ -114,7 +115,7 @@ public class LifecyclePolicyUtils {
         final List<String> composableTemplates = state.metadata().templatesV2().keySet().stream()
             .filter(templateName -> {
                 Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), templateName);
-                return policyName.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(settings));
+                return policyName.equals(IndexMetadata.LIFECYCLE_NAME_SETTING.get(settings));
             })
             .collect(Collectors.toList());
 

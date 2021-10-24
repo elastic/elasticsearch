@@ -78,7 +78,7 @@ public class GenerateUniqueIndexNameStep extends ClusterStateActionStep {
         LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
 
         Builder newCustomData = LifecycleExecutionState.builder(lifecycleState);
-        String policy = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        String policy = indexMetadata.getSettings().get(IndexMetadata.LIFECYCLE_NAME);
         String generatedIndexName = generateValidIndexName(prefix, index.getName());
         ActionRequestValidationException validationException = validateGeneratedIndexName(generatedIndexName, clusterState);
         if (validationException != null) {

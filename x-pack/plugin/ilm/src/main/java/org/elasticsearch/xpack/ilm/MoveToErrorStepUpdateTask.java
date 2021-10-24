@@ -16,10 +16,8 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Step;
 
 import java.io.IOException;
@@ -58,10 +56,8 @@ public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
             // Index must have been since deleted, ignore it
             return currentState;
         }
-        Settings indexSettings = idxMeta.getSettings();
-        LifecycleExecutionState indexILMData = LifecycleExecutionState.fromIndexMetadata(idxMeta);
-        if (policy.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings))
-            && currentStepKey.equals(LifecycleExecutionState.getCurrentStepKey(indexILMData))) {
+        if (policy.equals(idxMeta.getLifecycleName())
+            && currentStepKey.equals(LifecycleExecutionState.getCurrentStepKey(LifecycleExecutionState.fromIndexMetadata(idxMeta)))) {
             return IndexLifecycleTransition.moveClusterStateToErrorStep(index, currentState, cause, nowSupplier, stepLookupFunction);
         } else {
             // either the policy has changed or the step is now

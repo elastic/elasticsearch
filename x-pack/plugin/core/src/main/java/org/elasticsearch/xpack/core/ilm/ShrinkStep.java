@@ -30,8 +30,8 @@ public class ShrinkStep extends AsyncActionStep {
     private static final Logger logger = LogManager.getLogger(ShrinkStep.class);
 
 
-    private Integer numberOfShards;
-    private ByteSizeValue maxPrimaryShardSize;
+    private final Integer numberOfShards;
+    private final ByteSizeValue maxPrimaryShardSize;
 
     public ShrinkStep(StepKey key, StepKey nextStepKey, Client client, Integer numberOfShards,
                       ByteSizeValue maxPrimaryShardSize) {
@@ -65,18 +65,17 @@ public class ShrinkStep extends AsyncActionStep {
         String shrunkenIndexName = getShrinkIndexName(indexMetadata.getIndex().getName(), lifecycleState);
         if (currentState.metadata().index(shrunkenIndexName) != null) {
             logger.warn("skipping [{}] step for index [{}] as part of policy [{}] as the shrunk index [{}] already exists",
-                ShrinkStep.NAME, indexMetadata.getIndex().getName(),
-                LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings()), shrunkenIndexName);
+                ShrinkStep.NAME, indexMetadata.getIndex().getName(), indexMetadata.getLifecycleName(), shrunkenIndexName);
             listener.onResponse(null);
             return;
         }
 
-        String lifecycle = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
+        String lifecycle = indexMetadata.getLifecycleName();
 
         Settings.Builder builder = Settings.builder();
         // need to remove the single shard, allocation so replicas can be allocated
         builder.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, indexMetadata.getNumberOfReplicas())
-            .put(LifecycleSettings.LIFECYCLE_NAME, lifecycle)
+            .put(IndexMetadata.LIFECYCLE_NAME, lifecycle)
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", (String) null);
         if (numberOfShards != null) {
             builder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards);

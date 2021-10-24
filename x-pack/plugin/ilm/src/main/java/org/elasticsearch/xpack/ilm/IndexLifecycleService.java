@@ -99,8 +99,7 @@ public class IndexLifecycleService
     }
 
     public void maybeRunAsyncAction(ClusterState clusterState, IndexMetadata indexMetadata, StepKey nextStepKey) {
-        String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
-        lifecycleRunner.maybeRunAsyncAction(clusterState, indexMetadata, policyName, nextStepKey);
+        lifecycleRunner.maybeRunAsyncAction(clusterState, indexMetadata, indexMetadata.getLifecycleName(), nextStepKey);
     }
 
     /**
@@ -166,7 +165,7 @@ public class IndexLifecycleService
             // If we just became master, we need to kick off any async actions that
             // may have not been run due to master rollover
             for (IndexMetadata idxMeta : clusterState.metadata().indices().values()) {
-                String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
+                String policyName = idxMeta.getLifecycleName();
                 if (Strings.isNullOrEmpty(policyName) == false) {
                     final LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
                     StepKey stepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
@@ -337,7 +336,7 @@ public class IndexLifecycleService
         // managed by the Index Lifecycle Service they have a index.lifecycle.name setting
         // associated to a policy
         for (IndexMetadata idxMeta : clusterState.metadata().indices().values()) {
-            String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
+            String policyName = idxMeta.getLifecycleName();
             if (Strings.isNullOrEmpty(policyName) == false) {
                 final LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
                 StepKey stepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
@@ -432,8 +431,7 @@ public class IndexLifecycleService
 
         Set<String> indicesPreventingShutdown = state.metadata().indices().stream()
             // Filter out to only consider managed indices
-            .filter(indexToMetadata -> Strings.hasText(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(
-                indexToMetadata.getValue().getSettings())))
+            .filter(indexToMetadata -> Strings.hasText(indexToMetadata.getValue().getLifecycleName()))
             // Only look at indices in the shrink action
             .filter(indexToMetadata ->
                 ShrinkAction.NAME.equals(LifecycleExecutionState.fromIndexMetadata(indexToMetadata.getValue()).getAction()))

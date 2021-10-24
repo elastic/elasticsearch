@@ -69,7 +69,7 @@ public class UpdateRollupIndexPolicyStepTests extends AbstractStepTestCase<Updat
     private static IndexMetadata getIndexMetadata() {
         Map<String, String> ilmCustom = Collections.singletonMap("rollup_index_name", "rollup-index");
         return IndexMetadata.builder(randomAlphaOfLength(10)).settings(
-            settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, "test-ilm-policy"))
+            settings(Version.CURRENT).put(IndexMetadata.LIFECYCLE_NAME, "test-ilm-policy"))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
             .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
             .build();
@@ -78,7 +78,7 @@ public class UpdateRollupIndexPolicyStepTests extends AbstractStepTestCase<Updat
     public void testPerformAction() throws Exception {
         IndexMetadata indexMetadata = getIndexMetadata();
         UpdateRollupIndexPolicyStep step = createRandomInstance();
-        Settings settings = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, step.getRollupPolicy()).build();
+        Settings settings = Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, step.getRollupPolicy()).build();
 
         Mockito.doAnswer(invocation -> {
             UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
@@ -103,7 +103,7 @@ public class UpdateRollupIndexPolicyStepTests extends AbstractStepTestCase<Updat
             ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
         Exception exception = new RuntimeException();
         UpdateRollupIndexPolicyStep step = createRandomInstance();
-        Settings settings = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, step.getRollupPolicy()).build();
+        Settings settings = Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, step.getRollupPolicy()).build();
 
         Mockito.doAnswer(invocation -> {
             UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
@@ -125,10 +125,10 @@ public class UpdateRollupIndexPolicyStepTests extends AbstractStepTestCase<Updat
 
     public void testPerformActionFailureIllegalExecutionState() {
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(
-            settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, "test-ilm-policy"))
+            settings(Version.CURRENT).put(IndexMetadata.LIFECYCLE_NAME, "test-ilm-policy"))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
             .build();
-        String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        String policyName = indexMetadata.getSettings().get(IndexMetadata.LIFECYCLE_NAME);
         String indexName = indexMetadata.getIndex().getName();
         UpdateRollupIndexPolicyStep step = createRandomInstance();
         step.performAction(indexMetadata, emptyClusterState(), null, new ActionListener<Void>() {

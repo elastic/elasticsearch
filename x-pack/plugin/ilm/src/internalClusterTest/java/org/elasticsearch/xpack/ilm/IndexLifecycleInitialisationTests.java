@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -136,7 +137,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
     @Before
     public void init() {
         settings = Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 1)
-            .put(SETTING_NUMBER_OF_REPLICAS, 0).put(LifecycleSettings.LIFECYCLE_NAME, "test").build();
+            .put(SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetadata.LIFECYCLE_NAME, "test").build();
         List<Step> steps = new ArrayList<>();
         Step.StepKey key = new Step.StepKey("mock", ObservableAction.NAME, ObservableClusterStateWaitStep.NAME);
         Step.StepKey compKey = new Step.StepKey("mock", "complete", "complete");

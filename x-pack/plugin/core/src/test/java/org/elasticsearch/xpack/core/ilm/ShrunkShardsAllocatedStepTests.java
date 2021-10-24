@@ -22,7 +22,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.xpack.core.ilm.ClusterStateWaitStep.Result;
-import org.elasticsearch.xpack.core.ilm.Step.StepKey;
+import org.elasticsearch.index.Step.StepKey;
 
 import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 

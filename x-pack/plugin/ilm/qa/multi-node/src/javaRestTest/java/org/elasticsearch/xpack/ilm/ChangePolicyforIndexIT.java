@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
-import org.elasticsearch.xpack.core.ilm.Step.StepKey;
+import org.elasticsearch.index.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 
 import java.io.IOException;

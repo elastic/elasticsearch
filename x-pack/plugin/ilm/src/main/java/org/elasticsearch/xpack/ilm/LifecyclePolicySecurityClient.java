@@ -14,7 +14,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.ilm.Step;
+import org.elasticsearch.index.Step;
 
 import java.util.Map;
 

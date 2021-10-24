@@ -26,6 +26,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.Step;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
 

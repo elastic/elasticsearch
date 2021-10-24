@@ -43,6 +43,7 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.LifecycleExecutionState;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
@@ -432,6 +433,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     @Nullable
     private final Integer shardsPerNodeLimit;
 
+    private final LifecycleExecutionState lifecycleExecutionState;
+
     private IndexMetadata(
             final Index index,
             final long version,
@@ -470,7 +473,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final boolean isSearchableSnapshotStore,
             final boolean isPartialSearchableSnapshotStore,
             final String indexLifecycleName,
-            @Nullable final Integer shardsPerNodeLimit
+            @Nullable final Integer shardsPerNodeLimit,
+            LifecycleExecutionState lifecycleExecutionState
     ) {
 
         this.index = index;
@@ -518,6 +522,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.isPartialSearchableSnapshotStore = isPartialSearchableSnapshotStore;
         this.indexLifecycleName = indexLifecycleName;
         this.shardsPerNodeLimit = shardsPerNodeLimit;
+        this.lifecycleExecutionState = lifecycleExecutionState;
         assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -655,6 +660,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     @Nullable
     public Integer getShardsPerNodeLimit() {
         return shardsPerNodeLimit;
+    }
+
+    public LifecycleExecutionState getLifecycleExecutionState() {
+        return lifecycleExecutionState;
     }
 
     public List<String> getTierPreference() {
@@ -1495,6 +1504,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 tierPreference = null;
             }
 
+            final LifecycleExecutionState lifecycleExecutionState;
+            Map<String, String> customData = customMetadata.get(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY);
+            if (customData != null && customData.isEmpty() == false) {
+                lifecycleExecutionState = LifecycleExecutionState.fromCustomMetadata(customData);
+            } else {
+                lifecycleExecutionState = LifecycleExecutionState.EMPTY_STATE;
+            }
+
             return new IndexMetadata(
                     new Index(index, uuid),
                     version,
@@ -1534,7 +1551,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(settings),
                     LIFECYCLE_NAME_SETTING.get(settings),
                     ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.exists(settings)
-                        ? ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(settings) : null
+                        ? ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(settings) : null,
+                    lifecycleExecutionState
             );
         }
 

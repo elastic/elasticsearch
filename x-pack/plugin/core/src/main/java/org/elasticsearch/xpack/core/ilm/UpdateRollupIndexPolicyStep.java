@@ -16,10 +16,11 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.LifecycleExecutionState;
 
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
+import static org.elasticsearch.index.LifecycleExecutionState.fromIndexMetadata;
 
 /**
  * Updates the lifecycle policy for the rollup index for the original/currently managed index

@@ -28,14 +28,14 @@ import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.ilm.InitializePolicyException;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
+import org.elasticsearch.index.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseExecutionInfo;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
-import org.elasticsearch.xpack.core.ilm.Step;
+import org.elasticsearch.index.Step;
 import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
 
 import java.io.IOException;
@@ -48,7 +48,7 @@ import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.index.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 
 /**
  * The {@link IndexLifecycleTransition} class handles cluster state transitions

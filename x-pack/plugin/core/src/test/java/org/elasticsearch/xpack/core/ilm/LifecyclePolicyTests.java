@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.LifecycleExecutionState;
+import org.elasticsearch.index.Step;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
@@ -16,7 +18,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.ilm.Step.StepKey;
+import org.elasticsearch.index.Step.StepKey;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -130,7 +132,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         List<String> phaseNames = randomSubsetOf(
             between(0, TimeseriesLifecycleType.ORDERED_VALID_PHASES.size() - 1), TimeseriesLifecycleType.ORDERED_VALID_PHASES).stream()
             // Remove the frozen phase, we'll randomly re-add it later
-            .filter(pn -> TimeseriesLifecycleType.FROZEN_PHASE.equals(pn) == false)
+            .filter(pn -> LifecycleExecutionState.FROZEN_PHASE.equals(pn) == false)
             .collect(Collectors.toList());
         Map<String, Phase> phases = new HashMap<>(phaseNames.size());
         Function<String, Set<String>> validActions = getPhaseToValidActions();
@@ -196,12 +198,12 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         if (hotPhaseContainsSearchableSnap == false && coldPhaseContainsSearchableSnap == false && randomBoolean()) {
             TimeValue frozenTime = prev == null ? TimeValue.parseTimeValue(randomTimeValue(0, 100000, "s", "m", "h", "d"), "test") :
                 TimeValue.timeValueSeconds(prev.seconds() + randomIntBetween(60, 600));
-            phases.put(TimeseriesLifecycleType.FROZEN_PHASE,
-                new Phase(TimeseriesLifecycleType.FROZEN_PHASE, frozenTime,
+            phases.put(LifecycleExecutionState.FROZEN_PHASE,
+                new Phase(LifecycleExecutionState.FROZEN_PHASE, frozenTime,
                     Collections.singletonMap(SearchableSnapshotAction.NAME,
                         new SearchableSnapshotAction(randomAlphaOfLength(10), randomBoolean()))));
         } else {
-            phases.remove(TimeseriesLifecycleType.FROZEN_PHASE);
+            phases.remove(LifecycleExecutionState.FROZEN_PHASE);
         }
         return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
     }
@@ -284,14 +286,14 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 break;
             case 1:
                 // Remove the frozen phase, because it makes a lot of invalid phases when randomly mutating an existing policy
-                phases.remove(TimeseriesLifecycleType.FROZEN_PHASE);
+                phases.remove(LifecycleExecutionState.FROZEN_PHASE);
                 // Remove a random phase
                 if (phases.size() > 0) {
                     phases.remove(new ArrayList<>(phases.keySet()).remove(randomIntBetween(0, phases.size() - 1)));
                 }
                 String phaseName = randomValueOtherThanMany(phases::containsKey,
                         () -> randomFrom(TimeseriesLifecycleType.ORDERED_VALID_PHASES.stream()
-                            .filter(pn -> TimeseriesLifecycleType.FROZEN_PHASE.equals(pn) == false)
+                            .filter(pn -> LifecycleExecutionState.FROZEN_PHASE.equals(pn) == false)
                             .collect(Collectors.toList())));
                 phases = new LinkedHashMap<>(phases);
                 phases.put(phaseName, new Phase(phaseName, null, Collections.emptyMap()));

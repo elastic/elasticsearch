@@ -17,8 +17,10 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.index.LifecycleExecutionState;
+import org.elasticsearch.index.Step;
 import org.elasticsearch.indices.InvalidIndexNameException;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.Builder;
+import org.elasticsearch.index.LifecycleExecutionState.Builder;
 
 import java.util.Locale;
 import java.util.function.BiFunction;

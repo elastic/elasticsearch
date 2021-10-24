@@ -6,7 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.xpack.core.ilm.Step.StepKey;
+import org.elasticsearch.index.Step;
+import org.elasticsearch.index.Step.StepKey;
 
 public class TerminalPolicyStepTests extends AbstractStepTestCase<TerminalPolicyStep> {
 

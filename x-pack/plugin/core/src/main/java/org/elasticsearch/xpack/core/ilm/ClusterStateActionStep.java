@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.Step;
 
 /**
  * Updates the cluster state, similar to {@link org.elasticsearch.cluster.ClusterStateUpdateTask}.

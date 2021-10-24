@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.index.LifecycleExecutionState;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;

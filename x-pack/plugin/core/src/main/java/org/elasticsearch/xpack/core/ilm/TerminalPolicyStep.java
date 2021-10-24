@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.index.Step;
+
 /**
  * Signals that the policy for an index has been fully executed.
  */

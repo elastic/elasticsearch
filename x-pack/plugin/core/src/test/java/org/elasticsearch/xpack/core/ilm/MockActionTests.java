@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.index.Step;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;

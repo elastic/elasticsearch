@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.xpack.core.ilm.Step.StepKey;
+import org.elasticsearch.index.Step.StepKey;
 
 public class ErrorStepTests extends AbstractStepTestCase<ErrorStep> {
 

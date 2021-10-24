@@ -28,7 +28,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.ilm.Step.StepKey;
+import org.elasticsearch.index.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.UpdateSettingsStep;
 import org.junit.After;
 

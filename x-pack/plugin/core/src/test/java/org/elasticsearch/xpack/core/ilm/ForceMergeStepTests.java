@@ -20,8 +20,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.Step;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.ilm.Step.StepKey;
+import org.elasticsearch.index.Step.StepKey;
 import org.mockito.Mockito;
 
 import static org.hamcrest.Matchers.equalTo;

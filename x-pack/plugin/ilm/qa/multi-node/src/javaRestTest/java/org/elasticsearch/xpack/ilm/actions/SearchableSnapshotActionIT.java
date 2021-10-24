@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
-import org.elasticsearch.xpack.core.ilm.Step;
+import org.elasticsearch.index.Step;
 import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.junit.Before;
 

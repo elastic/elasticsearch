@@ -8,8 +8,9 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.index.Step;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ilm.Step.StepKey;
+import org.elasticsearch.index.Step.StepKey;
 
 import java.io.IOException;
 import java.util.List;

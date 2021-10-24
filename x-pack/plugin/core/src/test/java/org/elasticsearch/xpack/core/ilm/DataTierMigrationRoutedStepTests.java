@@ -21,7 +21,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.xpack.core.ilm.ClusterStateWaitStep.Result;
-import org.elasticsearch.xpack.core.ilm.Step.StepKey;
+import org.elasticsearch.index.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo;
 
 import java.util.Collections;

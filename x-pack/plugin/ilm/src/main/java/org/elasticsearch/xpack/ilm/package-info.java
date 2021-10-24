@@ -12,8 +12,8 @@
  * {@link org.elasticsearch.xpack.ilm.IndexLifecycleRunner}.
  *
  * The {@link org.elasticsearch.xpack.ilm.IndexLifecycleService} goes through the indices that have ILM policies configured, retrieves
- * the current execution {@link org.elasticsearch.xpack.core.ilm.Step.StepKey} from the index's
- * {@link org.elasticsearch.xpack.core.ilm.LifecycleExecutionState} and dispatches the step execution to the appropriate
+ * the current execution {@link org.elasticsearch.index.Step.StepKey} from the index's
+ * {@link org.elasticsearch.index.LifecycleExecutionState} and dispatches the step execution to the appropriate
  * {@link org.elasticsearch.xpack.ilm.IndexLifecycleRunner} method.
  * This happens in:
  * <ul>
@@ -47,7 +47,7 @@
  *          {@link org.elasticsearch.xpack.ilm.IndexLifecycleRunner#maybeRunAsyncAction(
  *                      org.elasticsearch.cluster.ClusterState,
  *                      org.elasticsearch.cluster.metadata.IndexMetadata,
- *                      java.lang.String, org.elasticsearch.xpack.core.ilm.Step.StepKey
+ *                      java.lang.String, Step.StepKey
  *                  )}
  *          handles the execution of the async steps {@link org.elasticsearch.xpack.core.ilm.AsyncActionStep}.
  *     </li>
@@ -75,7 +75,7 @@
  * and then rollover the index {@link org.elasticsearch.xpack.core.ilm.RolloverStep} followed by some more house-keeping steps).
  *
  * The ILM runner will advance last executed state (as indicated in
- * {@link org.elasticsearch.xpack.core.ilm.LifecycleExecutionState#getStep()}) and execute the next step of the index policy as
+ * {@link org.elasticsearch.index.LifecycleExecutionState#getStep()}) and execute the next step of the index policy as
  * defined in the {@link org.elasticsearch.xpack.ilm.PolicyStepsRegistry}.
  * Once all the steps of a policy are executed successfully the policy execution will reach the
  * {@link org.elasticsearch.xpack.core.ilm.TerminalPolicyStep} and any changes made to the policy definition will not have any effect on
@@ -88,10 +88,11 @@
  * {@link org.elasticsearch.xpack.core.ilm.ErrorStep}.
  * Currently for certain periodic steps we will automatically retry the execution of the failed step until the step executes
  * successfully (see {@link org.elasticsearch.xpack.ilm.IndexLifecycleRunner#onErrorMaybeRetryFailedStep}). In order to see all retryable
- * steps see {@link org.elasticsearch.xpack.core.ilm.Step#isRetryable()}.
+ * steps see {@link org.elasticsearch.index.Step#isRetryable()}.
  * For steps that are not retryable the failed step can manually be retried using
  * {@link org.elasticsearch.xpack.ilm.IndexLifecycleService#moveClusterStateToPreviouslyFailedStep}.
  *
  */
 package org.elasticsearch.xpack.ilm;
 
+import org.elasticsearch.index.Step;

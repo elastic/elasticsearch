@@ -13,6 +13,8 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.LifecycleExecutionState;
+import org.elasticsearch.index.Step;
 
 import java.util.List;
 import java.util.UUID;

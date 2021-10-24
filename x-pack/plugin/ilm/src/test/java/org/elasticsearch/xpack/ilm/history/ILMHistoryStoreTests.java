@@ -36,7 +36,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
+import org.elasticsearch.index.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.hamcrest.Matchers;
 import org.junit.After;

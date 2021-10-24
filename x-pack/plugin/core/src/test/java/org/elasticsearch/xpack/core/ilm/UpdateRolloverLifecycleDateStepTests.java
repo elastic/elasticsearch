@@ -16,7 +16,8 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.List;
-import org.elasticsearch.xpack.core.ilm.Step.StepKey;
+import org.elasticsearch.index.LifecycleExecutionState;
+import org.elasticsearch.index.Step.StepKey;
 
 import java.util.Collections;
 import java.util.function.LongSupplier;

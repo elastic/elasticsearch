@@ -15,10 +15,11 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.LifecycleExecutionState;
 
 import java.util.function.LongSupplier;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.index.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 
 /**
  * Copies the lifecycle reference date to a new index created by rolling over an alias.

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Step;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.index.Index;
 

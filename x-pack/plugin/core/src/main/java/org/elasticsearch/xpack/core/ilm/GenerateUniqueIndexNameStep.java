@@ -16,16 +16,17 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.LifecycleExecutionState;
 import org.elasticsearch.indices.InvalidIndexNameException;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.Builder;
+import org.elasticsearch.index.LifecycleExecutionState.Builder;
 
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
+import static org.elasticsearch.index.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.index.LifecycleExecutionState.fromIndexMetadata;
 
 /**
  * Generates a unique index name prefixing the original index name with the configured

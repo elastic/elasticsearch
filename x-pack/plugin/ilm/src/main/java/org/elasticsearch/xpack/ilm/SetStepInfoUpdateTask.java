@@ -16,8 +16,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
-import org.elasticsearch.xpack.core.ilm.Step;
+import org.elasticsearch.index.LifecycleExecutionState;
+import org.elasticsearch.index.Step;
 
 import java.io.IOException;
 import java.util.Objects;

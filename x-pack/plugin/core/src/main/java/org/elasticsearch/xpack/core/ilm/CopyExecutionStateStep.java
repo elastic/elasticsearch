@@ -13,16 +13,18 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.LifecycleExecutionState;
+import org.elasticsearch.index.Step;
 
 import java.util.Objects;
 import java.util.function.BiFunction;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.index.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 
 /**
  * Copies the execution state data from one index to another, typically after a
  * new index has been created. As part of the execution state copy it will set the target index
- * "current step" to the provided target next step {@link org.elasticsearch.xpack.core.ilm.Step.StepKey}.
+ * "current step" to the provided target next step {@link Step.StepKey}.
  *
  * Useful for actions such as shrink.
  */

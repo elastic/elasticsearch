@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.index.Step;
+
 /**
  * This is essentially a marker that a phase has ended, and we need to check
  * the age of an index before proceeding to the next phase.

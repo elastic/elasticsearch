@@ -14,7 +14,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Map;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.xpack.core.ilm.Step.StepKey;
+import org.elasticsearch.index.LifecycleExecutionState;
+import org.elasticsearch.index.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
 import java.time.Clock;
@@ -24,7 +25,7 @@ import java.util.Collections;
 import java.util.UUID;
 
 import static org.elasticsearch.xpack.core.ilm.ClusterStateWaitUntilThresholdStep.waitedMoreThanThresholdLevel;
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.index.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.core.ilm.UnfollowAction.CCR_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;

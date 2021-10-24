@@ -16,13 +16,15 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.LifecycleExecutionState;
+import org.elasticsearch.index.Step;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.core.ilm.Step.StepKey;
+import org.elasticsearch.index.Step.StepKey;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
 import java.io.IOException;
@@ -276,7 +278,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
      * Resolves the prefix to be used for the mounted index depending on the provided key
      */
     String getRestoredIndexPrefix(StepKey currentKey) {
-        if (currentKey.getPhase().equals(TimeseriesLifecycleType.FROZEN_PHASE)) {
+        if (currentKey.getPhase().equals(LifecycleExecutionState.FROZEN_PHASE)) {
             return PARTIAL_RESTORED_INDEX_PREFIX;
         } else {
             return FULL_RESTORED_INDEX_PREFIX;
@@ -285,7 +287,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
 
     // Resolves the storage type depending on which phase the index is in
     MountSearchableSnapshotRequest.Storage getConcreteStorageType(StepKey currentKey) {
-        if (currentKey.getPhase().equals(TimeseriesLifecycleType.FROZEN_PHASE)) {
+        if (currentKey.getPhase().equals(LifecycleExecutionState.FROZEN_PHASE)) {
             return MountSearchableSnapshotRequest.Storage.SHARED_CACHE;
         } else {
             return MountSearchableSnapshotRequest.Storage.FULL_COPY;

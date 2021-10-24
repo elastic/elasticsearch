@@ -14,6 +14,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.LifecycleExecutionState;
 import org.elasticsearch.rollup.RollupV2;
 
 import java.io.IOException;
@@ -52,9 +53,9 @@ public class TimeseriesLifecycleType implements LifecycleType {
     static final String HOT_PHASE = "hot";
     static final String WARM_PHASE = "warm";
     static final String COLD_PHASE = "cold";
-    static final String FROZEN_PHASE = "frozen";
     static final String DELETE_PHASE = "delete";
-    static final List<String> ORDERED_VALID_PHASES = Arrays.asList(HOT_PHASE, WARM_PHASE, COLD_PHASE, FROZEN_PHASE, DELETE_PHASE);
+    static final List<String> ORDERED_VALID_PHASES =
+        Arrays.asList(HOT_PHASE, WARM_PHASE, COLD_PHASE, LifecycleExecutionState.FROZEN_PHASE, DELETE_PHASE);
 
     public static final String FREEZE_ACTION_DEPRECATION_WARNING = "the freeze action has been deprecated and will be removed in a future" +
         " release";
@@ -83,7 +84,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
         WARM_PHASE, VALID_WARM_ACTIONS,
         COLD_PHASE, VALID_COLD_ACTIONS,
         DELETE_PHASE, VALID_DELETE_ACTIONS,
-        FROZEN_PHASE, VALID_FROZEN_ACTIONS
+        LifecycleExecutionState.FROZEN_PHASE, VALID_FROZEN_ACTIONS
     );
 
     static final Set<String> HOT_ACTIONS_THAT_REQUIRE_ROLLOVER = Sets.newHashSet(ReadOnlyAction.NAME, ShrinkAction.NAME,
@@ -204,7 +205,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
             case COLD_PHASE:
                 return ORDERED_VALID_COLD_ACTIONS.stream().map(actions::get)
                     .filter(Objects::nonNull).collect(toList());
-            case FROZEN_PHASE:
+            case LifecycleExecutionState.FROZEN_PHASE:
                 return ORDERED_VALID_FROZEN_ACTIONS.stream().map(actions::get)
                     .filter(Objects::nonNull).collect(toList());
             case DELETE_PHASE:
@@ -228,7 +229,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
             case COLD_PHASE:
                 orderedActionNames = ORDERED_VALID_COLD_ACTIONS;
                 break;
-            case FROZEN_PHASE:
+            case LifecycleExecutionState.FROZEN_PHASE:
                 orderedActionNames = ORDERED_VALID_FROZEN_ACTIONS;
                 break;
             case DELETE_PHASE:
@@ -338,7 +339,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
                 .findAny();
             if (coldPhaseWithSearchableSnapshot.isPresent()) {
                 for (Phase phase : phases) {
-                    if (phase.getName().equals(FROZEN_PHASE)) {
+                    if (phase.getName().equals(LifecycleExecutionState.FROZEN_PHASE)) {
                         phasesFollowingSearchableSnapshot.add(phase);
                         break;
                     }
@@ -450,13 +451,14 @@ public class TimeseriesLifecycleType implements LifecycleType {
      */
     static void validateFrozenPhaseHasSearchableSnapshotAction(Collection<Phase> phases) {
         Optional<Phase> maybeFrozenPhase = phases.stream()
-            .filter(p -> FROZEN_PHASE.equals(p.getName()))
+            .filter(p -> LifecycleExecutionState.FROZEN_PHASE.equals(p.getName()))
             .findFirst();
 
         maybeFrozenPhase.ifPresent(p -> {
             if (p.getActions().containsKey(SearchableSnapshotAction.NAME) == false) {
-                throw new IllegalArgumentException("policy specifies the [" + FROZEN_PHASE + "] phase without a corresponding [" +
-                    SearchableSnapshotAction.NAME + "] action, but a searchable snapshot action is required in the frozen phase");
+                throw new IllegalArgumentException("policy specifies the [" + LifecycleExecutionState.FROZEN_PHASE
+                    + "] phase without a corresponding [" + SearchableSnapshotAction.NAME
+                        + "] action, but a searchable snapshot action is required in the frozen phase");
             }
         });
     }

@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Step;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.core.List;
 import org.mockito.Mockito;

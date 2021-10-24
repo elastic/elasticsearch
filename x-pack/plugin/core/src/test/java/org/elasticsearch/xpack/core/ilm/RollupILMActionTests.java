@@ -7,9 +7,10 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.index.Step;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.xpack.core.ilm.Step.StepKey;
+import org.elasticsearch.index.Step.StepKey;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfigTests;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;

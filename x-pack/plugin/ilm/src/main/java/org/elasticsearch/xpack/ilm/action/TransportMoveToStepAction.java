@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ilm.Step;
+import org.elasticsearch.index.Step;
 import org.elasticsearch.xpack.core.ilm.action.MoveToStepAction;
 import org.elasticsearch.xpack.core.ilm.action.MoveToStepAction.Request;
 import org.elasticsearch.xpack.ilm.IndexLifecycleService;

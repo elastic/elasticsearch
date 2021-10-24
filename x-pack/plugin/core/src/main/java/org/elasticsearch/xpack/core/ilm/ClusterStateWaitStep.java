@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.index.Step;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.index.Index;
 

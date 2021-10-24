@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.xpack.core.ilm.Step;
+import org.elasticsearch.index.Step;
 
 /**
  * Base class for index lifecycle cluster state update tasks that requires implementing {@code equals} and {@code hashCode} to allow

@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-package org.elasticsearch.xpack.core.ilm;
+package org.elasticsearch.index;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -24,6 +25,7 @@ import java.util.Objects;
  */
 public class LifecycleExecutionState {
     public static final String ILM_CUSTOM_METADATA_KEY = "ilm";
+    public static final String FROZEN_PHASE = "frozen";
 
     private static final String PHASE = "phase";
     private static final String ACTION = "action";
@@ -94,12 +96,7 @@ public class LifecycleExecutionState {
      * @return The execution state of that index.
      */
     public static LifecycleExecutionState fromIndexMetadata(IndexMetadata indexMetadata) {
-        Map<String, String> customData = indexMetadata.getCustomData(ILM_CUSTOM_METADATA_KEY);
-        if (customData != null && customData.isEmpty() == false) {
-            return fromCustomMetadata(customData);
-        } else {
-            return EMPTY_STATE;
-        }
+        return indexMetadata.getLifecycleExecutionState();
     }
 
     /**
@@ -111,7 +108,7 @@ public class LifecycleExecutionState {
         Map<String, String> customData = indexMetadata.getCustomData(ILM_CUSTOM_METADATA_KEY);
         // deliberately do not parse out the entire `LifeCycleExecutionState` to avoid the extra work involved since this method is
         // used heavily by autoscaling.
-        return customData != null && TimeseriesLifecycleType.FROZEN_PHASE.equals(customData.get(PHASE));
+        return customData != null && FROZEN_PHASE.equals(customData.get(PHASE));
     }
     /**
      * Retrieves the current {@link Step.StepKey} from the lifecycle state. Note that
@@ -163,7 +160,7 @@ public class LifecycleExecutionState {
             .setStepTime(state.stepTime);
     }
 
-    static LifecycleExecutionState fromCustomMetadata(Map<String, String> customData) {
+    public static LifecycleExecutionState fromCustomMetadata(Map<String, String> customData) {
         Builder builder = builder();
         String phase = customData.get(PHASE);
         if (phase != null) {

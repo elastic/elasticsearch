@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.index.Step;
+
 /**
  * Signals that an error was encountered during the execution of a policy on an index.
  */

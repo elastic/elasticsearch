@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.LifecycleExecutionState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
@@ -24,7 +25,7 @@ import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotR
 import java.util.Objects;
 import java.util.Optional;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
+import static org.elasticsearch.index.LifecycleExecutionState.fromIndexMetadata;
 
 /**
  * Restores the snapshot created for the designated index via the ILM policy to an index named using the provided prefix appended to the

@@ -46,6 +46,8 @@ import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Rule;
+import org.junit.rules.TestRule;
 
 import java.net.InetAddress;
 import java.security.AccessController;
@@ -75,6 +77,11 @@ public abstract class LdapTestCase extends ESTestCase {
     static int numberOfLdapServers;
     protected InMemoryDirectoryServer[] ldapServers;
 
+    private LdapServerDebugLogging debugLogging = new LdapServerDebugLogging(logger);
+
+    @Rule
+    public TestRule printLdapDebugOnFailure = debugLogging.testWatcher();
+
     @BeforeClass
     public static void setNumberOfLdapServers() {
         numberOfLdapServers = randomIntBetween(1, 4);
@@ -85,6 +92,7 @@ public abstract class LdapTestCase extends ESTestCase {
         ldapServers = new InMemoryDirectoryServer[numberOfLdapServers];
         for (int i = 0; i < numberOfLdapServers; i++) {
             InMemoryDirectoryServerConfig serverConfig = new InMemoryDirectoryServerConfig("o=sevenSeas");
+            debugLogging.configure(serverConfig);
             List<InMemoryListenerConfig> listeners = new ArrayList<>(2);
             listeners.add(InMemoryListenerConfig.createLDAPConfig("ldap", null, 0, null));
             if (openLdapsPort()) {

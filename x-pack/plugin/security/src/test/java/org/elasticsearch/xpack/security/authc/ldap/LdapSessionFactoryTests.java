@@ -44,6 +44,7 @@ import java.util.concurrent.ExecutionException;
 import javax.net.ssl.SSLException;
 
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -301,7 +302,10 @@ public class LdapSessionFactoryTests extends LdapTestCase {
             }
             // It's ok if an upgrade to the LDAP-SDK or JDK causes this message to change (and we need to update the test)
             // but we want to check that we failed for a reason we're expecting and not some unexpected network error.
-            assertThat(underlyingCause, throwableWithMessage(containsString("PKIX path validation failed")));
+            assertThat(
+                underlyingCause,
+                throwableWithMessage(anyOf(containsString("PKIX path validation failed"), containsString("peer not authenticated")))
+            );
 
             Files.copy(realCa, ldapCaPath, StandardCopyOption.REPLACE_EXISTING);
             resourceWatcher.notifyNow(ResourceWatcherService.Frequency.HIGH);

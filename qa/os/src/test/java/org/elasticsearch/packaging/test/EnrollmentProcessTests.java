@@ -38,7 +38,7 @@ public class EnrollmentProcessTests extends PackagingTestCase {
         setFileSuperuser("test_superuser", "test_superuser_password");
         sh.getEnv().put("ES_JAVA_OPTS", "-Xms1g -Xmx1g");
         Shell.Result startFirstNode = awaitElasticsearchStartupWithResult(
-            Archives.startElasticsearchWithTty(installation, sh, null, false)
+            Archives.startElasticsearchWithTty(installation, sh, null, List.of(), false)
         );
         assertThat(startFirstNode.isSuccess(), is(true));
         // Verify that the first node was auto-configured for security
@@ -51,7 +51,7 @@ public class EnrollmentProcessTests extends PackagingTestCase {
         installation = installArchive(sh, distribution(), getRootTempDir().resolve("elasticsearch-node2"), getCurrentVersion(), true);
         // auto-configure security using the enrollment token
         Shell.Result startSecondNode = awaitElasticsearchStartupWithResult(
-            Archives.runElasticsearchStartCommand(installation, sh, null, List.of("--enrollment-token", enrollmentToken), false)
+            Archives.startElasticsearchWithTty(installation, sh, null, List.of("--enrollment-token", enrollmentToken), false)
         );
         assertThat(startSecondNode.isSuccess(), is(true));
         verifySecurityAutoConfigured(installation);

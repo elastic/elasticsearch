@@ -150,17 +150,10 @@ public class ServerUtils {
         int retries = 60;
         while (retries > 0) {
             retries -= 1;
-            // This is ugly. Now that we have tests (i.e. EnrollmentProcessTests) that start multiple installations, a number
-            // of the assumptions we're making is not valid anymore. Given that we have a single test that starts a second node for
-            // now, checking for an additional port in the socket connection here is not that detrimental
-            // See: https://github.com/elastic/elasticsearch/issues/79688
-            final List<Integer> possiblePorts = List.of(9200, 9201);
-            for (int port: possiblePorts) {
-                try (Socket s = new Socket(InetAddress.getLoopbackAddress(), port)) {
-                    return;
-                } catch (IOException e) {
-                    // ignore, only want to establish a connection
-                }
+            try (Socket s = new Socket(InetAddress.getLoopbackAddress(), 9200)) {
+                return;
+            } catch (IOException e) {
+                // ignore, only want to establish a connection
             }
 
             try {

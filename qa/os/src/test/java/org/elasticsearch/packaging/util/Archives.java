@@ -232,8 +232,13 @@ public class Archives {
             .forEach(configFile -> assertThat(es.config(configFile), file(File, owner, owner, p660)));
     }
 
-    public static Shell.Result startElasticsearchWithTty(Installation installation, Shell sh, String keystorePassword, boolean daemonize)
-        throws Exception {
+    public static Shell.Result startElasticsearchWithTty(
+        Installation installation,
+        Shell sh,
+        String keystorePassword,
+        List<String> parameters,
+        boolean daemonize
+    ) throws Exception {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
         final Installation.Executables bin = installation.executables();
 
@@ -244,6 +249,9 @@ public class Archives {
             command.add("-d");
         }
         command.add("-v"); // verbose auto-configuration
+        if (parameters != null && parameters.isEmpty() == false) {
+            command.addAll(parameters);
+        }
         String script = String.format(
             Locale.ROOT,
             "expect -c \"$(cat<<EXPECT\n"

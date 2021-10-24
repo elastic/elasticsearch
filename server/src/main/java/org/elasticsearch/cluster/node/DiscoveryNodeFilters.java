@@ -13,14 +13,12 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.Nullable;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.stream.Collectors;
 
 public class DiscoveryNodeFilters {
 
@@ -67,17 +65,20 @@ public class DiscoveryNodeFilters {
 
     private final OpType opType;
 
+    @Nullable
+    private final DiscoveryNodeFilters trimmed;
+
     DiscoveryNodeFilters(OpType opType, Map<String, String[]> filters) {
         this.opType = opType;
         this.filters = filters;
+        this.trimmed = doTrim(this);
     }
 
     private boolean matchByIP(String[] values, @Nullable String hostIp, @Nullable String publishIp) {
         for (String ipOrHost : values) {
             String value = InetAddresses.isInetAddress(ipOrHost) ? NetworkAddress.format(InetAddresses.forString(ipOrHost)) : ipOrHost;
-            boolean matchIp = Regex.simpleMatch(value, hostIp) || Regex.simpleMatch(value, publishIp);
-            if (matchIp) {
-                return matchIp;
+            if (Regex.simpleMatch(value, hostIp) || Regex.simpleMatch(value, publishIp)) {
+                return true;
             }
         }
         return false;
@@ -90,17 +91,25 @@ public class DiscoveryNodeFilters {
      */
     @Nullable
     public static DiscoveryNodeFilters trimTier(@Nullable DiscoveryNodeFilters original) {
-        if (original == null) {
-            return null;
-        }
+        return original == null ? null : original.trimmed;
 
-        Map<String, String[]> newFilters = original.filters.entrySet().stream()
-            // Remove all entries that start with "_tier", as these will be handled elsewhere
-            .filter(entry -> {
-                String attr = entry.getKey();
-                return attr != null && attr.startsWith("_tier") == false;
-            })
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    private static DiscoveryNodeFilters doTrim(DiscoveryNodeFilters original) {
+        boolean filtered = false;
+        final Map<String, String[]> newFilters = new HashMap<>(original.filters.size());
+        // Remove all entries that start with "_tier", as these will be handled elsewhere
+        for (Map.Entry<String, String[]> entry : original.filters.entrySet()) {
+            String attr = entry.getKey();
+            if (attr != null && attr.startsWith("_tier") == false) {
+                newFilters.put(entry.getKey(), entry.getValue());
+            } else {
+                filtered = true;
+            }
+        }
+        if (filtered == false) {
+            return original;
+        }
 
         if (newFilters.size() == 0) {
             return null;
@@ -113,122 +122,130 @@ public class DiscoveryNodeFilters {
         for (Map.Entry<String, String[]> entry : filters.entrySet()) {
             String attr = entry.getKey();
             String[] values = entry.getValue();
-            if ("_ip".equals(attr)) {
-                // We check both the host_ip or the publish_ip
-                String publishAddress = null;
-                if (node.getAddress() instanceof TransportAddress) {
-                    publishAddress = NetworkAddress.format(node.getAddress().address().getAddress());
-                }
-
-                boolean match = matchByIP(values, node.getHostAddress(), publishAddress);
-
-                if (opType == OpType.AND) {
-                    if (match) {
-                        // If we match, we can check to the next filter
-                        continue;
+            switch (attr) {
+                case "_ip": {
+                    // We check both the host_ip or the publish_ip
+                    String publishAddress = null;
+                    if (node.getAddress() != null) {
+                        publishAddress = NetworkAddress.format(node.getAddress().address().getAddress());
                     }
-                    return false;
-                }
 
-                if (match && opType == OpType.OR) {
-                    return true;
-                }
-            } else if ("_host_ip".equals(attr)) {
-                // We check explicitly only the host_ip
-                boolean match = matchByIP(values, node.getHostAddress(), null);
-                if (opType == OpType.AND) {
-                    if (match) {
-                        // If we match, we can check to the next filter
-                        continue;
-                    }
-                    return false;
-                }
+                    boolean match = matchByIP(values, node.getHostAddress(), publishAddress);
 
-                if (match && opType == OpType.OR) {
-                    return true;
-                }
-            } else if ("_publish_ip".equals(attr)) {
-                // We check explicitly only the publish_ip
-                String address = null;
-                if (node.getAddress() instanceof TransportAddress) {
-                    address = NetworkAddress.format(node.getAddress().address().getAddress());
-                }
-
-                boolean match = matchByIP(values, address, null);
-                if (opType == OpType.AND) {
-                    if (match) {
-                        // If we match, we can check to the next filter
-                        continue;
-                    }
-                    return false;
-                }
-
-                if (match && opType == OpType.OR) {
-                    return true;
-                }
-            } else if ("_host".equals(attr)) {
-                for (String value : values) {
-                    if (Regex.simpleMatch(value, node.getHostName()) || Regex.simpleMatch(value, node.getHostAddress())) {
-                        if (opType == OpType.OR) {
-                            return true;
-                        }
-                    } else {
-                        if (opType == OpType.AND) {
-                            return false;
-                        }
-                    }
-                }
-            } else if ("_id".equals(attr)) {
-                for (String value : values) {
-                    if (node.getId().equals(value)) {
-                        if (opType == OpType.OR) {
-                            return true;
-                        }
-                    } else {
-                        if (opType == OpType.AND) {
-                            return false;
-                        }
-                    }
-                }
-            } else if ("_name".equals(attr) || "name".equals(attr)) {
-                for (String value : values) {
-                    if (Regex.simpleMatch(value, node.getName())) {
-                        if (opType == OpType.OR) {
-                            return true;
-                        }
-                    } else {
-                        if (opType == OpType.AND) {
-                            return false;
-                        }
-                    }
-                }
-            } else {
-                String nodeAttributeValue = node.getAttributes().get(attr);
-                if (nodeAttributeValue == null) {
                     if (opType == OpType.AND) {
-                        return false;
-                    } else {
-                        continue;
-                    }
-                }
-                for (String value : values) {
-                    if (Regex.simpleMatch(value, nodeAttributeValue)) {
-                        if (opType == OpType.OR) {
-                            return true;
+                        if (match) {
+                            // If we match, we can check to the next filter
+                            continue;
                         }
-                    } else {
+                        return false;
+                    }
+
+                    if (match && opType == OpType.OR) {
+                        return true;
+                    }
+                    break;
+                }
+                case "_host_ip": {
+                    // We check explicitly only the host_ip
+                    boolean match = matchByIP(values, node.getHostAddress(), null);
+                    if (opType == OpType.AND) {
+                        if (match) {
+                            // If we match, we can check to the next filter
+                            continue;
+                        }
+                        return false;
+                    }
+
+                    if (match && opType == OpType.OR) {
+                        return true;
+                    }
+                    break;
+                }
+                case "_publish_ip": {
+                    // We check explicitly only the publish_ip
+                    String address = null;
+                    if (node.getAddress() != null) {
+                        address = NetworkAddress.format(node.getAddress().address().getAddress());
+                    }
+
+                    boolean match = matchByIP(values, address, null);
+                    if (opType == OpType.AND) {
+                        if (match) {
+                            // If we match, we can check to the next filter
+                            continue;
+                        }
+                        return false;
+                    }
+
+                    if (match && opType == OpType.OR) {
+                        return true;
+                    }
+                    break;
+                }
+                case "_host":
+                    for (String value : values) {
+                        if (Regex.simpleMatch(value, node.getHostName()) || Regex.simpleMatch(value, node.getHostAddress())) {
+                            if (opType == OpType.OR) {
+                                return true;
+                            }
+                        } else {
+                            if (opType == OpType.AND) {
+                                return false;
+                            }
+                        }
+                    }
+                    break;
+                case "_id":
+                    for (String value : values) {
+                        if (node.getId().equals(value)) {
+                            if (opType == OpType.OR) {
+                                return true;
+                            }
+                        } else {
+                            if (opType == OpType.AND) {
+                                return false;
+                            }
+                        }
+                    }
+                    break;
+                case "_name":
+                case "name":
+                    for (String value : values) {
+                        if (Regex.simpleMatch(value, node.getName())) {
+                            if (opType == OpType.OR) {
+                                return true;
+                            }
+                        } else {
+                            if (opType == OpType.AND) {
+                                return false;
+                            }
+                        }
+                    }
+                    break;
+                default:
+                    String nodeAttributeValue = node.getAttributes().get(attr);
+                    if (nodeAttributeValue == null) {
                         if (opType == OpType.AND) {
                             return false;
+                        } else {
+                            continue;
                         }
                     }
-                }
+                    for (String value : values) {
+                        if (Regex.simpleMatch(value, nodeAttributeValue)) {
+                            if (opType == OpType.OR) {
+                                return true;
+                            }
+                        } else {
+                            if (opType == OpType.AND) {
+                                return false;
+                            }
+                        }
+                    }
+                    break;
             }
         }
-        if (opType == OpType.OR) {
-            return false;
-        } else {
-            return true;
-        }
+        return opType != OpType.OR;
     }
 
     /**

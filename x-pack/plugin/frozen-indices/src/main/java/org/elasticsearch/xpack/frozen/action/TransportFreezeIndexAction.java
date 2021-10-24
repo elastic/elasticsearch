@@ -37,7 +37,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.frozen.FrozenEngine;
 import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
 import org.elasticsearch.protocol.xpack.frozen.FreezeResponse;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -199,7 +198,7 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
                         } else {
                             settingsBuilder.remove(FrozenEngine.INDEX_FROZEN.getKey());
                             settingsBuilder.remove(IndexSettings.INDEX_SEARCH_THROTTLED.getKey());
-                            if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexMetadata.getSettings()) == false) {
+                            if (indexMetadata.isSearchableSnapshotStore() == false) {
                                 settingsBuilder.remove("index.blocks.write");
                                 blocks.removeIndexBlock(index.getName(), IndexMetadata.INDEX_WRITE_BLOCK);
                             }

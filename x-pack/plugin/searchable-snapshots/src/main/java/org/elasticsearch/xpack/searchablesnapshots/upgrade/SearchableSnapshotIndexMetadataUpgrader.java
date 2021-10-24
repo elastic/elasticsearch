@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.ShardLimitValidator;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.Executor;
@@ -93,9 +92,8 @@ public class SearchableSnapshotIndexMetadataUpgrader {
     static boolean needsUpgrade(ClusterState state) {
         return StreamSupport.stream(state.metadata().spliterator(), false)
             .filter(imd -> imd.getCreationVersion().onOrAfter(Version.V_7_12_0))
-            .map(IndexMetadata::getSettings)
-            .filter(SearchableSnapshotsSettings::isPartialSearchableSnapshotIndex)
-            .anyMatch(SearchableSnapshotIndexMetadataUpgrader::notFrozenShardLimitGroup);
+            .filter(IndexMetadata::isPartialSearchableSnapshotStore)
+            .anyMatch(metadata -> notFrozenShardLimitGroup(metadata.getSettings()));
     }
 
     static ClusterState upgradeIndices(ClusterState currentState) {
@@ -105,10 +103,7 @@ public class SearchableSnapshotIndexMetadataUpgrader {
         Metadata.Builder builder = Metadata.builder(currentState.metadata());
         StreamSupport.stream(currentState.metadata().spliterator(), false)
             .filter(imd -> imd.getCreationVersion().onOrAfter(Version.V_7_12_0))
-            .filter(
-                imd -> SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(imd.getSettings())
-                    && notFrozenShardLimitGroup(imd.getSettings())
-            )
+            .filter(imd -> imd.isPartialSearchableSnapshotStore() && notFrozenShardLimitGroup(imd.getSettings()))
             .map(SearchableSnapshotIndexMetadataUpgrader::setShardLimitGroupFrozen)
             .forEach(imd -> builder.put(imd, true));
         return ClusterState.builder(currentState).metadata(builder).build();

@@ -38,7 +38,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
@@ -511,7 +510,8 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                         new Tuple<>(indexToFollow, new ElasticsearchException("index to follow [" + indexToFollow.getName() +
                             "] for pattern [" + autoFollowPattenName + "] matches with other patterns " + otherMatchingPatterns + "")));
                 } else {
-                    final Settings leaderIndexSettings = remoteMetadata.getIndexSafe(indexToFollow).getSettings();
+                    final IndexMetadata remoteIndexMetadata = remoteMetadata.getIndexSafe(indexToFollow);
+                    final Settings leaderIndexSettings = remoteIndexMetadata.getSettings();
                     if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndexSettings) == false) {
                         String message = String.format(Locale.ROOT, "index [%s] cannot be followed, because soft deletes are not enabled",
                             indexToFollow.getName());
@@ -523,7 +523,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                             }
                             groupedListener.onResponse(new Tuple<>(indexToFollow, failure));
                         });
-                    } else if (SearchableSnapshotsSettings.isSearchableSnapshotStore(leaderIndexSettings)) {
+                    } else if (remoteIndexMetadata.isSearchableSnapshotStore()) {
                         String message = String.format(Locale.ROOT,
                             "index to follow [%s] is a searchable snapshot index and cannot be used for cross-cluster replication purpose",
                             indexToFollow.getName()

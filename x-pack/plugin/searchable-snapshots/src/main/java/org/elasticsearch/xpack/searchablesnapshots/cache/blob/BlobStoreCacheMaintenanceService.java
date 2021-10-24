@@ -61,7 +61,6 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.sort.ShardDocSortField;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -258,7 +257,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
     private static boolean hasSearchableSnapshotWith(final ClusterState state, final String snapshotId, final String indexId) {
         for (IndexMetadata indexMetadata : state.metadata()) {
             final Settings indexSettings = indexMetadata.getSettings();
-            if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSettings)) {
+            if (indexMetadata.isSearchableSnapshotStore()) {
                 if (Objects.equals(snapshotId, SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings))
                     && Objects.equals(indexId, SNAPSHOT_INDEX_ID_SETTING.get(indexSettings))) {
                     return true;
@@ -272,7 +271,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
         Map<String, Set<String>> snapshots = null;
         for (IndexMetadata indexMetadata : state.metadata()) {
             final Settings indexSettings = indexMetadata.getSettings();
-            if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSettings)) {
+            if (indexMetadata.isSearchableSnapshotStore()) {
                 if (snapshots == null) {
                     snapshots = new HashMap<>();
                 }
@@ -314,7 +313,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                     : "no previous metadata found for " + deletedIndex;
                 if (indexMetadata != null) {
                     final Settings indexSetting = indexMetadata.getSettings();
-                    if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSetting)) {
+                    if (indexMetadata.isSearchableSnapshotStore()) {
                         assert state.metadata().hasIndex(deletedIndex) == false;
 
                         final String snapshotId = SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSetting);

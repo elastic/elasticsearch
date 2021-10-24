@@ -15,8 +15,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheInfoService;
 
 import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING;
@@ -80,9 +78,7 @@ public class HasFrozenCacheAllocationDecider extends AllocationDecider {
     }
 
     private Decision canAllocateToNode(IndexMetadata indexMetadata, DiscoveryNode discoveryNode) {
-        final Settings indexSettings = indexMetadata.getSettings();
-
-        if (SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(indexSettings) == false) {
+        if (indexMetadata.isPartialSearchableSnapshotStore() == false) {
             return Decision.ALWAYS;
         }
 

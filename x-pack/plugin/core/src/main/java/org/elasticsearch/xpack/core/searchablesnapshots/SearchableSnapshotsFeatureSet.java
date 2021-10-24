@@ -20,8 +20,6 @@ import org.elasticsearch.xpack.core.XPackField;
 
 import java.util.Map;
 
-import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
-
 public class SearchableSnapshotsFeatureSet implements XPackFeatureSet {
 
     private final XPackLicenseState licenseState;
@@ -59,7 +57,7 @@ public class SearchableSnapshotsFeatureSet implements XPackFeatureSet {
         int numFullCopySnapIndices = 0;
         int numSharedCacheSnapIndices = 0;
         for (IndexMetadata indexMetadata : state.metadata()) {
-            if (isSearchableSnapshotStore(indexMetadata.getSettings())) {
+            if (indexMetadata.isSearchableSnapshotStore()) {
                 if (SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING.get(indexMetadata.getSettings())) {
                     numSharedCacheSnapIndices++;
                 } else {

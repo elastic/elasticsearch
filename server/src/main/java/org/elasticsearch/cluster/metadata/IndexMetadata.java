@@ -47,6 +47,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -419,6 +420,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final String indexRoutingInclude;
     private final String indexRoutingExclude;
 
+    private final boolean isSearchableSnapshotStore;
+    private final boolean isPartialSearchableSnapshotStore;
+
     private IndexMetadata(
             final Index index,
             final long version,
@@ -453,7 +457,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final AutoExpandReplicas autoExpandReplicas,
             final String indexRoutingRequire,
             final String indexRoutingInclude,
-            final String indexRoutingExclude
+            final String indexRoutingExclude,
+            final boolean isSearchableSnapshotStore,
+            final boolean isPartialSearchableSnapshotStore
     ) {
 
         this.index = index;
@@ -497,6 +503,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.indexRoutingRequire = indexRoutingRequire;
         this.indexRoutingInclude = indexRoutingInclude;
         this.indexRoutingExclude = indexRoutingExclude;
+        this.isSearchableSnapshotStore = isSearchableSnapshotStore;
+        this.isPartialSearchableSnapshotStore = isPartialSearchableSnapshotStore;
         assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -617,6 +625,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public String getIndexRoutingExclude() {
         return indexRoutingExclude;
+    }
+
+    public boolean isSearchableSnapshotStore() {
+        return isSearchableSnapshotStore;
+    }
+
+    public boolean isPartialSearchableSnapshotStore() {
+        return isPartialSearchableSnapshotStore;
     }
 
     public List<String> getTierPreference() {
@@ -1491,7 +1507,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(settings),
                     INDEX_ROUTING_REQUIRE_SETTING.get(settings),
                     INDEX_ROUTING_INCLUDE_SETTING.get(settings),
-                    INDEX_ROUTING_EXCLUDE_SETTING.get(settings)
+                    INDEX_ROUTING_EXCLUDE_SETTING.get(settings),
+                    SearchableSnapshotsSettings.isSearchableSnapshotStore(settings),
+                    SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(settings)
             );
         }
 

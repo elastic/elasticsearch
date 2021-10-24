@@ -112,7 +112,7 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
     public void beforeIndexRemoved(IndexService indexService, IndexRemovalReason reason) {
         if (shouldEvictCacheFiles(reason)) {
             final IndexSettings indexSettings = indexService.getIndexSettings();
-            if (isSearchableSnapshotStore(indexSettings.getSettings())) {
+            if (indexService.getMetadata().isSearchableSnapshotStore()) {
                 for (IndexShard indexShard : indexService) {
                     final ShardId shardId = indexShard.shardId();
 

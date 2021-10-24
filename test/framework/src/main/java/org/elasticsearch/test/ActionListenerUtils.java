@@ -10,6 +10,7 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.action.ActionListener;
 
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Matchers.any;
 
 /**
@@ -24,6 +25,6 @@ public abstract class ActionListenerUtils {
      */
     @SuppressWarnings("unchecked")
     public static <T> ActionListener<T> anyActionListener() {
-        return any(ActionListener.class);
+        return nullable(ActionListener.class);
     }
 }

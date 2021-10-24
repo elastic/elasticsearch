@@ -142,7 +142,7 @@ public final class AutoExpandReplicas {
 
         for (final IndexMetadata indexMetadata : metadata) {
             if (indexMetadata.getState() == IndexMetadata.State.OPEN || isIndexVerifiedBeforeClosed(indexMetadata)) {
-                AutoExpandReplicas autoExpandReplicas = SETTING.get(indexMetadata.getSettings());
+                AutoExpandReplicas autoExpandReplicas = indexMetadata.getAutoExpandReplicas();
                 autoExpandReplicas.getDesiredNumberOfReplicas(indexMetadata, allocation).ifPresent(numberOfReplicas -> {
                     if (numberOfReplicas != indexMetadata.getNumberOfReplicas()) {
                         nrReplicasChanged.computeIfAbsent(numberOfReplicas, ArrayList::new).add(indexMetadata.getIndex().getName());

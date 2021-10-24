@@ -404,6 +404,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     @Nullable // since we store null if DataTier.TIER_PREFERENCE_SETTING failed validation
     private final List<String> tierPreference;
 
+    private final AutoExpandReplicas autoExpandReplicas;
+
     private IndexMetadata(
             final Index index,
             final long version,
@@ -434,7 +436,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final int priority,
             final long creationDate,
             final boolean ignoreDiskWatermarks,
-            @Nullable final List<String> tierPreference
+            @Nullable final List<String> tierPreference,
+            final AutoExpandReplicas autoExpandReplicas
     ) {
 
         this.index = index;
@@ -474,6 +477,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.creationDate = creationDate;
         this.ignoreDiskWatermarks = ignoreDiskWatermarks;
         this.tierPreference = tierPreference;
+        this.autoExpandReplicas = autoExpandReplicas;
         assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -578,6 +582,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public ImmutableOpenMap<String, AliasMetadata> getAliases() {
         return this.aliases;
+    }
+
+    public AutoExpandReplicas getAutoExpandReplicas() {
+        return autoExpandReplicas;
     }
 
     public List<String> getTierPreference() {
@@ -1448,7 +1456,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     IndexMetadata.INDEX_PRIORITY_SETTING.get(settings),
                     settings.getAsLong(SETTING_CREATION_DATE, -1L),
                     DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.get(settings),
-                    tierPreference
+                    tierPreference,
+                    INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(settings)
             );
         }
 

@@ -936,9 +936,7 @@ public class MetadataIndexStateService {
     }
 
     public static boolean isIndexVerifiedBeforeClosed(final IndexMetadata indexMetadata) {
-        return indexMetadata.getState() == IndexMetadata.State.CLOSE
-            && VERIFIED_BEFORE_CLOSE_SETTING.exists(indexMetadata.getSettings())
-            && VERIFIED_BEFORE_CLOSE_SETTING.get(indexMetadata.getSettings());
+        return indexMetadata.getState() == IndexMetadata.State.CLOSE && VERIFIED_BEFORE_CLOSE_SETTING.get(indexMetadata.getSettings());
     }
 
     // Create UUID based block based on non-UUID one

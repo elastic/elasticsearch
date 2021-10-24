@@ -301,8 +301,8 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
     private IndexMetadata moveToCold(IndexMetadata imd) {
         Settings.Builder builder = Settings.builder().put(imd.getSettings());
-        overrideSetting(imd, builder, DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING, DataTier.DATA_COLD);
-        overrideSetting(imd, builder, DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING, DataTier.DATA_COLD);
+        overrideSetting(imd, builder, IndexMetadata.INDEX_ROUTING_REQUIRE_SETTING, DataTier.DATA_COLD);
+        overrideSetting(imd, builder, IndexMetadata.INDEX_ROUTING_INCLUDE_SETTING, DataTier.DATA_COLD);
         overrideSetting(
             imd,
             builder,
@@ -620,8 +620,8 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
     private static ClusterState addRandomIndices(int minShards, int maxShardCopies, ClusterState state) {
         String[] tierSettingNames = new String[] {
-            DataTierAllocationDecider.INDEX_ROUTING_REQUIRE,
-            DataTierAllocationDecider.INDEX_ROUTING_INCLUDE,
+            IndexMetadata.INDEX_ROUTING_REQUIRE,
+            IndexMetadata.INDEX_ROUTING_INCLUDE,
             DataTier.TIER_PREFERENCE };
         int shards = randomIntBetween(minShards, 20);
         Metadata.Builder builder = Metadata.builder();

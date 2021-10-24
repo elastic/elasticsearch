@@ -41,7 +41,6 @@ import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
@@ -72,9 +71,9 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
     RestoreSnapshotResponse> {
 
     private static final Collection<Setting<String>> DATA_TIER_ALLOCATION_SETTINGS = List.of(
-        DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE_SETTING,
-        DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING,
-        DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING,
+        IndexMetadata.INDEX_ROUTING_EXCLUDE_SETTING,
+        IndexMetadata.INDEX_ROUTING_INCLUDE_SETTING,
+        IndexMetadata.INDEX_ROUTING_REQUIRE_SETTING,
         DataTier.TIER_PREFERENCE_SETTING
     );
 

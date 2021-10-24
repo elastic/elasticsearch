@@ -31,6 +31,9 @@ import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_RESIZE_SOURCE_NAME;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_RESIZE_SOURCE_UUID;
@@ -39,6 +42,21 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 
 public class FilterAllocationDeciderTests extends ESAllocationTestCase {
+
+    @Override
+    protected List<String> filteredWarnings() {
+        return Stream.concat(
+            super.filteredWarnings().stream(),
+            Stream.of(
+                "[index.routing.allocation.include._tier] setting was deprecated in Elasticsearch "
+                        + "and will be removed in a future release! See the breaking changes documentation for the next major version.",
+                "[index.routing.allocation.exclude._tier] setting was deprecated in Elasticsearch "
+                        + "and will be removed in a future release! See the breaking changes documentation for the next major version.",
+                "[index.routing.allocation.require._tier] setting was deprecated in Elasticsearch "
+                        + "and will be removed in a future release! See the breaking changes documentation for the next major version."
+            )
+        ).collect(Collectors.toList());
+    }
 
     public void testFilterInitialRecovery() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);

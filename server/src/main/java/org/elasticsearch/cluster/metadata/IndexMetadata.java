@@ -93,6 +93,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final ClusterBlock INDEX_READ_ONLY_ALLOW_DELETE_BLOCK =
         new ClusterBlock(12, "disk usage exceeded flood-stage watermark, index has read-only-allow-delete block", false, false,
             true, RestStatus.TOO_MANY_REQUESTS, EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.WRITE));
+    public static final String INDEX_ROUTING_REQUIRE = "index.routing.allocation.require._tier";
+    public static final Setting<String> INDEX_ROUTING_REQUIRE_SETTING = Setting.simpleString(INDEX_ROUTING_REQUIRE,
+        DataTier.DATA_TIER_SETTING_VALIDATOR, Property.Dynamic, Property.IndexScope, Property.Deprecated);
+    public static final String INDEX_ROUTING_INCLUDE = "index.routing.allocation.include._tier";
+    public static final Setting<String> INDEX_ROUTING_INCLUDE_SETTING = Setting.simpleString(INDEX_ROUTING_INCLUDE,
+        DataTier.DATA_TIER_SETTING_VALIDATOR, Property.Dynamic, Property.IndexScope, Property.Deprecated);
+    public static final String INDEX_ROUTING_EXCLUDE = "index.routing.allocation.exclude._tier";
+    public static final Setting<String> INDEX_ROUTING_EXCLUDE_SETTING = Setting.simpleString(INDEX_ROUTING_EXCLUDE,
+        DataTier.DATA_TIER_SETTING_VALIDATOR, Property.Dynamic, Property.IndexScope, Property.Deprecated);
 
     public enum State {
         OPEN((byte) 0),
@@ -406,6 +415,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final AutoExpandReplicas autoExpandReplicas;
 
+    private final String indexRoutingRequire;
+    private final String indexRoutingInclude;
+    private final String indexRoutingExclude;
+
     private IndexMetadata(
             final Index index,
             final long version,
@@ -437,7 +450,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final long creationDate,
             final boolean ignoreDiskWatermarks,
             @Nullable final List<String> tierPreference,
-            final AutoExpandReplicas autoExpandReplicas
+            final AutoExpandReplicas autoExpandReplicas,
+            final String indexRoutingRequire,
+            final String indexRoutingInclude,
+            final String indexRoutingExclude
     ) {
 
         this.index = index;
@@ -478,6 +494,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.ignoreDiskWatermarks = ignoreDiskWatermarks;
         this.tierPreference = tierPreference;
         this.autoExpandReplicas = autoExpandReplicas;
+        this.indexRoutingRequire = indexRoutingRequire;
+        this.indexRoutingInclude = indexRoutingInclude;
+        this.indexRoutingExclude = indexRoutingExclude;
         assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -586,6 +605,18 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public AutoExpandReplicas getAutoExpandReplicas() {
         return autoExpandReplicas;
+    }
+
+    public String getIndexRoutingRequire() {
+        return indexRoutingRequire;
+    }
+
+    public String getIndexRoutingInclude() {
+        return indexRoutingInclude;
+    }
+
+    public String getIndexRoutingExclude() {
+        return indexRoutingExclude;
     }
 
     public List<String> getTierPreference() {
@@ -1457,7 +1488,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     settings.getAsLong(SETTING_CREATION_DATE, -1L),
                     DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.get(settings),
                     tierPreference,
-                    INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(settings)
+                    INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(settings),
+                    INDEX_ROUTING_REQUIRE_SETTING.get(settings),
+                    INDEX_ROUTING_INCLUDE_SETTING.get(settings),
+                    INDEX_ROUTING_EXCLUDE_SETTING.get(settings)
             );
         }
 

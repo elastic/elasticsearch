@@ -117,14 +117,14 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         client().admin().indices().prepareCreate(index)
             .setWaitForActiveShards(0)
             .setSettings(Settings.builder()
-                .put(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE, DataTier.DATA_COLD))
+                .put(IndexMetadata.INDEX_ROUTING_REQUIRE, DataTier.DATA_COLD))
             .get();
 
         idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
         assertThat(DataTier.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo(""));
         // The key should not be put in place since it was overridden
         assertFalse(idxSettings.keySet().contains(DataTierAllocationDecider.TIER_PREFERENCE));
-        assertThat(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING.get(idxSettings), equalTo(DataTier.DATA_COLD));
+        assertThat(IndexMetadata.INDEX_ROUTING_REQUIRE_SETTING.get(idxSettings), equalTo(DataTier.DATA_COLD));
 
         // index should be yellow
         logger.info("--> waiting for {} to be yellow", index);
@@ -193,7 +193,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         enforceDefaultTierPreference(false);
 
         Template t = new Template(Settings.builder()
-            .put(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE, DataTier.DATA_WARM)
+            .put(IndexMetadata.INDEX_ROUTING_REQUIRE, DataTier.DATA_WARM)
             .build(), null, null);
         ComposableIndexTemplate ct = new ComposableIndexTemplate.Builder()
             .indexPatterns(Collections.singletonList(index))

@@ -195,7 +195,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     public void testIndexRequires() {
         ClusterState state = prepareState(service.reroute(ClusterState.EMPTY_STATE, "initial state"),
             Settings.builder()
-                .put(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE, "data_hot")
+                .put(IndexMetadata.INDEX_ROUTING_REQUIRE, "data_hot")
                 .build());
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state::getRoutingNodes, state,
             null, null, 0);
@@ -229,7 +229,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     public void testIndexIncludes() {
         ClusterState state = prepareState(service.reroute(ClusterState.EMPTY_STATE, "initial state"),
             Settings.builder()
-                .put(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE, "data_warm,data_cold")
+                .put(IndexMetadata.INDEX_ROUTING_INCLUDE, "data_warm,data_cold")
                 .build());
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state::getRoutingNodes, state,
             null, null, 0);
@@ -265,7 +265,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     public void testIndexExcludes() {
         ClusterState state = prepareState(service.reroute(ClusterState.EMPTY_STATE, "initial state"),
             Settings.builder()
-                .put(DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE, "data_warm,data_cold")
+                .put(IndexMetadata.INDEX_ROUTING_EXCLUDE, "data_warm,data_cold")
                 .build());
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state::getRoutingNodes, state,
             null, null,0);
@@ -393,7 +393,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                         .put(IndexMetadata.SETTING_INDEX_UUID, "myindex")
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE, "data_cold")
+                        .put(IndexMetadata.INDEX_ROUTING_INCLUDE, "data_cold")
                         .put(DataTierAllocationDecider.TIER_PREFERENCE, "data_warm,data_cold")
                         .build()))
                 .build())
@@ -458,7 +458,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                         .put(IndexMetadata.SETTING_INDEX_UUID, "myindex")
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE, "data_warm")
+                        .put(IndexMetadata.INDEX_ROUTING_EXCLUDE, "data_warm")
                         .put(DataTierAllocationDecider.TIER_PREFERENCE, "data_warm,data_cold")
                         .build()))
                 .build())
@@ -523,7 +523,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                         .put(IndexMetadata.SETTING_INDEX_UUID, "myindex")
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE, "data_cold")
+                        .put(IndexMetadata.INDEX_ROUTING_REQUIRE, "data_cold")
                         .put(DataTierAllocationDecider.TIER_PREFERENCE, "data_warm,data_cold")
                         .build()))
                 .build())
@@ -577,7 +577,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     public void testClusterAndIndex() {
         ClusterState state = prepareState(service.reroute(ClusterState.EMPTY_STATE, "initial state"),
             Settings.builder()
-                .put(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE, "data_warm,data_cold")
+                .put(IndexMetadata.INDEX_ROUTING_INCLUDE, "data_warm,data_cold")
                 .build());
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state::getRoutingNodes, state,
             null, null,0);
@@ -803,9 +803,9 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     public Setting<String> randomTierSetting() {
         //noinspection unchecked
         return randomFrom(
-            DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE_SETTING,
-            DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING,
-            DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING,
+            IndexMetadata.INDEX_ROUTING_EXCLUDE_SETTING,
+            IndexMetadata.INDEX_ROUTING_INCLUDE_SETTING,
+            IndexMetadata.INDEX_ROUTING_REQUIRE_SETTING,
             DataTier.TIER_PREFERENCE_SETTING);
     }
 

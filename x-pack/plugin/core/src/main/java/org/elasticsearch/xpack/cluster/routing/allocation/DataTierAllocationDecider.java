@@ -39,9 +39,6 @@ public class DataTierAllocationDecider extends AllocationDecider {
     public static final String CLUSTER_ROUTING_REQUIRE = "cluster.routing.allocation.require._tier";
     public static final String CLUSTER_ROUTING_INCLUDE = "cluster.routing.allocation.include._tier";
     public static final String CLUSTER_ROUTING_EXCLUDE = "cluster.routing.allocation.exclude._tier";
-    public static final String INDEX_ROUTING_REQUIRE = "index.routing.allocation.require._tier";
-    public static final String INDEX_ROUTING_INCLUDE = "index.routing.allocation.include._tier";
-    public static final String INDEX_ROUTING_EXCLUDE = "index.routing.allocation.exclude._tier";
     public static final String TIER_PREFERENCE = "index.routing.allocation.include._tier_preference";
 
     public static final Setting<String> CLUSTER_ROUTING_REQUIRE_SETTING = Setting.simpleString(CLUSTER_ROUTING_REQUIRE,
@@ -50,12 +47,6 @@ public class DataTierAllocationDecider extends AllocationDecider {
         DataTierAllocationDecider::validateTierSetting, Property.Dynamic, Property.NodeScope, Property.Deprecated);
     public static final Setting<String> CLUSTER_ROUTING_EXCLUDE_SETTING = Setting.simpleString(CLUSTER_ROUTING_EXCLUDE,
         DataTierAllocationDecider::validateTierSetting, Property.Dynamic, Property.NodeScope, Property.Deprecated);
-    public static final Setting<String> INDEX_ROUTING_REQUIRE_SETTING = Setting.simpleString(INDEX_ROUTING_REQUIRE,
-        DataTier.DATA_TIER_SETTING_VALIDATOR, Property.Dynamic, Property.IndexScope, Property.Deprecated);
-    public static final Setting<String> INDEX_ROUTING_INCLUDE_SETTING = Setting.simpleString(INDEX_ROUTING_INCLUDE,
-        DataTier.DATA_TIER_SETTING_VALIDATOR, Property.Dynamic, Property.IndexScope, Property.Deprecated);
-    public static final Setting<String> INDEX_ROUTING_EXCLUDE_SETTING = Setting.simpleString(INDEX_ROUTING_EXCLUDE,
-        DataTier.DATA_TIER_SETTING_VALIDATOR, Property.Dynamic, Property.IndexScope, Property.Deprecated);
 
     private static void validateTierSetting(String setting) {
         if (Strings.hasText(setting)) {
@@ -171,27 +162,26 @@ public class DataTierAllocationDecider extends AllocationDecider {
     }
 
     private Decision shouldIndexFilter(IndexMetadata indexMd, Set<DiscoveryNodeRole> roles, RoutingAllocation allocation) {
-        Settings indexSettings = indexMd.getSettings();
-        String indexRequire = INDEX_ROUTING_REQUIRE_SETTING.get(indexSettings);
-        String indexInclude = INDEX_ROUTING_INCLUDE_SETTING.get(indexSettings);
-        String indexExclude = INDEX_ROUTING_EXCLUDE_SETTING.get(indexSettings);
+        String indexRequire = indexMd.getIndexRoutingInclude();
+        String indexInclude = indexMd.getIndexRoutingInclude();
+        String indexExclude = indexMd.getIndexRoutingExclude();
 
         if (Strings.hasText(indexRequire)) {
             if (allocationAllowed(OpType.AND, indexRequire, roles) == false) {
                 return allocation.decision(Decision.NO, NAME, "node does not match all index setting [%s] tier filters [%s]",
-                    INDEX_ROUTING_REQUIRE, indexRequire);
+                    IndexMetadata.INDEX_ROUTING_REQUIRE, indexRequire);
             }
         }
         if (Strings.hasText(indexInclude)) {
             if (allocationAllowed(OpType.OR, indexInclude, roles) == false) {
                 return allocation.decision(Decision.NO, NAME, "node does not match any index setting [%s] tier filters [%s]",
-                    INDEX_ROUTING_INCLUDE, indexInclude);
+                    IndexMetadata.INDEX_ROUTING_INCLUDE, indexInclude);
             }
         }
         if (Strings.hasText(indexExclude)) {
             if (allocationAllowed(OpType.OR, indexExclude, roles)) {
                 return allocation.decision(Decision.NO, NAME, "node matches any index setting [%s] tier filters [%s]",
-                    INDEX_ROUTING_EXCLUDE, indexExclude);
+                    IndexMetadata.INDEX_ROUTING_EXCLUDE, indexExclude);
             }
         }
         return null;

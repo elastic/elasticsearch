@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -432,9 +433,9 @@ public class XPackPlugin extends XPackClientPlugin
         settings.add(DataTierAllocationDecider.CLUSTER_ROUTING_REQUIRE_SETTING);
         settings.add(DataTierAllocationDecider.CLUSTER_ROUTING_INCLUDE_SETTING);
         settings.add(DataTierAllocationDecider.CLUSTER_ROUTING_EXCLUDE_SETTING);
-        settings.add(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING);
-        settings.add(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING);
-        settings.add(DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE_SETTING);
+        settings.add(IndexMetadata.INDEX_ROUTING_REQUIRE_SETTING);
+        settings.add(IndexMetadata.INDEX_ROUTING_INCLUDE_SETTING);
+        settings.add(IndexMetadata.INDEX_ROUTING_EXCLUDE_SETTING);
         return settings;
     }
 

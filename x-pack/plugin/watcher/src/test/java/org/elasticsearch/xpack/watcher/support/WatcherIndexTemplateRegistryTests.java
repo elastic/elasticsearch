@@ -59,8 +59,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.mock.orig.Mockito.verify;
-import static org.elasticsearch.mock.orig.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;

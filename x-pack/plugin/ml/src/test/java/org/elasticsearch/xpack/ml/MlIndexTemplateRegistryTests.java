@@ -37,8 +37,8 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
 
-import static org.elasticsearch.mock.orig.Mockito.verify;
-import static org.elasticsearch.mock.orig.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;

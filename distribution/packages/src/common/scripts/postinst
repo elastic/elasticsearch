@@ -80,6 +80,10 @@ if [ "x$IS_UPGRADE" != "xtrue" ]; then
             echo "# The password of the elastic superuser will be set to: ${INITIAL_PASSWORD} #"
             echo "# upon starting elasticsearch for the first time                             #"
             echo "#                                                                            #"
+            echo "# If this node should join an existing cluster, you can reconfigure it to do #"
+            echo "# so by getting an enrollment token from your existing cluster and running   #"
+            echo "# /usr/share/bin/elasticsearch-enroll-node --enrollment-token <token-here>   #"
+            echo "#                                                                            #"
             echo "##############################################################################"
         fi
     else

@@ -334,7 +334,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
         final TestSnapshotsInfoService snapshotsInfoService
         ) {
         DiscoveryNode node1 = newNode("node1");
-        Metadata.Builder metadataBuilder = new Metadata.Builder(metadata);
+        Metadata.Builder metadataBuilder = Metadata.builder(metadata);
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         Snapshot snapshot = new Snapshot("repo", new SnapshotId("snap", "randomId"));
         Set<String> snapshotIndices = new HashSet<>();

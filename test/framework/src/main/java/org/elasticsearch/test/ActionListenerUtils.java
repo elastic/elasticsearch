@@ -10,8 +10,7 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.action.ActionListener;
 
-import static org.mockito.ArgumentMatchers.nullable;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 
 /**
  * Test utilities for working with {@link ActionListener}s.
@@ -25,6 +24,6 @@ public abstract class ActionListenerUtils {
      */
     @SuppressWarnings("unchecked")
     public static <T> ActionListener<T> anyActionListener() {
-        return nullable(ActionListener.class);
+        return any(ActionListener.class);
     }
 }

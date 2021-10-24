@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.slm.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -26,6 +28,8 @@ import org.elasticsearch.xpack.ilm.OperationModeUpdateTask;
 
 public class TransportStopSLMAction extends AcknowledgedTransportMasterNodeAction<StopSLMAction.Request> {
 
+    private static final Logger logger = LogManager.getLogger(TransportStopSLMAction.class);
+
     @Inject
     public TransportStopSLMAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
@@ -40,6 +44,12 @@ public class TransportStopSLMAction extends AcknowledgedTransportMasterNodeActio
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return (OperationModeUpdateTask.slmMode(OperationMode.STOPPING)).execute(currentState);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                super.clusterStateProcessed(source, oldState, newState);
+                logger.info("Stopped SLM");
             }
         });
     }

@@ -46,6 +46,8 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
 
     private volatile int clusterShardLimit;
 
+    private final int indexShardLimit;
+
     /**
      * Controls the maximum number of shards per index on a single Elasticsearch
      * node. Negative values are interpreted as unlimited.
@@ -62,11 +64,9 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         Setting.intSetting("cluster.routing.allocation.total_shards_per_node", -1,  -1,
             Property.Dynamic, Property.NodeScope);
 
-    private final Settings settings;
-
     public ShardsLimitAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
-        this.settings = settings;
         this.clusterShardLimit = CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.get(settings);
+        this.indexShardLimit = INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING, this::setClusterShardLimit);
     }
 
@@ -88,7 +88,8 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
     private Decision doDecide(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation,
                               BiPredicate<Integer, Integer> decider) {
         IndexMetadata indexMd = allocation.metadata().getIndexSafe(shardRouting.index());
-        final int indexShardLimit = INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(indexMd.getSettings(), settings);
+        final Integer indexLevelLimit = indexMd.getShardsPerNodeLimit();
+        final int indexShardLimit = indexLevelLimit == null ? this.indexShardLimit : indexLevelLimit;
         // Capture the limit here in case it changes during this method's
         // execution
         final int clusterShardLimit = this.clusterShardLimit;

@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -428,6 +429,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final String indexLifecycleName;
 
+    @Nullable
+    private final Integer shardsPerNodeLimit;
+
     private IndexMetadata(
             final Index index,
             final long version,
@@ -465,7 +469,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final String indexRoutingExclude,
             final boolean isSearchableSnapshotStore,
             final boolean isPartialSearchableSnapshotStore,
-            final String indexLifecycleName
+            final String indexLifecycleName,
+            @Nullable final Integer shardsPerNodeLimit
     ) {
 
         this.index = index;
@@ -512,6 +517,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.isSearchableSnapshotStore = isSearchableSnapshotStore;
         this.isPartialSearchableSnapshotStore = isPartialSearchableSnapshotStore;
         this.indexLifecycleName = indexLifecycleName;
+        this.shardsPerNodeLimit = shardsPerNodeLimit;
         assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -644,6 +650,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public String getLifecycleName() {
         return indexLifecycleName;
+    }
+
+    @Nullable
+    public Integer getShardsPerNodeLimit() {
+        return shardsPerNodeLimit;
     }
 
     public List<String> getTierPreference() {
@@ -1521,7 +1532,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     INDEX_ROUTING_EXCLUDE_SETTING.get(settings),
                     SearchableSnapshotsSettings.isSearchableSnapshotStore(settings),
                     SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(settings),
-                    LIFECYCLE_NAME_SETTING.get(settings)
+                    LIFECYCLE_NAME_SETTING.get(settings),
+                    ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.exists(settings)
+                        ? ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(settings) : null
             );
         }
 

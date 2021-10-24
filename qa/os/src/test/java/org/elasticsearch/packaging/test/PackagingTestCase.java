@@ -320,7 +320,7 @@ public abstract class PackagingTestCase extends Assert {
             case TAR:
             case ZIP:
                 if (useTty) {
-                    return Archives.startElasticsearchWithTty(installation, sh, password, daemonize);
+                    return Archives.startElasticsearchWithTty(installation, sh, password, List.of(), daemonize);
                 } else {
                     return Archives.runElasticsearchStartCommand(installation, sh, password, List.of(), daemonize);
                 }
@@ -385,23 +385,11 @@ public abstract class PackagingTestCase extends Assert {
     }
 
     /**
-     * Call {@link PackagingTestCase#awaitElasticsearchStartup} and return a reference to the Shell.Result from
-     * starting elasticsearch
+     * Call {@link PackagingTestCase#awaitElasticsearchStartup}
+     * returning the result.
      */
     public Shell.Result awaitElasticsearchStartupWithResult(Shell.Result result) throws Exception {
-        awaitElasticsearchStartupWithResult(result, 0);
-        return result;
-    }
-
-    /**
-     * Call {@link PackagingTestCase#awaitElasticsearchStartup} but wait {@code additionalDelay} milliseconds more before
-     * returning the result. Useful in order to capture more from the stdout after ES has has successfully started
-     */
-    public Shell.Result awaitElasticsearchStartupWithResult(Shell.Result result, int additionalDelay) throws Exception {
         awaitElasticsearchStartup(result);
-        if (additionalDelay > 0) {
-            Thread.sleep(additionalDelay);
-        }
         return result;
     }
 

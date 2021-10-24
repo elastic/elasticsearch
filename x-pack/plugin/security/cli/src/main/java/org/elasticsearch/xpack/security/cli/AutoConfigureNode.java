@@ -16,6 +16,7 @@ import org.apache.lucene.util.SetOnce;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
@@ -295,6 +296,14 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     } catch (Exception ex) {
                         e.addSuppressed(ex);
                     }
+                    terminal.errorPrintln(Terminal.Verbosity.VERBOSE, "");
+                    terminal.errorPrintln(
+                        Terminal.Verbosity.VERBOSE,
+                        "Failed to parse enrollment token : " + enrollmentTokenParam.value(options) + " . Error was: " + e.getMessage()
+                    );
+                    terminal.errorPrintln(Terminal.Verbosity.VERBOSE, "");
+                    terminal.errorPrintln(Terminal.Verbosity.VERBOSE, ExceptionsHelper.stackTrace(e));
+                    terminal.errorPrintln(Terminal.Verbosity.VERBOSE, "");
                     throw new UserException(ExitCodes.DATA_ERROR, "Aborting auto configuration. Invalid enrollment token", e);
                 }
 
@@ -352,10 +361,10 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     );
                 }
 
-                final Tuple<PrivateKey, X509Certificate> httpCa = parseKeyCertFromPem(httpCaKeyPem, httpCaCertPem);
+                final Tuple<PrivateKey, X509Certificate> httpCa = parseKeyCertFromPem(httpCaKeyPem, httpCaCertPem, terminal);
                 httpCaKey = httpCa.v1();
                 httpCaCert = httpCa.v2();
-                final Tuple<PrivateKey, X509Certificate> transport = parseKeyCertFromPem(transportKeyPem, transportCertPem);
+                final Tuple<PrivateKey, X509Certificate> transport = parseKeyCertFromPem(transportKeyPem, transportCertPem, terminal);
                 transportKey = transport.v1();
                 transportCert = transport.v2();
 
@@ -453,7 +462,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 // Still display a message, because this can be tricky to figure out (why auto-conf did not run) if by mistake.
                 throw new UserException(
                     ExitCodes.CONFIG,
-                    "Aborting auto configuration because the node keystore contains password " + "settings already"
+                    "Aborting auto configuration because the node keystore contains password settings already"
                 );
             }
             try (SecureString transportKeystorePassword = newKeystorePassword()) {
@@ -847,7 +856,8 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         }
     }
 
-    private Tuple<PrivateKey, X509Certificate> parseKeyCertFromPem(String pemFormattedKey, String pemFormattedCert) throws UserException {
+    private Tuple<PrivateKey, X509Certificate> parseKeyCertFromPem(String pemFormattedKey, String pemFormattedCert, Terminal terminal)
+        throws UserException {
         final PrivateKey key;
         final X509Certificate cert;
         try {
@@ -861,6 +871,14 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             key = parsePKCS8PemString(pemFormattedKey);
             return new Tuple<>(key, cert);
         } catch (Exception e) {
+            terminal.errorPrintln(Terminal.Verbosity.VERBOSE, "");
+            terminal.errorPrintln(
+                Terminal.Verbosity.VERBOSE,
+                "Failed to parse Private Key and Certificate from the response of the Enroll Node API: " + e.getMessage()
+            );
+            terminal.errorPrintln(Terminal.Verbosity.VERBOSE, "");
+            terminal.errorPrintln(Terminal.Verbosity.VERBOSE, ExceptionsHelper.stackTrace(e));
+            terminal.errorPrintln(Terminal.Verbosity.VERBOSE, "");
             throw new UserException(
                 ExitCodes.DATA_ERROR,
                 "Aborting enrolling to cluster. Failed to parse Private Key and Certificate from the response of the Enroll Node API",

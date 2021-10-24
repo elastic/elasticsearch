@@ -155,6 +155,7 @@ public class ServerUtils {
             } catch (IOException e) {
                 // ignore, only want to establish a connection
             }
+
             try {
                 Thread.sleep(2000);
             } catch (InterruptedException interrupted) {

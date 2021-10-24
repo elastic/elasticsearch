@@ -44,11 +44,13 @@ public final class AttachmentProcessor extends AbstractProcessor {
     private final Set<Property> properties;
     private final int indexedChars;
     private final boolean ignoreMissing;
+    private final boolean removeBinary;
     private final String indexedCharsField;
     private final String resourceName;
 
     AttachmentProcessor(String tag, String description, String field, String targetField, Set<Property> properties,
-                        int indexedChars, boolean ignoreMissing, String indexedCharsField, String resourceName) {
+                        int indexedChars, boolean ignoreMissing, String indexedCharsField, String resourceName,
+                        boolean removeBinary) {
         super(tag, description);
         this.field = field;
         this.targetField = targetField;
@@ -57,10 +59,16 @@ public final class AttachmentProcessor extends AbstractProcessor {
         this.ignoreMissing = ignoreMissing;
         this.indexedCharsField = indexedCharsField;
         this.resourceName = resourceName;
+        this.removeBinary = removeBinary;
     }
 
     boolean isIgnoreMissing() {
         return ignoreMissing;
+    }
+
+    // For tests only
+    boolean isRemoveBinary() {
+        return removeBinary;
     }
 
     @Override
@@ -162,6 +170,10 @@ public final class AttachmentProcessor extends AbstractProcessor {
         }
 
         ingestDocument.setFieldValue(targetField, additionalFields);
+
+        if (removeBinary) {
+            ingestDocument.removeField(field);
+        }
         return ingestDocument;
     }
 
@@ -200,6 +212,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
             int indexedChars = readIntProperty(TYPE, processorTag, config, "indexed_chars", NUMBER_OF_CHARS_INDEXED);
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             String indexedCharsField = readOptionalStringProperty(TYPE, processorTag, config, "indexed_chars_field");
+            boolean removeBinary = readBooleanProperty(TYPE, processorTag, config, "remove_binary", false);
 
             final Set<Property> properties;
             if (propertyNames != null) {
@@ -217,7 +230,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
             }
 
             return new AttachmentProcessor(processorTag, description, field, targetField, properties, indexedChars, ignoreMissing,
-                indexedCharsField, resourceName);
+                indexedCharsField, resourceName, removeBinary);
         }
     }
 

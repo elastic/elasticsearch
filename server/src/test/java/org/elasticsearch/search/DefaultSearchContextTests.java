@@ -54,6 +54,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
@@ -96,7 +97,8 @@ public class DefaultSearchContextTests extends ESTestCase {
         when(indexCache.query()).thenReturn(queryCache);
         when(indexService.cache()).thenReturn(indexCache);
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
-        when(indexService.newSearchExecutionContext(eq(shardId.id()), eq(shardId.id()), anyObject(), anyObject(), anyString(), anyObject()))
+        when(indexService.newSearchExecutionContext(eq(shardId.id()), eq(shardId.id()), anyObject(),
+            anyObject(), nullable(String.class), anyObject()))
             .thenReturn(searchExecutionContext);
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.hasNested()).thenReturn(randomBoolean());
@@ -254,7 +256,7 @@ public class DefaultSearchContextTests extends ESTestCase {
             eq(shardId.id()),
             anyObject(),
             anyObject(),
-            anyString(),
+            nullable(String.class),
             anyObject())
         ).thenReturn(searchExecutionContext);
 

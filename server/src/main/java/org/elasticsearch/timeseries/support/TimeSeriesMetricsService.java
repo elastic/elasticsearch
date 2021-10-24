@@ -35,7 +35,8 @@ public class TimeSeriesMetricsService {
     private final int docBatchSize;
     private final TimeValue staleness;
 
-    public TimeSeriesMetricsService(Client client, int bucketBatchSize, int docBatchSize, TimeValue staleness) { // TODO read maxBuckets at runtime
+    public TimeSeriesMetricsService(Client client, int bucketBatchSize, int docBatchSize, TimeValue staleness) {
+        // TODO read maxBuckets at runtime
         this.client = client;
         this.bucketBatchSize = bucketBatchSize;
         this.docBatchSize = docBatchSize;
@@ -76,7 +77,15 @@ public class TimeSeriesMetricsService {
                 collectField(dimensionFieldNames, metricFieldNames, e.getKey(), e2.getKey(), e2.getValue());
             }
         }
-        return new TimeSeriesMetrics(bucketBatchSize, docBatchSize, staleness, client, response.getIndices(), dimensionFieldNames, metricFieldNames);
+        return new TimeSeriesMetrics(
+            bucketBatchSize,
+            docBatchSize,
+            staleness,
+            client,
+            response.getIndices(),
+            dimensionFieldNames,
+            metricFieldNames
+        );
     }
 
     private void collectField(

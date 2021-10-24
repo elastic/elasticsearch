@@ -500,13 +500,14 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
          * if it needs to be created.
          */
         public Builder addShard(ShardRouting shard) {
-            IndexShardRoutingTable indexShard = shards.get(shard.id());
+            final int id = shard.id();
+            IndexShardRoutingTable indexShard = shards.get(id);
             if (indexShard == null) {
-                indexShard = new IndexShardRoutingTable.Builder(shard.shardId()).addShard(shard).build();
+                indexShard = new IndexShardRoutingTable(shard.shardId(), org.elasticsearch.core.List.of(shard));
             } else {
-                indexShard = new IndexShardRoutingTable.Builder(indexShard).addShard(shard).build();
+                indexShard = indexShard.withAddedShard(shard);
             }
-            shards.put(indexShard.shardId().id(), indexShard);
+            shards.put(id, indexShard);
             return this;
         }
 

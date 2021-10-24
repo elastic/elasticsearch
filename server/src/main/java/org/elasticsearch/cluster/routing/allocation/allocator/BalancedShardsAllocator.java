@@ -1078,12 +1078,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         public void addShard(ShardRouting shard) {
-            ModelIndex index = indices.get(shard.getIndexName());
-            if (index == null) {
-                index = new ModelIndex(shard.getIndexName());
-                indices.put(index.getIndexId(), index);
-            }
-            index.addShard(shard);
+            indices.computeIfAbsent(shard.getIndexName(), ModelIndex::new).addShard(shard);
             numShards++;
         }
 

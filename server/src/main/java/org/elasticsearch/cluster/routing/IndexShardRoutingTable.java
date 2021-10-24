@@ -24,6 +24,7 @@ import org.elasticsearch.node.ResponseCollectorService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -68,9 +69,8 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     final List<ShardRouting> allInitializingShards;
 
     IndexShardRoutingTable(ShardId shardId, List<ShardRouting> shards) {
-        this.shardId = shardId;
-        this.shuffler = new RotationShardShuffler(Randomness.get().nextInt());
-        this.shards = org.elasticsearch.core.List.copyOf(shards);
+        // don't allow more than one shard copy with same id to be allocated to same node
+        assert Builder.distinctNodes(shards) : "more than one shard with same id assigned to same node (shards: " + shards + ")";
 
         ShardRouting primary = null;
         List<ShardRouting> replicas = new ArrayList<>();
@@ -108,6 +108,9 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
                 allShardsStarted = false;
             }
         }
+        this.shardId = shardId;
+        this.shuffler = new RotationShardShuffler(Randomness.get().nextInt());
+        this.shards = org.elasticsearch.core.List.copyOf(shards);
         this.allShardsStarted = allShardsStarted;
         this.primary = primary;
         this.replicas = CollectionUtils.wrapUnmodifiableOrEmptySingleton(replicas);
@@ -115,6 +118,127 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         this.assignedShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(assignedShards);
         this.allInitializingShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(allInitializingShards);
         this.allAllocationIds = Collections.unmodifiableSet(allAllocationIds);
+    }
+
+    private IndexShardRoutingTable(ShardId shardId, List<ShardRouting> shards, boolean allShardsStarted,
+                                   ShardRouting primary, List<ShardRouting> replicas, List<ShardRouting> activeShards,
+                                   List<ShardRouting> assignedShards, List<ShardRouting> allInitializingShards,
+                                   Set<String> allAllocationIds) {
+        assert Builder.distinctNodes(shards) : "more than one shard with same id assigned to same node (shards: " + shards + ")";
+        this.shardId = shardId;
+        this.shuffler = new RotationShardShuffler(Randomness.get().nextInt());
+        this.shards = shards;
+        this.allShardsStarted = allShardsStarted;
+        this.primary = primary;
+        this.replicas = replicas;
+        this.activeShards = activeShards;
+        this.assignedShards = assignedShards;
+        this.allInitializingShards = allInitializingShards;
+        this.allAllocationIds = allAllocationIds;
+    }
+
+    public IndexShardRoutingTable withAddedShard(ShardRouting shard) {
+        final int size = shards.size();
+        final ShardRouting[] newRoutings = new ShardRouting[size + 1];
+        shards.toArray(newRoutings);
+        newRoutings[size] = shard;
+        ShardRouting primary = shard.primary() ? shard : this.primary;
+        final boolean relocating = shard.relocating();
+        final List<ShardRouting> replicas;
+        if (shard.primary()) {
+            replicas = this.replicas;
+        } else {
+            final int replicaCount = this.replicas.size();
+            if (replicaCount == 0) {
+                replicas = org.elasticsearch.core.List.of(shard);
+            } else {
+                final ShardRouting[] newReplicaRoutings = new ShardRouting[replicaCount + 1];
+                this.replicas.toArray(newReplicaRoutings);
+                newReplicaRoutings[replicaCount] = shard;
+                replicas = Arrays.asList(newReplicaRoutings);
+            }
+        }
+        final int activeCount = this.activeShards.size();
+        final List<ShardRouting> activeShards;
+        if (shard.active()) {
+            if (activeCount == 0) {
+                activeShards = org.elasticsearch.core.List.of(shard);
+            } else {
+                final ShardRouting[] newActiveRoutings = new ShardRouting[activeCount + 1];
+                this.activeShards.toArray(newActiveRoutings);
+                newActiveRoutings[activeCount] = shard;
+                activeShards = Arrays.asList(newActiveRoutings);
+            }
+        } else {
+            activeShards = this.activeShards;
+        }
+        final int initializingCount = this.allInitializingShards.size();
+        final List<ShardRouting> allInitializingShards;
+        if (shard.initializing()) {
+            if (initializingCount == 0) {
+                allInitializingShards = org.elasticsearch.core.List.of(shard);
+            } else {
+                final ShardRouting[] newInitializingRoutings;
+                newInitializingRoutings = new ShardRouting[initializingCount + 1];
+                this.allInitializingShards.toArray(newInitializingRoutings);
+                newInitializingRoutings[initializingCount] = shard;
+                allInitializingShards = Arrays.asList(newInitializingRoutings);
+            }
+        } else if (relocating) {
+            if (initializingCount == 0) {
+                allInitializingShards = org.elasticsearch.core.List.of(shard.getTargetRelocatingShard());
+            } else {
+                final ShardRouting[] newInitializingRoutings = new ShardRouting[initializingCount + 1];
+                this.allInitializingShards.toArray(newInitializingRoutings);
+                newInitializingRoutings[initializingCount] = shard.getTargetRelocatingShard();
+                allInitializingShards = Arrays.asList(newInitializingRoutings);
+            }
+        } else {
+            allInitializingShards = this.allInitializingShards;
+        }
+        final Set<String> allAllocationIds = new HashSet<>(this.allAllocationIds);
+        if (relocating) {
+            allAllocationIds.add(shard.getTargetRelocatingShard().allocationId().getId());
+        }
+        final int assignedCount = this.assignedShards.size();
+        final List<ShardRouting> assignedShards;
+        if (shard.assignedToNode()) {
+            allAllocationIds.add(shard.allocationId().getId());
+            if (assignedCount == 0) {
+                if (relocating) {
+                    assignedShards = org.elasticsearch.core.List.of(shard.getTargetRelocatingShard(), shard);
+                } else {
+                    assignedShards = org.elasticsearch.core.List.of(shard);
+                }
+            } else {
+                final ShardRouting[] newAssignedRoutings;
+                if (relocating) {
+                    newAssignedRoutings = new ShardRouting[assignedCount + 2];
+                    this.assignedShards.toArray(newAssignedRoutings);
+                    newAssignedRoutings[assignedCount] = shard.getTargetRelocatingShard();
+                    newAssignedRoutings[assignedCount + 1] = shard;
+                } else {
+                    newAssignedRoutings = new ShardRouting[assignedCount + 1];
+                    this.assignedShards.toArray(newAssignedRoutings);
+                    newAssignedRoutings[assignedCount] = shard;
+                }
+                assignedShards = Arrays.asList(newAssignedRoutings);
+            }
+        } else {
+            assignedShards = this.assignedShards;
+        }
+        final boolean allShardsStarted = this.allShardsStarted && shard.started();
+        return new IndexShardRoutingTable(
+                shardId,
+                org.elasticsearch.core.List.of(newRoutings),
+                allShardsStarted,
+                primary,
+                replicas,
+                activeShards,
+                assignedShards,
+                allInitializingShards,
+                Collections.unmodifiableSet(allAllocationIds)
+        );
     }
 
     /**
@@ -681,8 +805,6 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         }
 
         public IndexShardRoutingTable build() {
-            // don't allow more than one shard copy with same id to be allocated to same node
-            assert distinctNodes(shards) : "more than one shard with same id assigned to same node (shards: " + shards + ")";
             return new IndexShardRoutingTable(shardId, shards);
         }
 

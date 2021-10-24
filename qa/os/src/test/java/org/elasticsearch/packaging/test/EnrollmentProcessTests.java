@@ -51,7 +51,7 @@ public class EnrollmentProcessTests extends PackagingTestCase {
         installation = installArchive(sh, distribution(), getRootTempDir().resolve("elasticsearch-node2"), getCurrentVersion(), true);
         // auto-configure security using the enrollment token
         Shell.Result startSecondNode = awaitElasticsearchStartupWithResult(
-            Archives.runElasticsearchStartCommand(installation, sh, null, List.of("--enrollment token", enrollmentToken), false)
+            Archives.runElasticsearchStartCommand(installation, sh, null, List.of("--enrollment-token", enrollmentToken), false)
         );
         assertThat(startSecondNode.isSuccess(), is(true));
         verifySecurityAutoConfigured(installation);

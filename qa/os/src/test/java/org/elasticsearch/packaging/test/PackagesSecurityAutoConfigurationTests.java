@@ -8,8 +8,10 @@
 
 package org.elasticsearch.packaging.test;
 
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Packages;
+import org.elasticsearch.packaging.util.Shell;
 import org.junit.BeforeClass;
 
 import java.nio.file.Files;
@@ -93,6 +95,21 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         installation = installPackage(sh, distribution(), errorOutput());
         List<String> configLines = Files.readAllLines(installation.config("elasticsearch.yml"));
         assertThat(configLines, not(hasItem("# have been automatically generated in order to configure Security.               #")));
+    }
+
+    public void test50ReconfigureAndEnroll() throws Exception {
+        cleanup();
+        assertRemoved(distribution());
+        installation = installPackage(sh, distribution(), successfulAutoConfiguration());
+        assertInstalled(distribution());
+        verifyPackageInstallation(installation, distribution(), sh);
+        verifySecurityAutoConfigured(installation);
+        assertNotNull(installation.getElasticPassword());
+        // We cannot run two packaged installations simultaneously here so that we can test that the second node enrolls successfully
+        // We trigger with an invalid enrollment token, to verify that we removed the existing auto-configuration
+        Shell.Result result = installation.executables().nodeEnrollTool.run("--enrollment-token thisisinvalid", "y");
+        assertThat(result.exitCode, equalTo(ExitCodes.DATA_ERROR)); // invalid enrollment token
+        verifySecurityNotAutoConfigured(installation);
     }
 
     private Predicate<String> successfulAutoConfiguration() {

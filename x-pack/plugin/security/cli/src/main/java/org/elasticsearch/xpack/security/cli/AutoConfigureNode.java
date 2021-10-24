@@ -913,31 +913,4 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         ).collect(Collectors.toList());
     }
 
-    /**
-     * Creates a backup of the existing configuration that we plan on overwriting. We copy the configuration file as we want to keep it
-     * but we move the keystore and the auto-configuration directory so that they won't interfere with the attempt to auto-configure the
-     * node to be part of the existing cluster
-     */
-    private void backupExistingAutoConfiguration(Environment env, ZonedDateTime autoConfigDate) throws IOException {
-        final Path keystorePath = KeyStoreWrapper.keystorePath(env.configFile());
-        final Path keystoreBackupPath = env.configFile()
-            .resolve(KeyStoreWrapper.KEYSTORE_FILENAME + "." + autoConfigDate.toInstant().getEpochSecond() + ".backup");
-        if (Files.exists(keystorePath)) {
-            Files.move(keystorePath, keystoreBackupPath, StandardCopyOption.ATOMIC_MOVE);
-        }
-
-        final Path ymlPath = env.configFile().resolve("elasticsearch.yml");
-        final Path ymlBackupPath = env.configFile()
-            .resolve("elasticsearch.yml" + "." + autoConfigDate.toInstant().getEpochSecond() + ".backup");
-        Files.copy(ymlPath, ymlBackupPath, StandardCopyOption.COPY_ATTRIBUTES);
-
-        final Optional<String> autoConfigDirName = getAutoConfigDirName(env);
-        if (autoConfigDirName.isPresent()) {
-            final Path autoConfigPath = env.configFile().resolve(autoConfigDirName.get());
-            final Path autoConfigBackupPath = env.configFile()
-                .resolve(autoConfigDirName.get() + "." + autoConfigDate.toInstant().getEpochSecond() + ".backup");
-            Files.move(autoConfigPath, autoConfigBackupPath, StandardCopyOption.ATOMIC_MOVE);
-        }
-    }
-
 }

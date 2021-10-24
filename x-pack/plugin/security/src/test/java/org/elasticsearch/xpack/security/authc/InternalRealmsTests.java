@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
-import static org.elasticsearch.mock.orig.Mockito.times;
+import static org.mockito.Mockito.times;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.hasEntry;

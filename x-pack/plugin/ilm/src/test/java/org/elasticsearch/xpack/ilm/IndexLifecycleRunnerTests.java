@@ -1066,7 +1066,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
     }
 
-    private static class SetStepInfoUpdateTaskMatcher extends ArgumentMatcher<SetStepInfoUpdateTask> {
+    private static class SetStepInfoUpdateTaskMatcher implements ArgumentMatcher<SetStepInfoUpdateTask> {
 
         private Index index;
         private String policy;
@@ -1081,15 +1081,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         }
 
         @Override
-        public boolean matches(Object argument) {
-            if (argument == null || argument instanceof SetStepInfoUpdateTask == false) {
+        public boolean matches(SetStepInfoUpdateTask other) {
+            if (other == null) {
                 return false;
             }
-            SetStepInfoUpdateTask task = (SetStepInfoUpdateTask) argument;
-            return Objects.equals(index, task.getIndex()) &&
-                    Objects.equals(policy, task.getPolicy())&&
-                    Objects.equals(currentStepKey, task.getCurrentStepKey()) &&
-                    Objects.equals(xContentToString(stepInfo), xContentToString(task.getStepInfo()));
+            return Objects.equals(index, other.getIndex()) &&
+                    Objects.equals(policy, other.getPolicy())&&
+                    Objects.equals(currentStepKey, other.getCurrentStepKey()) &&
+                    Objects.equals(xContentToString(stepInfo), xContentToString(other.getStepInfo()));
         }
 
         private String xContentToString(ToXContentObject xContent) {
@@ -1104,7 +1103,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
     }
 
-    private static class ExecuteStepsUpdateTaskMatcher extends ArgumentMatcher<ExecuteStepsUpdateTask> {
+    private static class ExecuteStepsUpdateTaskMatcher implements ArgumentMatcher<ExecuteStepsUpdateTask> {
 
         private Index index;
         private String policy;
@@ -1117,14 +1116,13 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         }
 
         @Override
-        public boolean matches(Object argument) {
-            if (argument == null || argument instanceof ExecuteStepsUpdateTask == false) {
+        public boolean matches(ExecuteStepsUpdateTask other) {
+            if (other == null) {
                 return false;
             }
-            ExecuteStepsUpdateTask task = (ExecuteStepsUpdateTask) argument;
-            return Objects.equals(index, task.getIndex()) &&
-                    Objects.equals(policy, task.getPolicy()) &&
-                    Objects.equals(startStep, task.getStartStep());
+            return Objects.equals(index, other.getIndex()) &&
+                    Objects.equals(policy, other.getPolicy()) &&
+                    Objects.equals(startStep, other.getStartStep());
         }
 
     }

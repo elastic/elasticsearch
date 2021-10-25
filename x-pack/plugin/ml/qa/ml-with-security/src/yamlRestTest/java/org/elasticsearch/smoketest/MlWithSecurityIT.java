@@ -55,11 +55,6 @@ public class MlWithSecurityIT extends AbstractXPackRestTest {
     }
 
     @Override
-    protected boolean isMonitoringTest() {
-        return false;
-    }
-
-    @Override
     protected boolean isMachineLearningTest() {
         return true;
     }

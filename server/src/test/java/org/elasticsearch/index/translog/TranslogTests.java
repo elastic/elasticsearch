@@ -136,7 +136,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.stub;
+import static org.mockito.Mockito.when;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class TranslogTests extends ESTestCase {
@@ -380,7 +380,7 @@ public class TranslogTests extends ESTestCase {
         long period = randomLongBetween(10000, 1000000);
         periods[numberOfReaders] = period;
         TranslogWriter w = mock(TranslogWriter.class);
-        stub(w.getLastModifiedTime()).toReturn(fixedTime - period);
+        when(w.getLastModifiedTime()).thenReturn(fixedTime - period);
         assertThat(Translog.findEarliestLastModifiedAge(fixedTime, new ArrayList<>(), w), equalTo(period));
 
         for (int i = 0; i < numberOfReaders; i++) {
@@ -389,7 +389,7 @@ public class TranslogTests extends ESTestCase {
         List<TranslogReader> readers = new ArrayList<>();
         for (long l : periods) {
             TranslogReader r = mock(TranslogReader.class);
-            stub(r.getLastModifiedTime()).toReturn(fixedTime - l);
+            when(r.getLastModifiedTime()).thenReturn(fixedTime - l);
             readers.add(r);
         }
         assertThat(Translog.findEarliestLastModifiedAge(fixedTime, readers, w), equalTo

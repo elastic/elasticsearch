@@ -22,6 +22,8 @@ import java.util.Map;
 // Typed object holding properties for a given query
 public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configuration {
 
+    @Nullable
+    private final String catalog;
     private final int pageSize;
     private final TimeValue requestTimeout;
     private final TimeValue pageTimeout;
@@ -42,17 +44,27 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     @Nullable
     private final Map<String, Object> runtimeMappings;
 
-    public SqlConfiguration(ZoneId zi, int pageSize, TimeValue requestTimeout, TimeValue pageTimeout, QueryBuilder filter,
-                         Map<String, Object> runtimeMappings,
-                         Mode mode, String clientId, SqlVersion version,
-                         String username, String clusterName,
-                         boolean multiValueFieldLeniency,
-                         boolean includeFrozen,
-                         @Nullable TaskId taskId,
-                         @Nullable SqlQueryTask task) {
-
+    public SqlConfiguration(
+        ZoneId zi,
+        @Nullable String catalog,
+        int pageSize,
+        TimeValue requestTimeout,
+        TimeValue pageTimeout,
+        QueryBuilder filter,
+        Map<String, Object> runtimeMappings,
+        Mode mode,
+        String clientId,
+        SqlVersion version,
+        String username,
+        String clusterName,
+        boolean multiValueFieldLeniency,
+        boolean includeFrozen,
+        @Nullable TaskId taskId,
+        @Nullable SqlQueryTask task
+    ) {
         super(zi, username, clusterName, x -> Collections.emptySet());
 
+        this.catalog = catalog;
         this.pageSize = pageSize;
         this.requestTimeout = requestTimeout;
         this.pageTimeout = pageTimeout;
@@ -65,6 +77,10 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         this.includeFrozenIndices = includeFrozen;
         this.taskId = taskId;
         this.task = task;
+    }
+
+    public String catalog() {
+        return catalog;
     }
 
     public int pageSize() {

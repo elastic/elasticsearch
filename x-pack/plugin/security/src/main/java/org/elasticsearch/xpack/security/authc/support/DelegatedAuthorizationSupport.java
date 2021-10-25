@@ -10,18 +10,18 @@ package org.elasticsearch.xpack.security.authc.support;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.Security;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -82,7 +82,7 @@ public class DelegatedAuthorizationSupport {
      * with a meaningful diagnostic message.
      */
     public void resolve(String username, ActionListener<AuthenticationResult> resultListener) {
-        boolean authzOk =  licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_REALM);
+        boolean authzOk = Security.DELEGATED_AUTHORIZATION_FEATURE.check(licenseState);
         if (authzOk == false) {
             resultListener.onResponse(AuthenticationResult.unsuccessful(
                 DelegatedAuthorizationSettings.AUTHZ_REALMS_SUFFIX + " are not permitted",

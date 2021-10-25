@@ -47,10 +47,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -59,8 +56,7 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -70,6 +66,9 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -79,6 +78,7 @@ import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.TokenService.RefreshTokenStatus;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -136,7 +136,7 @@ public class TokenServiceTests extends ESTestCase {
     private DiscoveryNode oldNode;
     private Settings tokenServiceEnabledSettings = Settings.builder()
         .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true).build();
-    private XPackLicenseState licenseState;
+    private MockLicenseState licenseState;
     private SecurityContext securityContext;
 
     @Before
@@ -195,8 +195,8 @@ public class TokenServiceTests extends ESTestCase {
         this.clusterService = ClusterServiceUtils.createClusterService(threadPool);
 
         // License state (enabled by default)
-        licenseState = mock(XPackLicenseState.class);
-        when(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
+        licenseState = mock(MockLicenseState.class);
+        when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);
 
         // version 7.2 was an "inflection" point in the Token Service development (access_tokens as UUIDS, multiple concurrent refreshes,
         // tokens docs on a separate index), let's test the TokenService works in a mixed cluster with nodes with versions prior to these
@@ -891,7 +891,7 @@ public class TokenServiceTests extends ESTestCase {
     }
 
     public void testCannotValidateTokenIfLicenseDoesNotAllowTokens() throws Exception {
-        when(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
+        when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, Clock.systemUTC());
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
         final String userTokenId = UUIDs.randomBase64UUID();
@@ -904,7 +904,7 @@ public class TokenServiceTests extends ESTestCase {
         storeTokenHeader(threadContext, tokenService.prependVersionAndEncodeAccessToken(token.getVersion(), accessToken));
 
         PlainActionFuture<UserToken> authFuture = new PlainActionFuture<>();
-        when(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(false);
+        when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(false);
         final SecureString bearerToken = Authenticator.extractBearerTokenFromHeader(threadContext);
         tokenService.tryAuthenticateToken(bearerToken, authFuture);
         UserToken authToken = authFuture.actionGet();
@@ -954,7 +954,7 @@ public class TokenServiceTests extends ESTestCase {
                 when(response.getSource()).thenReturn(sourceMap);
             }
             listener.onResponse(response);
-            return Void.TYPE;
+            return null;
         }).when(client).get(any(GetRequest.class), anyActionListener());
     }
 
@@ -1057,7 +1057,7 @@ public class TokenServiceTests extends ESTestCase {
             when(response.getHits()).thenReturn(hits);
             listener.onResponse(response);
             return Void.TYPE;
-        }).when(client).search(any(SearchRequest.class), anyActionListener());
+        }).when(client).search(any(SearchRequest.class), any());
     }
 
     private void mockGetTokenAsyncForDecryptedToken(String accessToken) {

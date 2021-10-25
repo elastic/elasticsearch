@@ -240,7 +240,7 @@ public class MetadataRolloverService {
 
         CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest = prepareDataStreamCreateIndexRequest(
             dataStreamName,
-                newWriteIndexName,
+            newWriteIndexName,
             createIndexRequest,
             systemDataStreamDescriptor
         );

@@ -175,20 +175,17 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
      * Performs a rollover on a {@code DataStream} instance and returns a new instance containing
      * the updated list of backing indices and incremented generation.
      *
-     * @param writeIndex      new write index
-     * @param generation      new generation
+     * @param writeIndex new write index
+     * @param generation new generation
      *
      * @return new {@code DataStream} instance with the rollover operation applied
      */
     public DataStream rollover(Index writeIndex, long generation) {
-        if (replicated) {
-            throw new IllegalArgumentException("data stream [" + name + "] cannot be rolled over, " +
-                    "because it is a replicated data stream");
-        }
+        ensureNotReplicated();
 
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.add(writeIndex);
-        return new DataStream(name, timeStampField, backingIndices, generation, metadata, hidden, replicated, system, allowCustomRouting);
+        return new DataStream(name, timeStampField, backingIndices, generation, metadata, hidden, false, system, allowCustomRouting);
     }
 
     /**
@@ -200,10 +197,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
      * @return new {@code DataStream} instance with the dummy rollover operation applied
      */
     public Tuple<String, Long> nextWriteIndexAndGeneration(Metadata clusterMetadata) {
-        if (replicated) {
-            throw new IllegalArgumentException("data stream [" + name + "] cannot be rolled over, " +
-                "because it is a replicated data stream");
-        }
+        ensureNotReplicated();
         String newWriteIndexName;
         long generation = this.generation;
         long currentTimeMillis = timeProvider.getAsLong();
@@ -211,6 +205,12 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
             newWriteIndexName = DataStream.getDefaultBackingIndexName(getName(), ++generation, currentTimeMillis);
         } while (clusterMetadata.getIndicesLookup().containsKey(newWriteIndexName));
         return Tuple.tuple(newWriteIndexName, generation);
+    }
+
+    private void ensureNotReplicated() {
+        if (replicated) {
+            throw new IllegalArgumentException("data stream [" + name + "] cannot be rolled over, because it is a replicated data stream");
+        }
     }
 
     /**

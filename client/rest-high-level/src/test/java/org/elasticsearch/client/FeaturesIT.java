@@ -21,6 +21,7 @@ import java.util.Collections;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
+@SuppressWarnings("removal")
 public class FeaturesIT extends ESRestHighLevelClientTestCase {
     public void testGetFeatures() throws IOException {
         GetFeaturesRequest request = new GetFeaturesRequest();

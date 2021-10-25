@@ -29,6 +29,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 
+@SuppressWarnings("removal")
 public abstract class AbstractMultiClusterRemoteTestCase extends ESRestTestCase {
 
     private static final String USER = "x_pack_rest_user";

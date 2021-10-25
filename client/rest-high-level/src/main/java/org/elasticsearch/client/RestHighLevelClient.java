@@ -255,6 +255,7 @@ import static java.util.stream.Collectors.toList;
  * Elasticsearch Java API Client</a>
  */
 @Deprecated(since = "8.0.0", forRemoval = true)
+@SuppressWarnings("removal")
 public class RestHighLevelClient implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(RestHighLevelClient.class);

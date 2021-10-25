@@ -29,6 +29,7 @@ import java.util.Objects;
  * Elasticsearch Java API Client</a>
  */
 @Deprecated(since = "8.0.0", forRemoval = true)
+@SuppressWarnings("removal")
 public class SearchableSnapshotsClient {
 
     private RestHighLevelClient restHighLevelClient;

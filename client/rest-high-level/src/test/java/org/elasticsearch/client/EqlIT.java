@@ -37,6 +37,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
+@SuppressWarnings("removal")
 public class EqlIT extends ESRestHighLevelClientTestCase {
 
     private static final String INDEX_NAME = "index";

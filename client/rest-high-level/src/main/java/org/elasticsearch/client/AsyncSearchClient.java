@@ -25,6 +25,7 @@ import static java.util.Collections.emptySet;
  * Elasticsearch Java API Client</a>
  */
 @Deprecated(since = "8.0.0", forRemoval = true)
+@SuppressWarnings("removal")
 public class AsyncSearchClient {
     private final RestHighLevelClient restHighLevelClient;
 

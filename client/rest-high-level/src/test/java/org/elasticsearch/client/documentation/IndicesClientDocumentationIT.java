@@ -135,6 +135,7 @@ import static org.hamcrest.Matchers.nullValue;
  * than 84, the line will be cut and a horizontal scroll bar will be displayed.
  * (the code indentation of the tag is not included in the width)
  */
+@SuppressWarnings("removal")
 public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testIndicesExist() throws IOException {

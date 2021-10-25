@@ -71,6 +71,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
+@SuppressWarnings("removal")
 public class RollupIT extends ESRestHighLevelClientTestCase {
 
     double sum = 0.0d;

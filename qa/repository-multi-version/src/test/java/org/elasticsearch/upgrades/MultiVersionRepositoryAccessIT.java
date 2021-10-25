@@ -54,6 +54,7 @@ import static org.hamcrest.Matchers.is;
  *     <li>Run against the current version cluster from the second step: {@link TestStep#STEP4_NEW_CLUSTER}</li>
  * </ul>
  */
+@SuppressWarnings("removal")
 public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
 
     private enum TestStep {

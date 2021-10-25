@@ -44,6 +44,7 @@ import java.util.Map;
  * include-tagged::{doc-tests}/MigrationDocumentationIT.java[example]
  * --------------------------------------------------
  */
+@SuppressWarnings("removal")
 public class MigrationDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testClusterHealth() throws IOException {
         RestHighLevelClient client = highLevelClient();

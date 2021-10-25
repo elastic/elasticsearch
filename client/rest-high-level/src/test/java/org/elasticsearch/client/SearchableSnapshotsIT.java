@@ -49,6 +49,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
+@SuppressWarnings("removal")
 public class SearchableSnapshotsIT extends ESRestHighLevelClientTestCase {
 
     @Before

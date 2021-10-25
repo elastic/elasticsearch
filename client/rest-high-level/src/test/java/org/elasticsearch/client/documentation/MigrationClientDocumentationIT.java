@@ -42,6 +42,7 @@ import java.util.concurrent.TimeUnit;
  * than 84, the line will be cut and a horizontal scroll bar will be displayed.
  * (the code indentation of the tag is not included in the width)
  */
+@SuppressWarnings("removal")
 public class MigrationClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testGetDeprecationInfo() throws IOException, InterruptedException {

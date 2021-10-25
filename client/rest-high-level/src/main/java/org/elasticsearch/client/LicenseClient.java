@@ -51,6 +51,7 @@ import static java.util.Collections.singleton;
  * Elasticsearch Java API Client</a>
  */
 @Deprecated(since = "8.0.0", forRemoval = true)
+@SuppressWarnings("removal")
 public final class LicenseClient {
 
     private final RestHighLevelClient restHighLevelClient;

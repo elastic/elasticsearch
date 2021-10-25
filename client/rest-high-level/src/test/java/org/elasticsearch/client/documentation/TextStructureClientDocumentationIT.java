@@ -23,6 +23,7 @@ import org.elasticsearch.client.textstructure.FindStructureRequest;
 import org.elasticsearch.client.textstructure.FindStructureResponse;
 import org.elasticsearch.client.textstructure.structurefinder.TextStructure;
 
+@SuppressWarnings("removal")
 public class TextStructureClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testFindStructure() throws Exception {

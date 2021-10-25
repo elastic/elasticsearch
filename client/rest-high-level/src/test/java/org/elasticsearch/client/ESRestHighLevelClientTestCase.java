@@ -62,6 +62,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 
+@SuppressWarnings("removal")
 public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
 
     public static final String IGNORE_THROTTLED_DEPRECATION_WARNING = "[ignore_throttled] parameter is deprecated because frozen " +

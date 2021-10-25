@@ -43,6 +43,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
+@SuppressWarnings("removal")
 public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
 
     private Client client;

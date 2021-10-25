@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+@SuppressWarnings("removal")
 public class EnrichDocumentationIT extends ESRestHighLevelClientTestCase {
 
     @After

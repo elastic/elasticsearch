@@ -47,6 +47,7 @@ import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.startsWith;
 
+@SuppressWarnings("removal")
 public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
 
     @Override

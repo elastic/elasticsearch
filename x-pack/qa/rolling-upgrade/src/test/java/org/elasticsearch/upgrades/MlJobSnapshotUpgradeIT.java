@@ -61,6 +61,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
+@SuppressWarnings("removal")
 public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
     private static final String JOB_ID = "ml-snapshots-upgrade-job";

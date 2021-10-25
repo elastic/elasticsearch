@@ -34,6 +34,7 @@ import static org.hamcrest.Matchers.is;
 /**
  * Integration test for custom roles providers.
  */
+@SuppressWarnings("removal")
 public class CustomRolesProviderIT extends ESRestTestCase {
     private static final String TEST_USER = "test_user";
     private static final String TEST_PWD = "test-user-password";

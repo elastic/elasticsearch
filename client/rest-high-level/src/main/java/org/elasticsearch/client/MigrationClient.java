@@ -31,6 +31,7 @@ import java.util.Collections;
  * Elasticsearch Java API Client</a>
  */
 @Deprecated(since = "8.0.0", forRemoval = true)
+@SuppressWarnings("removal")
 public final class MigrationClient {
 
     private final RestHighLevelClient restHighLevelClient;

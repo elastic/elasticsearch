@@ -16,6 +16,7 @@ import org.elasticsearch.client.textstructure.FindStructureRequest;
 import org.elasticsearch.client.textstructure.FindStructureResponse;
 import org.elasticsearch.client.textstructure.structurefinder.TextStructure;
 
+@SuppressWarnings("removal")
 public class TextStructureIT extends ESRestHighLevelClientTestCase {
 
     public void testFindFileStructure() throws IOException {

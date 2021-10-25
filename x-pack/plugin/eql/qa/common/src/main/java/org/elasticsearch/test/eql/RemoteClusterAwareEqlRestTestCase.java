@@ -28,6 +28,7 @@ import java.util.Collections;
 
 import static org.elasticsearch.common.Strings.hasText;
 
+@SuppressWarnings("removal")
 public abstract class RemoteClusterAwareEqlRestTestCase extends ESRestTestCase {
 
     private static final long CLIENT_TIMEOUT = 40L; // upped from 10s to accomodate for max measured throughput decline

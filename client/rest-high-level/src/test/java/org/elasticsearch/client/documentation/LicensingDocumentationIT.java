@@ -49,6 +49,7 @@ import static org.hamcrest.core.Is.is;
  * Documentation for Licensing APIs in the high level java client.
  * Code wrapped in {@code tag} and {@code end} tags is included in the docs.
  */
+@SuppressWarnings("removal")
 public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
 
     @BeforeClass

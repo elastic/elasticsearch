@@ -24,6 +24,7 @@ import java.util.stream.Stream;
 /**
  * Cleans up ML resources created during tests
  */
+@SuppressWarnings("removal")
 public class MlTestStateCleaner {
 
     private final Logger logger;

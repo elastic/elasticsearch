@@ -81,9 +81,9 @@ You can restore a snapshot using {kib}'s *Snapshot and Restore* feature or the
 <<restore-snapshot-api,restore snapshot API>>.
 
 By default, a restore request attempts to restore all indices and data streams
-in a snapshot, including <<system-indices,system indices>>. In most cases, you
-only need to restore a specific index or data stream from a snapshot. However,
-you can't restore an existing open index.
+in a snapshot, including <<system-indices,system indices and system data
+streams>>. In most cases, you only need to restore a specific index or data
+stream from a snapshot. However, you can't restore an existing open index.
 
 If you're restoring data to a pre-existing cluster, use one of the
 following methods to avoid conflicts with existing indices and data streams:
@@ -235,9 +235,9 @@ POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 [[restore-feature-state]]
 === Restore a feature state
 
-You can restore a feature state to recover system indices and other
-configuration data for a feature from a snapshot. Restoring a feature state is
-the preferred way to restore system indices.
+You can restore a feature state to recover system indices, system data streams,
+and other configuration data for a feature from a snapshot. Restoring a feature
+state is the preferred way to restore system indices and system data streams.
 
 If you restore a snapshot's cluster state, the operation restores all feature
 states in the snapshot by default. Similarly, if you don't restore a snapshot's
@@ -270,8 +270,8 @@ Console before restoring the `security` feature state. If you run {es} on your
 own hardware, <<restore-create-file-realm-user,create a superuser in the file
 realm>> to ensure you'll still be able to access your cluster.
 
-To avoid accidentally restoring other dot indices, append the `-.*` wildcard
-pattern to the `indices` value.
+To avoid accidentally restoring system indices, system data streams, and other
+dot indices, append the `-.*` wildcard pattern to the `indices` value.
 
 [source,console]
 ----
@@ -292,12 +292,12 @@ POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 === Restore an entire cluster
 
 In some cases, you need to restore an entire cluster from a snapshot, including
-the cluster state and all system indices. These cases should be rare, such as in
+the cluster state and all feature states. These cases should be rare, such as in
 the event of a catastrophic failure.
 
-Restoring an entire cluster involves deleting important system indices, including
-those used for authentication. Consider whether you can restore specific indices
-or data streams instead.
+Restoring an entire cluster involves deleting important system indices,
+including those used for authentication. Consider whether you can restore
+specific indices or data streams instead.
 
 If you're restoring to a different cluster, see <<restore-different-cluster>>
 before you start.
@@ -439,8 +439,8 @@ DELETE *?expand_wildcards=all
 ----
 // TEST[continued]
 
-. Restore the entire snapshot, including the cluster state. This also restores
-any feature states and system indices in the snapshot.
+. Restore the entire snapshot, including the cluster state. By default,
+restoring the cluster state also restores any feature states in the snapshot.
 +
 [source,console]
 ----

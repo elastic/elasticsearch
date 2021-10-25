@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.transform.rest.action.compat;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -35,8 +36,9 @@ public class RestStartTransformActionDeprecated extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         String id = restRequest.param(TransformField.ID.getPreferredName());
-        StartTransformAction.Request request = new StartTransformAction.Request(id);
-        request.timeout(restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT));
+        TimeValue timeout = restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
+
+        StartTransformAction.Request request = new StartTransformAction.Request(id, timeout);
         return channel -> client.execute(StartTransformActionDeprecated.INSTANCE, request,
             new RestToXContentListener<>(channel));
     }

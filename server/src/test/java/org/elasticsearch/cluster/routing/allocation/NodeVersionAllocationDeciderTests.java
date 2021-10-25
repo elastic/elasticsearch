@@ -265,7 +265,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         clusterState = stabilize(clusterState, service);
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-                .add(newNode("node0", VersionUtils.getPreviousVersion()))
+                .add(newNode("old0", VersionUtils.getPreviousVersion()))
                 .add(newNode("new1"))
                 .add(newNode("new0"))).build();
 

@@ -154,6 +154,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         putAutoscalingPolicy("hot", DataTier.DATA_HOT);
         putAutoscalingPolicy("warm", DataTier.DATA_WARM);
         putAutoscalingPolicy("cold", DataTier.DATA_COLD);
+        putAutoscalingPolicy("content", DataTier.DATA_CONTENT);
 
         // add an index using `_id` allocation to check that it does not trigger spinning up the tier.
         assertAcked(
@@ -195,9 +196,12 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
                 .actionGet()
         );
 
-        assertThat(capacity().results().get("warm").requiredCapacity().total().storage().getBytes(), Matchers.greaterThan(0L));
-        // this is not desirable, but one of the caveats of not using data tiers in the ILM policy.
-        assertThat(capacity().results().get("cold").requiredCapacity().total().storage().getBytes(), Matchers.greaterThan(0L));
+        // since we always enforce a default tier preference, this index wants to be on data_content, regardless of `data_tier: warm` above
+        assertThat(capacity().results().get("content").requiredCapacity().total().storage().getBytes(), Matchers.greaterThan(0L));
+
+        // and doesn't care about warm or cold
+        assertThat(capacity().results().get("warm").requiredCapacity().total().storage().getBytes(), Matchers.equalTo(0L));
+        assertThat(capacity().results().get("cold").requiredCapacity().total().storage().getBytes(), Matchers.equalTo(0L));
     }
 
     /**

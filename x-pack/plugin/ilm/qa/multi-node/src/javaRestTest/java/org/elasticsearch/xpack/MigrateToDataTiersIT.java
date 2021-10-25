@@ -140,7 +140,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
             createIndexWithSettings(client(), rolloverIndexPrefix + "-00000" + i, alias + i, Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .putNull(DataTier.TIER_PREFERENCE)
+                .putNull(DataTier.TIER_PREFERENCE) // since we always enforce a tier preference, this will be ignored (i.e. data_content)
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias + i)
             );
         }
@@ -170,7 +170,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         assertThat((List<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_ILM_POLICIES.getPreferredName()),
             contains(policy));
         assertThat((List<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_INDICES.getPreferredName()),
-            containsInAnyOrder(index, indexWithDataWarmRouting, rolloverIndexPrefix + "-000001", rolloverIndexPrefix + "-000002"));
+            containsInAnyOrder(index, indexWithDataWarmRouting));
         assertThat(migrateResponseAsMap.get(MigrateToDataTiersResponse.REMOVED_LEGACY_TEMPLATE.getPreferredName()),
             is(templateName));
 
@@ -178,10 +178,10 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         Request getTemplateRequest = new Request("HEAD", "_template/" + templateName);
         assertThat(client().performRequest(getTemplateRequest).getStatusLine().getStatusCode(), is(RestStatus.NOT_FOUND.getStatus()));
 
-        // let's assert the require.data:warm configuration the "indexWithDataWarmRouting" had was migrated to
-        // _tier_preference:data_warm,data_hot
+        // regardless of require.data:warm configuration the "indexWithDataWarmRouting", we enforced a default tier preference,
+        // so this is data_content
         Map<String, Object> indexSettings = getOnlyIndexSettings(client(), indexWithDataWarmRouting);
-        assertThat(indexSettings.get(DataTier.TIER_PREFERENCE), is("data_warm,data_hot"));
+        assertThat(indexSettings.get(DataTier.TIER_PREFERENCE), is(DataTier.DATA_CONTENT));
 
         // let's retrieve the migrated policy and check it was migrated correctly - namely the warm phase should not contain any allocate
         // action anymore and the cold phase should contain an allocate action that only configures the number of replicas
@@ -246,7 +246,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-            .putNull(DataTier.TIER_PREFERENCE)
+            .putNull(DataTier.TIER_PREFERENCE) // since we always enforce a tier preference, this will be ignored (i.e. data_content)
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
         );
 
@@ -293,9 +293,10 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         Request getTemplateRequest = new Request("HEAD", "_template/" + templateName);
         assertThat(client().performRequest(getTemplateRequest).getStatusLine().getStatusCode(), is(RestStatus.OK.getStatus()));
 
-        // the index settings should not contain the _tier_preference
+        // the index settings will contain a tier preference, regardless of this being a dry run,
+        // because we always enforce a tier preference being set (so the null above is overridden when the index is created)
         Map<String, Object> indexSettings = getOnlyIndexSettings(client(), indexWithDataWarmRouting);
-        assertThat(indexSettings.get(DataTier.TIER_PREFERENCE), nullValue());
+        assertThat(indexSettings.get(DataTier.TIER_PREFERENCE), is(DataTier.DATA_CONTENT));
 
         // let's check the ILM policy was not migrated - ie. the warm phase still contains the allocate action
         Request getPolicy = new Request("GET", "/_ilm/policy/" + policy);

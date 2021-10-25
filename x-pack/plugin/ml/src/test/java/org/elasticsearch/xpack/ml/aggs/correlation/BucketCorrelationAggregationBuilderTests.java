@@ -31,7 +31,7 @@ public class BucketCorrelationAggregationBuilderTests extends BasePipelineAggreg
 
     @Override
     protected List<SearchPlugin> plugins() {
-        return Collections.singletonList(new MachineLearning(Settings.EMPTY, null));
+        return Collections.singletonList(new MachineLearning(Settings.EMPTY));
     }
 
     @Override

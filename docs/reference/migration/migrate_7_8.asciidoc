@@ -323,8 +323,8 @@ Discontinue use of the `kibana_user` role.
 ====
 *Details* +
 The `max_page_search_size` property within `pivot` is deprecated in the
-<<put-transform,create {transform}>> and <<preview-transform,preview {transform}>>
-APIs.
+{ref}/put-transform.html[create {transform}] and
+{ref}/preview-transform.html[preview {transform}] APIs.
 
 *Impact* +
 Use the `max_page_search_size` property within `settings` instead.

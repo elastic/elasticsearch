@@ -27,7 +27,8 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
 
     public void testFailureUpgradeFrom7xWithImplicitSecuritySettings() throws Exception {
         final Version previousVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_2_0, Version.V_7_16_0);
-        final NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), Version.CURRENT, previousVersion);
+        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion);
+        nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata).check(
             createTestContext(Settings.EMPTY, createLicensesMetadata(previousVersion, randomFrom("basic", "trial")))
         );
@@ -52,7 +53,8 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
 
     public void testUpgradeFrom7xWithImplicitSecuritySettingsOnGoldPlus() throws Exception {
         final Version previousVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_2_0, Version.V_7_16_0);
-        final NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), Version.CURRENT, previousVersion);
+        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion);
+        nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata).check(
             createTestContext(Settings.EMPTY, createLicensesMetadata(previousVersion, randomFrom("gold", "platinum")))
         );
@@ -61,7 +63,8 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
 
     public void testUpgradeFrom7xWithExplicitSecuritySettings() throws Exception {
         final Version previousVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_2_0, Version.V_7_16_0);
-        final NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), Version.CURRENT, previousVersion);
+        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion);
+        nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata).check(
             createTestContext(
                 Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build(),
@@ -73,7 +76,8 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
 
     public void testUpgradeFrom8xWithImplicitSecuritySettings() throws Exception {
         final Version previousVersion = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, null);
-        final NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), Version.CURRENT, previousVersion);
+        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion);
+        nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata).check(
             createTestContext(Settings.EMPTY, createLicensesMetadata(previousVersion, randomFrom("basic", "trial")))
         );
@@ -82,7 +86,8 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
 
     public void testUpgradeFrom8xWithExplicitSecuritySettings() throws Exception {
         final Version previousVersion = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, null);
-        final NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), Version.CURRENT, previousVersion);
+        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion);
+        nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata).check(
             createTestContext(
                 Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build(),

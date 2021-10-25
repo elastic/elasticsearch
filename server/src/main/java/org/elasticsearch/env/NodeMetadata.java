@@ -28,7 +28,6 @@ public final class NodeMetadata {
 
     static final String NODE_ID_KEY = "node_id";
     static final String NODE_VERSION_KEY = "node_version";
-    static final String PREVIOUS_NODE_VERSION_KEY = "previous_node_version";
 
     private final String nodeId;
 
@@ -36,7 +35,7 @@ public final class NodeMetadata {
 
     private final Version previousNodeVersion;
 
-    public NodeMetadata(final String nodeId, final Version nodeVersion, final Version previousNodeVersion) {
+    private NodeMetadata(final String nodeId, final Version nodeVersion, final Version previousNodeVersion) {
         this.nodeId = Objects.requireNonNull(nodeId);
         this.nodeVersion = Objects.requireNonNull(nodeVersion);
         this.previousNodeVersion = Objects.requireNonNull(previousNodeVersion);
@@ -151,7 +150,6 @@ public final class NodeMetadata {
             objectParser = new ObjectParser<>("node_meta_data", ignoreUnknownFields, Builder::new);
             objectParser.declareString(Builder::setNodeId, new ParseField(NODE_ID_KEY));
             objectParser.declareInt(Builder::setNodeVersionId, new ParseField(NODE_VERSION_KEY));
-            objectParser.declareInt(Builder::setPreviousNodeVersionId, new ParseField(PREVIOUS_NODE_VERSION_KEY));
         }
 
         @Override
@@ -165,7 +163,6 @@ public final class NodeMetadata {
         public void toXContent(XContentBuilder builder, NodeMetadata nodeMetadata) throws IOException {
             builder.field(NODE_ID_KEY, nodeMetadata.nodeId);
             builder.field(NODE_VERSION_KEY, nodeMetadata.nodeVersion.id);
-            builder.field(PREVIOUS_NODE_VERSION_KEY, nodeMetadata.previousNodeVersion.id);
         }
 
         @Override

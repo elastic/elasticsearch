@@ -85,7 +85,7 @@ public class BaseEnrollmentTokenGenerator {
         return new Tuple<>(distinctLocalAddresses, distinctNonLocalAddresses);
     }
 
-    static List<String> getFilteredAddresses(Tuple<List<String>, List<String>> splitAddresses) throws Exception {
+    static List<String> getFilteredAddresses(Tuple<List<String>, List<String>> splitAddresses) {
         // If there are no non-local addresses, the enrollment token contains only local addresses
         if (splitAddresses.v2().isEmpty()) {
             return splitAddresses.v1();

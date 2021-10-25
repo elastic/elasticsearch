@@ -88,13 +88,17 @@ public class InternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
             }
             LOGGER.debug("Attempting to generate the node enrollment token");
             assembleToken(EnrollmentTokenType.NODE, httpInfo, token -> {
-                try {
-                    LOGGER.debug("Successfully generated the node enrollment token");
-                    consumer.accept(token.getEncoded());
-                } catch (Exception e) {
-                    LOGGER.error("Failed to encode node enrollment token", e);
-                    // null enrollment token when error
+                if (null == token) {
                     consumer.accept(null);
+                } else {
+                    try {
+                        LOGGER.debug("Successfully generated the node enrollment token");
+                        consumer.accept(token.getEncoded());
+                    } catch (Exception e) {
+                        LOGGER.error("Failed to encode node enrollment token", e);
+                        // null enrollment token when error
+                        consumer.accept(null);
+                    }
                 }
 
             });

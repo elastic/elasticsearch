@@ -37,13 +37,13 @@ public class InitialNodeSecurityAutoConfiguration {
 
     private static final Logger LOGGER = LogManager.getLogger(InitialNodeSecurityAutoConfiguration.class);
 
+    private InitialNodeSecurityAutoConfiguration() {
+        throw new IllegalStateException("Class should not be instantiated");
+    }
+
     /**
-     * Generates and display
-     * @param nativeUsersStore
-     * @param securityIndexManager
-     * @param sslService
-     * @param client
-     * @param environment
+     * Generates and displays a password for the elastic superuser, an enrollment token for kibana and an enrollment token for es
+     * nodes, the first time a node starts as the first node in a cluster, when a terminal is attached.
      */
     public static void maybeGenerateEnrollmentTokensAndElasticCredentialsOnNodeStartup(
         NativeUsersStore nativeUsersStore,
@@ -73,7 +73,7 @@ public class InitialNodeSecurityAutoConfiguration {
         final boolean processOutputAttachedToTerminal = out != null &&
             out.getType() != AnsiType.Redirected && // output is a pipe
             out.getType() != AnsiType.Unsupported && // could not determine terminal type
-            out.getTerminalWidth() > 0; // hack to determine when logs are output to a terminal inside a docker container, but the docker
+            out.getTerminalWidth() > 0; // hack to determine when logs are output to a terminal inside a docker container
         securityIndexManager.onStateRecovered(securityIndexState -> {
             if (false == securityIndexState.indexExists()) {
                 // a starting node with {@code ENROLLMENT_ENABLED} set to true, and with no .security index,
@@ -98,6 +98,9 @@ public class InitialNodeSecurityAutoConfiguration {
                     // in a file and we should avoid printing credentials (even temporary ones) to files.
                     // The HTTPS CA fingerprint, which is not a secret, IS printed, but as a LOG ENTRY rather than a saliently formatted
                     // human-friendly message, in order to avoid breaking parsers that expect the node output to only contain log entries.
+                    LOGGER.info("Auto-configuration will not generate a password for the elastic built-in superuser, as we determined " +
+                        " that there is no terminal attached to the elasticsearch process. You can use the" +
+                        " `bin/elasticsearch-reset-elastic-password` tool to set the password for the elastic user.");
                     return;
                 }
                 final String httpsCaFingerprint = fingerprint;
@@ -135,9 +138,6 @@ public class InitialNodeSecurityAutoConfiguration {
                         LOGGER.info("Auto-configuration will not generate a password for the elastic built-in superuser, " +
                             "you should use the password specified in the node's secure setting [" + BOOTSTRAP_ELASTIC_PASSWORD.getKey() +
                             "] in order to authenticate as elastic");
-                    } else {
-                        LOGGER.debug("The password for the elastic built-in superuser has already been generated, the [" +
-                            AUTOCONFIG_ELASTIC_PASSWORD_HASH.getKey() + "] secure setting is set");
                     }
                     // empty password in case password generation is skyped
                     groupedActionListener.onResponse(Map.of("generated_elastic_user_password", ""));
@@ -175,7 +175,6 @@ public class InitialNodeSecurityAutoConfiguration {
         ansi.a("-".repeat(Math.max(1, out.getTerminalWidth())));
         ansi.a(System.lineSeparator());
         ansi.a(System.lineSeparator());
-        ansi.bold();
         if (elasticPassword == null) {
             ansi.a("Unable to auto-generate the password for the ").a(Ansi.Attribute.ITALIC).a("elastic").a(Ansi.Attribute.ITALIC_OFF)
                 .a(" built-in superuser.");
@@ -186,9 +185,9 @@ public class InitialNodeSecurityAutoConfiguration {
             ansi.a("The generated password for the ").a(Ansi.Attribute.ITALIC).a("elastic").a(Ansi.Attribute.ITALIC_OFF)
                 .a(" built-in superuser is:");
             ansi.a(System.lineSeparator());
-            ansi.a(Ansi.Attribute.UNDERLINE);
+            ansi.bold();
             ansi.a(elasticPassword);
-            ansi.a(Ansi.Attribute.UNDERLINE_OFF);
+            ansi.boldOff();
         }
         ansi.a(System.lineSeparator());
         ansi.a(System.lineSeparator());
@@ -197,9 +196,9 @@ public class InitialNodeSecurityAutoConfiguration {
                 .a(" instances, valid for the next ").a(BaseEnrollmentTokenGenerator.ENROLL_API_KEY_EXPIRATION_MINUTES)
                 .a(" minutes:");
             ansi.a(System.lineSeparator());
-            ansi.a(Ansi.Attribute.UNDERLINE);
+            ansi.bold();
             ansi.a(kibanaEnrollmentToken);
-            ansi.a(Ansi.Attribute.UNDERLINE_OFF);
+            ansi.boldOff();
         } else {
             ansi.a("Unable to generate an enrollment token for Kibana instances.");
         }
@@ -214,21 +213,20 @@ public class InitialNodeSecurityAutoConfiguration {
                 .a(" instances, valid for the next ").a(BaseEnrollmentTokenGenerator.ENROLL_API_KEY_EXPIRATION_MINUTES)
                 .a(" minutes:");
             ansi.a(System.lineSeparator());
-            ansi.a(Ansi.Attribute.UNDERLINE);
+            ansi.bold();
             ansi.a(nodeEnrollmentToken);
-            ansi.a(Ansi.Attribute.UNDERLINE_OFF);
+            ansi.boldOff();
             ansi.a(System.lineSeparator());
             ansi.a(System.lineSeparator());
         }
         if (null != caCertFingerprint) {
             ansi.a("The hex-encoded SHA-256 fingerprint of the generated HTTPS CA DER-encoded certificate:");
             ansi.a(System.lineSeparator());
-            ansi.a(Ansi.Attribute.UNDERLINE);
+            ansi.bold();
             ansi.a(caCertFingerprint);
-            ansi.a(Ansi.Attribute.UNDERLINE_OFF);
+            ansi.boldOff();
             ansi.a(System.lineSeparator());
         }
-        ansi.boldOff();
         ansi.a(System.lineSeparator());
         ansi.a(System.lineSeparator());
         ansi.a("You can use 'bin/elasticsearch-reset-elastic-password' at any time in order to set or reset the password for " +

@@ -389,11 +389,6 @@ final class Bootstrap {
         }
     }
 
-    @SuppressForbidden(reason = "Retain reference for System.out")
-    private static PrintStream getSysOutReference() {
-        return System.out;
-    }
-
     @SuppressForbidden(reason = "System#out")
     private static Runnable getSysOutCloser() {
        return System.out::close;

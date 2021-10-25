@@ -16,17 +16,27 @@ your data in a hot-warm-cold architecture,
 you can still use attribute-based allocation filters to
 control shard allocation for other purposes.
 
-NOTE: If you are using Elasticsearch Service or Elastic Cloud Enterprise and are 
+There are two methods to switch to using node roles, an automated method
+for Elasticsearch Service or Elastic Cloud Enterprise, and a manual method
+for self-managed Elasticsearch:
+
+[discrete]
+== Automated method for Elasticsearch Service or Elastic Cloud Enterprise
+If you are using Elasticsearch Service or Elastic Cloud Enterprise and are 
 using node attributes you will be prompted to switch to node roles when you
 upgrade to version 7.10 or higher, when you deploy a warm or cold data tier,
 or when you enable autoscaling.  Any of these actions will automatically
 update your deployment to use node roles and update your index lifecycle
 managment (ILM) policies to use the node roles instead of node annotations.
-Check all of your custom index templates and update them to remove <<shard-allocation-filtering, attribute-based allocation filters>> if any are specified.
-By allowing the upgrade process to migrate your deployment you can skip the manual 
-steps presented below. 
 
-To switch to using node roles:
+If you have created custom index template, then check those templates after 
+the automated migration and remove <<shard-allocation-filtering, attribute-based allocation filters>> if any are specified.
+
+By allowing the upgrade process to migrate your deployment you can skip
+the manual steps presented below. 
+
+[discrete]
+== Manual method to switch to using node roles for self-manageed Elasticsearch:
 
 . <<assign-data-tier, Assign data nodes>> to the appropriate data tier.
 . <<remove-custom-allocation-settings, Remove the attribute-based allocation

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ql.tree;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.SuppressForbidden;

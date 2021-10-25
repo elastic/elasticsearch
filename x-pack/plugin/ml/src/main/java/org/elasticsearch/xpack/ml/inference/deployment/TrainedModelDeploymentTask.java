@@ -57,11 +57,11 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
             "trainedModelAllocationNodeService"
         );
         this.licenseState = licenseState;
-        ML_MODEL_INFERENCE_FEATURE.startTracking(licenseState, "model-" + taskParams.getModelId());
     }
 
     void init(InferenceConfig inferenceConfig) {
         this.inferenceConfig.set(inferenceConfig);
+        ML_MODEL_INFERENCE_FEATURE.startTracking(licenseState, "model-" + params.getModelId());
     }
 
     public String getModelId() {

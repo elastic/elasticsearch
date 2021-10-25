@@ -107,7 +107,7 @@ public class MetadataUpdateSettingsService {
             @Override
             public ClusterState execute(ClusterState currentState) {
 
-                RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
+                RoutingTable.Builder routingTableBuilder = null;
                 Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
 
                 // allow to change any settings to a close index, and only allow dynamic settings to be changed
@@ -143,6 +143,7 @@ public class MetadataUpdateSettingsService {
                          *
                          * TODO: should we update the in-sync allocation IDs once the data is deleted by the node?
                          */
+                        routingTableBuilder = RoutingTable.builder(currentState.routingTable());
                         routingTableBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
                         metadataBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
                         logger.info("updating number_of_replicas to [{}] for indices {}", updatedNumberOfReplicas, actualIndices);
@@ -238,7 +239,8 @@ public class MetadataUpdateSettingsService {
                 }
 
                 ClusterState updatedState = ClusterState.builder(currentState).metadata(metadataBuilder)
-                    .routingTable(routingTableBuilder.build()).blocks(blocks).build();
+                    .routingTable(routingTableBuilder == null ? currentState.routingTable() : routingTableBuilder.build())
+                    .blocks(blocks).build();
 
                 // now, reroute in case things change that require it (like number of replicas)
                 updatedState = allocationService.reroute(updatedState, "settings update");

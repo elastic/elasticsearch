@@ -15,6 +15,7 @@ import org.junit.rules.TestRule;
 import org.junit.rules.TestWatcher;
 import org.junit.runner.Description;
 
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
@@ -23,9 +24,16 @@ import java.util.logging.MemoryHandler;
 public class LdapServerDebugLogging {
     private final MemoryHandler logHandler;
     private final Logger targetLogger;
+    private final AtomicBoolean hasLogMessage = new AtomicBoolean(false);
 
     public LdapServerDebugLogging(Logger targetLogger) {
-        this.logHandler = new MemoryHandler(new InfoLoggingHandler(targetLogger), 1000, Level.WARNING);
+        this.logHandler = new MemoryHandler(new InfoLoggingHandler(targetLogger), 1000, Level.WARNING) {
+            @Override
+            public void publish(LogRecord record) {
+                hasLogMessage.set(true);
+                super.publish(record);
+            }
+        };
         this.targetLogger = targetLogger;
     }
 
@@ -33,8 +41,12 @@ public class LdapServerDebugLogging {
         return new TestWatcher() {
             @Override
             protected void failed(Throwable e, Description description) {
-                targetLogger.info("Test [{}] failed, printing debug output from LDAP server", description);
-                logHandler.push();
+                if (hasLogMessage.get()) {
+                    targetLogger.info("Test [{}] failed, printing debug output from LDAP server", description);
+                    logHandler.push();
+                } else {
+                    targetLogger.info("Test [{}] failed, but no debug output was received from LDAP server", description);
+                }
             }
         };
     }

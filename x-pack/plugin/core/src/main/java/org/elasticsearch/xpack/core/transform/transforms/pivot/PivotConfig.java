@@ -13,16 +13,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
-import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 
@@ -185,9 +184,10 @@ public class PivotConfig implements Writeable, ToXContentObject {
                 // max_page_search_size got deprecated in 7.8, still accepted for 8.x, to be removed in 9.x
                 new DeprecationIssue(
                     Level.WARNING,
-                    "Transform [" + id + "] uses deprecated max_page_search_size",
-                    TransformDeprecations.BREAKING_CHANGES_BASE_URL,
-                    "[max_page_search_size] is deprecated inside pivot please use settings instead",
+                    "Setting \"max_page_search_size\" in a pivot is deprecated",
+                    "https://ela.st/es-deprecation-7-transform-max-page-search-size",
+                    "Remove \"max_page_search_size\" from the pivot in \"" + id + "\". Configure \"max_page_search_size\" in the " +
+                        "transform settings.",
                     false,
                     null
                 )

@@ -19,18 +19,17 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -171,33 +170,42 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         return Objects.hash(maxConcurrentSearchRequests, requests, indicesOptions);
     }
 
-    public static void readMultiLineFormat(BytesReference data,
-                                           XContent xContent,
+    public static void readMultiLineFormat(XContent xContent,
+                                           XContentParserConfiguration config,
+                                           BytesReference data,
                                            CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer,
                                            String[] indices,
                                            IndicesOptions indicesOptions,
                                            String routing,
                                            String searchType,
                                            Boolean ccsMinimizeRoundtrips,
-                                           NamedXContentRegistry registry,
-                                           boolean allowExplicitIndex,
-                                           RestApiVersion restApiVersion) throws IOException {
-        readMultiLineFormat(data, xContent, consumer, indices, indicesOptions, routing, searchType, ccsMinimizeRoundtrips, registry,
-            allowExplicitIndex, restApiVersion, (s, o, r) -> false);
+                                           boolean allowExplicitIndex) throws IOException {
+        readMultiLineFormat(
+            xContent,
+            config,
+            data,
+            consumer,
+            indices,
+            indicesOptions,
+            routing,
+            searchType,
+            ccsMinimizeRoundtrips,
+            allowExplicitIndex,
+            (s, o, r) -> false
+        );
 
     }
 
-    public static void readMultiLineFormat(BytesReference data,
-                                           XContent xContent,
+    public static void readMultiLineFormat(XContent xContent,
+                                           XContentParserConfiguration config,
+                                           BytesReference data,
                                            CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer,
                                            String[] indices,
                                            IndicesOptions indicesOptions,
                                            String routing,
                                            String searchType,
                                            Boolean ccsMinimizeRoundtrips,
-                                           NamedXContentRegistry registry,
                                            boolean allowExplicitIndex,
-                                           RestApiVersion restApiVersion,
                                            TriFunction<String, Object, SearchRequest, Boolean> extraParamParser) throws IOException {
         int from = 0;
         byte marker = xContent.streamSeparator();
@@ -207,7 +215,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                 break;
             }
             // support first line with \n
-            if (restApiVersion == RestApiVersion.V_7 && nextMarker == 0) {
+            if (config.restApiVersion() == RestApiVersion.V_7 && nextMarker == 0) {
                 deprecationLogger.compatibleCritical("msearch_first_line_empty", FIRST_LINE_EMPTY_DEPRECATION_MESSAGE);
                 from = nextMarker + 1;
                 continue;
@@ -232,9 +240,10 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             IndicesOptions defaultOptions = searchRequest.indicesOptions();
             // now parse the action
             if (nextMarker - from > 0) {
-                try (InputStream stream = data.slice(from, nextMarker - from).streamInput();
-                     XContentParser parser = xContent
-                         .createParserForCompatibility(registry, LoggingDeprecationHandler.INSTANCE, stream, restApiVersion)) {
+                try (
+                    InputStream stream = data.slice(from, nextMarker - from).streamInput();
+                    XContentParser parser = xContent.createParser(config, stream)
+                ) {
                     Map<String, Object> source = parser.map();
                     Object expandWildcards = null;
                     Object ignoreUnavailable = null;
@@ -267,7 +276,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                             allowNoIndices = value;
                         } else if ("ignore_throttled".equals(entry.getKey()) || "ignoreThrottled".equals(entry.getKey())) {
                             ignoreThrottled = value;
-                        } else if(restApiVersion == RestApiVersion.V_7 &&
+                        } else if(config.restApiVersion() == RestApiVersion.V_7 &&
                             ("type".equals(entry.getKey()) || "types".equals(entry.getKey()))) {
                             deprecationLogger.compatibleCritical("msearch_with_types", RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
                         } else if (extraParamParser.apply(entry.getKey(), value, searchRequest)) {
@@ -291,8 +300,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             }
             BytesReference bytes = data.slice(from, nextMarker - from);
             try (InputStream stream = bytes.streamInput();
-                 XContentParser parser = xContent
-                     .createParserForCompatibility(registry, LoggingDeprecationHandler.INSTANCE, stream, restApiVersion)) {
+                 XContentParser parser = xContent.createParser(config, stream)) {
                 consumer.accept(searchRequest, parser);
             }
             // move pointers

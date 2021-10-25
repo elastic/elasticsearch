@@ -57,6 +57,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
@@ -131,7 +132,7 @@ public class PersistedClusterStateService {
 
     private final Path[] dataPaths;
     private final String nodeId;
-    private final NamedXContentRegistry namedXContentRegistry;
+    private final XContentParserConfiguration parserConfig;
     private final BigArrays bigArrays;
     private final LongSupplier relativeTimeMillisSupplier;
 
@@ -147,7 +148,8 @@ public class PersistedClusterStateService {
                                         ClusterSettings clusterSettings, LongSupplier relativeTimeMillisSupplier) {
         this.dataPaths = dataPaths;
         this.nodeId = nodeId;
-        this.namedXContentRegistry = namedXContentRegistry;
+        this.parserConfig = XContentParserConfiguration.PLAIN.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
+            .withRegistry(namedXContentRegistry);
         this.bigArrays = bigArrays;
         this.relativeTimeMillisSupplier = relativeTimeMillisSupplier;
         this.slowWriteLoggingThreshold = clusterSettings.get(SLOW_WRITE_LOGGING_THRESHOLD);
@@ -408,8 +410,9 @@ public class PersistedClusterStateService {
         final SetOnce<Metadata.Builder> builderReference = new SetOnce<>();
         consumeFromType(searcher, GLOBAL_TYPE_NAME, bytes ->
         {
-            final Metadata metadata = Metadata.Builder.fromXContent(XContentFactory.xContent(XContentType.SMILE)
-                .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes.bytes, bytes.offset, bytes.length));
+            final Metadata metadata = Metadata.Builder.fromXContent(
+                XContentType.SMILE.xContent().createParser(parserConfig, bytes.bytes, bytes.offset, bytes.length)
+            );
             logger.trace("found global metadata with last-accepted term [{}]", metadata.coordinationMetadata().term());
             if (builderReference.get() != null) {
                 throw new IllegalStateException("duplicate global metadata found in [" + dataPath + "]");
@@ -427,8 +430,9 @@ public class PersistedClusterStateService {
         final Set<String> indexUUIDs = new HashSet<>();
         consumeFromType(searcher, INDEX_TYPE_NAME, bytes ->
         {
-            final IndexMetadata indexMetadata = IndexMetadata.fromXContent(XContentFactory.xContent(XContentType.SMILE)
-                .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes.bytes, bytes.offset, bytes.length));
+            final IndexMetadata indexMetadata = IndexMetadata.fromXContent(
+                XContentType.SMILE.xContent().createParser(parserConfig, bytes.bytes, bytes.offset, bytes.length)
+            );
             logger.trace("found index metadata for {}", indexMetadata.getIndex());
             if (indexUUIDs.add(indexMetadata.getIndexUUID()) == false) {
                 throw new IllegalStateException("duplicate metadata found for " + indexMetadata.getIndex() + " in [" + dataPath + "]");

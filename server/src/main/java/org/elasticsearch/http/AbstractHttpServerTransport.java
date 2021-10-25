@@ -30,7 +30,9 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.rest.RestChannel;
@@ -70,7 +72,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     protected final ThreadPool threadPool;
     protected final Dispatcher dispatcher;
     protected final CorsHandler corsHandler;
-    private final NamedXContentRegistry xContentRegistry;
+    private final XContentParserConfiguration parserConfig;
 
     protected final PortsRange port;
     protected final ByteSizeValue maxContentLength;
@@ -95,7 +97,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         this.networkService = networkService;
         this.bigArrays = bigArrays;
         this.threadPool = threadPool;
-        this.xContentRegistry = xContentRegistry;
+        this.parserConfig = XContentParserConfiguration.PLAIN.withRegistry(xContentRegistry)
+            .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         this.dispatcher = dispatcher;
         this.handlingSettings = HttpHandlingSettings.fromSettings(settings);
         this.corsHandler = CorsHandler.fromSettings(settings);
@@ -368,13 +371,13 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         {
             RestRequest innerRestRequest;
             try {
-                innerRestRequest = RestRequest.request(xContentRegistry, httpRequest, httpChannel);
+                innerRestRequest = RestRequest.request(parserConfig, httpRequest, httpChannel);
             } catch (final RestRequest.MediaTypeHeaderException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
                 innerRestRequest = requestWithoutFailedHeader(httpRequest, httpChannel, badRequestCause, e.getFailedHeaderName());
             } catch (final RestRequest.BadParameterException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
-                innerRestRequest = RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
+                innerRestRequest = RestRequest.requestWithoutParameters(parserConfig, httpRequest, httpChannel);
             }
             restRequest = innerRestRequest;
         }
@@ -397,7 +400,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                         trace);
             } catch (final IllegalArgumentException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
-                final RestRequest innerRequest = RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
+                final RestRequest innerRequest = RestRequest.requestWithoutParameters(parserConfig, httpRequest, httpChannel);
                 innerChannel =
                     new DefaultRestChannel(httpChannel, httpRequest, innerRequest, bigArrays, handlingSettings, threadContext, corsHandler,
                         trace);
@@ -414,10 +417,10 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                                                    String failedHeaderName) {
         HttpRequest httpRequestWithoutContentType = httpRequest.removeHeader(failedHeaderName);
         try {
-            return RestRequest.request(xContentRegistry, httpRequestWithoutContentType, httpChannel);
+            return RestRequest.request(parserConfig, httpRequestWithoutContentType, httpChannel);
         } catch (final RestRequest.BadParameterException e) {
             badRequestCause.addSuppressed(e);
-            return RestRequest.requestWithoutParameters(xContentRegistry, httpRequestWithoutContentType, httpChannel);
+            return RestRequest.requestWithoutParameters(parserConfig, httpRequestWithoutContentType, httpChannel);
         }
     }
 

@@ -18,6 +18,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.script.field.DocValuesField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -505,8 +507,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ScriptDocValues.Doubles getScriptValues() {
-            return new ScriptDocValues.Doubles(getDoubleValues());
+        public DocValuesField getScriptField(String name) {
+            return new DelegateDocValuesField(new ScriptDocValues.Doubles(getDoubleValues()), name);
         }
 
         @Override

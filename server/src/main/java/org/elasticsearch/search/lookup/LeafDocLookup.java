@@ -25,14 +25,13 @@ import java.util.function.Function;
 
 public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
-    private final Map<String, DocValuesField> localCacheScriptFieldData = new HashMap<>(4);
-    private final Map<String, ScriptDocValues<?>> localCacheFieldData = new HashMap<>(4);
     private final Function<String, MappedFieldType> fieldTypeLookup;
     private final Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup;
-
     private final LeafReaderContext reader;
 
     private int docId = -1;
+
+    private final Map<String, DocValuesField> localCacheScriptFieldData = new HashMap<>(4);
 
     LeafDocLookup(Function<String, MappedFieldType> fieldTypeLookup, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup,
                   LeafReaderContext reader) {
@@ -52,7 +51,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
             final MappedFieldType fieldType = fieldTypeLookup.apply(fieldName);
 
             if (fieldType == null) {
-                throw new IllegalArgumentException("no field found for [" + fieldName + "] in mapping");
+                throw new IllegalArgumentException("No field found for [" + fieldName + "] in mapping");
             }
 
             // Load the field data on behalf of the script. Otherwise, it would require
@@ -78,38 +77,15 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     @Override
     public ScriptDocValues<?> get(Object key) {
-        // assume its a string...
         String fieldName = key.toString();
-        ScriptDocValues<?> scriptValues = localCacheFieldData.get(fieldName);
-        if (scriptValues == null) {
-            final MappedFieldType fieldType = fieldTypeLookup.apply(fieldName);
-            if (fieldType == null) {
-                throw new IllegalArgumentException("No field found for [" + fieldName + "] in mapping");
-            }
-            // load fielddata on behalf of the script: otherwise it would need additional permissions
-            // to deal with pagedbytes/ramusagestimator/etc
-            scriptValues = AccessController.doPrivileged(new PrivilegedAction<ScriptDocValues<?>>() {
-                @Override
-                public ScriptDocValues<?> run() {
-                    return fieldDataLookup.apply(fieldType).load(reader).getScriptValues();
-                }
-            });
-            localCacheFieldData.put(fieldName, scriptValues);
-        }
-        try {
-            scriptValues.setNextDocId(docId);
-        } catch (IOException e) {
-            throw ExceptionsHelper.convertToElastic(e);
-        }
-        return scriptValues;
+        return getScriptField(fieldName).getScriptDocValues();
     }
 
     @Override
     public boolean containsKey(Object key) {
-        // assume its a string...
         String fieldName = key.toString();
-        ScriptDocValues<?> scriptValues = localCacheFieldData.get(fieldName);
-        return scriptValues != null || fieldTypeLookup.apply(fieldName) != null;
+        DocValuesField docValuesField = localCacheScriptFieldData.get(fieldName);
+        return docValuesField != null || fieldTypeLookup.apply(fieldName) != null;
     }
 
     @Override

@@ -32,7 +32,7 @@ major versions. However, over time, the format of {transform} configuration
 information may change. This API identifies {transforms} which have a legacy 
 configuration format and upgrades them to the latest version; including clean up 
 of the internal data structures that store {transform} state and checkpoints. 
-{transform-cap} upgrade does not effect the source and destination indices.
+{transform-cap} upgrade does not affect the source and destination indices.
 
 If a {transform} upgrade step fails, the upgrade stops, and an error is returned 
 about the underlying issue. Resolve the issue then re-run the process again. A 

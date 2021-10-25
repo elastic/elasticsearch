@@ -20,3 +20,6 @@ dependencies {
   compileOnly project(":server")
   compileOnly project(path: xpackModule('core'))
 }
+
+//this plugin is only for testing purposes -- there are no unit tests
+tasks.named("testingConventions").configure { enabled = false }

@@ -121,9 +121,9 @@ To exclude all data streams and indices, use `-*` or `none`.
 [id="{page-id}-feature-states"]
 `feature_states`::
 (Optional, array of strings)
-Feature states to include in the snapshot. To get a list of possible feature
-state values and their descriptions, use the <<get-features-api,get features
-API>>. Each feature state includes one or more system indices.
+<<feature-state,Feature states>> to include in the snapshot. To get a list of
+possible values and their descriptions, use the <<get-features-api,get features
+API>>.
 +
 If `include_global_state` is `true`, the snapshot includes all feature states by
 default. If `include_global_state` is `false`, the snapshot includes no feature

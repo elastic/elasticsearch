@@ -10,8 +10,8 @@ A snapshot is a backup of a running {es} cluster. You can use snapshots to:
   snapshots>> in the cold and frozen data tiers
 
 // tag::backup-warning[]
-**A snapshot is the only supported way to back up a cluster.** Other backup
-methods may result in data loss, even if they appear successful.
+**A snapshot is the only supported way to back up a running cluster.** Other
+backup methods may result in data loss, even if they appear successful.
 // end::backup-warning[]
 
 [discrete]
@@ -52,11 +52,22 @@ Snapshots don't contain or back up:
 * Node configuration files
 
 [discrete]
+[[feature-state]]
+=== Feature states
+
+A feature state contains the indices and data streams used to store
+configurations, history, and other data for an Elastic feature, such as {es}
+security or {kib}.
+
+A feature state typically includes one or more <<system-indices,system indices
+or system data streams>>. It may also include regular indices and data streams
+used by the feature. For example, a feature state may include a regular index
+that contains the feature's execution history. Storing this history in a regular
+index lets you more easily search it.
+
+[discrete]
 [[how-snapshots-work]]
 == How snapshots work
-
-Snapshots are incremental. You can take snapshots frequently with little impact
-to your storage overhead.
 
 To back up an index, a snapshot makes a copy of the index's
 <<near-real-time,segments>> and stores them in the snapshot repository. Since
@@ -135,7 +146,7 @@ endif::[]
 Any data stream or index you restore from a snapshot must also be compatible
 with the current cluster's version. A cluster is only compatible with indices
 created in the previous major version. If you try to restore an index created in
-an incompatible version, the restore attempt will fail. 
+an incompatible version, the restore attempt will fail.
 
 A snapshot can contain indices created in a previous major version. For example,
 a snapshot of a 6.x cluster can contain an index created in 5.x. If you try to

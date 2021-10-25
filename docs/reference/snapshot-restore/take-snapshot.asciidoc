@@ -6,14 +6,14 @@
 ----
 PUT _slm/policy/nightly-snapshots
 {
-  "schedule": "0 30 2 * * ?",       <1>
-  "name": "<nightly-snap-{now/d}>", <2>
-  "repository": "my_repository",    <3>
+  "schedule": "0 30 2 * * ?",
+  "name": "<nightly-snap-{now/d}>",
+  "repository": "my_repository",
   "config": {
-    "indices": [ "*" ],             <4>
-    "include_global_state": true    <5>
+    "indices": "*",
+    "include_global_state": true
   },
-  "retention": {                    <6>
+  "retention": {
     "expire_after": "30d",
     "min_count": 5,
     "max_count": 50
@@ -62,8 +62,8 @@ blocks>> that prevent read access.
 * Each snapshot must have a unique name within its repository. Attempts to
 create a snapshot with the same name as an existing snapshot will fail.
 
-* Snapshots are incremental. You can take snapshots frequently with little
-impact to your storage overhead. See <<how-snapshots-work>>.
+* Snapshots are incremental. You can take frequent snapshots with little impact
+to your storage overhead. See <<how-snapshots-work>>.
 
 * Taking a snapshot can temporarily pause shard allocations.
 See <<snapshots-shard-allocation>>.
@@ -124,7 +124,7 @@ Management.
 To grant the privileges necessary to create and manage {slm-init} policies and
 snapshots, you can set up a role with the `manage_slm` and
 `cluster:admin/snapshot/*` cluster privileges and full access to the {slm-init}
-history indices. 
+history indices.
 
 For example, the following request creates an `slm-admin` role:
 
@@ -143,9 +143,9 @@ POST _security/role/slm-admin
 ----
 // TEST[skip:security is not enabled here]
 
-To grant read-only access to {slm-init} policies and the snapshot history, 
+To grant read-only access to {slm-init} policies and the snapshot history,
 you can set up a role with the `read_slm` cluster privilege and read access
-to the {slm} history indices. 
+to the {slm} history indices.
 
 For example, the following request creates a `slm-read-only` role:
 
@@ -187,7 +187,7 @@ PUT _slm/policy/nightly-snapshots
   "name": "<nightly-snap-{now/d}>", <2>
   "repository": "my_repository",    <3>
   "config": {
-    "indices": [ "*" ],             <4>
+    "indices": "*",                 <4>
     "include_global_state": true    <5>
   },
   "retention": {                    <6>
@@ -206,8 +206,9 @@ PUT _slm/policy/nightly-snapshots
 <4> Data streams and indices to include in the policy's snapshots. This
     configuration includes all data streams and indices, including system
     indices.
-<5> If `true`, the policy's snapshots include the cluster state and all system
-    indices.
+<5> If `true`, the policy's snapshots include the cluster state. This also
+    includes all feature states by default. To only include specific feature
+    states, see <<back-up-specific-feature-state>>.
 <6> Optional retention rules. This configuration keeps snapshots for 30 days,
     retaining at least 5 and no more than 50 snapshots regardless of age.
 
@@ -364,19 +365,97 @@ Depending on your setup, some of these configuration files may contain sensitive
 data, such as passwords or keys. If so, consider encrypting your file backups.
 
 [discrete]
+[[back-up-specific-feature-state]]
+=== Back up a specific feature state
+
+By default, a snapshot that includes the cluster state also includes all
+<<feature-state,feature states>>. Similarly, a snapshot that excludes the
+cluster state excludes all feature states by default. However, you can also
+configure a snapshot to only include specific feature states, regardless of the
+cluster state.
+
+NOTE: You can't back up specific feature states in {kib}.
+
+To get a list of available features, use the <<get-features-api,get features
+API>>.
+
+[source,console]
+----
+GET _features
+----
+
+The API returns:
+
+[source,console-result]
+----
+{
+  "features": [
+    {
+      "name": "tasks",
+      "description": "Manages task results"
+    },
+    {
+      "name": "kibana",
+      "description": "Manages Kibana configuration and reports"
+    },
+    {
+      "name": "security",
+      "description": "Manages configuration for Security features, such as users and roles"
+    },
+    ...
+  ]
+}
+----
+// TESTRESPONSE[skip:response may vary based on features in test cluster]
+
+To include a specific feature state in a snapshot, specify the feature `name` in
+the `feature_states` array.
+
+For example, the following {slm-init} policy only includes feature states for
+the {kib} and {es} security features in its snapshots.
+
+[source,console]
+----
+PUT _slm/policy/nightly-snapshots
+{
+  "schedule": "0 30 2 * * ?",
+  "name": "<nightly-snap-{now/d}>",
+  "repository": "my_repository",
+  "config": {
+    "indices": "*",
+    "include_global_state": true,
+    "feature_states": [
+      "kibana",
+      "security"
+    ]
+  },
+  "retention": {
+    "expire_after": "30d",
+    "min_count": 5,
+    "max_count": 50
+  }
+}
+----
+
+Any index or data stream that's part of the feature state will display in a
+snapshot's contents. For example, if you back up the `security` feature state,
+the `security-*` system indices display in the <<get-snapshot-api,get snapshot
+API>>'s response under both `indices` and `feature_states`.
+
+[discrete]
 [[cluster-state-snapshots]]
 === Dedicated cluster state snapshots
 
-By default, a snapshot includes all system indices. Some of these system indices
-contain sensitive data. For example, the `.security-*` system indices may
-contain user names and encrypted password hashes.
+Some feature states contain sensitive data. For example, the `security` feature
+state includes system indices that may contain user names and encrypted password
+hashes.
 
 To better protect this data, consider creating a dedicated repository and
 {slm-init} policy for snapshots of the cluster state. This lets you strictly
 limit and audit access to the repository.
 
-For example, the following {slm-init} policy only backs up the cluster state
-and system indices. The policy stores these snapshots in a dedicated repository.
+For example, the following {slm-init} policy only backs up the cluster state.
+The policy stores these snapshots in a dedicated repository.
 
 [source,console]
 ----
@@ -387,7 +466,7 @@ PUT _slm/policy/nightly-cluster-state-snapshots
   "repository": "my_secure_repository",
   "config": {
     "include_global_state": true,                 <1>
-    "indices": [ "-*" ]                           <2>
+    "indices": "-*"                               <2>
   },
   "retention": {
     "expire_after": "30d",
@@ -398,7 +477,8 @@ PUT _slm/policy/nightly-cluster-state-snapshots
 ----
 // TEST[s/my_secure_repository/my_repository/]
 
-<1> Includes the cluster state and system indices.
+<1> Includes the cluster state. This also includes all feature states by
+    default.
 <2> Excludes regular data streams and indices.
 
 If you take dedicated snapshots of the cluster state, you'll need to exclude the
@@ -413,7 +493,7 @@ PUT _slm/policy/nightly-snapshots
   "repository": "my_repository",
   "config": {
     "include_global_state": false,    <1>
-    "indices": [ "*,-.*" ]            <2>
+    "indices": "*,-.*"                <2>
   },
   "retention": {
     "expire_after": "30d",
@@ -423,6 +503,7 @@ PUT _slm/policy/nightly-snapshots
 }
 ----
 
-<1> Excludes the cluster state.
+<1> Excludes the cluster state. This also excludes all feature states by
+    default.
 <2> Includes all data streams and indices except system indices and other
     indices that begin with a dot (`.`).

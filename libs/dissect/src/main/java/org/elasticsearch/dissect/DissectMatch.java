@@ -93,7 +93,7 @@ final class DissectMatch {
     }
 
     /**
-     * Gets all the current matches. Pass the results of this to isValid to determine if a fully successful match has occured.
+     * Gets all the current matches. Pass the results of this to isValid to determine if a fully successful match has occurred.
      *
      * @return the map of the results.
      */

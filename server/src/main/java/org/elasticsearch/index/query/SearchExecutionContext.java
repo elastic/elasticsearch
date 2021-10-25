@@ -156,7 +156,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             ),
             allowExpensiveQueries,
             valuesSourceRegistry,
-            parseRuntimeMappings(runtimeMappings, mapperService),
+            parseRuntimeMappings(runtimeMappings, mapperService, indexSettings, mappingLookup),
             null
         );
     }
@@ -224,13 +224,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.runtimeMappings = runtimeMappings;
         this.allowedFields = allowedFields;
-        if (false == indexSettings.getIndexMetadata().getRoutingPaths().isEmpty()) {
-            for (String r : runtimeMappings.keySet()) {
-                if (Regex.simpleMatch(indexSettings.getIndexMetadata().getRoutingPaths(), r)) {
-                    throw new IllegalArgumentException("runtime fields may not match [routing_path] but [" + r + "] matched");
-                }
-            }
-        }
     }
 
     private void reset() {
@@ -653,7 +646,12 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return fullyQualifiedIndex;
     }
 
-    private static Map<String, MappedFieldType> parseRuntimeMappings(Map<String, Object> runtimeMappings, MapperService mapperService) {
+    private static Map<String, MappedFieldType> parseRuntimeMappings(
+        Map<String, Object> runtimeMappings,
+        MapperService mapperService,
+        IndexSettings indexSettings,
+        MappingLookup lookup
+    ) {
         if (runtimeMappings.isEmpty()) {
             return Collections.emptyMap();
         }
@@ -663,7 +661,16 @@ public class SearchExecutionContext extends QueryRewriteContext {
             new HashMap<>(runtimeMappings),
             parserContext,
             false);
-        return RuntimeField.collectFieldTypes(runtimeFields.values());
+        Map<String, MappedFieldType> runtimeFieldTypes = RuntimeField.collectFieldTypes(runtimeFields.values());
+        if (false == indexSettings.getIndexMetadata().getRoutingPaths().isEmpty()) {
+            for (String r : runtimeMappings.keySet()) {
+                if (Regex.simpleMatch(indexSettings.getIndexMetadata().getRoutingPaths(), r)) {
+                    throw new IllegalArgumentException("runtime fields may not match [routing_path] but [" + r + "] matched");
+                }
+            }
+        }
+        runtimeFieldTypes.keySet().forEach(lookup::validateDoesNotShadow);
+        return runtimeFieldTypes;
     }
 
     /**

@@ -1520,7 +1520,15 @@ public class IndicesService extends AbstractLifecycleComponent
         (Index index, IndexSettings indexSettings) -> canDeleteIndexContents(index);
     private final IndexDeletionAllowedPredicate ALWAYS_TRUE = (Index index, IndexSettings indexSettings) -> true;
 
-    public AliasFilter buildAliasFilter(ClusterState state, String index, Set<String> resolvedExpressions) {
+    public AliasFilter buildAliasFilter(ClusterState state, String index, Set<String> resolvedExpressions, boolean forbidFilteredAliases) {
+       AliasFilter aliasFilter = buildAliasFilterInteral(state, index, resolvedExpressions);
+       if (forbidFilteredAliases && aliasFilter.getQueryBuilder() != null) {
+           throw new IllegalArgumentException("Filtered aliases are not supported, use general aliases or concrete indices instead.");
+       }
+       return aliasFilter;
+    }
+
+    private AliasFilter buildAliasFilterInteral(ClusterState state, String index, Set<String> resolvedExpressions) {
         /* Being static, parseAliasFilter doesn't have access to whatever guts it needs to parse a query. Instead of passing in a bunch
          * of dependencies we pass in a function that can perform the parsing. */
         CheckedFunction<BytesReference, QueryBuilder, IOException> filterParser = bytes -> {

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.vectors.action;
 
 
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -16,7 +15,6 @@ import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 
 import java.io.IOException;
-import java.util.EnumSet;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -47,15 +45,8 @@ public class RestKnnSearchAction extends BaseRestHandler {
         // This will allow to cancel the search request if the http channel is closed
         RestCancellableNodeClient cancellableNodeClient = new RestCancellableNodeClient(client, restRequest.getHttpChannel());
         KnnSearchRequestBuilder request = KnnSearchRequestBuilder.parseRestRequest(restRequest);
+
         SearchRequestBuilder searchRequestBuilder = cancellableNodeClient.prepareSearch();
-
-        // Forbid filtered aliases in _knn_search request
-        IndicesOptions indicesOptions = searchRequestBuilder.request().indicesOptions();
-        EnumSet<IndicesOptions.Option> options = indicesOptions.getOptions();
-        options.add(IndicesOptions.Option.FORBID_FILTERED_ALIASES);
-        IndicesOptions newIndicesOptions = new IndicesOptions(options, indicesOptions.getExpandWildcards());
-        searchRequestBuilder.setIndicesOptions(newIndicesOptions);
-
         request.build(searchRequestBuilder);
 
         return channel -> searchRequestBuilder.execute(new RestStatusToXContentListener<>(channel));

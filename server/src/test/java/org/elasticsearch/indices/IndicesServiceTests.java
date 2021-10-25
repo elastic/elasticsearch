@@ -581,17 +581,17 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             );
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
         {
-            AliasFilter result = indicesService.buildAliasFilter(state, "test-0", Set.of("test-alias-0"));
+            AliasFilter result = indicesService.buildAliasFilter(state, "test-0", Set.of("test-alias-0"), false);
             assertThat(result.getAliases(), arrayContainingInAnyOrder("test-alias-0"));
             assertThat(result.getQueryBuilder(), equalTo(QueryBuilders.termQuery("foo", "bar")));
         }
         {
-            AliasFilter result = indicesService.buildAliasFilter(state, "test-0", Set.of("test-alias-1"));
+            AliasFilter result = indicesService.buildAliasFilter(state, "test-0", Set.of("test-alias-1"), false);
             assertThat(result.getAliases(), arrayContainingInAnyOrder("test-alias-1"));
             assertThat(result.getQueryBuilder(), equalTo(QueryBuilders.termQuery("foo", "baz")));
         }
         {
-            AliasFilter result = indicesService.buildAliasFilter(state, "test-0", Set.of("test-alias-0", "test-alias-1"));
+            AliasFilter result = indicesService.buildAliasFilter(state, "test-0", Set.of("test-alias-0", "test-alias-1"), false);
             assertThat(result.getAliases(), arrayContainingInAnyOrder("test-alias-0", "test-alias-1"));
             BoolQueryBuilder filter = (BoolQueryBuilder) result.getQueryBuilder();
             assertThat(filter.filter(), empty());
@@ -601,7 +601,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
         {
             AliasFilter result =
-                indicesService.buildAliasFilter(state, "test-0", Set.of("test-alias-0", "test-alias-1", "test-alias-non-filtering"));
+                indicesService.buildAliasFilter(state, "test-0", Set.of("test-alias-0", "test-alias-1", "test-alias-non-filtering"), false);
             assertThat(result.getAliases(), emptyArray());
             assertThat(result.getQueryBuilder(), nullValue());
         }
@@ -621,13 +621,13 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
         {
             String index = backingIndex1.getIndex().getName();
-            AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs_foo"));
+            AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs_foo"), false);
             assertThat(result.getAliases(), arrayContainingInAnyOrder("logs_foo"));
             assertThat(result.getQueryBuilder(), equalTo(QueryBuilders.termQuery("foo", "bar")));
         }
         {
             String index = backingIndex1.getIndex().getName();
-            AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs_foo", "logs"));
+            AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs_foo", "logs"), false);
             assertThat(result.getAliases(), arrayContainingInAnyOrder("logs_foo", "logs"));
             BoolQueryBuilder filter = (BoolQueryBuilder) result.getQueryBuilder();
             assertThat(filter.filter(), empty());
@@ -637,7 +637,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
         {
             String index = backingIndex1.getIndex().getName();
-            AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs_foo", "logs", "logs_bar"));
+            AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs_foo", "logs", "logs_bar"), false);
             assertThat(result.getAliases(), arrayContainingInAnyOrder("logs_foo", "logs"));
             BoolQueryBuilder filter = (BoolQueryBuilder) result.getQueryBuilder();
             assertThat(filter.filter(), empty());

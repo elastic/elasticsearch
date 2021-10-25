@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.vectors.action;
 
 import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.vectors.query.KnnVectorQueryBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 
@@ -132,6 +134,13 @@ class KnnSearchRequestBuilder {
     public void build(SearchRequestBuilder builder) {
         builder.setIndices(indices);
         builder.setRouting(routing);
+
+        // Forbid filtered aliases in _knn_search request
+        IndicesOptions indicesOptions = builder.request().indicesOptions();
+        EnumSet<IndicesOptions.Option> options = indicesOptions.getOptions();
+        options.add(IndicesOptions.Option.FORBID_FILTERED_ALIASES);
+        IndicesOptions newIndicesOptions = new IndicesOptions(options, indicesOptions.getExpandWildcards());
+        builder.setIndicesOptions(newIndicesOptions);
 
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         sourceBuilder.trackTotalHitsUpTo(SearchContext.TRACK_TOTAL_HITS_ACCURATE);

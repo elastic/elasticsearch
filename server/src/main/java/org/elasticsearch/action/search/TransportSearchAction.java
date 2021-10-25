@@ -183,24 +183,18 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private Map<String, AliasFilter> buildPerIndexAliasFilter(ClusterState clusterState,
                                                               Set<String> indicesAndAliases,
                                                               Index[] concreteIndices,
-                                                              Map<String, AliasFilter> remoteAliasMap) {
+                                                              Map<String, AliasFilter> remoteAliasMap,
+                                                              boolean forbidFilteredAliases) {
         final Map<String, AliasFilter> aliasFilterMap = new HashMap<>();
         for (Index index : concreteIndices) {
             clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index.getName());
-            AliasFilter aliasFilter = searchService.buildAliasFilter(clusterState, index.getName(), indicesAndAliases);
+            AliasFilter aliasFilter = searchService.buildAliasFilter(
+                clusterState, index.getName(), indicesAndAliases, forbidFilteredAliases);
             assert aliasFilter != null;
             aliasFilterMap.put(index.getUUID(), aliasFilter);
         }
         aliasFilterMap.putAll(remoteAliasMap);
         return aliasFilterMap;
-    }
-
-    private static void checkForFilteredAliases(Map<String, AliasFilter> aliasFilterMap) {
-        for (AliasFilter aliasFilter : aliasFilterMap.values()) {
-            if (aliasFilter.getQueryBuilder() != null) {
-                throw new IllegalArgumentException("Filtered aliases are not supported, use general aliases or concrete indices instead.");
-            }
-        }
     }
 
     private Map<String, Float> resolveIndexBoosts(SearchRequest searchRequest, ClusterState clusterState) {
@@ -706,10 +700,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 concreteLocalIndices, routingMap, searchRequest.preference(),
                 searchService.getResponseCollectorService(), nodeSearchCounts);
             final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, searchRequest.indices());
-            aliasFilter = buildPerIndexAliasFilter(clusterState, indicesAndAliases, indices, remoteAliasMap);
-            if (searchRequest.indicesOptions().forbidFilteredAliases()) {
-                checkForFilteredAliases(aliasFilter);
-            }
+            aliasFilter = buildPerIndexAliasFilter(clusterState, indicesAndAliases, indices,
+                remoteAliasMap, searchRequest.indicesOptions().forbidFilteredAliases());
             final Map<String, OriginalIndices> finalIndicesMap =
                 buildPerIndexOriginalIndices(clusterState, indicesAndAliases, indices, searchRequest.indicesOptions());
             localShardIterators = StreamSupport.stream(localShardRoutings.spliterator(), false)

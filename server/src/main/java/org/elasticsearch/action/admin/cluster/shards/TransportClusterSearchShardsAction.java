@@ -61,8 +61,9 @@ public class TransportClusterSearchShardsAction extends
         Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(state, request.routing(), request.indices());
         Map<String, AliasFilter> indicesAndFilters = new HashMap<>();
         Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, request.indices());
+        boolean forbidFilteredAliases = request.indicesOptions().forbidFilteredAliases();
         for (String index : concreteIndices) {
-            final AliasFilter aliasFilter = indicesService.buildAliasFilter(clusterState, index, indicesAndAliases);
+            final AliasFilter aliasFilter = indicesService.buildAliasFilter(clusterState, index, indicesAndAliases, forbidFilteredAliases);
             final String[] aliases = indexNameExpressionResolver.indexAliases(clusterState, index,
                 aliasMetadata -> true, dataStreamAlias -> true, true, indicesAndAliases);
             indicesAndFilters.put(index, new AliasFilter(aliasFilter.getQueryBuilder(), aliases));

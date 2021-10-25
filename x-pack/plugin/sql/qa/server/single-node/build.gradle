@@ -1,4 +1,15 @@
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+dependencies {
+
+  javaRestTestImplementation(project(path: xpackModule('core')))
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation(project(":test:framework"))
+
+}
+
 testClusters.matching { it.name == "integTest" }.configureEach {
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
+  plugin ':x-pack:qa:freeze-plugin'
 }

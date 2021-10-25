@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.eql.execution.search.extractor.ImplicitTiebreaker
 import org.elasticsearch.xpack.eql.execution.search.extractor.TimestampFieldHitExtractor;
 import org.elasticsearch.xpack.eql.execution.sequence.SequenceMatcher;
 import org.elasticsearch.xpack.eql.execution.sequence.TumblingWindow;
+import org.elasticsearch.xpack.eql.expression.OptionalResolvedAttribute;
 import org.elasticsearch.xpack.eql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.eql.querydsl.container.FieldExtractorRegistry;
@@ -30,11 +31,11 @@ import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
+import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -44,16 +45,10 @@ public class ExecutionManager {
 
     private final EqlSession session;
     private final EqlConfiguration cfg;
-    private final Set<String> optionalKeys;
 
     public ExecutionManager(EqlSession eqlSession) {
         this.session = eqlSession;
         this.cfg = eqlSession.configuration();
-        this.optionalKeys = new HashSet<>();
-
-        for (Expression e : session.keyOptionals()) {
-            optionalKeys.add(((NamedExpression) e).name());
-        }
     }
 
     public Executable assemble(List<List<Attribute>> listOfKeys,
@@ -84,14 +79,24 @@ public class ExecutionManager {
             List<HitExtractor> keyExtractors = hitExtractors(keys, extractorRegistry);
             List<String> keyFields = new ArrayList<>(keyExtractors.size());
 
+            Set<String> optionalKeys = new LinkedHashSet<>(CollectionUtils.mapSize(keyExtractors.size()));
+
             // extract top-level fields used as keys to optimize query lookups
             // this process gets skipped for nested fields
-            for (HitExtractor extractor : keyExtractors) {
+            for (int j = 0; j < keyExtractors.size(); j++) {
+                HitExtractor extractor = keyExtractors.get(j);
+
                 if (extractor instanceof AbstractFieldHitExtractor) {
                     AbstractFieldHitExtractor hitExtractor = (AbstractFieldHitExtractor) extractor;
+                    // remember if the field is optional
+                    boolean isOptional = keys.get(j) instanceof OptionalResolvedAttribute;
                     // no nested fields
                     if (hitExtractor.hitName() == null) {
-                        keyFields.add(hitExtractor.fieldName());
+                        String fieldName = hitExtractor.fieldName();
+                        keyFields.add(fieldName);
+                        if (isOptional) {
+                            optionalKeys.add(fieldName);
+                        }
                     } else {
                         keyFields = emptyList();
                         break;

@@ -21,12 +21,9 @@ import org.elasticsearch.xpack.eql.parser.EqlParser;
 import org.elasticsearch.xpack.eql.parser.ParserParams;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.eql.planner.Planner;
-import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-
-import java.util.Set;
 
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.ql.util.ActionListeners.map;
@@ -43,8 +40,6 @@ public class EqlSession {
     private final Optimizer optimizer;
     private final Planner planner;
     private final CircuitBreaker circuitBreaker;
-
-    private Set<Expression> keyOptionals;
 
     public EqlSession(Client client, EqlConfiguration cfg, IndexResolver indexResolver, PreAnalyzer preAnalyzer, PostAnalyzer postAnalyzer,
                       FunctionRegistry functionRegistry, Verifier verifier, Optimizer optimizer, Planner planner,
@@ -75,10 +70,6 @@ public class EqlSession {
 
     public CircuitBreaker circuitBreaker() {
         return circuitBreaker;
-    }
-
-    public Set<Expression> keyOptionals() {
-        return keyOptionals;
     }
 
     public void eql(String eql, ParserParams params, ActionListener<Results> listener) {
@@ -126,10 +117,6 @@ public class EqlSession {
     }
 
     private LogicalPlan doParse(String eql, ParserParams params) {
-        EqlParser parser = new EqlParser();
-        LogicalPlan plan = parser.createStatement(eql, params);
-        this.keyOptionals = parser.keyOptionals();
-        this.analyzer.keyOptionals(keyOptionals);
-        return plan;
+        return new EqlParser().createStatement(eql, params);
     }
 }

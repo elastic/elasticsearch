@@ -52,7 +52,6 @@ public class VerifierTests extends ESTestCase {
         Analyzer analyzer = new Analyzer(EqlTestUtils.TEST_CFG, new EqlFunctionRegistry(), new Verifier(new Metrics()));
 
         LogicalPlan plan = parser.createStatement(eql);
-        analyzer.keyOptionals(parser.keyOptionals());
         return analyzer.analyze(preAnalyzer.preAnalyze(plan, resolution));
     }
 
@@ -182,7 +181,7 @@ public class VerifierTests extends ESTestCase {
         accept("file where serial_event_id * 2 == 164");
         accept("file where serial_event_id / 2 == 41");
         accept("file where serial_event_id % 40 == 2");
-        
+
         // optional fields
         accept("file where ?foo == 123");
         accept("file where ?foo == null");
@@ -403,7 +402,6 @@ public class VerifierTests extends ESTestCase {
             TimeValue.timeValueSeconds(30), null, 123, "", new TaskId("test", 123), null, versionIncompatibleClusters);
         Analyzer analyzer = new Analyzer(eqlConfiguration, new EqlFunctionRegistry(), new Verifier(new Metrics()));
         IndexResolution resolution = IndexResolution.valid(new EsIndex("irrelevant", loadEqlMapping("mapping-default.json")));
-        analyzer.keyOptionals(emptySet());
         return analyzer.analyze(preAnalyzer.preAnalyze(new EqlParser().createStatement("any where true"), resolution));
     }
 

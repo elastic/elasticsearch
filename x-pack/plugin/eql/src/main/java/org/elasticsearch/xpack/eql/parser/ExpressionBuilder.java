@@ -55,7 +55,6 @@ import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.time.ZoneId;
 import java.util.List;
-import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
@@ -68,11 +67,9 @@ import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 public class ExpressionBuilder extends IdentifierBuilder {
 
     protected final ParserParams params;
-    private final Set<Expression> keyOptionals;
 
-    public ExpressionBuilder(ParserParams params, Set<Expression> keyOptionals) {
+    public ExpressionBuilder(ParserParams params) {
         this.params = params;
-        this.keyOptionals = keyOptionals;
     }
 
     protected Expression expression(ParseTree ctx) {
@@ -90,17 +87,8 @@ public class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public List<Attribute> visitJoinKeys(JoinKeysContext ctx) {
-        if (ctx == null) {
-            return emptyList();
-        }
         try {
-            List<Attribute> keys = visitList(this, ctx.expression(), Attribute.class);
-            for (Attribute key : keys) {
-                if (key instanceof OptionalUnresolvedAttribute) {
-                    keyOptionals.add(key);
-                }
-            }
-            return keys;
+            return ctx != null ? visitList(this, ctx.expression(), Attribute.class) : emptyList();
         } catch (ClassCastException ex) {
             Source source = source(ctx);
             throw new ParsingException(source, "Unsupported join key ", source.text());
@@ -232,14 +220,10 @@ public class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public UnresolvedAttribute visitDereference(DereferenceContext ctx) {
-        String name = visitQualifiedName(ctx.qualifiedName());
-        UnresolvedAttribute attr;
-        if (ctx.qualifiedName().OPTIONAL() != null) {
-            attr = new OptionalUnresolvedAttribute(source(ctx), name);
-        } else {
-            attr = new UnresolvedAttribute(source(ctx), name);
-        }
-        return attr;
+        Source source = source(ctx);
+        EqlBaseParser.QualifiedNameContext qContext = ctx.qualifiedName();
+        String name = visitQualifiedName(qContext);
+        return qContext.OPTIONAL() != null ? new OptionalUnresolvedAttribute(source, name) : new UnresolvedAttribute(source, name);
     }
 
     @Override

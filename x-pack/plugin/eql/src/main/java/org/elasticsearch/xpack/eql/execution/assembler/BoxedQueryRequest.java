@@ -60,16 +60,6 @@ public class BoxedQueryRequest implements QueryRequest {
         keys = keyNames;
         this.optionalKeyNames = optionalKeyNames;
         RuntimeUtils.addFilter(timestampRange, searchSource);
-        // do not join on null values
-        if (keyNames.isEmpty() == false) {
-            for (String keyName : keyNames) {
-                // add an "exists" query for each non-optional join key to filter out any non-existent values
-                // an optional field join key it is supposed to accept nulls, so we skip them
-                if (optionalKeyNames.contains(keyName) == false) {
-                    RuntimeUtils.addFilter(existsQuery(keyName), searchSource);
-                }
-            }
-        }
     }
 
     @Override
@@ -124,6 +114,11 @@ public class BoxedQueryRequest implements QueryRequest {
             // iterate on all possible values for a given key
             newFilters = new ArrayList<>(values.size());
             for (int keyIndex = 0; keyIndex < keys.size(); keyIndex++) {
+                String key = keys.get(keyIndex);
+                // missing optional key
+                if (key == null) {
+                    continue;
+                }
 
                 boolean hasNullValue = false;
                 Set<Object> keyValues = new HashSet<>(BoxedQueryRequest.MAX_TERMS);
@@ -145,8 +140,6 @@ public class BoxedQueryRequest implements QueryRequest {
                 }
 
                 QueryBuilder query = null;
-
-                String key = keys.get(keyIndex);
 
                 if (keyValues.size() == 1) {
                     query = termQuery(key, keyValues.iterator().next());

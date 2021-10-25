@@ -8,28 +8,15 @@ package org.elasticsearch.xpack.eql.expression;
 
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
+/**
+ * Dedicated attribute for optional field declaration in queries - ?field
+ * Separated from its superclass to maintain its optional property which
+ * should not result in failure in case of incomplete resolution.
+ */
 public class OptionalUnresolvedAttribute extends UnresolvedAttribute {
-
-    private Boolean resolved = null;
 
     public OptionalUnresolvedAttribute(Source source, String name) {
         super(source, name);
-    }
-
-    @Override
-    public boolean resolved() {
-        return resolved == null ? false : resolved;
-    }
-
-    public void markAsResolved() {
-        resolved = Boolean.TRUE;
-    }
-
-    @Override
-    public DataType dataType() {
-        return DataTypes.NULL;
     }
 }

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.eql.querydsl.container;
 
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
-import org.elasticsearch.xpack.eql.expression.OptionalUnresolvedAttribute;
+import org.elasticsearch.xpack.eql.expression.OptionalMissingAttribute;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -38,7 +38,7 @@ public class FieldExtractorRegistry {
             }
             return topHitFieldExtractor(fa);
         }
-        if (expression instanceof OptionalUnresolvedAttribute) {
+        if (expression instanceof OptionalMissingAttribute) {
             return new ComputedRef(new ConstantInput(expression.source(), expression, null));
         }
         if (expression.foldable()) {

@@ -8,7 +8,8 @@
 package org.elasticsearch.xpack.eql.analysis;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.eql.expression.OptionalUnresolvedAttribute;
+import org.elasticsearch.xpack.eql.expression.OptionalMissingAttribute;
+import org.elasticsearch.xpack.eql.expression.OptionalResolvedAttribute;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.ToString;
@@ -55,14 +56,14 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testOptionalFieldOnTheLeft() {
         Equals check = equalsCondition("process where ?foo == 123");
-        assertEquals(Literal.NULL, check.left());
+        checkMissingOptional(check.left());
         assertTrue(check.right() instanceof Literal);
         assertEquals(123, ((Literal) check.right()).value());
     }
 
     public void testOptionalFieldOnTheRight() {
         Equals check = equalsCondition("process where 123 == ?bar");
-        assertEquals(Literal.NULL, check.right());
+        checkMissingOptional(check.right());
         assertTrue(check.left() instanceof Literal);
         assertEquals(123, ((Literal) check.left()).value());
     }
@@ -73,10 +74,9 @@ public class AnalyzerTests extends ESTestCase {
         assertTrue(check.left() instanceof Concat);
         Concat concat = (Concat) check.left();
         List<Expression> arguments = new ArrayList<>(3);
-        arguments.add(Literal.NULL);
-        arguments.add(new Literal(Source.EMPTY, " ", DataTypes.KEYWORD));
-        arguments.add(Literal.NULL);
-        assertEquals(arguments, concat.arguments());
+        checkMissingOptional(concat.arguments().get(0));
+        assertEquals(new Literal(Source.EMPTY, " ", DataTypes.KEYWORD), concat.arguments().get(1));
+        checkMissingOptional(concat.arguments().get(2));
     }
 
     public void testOptionalFieldExistsInMapping() {
@@ -108,9 +108,9 @@ public class AnalyzerTests extends ESTestCase {
         KeyedFilter q = queries.get(0);
         assertEquals(2, q.keys().size());
         List<? extends NamedExpression> keys = q.keys();
-        assertTrue(keys.get(0) instanceof OptionalUnresolvedAttribute);
-        assertTrue(keys.get(1) instanceof FieldAttribute);
-        OptionalUnresolvedAttribute optional = (OptionalUnresolvedAttribute) keys.get(0);
+        assertEquals(OptionalMissingAttribute.class, keys.get(0).getClass());
+        assertEquals(OptionalResolvedAttribute.class, keys.get(1).getClass());
+        OptionalMissingAttribute optional = (OptionalMissingAttribute) keys.get(0);
         assertEquals(true, optional.resolved());
         assertEquals("x", optional.name());
         FieldAttribute field = (FieldAttribute) keys.get(1);
@@ -120,16 +120,16 @@ public class AnalyzerTests extends ESTestCase {
         Filter filter = (Filter) q.child();
         assertTrue(filter.condition() instanceof Equals);
         Equals equals = (Equals) filter.condition();
-        assertEquals(Literal.NULL, equals.left());
+        checkMissingOptional(equals.left());
         assertEquals(123, ((Literal) equals.right()).value());
 
         // any where true by ?x, pid
         q = queries.get(1);
         assertEquals(2, q.keys().size());
         keys = q.keys();
-        assertTrue(keys.get(0) instanceof OptionalUnresolvedAttribute);
-        assertTrue(keys.get(1) instanceof FieldAttribute);
-        optional = (OptionalUnresolvedAttribute) keys.get(0);
+        assertEquals(OptionalMissingAttribute.class, keys.get(0).getClass());
+        assertEquals(FieldAttribute.class, keys.get(1).getClass());
+        optional = (OptionalMissingAttribute) keys.get(0);
         assertEquals(true, optional.resolved());
         assertEquals("x", optional.name());
         field = (FieldAttribute) keys.get(1);
@@ -145,12 +145,12 @@ public class AnalyzerTests extends ESTestCase {
         q = queries.get(2);
         assertEquals(2, q.keys().size());
         keys = q.keys();
-        assertTrue(keys.get(0) instanceof OptionalUnresolvedAttribute);
-        assertTrue(keys.get(1) instanceof OptionalUnresolvedAttribute);
-        optional = (OptionalUnresolvedAttribute) keys.get(0);
+        assertEquals(OptionalMissingAttribute.class, keys.get(0).getClass());
+        assertEquals(OptionalMissingAttribute.class, keys.get(1).getClass());
+        optional = (OptionalMissingAttribute) keys.get(0);
         assertEquals(true, optional.resolved());
         assertEquals("x", optional.name());
-        optional = (OptionalUnresolvedAttribute) keys.get(1);
+        optional = (OptionalMissingAttribute) keys.get(1);
         assertEquals(true, optional.resolved());
         assertEquals("z", optional.name());
 
@@ -159,18 +159,18 @@ public class AnalyzerTests extends ESTestCase {
         assertTrue(filter.condition() instanceof Not);
         Not not = (Not) filter.condition();
         equals = (Equals) not.field();
-        assertEquals(Literal.NULL, equals.left());
-        assertEquals(Literal.NULL, equals.right());
+        checkMissingOptional(equals.left());
+        checkMissingOptional(equals.right());
 
         // until [any where string(?t) == \"null\"] by ?w
         q = s.until();
         keys = q.keys();
-        assertTrue(keys.get(0) instanceof OptionalUnresolvedAttribute);
-        assertTrue(keys.get(1) instanceof OptionalUnresolvedAttribute);
-        optional = (OptionalUnresolvedAttribute) keys.get(0);
+        assertEquals(OptionalMissingAttribute.class, keys.get(0).getClass());
+        assertEquals(OptionalMissingAttribute.class, keys.get(1).getClass());
+        optional = (OptionalMissingAttribute) keys.get(0);
         assertEquals(true, optional.resolved());
         assertEquals("x", optional.name());
-        optional = (OptionalUnresolvedAttribute) keys.get(1);
+        optional = (OptionalMissingAttribute) keys.get(1);
         assertEquals(true, optional.resolved());
         assertEquals("w", optional.name());
 
@@ -182,7 +182,7 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("null", ((Literal) equals.right()).value());
         assertEquals(DataTypes.KEYWORD, ((Literal) equals.right()).dataType());
         assertTrue(equals.left() instanceof ToString);
-        assertEquals(Literal.NULL, ((ToString) equals.left()).value());
+        checkMissingOptional(((ToString) equals.left()).value());
     }
 
     private LogicalPlan accept(IndexResolution resolution, String eql) {
@@ -190,7 +190,6 @@ public class AnalyzerTests extends ESTestCase {
         Analyzer analyzer = new Analyzer(TEST_CFG, new EqlFunctionRegistry(), new Verifier(new Metrics()));
         EqlParser parser = new EqlParser();
         LogicalPlan plan = parser.createStatement(eql);
-        analyzer.keyOptionals(parser.keyOptionals());
         return analyzer.analyze(preAnalyzer.preAnalyze(plan, resolution));
     }
 
@@ -211,5 +210,11 @@ public class AnalyzerTests extends ESTestCase {
         And condition = (And) filter.condition();
         assertTrue(condition.right() instanceof Equals);
         return (Equals) condition.right();
+    }
+
+    private void checkMissingOptional(Expression e) {
+        assertEquals(DataTypes.NULL, e.dataType());
+        assertTrue(e.foldable());
+        assertNull(e.fold());
     }
 }

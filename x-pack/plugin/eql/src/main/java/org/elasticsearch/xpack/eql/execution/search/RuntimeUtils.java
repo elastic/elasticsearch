@@ -23,7 +23,6 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.search.extractor.FieldHitExtractor;
-import org.elasticsearch.xpack.eql.expression.OptionalUnresolvedAttribute;
 import org.elasticsearch.xpack.eql.querydsl.container.ComputedRef;
 import org.elasticsearch.xpack.eql.querydsl.container.SearchHitFieldRef;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
@@ -124,9 +123,6 @@ public final class RuntimeUtils {
 
         if (ref instanceof ComputedRef) {
             Pipe proc = ((ComputedRef) ref).processor();
-            if (proc.expression() instanceof OptionalUnresolvedAttribute) {
-                return new ComputingExtractor(proc.asProcessor(), ((OptionalUnresolvedAttribute) proc.expression()).name());
-            }
             // collect hitNames
             Set<String> hitNames = new LinkedHashSet<>();
             proc = proc.transformDown(ReferenceInput.class, l -> {

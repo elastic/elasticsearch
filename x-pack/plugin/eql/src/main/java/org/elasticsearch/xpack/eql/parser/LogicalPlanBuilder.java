@@ -71,8 +71,8 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
     private final UnresolvedRelation RELATION = new UnresolvedRelation(synthetic("<relation>"), null, "", false, "");
     private final EmptyAttribute UNSPECIFIED_FIELD = new EmptyAttribute(synthetic("<unspecified>"));
 
-    public LogicalPlanBuilder(ParserParams params, Set<Expression> keyOptionals) {
-        super(params, keyOptionals);
+    public LogicalPlanBuilder(ParserParams params) {
+        super(params);
     }
 
     private Attribute fieldTimestamp() {

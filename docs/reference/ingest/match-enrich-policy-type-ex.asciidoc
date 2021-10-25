@@ -31,6 +31,7 @@ PUT /users/_doc/1?refresh=wait_for
   "web": "mardy.asciidocsmith.com"
 }
 ----
+// TEST
 
 Use the create enrich policy API to create an enrich policy with the
 `match` policy type. This policy must include:
@@ -139,6 +140,7 @@ The API returns the following response:
   }
 }
 ----
+// TEST[continued]
 // TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term":1/"_primary_term" : $body._primary_term/]
 
 ////
@@ -146,6 +148,8 @@ The API returns the following response:
 --------------------------------------------------
 DELETE /_ingest/pipeline/user_lookup
 DELETE /_enrich/policy/users-policy
+DELETE /my-index-000001
+DELETE /users
 --------------------------------------------------
 // TEST[continued]
 ////

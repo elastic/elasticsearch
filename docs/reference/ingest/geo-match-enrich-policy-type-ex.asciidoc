@@ -30,6 +30,7 @@ PUT /postal_codes
   }
 }
 ----
+// TEST
 
 Use the <<docs-index_,index API>> to index enrich data to this source index.
 
@@ -158,6 +159,7 @@ The API returns the following response:
   }
 }
 ----
+// TEST[continued]
 // TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term":1/"_primary_term" : $body._primary_term/]
 
 ////
@@ -165,6 +167,8 @@ The API returns the following response:
 --------------------------------------------------
 DELETE /_ingest/pipeline/postal_lookup
 DELETE /_enrich/policy/postal_policy
+DELETE /postal_codes
+DELETE /users
 --------------------------------------------------
 // TEST[continued]
 ////

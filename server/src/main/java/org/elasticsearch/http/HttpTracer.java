@@ -73,8 +73,10 @@ class HttpTracer {
      */
     void traceResponse(RestResponse restResponse, HttpChannel httpChannel, String contentLength, String opaqueHeader, long requestId,
                        boolean success) {
-        logger.trace(new ParameterizedMessage("[{}][{}][{}][{}][{}] sent response to [{}] success [{}]", requestId,
-            opaqueHeader, restResponse.status(), restResponse.contentType(), contentLength, httpChannel, success));
+        if (logger.isTraceEnabled()) {
+            logger.trace(new ParameterizedMessage("[{}][{}][{}][{}][{}] sent response to [{}] success [{}]", requestId,
+                opaqueHeader, restResponse.status(), restResponse.contentType(), contentLength, httpChannel, success));
+        }
     }
 
     private void setTracerLogInclude(List<String> tracerLogInclude) {

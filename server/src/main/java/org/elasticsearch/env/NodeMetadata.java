@@ -76,6 +76,12 @@ public final class NodeMetadata {
         return nodeVersion;
     }
 
+    /**
+     * When a node starts we read the existing node metadata from disk (see NodeEnvironment@loadNodeMetadata), store a reference to the
+     * node version that we read from there in {@code previousNodeVersion} and then proceed to upgrade the version to
+     * the current version of the node ({@link NodeMetadata#upgradeToCurrentVersion()} before storing the node metadata again on disk.
+     * In doing so, {@code previousNodeVersion} refers to the previously last known version that this node was started on.
+     */
     public Version previousNodeVersion() {
         return previousNodeVersion;
     }

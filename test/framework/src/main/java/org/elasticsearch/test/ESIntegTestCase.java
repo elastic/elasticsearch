@@ -37,6 +37,7 @@ import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -778,6 +779,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
             getExcludeSettings(numNodes, builder);
         }
         return client().admin().indices().prepareCreate(index).setSettings(builder.build());
+    }
+
+    /**
+     * updates the settings for an index
+     */
+    public void updateIndexSettings(String index, Settings.Builder settingsBuilder) {
+        UpdateSettingsRequestBuilder settingsRequest = client().admin().indices().prepareUpdateSettings(index);
+        settingsRequest.setSettings(settingsBuilder);
+        assertAcked(settingsRequest.execute().actionGet());
     }
 
     private Settings.Builder getExcludeSettings(int num, Settings.Builder builder) {

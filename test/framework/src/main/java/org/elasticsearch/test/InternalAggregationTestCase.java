@@ -532,7 +532,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     protected Predicate<String> excludePathsFromXContentInsertion() {
         return path -> false;
     }
-    
+
     /**
      * A random {@link DocValueFormat} that can be used in aggregations which
      * compute numbers.

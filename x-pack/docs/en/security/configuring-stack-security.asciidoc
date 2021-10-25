@@ -85,11 +85,11 @@ curl --cacert config/tls_auto_config_initial_node_<timestamp>/http_ca.crt \
 `--cacert`::
 Path to the generated `http_ca.crt` certificate for the HTTP layer.
 
-. From the directory where you installed {kib}, start {kib} in interactive mode.
+. From the directory where you installed {kib}, start {kib}.
 +
 [source,shell]
 ----
-bin/kibana --interactiveSetup.enabled=true
+bin/kibana
 ----
 +
 This command generates a unique link to enroll your {kib} instance with {es}.

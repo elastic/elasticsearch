@@ -93,6 +93,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pivot-aggs]
 `group_by`:::
 (Required, object)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pivot-group-by]
+
+`max_page_search_size`:::
+(Optional, integer)
+deprecated:[7.8.0,Moved to `settings`.]
 ====
 //End pivot
 

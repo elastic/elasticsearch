@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPriv
 import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 class AuthenticatorChain {
@@ -125,6 +126,8 @@ class AuthenticatorChain {
         // because of either a successful authentication or a not-continuable failure.
         final IteratingActionListener<AuthenticationResult<Authentication>, Authenticator> iterListener = new IteratingActionListener<>(
             ActionListener.wrap(result -> {
+                assert result.getStatus() != AuthenticationResult.Status.TERMINATE
+                    : "terminate should already be handled by each individual authenticator";
                 if (result.getStatus() == AuthenticationResult.Status.SUCCESS) {
                     maybeLookupRunAsUser(context, result.getValue(), listener);
                 } else {
@@ -168,24 +171,33 @@ class AuthenticatorChain {
                 context.addAuthenticationToken(authenticationToken);
             }
             context.setHandleNullToken(context.shouldHandleNullToken() && authenticator.canBeFollowedByNullTokenHandler());
-            authenticator.authenticate(context, ActionListener.wrap(result -> {
-                if (result.getStatus() == AuthenticationResult.Status.CONTINUE && result.getMessage() != null) {
-                    context.addUnsuccessfulMessage(authenticator.name() + ": " + result.getMessage());
-                }
-                listener.onResponse(result);
-            }, e -> {
+
+            final Consumer<Exception> onFailure = (e) -> {
+                assert e != null : "exception cannot be null";
+                // Not adding additional metadata if the exception is not security related, e.g. server busy.
+                // Because (1) unlike security errors which are intentionally obscure, non-security errors are clear
+                // about their nature so that no additional information is needed; (2) Non-security errors may
+                // not inherit ElasticsearchException and thus does not have the addMetadata method.
                 if (e instanceof ElasticsearchSecurityException) {
+                    // Attach any other unsuccessful messages to the final error
                     final ElasticsearchSecurityException ese = (ElasticsearchSecurityException) e;
                     if (false == context.getUnsuccessfulMessages().isEmpty()) {
                         addMetadata(context, ese);
                     }
                 }
-                // Not adding additional metadata if the exception is not security related, e.g. server busy.
-                // Because (1) unlike security errors which are intentionally obscure, non-security errors are clear
-                // about their nature so that no additional information is needed; (2) Non-security errors may
-                // not inherit ElasticsearchException and thus does not have the addMetadata method.
                 listener.onFailure(e);
-            }));
+            };
+
+            authenticator.authenticate(context, ActionListener.wrap(result -> {
+                if (result.getStatus() == AuthenticationResult.Status.TERMINATE) {
+                    onFailure.accept(result.getException());
+                    return;
+                }
+                if (result.getStatus() == AuthenticationResult.Status.CONTINUE && result.getMessage() != null) {
+                    context.addUnsuccessfulMessage(authenticator.name() + ": " + result.getMessage());
+                }
+                listener.onResponse(result);
+            }, onFailure));
         };
     }
 

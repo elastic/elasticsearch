@@ -387,9 +387,12 @@ public final class PemUtils {
                 }
                 if (JavaVersion.current().compareTo(JavaVersion.parse("11.0.0")) < 0) {
                     // PBES2 appears to be supported on Oracle 8, but not OpenJDK8
-                    // We don't both clarifying that here because it is supported on the bundled JDK, and that's what people should use
+                    // We don't bother clarifying the distinction here, because it's complicated and the best advice we can give is to
+                    // use the bundled JDK.
                     throw new GeneralSecurityException(
-                        "PKCS#8 Private Key is encrypted with PBES2 which is not supported on this JDK [" + JavaVersion.current() + "]",
+                        "PKCS#8 Private Key is encrypted with PBES2 which is not supported on this JDK ["
+                            + JavaVersion.current()
+                            + "], this problem can be resolved by using the Elasticsearch bundled JDK",
                         e
                     );
                 }

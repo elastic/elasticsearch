@@ -405,12 +405,6 @@ public class DataLoader {
     protected static void freeze(RestClient client, String... indices) throws Exception {
         for (String index : indices) {
             Request freezeRequest = new Request("POST", "/" + index + "/_freeze");
-            freezeRequest.setOptions(
-                expectWarnings(
-                    "Frozen indices are deprecated because they provide no benefit given improvements in "
-                        + "heap memory utilization. They will be removed in a future release."
-                )
-            );
             client.performRequest(freezeRequest);
         }
     }

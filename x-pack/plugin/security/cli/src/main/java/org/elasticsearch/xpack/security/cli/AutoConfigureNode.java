@@ -291,90 +291,91 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         final X500Principal caPrincipal = new X500Principal(AUTO_CONFIG_ALT_DN);
         final GeneralNames subjectAltNames = getSubjectAltNames();
 
-        try {
-            if (inEnrollmentMode) {
-                final EnrollmentToken enrollmentToken;
+        if (inEnrollmentMode) {
+            // this is an enrolling node, get HTTP CA key/certificate and transport layer key/certificate from another node
+            final EnrollmentToken enrollmentToken;
+            try {
+                enrollmentToken = EnrollmentToken.decodeFromString(enrollmentTokenParam.value(options));
+            } catch (Exception e) {
                 try {
-                    enrollmentToken = EnrollmentToken.decodeFromString(enrollmentTokenParam.value(options));
-                } catch (Exception e) {
-                    try {
-                        Files.deleteIfExists(instantAutoConfigDir);
-                    } catch (Exception ex) {
-                        e.addSuppressed(ex);
-                    }
-                    terminal.errorPrintln(Terminal.Verbosity.VERBOSE, "");
-                    terminal.errorPrintln(
-                        Terminal.Verbosity.VERBOSE,
-                        "Failed to parse enrollment token : " + enrollmentTokenParam.value(options) + " . Error was: " + e.getMessage()
-                    );
-                    terminal.errorPrintln(Terminal.Verbosity.VERBOSE, "");
-                    terminal.errorPrintln(Terminal.Verbosity.VERBOSE, ExceptionsHelper.stackTrace(e));
-                    terminal.errorPrintln(Terminal.Verbosity.VERBOSE, "");
-                    throw new UserException(ExitCodes.DATA_ERROR, "Aborting auto configuration. Invalid enrollment token", e);
+                    deleteDirectory(instantAutoConfigDir);
+                } catch (Exception ex) {
+                    e.addSuppressed(ex);
                 }
+                terminal.errorPrintln(Terminal.Verbosity.VERBOSE, "");
+                terminal.errorPrintln(
+                    Terminal.Verbosity.VERBOSE,
+                    "Failed to parse enrollment token : " + enrollmentTokenParam.value(options) + " . Error was: " + e.getMessage()
+                );
+                terminal.errorPrintln(Terminal.Verbosity.VERBOSE, "");
+                terminal.errorPrintln(Terminal.Verbosity.VERBOSE, ExceptionsHelper.stackTrace(e));
+                terminal.errorPrintln(Terminal.Verbosity.VERBOSE, "");
+                throw new UserException(ExitCodes.DATA_ERROR, "Aborting auto configuration. Invalid enrollment token", e);
+            }
 
                 final CommandLineHttpClient client = clientFunction.apply(newEnv, enrollmentToken.getFingerprint());
 
-                // We don't wait for cluster health here. If the user has a token, it means that at least the first node has started
-                // successfully so we expect the cluster to be healthy already. If not, this is a sign of a problem and we should bail.
-                HttpResponse enrollResponse = null;
-                URL enrollNodeUrl = null;
-                for (String address : enrollmentToken.getBoundAddress()) {
-                    enrollNodeUrl = createURL(new URL("https://" + address), "/_security/enroll/node", "");
-                    enrollResponse = client.execute(
-                        "GET",
-                        enrollNodeUrl,
-                        new SecureString(enrollmentToken.getApiKey().toCharArray()),
-                        () -> null,
-                        CommandLineHttpClient::responseBuilder
-                    );
-                    if (enrollResponse.getHttpStatus() == 200) {
-                        break;
-                    }
+            // We don't wait for cluster health here. If the user has a token, it means that at least the first node has started
+            // successfully so we expect the cluster to be healthy already. If not, this is a sign of a problem and we should bail.
+            HttpResponse enrollResponse = null;
+            URL enrollNodeUrl = null;
+            for (String address : enrollmentToken.getBoundAddress()) {
+                enrollNodeUrl = createURL(new URL("https://" + address), "/_security/enroll/node", "");
+                enrollResponse = client.execute(
+                    "GET",
+                    enrollNodeUrl,
+                    new SecureString(enrollmentToken.getApiKey().toCharArray()),
+                    () -> null,
+                    CommandLineHttpClient::responseBuilder
+                );
+                if (enrollResponse.getHttpStatus() == 200) {
+                    break;
                 }
-                if (enrollResponse == null || enrollResponse.getHttpStatus() != 200) {
-                    Files.deleteIfExists(instantAutoConfigDir);
-                    throw new UserException(
-                        ExitCodes.UNAVAILABLE,
-                        "Aborting enrolling to cluster. "
-                            + "Could not communicate with the initial node in any of the addresses from the enrollment token. All of "
-                            + enrollmentToken.getBoundAddress()
-                            + "where attempted."
-                    );
-                }
-                final Map<String, Object> responseMap = enrollResponse.getResponseBody();
-                if (responseMap == null) {
-                    Files.deleteIfExists(instantAutoConfigDir);
-                    throw new UserException(
-                        ExitCodes.DATA_ERROR,
-                        "Aborting enrolling to cluster. Empty response when calling the enroll node API (" + enrollNodeUrl + ")"
-                    );
-                }
-                final String httpCaKeyPem = (String) responseMap.get("http_ca_key");
-                final String httpCaCertPem = (String) responseMap.get("http_ca_cert");
-                final String transportKeyPem = (String) responseMap.get("transport_key");
-                final String transportCertPem = (String) responseMap.get("transport_cert");
-                transportAddresses = getTransportAddresses(responseMap);
-                if (Strings.isNullOrEmpty(httpCaCertPem)
-                    || Strings.isNullOrEmpty(httpCaKeyPem)
-                    || Strings.isNullOrEmpty(transportKeyPem)
-                    || Strings.isNullOrEmpty(transportCertPem)
-                    || null == transportAddresses) {
-                    Files.deleteIfExists(instantAutoConfigDir);
-                    throw new UserException(
-                        ExitCodes.DATA_ERROR,
-                        "Aborting enrolling to cluster. Invalid response when calling the enroll node API (" + enrollNodeUrl + ")"
-                    );
-                }
+            }
+            if (enrollResponse == null || enrollResponse.getHttpStatus() != 200) {
+                deleteDirectory(instantAutoConfigDir);
+                throw new UserException(
+                    ExitCodes.UNAVAILABLE,
+                    "Aborting enrolling to cluster. "
+                        + "Could not communicate with the initial node in any of the addresses from the enrollment token. All of "
+                        + enrollmentToken.getBoundAddress()
+                        + "where attempted."
+                );
+            }
+            final Map<String, Object> responseMap = enrollResponse.getResponseBody();
+            if (responseMap == null) {
+                deleteDirectory(instantAutoConfigDir);
+                throw new UserException(
+                    ExitCodes.DATA_ERROR,
+                    "Aborting enrolling to cluster. Empty response when calling the enroll node API (" + enrollNodeUrl + ")"
+                );
+            }
+            final String httpCaKeyPem = (String) responseMap.get("http_ca_key");
+            final String httpCaCertPem = (String) responseMap.get("http_ca_cert");
+            final String transportKeyPem = (String) responseMap.get("transport_key");
+            final String transportCertPem = (String) responseMap.get("transport_cert");
+            transportAddresses = getTransportAddresses(responseMap);
+            if (Strings.isNullOrEmpty(httpCaCertPem)
+                || Strings.isNullOrEmpty(httpCaKeyPem)
+                || Strings.isNullOrEmpty(transportKeyPem)
+                || Strings.isNullOrEmpty(transportCertPem)
+                || null == transportAddresses) {
+                deleteDirectory(instantAutoConfigDir);
+                throw new UserException(
+                    ExitCodes.DATA_ERROR,
+                    "Aborting enrolling to cluster. Invalid response when calling the enroll node API (" + enrollNodeUrl + ")"
+                );
+            }
 
-                final Tuple<PrivateKey, X509Certificate> httpCa = parseKeyCertFromPem(httpCaKeyPem, httpCaCertPem, terminal);
-                httpCaKey = httpCa.v1();
-                httpCaCert = httpCa.v2();
-                final Tuple<PrivateKey, X509Certificate> transport = parseKeyCertFromPem(transportKeyPem, transportCertPem, terminal);
-                transportKey = transport.v1();
-                transportCert = transport.v2();
-
-            } else {
+            final Tuple<PrivateKey, X509Certificate> httpCa = parseKeyCertFromPem(httpCaKeyPem, httpCaCertPem, terminal);
+            httpCaKey = httpCa.v1();
+            httpCaCert = httpCa.v2();
+            final Tuple<PrivateKey, X509Certificate> transport = parseKeyCertFromPem(transportKeyPem, transportCertPem, terminal);
+            transportKey = transport.v1();
+            transportCert = transport.v2();
+        } else {
+            // this is the initial node, generate HTTP CA key/certificate and transport layer key/certificate ourselves
+            try {
                 transportAddresses = List.of();
                 // the transport key-pair is the same across the cluster and is trusted without hostname verification (it is self-signed),
 
@@ -404,8 +405,14 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     HTTP_CA_CERTIFICATE_DAYS,
                     "SHA256withRSA"
                 );
+            } catch (Throwable t) {
+                deleteDirectory(instantAutoConfigDir);
+                // this is an error which mustn't be ignored during node startup
+                // the exit code for unhandled Exceptions is "1"
+                throw t;
             }
-
+        }
+        try {
             final KeyPair httpKeyPair = CertGenUtils.generateKeyPair(HTTP_KEY_SIZE);
             httpKey = httpKeyPair.getPrivate();
             // non-CA

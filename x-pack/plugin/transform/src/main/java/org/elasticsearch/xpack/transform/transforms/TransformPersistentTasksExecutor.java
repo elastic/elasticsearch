@@ -283,6 +283,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                 ).getFormattedMessage();
                 auditor.error(transformId, transformTooOldError);
                 markAsFailed(buildTask, transformTooOldError);
+                return;
             }
 
             ValidationException validationException = config.validate(null);

@@ -10,13 +10,13 @@ package org.elasticsearch.gradle.internal.precommit;
 
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.InternalPlugin;
+import org.elasticsearch.gradle.internal.checkstyle.CheckstyleTask;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
-import org.gradle.api.plugins.quality.Checkstyle;
 import org.gradle.api.plugins.quality.CheckstyleExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.TaskProvider;
@@ -77,12 +77,12 @@ public class CheckstylePrecommitPlugin extends PrecommitPlugin implements Intern
         }));
 
         TaskProvider<Task> checkstyleTask = project.getTasks().register("checkstyle");
-        checkstyleTask.configure(t -> t.dependsOn(project.getTasks().withType(Checkstyle.class)));
+        checkstyleTask.configure(t -> t.dependsOn(project.getTasks().withType(CheckstyleTask.class)));
 
         // Apply the checkstyle plugin to create `checkstyleMain` and `checkstyleTest`. It only
         // creates them if there is main or test code to check and it makes `check` depend
         // on them. We also want `precommit` to depend on `checkstyle`.
-        project.getPluginManager().apply("checkstyle");
+        project.getPluginManager().apply("elasticsearch.internal-checkstyle");
         CheckstyleExtension checkstyle = project.getExtensions().getByType(CheckstyleExtension.class);
         checkstyle.getConfigDirectory().set(checkstyleDir);
 
@@ -92,7 +92,7 @@ public class CheckstylePrecommitPlugin extends PrecommitPlugin implements Intern
         dependencies.add("checkstyle", "com.puppycrawl.tools:checkstyle:" + checkstyleVersion);
         dependencies.addProvider("checkstyle", dependencyProvider, dep -> dep.setTransitive(false));
 
-        project.getTasks().withType(Checkstyle.class).configureEach(t -> {
+        project.getTasks().withType(CheckstyleTask.class).configureEach(t -> {
             t.dependsOn(copyCheckstyleConf);
             t.reports(r -> r.getHtml().getRequired().set(false));
         });

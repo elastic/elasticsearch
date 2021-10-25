@@ -29,6 +29,10 @@ gradlePlugin {
             id = 'elasticsearch.internal-licenseheaders'
             implementationClass = 'org.elasticsearch.gradle.internal.conventions.precommit.LicenseHeadersPrecommitPlugin'
         }
+        internalLicenseheaders {
+            id = 'elasticsearch.internal-checkstyle'
+            implementationClass = 'org.elasticsearch.gradle.internal.checkstyle.CheckstylePlugin'
+        }
         eclipse {
             id = 'elasticsearch.eclipse'
             implementationClass = 'org.elasticsearch.gradle.internal.conventions.EclipseConventionPlugin'

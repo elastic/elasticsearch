@@ -28,7 +28,7 @@ import java.util.Collections;
  * <a href="https://www.elastic.co/guide/en/elasticsearch/client/java-api-client/current/introduction.html">
  * Elasticsearch Java API Client</a>
  */
-@Deprecated(since = "8.0.0", forRemoval = true)
+@Deprecated(since = "7.16.0", forRemoval = true)
 @SuppressWarnings("removal")
 public final class EqlClient {
 

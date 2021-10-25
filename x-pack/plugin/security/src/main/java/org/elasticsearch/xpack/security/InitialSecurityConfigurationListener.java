@@ -25,6 +25,8 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.enrollment.InternalEnrollmentTokenGenerator;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.fusesource.jansi.AnsiPrintStream;
+import org.fusesource.jansi.AnsiType;
 
 import java.io.PrintStream;
 import java.util.HashMap;
@@ -64,51 +66,59 @@ public class InitialSecurityConfigurationListener implements BiConsumer<Security
 
     @Override
     public void accept(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
-        final PrintStream out = BootstrapInfo.getOriginalStandardOut();
+        final AnsiPrintStream out = BootstrapInfo.getConsolePrintStream();
+        final boolean processOutputAttachedToTerminal = out != null && out.getType() != AnsiType.Redirected && // output is a pipe
+            out.getType() != AnsiType.Unsupported && // could not determine terminal type
+            out.getTerminalWidth() > 0; // hack to determine when logs are output to a terminal inside a docker container
         // Check if it has been closed, try to write something so that we trigger PrintStream#ensureOpen
-        out.println();
-        if (out.checkError()) {
-            outputOnError(null);
-            return;
-        }
-        if (previousState.equals(SecurityIndexManager.State.UNRECOVERED_STATE)
-            && currentState.equals(SecurityIndexManager.State.UNRECOVERED_STATE) == false
-            && securityIndexManager.indexExists() == false
-            && XPackSettings.ENROLLMENT_ENABLED.get(environment.settings())) {
-            GroupedActionListener<Map<String, String>> groupedActionListener = new GroupedActionListener<>(ActionListener.wrap(results -> {
-                final Map<String, String> allResultsMap = new HashMap<>();
-                for (Map<String, String> result : results) {
-                    allResultsMap.putAll(result);
-                }
-                final String password = allResultsMap.get(passwordKey);
-                final String token = allResultsMap.get(tokenKey);
-                final String caCertFingerprint = allResultsMap.get(fingerprintKey);
-                outputInformationToConsole(password, token, caCertFingerprint, out);
-            }, this::outputOnError), 2);
-
-            if (false == BOOTSTRAP_ELASTIC_PASSWORD.exists(environment.settings())
-                && false == AUTOCONFIG_ELASTIC_PASSWORD_HASH.exists(environment.settings())) {
-                final SecureString elasticPassword = new SecureString(generatePassword(20));
-                nativeUsersStore.updateReservedUser(
-                    ElasticUser.NAME,
-                    elasticPassword.getChars(),
-                    DocWriteRequest.OpType.CREATE,
-                    WriteRequest.RefreshPolicy.IMMEDIATE,
-                    groupedActionListener.map(ignore -> Map.of(passwordKey, elasticPassword.toString()))
+        if (processOutputAttachedToTerminal) {
+            if (previousState.equals(SecurityIndexManager.State.UNRECOVERED_STATE)
+                && currentState.equals(SecurityIndexManager.State.UNRECOVERED_STATE) == false
+                && securityIndexManager.indexExists() == false
+                && XPackSettings.ENROLLMENT_ENABLED.get(environment.settings())) {
+                GroupedActionListener<Map<String, String>> groupedActionListener = new GroupedActionListener<>(
+                    ActionListener.wrap(results -> {
+                        final Map<String, String> allResultsMap = new HashMap<>();
+                        for (Map<String, String> result : results) {
+                            allResultsMap.putAll(result);
+                        }
+                        final String password = allResultsMap.get(passwordKey);
+                        final String token = allResultsMap.get(tokenKey);
+                        final String caCertFingerprint = allResultsMap.get(fingerprintKey);
+                        outputInformationToConsole(password, token, caCertFingerprint, out);
+                    }, this::outputOnError),
+                    2
                 );
-            } else {
-                groupedActionListener.onResponse(Map.of());
+
+                if (false == BOOTSTRAP_ELASTIC_PASSWORD.exists(environment.settings())
+                    && false == AUTOCONFIG_ELASTIC_PASSWORD_HASH.exists(environment.settings())) {
+                    final SecureString elasticPassword = new SecureString(generatePassword(20));
+                    nativeUsersStore.updateReservedUser(
+                        ElasticUser.NAME,
+                        elasticPassword.getChars(),
+                        DocWriteRequest.OpType.CREATE,
+                        WriteRequest.RefreshPolicy.IMMEDIATE,
+                        groupedActionListener.map(ignore -> Map.of(passwordKey, elasticPassword.toString()))
+                    );
+                } else {
+                    groupedActionListener.onResponse(Map.of());
+                }
+                final InternalEnrollmentTokenGenerator enrollmentTokenGenerator = new InternalEnrollmentTokenGenerator(
+                    environment,
+                    sslService,
+                    client
+                );
+                enrollmentTokenGenerator.createKibanaEnrollmentToken(
+                    groupedActionListener.map(
+                        token -> token == null ? Map.of() : Map.of(tokenKey, token.getEncoded(), fingerprintKey, token.getFingerprint())
+                    )
+                );
             }
-            final InternalEnrollmentTokenGenerator enrollmentTokenGenerator = new InternalEnrollmentTokenGenerator(
-                environment,
-                sslService,
-                client
-            );
-            enrollmentTokenGenerator.createKibanaEnrollmentToken(
-                groupedActionListener.map(token -> token == null ? Map.of() : Map.of(tokenKey, token.getEncoded(), fingerprintKey,
-                    token.getFingerprint()))
-            );
             securityIndexManager.removeStateListener(this);
+        } else {
+            LOGGER.info("Auto-configuration will not generate a password for the elastic built-in superuser, as we determined " +
+                " that there is no terminal attached to the elasticsearch process. You can use the" +
+                " `bin/elasticsearch-reset-password` tool to set the password for the elastic user.");
         }
     }
 

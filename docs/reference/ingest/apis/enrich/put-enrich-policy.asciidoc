@@ -104,7 +104,7 @@ Matches a single field value in incoming documents to a range in the enrich
 index.
 +
 The <<enrich-processor,`enrich` processor>>'s `field` must be a
-<<numeric,numeric>>, <<date,`date`>>, <<date_nanos,`date_nanos`>>, or
+<<number,numeric>>, <<date,`date`>>, <<date_nanos,`date_nanos`>>, or
 <<ip,`ip`>> field. The policy's `match_field` must be a <<range,range>> field of
 the same data type.
 +

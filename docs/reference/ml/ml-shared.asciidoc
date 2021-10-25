@@ -927,7 +927,6 @@ end::inference-config-nlp-tokenization-bert-do-lower-case[]
 
 tag::inference-config-nlp-tokenization-bert-truncate[]
 Indicates how tokens should be truncated if they exceed `max_sequence_length`.
-
 The default value is `first`.
 +
 --

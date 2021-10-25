@@ -104,12 +104,14 @@ Matches a single field value in incoming documents to a range in the enrich
 index.
 +
 The <<enrich-processor,`enrich` processor>>'s `field` must be a
-<<number,numeric>>, <<date,`date`>>, <<date_nanos,`date_nanos`>>, or
-<<ip,`ip`>> field. The policy's `match_field` must be a <<range,range>> field of
-the same data type.
+<<number,numeric>>, <<date,`date`>>, <<date_nanos,`date_nanos`>>, or <<ip,`ip`>>
+field. The policy's `match_field` must be a <<range,range>> field of the same
+data type. For example, if the processor's `field` is a `date`, the policy's
+`match_field` must be a `date_range` field. Matching a range to a range is not
+supported.
 +
-To match documents, the policy uses the <<query-dsl-term-query,`term` query>>.
-For an example, see <<range-enrich-policy-type>>.
+To match documents, the policy uses a <<query-dsl-term-query,`term` query>>. For
+an example, see <<range-enrich-policy-type>>.
 --
 +
 .Properties of `<policy-type>`

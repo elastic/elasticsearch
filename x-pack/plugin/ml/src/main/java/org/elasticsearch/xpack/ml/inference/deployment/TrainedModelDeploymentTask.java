@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -26,6 +27,8 @@ import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationNod
 import java.util.Map;
 import java.util.Optional;
 
+import static org.elasticsearch.xpack.ml.MachineLearning.ML_MODEL_INFERENCE_FEATURE;
+
 public class TrainedModelDeploymentTask extends CancellableTask implements StartTrainedModelDeploymentAction.TaskMatcher {
 
     private static final Logger logger = LogManager.getLogger(TrainedModelDeploymentTask.class);
@@ -35,6 +38,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
     private volatile boolean stopped;
     private final SetOnce<String> stoppedReason = new SetOnce<>();
     private final SetOnce<InferenceConfig> inferenceConfig = new SetOnce<>();
+    private final XPackLicenseState licenseState;
 
     public TrainedModelDeploymentTask(
         long id,
@@ -43,7 +47,8 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         TaskId parentTask,
         Map<String, String> headers,
         TaskParams taskParams,
-        TrainedModelAllocationNodeService trainedModelAllocationNodeService
+        TrainedModelAllocationNodeService trainedModelAllocationNodeService,
+        XPackLicenseState licenseState
     ) {
         super(id, type, action, MlTasks.trainedModelDeploymentTaskId(taskParams.getModelId()), parentTask, headers);
         this.params = taskParams;
@@ -51,6 +56,8 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
             trainedModelAllocationNodeService,
             "trainedModelAllocationNodeService"
         );
+        this.licenseState = licenseState;
+        ML_MODEL_INFERENCE_FEATURE.startTracking(licenseState, "model-" + taskParams.getModelId());
     }
 
     void init(InferenceConfig inferenceConfig) {
@@ -71,12 +78,14 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
 
     public void stop(String reason) {
         logger.debug("[{}] Stopping due to reason [{}]", getModelId(), reason);
+        ML_MODEL_INFERENCE_FEATURE.stopTracking(licenseState, "model-" + params.getModelId());
         stopped = true;
         stoppedReason.trySet(reason);
         trainedModelAllocationNodeService.stopDeploymentAndNotify(this, reason);
     }
 
     public void stopWithoutNotification(String reason) {
+        ML_MODEL_INFERENCE_FEATURE.stopTracking(licenseState, "model-" + params.getModelId());
         logger.debug("[{}] Stopping due to reason [{}]", getModelId(), reason);
         stoppedReason.trySet(reason);
         stopped = true;

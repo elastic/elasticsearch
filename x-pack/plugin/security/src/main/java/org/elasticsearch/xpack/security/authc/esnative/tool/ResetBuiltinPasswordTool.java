@@ -22,6 +22,12 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.security.support.Validation;
+import org.elasticsearch.xpack.core.security.user.APMSystemUser;
+import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
+import org.elasticsearch.xpack.core.security.user.ElasticUser;
+import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
+import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
+import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
 import org.elasticsearch.xpack.security.tool.BaseRunAsSuperuserCommand;
 import org.elasticsearch.xpack.core.security.CommandLineHttpClient;
 import org.elasticsearch.xpack.core.security.HttpResponse;
@@ -30,6 +36,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.CommandLineHttpClient.createURL;
 import static org.elasticsearch.xpack.security.tool.CommandUtils.generatePassword;
@@ -40,6 +47,13 @@ public class ResetBuiltinPasswordTool extends BaseRunAsSuperuserCommand {
     private final OptionSpecBuilder interactive;
     private final OptionSpecBuilder auto;
     private final OptionSpecBuilder batch;
+    private final OptionSpecBuilder isElastic;
+    private final OptionSpecBuilder isKibanaSystem;
+    private final OptionSpecBuilder isLogstashSystem;
+    private final OptionSpecBuilder isBeatsSystem;
+    private final OptionSpecBuilder isApmSystem;
+    private final OptionSpecBuilder isRemoteMonitoringUser;
+    private String providedUsername;
 
     public ResetBuiltinPasswordTool() {
         this(CommandLineHttpClient::new, environment -> KeyStoreWrapper.load(environment.configFile()));
@@ -53,25 +67,28 @@ public class ResetBuiltinPasswordTool extends BaseRunAsSuperuserCommand {
         Function<Environment, CommandLineHttpClient> clientFunction,
         CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction
     ) {
+
         super(clientFunction, keyStoreFunction, "Resets the password of a built-in user");
         parser.allowsUnrecognizedOptions();
         interactive = parser.acceptsAll(List.of("i", "interactive"));
         auto = parser.acceptsAll(List.of("a", "auto")); // default
         batch = parser.acceptsAll(List.of("b", "batch"));
+        isElastic = parser.accepts(ElasticUser.NAME, "Resets the password of the elastic built-in user");
+        isKibanaSystem = parser.accepts(KibanaSystemUser.NAME, "Resets the password of the kibana_system built-in user");
+        isLogstashSystem = parser.accepts(LogstashSystemUser.NAME, "Resets the password of the logstash_system built-in user");
+        isBeatsSystem = parser.accepts(BeatsSystemUser.NAME, "Resets the password of the beats_system built-in user");
+        isApmSystem = parser.accepts(APMSystemUser.NAME, "Resets the password of the apm_system built-in user");
+        isRemoteMonitoringUser = parser.accepts(
+            RemoteMonitoringUser.NAME,
+            "Resets the password of the remote_monitoring_user built-in user"
+        );
+        parser.mutuallyExclusive(isElastic, isKibanaSystem, isLogstashSystem, isBeatsSystem, isApmSystem, isRemoteMonitoringUser);
         this.clientFunction = clientFunction;
     }
 
     @Override
     protected void executeCommand(Terminal terminal, OptionSet options, Environment env, String username, SecureString password)
         throws Exception {
-        final String providedUsername;
-        if (options.nonOptionArguments().contains("--elastic")) {
-            providedUsername = "elastic";
-        } else if (options.nonOptionArguments().contains("--kibana_system")) {
-            providedUsername = "kibana_system";
-        } else {
-            throw new UserException(ExitCodes.USAGE, "Invalid invocation");
-        }
         final SecureString builtinUserPassword;
         if (options.has(interactive)) {
             if (options.has(batch) == false) {
@@ -163,6 +180,33 @@ public class ResetBuiltinPasswordTool extends BaseRunAsSuperuserCommand {
     protected void validate(Terminal terminal, OptionSet options, Environment env) throws Exception {
         if ((options.has("i") || options.has("interactive")) && (options.has("a") || options.has("auto"))) {
             throw new UserException(ExitCodes.USAGE, "You can only run the tool in one of [auto] or [interactive] modes");
+        }
+        if (options.has(isElastic)) {
+            providedUsername = "elastic";
+        } else if (options.has(isKibanaSystem)) {
+            providedUsername = "kibana_system";
+        } else if (options.has(isLogstashSystem)) {
+            providedUsername = "logstash_system";
+        } else if (options.has(isApmSystem)) {
+            providedUsername = "apm_system";
+        } else if (options.has(isBeatsSystem)) {
+            providedUsername = "beats_system";
+        } else if (options.has(isRemoteMonitoringUser)) {
+            providedUsername = "remote_monitoring_user";
+        } else {
+            throw new UserException(
+                ExitCodes.USAGE,
+                "You need to specify one of the following parameters: ["
+                    + List.of(
+                        ElasticUser.NAME,
+                        APMSystemUser.NAME,
+                        KibanaSystemUser.NAME,
+                        LogstashSystemUser.NAME,
+                        BeatsSystemUser.NAME,
+                        RemoteMonitoringUser.NAME
+                    ).stream().map(n -> "--" + n).collect(Collectors.joining(","))
+                    + "]."
+            );
         }
     }
 

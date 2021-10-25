@@ -20,8 +20,15 @@ import java.util.Map;
 public class ResetBuiltinPasswordToolIT extends AbstractPasswordToolTestCase {
 
     @SuppressWarnings("unchecked")
-    public void testResetElasticPasswordTool() throws Exception {
-        final String userParameter = randomFrom("--elastic", "--kibana_system");
+    public void testResetBuiltinPasswordTool() throws Exception {
+        final String userParameter = randomFrom(
+            "--elastic",
+            "--kibana_system",
+            "--logstash_system",
+            "--apm_system",
+            "--beats_system",
+            "--remote_monitoring_user"
+        );
         final String user = userParameter.substring(2);
         MockTerminal mockTerminal = new MockTerminal();
         ResetBuiltinPasswordTool resetBuiltinPasswordTool = new ResetBuiltinPasswordTool();

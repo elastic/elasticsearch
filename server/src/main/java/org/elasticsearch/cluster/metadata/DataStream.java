@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -174,26 +175,42 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
      * Performs a rollover on a {@code DataStream} instance and returns a new instance containing
      * the updated list of backing indices and incremented generation.
      *
-     * @param clusterMetadata Cluster metadata
-     * @param writeIndexUuid UUID for the data stream's new write index
+     * @param writeIndex      new write index
+     * @param generation      new generation
      *
      * @return new {@code DataStream} instance with the rollover operation applied
      */
-    public DataStream rollover(Metadata clusterMetadata, String writeIndexUuid) {
+    public DataStream rollover(Index writeIndex, long generation) {
+        if (replicated) {
+            throw new IllegalArgumentException("data stream [" + name + "] cannot be rolled over, " +
+                    "because it is a replicated data stream");
+        }
+
+        List<Index> backingIndices = new ArrayList<>(indices);
+        backingIndices.add(writeIndex);
+        return new DataStream(name, timeStampField, backingIndices, generation, metadata, hidden, replicated, system, allowCustomRouting);
+    }
+
+    /**
+     * Performs a dummy rollover on a {@code DataStream} instance and returns the tuple of the next write index name and next generation
+     * that this {@code DataStream} should roll over to using {@link #rollover(Index, long)}.
+     *
+     * @param clusterMetadata Cluster metadata
+     *
+     * @return new {@code DataStream} instance with the dummy rollover operation applied
+     */
+    public Tuple<String, Long> nextWriteIndexAndGeneration(Metadata clusterMetadata) {
         if (replicated) {
             throw new IllegalArgumentException("data stream [" + name + "] cannot be rolled over, " +
                 "because it is a replicated data stream");
         }
-
-        List<Index> backingIndices = new ArrayList<>(indices);
         String newWriteIndexName;
         long generation = this.generation;
         long currentTimeMillis = timeProvider.getAsLong();
         do {
             newWriteIndexName = DataStream.getDefaultBackingIndexName(getName(), ++generation, currentTimeMillis);
         } while (clusterMetadata.getIndicesLookup().containsKey(newWriteIndexName));
-        backingIndices.add(new Index(newWriteIndexName, writeIndexUuid));
-        return new DataStream(name, timeStampField, backingIndices, generation, metadata, hidden, replicated, system, allowCustomRouting);
+        return Tuple.tuple(newWriteIndexName, generation);
     }
 
     /**

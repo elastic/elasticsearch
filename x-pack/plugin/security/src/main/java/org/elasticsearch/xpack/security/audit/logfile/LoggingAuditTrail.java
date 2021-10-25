@@ -191,33 +191,33 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
     public static final String NAME = "logfile";
     public static final Setting<Boolean> EMIT_HOST_ADDRESS_SETTING = Setting.boolSetting(setting("audit.logfile.emit_node_host_address"),
-        false, Property.NodeScope, Property.Dynamic);
+            false, Property.NodeScope, Property.Dynamic);
     public static final Setting<Boolean> EMIT_HOST_NAME_SETTING = Setting.boolSetting(setting("audit.logfile.emit_node_host_name"),
-        false, Property.NodeScope, Property.Dynamic);
+            false, Property.NodeScope, Property.Dynamic);
     public static final Setting<Boolean> EMIT_NODE_NAME_SETTING = Setting.boolSetting(setting("audit.logfile.emit_node_name"),
-        false, Property.NodeScope, Property.Dynamic);
+            false, Property.NodeScope, Property.Dynamic);
     public static final Setting<Boolean> EMIT_NODE_ID_SETTING = Setting.boolSetting(setting("audit.logfile.emit_node_id"), true,
-        Property.NodeScope, Property.Dynamic);
+            Property.NodeScope, Property.Dynamic);
     public static final Setting<Boolean> EMIT_CLUSTER_NAME_SETTING = Setting.boolSetting(setting("audit.logfile.emit_cluster_name"),
-        false, Property.NodeScope, Property.Dynamic);
+            false, Property.NodeScope, Property.Dynamic);
     public static final Setting<Boolean> EMIT_CLUSTER_UUID_SETTING = Setting.boolSetting(setting("audit.logfile.emit_cluster_uuid"),
-        true, Property.NodeScope, Property.Dynamic);
+            true, Property.NodeScope, Property.Dynamic);
     private static final List<String> DEFAULT_EVENT_INCLUDES = Arrays.asList(ACCESS_DENIED.toString(), ACCESS_GRANTED.toString(),
-        ANONYMOUS_ACCESS_DENIED.toString(), AUTHENTICATION_FAILED.toString(), CONNECTION_DENIED.toString(), TAMPERED_REQUEST.toString(),
-        RUN_AS_DENIED.toString(), RUN_AS_GRANTED.toString(), SECURITY_CONFIG_CHANGE.toString());
+            ANONYMOUS_ACCESS_DENIED.toString(), AUTHENTICATION_FAILED.toString(), CONNECTION_DENIED.toString(), TAMPERED_REQUEST.toString(),
+            RUN_AS_DENIED.toString(), RUN_AS_GRANTED.toString(), SECURITY_CONFIG_CHANGE.toString());
     public static final Setting<List<String>> INCLUDE_EVENT_SETTINGS = Setting.listSetting(setting("audit.logfile.events.include"),
-        DEFAULT_EVENT_INCLUDES, Function.identity(), value -> AuditLevel.parse(value, List.of()),
-        Property.NodeScope, Property.Dynamic);
+            DEFAULT_EVENT_INCLUDES, Function.identity(), value -> AuditLevel.parse(value, List.of()),
+            Property.NodeScope, Property.Dynamic);
     public static final Setting<List<String>> EXCLUDE_EVENT_SETTINGS = Setting.listSetting(setting("audit.logfile.events.exclude"),
-        Collections.emptyList(), Function.identity(), value -> AuditLevel.parse(List.of(), value),
-        Property.NodeScope, Property.Dynamic);
+            Collections.emptyList(), Function.identity(), value -> AuditLevel.parse(List.of(), value),
+            Property.NodeScope, Property.Dynamic);
     public static final Setting<Boolean> INCLUDE_REQUEST_BODY = Setting.boolSetting(setting("audit.logfile.events.emit_request_body"),
-        false, Property.NodeScope, Property.Dynamic);
+            false, Property.NodeScope, Property.Dynamic);
     // actions (and their requests) that are audited as "security change" events
     public static final Set<String> SECURITY_CHANGE_ACTIONS = Set.of(PutUserAction.NAME, PutRoleAction.NAME, PutRoleMappingAction.NAME,
-        SetEnabledAction.NAME, ChangePasswordAction.NAME, CreateApiKeyAction.NAME, GrantApiKeyAction.NAME, PutPrivilegesAction.NAME,
-        DeleteUserAction.NAME, DeleteRoleAction.NAME, DeleteRoleMappingAction.NAME, InvalidateApiKeyAction.NAME,
-        DeletePrivilegesAction.NAME, CreateServiceAccountTokenAction.NAME, DeleteServiceAccountTokenAction.NAME);
+            SetEnabledAction.NAME, ChangePasswordAction.NAME, CreateApiKeyAction.NAME, GrantApiKeyAction.NAME, PutPrivilegesAction.NAME,
+            DeleteUserAction.NAME, DeleteRoleAction.NAME, DeleteRoleMappingAction.NAME, InvalidateApiKeyAction.NAME,
+            DeletePrivilegesAction.NAME, CreateServiceAccountTokenAction.NAME, DeleteServiceAccountTokenAction.NAME);
     private static final String FILTER_POLICY_PREFIX = setting("audit.logfile.events.ignore_filters.");
     // because of the default wildcard value (*) for the field filter, a policy with
     // an unspecified filter field will match events that have any value for that
@@ -279,12 +279,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             // always read before `entryCommonFields` and `includeRequestBody`.
             this.events = parse(INCLUDE_EVENT_SETTINGS.get(newSettings), EXCLUDE_EVENT_SETTINGS.get(newSettings));
         }, Arrays.asList(EMIT_HOST_ADDRESS_SETTING, EMIT_HOST_NAME_SETTING, EMIT_NODE_NAME_SETTING, EMIT_NODE_ID_SETTING,
-            EMIT_CLUSTER_NAME_SETTING, EMIT_CLUSTER_UUID_SETTING,
-            INCLUDE_EVENT_SETTINGS, EXCLUDE_EVENT_SETTINGS, INCLUDE_REQUEST_BODY));
+                EMIT_CLUSTER_NAME_SETTING, EMIT_CLUSTER_UUID_SETTING,
+                INCLUDE_EVENT_SETTINGS, EXCLUDE_EVENT_SETTINGS, INCLUDE_REQUEST_BODY));
         clusterService.getClusterSettings().addAffixUpdateConsumer(FILTER_POLICY_IGNORE_PRINCIPALS, (policyName, filtersList) -> {
             final Optional<EventFilterPolicy> policy = eventFilterPolicyRegistry.get(policyName);
             final EventFilterPolicy newPolicy = policy.orElse(new EventFilterPolicy(policyName, settings))
-                .changePrincipalsFilter(filtersList);
+                    .changePrincipalsFilter(filtersList);
             this.eventFilterPolicyRegistry.set(policyName, newPolicy);
         }, (policyName, filtersList) -> EventFilterPolicy.parsePredicate(filtersList));
         clusterService.getClusterSettings().addAffixUpdateConsumer(FILTER_POLICY_IGNORE_REALMS, (policyName, filtersList) -> {

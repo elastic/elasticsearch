@@ -10,11 +10,12 @@ package org.elasticsearch.xpack.core.transform.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -30,7 +31,7 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
         super(NAME, UpgradeTransformsAction.Response::new);
     }
 
-    public static class Request extends MasterNodeRequest<Request> {
+    public static class Request extends AcknowledgedRequest<Request> {
 
         private final boolean dryRun;
 
@@ -39,8 +40,8 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
             this.dryRun = in.readBoolean();
         }
 
-        public Request(boolean dryRun) {
-            super();
+        public Request(boolean dryRun, TimeValue timeout) {
+            super(timeout);
             this.dryRun = dryRun;
         }
 
@@ -61,7 +62,8 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
 
         @Override
         public int hashCode() {
-            return Objects.hash(dryRun);
+            // the base class does not implement hashCode, therefore we need to hash timeout ourselves
+            return Objects.hash(timeout(), dryRun);
         }
 
         @Override
@@ -73,7 +75,9 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
                 return false;
             }
             Request other = (Request) obj;
-            return this.dryRun == other.dryRun;
+
+            // the base class does not implement equals, therefore we need to check timeout ourselves
+            return this.dryRun == other.dryRun && timeout().equals(other.timeout());
         }
     }
 
@@ -144,9 +148,7 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
                 return false;
             }
             Response other = (Response) obj;
-            return this.updated == other.updated
-                && this.noAction == other.noAction
-                && this.needsUpdate == other.needsUpdate;
+            return this.updated == other.updated && this.noAction == other.noAction && this.needsUpdate == other.needsUpdate;
         }
 
         @Override

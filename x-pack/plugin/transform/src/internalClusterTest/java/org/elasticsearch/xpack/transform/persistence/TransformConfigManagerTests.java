@@ -62,6 +62,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.core.Tuple.tuple;
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.transform.persistence.TransformConfigManager.TO_XCONTENT_PARAMS;
 import static org.elasticsearch.xpack.transform.persistence.TransformInternalIndex.mappings;
 import static org.hamcrest.CoreMatchers.is;
@@ -766,7 +767,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
                     .put(TransformInternalIndex.settings())
                     .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
                     .build()
-            ).numberOfReplicas(0).numberOfShards(1).putMapping(Strings.toString(TransformInternalIndex.mappings()));
+            ).numberOfReplicas(0).numberOfShards(1).putMapping(SINGLE_MAPPING_NAME, Strings.toString(TransformInternalIndex.mappings()));
             indexMapBuilder.put(index, builder.build());
 
             routingTableBuilder.add(

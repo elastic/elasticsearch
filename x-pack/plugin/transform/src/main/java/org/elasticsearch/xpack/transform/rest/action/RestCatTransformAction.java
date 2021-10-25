@@ -149,7 +149,7 @@ public class RestCatTransformAction extends AbstractCatAction {
             .addCell("max_page_search_size", TableColumnAttributeBuilder.builder("max page search size", false).setAliases("mpsz").build())
             .addCell("docs_per_second", TableColumnAttributeBuilder.builder("docs per second", false).setAliases("dps").build())
 
-            .addCell("reason", TableColumnAttributeBuilder.builder("reason for the current state", false).setAliases("r", "reason").build())
+            .addCell("reason", TableColumnAttributeBuilder.builder("reason for the current state", false).setAliases("r").build())
 
             .addCell("search_total", TableColumnAttributeBuilder.builder("total number of search phases", false).setAliases("st").build())
             .addCell(

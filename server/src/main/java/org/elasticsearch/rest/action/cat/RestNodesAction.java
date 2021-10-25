@@ -119,7 +119,7 @@ public class RestNodesAction extends AbstractCatAction {
     protected Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
         table.startHeaders();
-        table.addCell("id", "default:false;alias:id,nodeId;desc:unique node id");
+        table.addCell("id", "default:false;alias:nodeId;desc:unique node id");
         table.addCell("pid", "default:false;alias:p;desc:process id");
         table.addCell("ip", "alias:i;desc:ip address");
         table.addCell("port", "default:false;alias:po;desc:bound transport port");
@@ -145,10 +145,10 @@ public class RestNodesAction extends AbstractCatAction {
             "default:false;alias:fdp,fileDescriptorPercent;text-align:right;desc:used file descriptor ratio");
         table.addCell("file_desc.max", "default:false;alias:fdm,fileDescriptorMax;text-align:right;desc:max file descriptors");
 
-        table.addCell("cpu", "alias:cpu;text-align:right;desc:recent cpu usage");
-        table.addCell("load_1m", "alias:l;text-align:right;desc:1m load avg");
-        table.addCell("load_5m", "alias:l;text-align:right;desc:5m load avg");
-        table.addCell("load_15m", "alias:l;text-align:right;desc:15m load avg");
+        table.addCell("cpu", "text-align:right;desc:recent cpu usage");
+        table.addCell("load_1m", "alias:l1;text-align:right;desc:1m load avg");
+        table.addCell("load_5m", "alias:l5;text-align:right;desc:5m load avg");
+        table.addCell("load_15m", "alias:l15,l;text-align:right;desc:15m load avg");
         table.addCell("uptime", "default:false;alias:u;text-align:right;desc:node uptime");
         table.addCell("node.role",
             "alias:r,role,nodeRole;desc:m:master eligible node, d:data node, i:ingest node, -:coordinating node only");
@@ -207,9 +207,9 @@ public class RestNodesAction extends AbstractCatAction {
 
         table.addCell("refresh.total", "alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
         table.addCell("refresh.time", "alias:rti,refreshTime;default:false;text-align:right;desc:time spent in refreshes");
-        table.addCell("refresh.external_total", "alias:rto,refreshTotal;default:false;text-align:right;desc:total external refreshes");
+        table.addCell("refresh.external_total", "alias:reto,refreshTotal;default:false;text-align:right;desc:total external refreshes");
         table.addCell("refresh.external_time",
-            "alias:rti,refreshTime;default:false;text-align:right;desc:time spent in external refreshes");
+            "alias:reti,refreshTime;default:false;text-align:right;desc:time spent in external refreshes");
         table.addCell("refresh.listeners", "alias:rli,refreshListeners;default:false;text-align:right;"
                 + "desc:number of pending refresh listeners");
 

@@ -243,7 +243,7 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("health", "alias:h;desc:current health status");
         table.addCell("status", "alias:s;desc:open/close status");
         table.addCell("index", "alias:i,idx;desc:index name");
-        table.addCell("uuid", "alias:id,uuid;desc:index uuid");
+        table.addCell("uuid", "alias:id;desc:index uuid");
         table.addCell("pri", "alias:p,shards.primary,shardsPrimary;text-align:right;desc:number of primary shards");
         table.addCell("rep", "alias:r,shards.replica,shardsReplica;text-align:right;desc:number of replica shards");
         table.addCell("docs.count", "alias:dc,docsCount;text-align:right;desc:available docs");
@@ -382,11 +382,11 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("pri.refresh.time", "default:false;text-align:right;desc:time spent in refreshes");
 
         table.addCell("refresh.external_total",
-            "sibling:pri;alias:rto,refreshTotal;default:false;text-align:right;desc:total external refreshes");
+            "sibling:pri;alias:reto;default:false;text-align:right;desc:total external refreshes");
         table.addCell("pri.refresh.external_total", "default:false;text-align:right;desc:total external refreshes");
 
         table.addCell("refresh.external_time",
-            "sibling:pri;alias:rti,refreshTime;default:false;text-align:right;desc:time spent in external refreshes");
+            "sibling:pri;alias:reti;default:false;text-align:right;desc:time spent in external refreshes");
         table.addCell("pri.refresh.external_time", "default:false;text-align:right;desc:time spent in external refreshes");
 
         table.addCell("refresh.listeners",

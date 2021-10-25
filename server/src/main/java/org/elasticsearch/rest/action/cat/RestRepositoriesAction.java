@@ -62,8 +62,8 @@ public class RestRepositoriesAction extends AbstractCatAction {
     protected Table getTableWithHeader(RestRequest request) {
         return new Table()
                 .startHeaders()
-                .addCell("id", "alias:id,repoId;desc:unique repository id")
-                .addCell("type", "alias:t,type;text-align:right;desc:repository type")
+                .addCell("id", "alias:repoId;desc:unique repository id")
+                .addCell("type", "alias:t;text-align:right;desc:repository type")
                 .endHeaders();
     }
 

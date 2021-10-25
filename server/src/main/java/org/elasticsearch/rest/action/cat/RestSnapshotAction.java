@@ -77,19 +77,19 @@ public class RestSnapshotAction extends AbstractCatAction {
     protected Table getTableWithHeader(RestRequest request) {
         return new Table()
                 .startHeaders()
-                .addCell("id", "alias:id,snapshot;desc:unique snapshot")
+                .addCell("id", "alias:snapshot;desc:unique snapshot")
                 .addCell("repository", "alias:re,repo;desc:repository name")
-                .addCell("status", "alias:s,status;text-align:right;desc:snapshot name")
+                .addCell("status", "alias:s;text-align:right;desc:snapshot name")
                 .addCell("start_epoch", "alias:ste,startEpoch;desc:start time in seconds since 1970-01-01 00:00:00")
                 .addCell("start_time", "alias:sti,startTime;desc:start time in HH:MM:SS")
                 .addCell("end_epoch", "alias:ete,endEpoch;desc:end time in seconds since 1970-01-01 00:00:00")
                 .addCell("end_time", "alias:eti,endTime;desc:end time in HH:MM:SS")
-                .addCell("duration", "alias:dur,duration;text-align:right;desc:duration")
-                .addCell("indices", "alias:i,indices;text-align:right;desc:number of indices")
-                .addCell("successful_shards", "alias:ss,successful_shards;text-align:right;desc:number of successful shards")
-                .addCell("failed_shards", "alias:fs,failed_shards;text-align:right;desc:number of failed shards")
-                .addCell("total_shards", "alias:ts,total_shards;text-align:right;desc:number of total shards")
-                .addCell("reason", "default:false;alias:r,reason;desc:reason for failures")
+                .addCell("duration", "alias:dur;text-align:right;desc:duration")
+                .addCell("indices", "alias:i;text-align:right;desc:number of indices")
+                .addCell("successful_shards", "alias:ss;text-align:right;desc:number of successful shards")
+                .addCell("failed_shards", "alias:fs;text-align:right;desc:number of failed shards")
+                .addCell("total_shards", "alias:ts;text-align:right;desc:number of total shards")
+                .addCell("reason", "default:false;alias:r;desc:reason for failures")
                 .endHeaders();
     }
 

@@ -7,6 +7,9 @@
 package org.elasticsearch.xpack.ql.tree;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.PathUtils;
@@ -87,6 +90,7 @@ import static org.mockito.Mockito.mock;
  * node of that type is called for.
  * </ul>
  */
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79704")
 public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCase {
 
     private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = asList(In.class, InPipe.class);

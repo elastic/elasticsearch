@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.script.field.BinaryDocValuesField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -109,15 +110,15 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
         assertEquals(bytesList2.get(0), bytesValues.nextValue());
         assertEquals(bytesList2.get(1), bytesValues.nextValue());
 
-        // Test whether ScriptDocValues.BytesRefs makes a deepcopy
+        // Test whether BinaryDocValuesField makes a deepcopy
         fieldData = indexFieldData.load(reader);
-        ScriptDocValues<?> scriptValues = fieldData.getScriptField("test").getScriptDocValues();
+        BinaryDocValuesField binaryDocValuesField = (BinaryDocValuesField)fieldData.getScriptField("test");
         Object[][] retValues = new BytesRef[4][0];
         for (int i = 0; i < 4; i++) {
-            scriptValues.setNextDocId(i);
-            retValues[i] = new BytesRef[scriptValues.size()];
+            binaryDocValuesField.setNextDocId(i);
+            retValues[i] = new BytesRef[binaryDocValuesField.size()];
             for (int j = 0; j < retValues[i].length; j++) {
-                retValues[i][j] = scriptValues.get(j);
+                retValues[i][j] = binaryDocValuesField.getValue(j, null);
             }
         }
         assertEquals(2, retValues[0].length);

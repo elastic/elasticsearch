@@ -23,7 +23,12 @@ import java.util.Objects;
  *
  * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/searchable-snapshots-apis.html">Searchable Snapshots
  * APIs on elastic.co</a> for more information.
+ *
+ * @deprecated The High Level Rest Client is deprecated in favor of the
+ * <a href="https://www.elastic.co/guide/en/elasticsearch/client/java-api-client/current/introduction.html">
+ * Elasticsearch Java API Client</a>
  */
+@Deprecated(since = "8.0.0", forRemoval = true)
 public class SearchableSnapshotsClient {
 
     private RestHighLevelClient restHighLevelClient;

@@ -250,7 +250,11 @@ import static java.util.stream.Collectors.toList;
  * {@link ResponseException}</li>
  * </ul>
  *
+ * @deprecated The High Level Rest Client is deprecated in favor of the
+ * <a href="https://www.elastic.co/guide/en/elasticsearch/client/java-api-client/current/introduction.html">
+ * Elasticsearch Java API Client</a>
  */
+@Deprecated(since = "8.0.0", forRemoval = true)
 public class RestHighLevelClient implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(RestHighLevelClient.class);

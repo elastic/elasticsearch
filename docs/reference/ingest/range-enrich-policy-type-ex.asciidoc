@@ -42,6 +42,7 @@ PUT /networks/_doc/1?refresh=wait_for
   "department": "OPS"
 }
 ----
+// TEST[continued]
 
 Use the create enrich policy API to create an enrich policy with the
 `range` policy type. This policy must include:

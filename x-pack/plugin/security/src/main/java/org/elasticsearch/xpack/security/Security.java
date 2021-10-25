@@ -48,6 +48,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.ExecutorNames;
@@ -432,9 +433,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
         if (enabled) {
             runStartupChecks(settings);
-            // we load them all here otherwise we can't access secure settings since they are closed once the checks are
-            // fetched
-
             Automatons.updateConfiguration(settings);
         } else {
             this.bootstrapChecks.set(Collections.emptyList());
@@ -465,7 +463,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                                                Supplier<RepositoriesService> repositoriesServiceSupplier) {
         try {
             return createComponents(client, threadPool, clusterService, resourceWatcherService, scriptService, xContentRegistry,
-                environment, expressionResolver);
+                environment, nodeEnvironment.nodeMetadata(), expressionResolver);
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
         }
@@ -474,7 +472,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     // pkg private for testing - tests want to pass in their set of extensions hence we are not using the extension service directly
     Collection<Object> createComponents(Client client, ThreadPool threadPool, ClusterService clusterService,
                                         ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                        NamedXContentRegistry xContentRegistry, Environment environment,
+                                        NamedXContentRegistry xContentRegistry, Environment environment, NodeMetadata nodeMetadata,
                                         IndexNameExpressionResolver expressionResolver) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
@@ -488,6 +486,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         checks.addAll(Arrays.asList(
             new TokenSSLBootstrapCheck(),
             new PkiRealmBootstrapCheck(getSslService()),
+            new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata),
             new TransportTLSBootstrapCheck()));
         checks.addAll(InternalRealms.getBootstrapChecks(settings, environment));
         this.bootstrapChecks.set(Collections.unmodifiableList(checks));
@@ -522,7 +521,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         // realms construction
         final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, securityIndex.get());
-
         final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(settings, client, securityIndex.get(),
             scriptService);
         final AnonymousUser anonymousUser = new AnonymousUser(settings);

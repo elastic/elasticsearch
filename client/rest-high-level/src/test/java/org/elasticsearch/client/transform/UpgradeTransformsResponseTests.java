@@ -37,15 +37,9 @@ public class UpgradeTransformsResponseTests extends ESTestCase {
 
     private static void toXContent(UpgradeTransformsResponse response, XContentBuilder builder) throws IOException {
         builder.startObject();
-        if (response.getUpdated() != 0) {
-            builder.field("updated", response.getUpdated());
-        }
-        if (response.getNoAction() != 0) {
-            builder.field("no_action", response.getNoAction());
-        }
-        if (response.getNeedsUpdate() != 0) {
-            builder.field("needs_update", response.getNeedsUpdate());
-        }
+        builder.field("updated", response.getUpdated());
+        builder.field("no_action", response.getNoAction());
+        builder.field("needs_update", response.getNeedsUpdate());
         builder.endObject();
     }
 

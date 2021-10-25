@@ -44,7 +44,6 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
     }
 
     public void test30EnrollToClusterWithInvalidToken() throws Exception {
-        assumeTrue("something in our tests wrap the error code to 1 on windows", distribution.platform != Distribution.Platform.WINDOWS);
         Shell.Result result = Archives.runElasticsearchStartCommand(
             installation,
             sh,
@@ -52,7 +51,11 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
             List.of("--enrollment-token", "somerandomcharsthatarenotabase64encodedjsonstructure"),
             false
         );
-        assertThat(result.exitCode, equalTo(ExitCodes.DATA_ERROR));
+        // something in our tests wrap the error code to 1 on windows
+        // TODO investigate this and remove this guard
+        if (distribution.platform != Distribution.Platform.WINDOWS) {
+            assertThat(result.exitCode, equalTo(ExitCodes.DATA_ERROR));
+        }
         verifySecurityNotAutoConfigured(installation);
     }
 

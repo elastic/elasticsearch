@@ -220,6 +220,7 @@ Instead, you can:
 
 include::geo-match-enrich-policy-type-ex.asciidoc[]
 include::match-enrich-policy-type-ex.asciidoc[]
+include::range-enrich-policy-type-ex.asciidoc[]
 
 [[ingest-enrich-components]]
 ==== Enrich components

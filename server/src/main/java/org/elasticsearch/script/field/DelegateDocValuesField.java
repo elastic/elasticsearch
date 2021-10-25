@@ -52,11 +52,15 @@ public class DelegateDocValuesField implements DocValuesField {
         throw new UnsupportedOperationException("field [" + name + "] is not supported through the fields api, use [doc] instead");
     }
 
+    public List<?> getValues() {
+        throw new UnsupportedOperationException("field [" + name + "] is not supported through the fields api, use [doc] instead");
+    }
+
     public Object getValue(Object defaultValue) {
         throw new UnsupportedOperationException("field [" + name + "] is not supported through the fields api, use [doc] instead");
     }
 
-    public List<?> getValues() {
+    public Object getValue(int index, Object defaultValue) {
         throw new UnsupportedOperationException("field [" + name + "] is not supported through the fields api, use [doc] instead");
     }
 }

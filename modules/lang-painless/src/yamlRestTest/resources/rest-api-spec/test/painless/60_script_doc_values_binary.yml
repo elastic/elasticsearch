@@ -37,3 +37,20 @@
                             source: "doc['binary'].value.utf8ToString()"
     - match: { hits.hits.0.fields.field1.0: "Some binary blob" }
     - match: { hits.hits.0.fields.field2.0: "Some binary blob" }
+
+    - do:
+        search:
+          body:
+            script_fields:
+              field1:
+                script:
+                  source: "field('binary').getValue(null).utf8ToString()"
+              field2:
+                script:
+                  source: "field('binary').getValue(0, null).utf8ToString()"
+              field3:
+                script:
+                  source: "field('binary').getValues()[0].utf8ToString()"
+    - match: { hits.hits.0.fields.field1.0: "Some binary blob" }
+    - match: { hits.hits.0.fields.field2.0: "Some binary blob" }
+    - match: { hits.hits.0.fields.field3.0: "Some binary blob" }

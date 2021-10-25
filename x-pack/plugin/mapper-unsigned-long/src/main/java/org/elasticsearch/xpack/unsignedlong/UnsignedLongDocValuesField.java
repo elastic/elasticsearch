@@ -50,6 +50,11 @@ public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesF
         }
     }
 
+    private void resize(int newSize) {
+        count = newSize;
+        values = ArrayUtil.grow(values, count);
+    }
+
     @Override
     public ScriptDocValues<?> getScriptDocValues() {
         if (unsignedLongScriptDocValues == null) {
@@ -57,11 +62,6 @@ public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesF
         }
 
         return unsignedLongScriptDocValues;
-    }
-
-    protected void resize(int newSize) {
-        count = newSize;
-        values = ArrayUtil.grow(values, count);
     }
 
     @Override

@@ -71,7 +71,7 @@ public class ExternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
         if (XPackSettings.ENROLLMENT_ENABLED.get(environment.settings()) != true) {
             throw new IllegalStateException("[xpack.security.enrollment.enabled] must be set to `true` to create an enrollment token");
         }
-        final String fingerprint = getCaFingerprint(sslService);
+        final String fingerprint = getHttpsCaFingerprint(sslService);
         final String apiKey = getApiKeyCredentials(user, password, action);
         final Tuple<List<String>, String> httpInfo = getNodeInfo(user, password);
         return new EnrollmentToken(apiKey, fingerprint, httpInfo.v2(), httpInfo.v1());

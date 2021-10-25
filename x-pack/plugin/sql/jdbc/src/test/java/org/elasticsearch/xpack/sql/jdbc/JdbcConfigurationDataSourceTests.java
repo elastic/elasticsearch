@@ -49,6 +49,9 @@ public class JdbcConfigurationDataSourceTests extends WebServerTestCase {
     }
 
     public void testTimeoutsInUrl() throws IOException, SQLException {
+        int queryTimeout = 10;
+        int pageTimeout = 20;
+
         webServer().enqueue(
             new MockResponse().setResponseCode(200)
                 .addHeader("Content-Type", "application/json")
@@ -56,7 +59,9 @@ public class JdbcConfigurationDataSourceTests extends WebServerTestCase {
         );
 
         EsDataSource dataSource = new EsDataSource();
-        String address = "jdbc:es://" + webServerAddress() + "/?binary.format=false&query.timeout=10&page.timeout=20";
+        String address = "jdbc:es://" + webServerAddress()
+            + "/?binary.format=false&query.timeout=" + queryTimeout
+            + "&page.timeout=" + pageTimeout;
         dataSource.setUrl(address);
         Connection connection = dataSource.getConnection();
         webServer().takeRequest();
@@ -71,8 +76,7 @@ public class JdbcConfigurationDataSourceTests extends WebServerTestCase {
         MockRequest request = webServer().takeRequest();
 
         Map<String, Object> sqlQueryRequest = XContentHelper.convertToMap(JsonXContent.jsonXContent, request.getBody(), false);
-        // expected values should be 10s and 20s respectively (https://github.com/elastic/elasticsearch/issues/79480)
-        assertEquals("10ms", sqlQueryRequest.get("request_timeout"));
-        assertEquals("20ms", sqlQueryRequest.get("page_timeout"));
+        assertEquals(queryTimeout + "ms", sqlQueryRequest.get("request_timeout"));
+        assertEquals(pageTimeout + "ms", sqlQueryRequest.get("page_timeout"));
     }
 }

@@ -119,7 +119,7 @@ public class FormattingPrecommitPlugin implements Plugin<Project> {
         ":client:test",
         ":distribution:archives:integ-test-zip",
         ":distribution:bwc:bugfix",
-        ":distribution:bwc:bugfix",
+        ":distribution:bwc:maintenance",
         ":distribution:bwc:minor",
         ":distribution:bwc:staged",
         ":distribution:docker",

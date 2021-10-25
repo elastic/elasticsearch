@@ -245,6 +245,8 @@ cluster state, the operation doesn't restore any feature states by default. You
 can also restore only specific feature states from a snapshot, regardless of the
 cluster state.
 
+NOTE: You can't restore specific feature states in {kib}.
+
 To view a snapshot's feature states, use the get snapshot API.
 
 [source,console]
@@ -261,8 +263,6 @@ To restore a specific feature state from the snapshot, specify the
 <<restore-snapshot-api-feature-states,`feature_states`>> parameter. When you
 restore a feature state, {es} closes and overwrites the feature's existing
 indices.
-
-NOTE: You can't restore specific feature states in {kib}.
 
 WARNING: Restoring the `security` feature state overwrites system indices
 used for authentication. If you use {ess}, ensure you have access to the {ess}

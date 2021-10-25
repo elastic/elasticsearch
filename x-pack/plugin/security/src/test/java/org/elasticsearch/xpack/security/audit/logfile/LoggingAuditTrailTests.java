@@ -261,18 +261,18 @@ public class LoggingAuditTrailTests extends ESTestCase {
     public void init() throws Exception {
         includeRequestBody = randomBoolean();
         settings = Settings.builder()
-            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), randomAlphaOfLength(16))
-            .put(LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING.getKey(), randomBoolean())
-            .put(LoggingAuditTrail.EMIT_HOST_NAME_SETTING.getKey(), randomBoolean())
-            .put(LoggingAuditTrail.EMIT_NODE_NAME_SETTING.getKey(), randomBoolean())
-            .put(LoggingAuditTrail.EMIT_NODE_ID_SETTING.getKey(), randomBoolean())
-            .put(LoggingAuditTrail.EMIT_CLUSTER_NAME_SETTING.getKey(), randomBoolean())
-            .put(LoggingAuditTrail.EMIT_CLUSTER_UUID_SETTING.getKey(), randomBoolean())
-            .put(LoggingAuditTrail.INCLUDE_REQUEST_BODY.getKey(), includeRequestBody)
-            .put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), reservedRealmEnabled)
-            .put(AnonymousUser.USERNAME_SETTING.getKey(), customAnonymousUsername)
-            .putList(AnonymousUser.ROLES_SETTING.getKey(), randomFrom(List.of(), List.of("smth")))
-            .build();
+                .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), randomAlphaOfLength(16))
+                .put(LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING.getKey(), randomBoolean())
+                .put(LoggingAuditTrail.EMIT_HOST_NAME_SETTING.getKey(), randomBoolean())
+                .put(LoggingAuditTrail.EMIT_NODE_NAME_SETTING.getKey(), randomBoolean())
+                .put(LoggingAuditTrail.EMIT_NODE_ID_SETTING.getKey(), randomBoolean())
+                .put(LoggingAuditTrail.EMIT_CLUSTER_NAME_SETTING.getKey(), randomBoolean())
+                .put(LoggingAuditTrail.EMIT_CLUSTER_UUID_SETTING.getKey(), randomBoolean())
+                .put(LoggingAuditTrail.INCLUDE_REQUEST_BODY.getKey(), includeRequestBody)
+                .put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), reservedRealmEnabled)
+                .put(AnonymousUser.USERNAME_SETTING.getKey(), customAnonymousUsername)
+                .putList(AnonymousUser.ROLES_SETTING.getKey(), randomFrom(List.of(), List.of("smth")))
+                .build();
         localNode = mock(DiscoveryNode.class);
         when(localNode.getId()).thenReturn(randomAlphaOfLength(16));
         when(localNode.getAddress()).thenReturn(buildNewFakeTransportAddress());
@@ -292,14 +292,14 @@ public class LoggingAuditTrailTests extends ESTestCase {
             return null;
         }).when(clusterService).addListener(Mockito.isA(LoggingAuditTrail.class));
         final ClusterSettings clusterSettings = new ClusterSettings(settings,
-            Set.of(LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING, LoggingAuditTrail.EMIT_HOST_NAME_SETTING,
-                LoggingAuditTrail.EMIT_NODE_NAME_SETTING, LoggingAuditTrail.EMIT_NODE_ID_SETTING,
-                LoggingAuditTrail.EMIT_CLUSTER_NAME_SETTING, LoggingAuditTrail.EMIT_CLUSTER_UUID_SETTING,
-                LoggingAuditTrail.INCLUDE_EVENT_SETTINGS, LoggingAuditTrail.EXCLUDE_EVENT_SETTINGS,
-                LoggingAuditTrail.INCLUDE_REQUEST_BODY, LoggingAuditTrail.FILTER_POLICY_IGNORE_PRINCIPALS,
-                LoggingAuditTrail.FILTER_POLICY_IGNORE_REALMS, LoggingAuditTrail.FILTER_POLICY_IGNORE_ROLES,
-                LoggingAuditTrail.FILTER_POLICY_IGNORE_INDICES, LoggingAuditTrail.FILTER_POLICY_IGNORE_ACTIONS,
-                Loggers.LOG_LEVEL_SETTING, ClusterName.CLUSTER_NAME_SETTING));
+                Set.of(LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING, LoggingAuditTrail.EMIT_HOST_NAME_SETTING,
+                        LoggingAuditTrail.EMIT_NODE_NAME_SETTING, LoggingAuditTrail.EMIT_NODE_ID_SETTING,
+                        LoggingAuditTrail.EMIT_CLUSTER_NAME_SETTING, LoggingAuditTrail.EMIT_CLUSTER_UUID_SETTING,
+                        LoggingAuditTrail.INCLUDE_EVENT_SETTINGS, LoggingAuditTrail.EXCLUDE_EVENT_SETTINGS,
+                        LoggingAuditTrail.INCLUDE_REQUEST_BODY, LoggingAuditTrail.FILTER_POLICY_IGNORE_PRINCIPALS,
+                        LoggingAuditTrail.FILTER_POLICY_IGNORE_REALMS, LoggingAuditTrail.FILTER_POLICY_IGNORE_ROLES,
+                        LoggingAuditTrail.FILTER_POLICY_IGNORE_INDICES, LoggingAuditTrail.FILTER_POLICY_IGNORE_ACTIONS,
+                        Loggers.LOG_LEVEL_SETTING, ClusterName.CLUSTER_NAME_SETTING));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         commonFields = new LoggingAuditTrail.EntryCommonFields(settings, localNode, clusterService).commonFields;
         threadContext = new ThreadContext(Settings.EMPTY);

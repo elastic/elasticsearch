@@ -34,7 +34,7 @@ When restoring data from a snapshot, keep the following in mind:
 * If you restore a data stream, you also restore its backing indices.
 
 * You can only restore an existing index if it's <<indices-close,closed>> and
-the index in the snapshot has the same number of primary shards. 
+the index in the snapshot has the same number of primary shards.
 
 * You can't restore an existing open index. This includes
 backing indices for a data stream.
@@ -127,7 +127,7 @@ restore.
 
 [source,console]
 ----
-POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore 
+POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 {
   "indices": "my-index,logs-my_app-default"
 }
@@ -152,7 +152,7 @@ any restored index or data stream.
 
 [source,console]
 ----
-POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore 
+POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 {
   "indices": "my-index,logs-my_app-default",
   "rename_pattern": "(.+)",
@@ -222,7 +222,7 @@ all indices and data streams except dot indices.
 
 [source,console]
 ----
-POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore 
+POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 {
   "indices": "*,-.*"
 }
@@ -236,9 +236,14 @@ POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 === Restore a feature state
 
 You can restore a feature state to recover system indices and other
-configuration data for a feature from a snapshot.
+configuration data for a feature from a snapshot. Restoring a feature state is
+the preferred way to restore system indices.
 
-NOTE: You can't restore specific feature states in {kib}.
+If you restore a snapshot's cluster state, the operation restores all feature
+states in the snapshot by default. Similarly, if you don't restore a snapshot's
+cluster state, the operation doesn't restore any feature states by default. You
+can also restore only specific feature states from a snapshot, regardless of the
+cluster state.
 
 To view a snapshot's feature states, use the get snapshot API.
 
@@ -251,10 +256,13 @@ GET _snapshot/my_repository/my_snapshot_2099.05.06
 The response's `feature_states` property contains a list of features in the
 snapshot as well as each feature's indices.
 
-To restore a feature state, specify the `feature_name` from the response in the
-restore snapshot API's <<restore-snapshot-api-feature-states,`feature_states`>>
-parameter. When you restore a feature state, {es} closes and overwrites the
-feature's existing indices.
+To restore a specific feature state from the snapshot, specify the
+`feature_name` from the response in the restore snapshot API's
+<<restore-snapshot-api-feature-states,`feature_states`>> parameter. When you
+restore a feature state, {es} closes and overwrites the feature's existing
+indices.
+
+NOTE: You can't restore specific feature states in {kib}.
 
 WARNING: Restoring the `security` feature state overwrites system indices
 used for authentication. If you use {ess}, ensure you have access to the {ess}
@@ -267,7 +275,7 @@ pattern to the `indices` value.
 
 [source,console]
 ----
-POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore 
+POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 {
   "indices": "*,-.*",
   "feature_states": [ "geoip" ]
@@ -436,7 +444,7 @@ any feature states and system indices in the snapshot.
 +
 [source,console]
 ----
-POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore 
+POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 {
   "indices": "*",
   "include_global_state": true

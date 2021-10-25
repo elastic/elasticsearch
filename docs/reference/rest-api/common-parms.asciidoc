@@ -67,12 +67,18 @@ end::allow-no-match-transforms2[]
 tag::analyzer[]
 `analyzer`::
 (Optional, string) Analyzer to use for the query string.
++
+This parameter can only be used when the `q` query string parameter is
+specified.
 end::analyzer[]
 
 tag::analyze_wildcard[]
 `analyze_wildcard`::
-(Optional, Boolean) If `true`, wildcard and prefix queries are
-analyzed. Defaults to `false`.
+(Optional, Boolean) If `true`, wildcard and prefix queries are analyzed.
+Defaults to `false`.
++
+This parameter can only be used when the `q` query string parameter is
+specified.
 end::analyze_wildcard[]
 
 tag::bytes[]
@@ -132,6 +138,9 @@ tag::default_operator[]
 `default_operator`::
 (Optional, string) The default operator for query string query: AND or OR.
 Defaults to `OR`.
++
+This parameter can only be used when the `q` query string parameter is
+specified.
 end::default_operator[]
 
 tag::dest[]
@@ -160,8 +169,11 @@ end::detailed[]
 
 tag::df[]
 `df`::
-(Optional, string) Field to use as default where no field prefix is
-given in the query string.
+(Optional, string) Field to use as default where no field prefix is given in the
+query string.
++
+This parameter can only be used when the `q` query string parameter is
+specified.
 end::df[]
 
 tag::docs-count[]
@@ -530,8 +542,12 @@ end::component-template[]
 
 tag::lenient[]
 `lenient`::
-(Optional, Boolean) If `true`, format-based query failures (such as
-providing text to a numeric field) will be ignored. Defaults to `false`.
+(Optional, Boolean) If `true`, format-based query failures (such as providing
+text to a numeric field) in the query string will be ignored. Defaults to
+`false`.
++
+This parameter can only be used when the `q` query string parameter is
+specified.
 end::lenient[]
 
 tag::level[]

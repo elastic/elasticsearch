@@ -210,12 +210,13 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         assertThat(cachedPhaseDefinition, containsString(SetPriorityAction.NAME));
         assertThat(cachedPhaseDefinition, containsString(ForceMergeAction.NAME));
 
-        // ENFORCE_DEFAULT_TIER_PREFERENCE has been set to true
-        Request getSettingsRequest = new Request("GET", "_cluster/settings");
+        // ENFORCE_DEFAULT_TIER_PREFERENCE is not mentioned (and defaults to true)
+        Request getSettingsRequest = new Request("GET", "_cluster/settings?include_defaults");
         Response getSettingsResponse = client().performRequest(getSettingsRequest);
         ObjectMapper mapper = new ObjectMapper();
         JsonNode json = mapper.readTree(getSettingsResponse.getEntity().getContent());
-        assertTrue(json.at("/persistent/cluster/routing/allocation/enforce_default_tier_preference").asBoolean());
+        assertTrue(json.at("/persistent/cluster/routing/allocation/enforce_default_tier_preference").isMissingNode());
+        assertTrue(json.at("/defaults/cluster/routing/allocation/enforce_default_tier_preference").asBoolean());
     }
 
     @SuppressWarnings("unchecked")

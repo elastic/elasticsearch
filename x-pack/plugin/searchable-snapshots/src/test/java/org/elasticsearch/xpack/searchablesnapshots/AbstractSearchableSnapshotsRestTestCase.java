@@ -47,9 +47,6 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTestCase {
 
-    public static final String FROZEN_INDICES_WARNING = "Frozen indices are deprecated because they provide no benefit given "
-        + "improvements in heap memory utilization. They will be removed in a future release.";
-
     private static final String WRITE_REPOSITORY_NAME = "repository";
     private static final String READ_REPOSITORY_NAME = "read-repository";
     private static final String SNAPSHOT_NAME = "searchable-snapshot";
@@ -267,14 +264,6 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     public void testSnapshotOfSearchableSnapshot() throws Exception {
         runSearchableSnapshotsTest((restoredIndexName, numDocs) -> {
 
-            final boolean frozen = randomBoolean();
-            if (frozen) {
-                logger.info("--> freezing index [{}]", restoredIndexName);
-                final Request freezeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_freeze");
-                freezeRequest.setOptions(expectWarnings(FROZEN_INDICES_WARNING));
-                assertOK(client().performRequest(freezeRequest));
-            }
-
             if (randomBoolean()) {
                 logger.info("--> closing index [{}]", restoredIndexName);
                 final Request closeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_close");
@@ -322,7 +311,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
             deleteSnapshot(snapshot2Name, false);
 
-            assertSearchResults(restoredIndexName, numDocs, frozen ? Boolean.FALSE : randomFrom(Boolean.TRUE, Boolean.FALSE, null));
+            assertSearchResults(restoredIndexName, numDocs, randomFrom(Boolean.TRUE, Boolean.FALSE, null));
         });
     }
 

@@ -30,6 +30,7 @@ PUT /networks
   }
 }
 ----
+// TEST
 
 The following index API request indexes a new document to that index.
 
@@ -134,8 +135,8 @@ The API returns the following response:
 {
   "_index" : "my-index-000001",
   "_id" : "my_id",
-  "_version" : 2,
-  "_seq_no" : 1,
+  "_version" : 1,
+  "_seq_no" : 0,
   "_primary_term" : 1,
   "found" : true,
   "_source" : {
@@ -158,6 +159,7 @@ The API returns the following response:
 DELETE /_ingest/pipeline/networks_lookup
 DELETE /_enrich/policy/networks-policy
 DELETE /networks
+DELETE /my-index-000001
 --------------------------------------------------
 // TEST[continued]
 ////

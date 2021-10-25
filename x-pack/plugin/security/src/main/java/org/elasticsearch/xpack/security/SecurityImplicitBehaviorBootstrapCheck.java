@@ -37,12 +37,15 @@ public class SecurityImplicitBehaviorBootstrapCheck implements BootstrapCheck {
             return BootstrapCheckResult.failure(
                 "The default value for ["
                     + XPackSettings.SECURITY_ENABLED.getKey()
-                    + "] has changed. See https://www.elastic.co/guide/en/elasticsearch/reference/"
+                    + "] has changed in the current version. "
+                    + " Security features were implicitly disabled for this node but they would now be enabled, possibly"
+                    + " preventing access to the node. "
+                    + "See https://www.elastic.co/guide/en/elasticsearch/reference/"
                     + Version.CURRENT.major
                     + "."
                     + Version.CURRENT.minor
-                    + "/security-minimal-setup.html to enable security, or explicitly disable security by "
-                    + "setting [xpack.security.enabled] to \"false\" in elasticsearch.yml before restarting the node"
+                    + "/security-minimal-setup.html to configure security, or explicitly disable security by "
+                    + "setting [xpack.security.enabled] to \"false\" in elasticsearch.yml before restarting the node."
             );
         } else {
             return BootstrapCheckResult.success();

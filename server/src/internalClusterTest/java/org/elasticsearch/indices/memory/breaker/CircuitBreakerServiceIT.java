@@ -376,4 +376,52 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             assertEquals(ex.getByteLimit(), inFlightRequestsLimit.getBytes());
         }
     }
+
+    public void testDynamicUseRealMemory() {
+        final Client client = client();
+
+        // use_real_memory is set to false for internalTestCluster
+        checkLimitSize(client, 0.7);
+
+        {
+            Settings settings = Settings.builder()
+                    .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), true)
+                    .build();
+            client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get();
+
+            checkLimitSize(client, 0.95);
+        }
+        {
+            Settings settings = Settings.builder()
+                .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "80%")
+                .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), true)
+                .build();
+            client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get();
+
+            checkLimitSize(client, 0.8);
+        }
+        {
+            Settings settings = Settings.builder()
+                    .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
+                    .build();
+            client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get();
+            checkLimitSize(client, 0.8);
+        }
+        {
+            Settings settings = Settings.builder()
+                    .putNull(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey())
+                    .putNull(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey())
+                    .build();
+            client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get();
+        }
+    }
+
+    private void checkLimitSize(Client client, double limitRatio) {
+        NodesStatsResponse stats = client.admin().cluster().prepareNodesStats().setBreaker(true).setJvm(true).get();
+        for (NodeStats node : stats.getNodes()) {
+            long heapSize = node.getJvm().getMem().getHeapCommitted().getBytes();
+            long limitSize = node.getBreaker().getStats(CircuitBreaker.PARENT).getLimit();
+            assertEquals((long) (heapSize*limitRatio), limitSize);
+        }
+    }
 }

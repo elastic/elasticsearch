@@ -8,6 +8,7 @@
 
 package org.elasticsearch.xcontent;
 
+import org.elasticsearch.xcontent.support.filtering.FilterNode;
 import org.elasticsearch.xcontent.support.filtering.FilterPath;
 import org.elasticsearch.core.RestApiVersion;
 
@@ -66,8 +67,8 @@ public interface XContent {
         NamedXContentRegistry xContentRegistry,
         DeprecationHandler deprecationHandler,
         InputStream is,
-        FilterPath[] includes,
-        FilterPath[] excludes
+        FilterNode[] includes,
+        FilterNode[] excludes
     ) throws IOException;
 
     /**
@@ -83,8 +84,8 @@ public interface XContent {
                                 DeprecationHandler deprecationHandler, byte[] data, int offset, int length) throws IOException;
 
     XContentParser createParser(NamedXContentRegistry xContentRegistry,
-                                DeprecationHandler deprecationHandler, byte[] data, int offset, int length, FilterPath[] includes,
-                                FilterPath[] excludes) throws IOException;
+                                DeprecationHandler deprecationHandler, byte[] data, int offset, int length, FilterNode[] includes,
+        FilterNode[] excludes) throws IOException;
 
     /**
      * Creates a parser over the provided reader.

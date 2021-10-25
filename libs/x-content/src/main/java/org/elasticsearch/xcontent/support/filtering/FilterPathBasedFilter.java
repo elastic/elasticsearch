@@ -10,8 +10,11 @@ package org.elasticsearch.xcontent.support.filtering;
 
 import com.fasterxml.jackson.core.filter.TokenFilter;
 
+import org.elasticsearch.core.Glob;
+
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class FilterPathBasedFilter extends TokenFilter {
@@ -38,11 +41,11 @@ public class FilterPathBasedFilter extends TokenFilter {
         }
     };
 
-    private final FilterPath[] filters;
+    private final FilterNode[] filters;
 
     private final boolean inclusive;
 
-    public FilterPathBasedFilter(FilterPath[] filters, boolean inclusive) {
+    public FilterPathBasedFilter(FilterNode[] filters, boolean inclusive) {
         if (filters == null || filters.length == 0) {
             throw new IllegalArgumentException("filters cannot be null or empty");
         }
@@ -51,40 +54,48 @@ public class FilterPathBasedFilter extends TokenFilter {
     }
 
     public FilterPathBasedFilter(Set<String> filters, boolean inclusive) {
-        this(FilterPath.compile(filters), inclusive);
+        this(FilterNode.compile(filters), inclusive);
     }
 
     /**
      * Evaluates if a property name matches one of the given filter paths.
      */
-    private TokenFilter evaluate(String name, FilterPath[] filterPaths) {
-        if (filterPaths != null) {
-            List<FilterPath> nextFilters = null;
+    private TokenFilter evaluate(String name, FilterNode[] filterNodes) {
+        if (filterNodes != null) {
+            List<FilterNode> nextFilters = new ArrayList<>();
+            for (FilterNode filter : filterNodes) {
+                if (filter.isDoubleWildcard()) {
+                    nextFilters.add(filter);
+                }
 
-            for (FilterPath filter : filterPaths) {
-                FilterPath next = filter.matchProperty(name);
-                if (next != null) {
-                    if (next.matches()) {
+                FilterNode termNode = filter.getTermFilter(name);
+                if (termNode != null) {
+                    if (termNode.isEnd()) {
                         return MATCHING;
                     } else {
-                        if (nextFilters == null) {
-                            nextFilters = new ArrayList<>();
+                        nextFilters.add(termNode);
+                    }
+                }
+
+                for (Map.Entry<String, FilterNode> entry : filter.getWildcardFilters().entrySet()) {
+                    String wildcardPattern = entry.getKey();
+                    FilterNode wildcardNode = entry.getValue();
+                    if (Glob.globMatch(wildcardPattern, name)) {
+                        if (wildcardNode.isEnd()) {
+                            return MATCHING;
+                        } else {
+                            nextFilters.add(wildcardNode);
                         }
-                        if (filter.isDoubleWildcard()) {
-                            nextFilters.add(filter);
-                        }
-                        nextFilters.add(next);
                     }
                 }
             }
 
-            if ((nextFilters != null) && (nextFilters.isEmpty() == false)) {
-                return new FilterPathBasedFilter(nextFilters.toArray(new FilterPath[nextFilters.size()]), inclusive);
+            if (nextFilters.isEmpty() == false) {
+                return new FilterPathBasedFilter(nextFilters.toArray(new FilterNode[nextFilters.size()]), inclusive);
             }
         }
         return NO_MATCHING;
     }
-
 
     @Override
     public TokenFilter includeProperty(String name) {

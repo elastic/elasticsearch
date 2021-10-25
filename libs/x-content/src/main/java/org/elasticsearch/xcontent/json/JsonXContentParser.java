@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.AbstractXContentParser;
+import org.elasticsearch.xcontent.support.filtering.FilterNode;
 import org.elasticsearch.xcontent.support.filtering.FilterPath;
 import org.elasticsearch.xcontent.support.filtering.FilterPathBasedFilter;
 import org.elasticsearch.core.RestApiVersion;
@@ -48,13 +49,13 @@ public class JsonXContentParser extends AbstractXContentParser {
         DeprecationHandler deprecationHandler,
         JsonParser parser,
         RestApiVersion restApiVersion,
-        FilterPath[] include,
-        FilterPath[] exclude
+        FilterNode[] include,
+        FilterNode[] exclude
     ) {
         super(xContentRegistry, deprecationHandler, restApiVersion);
         JsonParser filtered = parser;
         if (exclude != null) {
-            for (FilterPath e : exclude) {
+            for (FilterNode e : exclude) {
                 if (e.hasDoubleWildcard()) {
                     // Fixed in Jackson 2.13 - https://github.com/FasterXML/jackson-core/issues/700
                     throw new UnsupportedOperationException("double wildcards are not supported in filtered excludes");

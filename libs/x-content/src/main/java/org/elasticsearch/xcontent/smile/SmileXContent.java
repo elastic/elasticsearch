@@ -21,7 +21,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.support.filtering.FilterPath;
+import org.elasticsearch.xcontent.support.filtering.FilterNode;
 import org.elasticsearch.core.RestApiVersion;
 
 import java.io.ByteArrayInputStream;
@@ -89,8 +89,8 @@ public class SmileXContent implements XContent {
         NamedXContentRegistry xContentRegistry,
         DeprecationHandler deprecationHandler,
         InputStream is,
-        FilterPath[] include,
-        FilterPath[] exclude
+        FilterNode[] include,
+        FilterNode[] exclude
     ) throws IOException {
         return new SmileXContentParser(
             xContentRegistry,
@@ -121,8 +121,8 @@ public class SmileXContent implements XContent {
         byte[] data,
         int offset,
         int length,
-        FilterPath[] includes,
-        FilterPath[] excludes
+        FilterNode[] includes,
+        FilterNode[] excludes
     ) throws IOException {
         return new SmileXContentParser(
             xContentRegistry,

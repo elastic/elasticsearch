@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContentParser;
+import org.elasticsearch.xcontent.support.filtering.FilterNode;
 import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
 public class CborXContentParser extends JsonXContentParser {
@@ -34,8 +35,8 @@ public class CborXContentParser extends JsonXContentParser {
         DeprecationHandler deprecationHandler,
         JsonParser parser,
         RestApiVersion restApiVersion,
-        FilterPath[] includes,
-        FilterPath[] excludes
+        FilterNode[] includes,
+        FilterNode[] excludes
     ) {
         super(xContentRegistry, deprecationHandler, parser, restApiVersion, includes, excludes);
     }

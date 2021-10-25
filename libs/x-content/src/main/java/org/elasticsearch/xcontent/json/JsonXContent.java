@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.support.filtering.FilterNode;
 import org.elasticsearch.xcontent.support.filtering.FilterPath;
 import org.elasticsearch.core.RestApiVersion;
 
@@ -88,8 +89,8 @@ public class JsonXContent implements XContent {
         NamedXContentRegistry xContentRegistry,
         DeprecationHandler deprecationHandler,
         InputStream is,
-        FilterPath[] include,
-        FilterPath[] exclude
+        FilterNode[] include,
+        FilterNode[] exclude
     ) throws IOException {
         return new JsonXContentParser(
             xContentRegistry,
@@ -120,8 +121,8 @@ public class JsonXContent implements XContent {
         byte[] data,
         int offset,
         int length,
-        FilterPath[] includes,
-        FilterPath[] excludes
+        FilterNode[] includes,
+        FilterNode[] excludes
     ) throws IOException {
         return new JsonXContentParser(
             xContentRegistry,

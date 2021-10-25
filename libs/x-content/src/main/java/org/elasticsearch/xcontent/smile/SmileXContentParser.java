@@ -14,7 +14,7 @@ import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContentParser;
-import org.elasticsearch.xcontent.support.filtering.FilterPath;
+import org.elasticsearch.xcontent.support.filtering.FilterNode;
 
 public class SmileXContentParser extends JsonXContentParser {
 
@@ -34,8 +34,8 @@ public class SmileXContentParser extends JsonXContentParser {
         DeprecationHandler deprecationHandler,
         JsonParser parser,
         RestApiVersion restApiVersion,
-        FilterPath[] include,
-        FilterPath[] exclude
+        FilterNode[] include,
+        FilterNode[] exclude
     ) {
         super(xContentRegistry, deprecationHandler, parser, restApiVersion, include, exclude);
     }

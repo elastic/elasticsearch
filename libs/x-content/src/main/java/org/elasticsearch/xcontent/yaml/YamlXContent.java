@@ -19,7 +19,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.support.filtering.FilterPath;
+import org.elasticsearch.xcontent.support.filtering.FilterNode;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -81,8 +81,8 @@ public class YamlXContent implements XContent {
         NamedXContentRegistry xContentRegistry,
         DeprecationHandler deprecationHandler,
         InputStream is,
-        FilterPath[] includes,
-        FilterPath[] excludes
+        FilterNode[] includes,
+        FilterNode[] excludes
     ) throws IOException {
         return new YamlXContentParser(
             xContentRegistry,
@@ -113,8 +113,8 @@ public class YamlXContent implements XContent {
         byte[] data,
         int offset,
         int length,
-        FilterPath[] includes,
-        FilterPath[] excludes
+        FilterNode[] includes,
+        FilterNode[] excludes
     ) throws IOException {
         return new YamlXContentParser(
             xContentRegistry,

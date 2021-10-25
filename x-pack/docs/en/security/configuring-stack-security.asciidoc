@@ -33,7 +33,7 @@ minutes. This token automatically applies the security settings from your {es}
 cluster, authenticates to {es} with the `kibana_system` user, and writes the 
 security configuration to `kibana.yml`. 
 
-A security certificate is generated in the {kib} configuration directory. This
+A security certificate is generated in the {kib} `/data` directory. This
 file establishes trust between {kib} and the {es} Certificate Authority (CA) for
 the HTTP layer.
 

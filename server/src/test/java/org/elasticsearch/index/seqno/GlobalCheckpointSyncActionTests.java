@@ -28,8 +28,8 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
 
-import static org.elasticsearch.mock.orig.Mockito.never;
-import static org.elasticsearch.mock.orig.Mockito.when;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.when;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;

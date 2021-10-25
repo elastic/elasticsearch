@@ -108,7 +108,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
             return null;
         }).when(clusterService).addListener(Mockito.isA(LoggingAuditTrail.class));
         apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), mock(Client.class), mock(SecurityIndexManager.class), clusterService,
-            mock(CacheInvalidatorRegistry.class), mock(ThreadPool.class));
+                                          mock(CacheInvalidatorRegistry.class), mock(ThreadPool.class));
     }
 
     public void testPolicyDoesNotMatchNullValuesInEvent() throws Exception {

@@ -441,24 +441,24 @@ public final class PainlessScriptEngine implements ScriptEngine {
                     int offset = --originalOffset; // offset is 1 based, line numbers must be!
                     int startOffset = getPreviousStatement(offset);
                     int endOffset = getNextStatement(scriptSource, offset);
-                    StringBuilder snippet = new StringBuilder();
+                    String snippet = "";
                     if (startOffset > 0) {
-                        snippet.append("... ");
+                        snippet += "... ";
                     }
-                    snippet.append(scriptSource.substring(startOffset, endOffset));
+                    snippet += scriptSource.substring(startOffset, endOffset);
                     if (endOffset < scriptSource.length()) {
-                        snippet.append(" ...");
+                        snippet += " ...";
                     }
-                    scriptStack.add(snippet.toString());
-                    StringBuilder pointer = new StringBuilder();
+                    scriptStack.add(snippet);
+                    String pointer = "";
                     if (startOffset > 0) {
-                        pointer.append("    ");
+                        pointer += "    ";
                     }
                     for (int i = startOffset; i < offset; i++) {
-                        pointer.append(' ');
+                        pointer += ' ';
                     }
-                    pointer.append("^---- HERE");
-                    scriptStack.add(pointer.toString());
+                    pointer += "^---- HERE";
+                    scriptStack.add(pointer);
                     pos = new ScriptException.Position(originalOffset, startOffset, endOffset);
                 }
                 break;

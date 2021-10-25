@@ -171,17 +171,17 @@ public class Augmentation {
      * with the given String as a separator between each item.
      */
     public static <T> String join(Iterable<T> receiver, String separator) {
-        StringBuilder sb = new StringBuilder();
+        String sb = "";
         boolean firstToken = true;
         for (T t : receiver) {
             if (firstToken) {
                 firstToken=false;
             } else {
-                sb.append(separator);
+                sb += separator;
             }
-            sb.append(t);
+            sb += t;
         }
-        return sb.toString();
+        return sb;
     }
 
     /**

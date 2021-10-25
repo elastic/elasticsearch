@@ -263,21 +263,12 @@ public final class MethodWriter extends GeneratorAdapter {
      * @return the size of arguments pushed to stack (the object that does string concats, e.g. a StringBuilder)
      */
     public int writeNewStrings() {
-        if (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE != null) {
             // Java 9+: we just push our argument collector onto deque
             stringConcatArgs.push(new ArrayList<>());
             return 0; // nothing added to stack
-        } else {
-            // Java 8: create a StringBuilder in bytecode
-            newInstance(STRINGBUILDER_TYPE);
-            dup();
-            invokeConstructor(STRINGBUILDER_TYPE, STRINGBUILDER_CONSTRUCTOR);
-            return 1; // StringBuilder on stack
-        }
     }
 
     public void writeAppendStrings(Class<?> clazz) {
-        if (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE != null) {
             // Java 9+: record type information
             stringConcatArgs.peek().add(getType(clazz));
             // prevent too many concat args.
@@ -288,31 +279,13 @@ public final class MethodWriter extends GeneratorAdapter {
                 // add the return value type as new first param for next concat:
                 stringConcatArgs.peek().add(STRING_TYPE);
             }
-        } else {
-            // Java 8: push a StringBuilder append
-            if      (clazz == boolean.class) invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_BOOLEAN);
-            else if (clazz == char.class)    invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_CHAR);
-            else if (clazz == byte.class  ||
-                     clazz == short.class ||
-                     clazz == int.class)     invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_INT);
-            else if (clazz == long.class)    invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_LONG);
-            else if (clazz == float.class)   invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_FLOAT);
-            else if (clazz == double.class)  invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_DOUBLE);
-            else if (clazz == String.class)  invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_STRING);
-            else                             invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_OBJECT);
-        }
     }
 
     public void writeToStrings() {
-        if (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE != null) {
             // Java 9+: use type information and push invokeDynamic
             final String desc = Type.getMethodDescriptor(STRING_TYPE,
                     stringConcatArgs.pop().stream().toArray(Type[]::new));
             invokeDynamic("concat", desc, INDY_STRING_CONCAT_BOOTSTRAP_HANDLE);
-        } else {
-            // Java 8: call toString() on StringBuilder
-            invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_TOSTRING);
-        }
     }
 
     /** Writes a dynamic binary instruction: returnType, lhs, and rhs can be different */

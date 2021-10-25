@@ -60,7 +60,7 @@ public final class Location {
 
     /** Computes the file name (mostly important for stacktraces) */
     public static String computeSourceName(String scriptName) {
-        StringBuilder fileName = new StringBuilder();
+        String fileName = "";
         // its an anonymous script, include at least a portion of the source to help identify which one it is
         // but don't create stacktraces with filenames that contain newlines or huge names.
 
@@ -77,12 +77,12 @@ public final class Location {
 
         // truncate to our limit
         limit = Math.min(limit, MAX_NAME_LENGTH);
-        fileName.append(scriptName, 0, limit);
+        fileName += scriptName.substring(0, limit);
 
         // if we truncated, make it obvious
         if (limit != scriptName.length()) {
-            fileName.append(" ...");
+            fileName += " ...";
         }
-        return fileName.toString();
+        return fileName;
     }
 }

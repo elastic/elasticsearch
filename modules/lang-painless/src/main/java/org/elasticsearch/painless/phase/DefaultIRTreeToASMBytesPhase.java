@@ -1567,7 +1567,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         // captures with call arguments is ambiguous so
         // additional information is encoded to indicate
         // which are values are arguments and which are captures
-        StringBuilder defCallRecipe = new StringBuilder();
+        String defCallRecipe = "";
         List<Object> boostrapArguments = new ArrayList<>();
         List<Class<?>> typeParameters = new ArrayList<>();
         int capturedCount = 0;
@@ -1600,7 +1600,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                 // total number of captures for easier capture count tracking
                 // when resolved at runtime
                 char encoding = (char)(i + capturedCount);
-                defCallRecipe.append(encoding);
+                defCallRecipe += encoding;
                 capturedCount += captureNames.size();
 
                 for (String captureName : captureNames) {
@@ -1625,7 +1625,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         Type methodType = Type.getMethodType(MethodWriter.getType(
                 irInvokeCallDefNode.getDecorationValue(IRDExpressionType.class)), asmParameterTypes);
 
-        boostrapArguments.add(0, defCallRecipe.toString());
+        boostrapArguments.add(0, defCallRecipe);
         methodWriter.invokeDefCall(methodName, methodType, DefBootstrap.METHOD_CALL, boostrapArguments.toArray());
     }
 

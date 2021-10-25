@@ -359,6 +359,8 @@ public class DeprecationHttpIT extends ESRestTestCase {
     public void testDisableDeprecationLogIndexing() throws Exception {
         final Request deprecatedRequest = deprecatedRequest("GET", "xOpaqueId-testDisableDeprecationLogIndexing");
         assertOK(client().performRequest(deprecatedRequest));
+        assertBusy(this::getIndexedDeprecations, 30, TimeUnit.SECONDS); //await for deprecation to be indexed
+
         configureWriteDeprecationLogsToIndex(false);
 
         final Request postRequest = deprecatedRequest("POST", "xOpaqueId-testDisableDeprecationLogIndexing");

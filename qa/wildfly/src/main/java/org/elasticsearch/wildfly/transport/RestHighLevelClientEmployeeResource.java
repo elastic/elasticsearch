@@ -36,6 +36,7 @@ import javax.ws.rs.core.Response;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 @Path("/employees")
+@SuppressWarnings("removal")
 public class RestHighLevelClientEmployeeResource {
 
     @Inject

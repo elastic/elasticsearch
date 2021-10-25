@@ -79,7 +79,11 @@ public class DeprecationChecks {
         NodeDeprecationChecks::checkMonitoringSettingDecommissionAlerts,
         NodeDeprecationChecks::checkMonitoringSettingEsCollectionEnabled,
         NodeDeprecationChecks::checkMonitoringSettingCollectionEnabled,
-        NodeDeprecationChecks::checkMonitoringSettingCollectionInterval
+        NodeDeprecationChecks::checkMonitoringSettingCollectionInterval,
+        NodeDeprecationChecks::checkScriptContextCache,
+        NodeDeprecationChecks::checkScriptContextCompilationsRateLimitSetting,
+        NodeDeprecationChecks::checkScriptContextCacheSizeSetting,
+        NodeDeprecationChecks::checkScriptContextCacheExpirationSetting
     );
 
     static List<Function<IndexMetadata, DeprecationIssue>> INDEX_SETTINGS_CHECKS = List.of(

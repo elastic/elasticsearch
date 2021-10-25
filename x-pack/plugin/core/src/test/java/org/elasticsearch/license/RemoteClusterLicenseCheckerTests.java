@@ -458,7 +458,7 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
                 threadPool,
                 client -> {
                     when(client.getRemoteClusterClient(clusterAlias)).thenThrow(new IllegalArgumentException());
-                    when(client.getRemoteClusterClient(argThat(not(clusterAlias)))).thenReturn(client);
+                    when(client.getRemoteClusterClient(argThat(a -> not(clusterAlias).matches(a)))).thenReturn(client);
                 });
     }
 

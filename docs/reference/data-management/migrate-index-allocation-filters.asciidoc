@@ -17,26 +17,26 @@ you can still use attribute-based allocation filters to
 control shard allocation for other purposes.
 
 There are two methods to switch to using node roles, an automated method
-for Elasticsearch Service or Elastic Cloud Enterprise, and a manual method
-for self-managed Elasticsearch:
+for {ess} or {ece}, and a manual method for self-managed {es}:
 
 [discrete]
-== Automated method for Elasticsearch Service or Elastic Cloud Enterprise
-If you are using Elasticsearch Service or Elastic Cloud Enterprise and are 
-using node attributes you will be prompted to switch to node roles when you
-upgrade to version 7.10 or higher, when you deploy a warm or cold data tier,
-or when you enable autoscaling.  Any of these actions will automatically
-update your deployment to use node roles and update your index lifecycle
-managment (ILM) policies to use the node roles instead of node annotations.
+== Automated method for {ess} or {ece}
+If you are using {ess} or {ece} and are using node attributes you will be
+prompted to switch to node roles when you upgrade to version 7.10 or
+higher, when you deploy a warm or cold data tier, or when you enable
+autoscaling.  Any of these actions will automatically update your
+deployment to use node roles and update your {ilm-init} policies to use the node
+roles instead of node annotations.
 
-If you have created custom index template, then check those templates after 
-the automated migration and remove <<shard-allocation-filtering, attribute-based allocation filters>> if any are specified.
+If you have created custom index template, then check those templates
+after the automated migration and remove <<shard-allocation-filtering,
+attribute-based allocation filters>> if any are specified.
 
 By allowing the upgrade process to migrate your deployment you can skip
 the manual steps presented below. 
 
 [discrete]
-== Manual method to switch to using node roles for self-manageed Elasticsearch:
+== Manual method to switch to using node roles for self-managed {es}:
 
 . <<assign-data-tier, Assign data nodes>> to the appropriate data tier.
 . <<remove-custom-allocation-settings, Remove the attribute-based allocation

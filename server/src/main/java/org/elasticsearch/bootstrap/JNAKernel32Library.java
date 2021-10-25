@@ -342,7 +342,7 @@ final class JNAKernel32Library {
 
         final long allocatedSize = (((long) lpFileSizeHigh.getValue()) << 32) | (lpFileSizeLow & 0xffffffffL);
         if (logger.isTraceEnabled()) {
-            logger.warn("native method GetCompressedFileSizeW returned [{}] for file [{}]", allocatedSize, path);
+            logger.trace("native method GetCompressedFileSizeW returned [{}] for file [{}]", allocatedSize, path);
         }
         return allocatedSize;
     }

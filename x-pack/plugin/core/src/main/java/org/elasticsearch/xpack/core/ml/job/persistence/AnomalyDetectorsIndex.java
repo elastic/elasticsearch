@@ -89,14 +89,14 @@ public final class AnomalyDetectorsIndex {
             finalListener);
     }
 
-    public static void createStateIndexAndAliasIfNecessaryAndWaitForGreen(Client client,
-                                                                          ClusterState state,
-                                                                          IndexNameExpressionResolver resolver,
-                                                                          TimeValue masterNodeTimeout,
-                                                                          final ActionListener<Boolean> finalListener) {
+    public static void createStateIndexAndAliasIfNecessaryAndWaitForYellow(Client client,
+                                                                           ClusterState state,
+                                                                           IndexNameExpressionResolver resolver,
+                                                                           TimeValue masterNodeTimeout,
+                                                                           final ActionListener<Boolean> finalListener) {
         final ActionListener<Boolean> stateIndexAndAliasCreated = ActionListener.wrap(success -> {
             final ClusterHealthRequest request = Requests.clusterHealthRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias())
-                .waitForGreenStatus()
+                .waitForYellowStatus()
                 .masterNodeTimeout(masterNodeTimeout);
             executeAsyncWithOrigin(
                 client,

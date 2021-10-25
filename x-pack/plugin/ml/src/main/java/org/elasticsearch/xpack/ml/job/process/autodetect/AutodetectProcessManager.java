@@ -527,7 +527,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
         // Make sure the state index and alias exist and are writeable
         ActionListener<Boolean> resultsMappingUpdateHandler = ActionListener.wrap(
-            ack -> AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessaryAndWaitForGreen(
+            ack -> AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessaryAndWaitForYellow(
                 client,
                 clusterState,
                 expressionResolver,

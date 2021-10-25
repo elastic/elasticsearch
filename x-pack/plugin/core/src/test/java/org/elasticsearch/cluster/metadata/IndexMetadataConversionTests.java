@@ -24,6 +24,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class IndexMetadataConversionTests extends ESTestCase {
 
+    @AwaitsFix(bugUrl = "/todo")
     public void testConvertSearchableSnapshotSettings() {
         IndexMetadataVerifier service = getIndexMetadataVerifier();
         IndexMetadata src = newIndexMeta("foo", Settings.EMPTY);

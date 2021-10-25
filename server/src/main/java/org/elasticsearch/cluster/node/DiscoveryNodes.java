@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -436,6 +437,24 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             }
             return resolvedNodesIds.toArray(String.class);
         }
+    }
+
+    private Set<String> availableRoleNames;
+
+    public Set<String> availableRoleNames() {
+        Set<String> roles = availableRoleNames;
+        if (roles != null) {
+            return roles;
+        }
+        roles = new HashSet<>();
+        for (DiscoveryNode n : nodes.values()) {
+            for (DiscoveryNodeRole role : n.getRoles()) {
+                roles.add(role.roleName());
+            }
+        }
+        roles = org.elasticsearch.core.Set.copyOf(roles);
+        availableRoleNames = roles;
+        return roles;
     }
 
     public DiscoveryNodes newNode(DiscoveryNode node) {

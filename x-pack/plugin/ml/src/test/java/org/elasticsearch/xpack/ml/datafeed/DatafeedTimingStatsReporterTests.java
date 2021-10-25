@@ -20,7 +20,7 @@ import org.mockito.InOrder;
 import java.sql.Date;
 import java.time.Instant;
 
-import static org.elasticsearch.mock.orig.Mockito.doThrow;
+import static org.mockito.Mockito.doThrow;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;

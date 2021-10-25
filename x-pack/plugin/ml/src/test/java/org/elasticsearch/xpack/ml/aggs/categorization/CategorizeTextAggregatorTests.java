@@ -45,13 +45,13 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
             TestEnvironment.newEnvironment(
                 Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
             ),
-            List.of(new MachineLearning(Settings.EMPTY, null))
+            List.of(new MachineLearning(Settings.EMPTY))
         );
     }
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
-        return List.of(new MachineLearning(Settings.EMPTY, null));
+        return List.of(new MachineLearning(Settings.EMPTY));
     }
 
     private static final String TEXT_FIELD_NAME = "text";

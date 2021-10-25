@@ -109,7 +109,7 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
     private Predicate<String> errorOutput() {
         Predicate<String> p1 = output -> output.contains("Failed to auto-configure security features.");
         Predicate<String> p2 = output -> output.contains("Authentication and Authorization are enabled.");
-        Predicate<String> p3 = output -> output.contains("You can use elasticsearch-reset-elastic-password to set a password");
+        Predicate<String> p3 = output -> output.contains("You can use elasticsearch-reset-password to set a password");
         Predicate<String> p4 = output -> output.contains("for the elastic user.");
         return p1.and(p2).and(p3).and(p4);
     }

@@ -95,7 +95,7 @@ if [ "x$IS_UPGRADE" != "xtrue" ]; then
             echo "#                                                                            #"
             echo "# Failed to auto-configure security features.                                #"
             echo "# Authentication and Authorization are enabled.                              #"
-            echo "# You can use elasticsearch-reset-elastic-password to set a password         #"
+            echo "# You can use elasticsearch-reset-password to set a password                 #"
             echo "# for the elastic user.                                                      #"
             echo "#                                                                            #"
             echo "##############################################################################"

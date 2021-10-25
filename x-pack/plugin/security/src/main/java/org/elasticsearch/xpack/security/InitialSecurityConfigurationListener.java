@@ -145,7 +145,7 @@ public class InitialSecurityConfigurationListener implements BiConsumer<Security
         }
         builder.append(System.lineSeparator());
         builder.append(System.lineSeparator());
-        builder.append("You can use 'bin/elasticsearch-reset-elastic-password' at any time");
+        builder.append("You can use 'bin/elasticsearch-reset-password -u elastic' at any time");
         builder.append(System.lineSeparator());
         builder.append("in order to set or reset the password for the elastic user.");
         builder.append(System.lineSeparator());
@@ -174,7 +174,7 @@ public class InitialSecurityConfigurationListener implements BiConsumer<Security
             LOGGER.info("Unable set the password for the elastic and generate a kibana ");
             LOGGER.info("enrollment token automatically.");
             LOGGER.info("");
-            LOGGER.info("You can use 'bin/elasticsearch-reset-elastic-password'");
+            LOGGER.info("You can use 'bin/elasticsearch-reset-password -u elastic'");
             LOGGER.info("in order to set the password for the elastic user.");
             LOGGER.info("");
             LOGGER.info("You can use 'bin/elasticsearch-create-enrollment-token -s kibana'");

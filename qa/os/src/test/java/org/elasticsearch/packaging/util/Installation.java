@@ -188,7 +188,7 @@ public class Installation {
             if (input != null) {
                 command = "echo \"" + input + "\" | " + command;
             }
-            if (ignoreExitCode){
+            if (ignoreExitCode) {
                 return sh.runIgnoreExitCode(command + " " + args);
             }
             return sh.run(command + " " + args);

@@ -7,7 +7,9 @@
 package org.elasticsearch.xpack.searchablesnapshots.cache.common;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.bootstrap.Natives;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.PathUtils;
@@ -20,11 +22,13 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.FSyncT
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -41,6 +45,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -380,6 +385,35 @@ public class CacheFileTests extends ESTestCase {
         }
     }
 
+    public void testCacheFileCreatedAsSparseFile() throws Exception {
+        assumeTrue("This test uses a native method implemented only for Windows", Constants.WINDOWS);
+
+        final Path file = createTempDir().resolve(UUIDs.randomBase64UUID(random()));
+        final CacheFile cacheFile = new CacheFile(
+            new CacheKey("_snap_uuid", "_snap_name", new ShardId("_name", "_uid", 0), "_filename"),
+            1048576L,
+            file,
+            NOOP
+        );
+        assertFalse(Files.exists(file));
+
+        final TestEvictionListener listener = new TestEvictionListener();
+        cacheFile.acquire(listener);
+        try {
+            assertTrue(Files.exists(file));
+
+            Long sizeOnDisk = Natives.allocatedSizeInBytes(file);
+            assertThat(sizeOnDisk, equalTo(0L));
+
+            fill(cacheFile.getChannel(), Math.toIntExact(cacheFile.getLength() - 1L), Math.toIntExact(cacheFile.getLength()));
+
+            sizeOnDisk = Natives.allocatedSizeInBytes(file);
+            assertThat(sizeOnDisk, not(equalTo(1048576L)));
+        } finally {
+            cacheFile.release(listener);
+        }
+    }
+
     static class TestEvictionListener implements EvictionListener {
 
         private final SetOnce<CacheFile> evicted = new SetOnce<>();
@@ -439,5 +473,25 @@ public class CacheFileTests extends ESTestCase {
         final FSyncTrackingFileSystemProvider provider = new FSyncTrackingFileSystemProvider(defaultFileSystem, createTempDir());
         PathUtilsForTesting.installMock(provider.getFileSystem(null));
         return provider;
+    }
+
+    private static void fill(FileChannel fileChannel, int from, int to) {
+        final byte[] buffer = new byte[Math.min(Math.max(0, to - from), 1024)];
+        Arrays.fill(buffer, (byte) 0xff);
+        assert fileChannel.isOpen();
+
+        try {
+            int written = 0;
+            int remaining = to - from;
+            while (remaining > 0) {
+                final int len = Math.min(remaining, buffer.length);
+                fileChannel.write(ByteBuffer.wrap(buffer, 0, len), from + written);
+                remaining -= len;
+                written += len;
+            }
+            assert written == to - from;
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
     }
 }

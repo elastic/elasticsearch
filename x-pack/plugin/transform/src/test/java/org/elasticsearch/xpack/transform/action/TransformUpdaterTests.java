@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -127,6 +128,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 true,
                 false,
                 false,
+                AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 listener
             ),
             updateResult -> {
@@ -159,6 +161,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 true,
                 false,
                 false,
+                AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 listener
             ),
             updateResult -> {
@@ -227,6 +230,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 true,
                 false,
                 false,
+                AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 listener
             ),
             updateResult -> {
@@ -287,6 +291,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 true,
                 true,
                 false,
+                AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 listener
             ),
             updateResult -> {

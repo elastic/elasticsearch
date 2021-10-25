@@ -398,7 +398,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                 new DeprecationIssue(
                     Level.CRITICAL,
                     "Transform [" + id + "] is too old",
-                    TransformDeprecations.UPGRADE_TRANSFFORM_URL,
+                    TransformDeprecations.UPGRADE_TRANSFORM_URL,
                     TransformDeprecations.ACTION_UPGRADE_TRANSFORMS_API,
                     false,
                     null

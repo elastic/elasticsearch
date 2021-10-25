@@ -189,12 +189,18 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         final Environment newEnv;
         final ZonedDateTime autoConfigDate = ZonedDateTime.now(ZoneOffset.UTC);
         if (options.has(reconfigure)) {
+            if (false == inEnrollmentMode) {
+                throw new UserException(ExitCodes.USAGE, "enrollment-token is a mandatory parameter.");
+            }
+            // We remove the existing auto-configuration stanza from elasticsearch.yml, the elastisearch.keystore and
+            // the directory with the auto-configured TLS key material, and then proceed as if elasticsearch is started
+            // with --enrolment-token token, in the first place.
             final Optional<String> autoConfigDirName = getAutoConfigDirName(env);
             terminal.println("");
             terminal.println("We will now proceed to attempt and reconfigure this node to join an existing cluster," +
                 " using the enrollment token that you provided.");
             terminal.println("This operation will overwrite the existing configuration. More specifically: ");
-            terminal.println("  - Security configuration will be removed from elasticsearch.yml");
+            terminal.println("  - Security auto configuration will be removed from elasticsearch.yml");
             if (autoConfigDirName.isPresent()) {
                 terminal.println("  - The " + autoConfigDirName.get() + " directory will be removed");
             }

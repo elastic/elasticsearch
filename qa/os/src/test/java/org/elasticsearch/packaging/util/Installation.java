@@ -171,6 +171,10 @@ public class Installation {
         }
 
         public Shell.Result run(String args, String input) {
+            return run(args, input, false);
+        }
+
+        public Shell.Result run(String args, String input, boolean ignoreExitCode) {
             String command = path.toString();
             if (Platforms.WINDOWS) {
                 command = "& '" + command + "'";
@@ -183,6 +187,9 @@ public class Installation {
 
             if (input != null) {
                 command = "echo \"" + input + "\" | " + command;
+            }
+            if (ignoreExitCode){
+                return sh.runIgnoreExitCode(command + " " + args);
             }
             return sh.run(command + " " + args);
         }

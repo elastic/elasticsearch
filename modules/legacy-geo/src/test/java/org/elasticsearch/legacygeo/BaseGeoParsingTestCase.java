@@ -7,8 +7,9 @@
  */
 package org.elasticsearch.legacygeo;
 
+import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.GeometryParser;
-import org.elasticsearch.index.mapper.GeoShapeIndexer;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.legacygeo.parsers.ShapeParser;
 import org.elasticsearch.legacygeo.test.ElasticsearchGeoAssertions;
 import org.elasticsearch.test.ESTestCase;
@@ -63,7 +64,7 @@ abstract class BaseGeoParsingTestCase extends ESTestCase {
             } else {
                 GeometryParser geometryParser = new GeometryParser(true, true, true);
                 org.elasticsearch.geometry.Geometry shape = geometryParser.parse(parser);
-                shape = new GeoShapeIndexer(true, "name").prepareForIndexing(shape);
+                shape = GeometryNormalizer.apply(Orientation.CCW, shape);
                 ElasticsearchGeoAssertions.assertEquals(expected, shape);
             }
         }

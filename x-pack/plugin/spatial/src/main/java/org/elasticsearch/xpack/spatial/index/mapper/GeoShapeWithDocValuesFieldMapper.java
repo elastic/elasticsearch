@@ -137,7 +137,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 meta.get());
             return new GeoShapeWithDocValuesFieldMapper(name, ft,
                 multiFieldsBuilder.build(this, context), copyTo.build(),
-                new GeoShapeIndexer(orientation.get().value().getAsBoolean(), ft.name()), parser, this);
+                new GeoShapeIndexer(orientation.get().value(), ft.name()), parser, this);
         }
 
     }
@@ -244,7 +244,6 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         if (geometry == null) {
             return;
         }
-        geometry = indexer.prepareForIndexing(geometry);
         List<IndexableField> fields = indexer.indexShape(geometry);
         if (fieldType().isSearchable()) {
             context.doc().addAll(fields);

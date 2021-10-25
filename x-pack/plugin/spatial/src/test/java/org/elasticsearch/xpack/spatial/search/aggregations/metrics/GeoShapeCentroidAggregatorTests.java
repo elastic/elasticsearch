@@ -15,11 +15,11 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -129,7 +129,6 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
         int numDocs = scaledRandomIntBetween(64, 256);
         List<Geometry> geometries = new ArrayList<>();
         DimensionalShapeType targetShapeType = DimensionalShapeType.POINT;
-        GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
         for (int i = 0; i < numDocs; i++) {
             Function<Boolean, Geometry> geometryGenerator = ESTestCase.randomFrom(
                 GeometryTestUtils::randomLine,
@@ -141,7 +140,7 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
             );
             Geometry geometry = geometryGenerator.apply(false);
             try {
-                geometries.add(indexer.prepareForIndexing(geometry));
+                geometries.add(GeometryNormalizer.apply(Orientation.CCW, geometry));
             } catch (InvalidShapeException e) {
                 // do not include geometry
             }

@@ -19,7 +19,7 @@ import static org.elasticsearch.common.geo.GeoUtils.normalizePoint;
 /**
  * Splits lines by datelines.
  */
-public class GeoLineDecomposer {
+class GeoLineDecomposer {
 
     private static final double DATELINE = 180;
 

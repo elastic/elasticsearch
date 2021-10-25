@@ -14,6 +14,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -21,8 +23,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SourceDestValidation;
@@ -402,8 +402,8 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                 new DeprecationIssue(
                     Level.CRITICAL,
                     "Transform [" + id + "] is too old",
-                    TransformDeprecations.BREAKING_CHANGES_BASE_URL,
-                    "The configuration uses an old format, you can use [_update] or [_upgrade] to update",
+                    TransformDeprecations.UPGRADE_TRANSFORM_URL,
+                    TransformDeprecations.ACTION_UPGRADE_TRANSFORMS_API,
                     false,
                     null
                 )

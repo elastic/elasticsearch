@@ -8,7 +8,8 @@ experimental::[]
 
 A multi-bucket aggregation that groups semi-structured text into buckets. Each `text` field is re-analyzed
 using a custom analyzer. The resulting tokens are then categorized creating buckets of similarly formatted
-text values. This aggregation works best with machine generated text like system logs.
+text values. This aggregation works best with machine generated text like system logs. Only the first 100 analyzed
+tokens are used to categorize the text.
 
 NOTE: If you have considerable memory allocated to your JVM but are receiving circuit breaker exceptions from this
       aggregation, you may be attempting to categorize text that is poorly formatted for categorization. Consider
@@ -27,11 +28,13 @@ The semi-structured text field to categorize.
 The maximum number of unique tokens at any position up to `max_matched_tokens`.
 Must be larger than 1. Smaller values use less memory and create fewer categories.
 Larger values will use more memory and create narrower categories.
+Max allowed value is `100`.
 
 `max_matched_tokens`::
 (Optional, integer, default: `5`)
 The maximum number of token positions to match on before attempting to merge categories.
 Larger values will use more memory and create narrower categories.
+Max allowed value is `100`.
 
 Example:
 `max_matched_tokens` of 2 would disallow merging of the categories
@@ -90,7 +93,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=tokenizer]
 (array of strings or objects)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=filter]
 =====
-end::categorization-analyzer[]
 
 `shard_size`::
 (Optional, integer)

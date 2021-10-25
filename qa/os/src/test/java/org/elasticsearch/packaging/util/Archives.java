@@ -107,9 +107,7 @@ public class Archives {
 
         Installation installation = Installation.ofArchive(sh, distribution, fullInstallPath);
         ServerUtils.disableGeoIpDownloader(installation);
-        if (Platforms.WINDOWS) {
-            ServerUtils.disableDeprecationLogIndexing(installation);
-        }
+
         return installation;
     }
 

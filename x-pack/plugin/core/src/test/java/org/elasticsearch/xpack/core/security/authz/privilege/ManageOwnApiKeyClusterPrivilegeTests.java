@@ -36,8 +36,8 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
 
         final String apiKeyId = randomAlphaOfLengthBetween(4, 7);
         final HashMap<String,Object> metadata = new HashMap<>();
-        metadata.put(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLength(7));
-        metadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 16));
+        metadata.put(AuthenticationField.API_KEY_ID_KEY, apiKeyId);
+        metadata.put(AuthenticationField.API_KEY_NAME_KEY, randomAlphaOfLengthBetween(1, 16));
         final Authentication authentication = createMockAuthentication("joe", "_es_api_key",
             AuthenticationType.API_KEY, metadata);
         final TransportRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyId(apiKeyId, randomBoolean());

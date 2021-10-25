@@ -28,8 +28,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.test.rest.ESRestTestCase.expectWarnings;
-
 public class DataLoader {
 
     public static void main(String[] args) throws Exception {

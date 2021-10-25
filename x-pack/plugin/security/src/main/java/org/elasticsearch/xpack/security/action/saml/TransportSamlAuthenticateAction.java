@@ -61,7 +61,7 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
             authenticationService.authenticate(SamlAuthenticateAction.NAME, request, saml, ActionListener.wrap(authentication -> {
                 AuthenticationResult<User> result = threadContext.getTransient(AuthenticationResult.THREAD_CONTEXT_KEY);
                 if (result == null) {
-                    listener.onFailure(new IllegalStateException("Cannot find AuthenticationResult<User> on thread context"));
+                    listener.onFailure(new IllegalStateException("Cannot find User AuthenticationResult on thread context"));
                     return;
                 }
                 assert authentication != null : "authentication should never be null at this point";

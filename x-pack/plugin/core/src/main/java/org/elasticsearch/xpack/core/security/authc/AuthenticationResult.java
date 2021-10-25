@@ -125,7 +125,7 @@ public final class AuthenticationResult<T> {
      * <p>
      * The {@link #getStatus() status} is set to {@link Status#CONTINUE}.
      * </p><p>
-     * The {@link #getValue() user} is not populated.
+     * The {@link #getValue() value} is not populated.
      * </p>
      */
     public static <T> AuthenticationResult<T> unsuccessful(String message, @Nullable Exception cause) {
@@ -140,7 +140,7 @@ public final class AuthenticationResult<T> {
      * <p>
      * The {@link #getStatus() status} is set to {@link Status#TERMINATE}.
      * </p><p>
-     * The {@link #getValue() user} is not populated.
+     * The {@link #getValue() value} is not populated.
      * </p>
      */
     public static <T> AuthenticationResult<T> terminate(String message, @Nullable Exception cause) {
@@ -154,7 +154,7 @@ public final class AuthenticationResult<T> {
      * <p>
      * The {@link #getStatus() status} is set to {@link Status#TERMINATE}.
      * </p><p>
-     * The {@link #getValue() user} is not populated.
+     * The {@link #getValue() value} is not populated.
      * </p>
      */
     public static <T> AuthenticationResult<T> terminate(String message) {

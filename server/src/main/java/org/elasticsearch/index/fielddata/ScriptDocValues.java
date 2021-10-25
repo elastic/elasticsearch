@@ -589,13 +589,13 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         public BytesRef getValue() {
             throwIfEmpty();
-            return binaryDocValuesField.getValue(null); // default is ignored
+            return get(0);
         }
 
         @Override
         public BytesRef get(int index) {
             throwIfEmpty();
-            return binaryDocValuesField.getValue(null); // default is ignored
+            return binaryDocValuesField.getInternalValues()[index].toBytesRef();
         }
 
         @Override

@@ -9,7 +9,6 @@
 package org.elasticsearch.script.field;
 
 import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues.BytesRefs;
@@ -74,6 +73,12 @@ public class BinaryDocValuesField implements DocValuesField {
         return bytesRefs;
     }
 
+    // this method is required to support the ByteRef return values
+    // for the old-style "doc" access in ScriptDocValues
+    public BytesRefBuilder[] getInternalValues() {
+        return values;
+    }
+
     @Override
     public String getName() {
         return name;
@@ -89,29 +94,55 @@ public class BinaryDocValuesField implements DocValuesField {
         return count;
     }
 
-    public List<BytesRef> getValues() {
+    public List<byte[]> getValues() {
         if (isEmpty()) {
             return Collections.emptyList();
         }
 
-        List<BytesRef> values = new ArrayList<>(count);
+        List<byte[]> values = new ArrayList<>(count);
 
         for (int index = 0; index < count; ++index) {
-            values.add(this.values[index].toBytesRef());
+            values.add(this.values[index].toBytesRef().bytes);
         }
 
         return values;
     }
 
-    public BytesRef getValue(BytesRef defaultValue) {
+    public byte[] getValue(byte[] defaultValue) {
         return getValue(0, defaultValue);
     }
 
-    public BytesRef getValue(int index, BytesRef defaultValue) {
+    public byte[] getValue(int index, byte[] defaultValue) {
         if (isEmpty() || index < 0 || index >= count) {
             return defaultValue;
         }
 
-        return values[index].toBytesRef();
+        return values[index].toBytesRef().bytes;
+    }
+
+    public List<String> getUtf8ToStrings() {
+        if (isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<String> values = new ArrayList<>(count);
+
+        for (int index = 0; index < count; ++index) {
+            values.add(this.values[index].toBytesRef().utf8ToString());
+        }
+
+        return values;
+    }
+
+    public String getUtf8ToString(String defaultValue) {
+        return getUtf8ToString(0, defaultValue);
+    }
+
+    public String getUtf8ToString(int index, String defaultValue) {
+        if (isEmpty() || index < 0 || index >= count) {
+            return defaultValue;
+        }
+
+        return values[index].toBytesRef().utf8ToString();
     }
 }

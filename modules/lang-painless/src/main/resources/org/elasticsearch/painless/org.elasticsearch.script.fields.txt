@@ -27,6 +27,9 @@ class org.elasticsearch.script.field.DelegateDocValuesField @dynamic_type {
 
 class org.elasticsearch.script.field.BinaryDocValuesField @dynamic_type {
   List getValues()
-  BytesRef getValue(BytesRef)
-  BytesRef getValue(int, BytesRef)
+  byte[] getValue(byte[])
+  byte[] getValue(int, byte[])
+  List getUtf8ToStrings()
+  String getUtf8ToString(String)
+  String getUtf8ToString(int, String)
 }

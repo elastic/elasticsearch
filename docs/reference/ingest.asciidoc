@@ -91,8 +91,10 @@ PUT _ingest/pipeline/my-pipeline
 === Manage pipeline versions
 
 When you create or update a pipeline, you can specify an optional `version`
-integer. {es} doesn't use this `version` number internally, but you can use it
-to track changes to a pipeline.
+integer. You can use this version number with the
+<<put-pipeline-api-query-params,`if_version`>> parameter to conditionally
+update the pipeline. When the `if_version` parameter is specified, a successful
+update increments the pipeline's version.
 
 [source,console]
 ----

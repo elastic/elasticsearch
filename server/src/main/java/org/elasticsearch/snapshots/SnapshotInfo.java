@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.snapshots;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
@@ -20,6 +22,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -375,8 +378,18 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         );
     }
 
-    public SnapshotInfo(SnapshotsInProgress.Entry entry) {
-        this(
+    public static SnapshotInfo inProgress(SnapshotsInProgress.Entry entry) {
+        int successfulShards = 0;
+        List<SnapshotShardFailure> shardFailures = new ArrayList<>();
+        for (ObjectObjectCursor<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> c : entry.shardsByRepoShardId()) {
+            if (c.value.state() == SnapshotsInProgress.ShardState.SUCCESS) {
+                successfulShards++;
+            } else if (c.value.state().failed() && c.value.state().completed()) {
+                shardFailures.add(new SnapshotShardFailure(c.value.nodeId(), entry.shardId(c.key), c.value.reason()));
+            }
+        }
+        int totalShards = entry.shardsByRepoShardId().size();
+        return new SnapshotInfo(
             entry.snapshot(),
             org.elasticsearch.core.List.copyOf(entry.indices().keySet()),
             entry.dataStreams(),
@@ -385,9 +398,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             Version.CURRENT,
             entry.startTime(),
             0L,
-            0,
-            0,
-            Collections.emptyList(),
+            totalShards,
+            successfulShards,
+            shardFailures,
             entry.includeGlobalState(),
             entry.userMetadata(),
             SnapshotState.IN_PROGRESS,

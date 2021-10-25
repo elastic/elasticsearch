@@ -22,14 +22,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.license.XPackLicenseState;
@@ -37,7 +34,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
+import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
@@ -46,14 +47,12 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinition;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.ArgumentMatcher;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -224,12 +223,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         verify(trainedModelProvider, times(1)).getTrainedModelForInference(eq(model3), eq(false), any());
 
         // model 3 has been loaded and evicted exactly once
-        verify(trainedModelStatsService, times(1)).queueStats(argThat(new ArgumentMatcher<InferenceStats>() {
-            @Override
-            public boolean matches(final Object o) {
-                return ((InferenceStats)o).getModelId().equals(model3);
-            }
-        }), anyBoolean());
+        verify(trainedModelStatsService, times(1)).queueStats(argThat(o -> o.getModelId().equals(model3)), anyBoolean());
 
         // Load model 3, should invalidate 1 and 2
         for(int i = 0; i < 10; i++) {
@@ -238,19 +232,8 @@ public class ModelLoadingServiceTests extends ESTestCase {
             assertThat(future3.get(), is(not(nullValue())));
         }
         verify(trainedModelProvider, times(2)).getTrainedModelForInference(eq(model3), eq(false), any());
-
-        verify(trainedModelStatsService, atMost(2)).queueStats(argThat(new ArgumentMatcher<InferenceStats>() {
-            @Override
-            public boolean matches(final Object o) {
-                return ((InferenceStats)o).getModelId().equals(model1);
-            }
-        }), anyBoolean());
-        verify(trainedModelStatsService, atMost(2)).queueStats(argThat(new ArgumentMatcher<InferenceStats>() {
-            @Override
-            public boolean matches(final Object o) {
-                return ((InferenceStats)o).getModelId().equals(model2);
-            }
-        }), anyBoolean());
+        verify(trainedModelStatsService, atMost(2)).queueStats(argThat(o -> o.getModelId().equals(model1)), anyBoolean());
+        verify(trainedModelStatsService, atMost(2)).queueStats(argThat(o -> o.getModelId().equals(model2)), anyBoolean());
 
         // Load model 1, should invalidate 3
         for(int i = 0; i < 10; i++) {
@@ -259,12 +242,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             assertThat(future1.get(), is(not(nullValue())));
         }
         verify(trainedModelProvider, atMost(3)).getTrainedModelForInference(eq(model1), eq(false), any());
-        verify(trainedModelStatsService, times(2)).queueStats(argThat(new ArgumentMatcher<InferenceStats>() {
-            @Override
-            public boolean matches(final Object o) {
-                return ((InferenceStats)o).getModelId().equals(model3);
-            }
-        }), anyBoolean());
+        verify(trainedModelStatsService, times(2)).queueStats(argThat(o -> o.getModelId().equals(model3)), anyBoolean());
 
         // Load model 2
         for(int i = 0; i < 10; i++) {

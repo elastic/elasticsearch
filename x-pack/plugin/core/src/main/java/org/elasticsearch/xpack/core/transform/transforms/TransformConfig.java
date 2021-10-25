@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SourceDestValidation;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
+import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
@@ -401,8 +402,8 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                 new DeprecationIssue(
                     Level.CRITICAL,
                     "Transform \"" + id + "\" uses an obsolete configuration format",
-                    "https://ela.st/es-deprecation-7-transform-obsolete-config",
-                    "Use  \"_update\" or \"_upgrade\" to update the configuration of \"" + id + "\". ",
+                    TransformDeprecations.UPGRADE_TRANSFORM_URL,
+                    "Use  \"_update\" or \"_upgrade\" to update the configuration of \"" + id + "\".",
                     false,
                     null
                 )

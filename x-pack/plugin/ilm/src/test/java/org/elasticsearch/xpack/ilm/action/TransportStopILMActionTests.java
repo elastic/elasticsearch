@@ -19,7 +19,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ilm.StopILMRequest;
-import org.hamcrest.Description;
 import org.mockito.ArgumentMatcher;
 
 import static org.mockito.Matchers.argThat;
@@ -56,18 +55,9 @@ public class TransportStopILMActionTests extends ESTestCase {
                 Priority actualPriority = null;
 
                 @Override
-                public boolean matches(Object argument) {
-                    if (argument instanceof AckedClusterStateUpdateTask == false) {
-                        return false;
-                    }
-                    actualPriority = ((AckedClusterStateUpdateTask) argument).priority();
+                public boolean matches(AckedClusterStateUpdateTask other) {
+                    actualPriority = other.priority();
                     return actualPriority == Priority.IMMEDIATE;
-                }
-
-                @Override
-                public void describeTo(Description description) {
-                    description.appendText("the cluster state update task priority must be URGENT but got: ")
-                        .appendText(actualPriority.name());
                 }
             })
         );

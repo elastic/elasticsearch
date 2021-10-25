@@ -56,6 +56,7 @@ import javax.xml.transform.TransformerException;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport.getUnmarshallerFactory;
 
 public abstract class IdpSamlTestCase extends ESTestCase {
@@ -98,7 +99,7 @@ public abstract class IdpSamlTestCase extends ESTestCase {
 
             listener.onResponse(sp);
             return null;
-        }).when(idp).resolveServiceProvider(Mockito.eq(entityId), Mockito.anyString(), Mockito.anyBoolean(),
+        }).when(idp).resolveServiceProvider(Mockito.eq(entityId), nullable(String.class), Mockito.anyBoolean(),
             Mockito.any(ActionListener.class));
     }
 

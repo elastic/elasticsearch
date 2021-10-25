@@ -30,7 +30,7 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.TestDocumentParserContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.mock.orig.Mockito;
+import org.mockito.Mockito;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.test.ESTestCase;

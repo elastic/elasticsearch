@@ -16,8 +16,8 @@ import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -31,9 +31,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class RestRecoveryActionTests extends ESTestCase {
 

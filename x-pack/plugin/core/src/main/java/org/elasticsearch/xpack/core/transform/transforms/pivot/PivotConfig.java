@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
+import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 
@@ -90,7 +91,7 @@ public class PivotConfig implements Writeable, ToXContentObject {
             deprecationLogger.critical(
                 DeprecationCategory.API,
                 TransformField.MAX_PAGE_SEARCH_SIZE.getPreferredName(),
-                "[max_page_search_size] is deprecated inside pivot please use settings instead"
+                TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED
             );
         }
     }

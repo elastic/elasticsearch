@@ -12,7 +12,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
+import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
@@ -104,7 +104,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 SortField sortField = new SortField("timestamp", SortField.Type.LONG);
                 if (withCollapse) {
                     queryResult.topDocs(new TopDocsAndMaxScore(
-                            new CollapseTopFieldDocs(
+                            new TopFieldGroups(
                                 "collapse_field",
                                 new TotalHits(1, withScroll ? TotalHits.Relation.EQUAL_TO : TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
                                 new FieldDoc[]{

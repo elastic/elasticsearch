@@ -41,16 +41,19 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
 
     protected final Script script;
     private final Function<SearchLookup, LeafFactory> factory;
+    private final boolean isResultDeterministic;
 
     AbstractScriptFieldType(
         String name,
         Function<SearchLookup, LeafFactory> factory,
         Script script,
+        boolean isResultDeterministic,
         Map<String, String> meta
     ) {
         super(name, false, false, false, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
         this.factory = factory;
         this.script = Objects.requireNonNull(script);
+        this.isResultDeterministic = isResultDeterministic;
     }
 
     @Override
@@ -156,11 +159,14 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         );
     }
 
-    protected final void checkAllowExpensiveQueries(SearchExecutionContext context) {
+    protected final void applyScriptContext(SearchExecutionContext context) {
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException(
                 "queries cannot be executed against runtime fields while [" + ALLOW_EXPENSIVE_QUERIES.getKey() + "] is set to [false]."
             );
+        }
+        if (isResultDeterministic == false) {
+            context.disableCache();
         }
     }
 
@@ -186,6 +192,18 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
          * We're not, but running the query is close enough.
          */
         return leafFactory(context.lookup().forkAndTrackFieldReferences(name()));
+    }
+
+    @Override
+    public void validateMatchedRoutingPath() {
+        throw new IllegalArgumentException(
+            "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                + "and without the [script] parameter. ["
+                + name()
+                + "] was a runtime ["
+                + typeName()
+                + "]."
+        );
     }
 
     // Placeholder Script for source-only fields

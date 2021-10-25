@@ -55,7 +55,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         try {
             List<Tuple<HttpPipelinedResponse, ChannelPromise>> readyResponses = aggregator.write(response, promise);
             for (Tuple<HttpPipelinedResponse, ChannelPromise> readyResponse : readyResponses) {
-                ctx.write(readyResponse.v1().getDelegateRequest(), readyResponse.v2());
+                ctx.write(readyResponse.v1().getDelegateResponse(), readyResponse.v2());
             }
             success = true;
         } catch (IllegalStateException e) {

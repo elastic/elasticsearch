@@ -32,7 +32,7 @@ public class HttpPipelinedResponse implements HttpPipelinedMessage, HttpResponse
         return delegate.containsHeader(name);
     }
 
-    public HttpResponse getDelegateRequest() {
+    public HttpResponse getDelegateResponse() {
         return delegate;
     }
 }

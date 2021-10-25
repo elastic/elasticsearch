@@ -187,9 +187,9 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
         settingsBuilder.put(LoggingAuditTrail.INCLUDE_REQUEST_BODY.getKey(), enableRequestBody);
         updateSettings(settingsBuilder.build());
         final LoggingAuditTrail loggingAuditTrail = (LoggingAuditTrail) internalCluster().getInstances(AuditTrailService.class)
-            .iterator()
-            .next()
-            .getAuditTrails()
+                .iterator()
+                .next()
+                .getAuditTrails()
                 .iterator()
                 .next();
         assertEquals(enableRequestBody, loggingAuditTrail.includeRequestBody);

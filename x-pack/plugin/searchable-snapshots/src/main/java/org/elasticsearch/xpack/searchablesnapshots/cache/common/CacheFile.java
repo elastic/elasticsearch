@@ -56,7 +56,7 @@ public class CacheFile {
     private static final StandardOpenOption[] CREATE_OPTIONS = new StandardOpenOption[] {
         StandardOpenOption.READ,
         StandardOpenOption.WRITE,
-        StandardOpenOption.CREATE,
+        StandardOpenOption.CREATE_NEW,
         StandardOpenOption.SPARSE };
 
     private static final StandardOpenOption[] OPEN_OPTIONS = new StandardOpenOption[] { StandardOpenOption.READ, StandardOpenOption.WRITE };

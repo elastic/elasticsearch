@@ -294,19 +294,22 @@ stored fields in the search response.
 * `missing`
 * `popular`
 
-To use this parameter, you must specify the `suggest_field` and `suggest_text`
-query parameters.
+This parameter can only be used when the `suggest_field` and `suggest_text`
+query string parameters are specified.
 --
 
 `suggest_size`::
 (Optional, integer) Number of <<search-suggesters,suggestions>> to return.
 +
-To use this parameter, you must specify the `suggest_field` and `suggest_text`
-query parameters.
+This parameter can only be used when the `suggest_field` and `suggest_text`
+query string parameters are specified.
 
 `suggest_text`::
 (Optional, string) The source text for which the suggestions should be
 returned.
++
+This parameter can only be used when the `suggest_field` query string parameter
+is specified.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 +

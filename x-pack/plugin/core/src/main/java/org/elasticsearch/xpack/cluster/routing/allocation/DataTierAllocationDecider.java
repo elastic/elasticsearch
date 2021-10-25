@@ -79,7 +79,7 @@ public class DataTierAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(IndexMetadata indexMetadata, RoutingNode node, RoutingAllocation allocation) {
-        return shouldFilter(indexMetadata, node.node().getRoles(), allocation);
+        return shouldFilter(indexMetadata, node.node().roleNames(), allocation);
     }
 
     @Override
@@ -89,14 +89,14 @@ public class DataTierAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
-        return shouldFilter(indexMetadata, node.getRoles(), allocation);
+        return shouldFilter(indexMetadata, node.roleNames(), allocation);
     }
 
     private Decision shouldFilter(ShardRouting shardRouting, DiscoveryNode node, RoutingAllocation allocation) {
-        return shouldFilter(allocation.metadata().getIndexSafe(shardRouting.index()), node.getRoles(), allocation);
+        return shouldFilter(allocation.metadata().getIndexSafe(shardRouting.index()), node.roleNames(), allocation);
     }
 
-    public Decision shouldFilter(IndexMetadata indexMd, Set<DiscoveryNodeRole> roles, RoutingAllocation allocation) {
+    private Decision shouldFilter(IndexMetadata indexMd, Set<String> roles, RoutingAllocation allocation) {
         return shouldFilter(indexMd, roles, DataTierAllocationDecider::preferredAvailableTier, allocation);
     }
 
@@ -104,7 +104,7 @@ public class DataTierAllocationDecider extends AllocationDecider {
         Optional<String> apply(List<String> tierPreference, DiscoveryNodes nodes);
     }
 
-    public Decision shouldFilter(IndexMetadata indexMd, Set<DiscoveryNodeRole> roles,
+    public Decision shouldFilter(IndexMetadata indexMd, Set<String> roles,
                                  PreferredTierFunction preferredTierFunction, RoutingAllocation allocation) {
         Decision decision = shouldClusterFilter(roles, allocation);
         if (decision != null) {
@@ -124,7 +124,7 @@ public class DataTierAllocationDecider extends AllocationDecider {
         return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require/prefer tier filters");
     }
 
-    private Decision shouldIndexPreferTier(IndexMetadata indexMetadata, Set<DiscoveryNodeRole> roles,
+    private Decision shouldIndexPreferTier(IndexMetadata indexMetadata, Set<String> roles,
                                            PreferredTierFunction preferredTierFunction, RoutingAllocation allocation) {
         List<String> tierPreference = indexMetadata.getTierPreference();
 
@@ -161,7 +161,7 @@ public class DataTierAllocationDecider extends AllocationDecider {
         return null;
     }
 
-    private Decision shouldIndexFilter(IndexMetadata indexMd, Set<DiscoveryNodeRole> roles, RoutingAllocation allocation) {
+    private Decision shouldIndexFilter(IndexMetadata indexMd, Set<String> roles, RoutingAllocation allocation) {
         String indexRequire = indexMd.getIndexRoutingInclude();
         String indexInclude = indexMd.getIndexRoutingInclude();
         String indexExclude = indexMd.getIndexRoutingExclude();
@@ -187,7 +187,7 @@ public class DataTierAllocationDecider extends AllocationDecider {
         return null;
     }
 
-    private Decision shouldClusterFilter(Set<DiscoveryNodeRole> roles, RoutingAllocation allocation) {
+    private Decision shouldClusterFilter(Set<String> roles, RoutingAllocation allocation) {
         if (Strings.hasText(clusterRequire)) {
             if (allocationAllowed(OpType.AND, clusterRequire, roles) == false) {
                 return allocation.decision(Decision.NO, NAME, "node does not match all cluster setting [%s] tier filters [%s]",
@@ -221,8 +221,12 @@ public class DataTierAllocationDecider extends AllocationDecider {
      * {@code Optional<String>}.
      */
     public static Optional<String> preferredAvailableTier(List<String> prioritizedTiers, DiscoveryNodes nodes) {
+        final Set<String> availableRoles = nodes.availableRoleNames();
+        if (prioritizedTiers.isEmpty() == false && availableRoles.contains(DiscoveryNodeRole.DATA_ROLE.roleName()) ) {
+            return Optional.of(prioritizedTiers.get(0));
+        }
         for (String tier : prioritizedTiers) {
-            if (tierNodesPresent(tier, nodes)) {
+            if (availableRoles.contains(tier)) {
                 return Optional.of(tier);
             }
         }
@@ -237,22 +241,16 @@ public class DataTierAllocationDecider extends AllocationDecider {
     }
 
 
-    private static boolean allocationAllowed(OpType opType, String tierSetting, Set<DiscoveryNodeRole> roles) {
+    private static boolean allocationAllowed(OpType opType, String tierSetting, Set<String> roles) {
         assert Strings.hasText(tierSetting) : "tierName must be not null and non-empty, but was [" + tierSetting + "]";
 
-        if (roles.contains(DiscoveryNodeRole.DATA_ROLE)) {
+        if (roles.contains(DiscoveryNodeRole.DATA_ROLE.roleName())) {
             // generic "data" roles are considered to have all tiers
             return true;
         }
         List<String> values = DataTier.parseTierList(tierSetting);
         for (String tierName : values) {
-            boolean containsName = false;
-            for (DiscoveryNodeRole role : roles) {
-                if (tierName.equals(role.roleName())) {
-                    containsName = true;
-                    break;
-                }
-            }
+            boolean containsName = roles.contains(tierName);
             if (containsName) {
                 if (opType == OpType.OR) {
                     return true;
@@ -264,19 +262,14 @@ public class DataTierAllocationDecider extends AllocationDecider {
         return opType == OpType.AND;
     }
 
-    private static boolean allocationAllowed(String tierName, Set<DiscoveryNodeRole> roles) {
+    private static boolean allocationAllowed(String tierName, Set<String> roles) {
         assert Strings.hasText(tierName) : "tierName must be not null and non-empty, but was [" + tierName + "]";
 
-        if (roles.contains(DiscoveryNodeRole.DATA_ROLE)) {
+        if (roles.contains(DiscoveryNodeRole.DATA_ROLE.roleName())) {
             // generic "data" roles are considered to have all tiers
             return true;
         } else {
-            for (DiscoveryNodeRole role : roles) {
-                if (tierName.equals(role.roleName())) {
-                    return true;
-                }
-            }
-            return false;
+            return roles.contains(tierName);
         }
     }
 }

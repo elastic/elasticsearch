@@ -458,6 +458,22 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return roles;
     }
 
+    Set<String> roleNames;
+
+    public Set<String> roleNames() {
+        Set<String> names = roleNames;
+        if (names != null) {
+            return names;
+        }
+        names = new HashSet<>(roles.size());
+        for (DiscoveryNodeRole role : roles) {
+            names.add(role.roleName());
+        }
+        names = org.elasticsearch.core.Set.copyOf(names);
+        roleNames = names;
+        return names;
+    }
+
     public Version getVersion() {
         return this.version;
     }

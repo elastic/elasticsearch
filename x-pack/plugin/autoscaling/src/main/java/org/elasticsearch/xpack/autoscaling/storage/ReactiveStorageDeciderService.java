@@ -362,7 +362,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 .map(
                     node -> dataTierAllocationDecider.shouldFilter(
                         indexMetadata,
-                        node.node().getRoles(),
+                        node.node().roleNames(),
                         this::highestPreferenceTier,
                         allocation
                     )
@@ -392,7 +392,12 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
         private boolean isAssignedToTier(ShardRouting shard, RoutingAllocation allocation) {
             IndexMetadata indexMetadata = indexMetadata(shard, allocation);
-            return dataTierAllocationDecider.shouldFilter(indexMetadata, roles, this::highestPreferenceTier, allocation) != Decision.NO;
+            return dataTierAllocationDecider.shouldFilter(
+                indexMetadata,
+                roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.toSet()),
+                this::highestPreferenceTier,
+                allocation
+            ) != Decision.NO;
         }
 
         private IndexMetadata indexMetadata(ShardRouting shard, RoutingAllocation allocation) {

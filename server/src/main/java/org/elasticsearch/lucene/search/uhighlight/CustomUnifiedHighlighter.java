@@ -38,6 +38,7 @@ import java.io.IOException;
 import java.text.BreakIterator;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -167,6 +168,21 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         FieldOffsetStrategy strategy = getOffsetStrategy(offsetSource, components);
         return new CustomFieldHighlighter(field, strategy, breakIteratorLocale, breakIterator,
             getScorer(field), maxPassages, (noMatchSize > 0 ? 1 : 0), getFormatter(field), noMatchSize);
+    }
+
+    @Override
+    protected Set<HighlightFlag> getFlags(String field) {
+        Set<HighlightFlag> highlightFlags = EnumSet.noneOf(HighlightFlag.class);
+        if (shouldHandleMultiTermQuery(field)) {
+            highlightFlags.add(HighlightFlag.MULTI_TERM_QUERY);
+        }
+        if (shouldHighlightPhrasesStrictly(field)) {
+            highlightFlags.add(HighlightFlag.PHRASES);
+        }
+        if (shouldPreferPassageRelevancyOverSpeed(field)) {
+            highlightFlags.add(HighlightFlag.PASSAGE_RELEVANCY_OVER_SPEED);
+        }
+        return highlightFlags;
     }
 
     @Override

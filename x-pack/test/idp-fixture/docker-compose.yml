@@ -3,8 +3,8 @@ services:
   elasticsearch-node:
     image: elasticsearch:test
     environment:
+      - discovery.type=single-node
       - node.name=elasticsearch-node
-      - cluster.initial_master_nodes=elasticsearch-node
       - cluster.name=elasticsearch-node
       - bootstrap.memory_lock=true
       - network.publish_host=127.0.0.1

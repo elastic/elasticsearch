@@ -16,7 +16,7 @@ import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.mock.orig.Mockito;
+import org.mockito.Mockito;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

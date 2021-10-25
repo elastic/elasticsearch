@@ -42,58 +42,6 @@ public class LicensesAcknowledgementTests extends AbstractLicenseServiceTestCase
         verify(clusterService, times(1)).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
     }
 
-    public void testRejectUpgradeToProductionWithoutTLS() throws Exception {
-        XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        setInitialState(TestUtils.generateSignedLicense("trial", timeValueHours(2)), licenseState, Settings.EMPTY);
-        licenseService.start();
-        // try installing a signed license
-        License signedLicense = TestUtils.generateSignedLicense("platinum", timeValueHours(10));
-        PutLicenseRequest putLicenseRequest = new PutLicenseRequest().license(signedLicense);
-        // ensure acknowledgement message was part of the response
-        IllegalStateException ise = expectThrows(IllegalStateException.class, () ->
-                licenseService.registerLicense(putLicenseRequest, new AssertingLicensesUpdateResponse(false, LicensesStatus.VALID, true)));
-        assertEquals("Cannot install a [PLATINUM] license unless TLS is configured or security is disabled", ise.getMessage());
-    }
-
-    public void testUpgradeToProductionWithoutTLSAndSecurityDisabled() throws Exception {
-        XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        setInitialState(TestUtils.generateSignedLicense("trial", timeValueHours(2)), licenseState, Settings.builder()
-                .put("xpack.security.enabled", false).build());
-        licenseService.start();
-        // try installing a signed license
-        License signedLicense = TestUtils.generateSignedLicense("platinum", timeValueHours(10));
-        PutLicenseRequest putLicenseRequest = new PutLicenseRequest().license(signedLicense);
-        licenseService.registerLicense(putLicenseRequest, new AssertingLicensesUpdateResponse(false, LicensesStatus.VALID, true));
-        assertThat(licenseService.getLicense(), not(signedLicense));
-        verify(clusterService, times(1)).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
-
-        // try installing a signed license with acknowledgement
-        putLicenseRequest = new PutLicenseRequest().license(signedLicense).acknowledge(true);
-        // ensure license was installed and no acknowledgment message was returned
-        licenseService.registerLicense(putLicenseRequest, new AssertingLicensesUpdateResponse(true, LicensesStatus.VALID, false));
-        verify(clusterService, times(2)).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
-    }
-
-    public void testUpgradeToProductionWithTLSAndSecurity() throws Exception {
-        XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        setInitialState(TestUtils.generateSignedLicense("trial", timeValueHours(2)), licenseState, Settings.builder()
-                .put("xpack.security.enabled", true)
-                .put("xpack.security.transport.ssl.enabled", true).build());
-        licenseService.start();
-        // try installing a signed license
-        License signedLicense = TestUtils.generateSignedLicense("platinum", timeValueHours(10));
-        PutLicenseRequest putLicenseRequest = new PutLicenseRequest().license(signedLicense);
-        licenseService.registerLicense(putLicenseRequest, new AssertingLicensesUpdateResponse(false, LicensesStatus.VALID, true));
-        assertThat(licenseService.getLicense(), not(signedLicense));
-        verify(clusterService, times(1)).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
-
-        // try installing a signed license with acknowledgement
-        putLicenseRequest = new PutLicenseRequest().license(signedLicense).acknowledge(true);
-        // ensure license was installed and no acknowledgment message was returned
-        licenseService.registerLicense(putLicenseRequest, new AssertingLicensesUpdateResponse(true, LicensesStatus.VALID, false));
-        verify(clusterService, times(2)).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
-    }
-
     private static class AssertingLicensesUpdateResponse implements ActionListener<PutLicenseResponse> {
         private final boolean expectedAcknowledgement;
         private final LicensesStatus expectedStatus;

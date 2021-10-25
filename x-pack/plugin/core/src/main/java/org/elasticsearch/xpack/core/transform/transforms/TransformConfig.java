@@ -393,7 +393,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         List<DeprecationIssue> deprecations = new ArrayList<>();
 
         // deprecate beta transforms
-        if (getVersion() == null || getVersion().before(Version.V_7_5_0)) {
+        if (getVersion() == null || getVersion().before(TransformDeprecations.MIN_TRANSFORM_VERSION)) {
             deprecations.add(
                 new DeprecationIssue(
                     Level.CRITICAL,

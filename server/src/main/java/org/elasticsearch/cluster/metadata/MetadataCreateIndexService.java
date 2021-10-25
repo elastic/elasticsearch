@@ -158,6 +158,8 @@ public class MetadataCreateIndexService {
         this.shardLimitValidator = shardLimitValidator;
 
         enforceDefaultTierPreference = DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING.get(settings);
+        assert enforceDefaultTierPreference;
+
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING,
             this::setEnforceDefaultTierPreference);
     }

@@ -36,7 +36,8 @@ In this guide, you’ll learn how to:
 * Delete or cancel a snapshot
 * Back up cluster configuration files
 
-The guide also provides tips for creating dedicated cluster state snapshots.
+The guide also provides tips for creating dedicated cluster state snapshots and
+taking snapshots at different time intervals.
 
 [discrete]
 [[create-snapshot-prereqs]]
@@ -210,7 +211,8 @@ PUT _slm/policy/nightly-snapshots
     includes all feature states by default. To only include specific feature
     states, see <<back-up-specific-feature-state>>.
 <6> Optional retention rules. This configuration keeps snapshots for 30 days,
-    retaining at least 5 and no more than 50 snapshots regardless of age.
+    retaining at least 5 and no more than 50 snapshots regardless of age. See
+    <<slm-retention-task>> and <<snapshot-retention-limits>>.
 
 [discrete]
 [[manually-run-slm-policy]]
@@ -262,6 +264,16 @@ POST _slm/_execute_retention
 
 An {slm-init} policy's retention rules only apply to snapshots created using the
 policy. Other snapshots don't count toward the policy's retention limits.
+
+[discrete]
+[[snapshot-retention-limits]]
+==== Snapshot retention limits
+
+While not a hard limit, a snapshot repository shouldn't contain more than 200
+snapshots at a time. This ensures the repository's metadata doesn't grow to a
+size that may destabilize the master node. We strongly recommend you set up your
+{slm-init} policy's retention rules to enforce this limit.
+
 
 [discrete]
 [[manually-create-snapshot]]
@@ -507,3 +519,92 @@ PUT _slm/policy/nightly-snapshots
     default.
 <2> Includes all data streams and indices except system indices and other
     indices that begin with a dot (`.`).
+
+[discrete]
+[[create-snapshots-different-time-intervals]]
+=== Create snapshots at different time intervals
+
+If you only use a single {slm-init} policy, it can be difficult to take frequent
+snapshots and retain snapshots with longer time intervals.
+
+For example, a policy that takes snapshots every 30 minutes with a maximum of
+100 snapshots will only keep snapshots for approximately two days. While this
+setup is great for backing up recent changes, it doesn't let you restore data
+from a previous week or month.
+
+To fix this, you can create multiple {slm-init} policies with the same snapshot
+repository that run on different schedules. Since a policy's retention rules
+only apply to its snapshots, a policy won't delete a snapshot created by another
+policy. However, you'll need to ensure the total number of snapshots in the
+repository don't exceed the <<snapshot-retention-limits,200 snapshot soft
+limit>>.
+
+For example, the following {slm-init} policy takes hourly snapshots with a
+maximum of 24 snapshots. The policy keeps its snapshots for one day.
+
+[source,console]
+----
+PUT _slm/policy/hourly-snapshot-policy
+{
+  "name": "<hourly-snapshot-{now/d}>",
+  "schedule": "0 * * * * ?",
+  "repository": "my_repository",
+  "config": {
+    "indices": "*",
+    "include_global_state": true
+  },
+  "retention": {
+    "expire_after": "1d",
+    "min_count": 1,
+    "max_count": 24
+  }
+}
+----
+
+The following policy takes nightly snapshots in the same snapshot repository.
+The policy keeps its snapshots for one month.
+
+[source,console]
+----
+PUT _slm/policy/daily-snapshot-policy
+{
+  "name": "<daily-snapshot-{now/d}>",
+  "schedule": "45 23 * * * ?",          <1>
+  "repository": "my_repository",
+  "config": {
+    "indices": "*",
+    "include_global_state": true
+  },
+  "retention": {
+    "expire_after": "30d",
+    "min_count": 1,
+    "max_count": 30
+  }
+}
+----
+
+<1> Runs at 23:45:00 UTC every day.
+
+The following policy creates monthly snapshots in the same repository. The
+policy keeps its snapshots for one year.
+
+[source,console]
+----
+PUT _slm/policy/monthly-snapshot-policy
+{
+  "name": "<monthly-snapshot-{now/d}>",
+  "schedule": "56 23 1 * * ?",            <1>
+  "repository": "my_repository",
+  "config": {
+    "indices": "*",
+    "include_global_state": true
+  },
+  "retention": {
+    "expire_after": "365d",
+    "min_count": 1,
+    "max_count": 12
+  }
+}
+----
+
+<1> Runs on the first of the month at 23:56:00 UTC.

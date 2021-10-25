@@ -13,6 +13,7 @@ See also <<release-highlights>> and <<es-release-notes>>.
 * <<breaking_78_aggregation_changes>>
 * <<breaking_78_mappings_changes>>
 * <<breaking_78_settings_changes>>
+* <<breaking_78_transform_changes>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide

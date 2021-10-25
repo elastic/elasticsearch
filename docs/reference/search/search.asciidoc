@@ -281,6 +281,9 @@ If this field is specified, the `_source` parameter defaults to `false`. You can
 pass `_source: true` to return both source fields and
 stored fields in the search response.
 
+`suggest_field`::
+(Optional, string) Specifies which field to use for suggestions.
+
 `suggest_mode`::
 (Optional, string) Specifies the <<search-suggesters,suggest mode>>. Defaults to
 `missing`. Available options:
@@ -300,9 +303,6 @@ query parameters.
 +
 To use this parameter, you must specify the `suggest_field` and `suggest_text`
 query parameters.
-
-`suggest_field`::
-(Optional, string) Specifies which field to use for suggestions.
 
 `suggest_text`::
 (Optional, string) The source text for which the suggestions should be

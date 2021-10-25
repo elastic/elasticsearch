@@ -82,6 +82,10 @@ public interface XContent {
     XContentParser createParser(NamedXContentRegistry xContentRegistry,
                                 DeprecationHandler deprecationHandler, byte[] data, int offset, int length) throws IOException;
 
+    XContentParser createParser(NamedXContentRegistry xContentRegistry,
+                                DeprecationHandler deprecationHandler, byte[] data, int offset, int length, FilterPath[] includes,
+                                FilterPath[] excludes) throws IOException;
+
     /**
      * Creates a parser over the provided reader.
      */

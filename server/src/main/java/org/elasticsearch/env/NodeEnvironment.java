@@ -948,6 +948,13 @@ public final class NodeEnvironment  implements Closeable {
     }
 
     /**
+     * Returns the loaded NodeMetadata for this node
+     */
+    public NodeMetadata nodeMetadata() {
+        return nodeMetadata;
+    }
+
+    /**
      * Returns an array of all of the {@link NodePath}s.
      */
     public NodePath[] nodePaths() {

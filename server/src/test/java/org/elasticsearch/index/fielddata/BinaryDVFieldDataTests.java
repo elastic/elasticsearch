@@ -111,7 +111,7 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
 
         // Test whether ScriptDocValues.BytesRefs makes a deepcopy
         fieldData = indexFieldData.load(reader);
-        ScriptDocValues<?> scriptValues = fieldData.getScriptValues();
+        ScriptDocValues<?> scriptValues = fieldData.getScriptField("test").getScriptDocValues();
         Object[][] retValues = new BytesRef[4][0];
         for (int i = 0; i < 4; i++) {
             scriptValues.setNextDocId(i);

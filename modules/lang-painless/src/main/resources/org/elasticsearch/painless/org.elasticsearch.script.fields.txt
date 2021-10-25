@@ -16,5 +16,10 @@ class org.elasticsearch.script.field.Field @dynamic_type {
 }
 
 class org.elasticsearch.script.DocBasedScript {
-    org.elasticsearch.script.field.Field field(String)
+  org.elasticsearch.script.field.Field field(String)
+}
+
+class org.elasticsearch.script.field.DelegateDocValuesField @dynamic_type {
+  def getValue(def)
+  List getValues()
 }

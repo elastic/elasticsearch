@@ -21,16 +21,9 @@ import java.io.IOException;
 public interface LeafFieldData extends Accountable, Releasable {
 
     /**
-     * Returns field values for use in scripting.
-     */
-    ScriptDocValues<?> getScriptValues();
-
-    /**
      * Returns an {@code Field} for use in accessing field values in scripting.
      */
-    default DocValuesField getScriptField(String name) {
-        throw new UnsupportedOperationException();
-    }
+    DocValuesField getScriptField(String name);
 
     /**
      * Return a String representation of the values.

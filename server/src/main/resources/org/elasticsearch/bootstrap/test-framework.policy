@@ -10,14 +10,38 @@
 //// These are mock objects and test management that we allow test framework libs
 //// to provide on our behalf. But tests themselves cannot do this stuff!
 
-grant codeBase "${codebase.securemock}" {
+grant codeBase "${codebase.mockito-core}" {
   // needed to access ReflectionFactory (see below)
   permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
+  permission java.lang.RuntimePermission "accessClassInPackage.jdk.internal";
   // needed for reflection in ibm jdk
   permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
   // needed to support creation of mocks
   permission java.lang.RuntimePermission "reflectionFactoryAccess";
   // needed for spy interception, etc
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+  permission java.lang.RuntimePermission "getClassLoader";
+};
+
+grant codeBase "${codebase.byte-buddy}" {
+  permission java.lang.RuntimePermission "getClassLoader";
+  permission java.lang.RuntimePermission "createClassLoader";
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.RuntimePermission "net.bytebuddy.createJavaDispatcher";
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
+  permission java.lang.RuntimePermission "accessClassInPackage.jdk.internal";
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.net.bytebuddy.utility";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.net.bytebuddy.dynamic.loading";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.net.bytebuddy.description.type";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.net.bytebuddy.description.method";
+};
+
+grant codeBase "${codebase.objenesis}" {
+  permission java.lang.RuntimePermission "reflectionFactoryAccess";
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
+  permission java.lang.RuntimePermission "accessClassInPackage.jdk.internal";
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };

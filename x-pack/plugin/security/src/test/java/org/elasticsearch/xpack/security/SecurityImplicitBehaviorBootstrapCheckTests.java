@@ -29,7 +29,7 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
         final Version previousVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_2_0, Version.V_7_16_0);
         final NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), Version.CURRENT, previousVersion);
         BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata).check(
-            createTestContext(Settings.EMPTY, createLicensesMetadata(previousVersion))
+            createTestContext(Settings.EMPTY, createLicensesMetadata(previousVersion, randomFrom("basic", "trial")))
         );
         assertThat(result.isFailure(), is(true));
         assertThat(
@@ -47,13 +47,22 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
         );
     }
 
+    public void testUpgradeFrom7xWithImplicitSecuritySettingsOnGoldPlus() throws Exception {
+        final Version previousVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_2_0, Version.V_7_16_0);
+        final NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), Version.CURRENT, previousVersion);
+        BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata).check(
+            createTestContext(Settings.EMPTY, createLicensesMetadata(previousVersion, randomFrom("gold", "platinum")))
+        );
+        assertThat(result.isSuccess(), is(true));
+    }
+
     public void testUpgradeFrom7xWithExplicitSecuritySettings() throws Exception {
         final Version previousVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_2_0, Version.V_7_16_0);
         final NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), Version.CURRENT, previousVersion);
         BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata).check(
             createTestContext(
                 Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build(),
-                createLicensesMetadata(previousVersion)
+                createLicensesMetadata(previousVersion, randomFrom("basic", "trial"))
             )
         );
         assertThat(result.isSuccess(), is(true));
@@ -63,7 +72,7 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
         final Version previousVersion = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, null);
         final NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), Version.CURRENT, previousVersion);
         BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata).check(
-            createTestContext(Settings.EMPTY, createLicensesMetadata(previousVersion))
+            createTestContext(Settings.EMPTY, createLicensesMetadata(previousVersion, randomFrom("basic", "trial")))
         );
         assertThat(result.isSuccess(), is(true));
     }
@@ -74,14 +83,14 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
         BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata).check(
             createTestContext(
                 Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build(),
-                createLicensesMetadata(previousVersion)
+                createLicensesMetadata(previousVersion, randomFrom("basic", "trial"))
             )
         );
         assertThat(result.isSuccess(), is(true));
     }
 
-    private Metadata createLicensesMetadata(Version version) throws Exception {
-        License license = TestUtils.generateSignedLicense(randomFrom("basic", "trial"), TimeValue.timeValueHours(2));
+    private Metadata createLicensesMetadata(Version version, String licenseMode) throws Exception {
+        License license = TestUtils.generateSignedLicense(licenseMode, TimeValue.timeValueHours(2));
         return Metadata.builder().putCustom(LicensesMetadata.TYPE, new LicensesMetadata(license, version)).build();
     }
 }

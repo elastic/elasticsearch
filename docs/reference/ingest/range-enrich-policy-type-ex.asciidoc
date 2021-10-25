@@ -30,7 +30,6 @@ PUT /networks
   }
 }
 ----
-// TEST
 
 The following index API request indexes a new document to that index.
 

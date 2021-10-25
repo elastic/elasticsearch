@@ -55,9 +55,9 @@ public class DataTier {
             new Setting.Validator<>() {
                 @Override
                 public void validate(Boolean value) {
-                    if (value == Boolean.FALSE) {
-                        throw new SettingsException("setting [{}=false] is not allowed, only true is valid",
-                            ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING.getKey());
+                    if (value != Boolean.TRUE) {
+                        throw new SettingsException("setting [{}={}}] is not allowed, only true is valid",
+                            ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING.getKey(), value);
                     }
                 }
             },

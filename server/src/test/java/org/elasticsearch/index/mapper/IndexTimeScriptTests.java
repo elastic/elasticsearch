@@ -121,7 +121,7 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
 
         Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {})));
         assertEquals("Error executing script on field [index-field]", e.getMessage());
-        assertEquals("no field found for [runtime-field] in mapping", e.getCause().getMessage());
+        assertEquals("No field found for [runtime-field] in mapping", e.getCause().getMessage());
     }
 
     @Override

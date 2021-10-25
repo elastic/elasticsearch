@@ -591,7 +591,6 @@ public class SearchExecutionContextTests extends ESTestCase {
 
                     @Override
                     public LeafCollector getLeafCollector(LeafReaderContext context) {
-                        ScriptDocValues<?> scriptValues = indexFieldData.load(context).getScriptField("test").getScriptDocValues();
                         return new LeafCollector() {
                             @Override
                             public void setScorer(Scorable scorer) {}
@@ -604,7 +603,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                                     leafDocLookup.setDocument(doc);
                                     scriptDocValues = leafDocLookup.get(field);
                                 } else {
-                                    scriptDocValues = scriptValues;
+                                    scriptDocValues = indexFieldData.load(context).getScriptField("test").getScriptDocValues();;
                                 }
                                 scriptDocValues.setNextDocId(doc);
                                 for (int i = 0; i < scriptDocValues.size(); i++) {

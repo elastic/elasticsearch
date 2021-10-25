@@ -14,7 +14,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * A default field to provide {@code ScriptDocValues} for fields
+ * A default {@link Field} to provide {@code ScriptDocValues} for fields
  * that are not supported by the script fields api.
  */
 public class DelegateDocValuesField implements DocValuesField {

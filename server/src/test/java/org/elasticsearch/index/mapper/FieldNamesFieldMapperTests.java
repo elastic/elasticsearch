@@ -11,10 +11,11 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -108,5 +109,10 @@ public class FieldNamesFieldMapperTests extends MapperServiceTestCase {
         merge(mapperService, topMapping(b -> b.startObject("_field_names").field("enabled", true).endObject()));
         assertTrue(mapperService.documentMapper().metadataMapper(FieldNamesFieldMapper.class).fieldType().isEnabled());
         assertWarnings(FieldNamesFieldMapper.ENABLED_DEPRECATION_MESSAGE);
+    }
+
+    public void testFieldTypeIsInternal() {
+        assertTrue(FieldNamesFieldType.get(true).isInternalField());
+        assertTrue(FieldNamesFieldType.get(false).isInternalField());
     }
 }

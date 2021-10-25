@@ -57,6 +57,11 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
         public Query termQuery(Object value, SearchExecutionContext context) {
             throw new UnsupportedOperationException("The [_feature] field may not be queried directly");
         }
+
+        @Override
+        public boolean isInternalField() {
+            return true;
+        }
     }
 
     private RankFeatureMetaFieldMapper() {

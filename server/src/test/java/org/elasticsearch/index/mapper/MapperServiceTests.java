@@ -13,11 +13,11 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.List;
@@ -152,6 +152,23 @@ public class MapperServiceTests extends MapperServiceTestCase {
         })));
         assertThat(e.getMessage(), containsString("Invalid [path] value [nested.field] for field alias [alias]"));
     }
+
+     public void testFieldAliasWithInternalField() throws Throwable {
+         MapperService mapperService = createMapperService(mapping(b -> {}));
+
+         MapperParsingException e = expectThrows(MapperParsingException.class, () -> merge(mapperService, mapping(b -> {
+             b.startObject("alias");
+             {
+                 b.field("type", "alias");
+                 b.field("path", "_field_names");
+             }
+             b.endObject();
+         })));
+         assertEquals(
+             "Invalid [path] value [_field_names] for field alias [alias]: an alias cannot refer to an internal field.",
+             e.getMessage()
+         );
+     }
 
     public void testTotalFieldsLimitWithFieldAlias() throws Throwable {
 

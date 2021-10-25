@@ -15,6 +15,8 @@ import org.apache.lucene.index.PrefixCodedTerms.TermIterator;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queries.intervals.IntervalsSource;
+import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
+import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -25,14 +27,12 @@ import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
-import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -352,6 +352,14 @@ public abstract class MappedFieldType {
             boolean includeLower, boolean includeUpper,
             ZoneId timeZone, DateMathParser dateMathParser, QueryRewriteContext context) throws IOException {
         return Relation.INTERSECTS;
+    }
+
+    /**
+     * Return whether a field is considered to used only an internal implementation detail, e.g. `_field_names` or `_nested_path`.
+     * This information can be used to e.g. dissallow certain operations on this field.
+     */
+    public boolean isInternalField() {
+        return false;
     }
 
     /** @throws IllegalArgumentException if the fielddata is not supported on this type.

@@ -128,6 +128,11 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public boolean isInternalField() {
+            return true;
+        }
+
+        @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }

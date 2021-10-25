@@ -21,6 +21,8 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class FieldAliasMapperValidationTests extends ESTestCase {
 
@@ -110,6 +112,33 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
 
         assertEquals("Invalid [path] value [non-existent] for field alias [invalid-alias]: an alias" +
             " must refer to an existing field in the mappings.", e.getMessage());
+    }
+
+    public void testAliasInternalField() {
+        MappingParserContext context = mock(MappingParserContext.class);
+        when(context.indexVersionCreated()).thenReturn(Version.CURRENT);
+        FieldMapper[] fieldMappers = new FieldMapper[] {
+            FieldNamesFieldMapper.PARSER.getDefault(context),
+            NestedPathFieldMapper.PARSER.getDefault(context),
+            SourceFieldMapper.PARSER.getDefault(context),
+            SeqNoFieldMapper.PARSER.getDefault(context) };
+        for (FieldMapper mapper : fieldMappers) {
+            FieldAliasMapper invalidAlias = new FieldAliasMapper("invalid-alias", "invalid-alias", mapper.name());
+
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
+
+                MappingLookup mappers = createMappingLookup(singletonList(mapper), emptyList(), singletonList(invalidAlias), emptyList());
+                invalidAlias.validate(mappers);
+            });
+
+            assertEquals(
+                "Invalid [path] value ["
+                    + mapper.name()
+                    + "] for field alias [invalid-alias]: an alias"
+                    + " cannot refer to an internal field.",
+                e.getMessage()
+            );
+        }
     }
 
     public void testFieldAliasWithNestedScope() {

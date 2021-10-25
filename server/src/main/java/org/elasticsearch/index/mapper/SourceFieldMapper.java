@@ -18,15 +18,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -117,6 +117,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             throw new QueryShardException(context, "The _source field is not searchable");
+        }
+
+        @Override
+        public boolean isInternalField() {
+            return true;
         }
     }
 

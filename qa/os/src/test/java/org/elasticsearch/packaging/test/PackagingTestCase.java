@@ -723,10 +723,12 @@ public abstract class PackagingTestCase extends Assert {
     public static void verifySecurityNotAutoConfigured(Installation es) throws Exception {
         assertThat(getAutoConfigDirName(es).isPresent(), Matchers.is(false));
         if (es.distribution.isPackage()) {
-            assertThat(
-                sh.run(es.executables().keystoreTool + " list").stdout,
-                not(Matchers.containsString("autoconfiguration.password_hash"))
-            );
+            if (Files.exists(es.config("elasticsearch.keystore"))) {
+                assertThat(
+                    sh.run(es.executables().keystoreTool + " list").stdout,
+                    not(Matchers.containsString("autoconfiguration.password_hash"))
+                );
+            }
         }
         List<String> configLines = Files.readAllLines(es.config("elasticsearch.yml"));
         assertThat(configLines, not(contains(containsString("automatically generated in order to configure Security"))));

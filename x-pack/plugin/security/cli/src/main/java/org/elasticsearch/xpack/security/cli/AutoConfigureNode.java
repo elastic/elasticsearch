@@ -289,7 +289,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         final List<String> transportAddresses;
         final X500Principal certificatePrincipal = new X500Principal("CN=" + System.getenv("HOSTNAME"));
         final X500Principal caPrincipal = new X500Principal(AUTO_CONFIG_ALT_DN);
-        final GeneralNames subjectAltNames = getSubjectAltNames();
+        final GeneralNames subjectAltNames;
 
         if (inEnrollmentMode) {
             // this is an enrolling node, get HTTP CA key/certificate and transport layer key/certificate from another node
@@ -384,7 +384,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 // self-signed which is not a CA
                 transportCert = CertGenUtils.generateSignedCertificate(
                     certificatePrincipal,
-                    subjectAltNames,
+                    getSubjectAltNames(),
                     transportKeyPair,
                     null,
                     null,
@@ -418,7 +418,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             // non-CA
             httpCert = CertGenUtils.generateSignedCertificate(
                 certificatePrincipal,
-                subjectAltNames,
+                getSubjectAltNames(),
                 httpKeyPair,
                 httpCaCert,
                 httpCaKey,

@@ -37,7 +37,7 @@ public class LdapServerDebugLogging {
         this.targetLogger = targetLogger;
     }
 
-    public TestRule testWatcher() {
+    public TestRule getTestWatcher() {
         return new TestWatcher() {
             @Override
             protected void failed(Throwable e, Description description) {

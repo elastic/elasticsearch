@@ -126,7 +126,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
     }
 
     @Rule
-    public TestRule printLdapDebugOnFailure = debugLogging.testWatcher();
+    public TestRule printLdapDebugOnFailure = debugLogging.getTestWatcher();
 
     @Before
     public void start() throws Exception {

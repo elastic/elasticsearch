@@ -27,7 +27,6 @@ import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -80,7 +79,7 @@ public abstract class LdapTestCase extends ESTestCase {
     private LdapServerDebugLogging debugLogging = new LdapServerDebugLogging(logger);
 
     @Rule
-    public TestRule printLdapDebugOnFailure = debugLogging.testWatcher();
+    public TestRule printLdapDebugOnFailure = debugLogging.getTestWatcher();
 
     @BeforeClass
     public static void setNumberOfLdapServers() {

@@ -1,26 +1,66 @@
 [role="xpack"]
 [[configuring-tls-docker]]
-=== Encrypting communications in an {es} Docker Container
+=== Securely run {es} in a Docker container
 
-Unless you are using a trial license, {stack} {security-features} require
-SSL/TLS encryption for the transport networking layer.
+Starting in {es} 8.0, security is enabled by default. With security enabled,
+{stack} {security-features} require TLS encryption for the transport networking
+layer, or your cluster will fail to start.
 
-This section demonstrates an easy path to get started with SSL/TLS for both
-HTTPS and transport using the {es} Docker image. The example uses
-Docker Compose to manage the containers.
+If you're starting a single-node {es} cluster in a Docker container, security
+will be automatically enabled and configured for you. When defining multiple
+nodes in a `docker-compose.yml` file, you'll need to explicitly enable and
+configure security so that {es} doesn't try to generate a password for the
+`elastic` user on every node. 
 
-For further details, see
-<<configuring-stack-security>> and
+The following instructions illustrate how to enable security and configure TLS
+for both the transport layer and HTTP layer using the {es} Docker image. The
+example uses Docker Compose to manage the containers.
+
+For further details, refer to
+<<configuring-stack-security,Configuring security>> and
 https://www.elastic.co/subscriptions[available subscriptions].
+
+[discrete]
+==== Pull the Docker image
+
+Obtaining the {es} image for Docker is as simple as issuing a `docker pull`
+command against the Elastic Docker registry:
+
+ifeval::["{release-state}"=="unreleased"]
+
+WARNING: Version {version} of {es} has not yet been released, so no
+Docker image is currently available for this version.
+
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
+
+[source,sh,subs="attributes"]
+----
+docker pull {docker-repo}:{version}
+----
+
+endif::[]
 
 [discrete]
 ==== Prepare the environment
 
-<<docker,Install {es} with Docker>>.
+Now that you have the {es} Docker image, create the following files inside of a
+new directory. Copy and paste the contents of each example into the appropriate
+file as described in the following sections:
 
-Inside a new, empty directory, create the following four files:
+* <<docker-instances-yml,`instances.yml`>>
+* <<docker-env,`.env`>>
+* <<getting-starter-tls-create-certs-composefile,`create-certs.yml`>>
+* <<getting-starter-tls-create-docker-compose,`docker-compose.yml`>>
 
-`instances.yml`:
+[[docker-instances-yml]]
+[discrete]
+===== `instances.yml`
+
+When you run the example, {es} uses this file to create a two-node cluster.
+The nodes are named `es01` and `es02`.
+
 ["source","yaml"]
 ----
 instances:
@@ -40,19 +80,33 @@ instances:
 ----
 <1> Allow use of embedded Docker DNS server names.
 
-`.env`:
+[[docker-env]]
+[discrete]
+===== `.env`
+
+The `.env` file sets environment variables that are used when you run the
+example. Ensure that you specify a strong password for the `elastic` user with
+the `ELASTIC_PASSWORD` parameter.
+
 [source,yaml]
 ----
 COMPOSE_PROJECT_NAME=es <1>
 CERTS_DIR=/usr/share/elasticsearch/config/certificates <2>
-ELASTIC_PASSWORD=PleaseChangeMe <3>
+ELASTIC_PASSWORD=<password> <3>
 ----
-<1> Use an `es_` prefix for all volumes and networks created by docker-compose.
-<2> The path, inside the Docker image, where certificates are expected to be found.
+<1> Use an `es_` prefix for all volumes and networks created by `docker-compose`.
+<2> The path inside the Docker image where {es} expects the security
+certificates.
 <3> Initial password for the `elastic` user.
 
 [[getting-starter-tls-create-certs-composefile]]
-`create-certs.yml`:
+[discrete]
+===== `create-certs.yml`
+
+The `create-certs.yml` file includes a script to generate node certificates and
+a certificate authority (CA) certificate and key where {es} expects them. These
+certificates and key are placed in a Docker volume named `es_certs`.
+
 ifeval::["{release-state}"=="unreleased"]
 
 WARNING: Version {version} of {es} has not yet been released, so a
@@ -72,9 +126,9 @@ services:
     command: >
       bash -c '
         if [[ ! -f /certs/bundle.zip ]]; then
-          bin/elasticsearch-certutil ca --silent --out /certs/ca.p12 --pass ""; <1>
+          bin/elasticsearch-certutil ca --silent --out /certs/ca.p12 --pass "";
           bin/elasticsearch-certutil cert --silent --pem --ca /certs/ca.p12 --in config/certificates/instances.yml -out /certs/bundle.zip;
-          unzip /certs/bundle.zip -d /certs; <1>
+          unzip /certs/bundle.zip -d /certs;
         fi;
         chown -R 1000:0 /certs
       '
@@ -84,12 +138,12 @@ services:
 
 volumes: {"certs"}
 ----
-
-<1> The new node certificates and CA certificate+key are placed in a docker volume `es_certs`.
 endif::[]
 
 [[getting-starter-tls-create-docker-compose]]
-`docker-compose.yml`:
+[discrete]
+===== `docker-compose.yml`
+
 ifeval::["{release-state}"=="unreleased"]
 
 WARNING: Version {version} of {es} has not yet been released, so a
@@ -112,14 +166,13 @@ services:
       - cluster.initial_master_nodes=es01,es02
       - ELASTIC_PASSWORD=$ELASTIC_PASSWORD <1>
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-      - xpack.license.self_generated.type=trial <2>
       - xpack.security.enabled=true
       - xpack.security.http.ssl.enabled=true
       - xpack.security.http.ssl.key=$CERTS_DIR/es01/es01.key
       - xpack.security.http.ssl.certificate_authorities=$CERTS_DIR/ca/ca.crt
       - xpack.security.http.ssl.certificate=$CERTS_DIR/es01/es01.crt
       - xpack.security.transport.ssl.enabled=true
-      - xpack.security.transport.ssl.verification_mode=certificate <3>
+      - xpack.security.transport.ssl.verification_mode=certificate <2>
       - xpack.security.transport.ssl.certificate_authorities=$CERTS_DIR/ca/ca.crt
       - xpack.security.transport.ssl.certificate=$CERTS_DIR/es01/es01.crt
       - xpack.security.transport.ssl.key=$CERTS_DIR/es01/es01.key
@@ -148,7 +201,7 @@ services:
       - xpack.security.http.ssl.certificate_authorities=$CERTS_DIR/ca/ca.crt
       - xpack.security.http.ssl.certificate=$CERTS_DIR/es02/es02.crt
       - xpack.security.transport.ssl.enabled=true
-      - xpack.security.transport.ssl.verification_mode=certificate <3>
+      - xpack.security.transport.ssl.verification_mode=certificate
       - xpack.security.transport.ssl.certificate_authorities=$CERTS_DIR/ca/ca.crt
       - xpack.security.transport.ssl.certificate=$CERTS_DIR/es02/es02.crt
       - xpack.security.transport.ssl.key=$CERTS_DIR/es02/es02.key
@@ -161,12 +214,9 @@ services:
 
 volumes: {"data01", "data02", "certs"}
 ----
-
-<1> Bootstrap `elastic` with the password defined in `.env`. See
+<1> Bootstrap `elastic` with the password defined in the `.env` file. See
 <<bootstrap-elastic-passwords>>.
-<2> Automatically generate and apply a trial subscription, in order to enable
-{security-features}.
-<3> Disable verification of authenticity for inter-node communication. Allows
+<2> Disable verification of authenticity for inter-node communication. Allows
 creating self-signed certificates without having to pin specific internal IP addresses.
 endif::[]
 
@@ -188,12 +238,13 @@ docker-compose -f create-certs.yml run --rm create_certs
 docker-compose up -d
 ----
 --
-. Access the {es} API over SSL/TLS using the bootstrapped password:
+. Access the {es} API over TLS using the bootstrapped password for the `elastic`
+user:
 +
 --
 ["source","sh",subs="attributes"]
 ----
-docker run --rm -v es_certs:/certs --network=es_default {docker-image} curl --cacert /certs/ca/ca.crt -u elastic:PleaseChangeMe https://es01:9200
+docker run --rm -v es_certs:/certs --network=es_default {docker-image} curl --cacert /certs/ca/ca.crt -u elastic:<password> https://es01:9200
 ----
 // NOTCONSOLE
 --
@@ -212,7 +263,8 @@ auto --batch \
 
 [discrete]
 ==== Tear everything down
-To remove all the Docker resources created by the example, issue:
+Run the following command to remove all the Docker resources created by the
+example:
 --
 ["source","sh"]
 ----

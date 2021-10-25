@@ -143,6 +143,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
         public void expectShowTables(List<String> tables, String user) throws Exception {
             String mode = randomMode();
             List<Object> columns = new ArrayList<>();
+            columns.add(columnInfo(mode, "catalog", "keyword", JDBCType.VARCHAR, 32766));
             columns.add(columnInfo(mode, "name", "keyword", JDBCType.VARCHAR, 32766));
             columns.add(columnInfo(mode, "type", "keyword", JDBCType.VARCHAR, 32766));
             columns.add(columnInfo(mode, "kind", "keyword", JDBCType.VARCHAR, 32766));
@@ -151,6 +152,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
             List<List<String>> rows = new ArrayList<>();
             for (String table : tables) {
                 List<String> fields = new ArrayList<>();
+                fields.add("integTest"); // gradle defined
                 fields.add(table);
                 fields.add("TABLE");
                 fields.add("INDEX");
@@ -167,7 +169,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
              */
             @SuppressWarnings("unchecked")
             List<List<String>> rowsNoSecurity = ((List<List<String>>) actual.get("rows")).stream()
-                .filter(ls -> ls.get(0).startsWith(".security") == false)
+                .filter(ls -> ls.get(1).startsWith(".security") == false)
                 .collect(Collectors.toList());
             actual.put("rows", rowsNoSecurity);
             assertResponse(expected, actual);

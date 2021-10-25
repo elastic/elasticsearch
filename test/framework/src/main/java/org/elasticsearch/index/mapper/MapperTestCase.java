@@ -20,13 +20,13 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -35,6 +35,9 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -749,5 +752,26 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     protected boolean allowsNullValues() {
         return true;
+    }
+
+    public final void testMinimalIsInvalidInRoutingPath() throws IOException {
+        MapperService mapper = createMapperService(fieldMapping(this::minimalMapping));
+        try {
+            IndexSettings settings = createIndexSettings(
+                Version.CURRENT,
+                Settings.builder()
+                    .put(IndexSettings.MODE.getKey(), "time_series")
+                    .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field")
+                    .build()
+            );
+            Exception e = expectThrows(IllegalArgumentException.class, () -> mapper.documentMapper().validate(settings, false));
+            assertThat(e.getMessage(), equalTo(minimalIsInvalidRoutingPathErrorMessage(mapper.mappingLookup().getMapper("field"))));
+        } finally {
+            assertParseMinimalWarnings();
+        }
+    }
+
+    protected String minimalIsInvalidRoutingPathErrorMessage(Mapper mapper) {
+        return "All fields that match routing_path must be keyword time_series_dimensions but [field] was [" + mapper.typeName() + "]";
     }
 }

@@ -83,8 +83,6 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.transport.nio.NioGroupFactory;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -163,7 +161,7 @@ import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.core.ssl.TLSLicenseBootstrapCheck;
+import org.elasticsearch.xpack.core.ssl.TransportTLSBootstrapCheck;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.action.TransportGetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.rest.RestGetCertificateInfoAction;
@@ -392,6 +390,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     public static final LicensedFeature.Persistent CUSTOM_ROLE_PROVIDERS_FEATURE =
         LicensedFeature.persistent(null, "security-roles-provider", License.OperationMode.PLATINUM);
 
+    public static final LicensedFeature.Momentary OPERATOR_PRIVILEGES_FEATURE =
+        LicensedFeature.momentary(null, "operator-privileges", License.OperationMode.ENTERPRISE);
+
     private static final Logger logger = LogManager.getLogger(Security.class);
 
     public static final SystemIndexDescriptor SECURITY_MAIN_INDEX_DESCRIPTOR = getSecurityMainIndexDescriptor();
@@ -487,7 +488,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         checks.addAll(Arrays.asList(
             new TokenSSLBootstrapCheck(),
             new PkiRealmBootstrapCheck(getSslService()),
-            new TLSLicenseBootstrapCheck()));
+            new TransportTLSBootstrapCheck()));
         checks.addAll(InternalRealms.getBootstrapChecks(settings, environment));
         this.bootstrapChecks.set(Collections.unmodifiableList(checks));
 
@@ -624,6 +625,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         final OperatorPrivilegesService operatorPrivilegesService;
         final boolean operatorPrivilegesEnabled = OPERATOR_PRIVILEGES_ENABLED.get(settings);
         if (operatorPrivilegesEnabled) {
+            logger.info("operator privileges are enabled");
             operatorPrivilegesService = new OperatorPrivileges.DefaultOperatorPrivilegesService(getLicenseState(),
                 new FileOperatorUsersStore(environment, resourceWatcherService),
                 new OperatorOnlyRegistry(clusterService.getClusterSettings()));

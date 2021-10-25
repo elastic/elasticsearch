@@ -114,7 +114,7 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().get().getState();
             assertTrue("Timed out waiting for the ML templates to be installed",
-                    MachineLearning.allTemplatesInstalled(state));
+                    MachineLearning.criticalTemplatesInstalled(state));
         });
     }
 

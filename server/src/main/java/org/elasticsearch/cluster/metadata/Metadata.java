@@ -231,6 +231,46 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         this.indicesLookup = indicesLookup;
     }
 
+    private Metadata(String clusterUUID, boolean clusterUUIDCommitted, long version, CoordinationMetadata coordinationMetadata,
+                     Settings transientSettings, Settings persistentSettings,
+                     Settings settings,
+                     DiffableStringMap hashesOfConsistentSettings,
+                     int totalNumberOfShards,
+                     int totalOpenIndexShards,
+                     ImmutableOpenMap<String, IndexMetadata> indices, ImmutableOpenMap<String, IndexTemplateMetadata> templates,
+                     ImmutableOpenMap<String, Custom> customs, String[] allIndices, String[] visibleIndices, String[] allOpenIndices,
+                     String[] visibleOpenIndices, String[] allClosedIndices, String[] visibleClosedIndices,
+                     SortedMap<String, IndexAbstraction> indicesLookup) {
+        this.clusterUUID = clusterUUID;
+        this.clusterUUIDCommitted = clusterUUIDCommitted;
+        this.version = version;
+        this.coordinationMetadata = coordinationMetadata;
+        this.transientSettings = transientSettings;
+        this.persistentSettings = persistentSettings;
+        this.settings = settings;
+        this.hashesOfConsistentSettings = hashesOfConsistentSettings;
+        this.indices = indices;
+        this.customs = customs;
+        this.templates = templates;
+        this.totalNumberOfShards = totalNumberOfShards;
+        this.totalOpenIndexShards = totalOpenIndexShards;
+        this.allIndices = allIndices;
+        this.visibleIndices = visibleIndices;
+        this.allOpenIndices = allOpenIndices;
+        this.visibleOpenIndices = visibleOpenIndices;
+        this.allClosedIndices = allClosedIndices;
+        this.visibleClosedIndices = visibleClosedIndices;
+        this.indicesLookup = indicesLookup;
+    }
+
+    public Metadata withIncrementedVersion() {
+        return new Metadata(clusterUUID, clusterUUIDCommitted, version + 1, coordinationMetadata, transientSettings,
+                persistentSettings,
+                settings, hashesOfConsistentSettings, totalNumberOfShards, totalOpenIndexShards, indices, templates,
+                customs, allIndices, visibleIndices, allOpenIndices, visibleOpenIndices, allClosedIndices, visibleClosedIndices,
+                indicesLookup);
+    }
+
     public long version() {
         return this.version;
     }

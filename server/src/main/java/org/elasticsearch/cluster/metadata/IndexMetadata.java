@@ -998,7 +998,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
         @Override
         public IndexMetadata apply(IndexMetadata part) {
-            Builder builder = builder(index);
+            Builder builder = builder(part.index);
             builder.version(version);
             builder.mappingVersion(mappingVersion);
             builder.settingsVersion(settingsVersion);
@@ -1142,12 +1142,20 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return new Builder(index);
     }
 
+    public static Builder builder(Index index) {
+        final Builder b =  new Builder(index.getName());
+        b.original = index;
+        return b;
+    }
+
     public static Builder builder(IndexMetadata indexMetadata) {
         return new Builder(indexMetadata);
     }
 
     public static class Builder {
 
+        @Nullable
+        private Index original;
         private String index;
         private State state = State.OPEN;
         private long version = 1;
@@ -1176,7 +1184,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
 
         public Builder(IndexMetadata indexMetadata) {
-            this.index = indexMetadata.getIndex().getName();
+            this.original = indexMetadata.index;
+            this.index = original.getName();
             this.state = indexMetadata.state;
             this.version = indexMetadata.version;
             this.mappingVersion = indexMetadata.mappingVersion;
@@ -1512,8 +1521,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 lifecycleExecutionState = LifecycleExecutionState.EMPTY_STATE;
             }
 
+            Index newIndex = new Index(index, uuid);
+            if (newIndex.equals(original)) {
+                newIndex = original;
+            }
+
             return new IndexMetadata(
-                    new Index(index, uuid),
+                    newIndex,
                     version,
                     mappingVersion,
                     settingsVersion,

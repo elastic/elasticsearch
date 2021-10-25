@@ -279,6 +279,8 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
     }
 
     public static class Builder<KType, VType> implements ObjectObjectMap<KType, VType> {
+        private boolean changed = false;
+        private final ImmutableOpenMap<KType, VType> original;
         private ObjectObjectHashMap<KType, VType> map;
 
         @SuppressWarnings("unchecked")
@@ -287,10 +289,12 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         }
 
         public Builder(int size) {
+            this.original = null;
             this.map = new ObjectObjectHashMap<>(size);
         }
 
         public Builder(ImmutableOpenMap<KType, VType> map) {
+            this.original = map;
             this.map = map.map.clone();
         }
 
@@ -298,6 +302,9 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
          * Builds a new instance of the
          */
         public ImmutableOpenMap<KType, VType> build() {
+            if (changed == false && original != null) {
+                return original;
+            }
             ObjectObjectHashMap<KType, VType> map = this.map;
             this.map = null; // nullify the map, so any operation post build will fail! (hackish, but safest)
             return map.isEmpty() ? of() : new ImmutableOpenMap<>(map);
@@ -307,6 +314,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
          * Puts all the entries in the map to the builder.
          */
         public Builder<KType, VType> putAll(Map<KType, VType> map) {
+            changed = true;
             for (Map.Entry<KType, VType> entry : map.entrySet()) {
                 this.map.put(entry.getKey(), entry.getValue());
             }
@@ -317,12 +325,14 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
          * A put operation that can be used in the fluent pattern.
          */
         public Builder<KType, VType> fPut(KType key, VType value) {
+            changed = true;
             map.put(key, value);
             return this;
         }
 
         @Override
         public VType put(KType key, VType value) {
+            changed = true;
             return map.put(key, value);
         }
 
@@ -338,11 +348,13 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
 
         @Override
         public int putAll(ObjectObjectAssociativeContainer<? extends KType, ? extends VType> container) {
+            changed = true;
             return map.putAll(container);
         }
 
         @Override
         public int putAll(Iterable<? extends ObjectObjectCursor<? extends KType, ? extends VType>> iterable) {
+            changed = true;
             return map.putAll(iterable);
         }
 
@@ -350,12 +362,14 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
          * Remove that can be used in the fluent pattern.
          */
         public Builder<KType, VType> fRemove(KType key) {
+            changed = true;
             map.remove(key);
             return this;
         }
 
         @Override
         public VType remove(KType key) {
+            changed = true;
             return map.remove(key);
         }
 
@@ -381,11 +395,13 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
 
         @Override
         public int removeAll(ObjectContainer<? super KType> container) {
+            changed = true;
             return map.removeAll(container);
         }
 
         @Override
         public int removeAll(ObjectPredicate<? super KType> predicate) {
+            changed = true;
             return map.removeAll(predicate);
         }
 
@@ -396,6 +412,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
 
         @Override
         public void clear() {
+            changed = true;
             map.clear();
         }
 
@@ -416,7 +433,9 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
 
         @Override
         public int removeAll(ObjectObjectPredicate<? super KType, ? super VType> predicate) {
-            return map.removeAll(predicate);
+            final int removed = map.removeAll(predicate);
+            changed |= removed > 0;
+            return removed;
         }
 
         @Override
@@ -441,16 +460,19 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
 
         @Override
         public VType indexReplace(int index, VType newValue) {
+            changed = true;
             return map.indexReplace(index, newValue);
         }
 
         @Override
         public void indexInsert(int index, KType key, VType value) {
+            changed = true;
             map.indexInsert(index, key, value);
         }
 
         @Override
         public void release() {
+            changed = true;
             map.release();
         }
 

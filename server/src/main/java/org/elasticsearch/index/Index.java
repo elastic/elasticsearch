@@ -47,8 +47,7 @@ public class Index implements Writeable, ToXContentObject {
      * Read from a stream.
      */
     public Index(StreamInput in) throws IOException {
-        this.name = in.readString();
-        this.uuid = in.readString();
+        this(in.readString(), in.readString());
     }
 
     public String getName() {

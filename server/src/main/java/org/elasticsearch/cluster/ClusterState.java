@@ -691,7 +691,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             if (UNKNOWN_UUID.equals(uuid)) {
                 uuid = UUIDs.randomBase64UUID();
             }
-            if (previous != null && routingTable == previous.routingTable && nodes == previous.nodes) {
+            if (previous != null && routingTable.indicesRouting() == previous.routingTable.indicesRouting() && nodes == previous.nodes) {
                 routingNodes = previous.routingNodes;
             }
             return new ClusterState(clusterName, version, uuid, metadata, routingTable, nodes, blocks, customs.build(),

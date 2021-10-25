@@ -256,7 +256,6 @@ public class MetadataIndexStateService {
         }
 
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-        final RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
 
         for (Index index : indicesToClose) {
             ClusterBlock indexBlock = null;
@@ -281,7 +280,7 @@ public class MetadataIndexStateService {
 
         logger.info(() -> new ParameterizedMessage("closing indices {}",
             blockedIndices.keySet().stream().map(Object::toString).collect(Collectors.joining(","))));
-        return ClusterState.builder(currentState).blocks(blocks).metadata(metadata).routingTable(routingTable.build()).build();
+        return ClusterState.builder(currentState).blocks(blocks).metadata(metadata).build();
     }
 
     /**
@@ -311,7 +310,6 @@ public class MetadataIndexStateService {
         }
 
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-        final RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
         final Map<Index, ClusterBlock> blockedIndices = new HashMap<>();
 
         for (Index index : indicesToAddBlock) {
@@ -347,8 +345,7 @@ public class MetadataIndexStateService {
 
         logger.info("adding block {} to indices {}", block.name,
             blockedIndices.keySet().stream().map(Object::toString).collect(Collectors.toList()));
-        return Tuple.tuple(ClusterState.builder(currentState).blocks(blocks).metadata(metadata)
-                .routingTable(routingTable.build()).build(), blockedIndices);
+        return Tuple.tuple(ClusterState.builder(currentState).blocks(blocks).metadata(metadata).build(), blockedIndices);
     }
 
     /**

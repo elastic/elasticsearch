@@ -58,6 +58,10 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         this.indicesRouting = indicesRouting;
     }
 
+    public RoutingTable withIncrementedVersion() {
+        return new RoutingTable(version + 1, indicesRouting);
+    }
+
     /**
      * Get's the {@link IndexShardRoutingTable} for the given shard id from the given {@link IndexRoutingTable}
      * or throws a {@link ShardNotFoundException} if no shard by the given id is found in the IndexRoutingTable.

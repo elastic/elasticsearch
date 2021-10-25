@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.transform;
 
 public class TransformDeprecations {
 
-    public static final String UPGRADE_TRANSFORM_URL = "https://ela.st/es-8-upgrade-transforms";
+    public static final String UPGRADE_TRANSFORM_URL = "https://ela.st/es-7-upgrade-transforms";
 
     // breaking changes base url for the _next_ major release
     public static final String BREAKING_CHANGES_BASE_URL =

@@ -234,11 +234,20 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         csBuilder.routingTable(routingTable.build());
         csBuilder.metadata(metadata);
 
+        ClusterSettings cSettings = new ClusterSettings(Settings.EMPTY, Collections.singleton(Transform.NUM_FAILURE_RETRIES_SETTING));
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(cSettings);
+        when(clusterService.state()).thenReturn(TransformInternalIndexTests.randomTransformClusterState());
         ClusterState cs = csBuilder.build();
         Client client = mock(Client.class);
         TransformAuditor mockAuditor = mock(TransformAuditor.class);
 
-        IndexBasedTransformConfigManager transformsConfigManager = new IndexBasedTransformConfigManager(client, xContentRegistry());
+        IndexBasedTransformConfigManager transformsConfigManager = new IndexBasedTransformConfigManager(
+            clusterService,
+            TestIndexNameExpressionResolver.newInstance(),
+            client,
+            xContentRegistry()
+        );
         TransformCheckpointService transformCheckpointService = new TransformCheckpointService(
             Clock.systemUTC(),
             Settings.EMPTY,
@@ -253,10 +262,6 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             mock(SchedulerEngine.class)
         );
 
-        ClusterSettings cSettings = new ClusterSettings(Settings.EMPTY, Collections.singleton(Transform.NUM_FAILURE_RETRIES_SETTING));
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.getClusterSettings()).thenReturn(cSettings);
-        when(clusterService.state()).thenReturn(TransformInternalIndexTests.randomTransformClusterState());
         TransformPersistentTasksExecutor executor = new TransformPersistentTasksExecutor(
             client,
             transformServices,
@@ -514,9 +519,15 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
     }
 
     public TransformPersistentTasksExecutor buildTaskExecutor() {
+        ClusterService clusterService = mock(ClusterService.class);
         Client client = mock(Client.class);
         TransformAuditor mockAuditor = mock(TransformAuditor.class);
-        IndexBasedTransformConfigManager transformsConfigManager = new IndexBasedTransformConfigManager(client, xContentRegistry());
+        IndexBasedTransformConfigManager transformsConfigManager = new IndexBasedTransformConfigManager(
+            clusterService,
+            TestIndexNameExpressionResolver.newInstance(),
+            client,
+            xContentRegistry()
+        );
         TransformCheckpointService transformCheckpointService = new TransformCheckpointService(
             Clock.systemUTC(),
             Settings.EMPTY,
@@ -532,7 +543,6 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         );
 
         ClusterSettings cSettings = new ClusterSettings(Settings.EMPTY, Collections.singleton(Transform.NUM_FAILURE_RETRIES_SETTING));
-        ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(cSettings);
         when(clusterService.state()).thenReturn(TransformInternalIndexTests.randomTransformClusterState());
 

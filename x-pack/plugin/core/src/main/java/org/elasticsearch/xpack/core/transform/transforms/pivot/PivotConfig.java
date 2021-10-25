@@ -13,13 +13,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
@@ -91,7 +91,7 @@ public class PivotConfig implements Writeable, ToXContentObject {
             deprecationLogger.critical(
                 DeprecationCategory.API,
                 TransformField.MAX_PAGE_SEARCH_SIZE.getPreferredName(),
-                "[max_page_search_size] is deprecated inside pivot please use settings instead"
+                TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED
             );
         }
     }
@@ -187,7 +187,7 @@ public class PivotConfig implements Writeable, ToXContentObject {
                     Level.WARNING,
                     "Transform [" + id + "] uses deprecated max_page_search_size",
                     TransformDeprecations.BREAKING_CHANGES_BASE_URL,
-                    "[max_page_search_size] is deprecated inside pivot please use settings instead",
+                    TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED,
                     false,
                     null
                 )

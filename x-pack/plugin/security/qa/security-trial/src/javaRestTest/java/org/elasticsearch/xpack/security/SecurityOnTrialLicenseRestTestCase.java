@@ -34,6 +34,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+@SuppressWarnings("removal")
 public abstract class SecurityOnTrialLicenseRestTestCase extends ESRestTestCase {
     private RestHighLevelClient highLevelAdminClient;
 

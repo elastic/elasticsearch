@@ -85,6 +85,7 @@ import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
+@SuppressWarnings("removal")
 public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testPutLifecyclePolicy() throws Exception {

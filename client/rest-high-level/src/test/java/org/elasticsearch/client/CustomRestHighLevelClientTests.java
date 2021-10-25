@@ -53,6 +53,7 @@ import static org.mockito.Mockito.when;
 /**
  * Test and demonstrates how {@link RestHighLevelClient} can be extended to support custom endpoints.
  */
+@SuppressWarnings("removal")
 public class CustomRestHighLevelClientTests extends ESTestCase {
 
     private static final String ENDPOINT = "/_custom";

@@ -108,6 +108,7 @@ import static org.hamcrest.core.Is.is;
  *          to check that optimizations worked
  *      - repeat
  */
+@SuppressWarnings("removal")
 public class TransformContinuousIT extends ESRestTestCase {
 
     private List<ContinuousTestCase> transformTestCases = new ArrayList<>();

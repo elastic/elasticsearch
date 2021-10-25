@@ -17,6 +17,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
@@ -50,7 +51,17 @@ public class DataTier {
     // it will be removed as a breaking change in some future version, likely 9.0.
     public static final String ENFORCE_DEFAULT_TIER_PREFERENCE = "cluster.routing.allocation.enforce_default_tier_preference";
     public static final Setting<Boolean> ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING =
-        Setting.boolSetting(ENFORCE_DEFAULT_TIER_PREFERENCE, true, Property.Dynamic, Property.NodeScope);
+        Setting.boolSetting(ENFORCE_DEFAULT_TIER_PREFERENCE, true,
+            new Setting.Validator<>() {
+                @Override
+                public void validate(Boolean value) {
+                    if (value == Boolean.FALSE) {
+                        throw new SettingsException("setting [{}=false] is not allowed, only true is valid",
+                            ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING.getKey());
+                    }
+                }
+            },
+            Property.Dynamic, Property.NodeScope);
 
     public static final String TIER_PREFERENCE = "index.routing.allocation.include._tier_preference";
 

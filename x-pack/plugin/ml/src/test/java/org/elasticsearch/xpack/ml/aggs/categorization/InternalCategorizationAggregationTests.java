@@ -33,7 +33,7 @@ public class InternalCategorizationAggregationTests extends InternalMultiBucketA
 
     @Override
     protected SearchPlugin registerPlugin() {
-        return new MachineLearning(Settings.EMPTY, null);
+        return new MachineLearning(Settings.EMPTY);
     }
 
     @Override

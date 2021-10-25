@@ -25,9 +25,14 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
 
     public static final TimeValue DEFAULT_ACK_TIMEOUT = timeValueSeconds(30);
 
-    protected TimeValue timeout = DEFAULT_ACK_TIMEOUT;
+    protected TimeValue timeout;
 
     protected AcknowledgedRequest() {
+        this(DEFAULT_ACK_TIMEOUT);
+    }
+
+    protected AcknowledgedRequest(TimeValue timeout) {
+        this.timeout = timeout;
     }
 
     protected AcknowledgedRequest(StreamInput in) throws IOException {

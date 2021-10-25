@@ -35,11 +35,14 @@ public class DeflateCompressor implements Compressor {
     // enough so that no stream starting with these bytes could be detected as
     // a XContent
     private static final byte[] HEADER = new byte[]{'D', 'F', 'L', '\0'};
+
+    public static final int HEADER_SIZE = HEADER.length;
+
     // 3 is a good trade-off between speed and compression ratio
     private static final int LEVEL = 3;
     // We use buffering on the input and output of in/def-laters in order to
     // limit the number of JNI calls
-    private static final int BUFFER_SIZE = 4096;
+    public static final int BUFFER_SIZE = 4096;
 
     @Override
     public boolean isCompressed(BytesReference bytes) {

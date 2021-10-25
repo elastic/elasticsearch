@@ -287,7 +287,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             Collections.emptyList()
         );
         for (SnapshotsInProgress.Entry entry : entries) {
-            snapshotList.add(new SnapshotInfo(entry));
+            snapshotList.add(SnapshotInfo.inProgress(entry));
         }
         return snapshotList;
     }
@@ -435,9 +435,9 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         );
         for (SnapshotsInProgress.Entry entry : entries) {
             if (snapshotIdsToIterate.remove(entry.snapshot().getSnapshotId())) {
-                final SnapshotInfo snapshotInfo = new SnapshotInfo(entry);
+                final SnapshotInfo snapshotInfo = SnapshotInfo.inProgress(entry);
                 if (predicate.test(snapshotInfo)) {
-                    snapshotSet.add(snapshotInfo);
+                    snapshotSet.add(SnapshotInfo.inProgress(entry));
                 }
             }
         }

@@ -137,12 +137,16 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         for (int i = 1; i <= 2; i++) {
             // assign the rollover-only policy to a few other indices - these indices will end up getting caught by the catch-all
             // tier preference migration
-            createIndexWithSettings(client(), rolloverIndexPrefix + "-00000" + i, alias + i, Settings.builder()
+            String rolloverIndex = rolloverIndexPrefix + "-00000" + i;
+            createIndexWithSettings(client(), rolloverIndex, alias + i, Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .putNull(DataTier.TIER_PREFERENCE) // since we always enforce a tier preference, this will be ignored (i.e. data_content)
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias + i)
             );
+
+            // the tier preference will have defaulted to data_content, set it back to null
+            updateIndexSettings(rolloverIndex, Settings.builder().putNull(DataTier.TIER_PREFERENCE));
         }
 
         // let's stop ILM so we can perform the migration
@@ -159,6 +163,9 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "data", "warm");
         createIndex(indexWithDataWarmRouting, settings.build());
 
+        // the tier preference will have defaulted to data_content, set it back to null
+        updateIndexSettings(indexWithDataWarmRouting, Settings.builder().putNull(DataTier.TIER_PREFERENCE));
+
         Request migrateRequest = new Request("POST", "_ilm/migrate_to_data_tiers");
         migrateRequest.setJsonEntity(
             "{\"legacy_template_to_delete\": \"" + templateName + "\", \"node_attribute\": \"data\"}"
@@ -170,7 +177,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         assertThat((List<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_ILM_POLICIES.getPreferredName()),
             contains(policy));
         assertThat((List<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_INDICES.getPreferredName()),
-            containsInAnyOrder(index, indexWithDataWarmRouting));
+            containsInAnyOrder(index, indexWithDataWarmRouting, rolloverIndexPrefix + "-000001", rolloverIndexPrefix + "-000002"));
         assertThat(migrateResponseAsMap.get(MigrateToDataTiersResponse.REMOVED_LEGACY_TEMPLATE.getPreferredName()),
             is(templateName));
 
@@ -178,10 +185,10 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         Request getTemplateRequest = new Request("HEAD", "_template/" + templateName);
         assertThat(client().performRequest(getTemplateRequest).getStatusLine().getStatusCode(), is(RestStatus.NOT_FOUND.getStatus()));
 
-        // regardless of require.data:warm configuration the "indexWithDataWarmRouting", we enforced a default tier preference,
-        // so this is data_content
+        // let's assert the require.data:warm configuration the "indexWithDataWarmRouting" had was migrated to
+        // _tier_preference:data_warm,data_hot
         Map<String, Object> indexSettings = getOnlyIndexSettings(client(), indexWithDataWarmRouting);
-        assertThat(indexSettings.get(DataTier.TIER_PREFERENCE), is(DataTier.DATA_CONTENT));
+        assertThat(indexSettings.get(DataTier.TIER_PREFERENCE), is("data_warm,data_hot"));
 
         // let's retrieve the migrated policy and check it was migrated correctly - namely the warm phase should not contain any allocate
         // action anymore and the cold phase should contain an allocate action that only configures the number of replicas
@@ -271,6 +278,9 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "data", "warm");
         createIndex(indexWithDataWarmRouting, settings.build());
 
+        // the tier preference will have defaulted to data_content, set it back to null
+        updateIndexSettings(indexWithDataWarmRouting, Settings.builder().putNull(DataTier.TIER_PREFERENCE));
+
         Request migrateRequest = new Request("POST", "_ilm/migrate_to_data_tiers");
         migrateRequest.addParameter("dry_run", "true");
         migrateRequest.setJsonEntity(
@@ -293,10 +303,9 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         Request getTemplateRequest = new Request("HEAD", "_template/" + templateName);
         assertThat(client().performRequest(getTemplateRequest).getStatusLine().getStatusCode(), is(RestStatus.OK.getStatus()));
 
-        // the index settings will contain a tier preference, regardless of this being a dry run,
-        // because we always enforce a tier preference being set (so the null above is overridden when the index is created)
+        // the index settings should not contain the _tier_preference
         Map<String, Object> indexSettings = getOnlyIndexSettings(client(), indexWithDataWarmRouting);
-        assertThat(indexSettings.get(DataTier.TIER_PREFERENCE), is(DataTier.DATA_CONTENT));
+        assertThat(indexSettings.get(DataTier.TIER_PREFERENCE), nullValue());
 
         // let's check the ILM policy was not migrated - ie. the warm phase still contains the allocate action
         Request getPolicy = new Request("GET", "/_ilm/policy/" + policy);

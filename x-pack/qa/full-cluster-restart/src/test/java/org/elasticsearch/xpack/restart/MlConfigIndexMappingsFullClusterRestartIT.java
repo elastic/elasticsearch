@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.restart;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -55,7 +54,6 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
 
     public void testMlConfigIndexMappingsAfterMigration() throws Exception {
         if (isRunningAgainstOldCluster()) {
-            assertThatMlConfigIndexDoesNotExist();
             // trigger .ml-config index creation
             createAnomalyDetectorJob(OLD_CLUSTER_JOB_ID);
             if (getOldClusterVersion().onOrAfter(Version.V_7_3_0)) {
@@ -72,18 +70,6 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
             // assert that the mappings are updated
             IndexMappingTemplateAsserter.assertMlMappingsMatchTemplates(client());
         }
-    }
-
-    private void assertThatMlConfigIndexDoesNotExist() {
-        Request getIndexRequest = new Request("GET", ".ml-config");
-        getIndexRequest.setOptions(expectVersionSpecificWarnings(v -> {
-            final String systemIndexWarning = "this request accesses system indices: [.ml-config], but in a future major version, direct " +
-                "access to system indices will be prevented by default";
-            v.current(systemIndexWarning);
-            v.compatible(systemIndexWarning);
-        }));
-        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(getIndexRequest));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
     }
 
     private void createAnomalyDetectorJob(String jobId) throws IOException {

@@ -954,7 +954,7 @@ public class TokenServiceTests extends ESTestCase {
                 when(response.getSource()).thenReturn(sourceMap);
             }
             listener.onResponse(response);
-            return Void.TYPE;
+            return null;
         }).when(client).get(any(GetRequest.class), anyActionListener());
     }
 
@@ -1057,7 +1057,7 @@ public class TokenServiceTests extends ESTestCase {
             when(response.getHits()).thenReturn(hits);
             listener.onResponse(response);
             return Void.TYPE;
-        }).when(client).search(any(SearchRequest.class), anyActionListener());
+        }).when(client).search(any(SearchRequest.class), any());
     }
 
     private void mockGetTokenAsyncForDecryptedToken(String accessToken) {

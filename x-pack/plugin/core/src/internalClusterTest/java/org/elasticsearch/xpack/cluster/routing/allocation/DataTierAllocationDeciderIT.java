@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.cluster.routing.allocation;
 
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
@@ -28,7 +27,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -90,7 +88,6 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         startWarmOnlyNode();
         startColdOnlyNode();
         ensureGreen();
-        enforceDefaultTierPreference(false);
 
         client().admin().indices().prepareCreate(index)
             .setWaitForActiveShards(0)
@@ -130,7 +127,6 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
     public void testRequestSettingOverriddenIfEnforced() {
         startContentOnlyNode();
         ensureGreen();
-        enforceDefaultTierPreference(true);
 
         client().admin().indices().prepareCreate(index)
             .setWaitForActiveShards(0)
@@ -186,7 +182,6 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
 
     public void testTemplateOverridesDefaults() {
         startWarmOnlyNode();
-        enforceDefaultTierPreference(false);
 
         Template t = new Template(Settings.builder()
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".box", "warm")
@@ -225,7 +220,6 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
 
     public void testTemplateOverriddenIfEnforced() {
         startContentOnlyNode();
-        enforceDefaultTierPreference(true);
 
         Template t = new Template(Settings.builder()
             .putNull(DataTier.TIER_PREFERENCE)
@@ -375,11 +369,5 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
             .put("node.attr.box", "frozen")
             .build();
         internalCluster().startNode(nodeSettings);
-    }
-
-    public void enforceDefaultTierPreference(boolean enforceDefaultTierPreference) {
-        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
-        request.transientSettings(Settings.builder().put(DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE, enforceDefaultTierPreference).build());
-        assertAcked(client().admin().cluster().updateSettings(request).actionGet());
     }
 }

@@ -96,8 +96,10 @@ searches>> if you also specify the `wait_for_completion_timeout` parameter. If
 the `wait_for_completion_timeout`. Defaults to `false`.
 
 `page_timeout`::
-(Optional, <<time-units,time value>>) Timeout before a
-<<sql-pagination,pagination request>> fails. Defaults to `45s` (45 seconds).
+(Optional, <<time-units,time value>>) Minimum retention period for the scroll
+cursor. After this time period, a <<sql-pagination,pagination request>> might
+fail because the scroll cursor is no longer available. Defaults to `45s`
+(45 seconds).
 
 `params`::
 (Optional, array) Values for parameters in the `query`. For syntax, see

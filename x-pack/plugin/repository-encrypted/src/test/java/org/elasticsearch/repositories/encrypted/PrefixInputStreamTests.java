@@ -158,23 +158,27 @@ public class PrefixInputStreamTests extends ESTestCase {
     private Tuple<AtomicInteger, InputStream> getMockBoundedInputStream(int bound) throws IOException {
         InputStream mockSource = mock(InputStream.class);
         AtomicInteger bytesRemaining = new AtomicInteger(bound);
-        when(mockSource.read(org.mockito.ArgumentMatchers.<byte[]>any(), org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyInt())).thenAnswer(
-            invocationOnMock -> {
-                final byte[] b = (byte[]) invocationOnMock.getArguments()[0];
-                final int off = (int) invocationOnMock.getArguments()[1];
-                final int len = (int) invocationOnMock.getArguments()[2];
-                if (len == 0) {
-                    return 0;
-                } else {
-                    if (bytesRemaining.get() <= 0) {
-                        return -1;
-                    }
-                    int bytesCount = 1 + Randomness.get().nextInt(Math.min(len, bytesRemaining.get()));
-                    bytesRemaining.addAndGet(-bytesCount);
-                    return bytesCount;
+        when(
+            mockSource.read(
+                org.mockito.ArgumentMatchers.<byte[]>any(),
+                org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.anyInt()
+            )
+        ).thenAnswer(invocationOnMock -> {
+            final byte[] b = (byte[]) invocationOnMock.getArguments()[0];
+            final int off = (int) invocationOnMock.getArguments()[1];
+            final int len = (int) invocationOnMock.getArguments()[2];
+            if (len == 0) {
+                return 0;
+            } else {
+                if (bytesRemaining.get() <= 0) {
+                    return -1;
                 }
+                int bytesCount = 1 + Randomness.get().nextInt(Math.min(len, bytesRemaining.get()));
+                bytesRemaining.addAndGet(-bytesCount);
+                return bytesCount;
             }
-        );
+        });
         when(mockSource.read()).thenAnswer(invocationOnMock -> {
             if (bytesRemaining.get() <= 0) {
                 return -1;

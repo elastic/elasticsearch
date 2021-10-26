@@ -769,18 +769,22 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
     private Tuple<AtomicInteger, InputStream> getMockInfiniteInputStream() throws IOException {
         InputStream mockSource = mock(InputStream.class);
         AtomicInteger bytesRead = new AtomicInteger(0);
-        when(mockSource.read(org.mockito.ArgumentMatchers.<byte[]>any(), org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyInt())).thenAnswer(
-            invocationOnMock -> {
-                final int len = (int) invocationOnMock.getArguments()[2];
-                if (len == 0) {
-                    return 0;
-                } else {
-                    int bytesCount = 1 + Randomness.get().nextInt(len);
-                    bytesRead.addAndGet(bytesCount);
-                    return bytesCount;
-                }
+        when(
+            mockSource.read(
+                org.mockito.ArgumentMatchers.<byte[]>any(),
+                org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.anyInt()
+            )
+        ).thenAnswer(invocationOnMock -> {
+            final int len = (int) invocationOnMock.getArguments()[2];
+            if (len == 0) {
+                return 0;
+            } else {
+                int bytesCount = 1 + Randomness.get().nextInt(len);
+                bytesRead.addAndGet(bytesCount);
+                return bytesCount;
             }
-        );
+        });
         when(mockSource.read()).thenAnswer(invocationOnMock -> {
             bytesRead.incrementAndGet();
             return Randomness.get().nextInt(256);

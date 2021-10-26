@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.search;
 
@@ -20,7 +21,7 @@ import org.elasticsearch.action.search.SearchShard;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -40,6 +41,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
@@ -78,7 +80,8 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
      * @param taskHeaders The filtered request headers for the task.
      * @param searchId The {@link AsyncExecutionId} of the task.
      * @param threadPool The threadPool to schedule runnable.
-     * @param aggReduceContextSupplier A supplier to create final reduce contexts.
+     * @param aggReduceContextSupplierFactory A factory that creates as supplier to create final reduce contexts, we need a factory in
+     *                                        order to inject the task itself to the reduce context.
      */
     AsyncSearchTask(long id,
                     String type,
@@ -91,14 +94,14 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                     AsyncExecutionId searchId,
                     Client client,
                     ThreadPool threadPool,
-                    Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier) {
+                    Function<Supplier<Boolean>, Supplier<InternalAggregation.ReduceContext>> aggReduceContextSupplierFactory) {
         super(id, type, action, () -> "async_search{" + descriptionSupplier.get() + "}", parentTaskId, taskHeaders);
         this.expirationTimeMillis = getStartTime() + keepAlive.getMillis();
         this.originHeaders = originHeaders;
         this.searchId = searchId;
         this.client = client;
         this.threadPool = threadPool;
-        this.aggReduceContextSupplier = aggReduceContextSupplier;
+        this.aggReduceContextSupplier = aggReduceContextSupplierFactory.apply(this::isCancelled);
         this.progressListener = new Listener();
         setProgressListener(progressListener);
     }
@@ -349,12 +352,16 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
     }
 
     /**
-     * Returns the status of {@link AsyncSearchTask}
+     * Returns the status from {@link AsyncSearchTask}
      */
-    public AsyncStatusResponse getStatusResponse() {
-        MutableSearchResponse mutableSearchResponse = searchResponse.get();
+    public static AsyncStatusResponse getStatusResponse(AsyncSearchTask asyncTask) {
+        MutableSearchResponse mutableSearchResponse = asyncTask.searchResponse.get();
         assert mutableSearchResponse != null;
-        return mutableSearchResponse.toStatusResponse(searchId.getEncoded(), getStartTime(), expirationTimeMillis);
+        return mutableSearchResponse.toStatusResponse(
+            asyncTask.searchId.getEncoded(),
+            asyncTask.getStartTime(),
+            asyncTask.expirationTimeMillis
+        );
     }
 
     class Listener extends SearchProgressActionListener {

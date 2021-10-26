@@ -2,7 +2,7 @@
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             stack.templates.enabled: false
 
   - do:

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.env;
@@ -29,28 +18,27 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
-import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.PersistedClusterStateService;
@@ -62,10 +50,12 @@ import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileStore;
@@ -292,7 +282,19 @@ public final class NodeEnvironment  implements Closeable {
                 assertCanWrite();
             }
 
-            if (DiscoveryNode.isDataNode(settings) == false) {
+            // versions 7.x and earlier put their data under ${path.data}/nodes/; leave a file at that location to prevent downgrades
+            for (Path dataPath : environment.dataFiles()) {
+                final Path legacyNodesPath = dataPath.resolve("nodes");
+                if (Files.isRegularFile(legacyNodesPath) == false) {
+                    final String content = "written by Elasticsearch v" + Version.CURRENT +
+                        " to prevent a downgrade to a version prior to v8.0.0 which would result in data loss";
+                    Files.write(legacyNodesPath, content.getBytes(StandardCharsets.UTF_8));
+                    IOUtils.fsync(legacyNodesPath, false);
+                    IOUtils.fsync(dataPath, true);
+                }
+            }
+
+            if (DiscoveryNode.canContainData(settings) == false) {
                 if (DiscoveryNode.isMasterNode(settings) == false) {
                     ensureNoIndexMetadata(nodePaths);
                 }
@@ -392,6 +394,13 @@ public final class NodeEnvironment  implements Closeable {
                     SNAPSHOT_CACHE_FOLDER
                 ));
 
+                final Set<String> ignoredFileNames = new HashSet<>(Arrays.asList(
+                    NODE_LOCK_FILENAME,
+                    TEMP_FILE_NAME,
+                    TEMP_FILE_NAME + ".tmp",
+                    TEMP_FILE_NAME + ".final"
+                ));
+
                 try (DirectoryStream<Path> stream = Files.newDirectoryStream(legacyNodePath.path)) {
                     for (Path subFolderPath : stream) {
                         final String fileName = subFolderPath.getFileName().toString();
@@ -408,8 +417,7 @@ public final class NodeEnvironment  implements Closeable {
                                     targetSubFolderPath);
                             }
                             folderNames.add(fileName);
-                        } else if (fileName.equals(NODE_LOCK_FILENAME) == false &&
-                                   fileName.equals(TEMP_FILE_NAME) == false) {
+                        } else if (ignoredFileNames.contains(fileName) == false) {
                             throw new IllegalStateException("unexpected file/folder encountered during data folder upgrade: " +
                                 subFolderPath);
                         }
@@ -429,12 +437,11 @@ public final class NodeEnvironment  implements Closeable {
                     IOUtils.fsync(nodePath.path, true);
                 });
             }
-            // now do the actual upgrade. start by upgrading the node metadata file before moving anything, since a downgrade in an
-            // intermediate state would be pretty disastrous
-            loadNodeMetadata(settings, logger, legacyNodeLock.getNodePaths());
+            // now do the actual upgrade
             for (CheckedRunnable<IOException> upgradeAction : upgradeActions) {
                 upgradeAction.run();
             }
+
         } finally {
             legacyNodeLock.close();
         }
@@ -590,7 +597,7 @@ public final class NodeEnvironment  implements Closeable {
                 // resolve the directory the shard actually lives in
                 Path p = shardPaths[i].resolve("index");
                 // open a directory (will be immediately closed) on the shard's location
-                dirs[i] = new SimpleFSDirectory(p, indexSettings.getValue(FsDirectoryFactory.INDEX_LOCK_FACTOR_SETTING));
+                dirs[i] = new NIOFSDirectory(p, indexSettings.getValue(FsDirectoryFactory.INDEX_LOCK_FACTOR_SETTING));
                 // create a lock for the "write.lock" file
                 try {
                     locks[i] = dirs[i].obtainLock(IndexWriter.WRITE_LOCK_NAME);
@@ -941,6 +948,13 @@ public final class NodeEnvironment  implements Closeable {
     }
 
     /**
+     * Returns the loaded NodeMetadata for this node
+     */
+    public NodeMetadata nodeMetadata() {
+        return nodeMetadata;
+    }
+
+    /**
      * Returns an array of all of the {@link NodePath}s.
      */
     public NodePath[] nodePaths() {
@@ -1144,7 +1158,7 @@ public final class NodeEnvironment  implements Closeable {
 
 
     private void assertEnvIsLocked() {
-        if (!closed.get() && locks != null) {
+        if (closed.get() == false && locks != null) {
             for (Lock lock : locks) {
                 try {
                     lock.ensureValid();

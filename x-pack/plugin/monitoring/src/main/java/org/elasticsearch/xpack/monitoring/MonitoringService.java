@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring;
 
@@ -16,7 +17,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
@@ -58,7 +59,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
       */
     public static final Setting<Boolean> ELASTICSEARCH_COLLECTION_ENABLED =
             Setting.boolSetting("xpack.monitoring.elasticsearch.collection.enabled", true,
-                                Setting.Property.Dynamic, Setting.Property.NodeScope);
+                                Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Deprecated);
 
     /**
      * Dynamically controls enabling or disabling the collection of Monitoring data from Elasticsearch as well as other products
@@ -66,14 +67,14 @@ public class MonitoringService extends AbstractLifecycleComponent {
      */
     public static final Setting<Boolean> ENABLED =
             Setting.boolSetting("xpack.monitoring.collection.enabled", false,
-                                Setting.Property.Dynamic, Setting.Property.NodeScope);
+                                Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Deprecated);
 
     /**
      * Sampling interval between two collections (default to 10s)
      */
     public static final Setting<TimeValue> INTERVAL =
             Setting.timeSetting("xpack.monitoring.collection.interval", TimeValue.timeValueSeconds(10), MIN_INTERVAL,
-                                Setting.Property.Dynamic, Setting.Property.NodeScope);
+                                Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Deprecated);
 
     /** State of the monitoring service, either started or stopped **/
     private final AtomicBoolean started = new AtomicBoolean(false);

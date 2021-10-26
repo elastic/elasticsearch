@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.logging;
@@ -31,9 +20,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.Arrays;
 import java.util.Map;
-
-import static org.elasticsearch.common.util.CollectionUtils.asArrayList;
+import java.util.stream.Stream;
 
 /**
  * A set of utilities around Logging.
@@ -49,7 +38,8 @@ public class Loggers {
             Setting.Property.NodeScope));
 
     public static Logger getLogger(Class<?> clazz, ShardId shardId, String... prefixes) {
-        return getLogger(clazz, shardId.getIndex(), asArrayList(Integer.toString(shardId.id()), prefixes).toArray(new String[0]));
+        return getLogger(clazz, shardId.getIndex(), Stream.concat(Stream.of(Integer.toString(shardId.id())),
+            Arrays.stream(prefixes)).toArray(String[]::new));
     }
 
     /**
@@ -62,7 +52,7 @@ public class Loggers {
     }
 
     public static Logger getLogger(Class<?> clazz, Index index, String... prefixes) {
-        return getLogger(clazz, asArrayList(Loggers.SPACE, index.getName(), prefixes).toArray(new String[0]));
+        return getLogger(clazz, Stream.concat(Stream.of(Loggers.SPACE, index.getName()), Arrays.stream(prefixes)).toArray(String[]::new));
     }
 
     public static Logger getLogger(Class<?> clazz, String... prefixes) {
@@ -112,7 +102,7 @@ public class Loggers {
     }
 
     public static void setLevel(Logger logger, Level level) {
-        if (!LogManager.ROOT_LOGGER_NAME.equals(logger.getName())) {
+        if (LogManager.ROOT_LOGGER_NAME.equals(logger.getName()) == false) {
             Configurator.setLevel(logger.getName(), level);
         } else {
             final LoggerContext ctx = LoggerContext.getContext(false);
@@ -136,7 +126,7 @@ public class Loggers {
         final Configuration config = ctx.getConfiguration();
         config.addAppender(appender);
         LoggerConfig loggerConfig = config.getLoggerConfig(logger.getName());
-        if (!logger.getName().equals(loggerConfig.getName())) {
+        if (logger.getName().equals(loggerConfig.getName()) == false) {
             loggerConfig = new LoggerConfig(logger.getName(), logger.getLevel(), true);
             config.addLogger(logger.getName(), loggerConfig);
         }
@@ -148,7 +138,7 @@ public class Loggers {
         final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
         final Configuration config = ctx.getConfiguration();
         LoggerConfig loggerConfig = config.getLoggerConfig(logger.getName());
-        if (!logger.getName().equals(loggerConfig.getName())) {
+        if (logger.getName().equals(loggerConfig.getName()) == false) {
             loggerConfig = new LoggerConfig(logger.getName(), logger.getLevel(), true);
             config.addLogger(logger.getName(), loggerConfig);
         }

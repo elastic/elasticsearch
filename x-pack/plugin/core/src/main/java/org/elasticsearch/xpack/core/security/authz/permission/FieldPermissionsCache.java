@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authz.permission;
 
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDe
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -72,9 +74,19 @@ public final class FieldPermissionsCache {
                 .filter(((Predicate<FieldPermissions>) (FieldPermissions::hasFieldLevelSecurity)).negate())
                 .findFirst();
         return allowAllFieldPermissions.orElseGet(() -> {
-            final Set<FieldGrantExcludeGroup> fieldGrantExcludeGroups = fieldPermissionsCollection.stream()
-                    .flatMap(fieldPermission -> fieldPermission.getFieldPermissionsDefinition().getFieldGrantExcludeGroups().stream())
-                    .collect(Collectors.toSet());
+            final Set<FieldGrantExcludeGroup> fieldGrantExcludeGroups = new HashSet<>();
+            for (FieldPermissions fieldPermissions : fieldPermissionsCollection) {
+                final FieldPermissionsDefinition definition = fieldPermissions.getFieldPermissionsDefinition();
+                final FieldPermissionsDefinition limitedByDefinition =
+                    fieldPermissions.getLimitedByFieldPermissionsDefinition();
+                if (definition == null) {
+                    throw new IllegalArgumentException("Expected field permission definition, but found null");
+                } else if (limitedByDefinition != null) {
+                    throw new IllegalArgumentException("Expected no limited-by field permission definition, but found ["
+                        + limitedByDefinition + "]");
+                }
+                fieldGrantExcludeGroups.addAll(definition.getFieldGrantExcludeGroups());
+            }
             final FieldPermissionsDefinition combined = new FieldPermissionsDefinition(fieldGrantExcludeGroups);
             try {
                 return cache.computeIfAbsent(combined, (key) -> {

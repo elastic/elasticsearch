@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authz.store;
 
@@ -12,17 +13,15 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.MemoizedSupplier;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.yaml.YamlXContent;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.yaml.YamlXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -55,6 +54,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 
 public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {
 
@@ -177,14 +177,15 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         if (Files.exists(path)) {
             try {
                 List<String> roleSegments = roleSegments(path);
-                var licenseChecker = new MemoizedSupplier<>(() -> licenseState.checkFeature(Feature.SECURITY_DLS_FLS));
+
+                final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
                 for (String segment : roleSegments) {
                     RoleDescriptor descriptor = parseRoleDescriptor(segment, path, logger, resolvePermission, settings, xContentRegistry);
                     if (descriptor != null) {
                         if (ReservedRolesStore.isReserved(descriptor.getName())) {
                             logger.warn("role [{}] is reserved. the relevant role definition in the mapping file will be ignored",
                                     descriptor.getName());
-                        } else if (descriptor.isUsingDocumentOrFieldLevelSecurity() && licenseChecker.get() == false) {
+                        } else if (descriptor.isUsingDocumentOrFieldLevelSecurity() && isDlsLicensed == false) {
                             logger.warn("role [{}] uses document and/or field level security, which is not enabled by the current license" +
                                     ". this role will be ignored", descriptor.getName());
                             // we still put the role in the map to avoid unnecessary negative lookups
@@ -333,7 +334,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         List<String> segments = new ArrayList<>();
         StringBuilder builder = null;
         for (String line : Files.readAllLines(path, StandardCharsets.UTF_8)) {
-            if (!SKIP_LINE.matcher(line).matches()) {
+            if (SKIP_LINE.matcher(line).matches() == false) {
                 if (IN_SEGMENT_LINE.matcher(line).matches()) {
                     if (builder != null) {
                         builder.append(line).append("\n");

@@ -129,7 +129,7 @@ user is allowed to read index `a`, but not index `b`, then the exact same set of
 rules will apply during execution of a watch.
 
 When using the execute watch API, the authorization data of the user that
-called the API will be used as a base, instead of of the information who stored
+called the API will be used as a base, instead of the information who stored
 the watch.
 
 //[[watcher-api-execute-watch-response-body]]

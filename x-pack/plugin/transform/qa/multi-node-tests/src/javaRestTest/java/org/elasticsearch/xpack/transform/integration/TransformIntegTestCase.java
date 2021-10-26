@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.integration;
@@ -25,6 +26,8 @@ import org.elasticsearch.client.transform.GetTransformRequest;
 import org.elasticsearch.client.transform.GetTransformResponse;
 import org.elasticsearch.client.transform.GetTransformStatsRequest;
 import org.elasticsearch.client.transform.GetTransformStatsResponse;
+import org.elasticsearch.client.transform.PreviewTransformRequest;
+import org.elasticsearch.client.transform.PreviewTransformResponse;
 import org.elasticsearch.client.transform.PutTransformRequest;
 import org.elasticsearch.client.transform.StartTransformRequest;
 import org.elasticsearch.client.transform.StartTransformResponse;
@@ -33,7 +36,6 @@ import org.elasticsearch.client.transform.StopTransformResponse;
 import org.elasticsearch.client.transform.UpdateTransformRequest;
 import org.elasticsearch.client.transform.transforms.DestConfig;
 import org.elasticsearch.client.transform.transforms.QueryConfig;
-import org.elasticsearch.client.transform.transforms.SettingsConfig;
 import org.elasticsearch.client.transform.transforms.SourceConfig;
 import org.elasticsearch.client.transform.transforms.TransformConfig;
 import org.elasticsearch.client.transform.transforms.TransformConfigUpdate;
@@ -44,18 +46,17 @@ import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.client.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
@@ -64,10 +65,10 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.joda.time.Instant;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Base64;
 import java.util.Collections;
@@ -78,9 +79,10 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.core.Is.is;
 
+@SuppressWarnings("removal")
 abstract class TransformIntegTestCase extends ESRestTestCase {
 
     private Map<String, TransformConfig> transformConfigs = new HashMap<>();
@@ -119,8 +121,16 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
 
     protected void cleanUpTransforms() throws IOException {
         for (TransformConfig config : transformConfigs.values()) {
-            stopTransform(config.getId());
-            deleteTransform(config.getId());
+            try {
+                stopTransform(config.getId());
+                deleteTransform(config.getId());
+            } catch (ElasticsearchStatusException ex) {
+                if (ex.status().equals(RestStatus.NOT_FOUND)) {
+                    logger.info("tried to cleanup already deleted transform [{}]", config.getId());
+                } else {
+                    throw ex;
+                }
+            }
         }
         transformConfigs.clear();
     }
@@ -197,6 +207,12 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
                 transformConfigs.put(config.getId(), config);
             }
             return response;
+        }
+    }
+
+    protected PreviewTransformResponse previewTransform(TransformConfig config, RequestOptions options) throws IOException {
+        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
+            return restClient.transform().previewTransform(new PreviewTransformRequest(config), options);
         }
     }
 
@@ -280,16 +296,7 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
     protected TransformConfig.Builder createTransformConfigBuilder(
         String id,
         String destinationIndex,
-        String... sourceIndices
-    ) throws Exception {
-        return createTransformConfigBuilder(id, destinationIndex, QueryBuilders.matchAllQuery(), null, sourceIndices);
-    }
-
-    protected TransformConfig.Builder createTransformConfigBuilder(
-        String id,
-        String destinationIndex,
         QueryBuilder queryBuilder,
-        SettingsConfig.Builder settingsBuilder,
         String... sourceIndices
     ) throws Exception {
         return TransformConfig.builder()
@@ -297,7 +304,6 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
             .setSource(SourceConfig.builder().setIndex(sourceIndices).setQueryConfig(createQueryConfig(queryBuilder)).build())
             .setDest(DestConfig.builder().setIndex(destinationIndex).build())
             .setFrequency(TimeValue.timeValueSeconds(10))
-            .setSettings(settingsBuilder != null ? settingsBuilder.build() : null)
             .setDescription("Test transform config id: " + id);
     }
 

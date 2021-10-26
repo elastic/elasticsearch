@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.esnative;
 
@@ -38,6 +39,7 @@ import static org.hamcrest.Matchers.is;
 /**
  * Integration tests for the built in realm
  */
+@SuppressWarnings("removal")
 public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
 
     private static Hasher hasher;
@@ -48,9 +50,9 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
     }
 
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
+    public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings settings = Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put("xpack.security.authc.password_hashing.algorithm", hasher.name())
             .build();
         return settings;

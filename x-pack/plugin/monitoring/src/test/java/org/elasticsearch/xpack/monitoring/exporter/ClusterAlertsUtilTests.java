@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
@@ -17,7 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 
@@ -107,12 +108,18 @@ public class ClusterAlertsUtilTests extends ESTestCase {
         assertThat(exception.getMessage(),
                    equalTo("[xpack.monitoring.exporters._random.cluster_alerts.management.blacklist] contains unrecognized Cluster " +
                            "Alert IDs [" + unknownIdsString + "]"));
+
+        assertWarnings("[xpack.monitoring.exporters._random.cluster_alerts.management.blacklist] setting was deprecated in " +
+            "Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testGetClusterAlertsBlacklist() {
         final List<String> blacklist = randomSubsetOf(Arrays.asList(ClusterAlertsUtil.WATCH_IDS));
 
         assertThat(blacklist, equalTo(ClusterAlertsUtil.getClusterAlertsBlacklist(createConfigWithBlacklist("any", blacklist))));
+
+        assertWarnings("[xpack.monitoring.exporters.any.cluster_alerts.management.blacklist] setting was deprecated in Elasticsearch " +
+            "and will be removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     private Exporter.Config createConfigWithBlacklist(final String name, final List<String> blacklist) {

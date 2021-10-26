@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.searchablesnapshots;
 
@@ -15,24 +16,31 @@ public class SearchableSnapshotsFeatureSetUsageTests extends AbstractWireSeriali
     @Override
     protected SearchableSnapshotFeatureSetUsage createTestInstance() {
         boolean available = randomBoolean();
-        return new SearchableSnapshotFeatureSetUsage(available, randomIntBetween(0, 100000));
+        return new SearchableSnapshotFeatureSetUsage(available, randomIntBetween(0, 100000), randomIntBetween(0, 100000));
     }
 
     @Override
     protected SearchableSnapshotFeatureSetUsage mutateInstance(SearchableSnapshotFeatureSetUsage instance) throws IOException {
         boolean available = instance.available();
-        int numSearchableSnapshotIndices = instance.getNumberOfSearchableSnapshotIndices();
-        switch (between(0, 1)) {
+        int numFullCopySearchableSnapshotIndices = instance.getNumberOfFullCopySearchableSnapshotIndices();
+        int numSharedCacheSearchableSnapshotIndices = instance.getNumberOfSharedCacheSearchableSnapshotIndices();
+        switch (between(0, 2)) {
             case 0:
                 available = available == false;
                 break;
             case 1:
-                numSearchableSnapshotIndices = randomValueOtherThan(numSearchableSnapshotIndices, () -> randomIntBetween(0, 100000));
+                numFullCopySearchableSnapshotIndices = randomValueOtherThan(numFullCopySearchableSnapshotIndices,
+                    () -> randomIntBetween(0, 100000));
+                break;
+            case 2:
+                numSharedCacheSearchableSnapshotIndices = randomValueOtherThan(numSharedCacheSearchableSnapshotIndices,
+                    () -> randomIntBetween(0, 100000));
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new SearchableSnapshotFeatureSetUsage(available, numSearchableSnapshotIndices);
+        return new SearchableSnapshotFeatureSetUsage(available, numFullCopySearchableSnapshotIndices,
+            numSharedCacheSearchableSnapshotIndices);
     }
 
     @Override

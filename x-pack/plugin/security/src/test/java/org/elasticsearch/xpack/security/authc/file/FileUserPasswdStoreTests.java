@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.file;
 
@@ -101,9 +102,9 @@ public class FileUserPasswdStoreTests extends ESTestCase {
             User user = new User(username);
             assertThat(store.userExists(username), is(true));
             final String password = username.startsWith("pbkdf2") ? "longertestpassword" : "test123";
-            AuthenticationResult result = store.verifyPassword(username, new SecureString(password), () -> user);
+            AuthenticationResult<User> result = store.verifyPassword(username, new SecureString(password), () -> user);
             assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
-            assertThat(result.getUser(), is(user));
+            assertThat(result.getValue(), is(user));
 
             try (BufferedWriter writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
                 writer.append("\n");
@@ -117,21 +118,21 @@ public class FileUserPasswdStoreTests extends ESTestCase {
             assertThat(store.userExists(username), is(true));
             result = store.verifyPassword(username, new SecureString(password), () -> user);
             assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
-            assertThat(result.getUser(), is(user));
+            assertThat(result.getValue(), is(user));
 
             try (BufferedWriter writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
                 writer.newLine();
                 writer.append("foobar:").append(new String(hasher.hash(new SecureString("longtestpassword"))));
             }
 
-            if (!latch.await(5, TimeUnit.SECONDS)) {
+            if (latch.await(5, TimeUnit.SECONDS) == false) {
                 fail("Waited too long for the updated file to be picked up");
             }
 
             assertThat(store.userExists("foobar"), is(true));
             result = store.verifyPassword("foobar", new SecureString("longtestpassword"), () -> user);
             assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
-            assertThat(result.getUser(), is(user));
+            assertThat(result.getValue(), is(user));
         }
     }
 
@@ -158,14 +159,14 @@ public class FileUserPasswdStoreTests extends ESTestCase {
             String username = settings.get("xpack.security.authc.password_hashing.algorithm");
             User user = new User(username);
             final String password = username.startsWith("pbkdf2") ? "longertestpassword" : "test123";
-            final AuthenticationResult result = store.verifyPassword(username, new SecureString(password), () -> user);
+            final AuthenticationResult<User> result = store.verifyPassword(username, new SecureString(password), () -> user);
             assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
-            assertThat(result.getUser(), is(user));
+            assertThat(result.getValue(), is(user));
 
             // now replacing the content of the users file with something that cannot be read
             Files.write(testUsers, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
 
-            if (!latch.await(5, TimeUnit.SECONDS)) {
+            if (latch.await(5, TimeUnit.SECONDS) == false) {
                 fail("Waited too long for the updated file to be picked up");
             }
 

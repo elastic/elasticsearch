@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.bulk;
@@ -72,7 +61,7 @@ class BulkPrimaryExecutionContext {
     private int currentIndex = -1;
 
     private ItemProcessingState currentItemState;
-    private DocWriteRequest requestToExecute;
+    private DocWriteRequest<?> requestToExecute;
     private BulkItemResponse executionResult;
     private int retryCounter;
 
@@ -193,7 +182,7 @@ class BulkPrimaryExecutionContext {
      * sets the request that should actually be executed on the primary. This can be different then the request
      * received from the user (specifically, an update request is translated to an indexing or delete request).
      */
-    public void setRequestToExecute(DocWriteRequest writeRequest) {
+    public void setRequestToExecute(DocWriteRequest<?> writeRequest) {
         assert assertInvariants(ItemProcessingState.INITIAL);
         requestToExecute = writeRequest;
         currentItemState = ItemProcessingState.TRANSLATED;
@@ -201,6 +190,7 @@ class BulkPrimaryExecutionContext {
     }
 
     /** returns the request that should be executed on the shard. */
+    @SuppressWarnings("unchecked")
     public <T extends DocWriteRequest<T>> T getRequestToExecute() {
         assert assertInvariants(ItemProcessingState.TRANSLATED);
         return (T) requestToExecute;
@@ -226,7 +216,7 @@ class BulkPrimaryExecutionContext {
     /** completes the operation without doing anything on the primary */
     public void markOperationAsNoOp(DocWriteResponse response) {
         assertInvariants(ItemProcessingState.INITIAL);
-        executionResult = new BulkItemResponse(getCurrentItem().id(), getCurrentItem().request().opType(), response);
+        executionResult = BulkItemResponse.success(getCurrentItem().id(), getCurrentItem().request().opType(), response);
         currentItemState = ItemProcessingState.EXECUTED;
         assertInvariants(ItemProcessingState.EXECUTED);
     }
@@ -235,8 +225,8 @@ class BulkPrimaryExecutionContext {
     public void failOnMappingUpdate(Exception cause) {
         assert assertInvariants(ItemProcessingState.WAIT_FOR_MAPPING_UPDATE);
         currentItemState = ItemProcessingState.EXECUTED;
-        final DocWriteRequest docWriteRequest = getCurrentItem().request();
-        executionResult = new BulkItemResponse(getCurrentItem().id(), docWriteRequest.opType(),
+        final DocWriteRequest<?> docWriteRequest = getCurrentItem().request();
+        executionResult = BulkItemResponse.failure(getCurrentItem().id(), docWriteRequest.opType(),
             // Make sure to use getCurrentItem().index() here, if you use docWriteRequest.index() it will use the
             // concrete index instead of an alias if used!
             new BulkItemResponse.Failure(getCurrentItem().index(), docWriteRequest.id(), cause));
@@ -247,7 +237,7 @@ class BulkPrimaryExecutionContext {
     public void markOperationAsExecuted(Engine.Result result) {
         assertInvariants(ItemProcessingState.TRANSLATED);
         final BulkItemRequest current = getCurrentItem();
-        DocWriteRequest docWriteRequest = getRequestToExecute();
+        DocWriteRequest<?> docWriteRequest = getRequestToExecute();
         switch (result.getResultType()) {
             case SUCCESS:
                 final DocWriteResponse response;
@@ -263,13 +253,13 @@ class BulkPrimaryExecutionContext {
                 } else {
                     throw new AssertionError("unknown result type :" + result.getResultType());
                 }
-                executionResult = new BulkItemResponse(current.id(), current.request().opType(), response);
+                executionResult = BulkItemResponse.success(current.id(), current.request().opType(), response);
                 // set a blank ShardInfo so we can safely send it to the replicas. We won't use it in the real response though.
                 executionResult.getResponse().setShardInfo(new ReplicationResponse.ShardInfo());
                 locationToSync = TransportWriteAction.locationToSync(locationToSync, result.getTranslogLocation());
                 break;
             case FAILURE:
-                executionResult = new BulkItemResponse(current.id(), docWriteRequest.opType(),
+                executionResult = BulkItemResponse.failure(current.id(), docWriteRequest.opType(),
                     // Make sure to use request.index() here, if you
                     // use docWriteRequest.index() it will use the
                     // concrete index instead of an alias if used!

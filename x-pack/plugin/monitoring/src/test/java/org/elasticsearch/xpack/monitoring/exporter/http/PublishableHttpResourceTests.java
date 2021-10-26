@@ -1,12 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
-import java.util.Collections;
-import java.util.Map;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -16,16 +15,17 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.SuppressLoggerChecks;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.rest.RestStatus;
-
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.monitoring.exporter.http.HttpResource.ResourcePublishResult;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.whenPerformRequestAsyncWith;
@@ -141,7 +141,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         verify(logger).trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, owner, ownerType);
         verify(logger).debug("{} [{}] found on the [{}] {}", resourceType, resourceName, owner, ownerType);
         verify(client).performRequestAsync(eq(request), any(ResponseListener.class));
-        verify(logger, times(2)).error(any(org.apache.logging.log4j.util.Supplier.class), any(ResponseException.class));
+        verify(logger, times(2)).error(any(org.apache.logging.log4j.util.Supplier.class), any(Exception.class));
 
         verifyNoMoreInteractions(client, logger);
     }

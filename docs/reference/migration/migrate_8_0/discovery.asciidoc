@@ -1,15 +1,11 @@
 [discrete]
 [[breaking_80_discovery_changes]]
-=== Discovery changes
+==== Discovery changes
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
-
-// end::notable-breaking-changes[]
-
-
 .`discovery.zen` settings have been removed.
 [%collapsible]
 ====
@@ -46,3 +42,4 @@ are no longer supported. In particular, this includes:
 Discontinue use of the `discovery.zen` settings. Specifying these settings in
 `elasticsearch.yml` will result in an error on startup.
 ====
+// end::notable-breaking-changes[]

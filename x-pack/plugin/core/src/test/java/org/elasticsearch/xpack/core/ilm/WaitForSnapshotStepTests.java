@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -57,7 +58,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
 
     public void testNoSlmPolicies() {
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
-            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Map.of("phase_time", Long.toString(randomLong())))
+            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Map.of("action_time", Long.toString(randomLong())))
             .settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ImmutableOpenMap.Builder<String, IndexMetadata> indices =
@@ -81,7 +82,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
 
 
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
-            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Map.of("phase_time", Long.toString(randomLong())))
+            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Map.of("action_time", Long.toString(randomLong())))
             .settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ImmutableOpenMap.Builder<String, IndexMetadata> indices =
@@ -94,38 +95,62 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
     }
 
     public void testSlmPolicyExecutedBeforeStep() throws IOException {
-        long phaseTime = randomLong();
-
-        WaitForSnapshotStep instance = createRandomInstance();
-        SnapshotLifecyclePolicyMetadata slmPolicy = SnapshotLifecyclePolicyMetadata.builder()
-            .setModifiedDate(randomLong())
-            .setPolicy(new SnapshotLifecyclePolicy("", "", "", "", null, null))
-            .setLastSuccess(new SnapshotInvocationRecord("", phaseTime - 10, ""))
-            .build();
-        SnapshotLifecycleMetadata smlMetadata = new SnapshotLifecycleMetadata(Map.of(instance.getPolicy(), slmPolicy),
-            OperationMode.RUNNING, null);
-
-        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
-            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Map.of("phase_time", Long.toString(phaseTime)))
-            .settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices =
-            ImmutableOpenMap.<String, IndexMetadata>builder().fPut(indexMetadata.getIndex().getName(), indexMetadata);
-        Metadata.Builder meta = Metadata.builder().indices(indices.build()).putCustom(SnapshotLifecycleMetadata.TYPE, smlMetadata);
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(meta).build();
-        ClusterStateWaitStep.Result result = instance.isConditionMet(indexMetadata.getIndex(), clusterState);
-        assertFalse(result.isComplete());
-        assertTrue(getMessage(result).contains("to be executed"));
+        // The snapshot was started and finished before the phase time, so we do not expect the step to finish:
+        assertSlmPolicyExecuted(false, false);
     }
 
     public void testSlmPolicyExecutedAfterStep() throws IOException {
+        // The snapshot was started and finished after the phase time, so we do expect the step to finish:
+        assertSlmPolicyExecuted(true, true);
+    }
+
+    public void testSlmPolicyNotExecutedWhenStartIsBeforePhaseTime() throws IOException {
+        // The snapshot was started before the phase time and finished after, so we do expect the step to finish:
+        assertSlmPolicyExecuted(false, true);
+    }
+
+    private void assertSlmPolicyExecuted(boolean startTimeAfterPhaseTime, boolean finishTimeAfterPhaseTime) throws IOException {
         long phaseTime = randomLong();
 
         WaitForSnapshotStep instance = createRandomInstance();
         SnapshotLifecyclePolicyMetadata slmPolicy = SnapshotLifecyclePolicyMetadata.builder()
             .setModifiedDate(randomLong())
             .setPolicy(new SnapshotLifecyclePolicy("", "", "", "", null, null))
-            .setLastSuccess(new SnapshotInvocationRecord("", phaseTime + 10, ""))
+            .setLastSuccess(new SnapshotInvocationRecord("",
+                phaseTime + (startTimeAfterPhaseTime ? 10 : -100),
+                phaseTime + (finishTimeAfterPhaseTime ? 100 : -10), ""))
+            .build();
+        SnapshotLifecycleMetadata smlMetadata = new SnapshotLifecycleMetadata(Map.of(instance.getPolicy(), slmPolicy),
+            OperationMode.RUNNING, null);
+
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
+            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Map.of("action_time", Long.toString(phaseTime)))
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices =
+            ImmutableOpenMap.<String, IndexMetadata>builder().fPut(indexMetadata.getIndex().getName(), indexMetadata);
+        Metadata.Builder meta = Metadata.builder().indices(indices.build()).putCustom(SnapshotLifecycleMetadata.TYPE, smlMetadata);
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(meta).build();
+        ClusterStateWaitStep.Result result = instance.isConditionMet(indexMetadata.getIndex(), clusterState);
+        if (startTimeAfterPhaseTime) {
+            assertTrue(result.isComplete());
+            assertNull(result.getInfomationContext());
+        } else {
+            assertFalse(result.isComplete());
+            assertTrue(getMessage(result).contains("to be executed"));
+        }
+    }
+
+    public void testNullStartTime() throws IOException {
+        long phaseTime = randomLong();
+
+        WaitForSnapshotStep instance = createRandomInstance();
+        SnapshotLifecyclePolicyMetadata slmPolicy = SnapshotLifecyclePolicyMetadata.builder()
+            .setModifiedDate(randomLong())
+            .setPolicy(new SnapshotLifecyclePolicy("", "", "", "", null, null))
+            .setLastSuccess(new SnapshotInvocationRecord("",
+                null,
+                phaseTime + 100, ""))
             .build();
         SnapshotLifecycleMetadata smlMetadata = new SnapshotLifecycleMetadata(Map.of(instance.getPolicy(), slmPolicy),
             OperationMode.RUNNING, null);
@@ -138,9 +163,9 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
             ImmutableOpenMap.<String, IndexMetadata>builder().fPut(indexMetadata.getIndex().getName(), indexMetadata);
         Metadata.Builder meta = Metadata.builder().indices(indices.build()).putCustom(SnapshotLifecycleMetadata.TYPE, smlMetadata);
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(meta).build();
-        ClusterStateWaitStep.Result result = instance.isConditionMet(indexMetadata.getIndex(), clusterState);
-        assertTrue(result.isComplete());
-        assertNull(result.getInfomationContext());
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> instance.isConditionMet(indexMetadata.getIndex(),
+            clusterState));
+        assertTrue(e.getMessage().contains("no information about ILM action start"));
     }
 
     private String getMessage(ClusterStateWaitStep.Result result) throws IOException {

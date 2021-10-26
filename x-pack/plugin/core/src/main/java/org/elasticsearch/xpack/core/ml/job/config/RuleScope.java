@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
@@ -9,14 +10,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ContextParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -31,6 +32,7 @@ import java.util.stream.Collectors;
 
 public class RuleScope implements ToXContentObject, Writeable {
 
+    @SuppressWarnings("unchecked")
     public static ContextParser<Void, RuleScope> parser(boolean ignoreUnknownFields) {
         return (p, c) -> {
             Map<String, Object> unparsedScope = p.map();
@@ -82,7 +84,7 @@ public class RuleScope implements ToXContentObject, Writeable {
     }
 
     public void validate(Set<String> validKeys) {
-        Optional<String> invalidKey = scope.keySet().stream().filter(k -> !validKeys.contains(k)).findFirst();
+        Optional<String> invalidKey = scope.keySet().stream().filter(k -> validKeys.contains(k) == false).findFirst();
         if (invalidKey.isPresent()) {
             if (validKeys.isEmpty()) {
                 throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_SCOPE_NO_AVAILABLE_FIELDS,

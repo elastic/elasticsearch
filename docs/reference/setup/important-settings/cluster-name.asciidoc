@@ -1,6 +1,6 @@
 [[cluster-name]]
 [discrete]
-=== Cluster name setting
+==== Cluster name setting
 
 A node can only join a cluster when it shares its `cluster.name` with all the
 other nodes in the cluster. The default name is `elasticsearch`, but you should

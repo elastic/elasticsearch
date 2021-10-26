@@ -1,21 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authz.support;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
@@ -24,7 +25,9 @@ import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -74,23 +77,38 @@ public final class DLSRoleQueryValidator {
     private static boolean isTemplateQuery(BytesReference query, NamedXContentRegistry xContentRegistry) throws IOException {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry,
             LoggingDeprecationHandler.INSTANCE, query.utf8ToString())) {
-            XContentParser.Token token = parser.nextToken();
-            if (token != XContentParser.Token.START_OBJECT) {
-                throw new XContentParseException(parser.getTokenLocation(), "expected [" + XContentParser.Token.START_OBJECT + "] but " +
-                    "found [" + token + "] instead");
-            }
-            token = parser.nextToken();
-            if (token != XContentParser.Token.FIELD_NAME) {
-                throw new XContentParseException(parser.getTokenLocation(), "expected [" + XContentParser.Token.FIELD_NAME + "] with " +
-                    "value a query name or 'template' but found [" + token + "] instead");
-            }
-            String fieldName = parser.currentName();
-            if ("template".equals(fieldName)) {
-                return true;
-            }
+            return isTemplateQuery(parser);
         }
+    }
 
-        return false;
+    private static boolean isTemplateQuery(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.nextToken();
+        if (token != XContentParser.Token.START_OBJECT) {
+            throw new XContentParseException(parser.getTokenLocation(), "expected [" + XContentParser.Token.START_OBJECT + "] but " +
+                "found [" + token + "] instead");
+        }
+        token = parser.nextToken();
+        if (token != XContentParser.Token.FIELD_NAME) {
+            throw new XContentParseException(parser.getTokenLocation(), "expected [" + XContentParser.Token.FIELD_NAME + "] with " +
+                "value a query name or 'template' but found [" + token + "] instead");
+        }
+        String fieldName = parser.currentName();
+        return "template".equals(fieldName);
+    }
+
+    public static boolean hasStoredScript(BytesReference query, NamedXContentRegistry xContentRegistry) throws IOException {
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry,
+            LoggingDeprecationHandler.INSTANCE, query.utf8ToString())) {
+            if (false == isTemplateQuery(parser)) {
+               return false;
+            }
+            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                throw new XContentParseException(
+                    parser.getTokenLocation(),
+                    "expected [" + XContentParser.Token.START_OBJECT + "] but found [" + parser.currentToken() + "] instead");
+            }
+            return ScriptType.STORED == Script.parse(parser).getType();
+        }
     }
 
     /**
@@ -121,7 +139,7 @@ public final class DLSRoleQueryValidator {
     }
 
     @Nullable
-    private static QueryBuilder evaluateAndVerifyRoleQuery(String query, NamedXContentRegistry xContentRegistry) throws IOException {
+    public static QueryBuilder evaluateAndVerifyRoleQuery(String query, NamedXContentRegistry xContentRegistry) throws IOException {
         if (query != null) {
             try (XContentParser parser = XContentFactory.xContent(query).createParser(xContentRegistry,
                 LoggingDeprecationHandler.INSTANCE, query)) {

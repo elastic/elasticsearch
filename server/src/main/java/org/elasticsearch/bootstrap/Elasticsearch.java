@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.bootstrap;
@@ -91,18 +80,26 @@ class Elasticsearch extends EnvironmentAwareCommand {
         final Elasticsearch elasticsearch = new Elasticsearch();
         int status = main(args, elasticsearch, Terminal.DEFAULT);
         if (status != ExitCodes.OK) {
-            final String basePath = System.getProperty("es.logs.base_path");
-            // It's possible to fail before logging has been configured, in which case there's no point
-            // suggesting that the user look in the log file.
-            if (basePath != null) {
-                Terminal.DEFAULT.errorPrintln(
-                    "ERROR: Elasticsearch did not exit normally - check the logs at "
-                        + basePath
-                        + System.getProperty("file.separator")
-                        + System.getProperty("es.logs.cluster_name") + ".log"
-                );
-            }
+            printLogsSuggestion();
             exit(status);
+        }
+    }
+
+    /**
+     * Prints a message directing the user to look at the logs. A message is only printed if
+     * logging has been configured.
+     */
+    static void printLogsSuggestion() {
+        final String basePath = System.getProperty("es.logs.base_path");
+        // It's possible to fail before logging has been configured, in which case there's no point
+        // suggesting that the user look in the log file.
+        if (basePath != null) {
+            Terminal.DEFAULT.errorPrintln(
+                "ERROR: Elasticsearch did not exit normally - check the logs at "
+                    + basePath
+                    + System.getProperty("file.separator")
+                    + System.getProperty("es.logs.cluster_name") + ".log"
+            );
         }
     }
 
@@ -167,7 +164,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
     void init(final boolean daemonize, final Path pidFile, final boolean quiet, Environment initialEnv)
         throws NodeValidationException, UserException {
         try {
-            Bootstrap.init(!daemonize, pidFile, quiet, initialEnv);
+            Bootstrap.init(daemonize == false, pidFile, quiet, initialEnv);
         } catch (BootstrapException | RuntimeException e) {
             // format exceptions to the console in a special way
             // to avoid 2MB stacktraces from guice, etc.

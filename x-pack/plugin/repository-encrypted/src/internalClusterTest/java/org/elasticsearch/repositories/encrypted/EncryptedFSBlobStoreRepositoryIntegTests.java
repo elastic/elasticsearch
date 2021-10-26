@@ -1,11 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.repositories.encrypted;
 
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -32,6 +32,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
 import static org.elasticsearch.repositories.encrypted.EncryptedRepository.getEncryptedBlobByteLength;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -42,7 +43,8 @@ public final class EncryptedFSBlobStoreRepositoryIntegTests extends ESFsBasedRep
     private static List<String> repositoryNames = new ArrayList<>();
 
     @BeforeClass
-    private static void preGenerateRepositoryNames() {
+    public static void preGenerateRepositoryNames() {
+        assumeFalse("Should only run when encrypted repo is enabled", EncryptedRepositoryPlugin.isDisabled());
         for (int i = 0; i < NUMBER_OF_TEST_REPOSITORIES; i++) {
             repositoryNames.add("test-repo-" + i);
         }
@@ -63,9 +65,9 @@ public final class EncryptedFSBlobStoreRepositoryIntegTests extends ESFsBasedRep
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), License.LicenseType.TRIAL.getTypeName())
             .setSecureSettings(nodeSecureSettings())
             .build();
@@ -113,7 +115,6 @@ public final class EncryptedFSBlobStoreRepositoryIntegTests extends ESFsBasedRep
         client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true).setIndices("other*").get();
 
         assertAcked(client().admin().cluster().prepareDeleteRepository(repoName));
-        createRepository(repoName, Settings.builder().put(repoSettings).put("readonly", randomBoolean()).build(), randomBoolean());
 
         try (Stream<Path> rootContents = Files.list(repoPath.resolve(EncryptedRepository.DEK_ROOT_CONTAINER))) {
             // tamper all DEKs
@@ -134,22 +135,38 @@ public final class EncryptedFSBlobStoreRepositoryIntegTests extends ESFsBasedRep
                     throw new UncheckedIOException(e);
                 }
             });
-            final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) internalCluster().getCurrentMasterNodeInstance(
-                RepositoriesService.class
-            ).repository(repoName);
-            RepositoryException e = expectThrows(
-                RepositoryException.class,
-                () -> PlainActionFuture.<RepositoryData, Exception>get(
-                    f -> blobStoreRepository.threadPool().generic().execute(ActionRunnable.wrap(f, blobStoreRepository::getRepositoryData))
-                )
+        }
+
+        final Settings settings = Settings.builder().put(repoSettings).put(READONLY_SETTING_KEY, randomBoolean()).build();
+        final boolean verifyOnCreate = randomBoolean();
+
+        if (verifyOnCreate) {
+            assertThat(
+                expectThrows(RepositoryException.class, () -> createRepository(repoName, settings, true)).getMessage(),
+                containsString("the encryption metadata in the repository has been corrupted")
             );
-            assertThat(e.getMessage(), containsString("the encryption metadata in the repository has been corrupted"));
-            e = expectThrows(
+            // it still creates the repository even if verification failed
+        } else {
+            createRepository(repoName, settings, false);
+        }
+
+        final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) internalCluster().getCurrentMasterNodeInstance(
+            RepositoriesService.class
+        ).repository(repoName);
+        assertThat(
+            expectThrows(
+                RepositoryException.class,
+                () -> PlainActionFuture.<RepositoryData, Exception>get(blobStoreRepository::getRepositoryData)
+            ).getMessage(),
+            containsString("the encryption metadata in the repository has been corrupted")
+        );
+        assertThat(
+            expectThrows(
                 RepositoryException.class,
                 () -> client().admin().cluster().prepareRestoreSnapshot(repoName, snapshotName).setWaitForCompletion(true).get()
-            );
-            assertThat(e.getMessage(), containsString("the encryption metadata in the repository has been corrupted"));
-        }
+            ).getMessage(),
+            containsString("the encryption metadata in the repository has been corrupted")
+        );
     }
 
 }

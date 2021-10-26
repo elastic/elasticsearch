@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[index-lifecycle-error-handling]]
-== Resolve lifecycle policy execution errors
+== Troubleshooting {ilm} errors
 
 When {ilm-init} executes a lifecycle policy, it's possible for errors to occur
 while performing the necessary index operations for a step. 
@@ -147,3 +147,69 @@ POST /my-index-000001/_ilm/retry
 
 {ilm-init} subsequently attempts to re-run the step that failed. 
 You can use the <<ilm-explain-lifecycle,{ilm-init} Explain API>> to monitor the progress.
+
+[discrete]
+=== Common {ilm-init} errors
+
+Here's how to resolve the most common errors reported in the `ERROR` step.
+
+TIP: Problems with rollover aliases are a common cause of errors.
+Consider using <<data-streams, data streams>> instead of managing rollover with aliases.
+
+[discrete]
+==== Rollover alias [x] can point to multiple indices, found duplicated alias [x] in index template [z]
+
+The target rollover alias is specified in an index template's `index.lifecycle.rollover_alias` setting.
+You need to explicitly configure this alias _one time_ when you
+<<ilm-gs-alias-bootstrap, bootstrap the initial index>>.
+The rollover action then manages setting and updating the alias to
+<<rollover-index-api-desc, roll over>> to each subsequent index.
+
+Do not explicitly configure this same alias in the aliases section of an index template.
+
+[discrete]
+==== index.lifecycle.rollover_alias [x] does not point to index [y]
+
+Either the index is using the wrong alias or the alias does not exist.
+
+Check the `index.lifecycle.rollover_alias` <<indices-get-settings, index setting>>.
+To see what aliases are configured, use <<cat-alias, _cat/aliases>>.
+
+[discrete]
+==== Setting [index.lifecycle.rollover_alias] for index [y] is empty or not defined
+
+The `index.lifecycle.rollover_alias` setting must be configured for the rollover action to work.
+
+Update the index settings to set `index.lifecycle.rollover_alias`.
+
+[discrete]
+==== Alias [x] has more than one write index [y,z]
+
+Only one index can be designated as the write index for a particular alias.
+
+Use the <<indices-aliases, aliases>> API to set `is_write_index:false` for all but one index.
+
+[discrete]
+==== index name [x] does not match pattern ^.*-\d+
+
+The index name must match the regex pattern `^.*-\d+` for the rollover action to work.
+The most common problem is that the index name does not contain trailing digits.
+For example, `my-index` does not match the pattern requirement.
+
+Append a numeric value to the index name, for example `my-index-000001`.
+
+[discrete]
+==== CircuitBreakingException: [x] data too large, data for [y]
+
+This indicates that the cluster is hitting resource limits.
+
+Before continuing to set up {ilm-init}, you'll need to take steps to alleviate the resource issues.
+For more information, see <<circuit-breaker-errors>>.
+
+[discrete]
+==== High disk watermark [x] exceeded on [y]
+
+This indicates that the cluster is running out of disk space.
+This can happen when you don't have {ilm} set up to roll over from hot to warm nodes.
+
+Consider adding nodes, upgrading your hardware, or deleting unneeded indices.

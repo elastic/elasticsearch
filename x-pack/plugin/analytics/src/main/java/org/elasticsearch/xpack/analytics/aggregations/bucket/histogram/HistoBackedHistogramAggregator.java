@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.analytics.aggregations.bucket.histogram;
@@ -44,8 +45,22 @@ public class HistoBackedHistogramAggregator extends AbstractHistogramAggregator 
         CardinalityUpperBound cardinalityUpperBound,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, factories, interval, offset, order, keyed, minDocCount, extendedBounds, hardBounds,
-            valuesSourceConfig.format(), context, parent, cardinalityUpperBound, metadata);
+        super(
+            name,
+            factories,
+            interval,
+            offset,
+            order,
+            keyed,
+            minDocCount,
+            extendedBounds,
+            hardBounds,
+            valuesSourceConfig.format(),
+            context,
+            parent,
+            cardinalityUpperBound,
+            metadata
+        );
 
         // TODO: Stop using null here
         this.valuesSource = valuesSourceConfig.hasValues() ? (HistogramValuesSource.Histogram) valuesSourceConfig.getValuesSource() : null;
@@ -57,8 +72,7 @@ public class HistoBackedHistogramAggregator extends AbstractHistogramAggregator 
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
@@ -85,9 +99,10 @@ public class HistoBackedHistogramAggregator extends AbstractHistogramAggregator 
                             } else {
                                 collectBucket(sub, doc, bucketOrd);
                             }
-                            // We have added the document already. We should increment doc_count by count - 1
-                            // so that we have added it count times.
-                            incrementBucketDocCount(bucketOrd, count - 1);
+                            // We have added the document already and we have incremented bucket doc_count
+                            // by _doc_count times. To compensate for this, we should increment doc_count by
+                            // (count - _doc_count) so that we have added it count times.
+                            incrementBucketDocCount(bucketOrd, count - docCountProvider.getDocCount(doc));
                         }
                         previousKey = key;
                     }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.input.chain;
 
@@ -9,12 +10,12 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
@@ -34,7 +35,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.chainInput;
@@ -61,7 +62,7 @@ public class ChainInputTests extends ESTestCase {
     }
      */
     public void testThatExecutionWorks() throws Exception {
-        Map<String, InputFactory> factories = new HashMap<>();
+        Map<String, InputFactory<?, ?, ?>> factories = new HashMap<>();
         factories.put("simple", new SimpleInputFactory());
 
         // hackedy hack...
@@ -96,7 +97,9 @@ public class ChainInputTests extends ESTestCase {
         assertThat(payload.data().get("second"), instanceOf(Map.class));
 
         // final payload check
+        @SuppressWarnings("unchecked")
         Map<String, Object> firstPayload = (Map<String, Object>) payload.data().get("first");
+        @SuppressWarnings("unchecked")
         Map<String, Object> secondPayload = (Map<String, Object>) payload.data().get("second");
         assertThat(firstPayload, hasEntry("foo", "bar"));
         assertThat(secondPayload, hasEntry("spam", "eggs"));
@@ -115,7 +118,7 @@ public class ChainInputTests extends ESTestCase {
                 is("{\"inputs\":[{\"first\":{\"simple\":{\"foo\":\"bar\"}}},{\"second\":{\"simple\":{\"spam\":\"eggs\"}}}]}"));
 
         // parsing it back as well!
-        Map<String, InputFactory> factories = new HashMap<>();
+        Map<String, InputFactory<?, ?, ?>> factories = new HashMap<>();
         factories.put("simple", new SimpleInputFactory());
 
         InputRegistry inputRegistry = new InputRegistry(factories);
@@ -175,7 +178,7 @@ public class ChainInputTests extends ESTestCase {
     }
      */
     public void testParsingShouldBeStrictWhenClosingInputs() throws Exception {
-        Map<String, InputFactory> factories = new HashMap<>();
+        Map<String, InputFactory<?, ?, ?>> factories = new HashMap<>();
         factories.put("simple", new SimpleInputFactory());
 
         InputRegistry inputRegistry = new InputRegistry(factories);
@@ -204,7 +207,7 @@ public class ChainInputTests extends ESTestCase {
     }
      */
     public void testParsingShouldBeStrictWhenStartingInputs() throws Exception {
-        Map<String, InputFactory> factories = new HashMap<>();
+        Map<String, InputFactory<?, ?, ?>> factories = new HashMap<>();
         factories.put("simple", new SimpleInputFactory());
 
         InputRegistry inputRegistry = new InputRegistry(factories);

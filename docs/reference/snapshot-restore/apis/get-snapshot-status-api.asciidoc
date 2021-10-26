@@ -81,6 +81,13 @@ GET /_snapshot/my_repository/my_snapshot/_status
 
 `GET /_snapshot/<repository>/<snapshot>/_status`
 
+[[get-snapshot-status-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`monitor_snapshot`, `create_snapshot`, or `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
+
 [[get-snapshot-status-api-desc]]
 ==== {api-description-title}
 
@@ -108,8 +115,10 @@ To retrieve a list of all snapshots in a specified repository, omit this paramet
 NOTE: Wildcard (`*`) expressions are not supported for `<snapshot>`.
 
 [role="child_attributes"]
-[[get-snapshot-status-api-request-body]]
-==== {api-request-body-title}
+[[get-snapshot-status-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 `ignore_unavailable`::
 (Optional, Boolean)

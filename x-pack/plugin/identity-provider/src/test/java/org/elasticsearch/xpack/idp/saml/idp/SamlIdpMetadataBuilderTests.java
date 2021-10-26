@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.idp.saml.idp;
 
@@ -43,13 +44,19 @@ public class SamlIdpMetadataBuilderTests extends IdpSamlTestCase {
             .build();
         final Element element = new EntityDescriptorMarshaller().marshall(entityDescriptor);
         final String xml = samlFactory.toString(element, false);
-        assertThat(xml, equalTo("<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
-            "<md:EntityDescriptor xmlns:md=\"urn:oasis:names:tc:SAML:2.0:metadata\" entityID=\"https://idp.org\">" +
-            "<md:IDPSSODescriptor WantAuthnRequestsSigned=\"false\" protocolSupportEnumeration=\"urn:oasis:names:tc:SAML:2.0:protocol\">" +
-            "<md:SingleSignOnService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect\" " +
-            "Location=\"https://idp.org/sso/redirect\"/>" +
-            "</md:IDPSSODescriptor>" +
-            "</md:EntityDescriptor>"));
+        assertThat(
+            xml,
+            equalTo(
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+                    + "<md:EntityDescriptor xmlns:md=\"urn:oasis:names:tc:SAML:2.0:metadata\" entityID=\"https://idp.org\">"
+                    + "<md:IDPSSODescriptor WantAuthnRequestsSigned=\"false\" "
+                    + "protocolSupportEnumeration=\"urn:oasis:names:tc:SAML:2.0:protocol\">"
+                    + "<md:SingleSignOnService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect\" "
+                    + "Location=\"https://idp.org/sso/redirect\"/>"
+                    + "</md:IDPSSODescriptor>"
+                    + "</md:EntityDescriptor>"
+            )
+        );
     }
 
     public void testMetadataGenerationWithAllParameters() throws Exception {

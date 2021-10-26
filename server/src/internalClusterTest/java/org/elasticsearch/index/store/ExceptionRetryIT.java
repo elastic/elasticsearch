@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.store;
 
@@ -31,7 +20,7 @@ import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
@@ -49,7 +38,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -82,7 +71,7 @@ public class ExceptionRetryIT extends ESIntegTestCase {
         int numDocs = scaledRandomIntBetween(100, 1000);
         Client client = internalCluster().coordOnlyNodeClient();
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
-        NodeStats unluckyNode = randomFrom(nodeStats.getNodes().stream().filter((s) -> s.getNode().isDataNode())
+        NodeStats unluckyNode = randomFrom(nodeStats.getNodes().stream().filter((s) -> s.getNode().canContainData())
             .collect(Collectors.toList()));
         assertAcked(client().admin().indices().prepareCreate("index").setSettings(Settings.builder()
             .put("index.number_of_replicas", 1)
@@ -126,8 +115,8 @@ public class ExceptionRetryIT extends ESIntegTestCase {
         long dupCounter = 0;
         boolean found_duplicate_already = false;
         for (int i = 0; i < searchResponse.getHits().getHits().length; i++) {
-            if (!uniqueIds.add(searchResponse.getHits().getHits()[i].getId())) {
-                if (!found_duplicate_already) {
+            if (uniqueIds.add(searchResponse.getHits().getHits()[i].getId()) == false) {
+                if (found_duplicate_already == false) {
                     SearchResponse dupIdResponse = client().prepareSearch("index").setQuery(termQuery("_id",
                         searchResponse.getHits().getHits()[i].getId())).setExplain(true).get();
                     assertThat(dupIdResponse.getHits().getTotalHits().value, greaterThan(1L));

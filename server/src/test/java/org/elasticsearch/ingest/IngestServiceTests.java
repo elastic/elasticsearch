@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest;
@@ -26,13 +15,16 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
@@ -46,12 +38,13 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.cbor.CborXContent;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.plugins.IngestPlugin;
@@ -64,21 +57,27 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
-import org.hamcrest.CustomTypeSafeMatcher;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.cbor.CborXContent;
 import org.junit.Before;
 import org.mockito.ArgumentMatcher;
 import org.mockito.invocation.InvocationOnMock;
 
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -88,6 +87,10 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.core.Tuple.tuple;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -122,9 +125,8 @@ public class IngestServiceTests extends ESTestCase {
     @Before
     public void setup(){
         threadPool = mock(ThreadPool.class);
-        ExecutorService executorService = EsExecutors.newDirectExecutorService();
-        when(threadPool.generic()).thenReturn(executorService);
-        when(threadPool.executor(anyString())).thenReturn(executorService);
+        when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
     public void testIngestPlugin() {
         Client client = mock(Client.class);
@@ -272,7 +274,7 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         assertThat(ingestService.getPipeline("_id"), nullValue());
 
-        // Delete existing pipeline:
+        // Delete not existing pipeline:
         try {
             IngestService.innerDelete(deleteRequest, clusterState);
             fail("exception expected");
@@ -285,13 +287,83 @@ public class IngestServiceTests extends ESTestCase {
         IngestService ingestService = createWithProcessors();
         PutPipelineRequest putRequest = new PutPipelineRequest("_id", new BytesArray(
             "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"), XContentType.JSON);
-        Exception e = expectThrows(IllegalStateException.class, () -> ingestService.validatePipeline(emptyMap(), putRequest));
+
+        var pipelineConfig = XContentHelper.convertToMap(putRequest.getSource(), false, putRequest.getXContentType()).v2();
+        Exception e = expectThrows(
+            IllegalStateException.class,
+            () -> ingestService.validatePipeline(emptyMap(), putRequest.getId(), pipelineConfig)
+        );
         assertEquals("Ingest info is empty", e.getMessage());
 
         DiscoveryNode discoveryNode = new DiscoveryNode("_node_id", buildNewFakeTransportAddress(),
             emptyMap(), emptySet(), Version.CURRENT);
         IngestInfo ingestInfo = new IngestInfo(Collections.singletonList(new ProcessorInfo("set")));
-        ingestService.validatePipeline(Collections.singletonMap(discoveryNode, ingestInfo), putRequest);
+        ingestService.validatePipeline(Collections.singletonMap(discoveryNode, ingestInfo), putRequest.getId(), pipelineConfig);
+    }
+
+    public void testValidateNotInUse() {
+        String pipeline = "pipeline";
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.builder();
+        int defaultIndicesCount = randomIntBetween(0, 4);
+        List<String> defaultIndices = new ArrayList<>();
+        for (int i = 0; i < defaultIndicesCount; i++) {
+            String indexName = "index" + i;
+            defaultIndices.add(indexName);
+            IndexMetadata.Builder builder = IndexMetadata.builder(indexName);
+            Settings.Builder settingsBuilder = settings(Version.CURRENT);
+            settingsBuilder.put(IndexSettings.DEFAULT_PIPELINE.getKey(), pipeline);
+            builder.settings(settingsBuilder);
+            IndexMetadata indexMetadata = builder.settings(settingsBuilder).numberOfShards(1).numberOfReplicas(1).build();
+            indices.put(indexName, indexMetadata);
+        }
+
+        int finalIndicesCount = randomIntBetween(defaultIndicesCount > 0 ? 0 : 1, 4);
+        List<String> finalIndices = new ArrayList<>();
+        for (int i = defaultIndicesCount; i < (finalIndicesCount + defaultIndicesCount); i++) {
+            String indexName = "index" + i;
+            finalIndices.add(indexName);
+            IndexMetadata.Builder builder = IndexMetadata.builder(indexName);
+            Settings.Builder settingsBuilder = settings(Version.CURRENT);
+            settingsBuilder.put(IndexSettings.FINAL_PIPELINE.getKey(), pipeline);
+            builder.settings(settingsBuilder);
+            IndexMetadata indexMetadata = builder.settings(settingsBuilder).numberOfShards(1).numberOfReplicas(1).build();
+            indices.put(indexName, indexMetadata);
+        }
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> IngestService.validateNotInUse(pipeline, indices.build())
+        );
+
+        if (defaultIndices.size() > 0) {
+            assertThat(
+                e.getMessage(),
+                containsString(String.format(
+                        Locale.ROOT,
+                        "default pipeline for %s index(es) including [%s]",
+                        defaultIndices.size(),
+                        defaultIndices.stream().sorted().limit(3).collect(Collectors.joining(","))
+                    )
+                )
+            );
+        }
+
+        if (defaultIndices.size() > 0 && finalIndices.size() > 0) {
+            assertThat(e.getMessage(), containsString(" and "));
+        }
+
+        if (finalIndices.size() > 0) {
+            assertThat(
+                e.getMessage(),
+                containsString(String.format(
+                        Locale.ROOT,
+                        "final pipeline for %s index(es) including [%s]",
+                        finalIndices.size(),
+                        finalIndices.stream().sorted().limit(3).collect(Collectors.joining(","))
+                    )
+                )
+            );
+        }
     }
 
     public void testGetProcessorsInPipeline() throws Exception {
@@ -321,6 +393,82 @@ public class IngestServiceTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> ingestService.getProcessorsInPipeline("fakeID", Processor.class));
         assertThat("pipeline with id [fakeID] does not exist", equalTo(e.getMessage()));
+    }
+
+    public void testGetPipelineWithProcessorType() throws Exception {
+        IngestService ingestService = createWithProcessors();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState previousClusterState = clusterState;
+
+        PutPipelineRequest putRequest1 = new PutPipelineRequest("_id1", new BytesArray(
+            "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\", \"tag\": \"tag1\"}}," +
+                "{\"remove\" : {\"field\": \"_field\", \"tag\": \"tag2\"}}]}"),
+            XContentType.JSON);
+        clusterState = IngestService.innerPut(putRequest1, clusterState);
+        PutPipelineRequest putRequest2 = new PutPipelineRequest("_id2", new BytesArray(
+            "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\", \"tag\": \"tag2\"}}]}"),
+            XContentType.JSON);
+        clusterState = IngestService.innerPut(putRequest2, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+
+        assertThat(ingestService.getPipelineWithProcessorType(FakeProcessor.class, processor -> true), containsInAnyOrder("_id1", "_id2"));
+        assertThat(ingestService.getPipelineWithProcessorType(FakeProcessor.class, processor -> false), emptyIterable());
+        assertThat(ingestService.getPipelineWithProcessorType(WrappingProcessorImpl.class, processor -> true), containsInAnyOrder("_id1"));
+    }
+
+    public void testReloadPipeline() throws Exception {
+        boolean[] externalProperty = new boolean[] {false};
+
+        Map<String, Processor.Factory> processorFactories = new HashMap<>();
+        processorFactories.put("set", (factories, tag, description, config) -> {
+            String field = (String) config.remove("field");
+            String value = (String) config.remove("value");
+            if (externalProperty[0]) {
+                return new FakeProcessor("set", tag, description, (ingestDocument) ->ingestDocument.setFieldValue(field, value));
+            } else {
+                return new AbstractProcessor(tag, description) {
+                    @Override
+                    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+                        throw new RuntimeException("reload me");
+                    }
+
+                    @Override
+                    public String getType() {
+                        return "set";
+                    }
+                };
+            }
+        });
+
+        IngestService ingestService = createWithProcessors(processorFactories);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState previousClusterState = clusterState;
+
+        PutPipelineRequest putRequest1 = new PutPipelineRequest("_id1", new BytesArray(
+            "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\", \"tag\": \"tag1\"}}]}"),
+            XContentType.JSON);
+        clusterState = IngestService.innerPut(putRequest1, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+
+        {
+            Exception[] exceptionHolder = new Exception[1];
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+            ingestService.getPipeline("_id1").execute(ingestDocument, (ingestDocument1, e) -> exceptionHolder[0] = e);
+            assertThat(exceptionHolder[0], notNullValue());
+            assertThat(exceptionHolder[0].getMessage(), containsString("reload me"));
+            assertThat(ingestDocument.getSourceAndMetadata().get("_field"), nullValue());
+        }
+
+        externalProperty[0] = true;
+        ingestService.reloadPipeline("_id1");
+
+        {
+            Exception[] holder = new Exception[1];
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+            ingestService.getPipeline("_id1").execute(ingestDocument, (ingestDocument1, e) -> holder[0] = e);
+            assertThat(holder[0], nullValue());
+            assertThat(ingestDocument.getSourceAndMetadata().get("_field"), equalTo("_value"));
+        }
     }
 
     public void testGetProcessorsInPipelineComplexConditional() throws Exception {
@@ -550,6 +698,73 @@ public class IngestServiceTests extends ESTestCase {
         }
     }
 
+    public void testDeleteWithIndexUsePipeline() {
+        IngestService ingestService = createWithProcessors();
+        PipelineConfiguration config = new PipelineConfiguration(
+            "_id",
+            new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"),
+            XContentType.JSON
+        );
+        IngestMetadata ingestMetadata = new IngestMetadata(Collections.singletonMap("_id", config));
+        Metadata.Builder builder = Metadata.builder();
+        for (int i = 0; i < randomIntBetween(2, 10); i++) {
+            builder.put(
+                IndexMetadata.builder("test" + i).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1).build(),
+                true
+            );
+        }
+        builder.putCustom(IngestMetadata.TYPE, ingestMetadata);
+        Metadata metadata = builder.build();
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState previousClusterState = clusterState;
+        clusterState = ClusterState.builder(clusterState).metadata(metadata).build();
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+        assertThat(ingestService.getPipeline("_id"), notNullValue());
+
+        DeletePipelineRequest deleteRequest = new DeletePipelineRequest("_id");
+
+        {
+            // delete pipeline which is in used of default_pipeline
+            IndexMetadata indexMetadata = IndexMetadata.builder("pipeline-index")
+                .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "_id"))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+            ClusterState finalClusterState = ClusterState.builder(clusterState)
+                .metadata(Metadata.builder(metadata).put(indexMetadata, true))
+                .build();
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> IngestService.innerDelete(deleteRequest, finalClusterState)
+            );
+            assertThat(e.getMessage(), containsString("default pipeline for 1 index(es) including [pipeline-index]"));
+        }
+
+        {
+            // delete pipeline which is in used of final_pipeline
+            IndexMetadata indexMetadata = IndexMetadata.builder("pipeline-index")
+                .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "_id"))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+            ClusterState finalClusterState = ClusterState.builder(clusterState)
+                .metadata(Metadata.builder(metadata).put(indexMetadata, true))
+                .build();
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> IngestService.innerDelete(deleteRequest, finalClusterState)
+            );
+            assertThat(e.getMessage(), containsString("final pipeline for 1 index(es) including [pipeline-index]"));
+        }
+
+        // Delete pipeline:
+        previousClusterState = clusterState;
+        clusterState = IngestService.innerDelete(deleteRequest, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+        assertThat(ingestService.getPipeline("_id"), nullValue());
+    }
+
     public void testGetPipelines() {
         Map<String, PipelineConfiguration> configs = new HashMap<>();
         configs.put("_id1", new PipelineConfiguration(
@@ -597,6 +812,7 @@ public class IngestServiceTests extends ESTestCase {
             "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\", \"tag\": \"tag1\"}}," +
                 "{\"remove\" : {\"field\": \"_field\", \"tag\": \"tag2\"}}]}"),
             XContentType.JSON);
+        var pipelineConfig = XContentHelper.convertToMap(putRequest.getSource(), false, putRequest.getXContentType()).v2();
 
         DiscoveryNode node1 = new DiscoveryNode("_node_id1", buildNewFakeTransportAddress(),
             emptyMap(), emptySet(), Version.CURRENT);
@@ -606,14 +822,17 @@ public class IngestServiceTests extends ESTestCase {
         ingestInfos.put(node1, new IngestInfo(Arrays.asList(new ProcessorInfo("set"), new ProcessorInfo("remove"))));
         ingestInfos.put(node2, new IngestInfo(Arrays.asList(new ProcessorInfo("set"))));
 
-        ElasticsearchParseException e =
-            expectThrows(ElasticsearchParseException.class, () -> ingestService.validatePipeline(ingestInfos, putRequest));
+        ElasticsearchParseException e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> ingestService.validatePipeline(ingestInfos, putRequest.getId(), pipelineConfig)
+        );
         assertEquals("Processor type [remove] is not installed on node [" + node2 + "]", e.getMessage());
         assertEquals("remove", e.getMetadata("es.processor_type").get(0));
         assertEquals("tag2", e.getMetadata("es.processor_tag").get(0));
 
+        var pipelineConfig2 = XContentHelper.convertToMap(putRequest.getSource(), false, putRequest.getXContentType()).v2();
         ingestInfos.put(node2, new IngestInfo(Arrays.asList(new ProcessorInfo("set"), new ProcessorInfo("remove"))));
-        ingestService.validatePipeline(ingestInfos, putRequest);
+        ingestService.validatePipeline(ingestInfos, putRequest.getId(), pipelineConfig2);
     }
 
     public void testExecuteIndexPipelineExistsButFailedParsing() {
@@ -693,19 +912,8 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.executeBulkRequest(bulkRequest.numberOfActions(), bulkRequest.requests(), failureHandler,
             completionHandler, indexReq -> {}, Names.WRITE);
         verify(failureHandler, times(1)).accept(
-            argThat(new CustomTypeSafeMatcher<>("failure handler was not called with the expected arguments") {
-                @Override
-                protected boolean matchesSafely(Integer item) {
-                    return item == 2;
-                }
-
-            }),
-            argThat(new CustomTypeSafeMatcher<IllegalArgumentException>("failure handler was not called with the expected arguments") {
-                @Override
-                protected boolean matchesSafely(IllegalArgumentException iae) {
-                    return "pipeline with id [does_not_exist] does not exist".equals(iae.getMessage());
-                }
-            })
+            argThat(item -> item == 2),
+            argThat(iae -> "pipeline with id [does_not_exist] does not exist".equals(iae.getMessage()))
         );
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
@@ -729,6 +937,28 @@ public class IngestServiceTests extends ESTestCase {
             Names.WRITE);
         verify(failureHandler, never()).accept(any(), any());
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+    }
+
+    public void testDynamicTemplates() throws Exception {
+        IngestService ingestService = createWithProcessors(Collections.singletonMap(
+            "set", (factories, tag, description, config) ->
+                new FakeProcessor("set", "", "", (ingestDocument) -> ingestDocument.setFieldValue("_dynamic_templates",
+                    Map.of("foo", "bar", "foo.bar", "baz")))));
+        PutPipelineRequest putRequest = new PutPipelineRequest("_id",
+            new BytesArray("{\"processors\": [{\"set\" : {}}]}"), XContentType.JSON);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        ClusterState previousClusterState = clusterState;
+        clusterState = IngestService.innerPut(putRequest, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+        final IndexRequest indexRequest =
+            new IndexRequest("_index").id("_id").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+        CountDownLatch latch = new CountDownLatch(1);
+        final BiConsumer<Integer, Exception> failureHandler = (v, e) -> { throw new AssertionError("must never fail", e);};
+        final BiConsumer<Thread, Exception> completionHandler = (t, e) -> latch.countDown();
+        ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler,
+            indexReq -> {}, Names.WRITE);
+        latch.await();
+        assertThat(indexRequest.getDynamicTemplates(), equalTo(Map.of("foo", "bar", "foo.bar", "baz")));
     }
 
     public void testExecuteEmptyPipeline() throws Exception {
@@ -776,6 +1006,8 @@ public class IngestServiceTests extends ESTestCase {
                     ingestDocument.setFieldValue(metadata.getFieldName(), ifSeqNo);
                 } else if (metadata == IngestDocument.Metadata.IF_PRIMARY_TERM) {
                     ingestDocument.setFieldValue(metadata.getFieldName(), ifPrimaryTerm);
+                } else if (metadata == IngestDocument.Metadata.DYNAMIC_TEMPLATES) {
+                    ingestDocument.setFieldValue(metadata.getFieldName(), Map.of("foo", "bar"));
                 } else {
                     ingestDocument.setFieldValue(metadata.getFieldName(), "update" + metadata.getFieldName());
                 }
@@ -921,7 +1153,7 @@ public class IngestServiceTests extends ESTestCase {
         int numRequest = scaledRandomIntBetween(8, 64);
         int numIndexRequests = 0;
         for (int i = 0; i < numRequest; i++) {
-            DocWriteRequest request;
+            DocWriteRequest<?> request;
             if (randomBoolean()) {
                 if (randomBoolean()) {
                     request = new DeleteRequest("_index", "_id");
@@ -962,12 +1194,7 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.executeBulkRequest(numRequest, bulkRequest.requests(), requestItemErrorHandler, completionHandler, indexReq -> {},
             Names.WRITE);
 
-        verify(requestItemErrorHandler, times(numIndexRequests)).accept(anyInt(), argThat(new ArgumentMatcher<Exception>() {
-            @Override
-            public boolean matches(final Object o) {
-                return ((Exception)o).getCause().equals(error);
-            }
-        }));
+        verify(requestItemErrorHandler, times(numIndexRequests)).accept(anyInt(), argThat(e -> e.getCause().equals(error)));
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
 
@@ -1020,7 +1247,7 @@ public class IngestServiceTests extends ESTestCase {
         for (DocWriteRequest<?> docWriteRequest : bulkRequest.requests()) {
             IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(docWriteRequest);
             assertThat(indexRequest, notNullValue());
-            assertThat(indexRequest.getContentType(), equalTo(xContentType));
+            assertThat(indexRequest.getContentType(), equalTo(xContentType.canonical()));
         }
     }
 
@@ -1364,6 +1591,24 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
     }
 
+    public void testResolveFinalPipelineWithDateMathExpression() {
+        final long epochMillis = randomLongBetween(1, System.currentTimeMillis());
+        final DateFormatter dateFormatter = DateFormatter.forPattern("uuuu.MM.dd");
+        IndexMetadata.Builder builder = IndexMetadata.builder("idx-" + dateFormatter.formatMillis(epochMillis))
+            .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
+            .numberOfShards(1)
+            .numberOfReplicas(0);
+        Metadata metadata = Metadata.builder().put(builder).build();
+
+        // index name matches with IDM:
+        IndexRequest indexRequest = new IndexRequest("<idx-{now/d}>");
+        boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata, epochMillis);
+        assertThat(result, is(true));
+        assertThat(indexRequest.isPipelineResolved(), is(true));
+        assertThat(indexRequest.getPipeline(), equalTo("_none"));
+        assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
+    }
+
     public void testResolveRequestOrDefaultPipelineAndFinalPipeline() {
         // no pipeline:
         {
@@ -1415,6 +1660,220 @@ public class IngestServiceTests extends ESTestCase {
         }
     }
 
+    public void testUpdatingRandomPipelineWithoutChangesIsNoOp() throws Exception {
+        var randomMap = randomMap(10, 50, IngestServiceTests::randomMapEntry);
+
+        XContentBuilder x = XContentBuilder.builder(XContentType.JSON.xContent())
+            .startObject()
+            .field("processors", randomMap)
+            .endObject();
+
+        OutputStream os = x.getOutputStream();
+        x.generator().close();
+        testUpdatingPipeline(os.toString());
+    }
+
+    public void testUpdatingPipelineWithoutChangesIsNoOp() throws Exception {
+        var value = randomAlphaOfLength(5);
+        var pipelineString = "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"" + value + "\"}}]}";
+        testUpdatingPipeline(pipelineString);
+    }
+
+    private void testUpdatingPipeline(String pipelineString) throws Exception {
+        var pipelineId = randomAlphaOfLength(5);
+        var existingPipeline = new PipelineConfiguration(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
+        var clusterState = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().putCustom(
+                    IngestMetadata.TYPE,
+                    new IngestMetadata(Map.of(pipelineId, existingPipeline))
+                ).build()
+            ).build();
+
+        Client client = mock(Client.class);
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(clusterState);
+        IngestService ingestService = new IngestService(clusterService, threadPool, null, null,
+            null, Collections.singletonList(DUMMY_PLUGIN), client);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, clusterState));
+
+        CountDownLatch latch = new CountDownLatch(1);
+        var listener = new ActionListener<AcknowledgedResponse>() {
+            final AtomicLong successCount = new AtomicLong(0);
+            final AtomicLong failureCount = new AtomicLong(0);
+
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                successCount.incrementAndGet();
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failureCount.incrementAndGet();
+                latch.countDown();
+            }
+
+            public long getSuccessCount() {
+                return successCount.get();
+            }
+
+            public long getFailureCount() {
+                return failureCount.get();
+            }
+        };
+
+        var consumer = new Consumer<ActionListener<NodesInfoResponse>>() {
+            final AtomicLong executionCount = new AtomicLong(0);
+
+            @Override
+            public void accept(ActionListener<NodesInfoResponse> nodesInfoResponseActionListener) {
+                executionCount.incrementAndGet();
+            }
+
+            public long getExecutionCount() {
+                return executionCount.get();
+            }
+        };
+
+        var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
+        ingestService.putPipeline(request, listener, consumer);
+        latch.await();
+
+        assertThat(consumer.getExecutionCount(), equalTo(0L));
+        assertThat(listener.getSuccessCount(), equalTo(1L));
+        assertThat(listener.getFailureCount(), equalTo(0L));
+    }
+
+    public void testPutPipelineWithVersionedUpdateWithoutExistingPipeline() throws Exception {
+        var pipelineId = randomAlphaOfLength(5);
+        var clusterState = ClusterState.EMPTY_STATE;
+
+        final Integer version = randomInt();
+        var pipelineString = "{\"version\": " + version + ", \"processors\": []}";
+        var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON, version);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IngestService.innerPut(request, clusterState));
+        assertThat(
+            e.getMessage(),
+            equalTo(String.format(
+                Locale.ROOT,
+                "version conflict, required version [%s] for pipeline [%s] but no pipeline was found",
+                version,
+                pipelineId
+            ))
+        );
+    }
+
+    public void testPutPipelineWithVersionedUpdateDoesNotMatchExistingPipeline() {
+        var pipelineId = randomAlphaOfLength(5);
+        final Integer version = randomInt();
+        var pipelineString = "{\"version\": " + version + ", \"processors\": []}";
+        var existingPipeline = new PipelineConfiguration(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
+        var clusterState = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().putCustom(
+                    IngestMetadata.TYPE,
+                    new IngestMetadata(Map.of(pipelineId, existingPipeline))
+                ).build()
+            ).build();
+
+        final Integer requestedVersion = randomValueOtherThan(version, ESTestCase::randomInt);
+        var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON, requestedVersion);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IngestService.innerPut(request, clusterState));
+        assertThat(
+            e.getMessage(),
+            equalTo(String.format(
+                Locale.ROOT,
+                "version conflict, required version [%s] for pipeline [%s] but current version is [%s]",
+                requestedVersion,
+                pipelineId,
+                version
+            ))
+        );
+    }
+
+    public void testPutPipelineWithVersionedUpdateSpecifiesSameVersion() throws Exception {
+        var pipelineId = randomAlphaOfLength(5);
+        final Integer version = randomInt();
+        var pipelineString = "{\"version\": " + version + ", \"processors\": []}";
+        var existingPipeline = new PipelineConfiguration(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
+        var clusterState = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().putCustom(
+                    IngestMetadata.TYPE,
+                    new IngestMetadata(Map.of(pipelineId, existingPipeline))
+                ).build()
+            ).build();
+
+        var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON, version);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IngestService.innerPut(request, clusterState));
+        assertThat(
+            e.getMessage(),
+            equalTo(String.format(
+                Locale.ROOT,
+                "cannot update pipeline [%s] with the same version [%s]",
+                pipelineId,
+                version
+            ))
+        );
+    }
+
+    public void testPutPipelineWithVersionedUpdateSpecifiesValidVersion() throws Exception {
+        var pipelineId = randomAlphaOfLength(5);
+        final Integer existingVersion = randomInt();
+        var pipelineString = "{\"version\": " + existingVersion + ", \"processors\": []}";
+        var existingPipeline = new PipelineConfiguration(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
+        var clusterState = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().putCustom(
+                    IngestMetadata.TYPE,
+                    new IngestMetadata(Map.of(pipelineId, existingPipeline))
+                ).build()
+            ).build();
+
+        final int specifiedVersion = randomValueOtherThan(existingVersion, ESTestCase::randomInt);
+        var updatedPipelineString = "{\"version\": " + specifiedVersion + ", \"processors\": []}";
+        var request = new PutPipelineRequest(pipelineId, new BytesArray(updatedPipelineString), XContentType.JSON, existingVersion);
+        var updatedState = IngestService.innerPut(request, clusterState);
+
+        var updatedConfig = ((IngestMetadata) updatedState.metadata().custom(IngestMetadata.TYPE)).getPipelines().get(pipelineId);
+        assertThat(updatedConfig, notNullValue());
+        assertThat(updatedConfig.getVersion(), equalTo(specifiedVersion));
+    }
+
+    public void testPutPipelineWithVersionedUpdateIncrementsVersion() throws Exception {
+        var pipelineId = randomAlphaOfLength(5);
+        final Integer existingVersion = randomInt();
+        var pipelineString = "{\"version\": " + existingVersion + ", \"processors\": []}";
+        var existingPipeline = new PipelineConfiguration(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
+        var clusterState = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().putCustom(
+                    IngestMetadata.TYPE,
+                    new IngestMetadata(Map.of(pipelineId, existingPipeline))
+                ).build()
+            ).build();
+
+        var updatedPipelineString = "{\"processors\": []}";
+        var request = new PutPipelineRequest(pipelineId, new BytesArray(updatedPipelineString), XContentType.JSON, existingVersion);
+        var updatedState = IngestService.innerPut(request, clusterState);
+
+        var updatedConfig = ((IngestMetadata) updatedState.metadata().custom(IngestMetadata.TYPE)).getPipelines().get(pipelineId);
+        assertThat(updatedConfig, notNullValue());
+        assertThat(updatedConfig.getVersion(), equalTo(existingVersion + 1));
+    }
+
+    private static Tuple<String, Object> randomMapEntry() {
+        return tuple(randomAlphaOfLength(5), randomObject());
+    }
+
+    private static Object randomObject() {
+        return randomFrom(
+            random(),
+            ESTestCase::randomLong,
+            () -> generateRandomStringArray(10, 5, true),
+            () -> randomMap(3, 5, IngestServiceTests::randomMapEntry),
+            () -> randomAlphaOfLength(5),
+            ESTestCase::randomTimeValue,
+            ESTestCase::randomDouble
+        );
+    }
+
     private IngestDocument eqIndexTypeId(final Map<String, Object> source) {
         return argThat(new IngestDocumentMatcher("_index", "_type", "_id", -3L, VersionType.INTERNAL, source));
     }
@@ -1442,9 +1901,8 @@ public class IngestServiceTests extends ESTestCase {
 
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
-        ExecutorService executorService = EsExecutors.newDirectExecutorService();
-        when(threadPool.generic()).thenReturn(executorService);
-        when(threadPool.executor(anyString())).thenReturn(executorService);
+        when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         return new IngestService(mock(ClusterService.class), threadPool, null, null,
             null, Collections.singletonList(new IngestPlugin() {
             @Override
@@ -1465,7 +1923,7 @@ public class IngestServiceTests extends ESTestCase {
         return processor;
     }
 
-    private class IngestDocumentMatcher extends ArgumentMatcher<IngestDocument> {
+    private class IngestDocumentMatcher implements ArgumentMatcher<IngestDocument> {
 
         private final IngestDocument ingestDocument;
 
@@ -1478,13 +1936,9 @@ public class IngestServiceTests extends ESTestCase {
         }
 
         @Override
-        public boolean matches(Object o) {
-            if (o.getClass() == IngestDocument.class) {
-                IngestDocument otherIngestDocument = (IngestDocument) o;
-                //ingest metadata will not be the same (timestamp differs every time)
-                return Objects.equals(ingestDocument.getSourceAndMetadata(), otherIngestDocument.getSourceAndMetadata());
-            }
-            return false;
+        public boolean matches(IngestDocument other) {
+            //ingest metadata will not be the same (timestamp differs every time)
+            return Objects.equals(ingestDocument.getSourceAndMetadata(), other.getSourceAndMetadata());
         }
     }
 

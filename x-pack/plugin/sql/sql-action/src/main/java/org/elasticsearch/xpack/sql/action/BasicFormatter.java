@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.action;
 
@@ -28,7 +29,7 @@ public class BasicFormatter implements Writeable {
     private static final int MIN_COLUMN_WIDTH = 15;
 
     private int[] width;
-    
+
     public enum FormatOption {
         CLI(Objects::toString),
         TEXT(StringUtils::toString);
@@ -43,7 +44,7 @@ public class BasicFormatter implements Writeable {
             return apply.apply(l);
         }
     }
-    
+
     private final FormatOption formatOption;
 
     /**
@@ -78,7 +79,7 @@ public class BasicFormatter implements Writeable {
         out.writeIntArray(width);
         out.writeEnum(formatOption);
     }
-    
+
     /**
      * Format the provided {@linkplain SqlQueryResponse} for the set format
      * including the header lines.

@@ -8,7 +8,7 @@ to repeat its specific task. A parameter is a named type value available as a
 function specifies zero-to-many parameters, and when a function is called a
 value is specified per parameter. An argument is a value passed into a function
 at the point of call. A function specifies a return type value, though if the
-type is <<void-type, void>> then no value is returned.  Any non-void type return
+type is <<void-type, void>> then no value is returned. Any non-void type return
 value is available for use within an <<painless-operators, operation>> or is
 discarded otherwise.
 

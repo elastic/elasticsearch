@@ -173,4 +173,4 @@ The specification schema allows to codify API deprecations, either for an entire
 
 ## License
 
-This software is licensed under the Apache License, version 2 ("ALv2").
+This software is dual licensed under the Server Side Public License, v 1 ("SSPL-1.0") and Elastic License 2.0.

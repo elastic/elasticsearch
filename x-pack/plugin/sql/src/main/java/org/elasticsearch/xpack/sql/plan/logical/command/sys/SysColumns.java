@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
@@ -31,6 +32,11 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 
 import static java.util.Arrays.asList;
+import static java.util.Collections.emptyMap;
+import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR;
+import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
+import static org.elasticsearch.xpack.ql.util.RemoteClusterUtils.isQualified;
+import static org.elasticsearch.xpack.ql.util.RemoteClusterUtils.splitQualifiedIndex;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BINARY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
@@ -111,12 +117,6 @@ public class SysColumns extends Command {
         List<Attribute> output = output(mode == Mode.ODBC);
         String cluster = session.indexResolver().clusterName();
 
-        // bail-out early if the catalog is present but differs
-        if (Strings.hasText(catalog) && cluster.equals(catalog) == false) {
-            listener.onResponse(Page.last(Rows.empty(output)));
-            return;
-        }
-
         // save original index name (as the pattern can contain special chars)
         String indexName = index != null ? index :
             (pattern != null ? StringUtils.likeToUnescaped(pattern.pattern(), pattern.escape()) : "");
@@ -126,26 +126,45 @@ public class SysColumns extends Command {
         Pattern columnMatcher = columnPattern != null ? Pattern.compile(columnPattern.asJavaRegex()) : null;
         boolean includeFrozen = session.configuration().includeFrozen();
 
+        // disallow double catalog specification, like: SYS COLUMNS CATALOG 'catA' TABLE LIKE 'catB:index_expression'
+        if (isQualified(idx)) {
+            throw new IllegalArgumentException("illegal character [" + REMOTE_CLUSTER_INDEX_SEPARATOR + "] (the catalog delimiter) " +
+                "found in the table expression [" + idx + "]");
+        }
+
+        String indexPattern = idx;
+        String tableCat;
+        if (Strings.hasText(catalog)) {
+            // SYS COLUMNS's catalog "cannot contain a string search pattern" (by xDBC specs) -> it must match local or a remote cluster.
+            // Require an exact match for local cluster, since a pattern might match local and remote clusters, which cannot be searched.
+            if (catalog.equals(cluster) == false) {
+                indexPattern = buildRemoteIndexName(catalog, idx);
+            }
+            tableCat = catalog;
+        } else {
+            tableCat = cluster;
+        }
+
         // special case for '%' (translated to *)
         if ("*".equals(idx)) {
-            session.indexResolver().resolveAsSeparateMappings(idx, regex, includeFrozen,
+            session.indexResolver().resolveAsSeparateMappings(indexPattern, regex, includeFrozen, emptyMap(),
                 ActionListener.wrap(esIndices -> {
                     List<List<?>> rows = new ArrayList<>();
                     for (EsIndex esIndex : esIndices) {
-                        fillInRows(cluster, esIndex.name(), esIndex.mapping(), null, rows, columnMatcher, mode);
+                        fillInRows(tableCat, esIndex.name(), esIndex.mapping(), null, rows, columnMatcher, mode);
                     }
                 listener.onResponse(ListCursor.of(Rows.schema(output), rows, session.configuration().pageSize()));
             }, listener::onFailure));
         }
         // otherwise use a merged mapping
         else {
-            session.indexResolver().resolveAsMergedMapping(idx, regex, includeFrozen,
+            session.indexResolver().resolveAsMergedMapping(indexPattern, includeFrozen, emptyMap(),
                 ActionListener.wrap(r -> {
                     List<List<?>> rows = new ArrayList<>();
                     // populate the data only when a target is found
                     if (r.isValid()) {
                         EsIndex esIndex = r.get();
-                        fillInRows(cluster, indexName, esIndex.mapping(), null, rows, columnMatcher, mode);
+                        fillInRows(tableCat, indexName, esIndex.mapping(), null, rows, columnMatcher, mode);
                     }
                 listener.onResponse(ListCursor.of(Rows.schema(output), rows, session.configuration().pageSize()));
             }, listener::onFailure));
@@ -154,7 +173,7 @@ public class SysColumns extends Command {
 
     static void fillInRows(String clusterName, String indexName, Map<String, EsField> mapping, String prefix, List<List<?>> rows,
             Pattern columnMatcher, Mode mode) {
-        fillInRows(clusterName, indexName, mapping, prefix, rows, columnMatcher, Counter.newCounter(), mode);
+        fillInRows(clusterName, splitQualifiedIndex(indexName).v2(), mapping, prefix, rows, columnMatcher, Counter.newCounter(), mode);
     }
 
     private static void fillInRows(String clusterName, String indexName, Map<String, EsField> mapping, String prefix, List<List<?>> rows,

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.repositories.blobstore;
 
@@ -33,6 +22,7 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.instanceOf;
@@ -76,7 +66,7 @@ public abstract class ESFsBasedRepositoryIntegTestCase extends ESBlobStoreReposi
         }
         assertFalse(Files.exists(deletedPath));
 
-        createRepository(repoName, Settings.builder().put(repoSettings).put("readonly", true).build(), randomBoolean());
+        createRepository(repoName, Settings.builder().put(repoSettings).put(READONLY_SETTING_KEY, true).build(), randomBoolean());
 
         final ElasticsearchException exception = expectThrows(ElasticsearchException.class, () ->
             client().admin().cluster().prepareRestoreSnapshot(repoName, snapshotName).setWaitForCompletion(randomBoolean()).get());
@@ -90,7 +80,7 @@ public abstract class ESFsBasedRepositoryIntegTestCase extends ESBlobStoreReposi
         final Path repoPath = randomRepoPath();
         final Settings repoSettings = Settings.builder()
                 .put(repositorySettings(repoName))
-                .put("readonly", true)
+                .put(READONLY_SETTING_KEY, true)
                 .put(FsRepository.LOCATION_SETTING.getKey(), repoPath)
                 .put(BlobStoreRepository.BUFFER_SIZE_SETTING.getKey(), String.valueOf(randomIntBetween(1, 8) * 1024) + "kb")
                 .build();
@@ -98,23 +88,23 @@ public abstract class ESFsBasedRepositoryIntegTestCase extends ESBlobStoreReposi
 
         try (BlobStore store = newBlobStore(repoName)) {
             assertFalse(Files.exists(repoPath));
-            BlobPath blobPath = BlobPath.cleanPath().add("foo");
+            BlobPath blobPath = BlobPath.EMPTY.add("foo");
             store.blobContainer(blobPath);
             Path storePath = repoPath;
-            for (String d : blobPath) {
+            for (String d : blobPath.parts()) {
                 storePath = storePath.resolve(d);
             }
             assertFalse(Files.exists(storePath));
         }
 
-        createRepository(repoName, Settings.builder().put(repoSettings).put("readonly", false).build(), false);
+        createRepository(repoName, Settings.builder().put(repoSettings).put(READONLY_SETTING_KEY, false).build(), false);
 
         try (BlobStore store = newBlobStore(repoName)) {
             assertTrue(Files.exists(repoPath));
-            BlobPath blobPath = BlobPath.cleanPath().add("foo");
+            BlobPath blobPath = BlobPath.EMPTY.add("foo");
             BlobContainer container = store.blobContainer(blobPath);
             Path storePath = repoPath;
-            for (String d : blobPath) {
+            for (String d : blobPath.parts()) {
                 storePath = storePath.resolve(d);
             }
             assertTrue(Files.exists(storePath));

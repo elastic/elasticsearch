@@ -16,12 +16,8 @@ Retrieves anomaly records for an {anomaly-job}.
 [[ml-get-record-prereqs]]
 == {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `monitor_ml`,
-`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. You also
-need `read` index privilege on the index that stores the results. The
-`machine_learning_admin` and `machine_learning_user` roles provide these
-privileges. See <<security-privileges>>, <<built-in-roles>>, and
-{ml-docs-setup-privileges}.
+Requires the `monitor_ml` cluster privilege. This privilege is included in the 
+`machine_learning_user` built-in role.
 
 [[ml-get-record-desc]]
 == {api-description-title}
@@ -55,26 +51,31 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=desc-results]
 
 `end`::
 (Optional, string) Returns records with timestamps earlier than this time.
+Defaults to `-1`, which means it is unset and results are not limited to
+specific timestamps.
 
 `exclude_interim`::
 (Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=exclude-interim-results]
 
 `page`.`from`::
-(Optional, integer) Skips the specified number of records.
+(Optional, integer) Skips the specified number of records. Defaults to `0`.
+
 `page`.`size`::
-(Optional, integer) Specifies the maximum number of records to obtain.
+(Optional, integer) Specifies the maximum number of records to obtain. Defaults
+to `100`.
 
 `record_score`::
 (Optional, double) Returns records with anomaly scores greater or equal than
-this value.
+this value. Defaults to `0.0`.
 
 `sort`::
 (Optional, string) Specifies the sort field for the requested records. By
-default, the records are sorted by the `anomaly_score` value.
+default, the records are sorted by the `record_score` value.
 
 `start`::
-(Optional, string) Returns records with timestamps after this time.
+(Optional, string) Returns records with timestamps after this time. Defaults to
+`-1`, which means it is unset and results are not limited to specific timestamps.
 
 [[ml-get-record-results]]
 == {api-response-body-title}

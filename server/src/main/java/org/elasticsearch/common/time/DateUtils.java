@@ -1,32 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.time;
 
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.joda.time.DateTimeZone;
 
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.HashMap;
@@ -40,16 +28,8 @@ import static org.elasticsearch.common.time.DateUtilsRounding.getYear;
 import static org.elasticsearch.common.time.DateUtilsRounding.utcMillisAtStartOfYear;
 
 public class DateUtils {
-    public static DateTimeZone zoneIdToDateTimeZone(ZoneId zoneId) {
-        if (zoneId == null) {
-            return null;
-        }
-        if (zoneId instanceof ZoneOffset) {
-            // the id for zoneoffset is not ISO compatible, so cannot be read by ZoneId.of
-            return DateTimeZone.forOffsetMillis(((ZoneOffset)zoneId).getTotalSeconds() * 1000);
-        }
-        return DateTimeZone.forID(zoneId.getId());
-    }
+    public static  final long MAX_MILLIS_BEFORE_9999 = 253402300799999L; // end of year 9999
+    public static  final long MAX_MILLIS_BEFORE_MINUS_9999 = -377705116800000L; // beginning of year -9999
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DateUtils.class);
     // pkg private for tests
@@ -183,30 +163,24 @@ public class DateUtils {
             entry("W-SU", "Europe/Moscow"),
             entry("Zulu", "Etc/UTC"));
 
-    public static ZoneId dateTimeZoneToZoneId(DateTimeZone timeZone) {
-        if (timeZone == null) {
-            return null;
-        }
-        if (DateTimeZone.UTC.equals(timeZone)) {
-            return ZoneOffset.UTC;
-        }
-
-        return of(timeZone.getID());
-    }
-
     public static ZoneId of(String zoneId) {
         String deprecatedId = DEPRECATED_SHORT_TIMEZONES.get(zoneId);
         if (deprecatedId != null) {
-            deprecationLogger.deprecate("timezone",
+            deprecationLogger.critical(DeprecationCategory.PARSING, "timezone",
                 "Use of short timezone id " + zoneId + " is deprecated. Use " + deprecatedId + " instead");
             return ZoneId.of(deprecatedId);
         }
         return ZoneId.of(zoneId).normalized();
     }
 
-    static final Instant MAX_NANOSECOND_INSTANT = Instant.parse("2262-04-11T23:47:16.854775807Z");
+    /**
+     * The maximum nanosecond resolution date we can properly handle.
+     */
+    public static final Instant MAX_NANOSECOND_INSTANT = Instant.parse("2262-04-11T23:47:16.854775807Z");
 
     static final long MAX_NANOSECOND_IN_MILLIS = MAX_NANOSECOND_INSTANT.toEpochMilli();
+
+    public static final long MAX_NANOSECOND = toLong(MAX_NANOSECOND_INSTANT);
 
     /**
      * convert a java time instant to a long value which is stored in lucene

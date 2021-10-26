@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.idp.saml.authn;
@@ -13,12 +14,12 @@ import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.support.SamlInit;
 import org.elasticsearch.xpack.idp.saml.support.XmlValidator;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
-import org.joda.time.Duration;
 import org.junit.Before;
 import org.opensaml.saml.saml2.core.Response;
 
 import java.net.URL;
 import java.time.Clock;
+import java.time.Duration;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
@@ -42,7 +43,7 @@ public class SuccessfulAuthenticationResponseMessageBuilderTests extends IdpSaml
         when(idp.getEntityId()).thenReturn("https://cloud.elastic.co/saml/idp");
         when(idp.getSigningCredential()).thenReturn(readCredentials("RSA", 2048));
         when(idp.getServiceProviderDefaults())
-            .thenReturn(new ServiceProviderDefaults("elastic-cloud", TRANSIENT, Duration.standardMinutes(5)));
+            .thenReturn(new ServiceProviderDefaults("elastic-cloud", TRANSIENT, Duration.ofMinutes(5)));
     }
 
     public void testSignedResponseIsValidAgainstXmlSchema() throws Exception {
@@ -60,7 +61,7 @@ public class SuccessfulAuthenticationResponseMessageBuilderTests extends IdpSaml
         final String acs = baseServiceUrl + "api/security/saml/callback";
         when(sp.getEntityId()).thenReturn(baseServiceUrl);
         when(sp.getAssertionConsumerService()).thenReturn(new URL(acs));
-        when(sp.getAuthnExpiry()).thenReturn(Duration.standardMinutes(10));
+        when(sp.getAuthnExpiry()).thenReturn(Duration.ofMinutes(10));
         when(sp.getAttributeNames()).thenReturn(new SamlServiceProvider.AttributeNames("principal", null, null, null));
 
         final UserServiceAuthentication user = mock(UserServiceAuthentication.class);

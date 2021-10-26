@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
@@ -29,13 +18,8 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-
-import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBuilder> {
     /**
@@ -55,16 +39,10 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
     }
 
     @Override
-    protected void doAssertLuceneQuery(DisMaxQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(DisMaxQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         Collection<Query> queries = AbstractQueryBuilder.toQueries(queryBuilder.innerQueries(), context);
-        assertThat(query, instanceOf(DisjunctionMaxQuery.class));
-        DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) query;
-        assertThat(disjunctionMaxQuery.getTieBreakerMultiplier(), equalTo(queryBuilder.tieBreaker()));
-        assertThat(disjunctionMaxQuery.getDisjuncts().size(), equalTo(queries.size()));
-        Iterator<Query> queryIterator = queries.iterator();
-        for (int i = 0; i < disjunctionMaxQuery.getDisjuncts().size(); i++) {
-            assertThat(disjunctionMaxQuery.getDisjuncts().get(i), equalTo(queryIterator.next()));
-        }
+        Query expected = new DisjunctionMaxQuery(queries, queryBuilder.tieBreaker());
+        assertEquals(expected, query);
     }
 
     @Override
@@ -102,21 +80,11 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
                 "        ]\n" +
                 "    }\n" +
                 "}";
-        Query query = parseQuery(queryAsString).toQuery(createShardContext());
-        assertThat(query, instanceOf(DisjunctionMaxQuery.class));
-        DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) query;
-
-        List<Query> disjuncts = disjunctionMaxQuery.getDisjuncts();
-        assertThat(disjuncts.size(), equalTo(1));
-
-        assertThat(disjuncts.get(0), instanceOf(BoostQuery.class));
-        BoostQuery boostQuery = (BoostQuery) disjuncts.get(0);
-        assertThat((double) boostQuery.getBoost(), closeTo(1.2, 0.00001));
-        assertThat(boostQuery.getQuery(), instanceOf(PrefixQuery.class));
-        PrefixQuery firstQ = (PrefixQuery) boostQuery.getQuery();
-        // since age is automatically registered in data, we encode it as numeric
-        assertThat(firstQ.getPrefix(), equalTo(new Term(TEXT_FIELD_NAME, "sh")));
-
+        Query query = parseQuery(queryAsString).toQuery(createSearchExecutionContext());
+        Query expected = new DisjunctionMaxQuery(List.of(
+            new BoostQuery(new PrefixQuery(new Term(TEXT_FIELD_NAME, "sh")), 1.2f)
+        ), 0);
+        assertEquals(expected, query);
     }
 
     public void testFromJson() throws IOException {
@@ -154,15 +122,15 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
     public void testRewriteMultipleTimes() throws IOException {
         DisMaxQueryBuilder dismax = new DisMaxQueryBuilder();
         dismax.add(new WrapperQueryBuilder(new WrapperQueryBuilder(new MatchAllQueryBuilder().toString()).toString()));
-        QueryBuilder rewritten = dismax.rewrite(createShardContext());
+        QueryBuilder rewritten = dismax.rewrite(createSearchExecutionContext());
         DisMaxQueryBuilder expected = new DisMaxQueryBuilder();
         expected.add(new MatchAllQueryBuilder());
         assertEquals(expected, rewritten);
 
         expected = new DisMaxQueryBuilder();
         expected.add(new MatchAllQueryBuilder());
-        QueryBuilder rewrittenAgain = rewritten.rewrite(createShardContext());
+        QueryBuilder rewrittenAgain = rewritten.rewrite(createSearchExecutionContext());
         assertEquals(rewrittenAgain, expected);
-        assertEquals(Rewriteable.rewrite(dismax, createShardContext()), expected);
+        assertEquals(Rewriteable.rewrite(dismax, createSearchExecutionContext()), expected);
     }
 }

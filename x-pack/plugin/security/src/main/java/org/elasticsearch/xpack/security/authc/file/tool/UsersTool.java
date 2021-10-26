@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.file.tool;
 
@@ -281,7 +282,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
             FileAttributesChecker attributesChecker = new FileAttributesChecker(usersFile, rolesFile);
 
             Map<String, char[]> usersMap = FileUserPasswdStore.parseFile(usersFile, null, env.settings());
-            if (!usersMap.containsKey(username)) {
+            if (usersMap.containsKey(username) == false) {
                 throw new UserException(ExitCodes.NO_USER, "User [" + username + "] doesn't exist");
             }
 
@@ -353,7 +354,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
         }
 
         if (username != null) {
-            if (!users.containsKey(username)) {
+            if (users.containsKey(username) == false) {
                 throw new UserException(ExitCodes.NO_USER, "User [" + username + "] doesn't exist");
             }
 
@@ -363,7 +364,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
                 String[] markedRoles = markUnknownRoles(roles, unknownRoles);
                 terminal.println(String.format(Locale.ROOT, "%-15s: %s", username, Arrays.stream(markedRoles).map(s -> s == null ?
                     "-" : s).collect(Collectors.joining(","))));
-                if (!unknownRoles.isEmpty()) {
+                if (unknownRoles.isEmpty() == false) {
                     // at least one role is marked... so printing the legend
                     Path rolesFile = FileRolesStore.resolveFile(env).toAbsolutePath();
                     terminal.println("");
@@ -381,7 +382,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
                 Set<String> unknownRoles = Sets.difference(Sets.newHashSet(roles), knownRoles);
                 String[] markedRoles = markUnknownRoles(roles, unknownRoles);
                 terminal.println(String.format(Locale.ROOT, "%-15s: %s", entry.getKey(), String.join(",", markedRoles)));
-                unknownRolesFound = unknownRolesFound || !unknownRoles.isEmpty();
+                unknownRolesFound = unknownRolesFound || unknownRoles.isEmpty() == false;
                 usersExist = true;
             }
             // list users without roles
@@ -392,7 +393,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
                 usersExist = true;
             }
 
-            if (!usersExist) {
+            if (usersExist == false) {
                 terminal.println("No users found");
                 return;
             }
@@ -482,7 +483,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
         assert Files.exists(rolesFile);
         Set<String> knownRoles = Sets.union(FileRolesStore.parseFileForRoleNames(rolesFile, null), ReservedRolesStore.names());
         Set<String> unknownRoles = Sets.difference(Sets.newHashSet(roles), knownRoles);
-        if (!unknownRoles.isEmpty()) {
+        if (unknownRoles.isEmpty() == false) {
             terminal.errorPrintln(String.format(Locale.ROOT, "Warning: The following roles [%s] are not in the [%s] file. " +
                     "Make sure the names are correct. If the names are correct and the roles were created using the API please " +
                     "disregard this message. Nonetheless the user will still be associated with all specified roles",

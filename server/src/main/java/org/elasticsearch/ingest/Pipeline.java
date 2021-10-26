@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -40,25 +29,30 @@ public final class Pipeline {
     public static final String PROCESSORS_KEY = "processors";
     public static final String VERSION_KEY = "version";
     public static final String ON_FAILURE_KEY = "on_failure";
+    public static final String META_KEY = "_meta";
 
     private final String id;
     @Nullable
     private final String description;
     @Nullable
     private final Integer version;
+    @Nullable
+    private final Map<String, Object> metadata;
     private final CompoundProcessor compoundProcessor;
     private final IngestMetric metrics;
     private final LongSupplier relativeTimeProvider;
 
-    public Pipeline(String id, @Nullable String description, @Nullable Integer version, CompoundProcessor compoundProcessor) {
-        this(id, description, version, compoundProcessor, System::nanoTime);
+    public Pipeline(String id, @Nullable String description, @Nullable Integer version,
+                    @Nullable Map<String, Object> metadata, CompoundProcessor compoundProcessor) {
+        this(id, description, version, metadata, compoundProcessor, System::nanoTime);
     }
 
     //package private for testing
-    Pipeline(String id, @Nullable String description, @Nullable Integer version, CompoundProcessor compoundProcessor,
-             LongSupplier relativeTimeProvider) {
+    Pipeline(String id, @Nullable String description, @Nullable Integer version, @Nullable Map<String, Object> metadata,
+             CompoundProcessor compoundProcessor, LongSupplier relativeTimeProvider) {
         this.id = id;
         this.description = description;
+        this.metadata = metadata;
         this.compoundProcessor = compoundProcessor;
         this.version = version;
         this.metrics = new IngestMetric();
@@ -69,6 +63,7 @@ public final class Pipeline {
         Map<String, Processor.Factory> processorFactories, ScriptService scriptService) throws Exception {
         String description = ConfigurationUtils.readOptionalStringProperty(null, null, config, DESCRIPTION_KEY);
         Integer version = ConfigurationUtils.readIntProperty(null, null, config, VERSION_KEY, null);
+        Map<String, Object> metadata = ConfigurationUtils.readOptionalMap(null, null, config, META_KEY);
         List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, config, PROCESSORS_KEY);
         List<Processor> processors = ConfigurationUtils.readProcessorConfigs(processorConfigs, scriptService, processorFactories);
         List<Map<String, Object>> onFailureProcessorConfigs =
@@ -84,7 +79,7 @@ public final class Pipeline {
         }
         CompoundProcessor compoundProcessor = new CompoundProcessor(false, Collections.unmodifiableList(processors),
                 Collections.unmodifiableList(onFailureProcessors));
-        return new Pipeline(id, description, version, compoundProcessor);
+        return new Pipeline(id, description, version, metadata, compoundProcessor);
     }
 
     /**
@@ -129,6 +124,11 @@ public final class Pipeline {
     @Nullable
     public Integer getVersion() {
         return version;
+    }
+
+    @Nullable
+    public Map<String, Object> getMetadata() {
+        return metadata;
     }
 
     /**

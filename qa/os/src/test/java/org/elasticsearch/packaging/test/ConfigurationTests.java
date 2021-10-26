@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.packaging.test;
@@ -22,10 +11,10 @@ package org.elasticsearch.packaging.test;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Platforms;
+import org.elasticsearch.packaging.util.ServerUtils;
 import org.junit.Before;
 
 import static org.elasticsearch.packaging.util.FileUtils.append;
-import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assume.assumeFalse;
 
@@ -38,9 +27,10 @@ public class ConfigurationTests extends PackagingTestCase {
 
     public void test10Install() throws Exception {
         install();
+        setFileSuperuser("test_superuser", "test_superuser_password");
     }
 
-    public void test60HostnameSubstitution() throws Exception {
+    public void test20HostnameSubstitution() throws Exception {
         String hostnameKey = Platforms.WINDOWS ? "COMPUTERNAME" : "HOSTNAME";
         sh.getEnv().put(hostnameKey, "mytesthost");
         withCustomConfig(confPath -> {
@@ -48,10 +38,18 @@ public class ConfigurationTests extends PackagingTestCase {
             if (distribution.isPackage()) {
                 append(installation.envFile, "HOSTNAME=mytesthost");
             }
+            // security auto-config requires that the archive owner and the node process user be the same
+            Platforms.onWindows(() -> sh.chown(confPath, installation.getOwner()));
             assertWhileRunning(() -> {
-                final String nameResponse = makeRequest(Request.Get("http://localhost:9200/_cat/nodes?h=name")).strip();
+                final String nameResponse = ServerUtils.makeRequest(
+                    Request.Get("https://localhost:9200/_cat/nodes?h=name"),
+                    "test_superuser",
+                    "test_superuser_password",
+                    ServerUtils.getCaCert(confPath)
+                ).strip();
                 assertThat(nameResponse, equalTo("mytesthost"));
             });
+            Platforms.onWindows(() -> sh.chown(confPath));
         });
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.qa.security;
 
@@ -12,11 +13,11 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.cbor.CborXContent;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.NotEqualMessageBuilder;
+import org.elasticsearch.xcontent.cbor.CborXContent;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
@@ -142,6 +143,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
         public void expectShowTables(List<String> tables, String user) throws Exception {
             String mode = randomMode();
             List<Object> columns = new ArrayList<>();
+            columns.add(columnInfo(mode, "catalog", "keyword", JDBCType.VARCHAR, 32766));
             columns.add(columnInfo(mode, "name", "keyword", JDBCType.VARCHAR, 32766));
             columns.add(columnInfo(mode, "type", "keyword", JDBCType.VARCHAR, 32766));
             columns.add(columnInfo(mode, "kind", "keyword", JDBCType.VARCHAR, 32766));
@@ -150,6 +152,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
             List<List<String>> rows = new ArrayList<>();
             for (String table : tables) {
                 List<String> fields = new ArrayList<>();
+                fields.add("integTest"); // gradle defined
                 fields.add(table);
                 fields.add("TABLE");
                 fields.add("INDEX");
@@ -166,7 +169,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
              */
             @SuppressWarnings("unchecked")
             List<List<String>> rowsNoSecurity = ((List<List<String>>) actual.get("rows")).stream()
-                .filter(ls -> ls.get(0).startsWith(".security") == false)
+                .filter(ls -> ls.get(1).startsWith(".security") == false)
                 .collect(Collectors.toList());
             actual.put("rows", rowsNoSecurity);
             assertResponse(expected, actual);
@@ -230,11 +233,16 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
                     if (warnings.isEmpty()) {
                         // No warnings is OK
                         return false;
-                    } else if (warnings.size() > 1) {
+                    } else if (warnings.size() > 2) {
                         return true;
                     } else {
-                        String warning = warnings.get(0);
-                        return warning.startsWith("this request accesses system indices: ") == false;
+                        for (String warning : warnings) {
+                            if (warning.startsWith("this request accesses system indices: ") == false
+                                && warning.startsWith("this request accesses aliases with names reserved for system indices: ") == false) {
+                                return true;
+                            }
+                        }
+                        return false;
                     }
                 });
             }

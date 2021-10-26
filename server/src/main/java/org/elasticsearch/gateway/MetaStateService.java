@@ -1,33 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 
@@ -39,18 +29,14 @@ import java.util.Map;
 import java.util.function.Predicate;
 
 /**
- * Handles writing and loading {@link Manifest}, {@link Metadata} and {@link IndexMetadata}
+ * Handles writing and loading {@link Manifest}, {@link Metadata} and {@link IndexMetadata} as used for cluster state persistence in
+ * versions prior to {@link Version#V_7_6_0}, used to read this older format during an upgrade from these versions.
  */
 public class MetaStateService {
     private static final Logger logger = LogManager.getLogger(MetaStateService.class);
 
-    private final NodeEnvironment nodeEnv;
-    private final NamedXContentRegistry namedXContentRegistry;
-
-    // we allow subclasses in tests to redefine formats, e.g. to inject failures
-    protected MetadataStateFormat<Metadata> METADATA_FORMAT = Metadata.FORMAT;
-    protected MetadataStateFormat<IndexMetadata> INDEX_METADATA_FORMAT = IndexMetadata.FORMAT;
-    protected MetadataStateFormat<Manifest> MANIFEST_FORMAT = Manifest.FORMAT;
+    public final NodeEnvironment nodeEnv;
+    public final NamedXContentRegistry namedXContentRegistry;
 
     public MetaStateService(NodeEnvironment nodeEnv, NamedXContentRegistry namedXContentRegistry) {
         this.nodeEnv = nodeEnv;
@@ -69,7 +55,7 @@ public class MetaStateService {
      * @throws IOException if some IOException when loading files occurs or there is no metadata referenced by manifest file.
      */
     public Tuple<Manifest, Metadata> loadFullState() throws IOException {
-        final Manifest manifest = MANIFEST_FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
+        final Manifest manifest = Manifest.FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
         if (manifest == null) {
             return loadFullStateBWC();
         }
@@ -78,7 +64,7 @@ public class MetaStateService {
         if (manifest.isGlobalGenerationMissing()) {
             metadataBuilder = Metadata.builder();
         } else {
-            final Metadata globalMetadata = METADATA_FORMAT.loadGeneration(logger, namedXContentRegistry, manifest.getGlobalGeneration(),
+            final Metadata globalMetadata = Metadata.FORMAT.loadGeneration(logger, namedXContentRegistry, manifest.getGlobalGeneration(),
                     nodeEnv.nodeDataPaths());
             if (globalMetadata != null) {
                 metadataBuilder = Metadata.builder(globalMetadata);
@@ -91,7 +77,7 @@ public class MetaStateService {
             final Index index = entry.getKey();
             final long generation = entry.getValue();
             final String indexFolderName = index.getUUID();
-            final IndexMetadata indexMetadata = INDEX_METADATA_FORMAT.loadGeneration(logger, namedXContentRegistry, generation,
+            final IndexMetadata indexMetadata = IndexMetadata.FORMAT.loadGeneration(logger, namedXContentRegistry, generation,
                     nodeEnv.resolveIndexFolder(indexFolderName));
             if (indexMetadata != null) {
                 metadataBuilder.put(indexMetadata, false);
@@ -112,7 +98,7 @@ public class MetaStateService {
         Metadata.Builder metadataBuilder;
 
         Tuple<Metadata, Long> metadataAndGeneration =
-                METADATA_FORMAT.loadLatestStateWithGeneration(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
+                Metadata.FORMAT.loadLatestStateWithGeneration(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
         Metadata globalMetadata = metadataAndGeneration.v1();
         long globalStateGeneration = metadataAndGeneration.v2();
 
@@ -127,7 +113,7 @@ public class MetaStateService {
 
         for (String indexFolderName : nodeEnv.availableIndexFolders()) {
             Tuple<IndexMetadata, Long> indexMetadataAndGeneration =
-                    INDEX_METADATA_FORMAT.loadLatestStateWithGeneration(logger, namedXContentRegistry,
+                    IndexMetadata.FORMAT.loadLatestStateWithGeneration(logger, namedXContentRegistry,
                             nodeEnv.resolveIndexFolder(indexFolderName));
             IndexMetadata indexMetadata = indexMetadataAndGeneration.v1();
             long generation = indexMetadataAndGeneration.v2();
@@ -153,7 +139,7 @@ public class MetaStateService {
      */
     @Nullable
     public IndexMetadata loadIndexState(Index index) throws IOException {
-        return INDEX_METADATA_FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.indexPaths(index));
+        return IndexMetadata.FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.indexPaths(index));
     }
 
     /**
@@ -164,7 +150,7 @@ public class MetaStateService {
         for (String indexFolderName : nodeEnv.availableIndexFolders(excludeIndexPathIdsPredicate)) {
             assert excludeIndexPathIdsPredicate.test(indexFolderName) == false :
                     "unexpected folder " + indexFolderName + " which should have been excluded";
-            IndexMetadata indexMetadata = INDEX_METADATA_FORMAT.loadLatestState(logger, namedXContentRegistry,
+            IndexMetadata indexMetadata = IndexMetadata.FORMAT.loadLatestState(logger, namedXContentRegistry,
                     nodeEnv.resolveIndexFolder(indexFolderName));
             if (indexMetadata != null) {
                 final String indexPathId = indexMetadata.getIndex().getUUID();
@@ -184,80 +170,7 @@ public class MetaStateService {
      * Loads the global state, *without* index state, see {@link #loadFullState()} for that.
      */
     Metadata loadGlobalState() throws IOException {
-        return METADATA_FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
-    }
-
-    /**
-     * Writes manifest file (represented by {@link Manifest}) to disk and performs cleanup of old manifest state file if
-     * the write succeeds or newly created manifest state if the write fails.
-     *
-     * @throws WriteStateException if exception when writing state occurs. See also {@link WriteStateException#isDirty()}
-     */
-    public void writeManifestAndCleanup(String reason, Manifest manifest) throws WriteStateException {
-        logger.trace("[_meta] writing state, reason [{}]", reason);
-        try {
-            long generation = MANIFEST_FORMAT.writeAndCleanup(manifest, nodeEnv.nodeDataPaths());
-            logger.trace("[_meta] state written (generation: {})", generation);
-        } catch (WriteStateException ex) {
-            throw new WriteStateException(ex.isDirty(), "[_meta]: failed to write meta state", ex);
-        }
-    }
-
-    /**
-     * Writes the index state.
-     * <p>
-     * This method is public for testing purposes.
-     *
-     * @throws WriteStateException if exception when writing state occurs. {@link WriteStateException#isDirty()} will always return
-     *                             false, because new index state file is not yet referenced by manifest file.
-     */
-    public long writeIndex(String reason, IndexMetadata indexMetadata) throws WriteStateException {
-        final Index index = indexMetadata.getIndex();
-        logger.trace("[{}] writing state, reason [{}]", index, reason);
-        try {
-            long generation = INDEX_METADATA_FORMAT.write(indexMetadata,
-                    nodeEnv.indexPaths(indexMetadata.getIndex()));
-            logger.trace("[{}] state written", index);
-            return generation;
-        } catch (WriteStateException ex) {
-            throw new WriteStateException(false, "[" + index + "]: failed to write index state", ex);
-        }
-    }
-
-    /**
-     * Writes the global state, *without* the indices states.
-     *
-     * @throws WriteStateException if exception when writing state occurs. {@link WriteStateException#isDirty()} will always return
-     *                             false, because new global state file is not yet referenced by manifest file.
-     */
-    long writeGlobalState(String reason, Metadata metadata) throws WriteStateException {
-        logger.trace("[_global] writing state, reason [{}]", reason);
-        try {
-            long generation = METADATA_FORMAT.write(metadata, nodeEnv.nodeDataPaths());
-            logger.trace("[_global] state written");
-            return generation;
-        } catch (WriteStateException ex) {
-            throw new WriteStateException(false, "[_global]: failed to write global state", ex);
-        }
-    }
-
-    /**
-     * Removes old state files in global state directory.
-     *
-     * @param currentGeneration current state generation to keep in the directory.
-     */
-    void cleanupGlobalState(long currentGeneration) {
-        METADATA_FORMAT.cleanupOldFiles(currentGeneration, nodeEnv.nodeDataPaths());
-    }
-
-    /**
-     * Removes old state files in index directory.
-     *
-     * @param index             index to perform clean up on.
-     * @param currentGeneration current state generation to keep in the index directory.
-     */
-    public void cleanupIndex(Index index, long currentGeneration) {
-        INDEX_METADATA_FORMAT.cleanupOldFiles(currentGeneration, nodeEnv.indexPaths(index));
+        return Metadata.FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
     }
 
     /**
@@ -265,8 +178,8 @@ public class MetaStateService {
      * (only used for dangling indices at that point).
      */
     public void unreferenceAll() throws IOException {
-        MANIFEST_FORMAT.writeAndCleanup(Manifest.empty(), nodeEnv.nodeDataPaths()); // write empty file so that indices become unreferenced
-        METADATA_FORMAT.cleanupOldFiles(Long.MAX_VALUE, nodeEnv.nodeDataPaths());
+        Manifest.FORMAT.writeAndCleanup(Manifest.empty(), nodeEnv.nodeDataPaths()); // write empty file so that indices become unreferenced
+        Metadata.FORMAT.cleanupOldFiles(Long.MAX_VALUE, nodeEnv.nodeDataPaths());
     }
 
     /**
@@ -281,6 +194,7 @@ public class MetaStateService {
             // delete meta state directories of indices
             MetadataStateFormat.deleteMetaState(nodeEnv.resolveIndexFolder(indexFolderName));
         }
-        MANIFEST_FORMAT.cleanupOldFiles(Long.MAX_VALUE, nodeEnv.nodeDataPaths()); // finally delete manifest
+        Manifest.FORMAT.cleanupOldFiles(Long.MAX_VALUE, nodeEnv.nodeDataPaths()); // finally delete manifest
     }
 }
+

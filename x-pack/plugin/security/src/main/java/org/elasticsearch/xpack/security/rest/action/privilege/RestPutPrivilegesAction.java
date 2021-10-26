@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.rest.action.privilege;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -40,15 +42,11 @@ public class RestPutPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
-            new ReplacedRoute(PUT, "/_security/privilege/", PUT, "/_xpack/security/privilege/"),
-            new ReplacedRoute(POST, "/_security/privilege/", POST, "/_xpack/security/privilege/")
+            Route.builder(PUT, "/_security/privilege/")
+                .replaces(PUT, "/_xpack/security/privilege/", RestApiVersion.V_7).build(),
+            Route.builder(POST, "/_security/privilege/")
+                .replaces(POST, "/_xpack/security/privilege/", RestApiVersion.V_7).build()
         );
     }
 
@@ -73,9 +71,9 @@ public class RestPutPrivilegesAction extends SecurityBaseRestHandler {
                 final List<ApplicationPrivilegeDescriptor> privileges = requestBuilder.request().getPrivileges();
                 Map<String, Map<String, Map<String, Boolean>>> result = new HashMap<>();
                 privileges.stream()
-                        .map(ApplicationPrivilegeDescriptor::getApplication)
-                        .distinct()
-                        .forEach(a -> result.put(a, new HashMap<>()));
+                    .map(ApplicationPrivilegeDescriptor::getApplication)
+                    .distinct()
+                    .forEach(a -> result.put(a, new HashMap<>()));
                 privileges.forEach(privilege -> {
                     String name = privilege.getName();
                     boolean created = response.created().getOrDefault(privilege.getApplication(), Collections.emptyList()).contains(name);

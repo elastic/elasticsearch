@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ccr;
@@ -34,6 +35,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -47,21 +49,24 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -77,12 +82,13 @@ import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.transport.Compression;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.SniffConnectionStrategy;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.CcrIntegTestCase;
-import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
+import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction.StatsRequest;
@@ -104,6 +110,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -113,7 +120,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.retentionLeaseId;
 import static org.hamcrest.Matchers.containsString;
@@ -139,7 +146,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         int numberOfReplicas = between(0, 1);
 
         followerClient().admin().cluster().prepareUpdateSettings().setMasterNodeTimeout(TimeValue.MAX_VALUE)
-            .setTransientSettings(Settings.builder().put(CcrSettings.RECOVERY_CHUNK_SIZE.getKey(),
+            .setPersistentSettings(Settings.builder().put(CcrSettings.RECOVERY_CHUNK_SIZE.getKey(),
                 new ByteSizeValue(randomIntBetween(1, 1000), ByteSizeUnit.KB)))
             .get();
 
@@ -463,7 +470,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             public void afterBulk(long executionId, BulkRequest request, Throwable failure) {}
         };
         int bulkSize = between(1, 20);
-        BulkProcessor bulkProcessor = BulkProcessor.builder(leaderClient()::bulk, listener)
+        BulkProcessor bulkProcessor = BulkProcessor.builder(leaderClient()::bulk, listener, "IndexFollowingIT")
             .setBulkActions(bulkSize)
             .setConcurrentRequests(4)
             .build();
@@ -856,7 +863,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
     public void testLeaderIndexRed() throws Exception {
         try {
             ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-            updateSettingsRequest.transientSettings(Settings.builder().put("cluster.routing.allocation.enable", "none"));
+            updateSettingsRequest.persistentSettings(Settings.builder().put("cluster.routing.allocation.enable", "none"));
             assertAcked(leaderClient().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
             assertAcked(leaderClient().admin().indices().prepareCreate("index1")
                 .setWaitForActiveShards(ActiveShardCount.NONE)
@@ -874,7 +881,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         } finally {
             // Always unset allocation enable setting to avoid other assertions from failing too when this test fails:
             ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-            updateSettingsRequest.transientSettings(Settings.builder().put("cluster.routing.allocation.enable", (String) null));
+            updateSettingsRequest.persistentSettings(Settings.builder().put("cluster.routing.allocation.enable", (String) null));
             assertAcked(leaderClient().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
         }
     }
@@ -1089,6 +1096,29 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             assertThat(resp.getSetting("follower", PrivateSettingPlugin.INDEX_INTERNAL_SETTING.getKey()), nullValue());
             assertThat(resp.getSetting("follower", PrivateSettingPlugin.INDEX_PRIVATE_SETTING.getKey()), nullValue());
         });
+    }
+
+    /**
+     * This test verifies that data tier preference is copied over to follower. This may not be desired, but demonstrates current
+     * behavior and ensures we keep this until we decide to break it.
+     */
+    public void testReplicateDataTierPreference() throws Exception {
+        String tier = randomFrom(DataTier.DATA_HOT, DataTier.DATA_WARM, DataTier.DATA_COLD);
+        assertAcked(leaderClient().admin().indices().prepareCreate("leader")
+            .setSource(getIndexSettings(1, 0, Map.of(DataTier.TIER_PREFERENCE, tier)),
+            XContentType.JSON));
+        ensureLeaderGreen("leader");
+        if (randomBoolean()) {
+            String templateTier = randomValueOtherThan(tier, () -> randomFrom(DataTier.DATA_HOT, DataTier.DATA_WARM, DataTier.DATA_COLD));
+            putFollowerTemplate(DataTier.TIER_PREFERENCE, templateTier);
+        } else if (randomBoolean()) {
+            putFollowerTemplate(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".attr", "ignore");
+        }
+
+        final PutFollowAction.Request followRequest = putFollow("leader", "follower");
+        followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
+        GetSettingsResponse resp = followerClient().admin().indices().prepareGetSettings("follower").get();
+        assertThat(resp.getSetting("follower", DataTier.TIER_PREFERENCE), equalTo(tier));
     }
 
     public void testReplicatePrivateSettingsOnly() throws Exception {
@@ -1320,7 +1350,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
             ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest().masterNodeTimeout(TimeValue.MAX_VALUE);
             String address = getLeaderCluster().getDataNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
-            Setting<Boolean> compress = RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("leader_cluster");
+            Setting<Compression.Enabled> compress =
+                RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("leader_cluster");
             Setting<List<String>> seeds = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("leader_cluster");
             settingsRequest.persistentSettings(Settings.builder().put(compress.getKey(), true).put(seeds.getKey(), address));
             assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
@@ -1351,7 +1382,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         } finally {
             ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest().masterNodeTimeout(TimeValue.MAX_VALUE);
             String address = getLeaderCluster().getDataNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
-            Setting<Boolean> compress = RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("leader_cluster");
+            Setting<Compression.Enabled> compress =
+                RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("leader_cluster");
             Setting<List<String>> seeds = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("leader_cluster");
             settingsRequest.persistentSettings(Settings.builder().put(compress.getKey(), compress.getDefault(Settings.EMPTY))
                 .put(seeds.getKey(), address));
@@ -1539,6 +1571,13 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             settings = BytesReference.bytes(builder).utf8ToString();
         }
         return settings;
+    }
+
+    private void putFollowerTemplate(String setting, String settingValue) throws InterruptedException, ExecutionException {
+        Template template = new Template(Settings.builder().put(setting, settingValue).build(), null, null);
+        ComposableIndexTemplate cit = new ComposableIndexTemplate(List.of("follower"), template, null, null, null, null);
+        assertAcked(followerClient().execute(PutComposableIndexTemplateAction.INSTANCE,
+            new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(cit)).get());
     }
 
     public static class PrivateSettingPlugin extends Plugin {

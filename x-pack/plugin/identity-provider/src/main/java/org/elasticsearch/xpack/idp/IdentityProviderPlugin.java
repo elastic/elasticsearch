@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.idp;
@@ -20,7 +21,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
@@ -162,8 +163,8 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         settings.addAll(ServiceProviderDefaults.getSettings());
         settings.addAll(WildcardServiceProviderResolver.getSettings());
         settings.addAll(ApplicationActionsResolver.getSettings());
-        settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.signing.", false).getAllSettings());
-        settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.metadata_signing.", false).getAllSettings());
+        settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.signing.", false).getEnabledSettings());
+        settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.metadata_signing.", false).getEnabledSettings());
         return Collections.unmodifiableList(settings);
     }
 

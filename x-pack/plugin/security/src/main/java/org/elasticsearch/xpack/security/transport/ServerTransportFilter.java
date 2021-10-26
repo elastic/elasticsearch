@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.transport;
 
@@ -15,7 +16,6 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TaskTransportChannel;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransportChannel;
@@ -46,18 +46,16 @@ final class ServerTransportFilter {
     private final boolean extractClientCert;
     private final DestructiveOperations destructiveOperations;
     private final SecurityContext securityContext;
-    private final XPackLicenseState licenseState;
 
     ServerTransportFilter(AuthenticationService authcService, AuthorizationService authzService,
                 ThreadContext threadContext, boolean extractClientCert, DestructiveOperations destructiveOperations,
-                SecurityContext securityContext, XPackLicenseState licenseState) {
+                SecurityContext securityContext) {
         this.authcService = authcService;
         this.authzService = authzService;
         this.threadContext = threadContext;
         this.extractClientCert = extractClientCert;
         this.destructiveOperations = destructiveOperations;
         this.securityContext = securityContext;
-        this.licenseState = licenseState;
     }
 
     /**
@@ -110,8 +108,6 @@ final class ServerTransportFilter {
                 } else {
                     authzService.authorize(authentication, securityAction, request, listener);
                 }
-            } else if (licenseState.isSecurityEnabled() == false) {
-                listener.onResponse(null);
             } else {
                 listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
             }

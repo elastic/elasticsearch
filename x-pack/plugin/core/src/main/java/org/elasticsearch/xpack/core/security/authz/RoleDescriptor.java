@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -17,13 +18,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
@@ -191,12 +192,12 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
         RoleDescriptor that = (RoleDescriptor) o;
 
-        if (!name.equals(that.name)) return false;
-        if (!Arrays.equals(clusterPrivileges, that.clusterPrivileges)) return false;
-        if (!Arrays.equals(configurableClusterPrivileges, that.configurableClusterPrivileges)) return false;
-        if (!Arrays.equals(indicesPrivileges, that.indicesPrivileges)) return false;
-        if (!Arrays.equals(applicationPrivileges, that.applicationPrivileges)) return false;
-        if (!metadata.equals(that.getMetadata())) return false;
+        if (name.equals(that.name) == false) return false;
+        if (Arrays.equals(clusterPrivileges, that.clusterPrivileges) == false) return false;
+        if (Arrays.equals(configurableClusterPrivileges, that.configurableClusterPrivileges) == false) return false;
+        if (Arrays.equals(indicesPrivileges, that.indicesPrivileges) == false) return false;
+        if (Arrays.equals(applicationPrivileges, that.applicationPrivileges) == false) return false;
+        if (metadata.equals(that.getMetadata()) == false) return false;
         return Arrays.equals(runAs, that.runAs);
     }
 
@@ -245,8 +246,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             builder.field(Fields.GLOBAL.getPreferredName());
             ConfigurableClusterPrivileges.toXContent(builder, params, Arrays.asList(configurableClusterPrivileges));
         }
-        builder.array(Fields.INDICES.getPreferredName(), (Object[]) indicesPrivileges);
-        builder.array(Fields.APPLICATIONS.getPreferredName(), (Object[]) applicationPrivileges);
+        builder.xContentList(Fields.INDICES.getPreferredName(), indicesPrivileges);
+        builder.xContentList(Fields.APPLICATIONS.getPreferredName(), applicationPrivileges);
         if (runAs != null) {
             builder.array(Fields.RUN_AS.getPreferredName(), runAs);
         }
@@ -729,12 +730,12 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
             IndicesPrivileges that = (IndicesPrivileges) o;
 
-            if (!Arrays.equals(indices, that.indices)) return false;
+            if (Arrays.equals(indices, that.indices) == false) return false;
             if (allowRestrictedIndices != that.allowRestrictedIndices) return false;
-            if (!Arrays.equals(privileges, that.privileges)) return false;
-            if (!Arrays.equals(grantedFields, that.grantedFields)) return false;
-            if (!Arrays.equals(deniedFields, that.deniedFields)) return false;
-            return !(query != null ? !query.equals(that.query) : that.query != null);
+            if (Arrays.equals(privileges, that.privileges) == false) return false;
+            if (Arrays.equals(grantedFields, that.grantedFields) == false) return false;
+            if (Arrays.equals(deniedFields, that.deniedFields) == false) return false;
+            return Objects.equals(query, that.query);
         }
 
         @Override

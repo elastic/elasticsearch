@@ -12,7 +12,7 @@ The {es} {security-features} use the following files:
   the `file` realm. See <<file-realm>>.
 
 * `ES_PATH_CONF/elasticsearch-users_roles` defines the user roles assignment for the
-  the `file` realm. See <<file-realm>>.
+  `file` realm. See <<file-realm>>.
 
 * `ES_PATH_CONF/role_mapping.yml` defines the role assignments for a
   Distinguished Name (DN) to a role. This allows for LDAP and Active Directory

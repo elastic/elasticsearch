@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.routing.allocation;
 
@@ -29,6 +18,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -74,7 +64,7 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocation
         clusterState = strategy.reroute(clusterState, "reroute");
 
 
-        while (clusterState.getRoutingNodes().shardsWithState(INITIALIZING).isEmpty() == false) {
+        while (shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).isEmpty() == false) {
             clusterState = startInitializingShardsAndReroute(strategy, clusterState);
         }
 
@@ -98,27 +88,27 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocation
 
         logger.info("[{}] primaries should be still started but [{}] other primaries should be unassigned",
             numberOfShards, numberOfShards);
-        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(numberOfShards));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
-        assertThat(clusterState.routingTable().shardsWithState(UNASSIGNED).size(), equalTo(numberOfShards));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(numberOfShards));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(0));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).size(), equalTo(numberOfShards));
 
         logger.info("start node back up");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .add(newNode("node1", singletonMap("tag1", "value1")))).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
-        while (clusterState.getRoutingNodes().shardsWithState(STARTED).size() < totalNumberOfShards) {
+        while (shardsWithState(clusterState.getRoutingNodes(), STARTED).size() < totalNumberOfShards) {
             int localInitializations = 0;
             int relocatingInitializations = 0;
-            for (ShardRouting routing : clusterState.getRoutingNodes().shardsWithState(INITIALIZING)) {
+            for (ShardRouting routing : shardsWithState(clusterState.getRoutingNodes(), INITIALIZING)) {
                 if (routing.relocatingNodeId() == null) {
                     localInitializations++;
                 } else {
                     relocatingInitializations++;
                 }
             }
-            int needToInitialize = totalNumberOfShards - clusterState.getRoutingNodes().shardsWithState(STARTED).size()
-                - clusterState.getRoutingNodes().shardsWithState(RELOCATING).size();
+            int needToInitialize = totalNumberOfShards - shardsWithState(clusterState.getRoutingNodes(), STARTED).size()
+                - shardsWithState(clusterState.getRoutingNodes(), RELOCATING).size();
             logger.info("local initializations: [{}], relocating: [{}], need to initialize: {}",
                 localInitializations, relocatingInitializations, needToInitialize);
             assertThat(localInitializations, equalTo(Math.min(primaryRecoveries, needToInitialize)));

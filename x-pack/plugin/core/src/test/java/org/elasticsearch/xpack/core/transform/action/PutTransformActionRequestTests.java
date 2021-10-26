@@ -1,29 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.action;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
-import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
-import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.junit.Before;
 
-import java.util.List;
+import java.io.IOException;
 
-import static java.util.Collections.emptyList;
-
-public class PutTransformActionRequestTests extends AbstractWireSerializingTestCase<Request> {
+public class PutTransformActionRequestTests extends AbstractWireSerializingTransformTestCase<Request> {
     private String transformId;
 
     @Before
@@ -39,17 +32,29 @@ public class PutTransformActionRequestTests extends AbstractWireSerializingTestC
     @Override
     protected Request createTestInstance() {
         TransformConfig config = TransformConfigTests.randomTransformConfigWithoutHeaders(transformId);
-        return new Request(config, randomBoolean());
+        return new Request(config, randomBoolean(), TimeValue.parseTimeValue(randomTimeValue(), "timeout"));
     }
 
     @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
+    protected Request mutateInstance(Request instance) throws IOException {
+        TransformConfig config = instance.getConfig();
+        boolean deferValidation = instance.isDeferValidation();
+        TimeValue timeout = instance.timeout();
 
-        List<NamedWriteableRegistry.Entry> namedWriteables = searchModule.getNamedWriteables();
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(SyncConfig.class, TransformField.TIME_BASED_SYNC.getPreferredName(), TimeSyncConfig::new)
-        );
-        return new NamedWriteableRegistry(namedWriteables);
+        switch (between(0, 2)) {
+            case 0:
+                config = new TransformConfig.Builder(config).setId(config.getId() + randomAlphaOfLengthBetween(1, 5)).build();
+                break;
+            case 1:
+                deferValidation ^= true;
+                break;
+            case 2:
+                timeout = new TimeValue(timeout.duration() + randomLongBetween(1, 5), timeout.timeUnit());
+                break;
+            default:
+                throw new AssertionError("Illegal randomization branch");
+        }
+
+        return new Request(config, deferValidation, timeout);
     }
 }

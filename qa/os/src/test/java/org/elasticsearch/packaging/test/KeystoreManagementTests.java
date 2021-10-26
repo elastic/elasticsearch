@@ -1,49 +1,32 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.packaging.test;
 
 import org.elasticsearch.packaging.util.Distribution;
-import org.elasticsearch.packaging.util.Docker;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
+import org.elasticsearch.packaging.util.docker.Docker;
+import org.elasticsearch.packaging.util.docker.DockerFileMatcher;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
-import static org.elasticsearch.packaging.util.Docker.assertPermissionsAndOwnership;
-import static org.elasticsearch.packaging.util.Docker.runContainer;
-import static org.elasticsearch.packaging.util.Docker.runContainerExpectingFailure;
-import static org.elasticsearch.packaging.util.Docker.waitForElasticsearch;
-import static org.elasticsearch.packaging.util.Docker.waitForPathToExist;
-import static org.elasticsearch.packaging.util.DockerRun.builder;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
@@ -53,6 +36,11 @@ import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
 import static org.elasticsearch.packaging.util.Packages.installPackage;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
+import static org.elasticsearch.packaging.util.docker.Docker.runContainer;
+import static org.elasticsearch.packaging.util.docker.Docker.runContainerExpectingFailure;
+import static org.elasticsearch.packaging.util.docker.Docker.waitForElasticsearch;
+import static org.elasticsearch.packaging.util.docker.Docker.waitForPathToExist;
+import static org.elasticsearch.packaging.util.docker.DockerRun.builder;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -67,6 +55,10 @@ public class KeystoreManagementTests extends PackagingTestCase {
     public static final String ERROR_CORRUPTED_KEYSTORE = "Keystore has been corrupted or tampered with";
     public static final String ERROR_KEYSTORE_NOT_PASSWORD_PROTECTED = "ERROR: Keystore is not password-protected";
     public static final String ERROR_KEYSTORE_NOT_FOUND = "ERROR: Elasticsearch keystore not found";
+    private static final String ELASTIC_PASSWORD = "nothunter2";
+    private static final String FILE_REALM_SUPERUSER = "test-user";
+    private static final String FILE_REALM_SUPERUSER_PASSWORD = "test-user-password";
+    private static final String KEYSTORE_PASSWORD = "keystore-password";
 
     /** Test initial archive state */
     public void test10InstallArchiveDistribution() throws Exception {
@@ -74,9 +66,12 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         installation = installArchive(sh, distribution);
         verifyArchiveInstallation(installation, distribution());
+        // Add a user for tests to use.
+        // TODO: Possibly capture autoconfigured password from running the node the first time
+        setFileSuperuser(FILE_REALM_SUPERUSER, FILE_REALM_SUPERUSER_PASSWORD);
 
         final Installation.Executables bin = installation.executables();
-        Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
+        Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool + " has-passwd");
         assertFalse("has-passwd should fail", r.isSuccess());
         assertThat("has-passwd should indicate missing keystore", r.stderr, containsString(ERROR_KEYSTORE_NOT_FOUND));
     }
@@ -89,9 +84,10 @@ public class KeystoreManagementTests extends PackagingTestCase {
         installation = installPackage(sh, distribution);
         assertInstalled(distribution);
         verifyPackageInstallation(installation, distribution, sh);
+        setFileSuperuser(FILE_REALM_SUPERUSER, FILE_REALM_SUPERUSER_PASSWORD);
 
         final Installation.Executables bin = installation.executables();
-        Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
+        Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool + " has-passwd");
         assertFalse("has-passwd should fail", r.isSuccess());
         assertThat("has-passwd should indicate unprotected keystore", r.stderr, containsString(ERROR_KEYSTORE_NOT_PASSWORD_PROTECTED));
         Shell.Result r2 = bin.keystoreTool.run("list");
@@ -102,7 +98,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
     public void test12InstallDockerDistribution() throws Exception {
         assumeTrue(distribution().isDocker());
 
-        installation = Docker.runContainer(distribution());
+        installation = Docker.runContainer(distribution(), builder());
 
         try {
             waitForPathToExist(installation.config("elasticsearch.keystore"));
@@ -111,57 +107,27 @@ public class KeystoreManagementTests extends PackagingTestCase {
         }
 
         final Installation.Executables bin = installation.executables();
-        Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
+        Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool + " has-passwd");
         assertFalse("has-passwd should fail", r.isSuccess());
         assertThat("has-passwd should indicate unprotected keystore", r.stdout, containsString(ERROR_KEYSTORE_NOT_PASSWORD_PROTECTED));
         Shell.Result r2 = bin.keystoreTool.run("list");
         assertThat(r2.stdout, containsString("keystore.seed"));
     }
 
-    public void test20CreateKeystoreManually() throws Exception {
-        rmKeystoreIfExists();
-        createKeystore(null);
-
-        final Installation.Executables bin = installation.executables();
-        verifyKeystorePermissions();
-
-        Shell.Result r = bin.keystoreTool.run("list");
-        assertThat(r.stdout, containsString("keystore.seed"));
-    }
-
-    public void test30AutoCreateKeystore() throws Exception {
-        assumeTrue("Packages and docker are installed with a keystore file", distribution.isArchive());
-        rmKeystoreIfExists();
-
-        startElasticsearch();
-        stopElasticsearch();
-
-        Platforms.onWindows(() -> sh.chown(installation.config("elasticsearch.keystore")));
-
-        verifyKeystorePermissions();
-
-        final Installation.Executables bin = installation.executables();
-        Shell.Result r = bin.keystoreTool.run("list");
-        assertThat(r.stdout, containsString("keystore.seed"));
-    }
-
-    public void test40KeystorePasswordOnStandardInput() throws Exception {
+    public void test20KeystorePasswordOnStandardInput() throws Exception {
         assumeTrue("packages will use systemd, which doesn't handle stdin", distribution.isArchive());
         assumeThat(installation, is(notNullValue()));
 
-        String password = "^|<>\\&exit"; // code insertion on Windows if special characters are not escaped
-
-        rmKeystoreIfExists();
-        createKeystore(password);
+        createKeystore(KEYSTORE_PASSWORD);
 
         assertPasswordProtectedKeystore();
 
-        awaitElasticsearchStartup(runElasticsearchStartCommand(password, true, false));
-        ServerUtils.runElasticsearchTests();
+        awaitElasticsearchStartup(runElasticsearchStartCommand(KEYSTORE_PASSWORD, true, false));
+        runElasticsearchTests();
         stopElasticsearch();
     }
 
-    public void test41WrongKeystorePasswordOnStandardInput() throws Exception {
+    public void test21WrongKeystorePasswordOnStandardInput() throws Exception {
         assumeTrue("packages will use systemd, which doesn't handle stdin", distribution.isArchive());
         assumeThat(installation, is(notNullValue()));
 
@@ -171,25 +137,20 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assertElasticsearchFailure(result, Arrays.asList(ERROR_INCORRECT_PASSWORD, ERROR_CORRUPTED_KEYSTORE), null);
     }
 
-    public void test42KeystorePasswordOnTty() throws Exception {
+    public void test22KeystorePasswordOnTty() throws Exception {
         /* Windows issue awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
         assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
         assumeTrue("packages will use systemd, which doesn't handle stdin", distribution.isArchive());
         assumeThat(installation, is(notNullValue()));
 
-        String password = "keystorepass";
-
-        rmKeystoreIfExists();
-        createKeystore(password);
-
         assertPasswordProtectedKeystore();
 
-        awaitElasticsearchStartup(runElasticsearchStartCommand(password, true, true));
-        ServerUtils.runElasticsearchTests();
+        awaitElasticsearchStartup(runElasticsearchStartCommand(KEYSTORE_PASSWORD, true, true));
+        runElasticsearchTests();
         stopElasticsearch();
     }
 
-    public void test43WrongKeystorePasswordOnTty() throws Exception {
+    public void test23WrongKeystorePasswordOnTty() throws Exception {
         /* Windows issue awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
         assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
         assumeTrue("packages will use systemd, which doesn't handle stdin", distribution.isArchive());
@@ -206,26 +167,19 @@ public class KeystoreManagementTests extends PackagingTestCase {
      * If we have an encrypted keystore, we shouldn't require a password to
      * view help information.
      */
-    public void test44EncryptedKeystoreAllowsHelpMessage() throws Exception {
+    public void test24EncryptedKeystoreAllowsHelpMessage() throws Exception {
         assumeTrue("users call elasticsearch directly in archive case", distribution.isArchive());
-
-        String password = "keystorepass";
-
-        rmKeystoreIfExists();
-        createKeystore(password);
 
         assertPasswordProtectedKeystore();
         Shell.Result r = installation.executables().elasticsearch.run("--help");
         assertThat(r.stdout, startsWith("Starts Elasticsearch"));
     }
 
-    public void test50KeystorePasswordFromFile() throws Exception {
+    public void test30KeystorePasswordFromFile() throws Exception {
         assumeTrue("only for systemd", Platforms.isSystemd() && distribution().isPackage());
-        String password = "!@#$%^&*()|\\<>/?";
         Path esKeystorePassphraseFile = installation.config.resolve("eks");
 
-        rmKeystoreIfExists();
-        createKeystore(password);
+        setKeystorePassword(KEYSTORE_PASSWORD);
 
         assertPasswordProtectedKeystore();
 
@@ -233,17 +187,17 @@ public class KeystoreManagementTests extends PackagingTestCase {
             sh.run("sudo systemctl set-environment ES_KEYSTORE_PASSPHRASE_FILE=" + esKeystorePassphraseFile);
 
             Files.createFile(esKeystorePassphraseFile);
-            Files.write(esKeystorePassphraseFile, List.of(password));
+            Files.write(esKeystorePassphraseFile, List.of(KEYSTORE_PASSWORD));
 
             startElasticsearch();
-            ServerUtils.runElasticsearchTests();
+            runElasticsearchTests();
             stopElasticsearch();
         } finally {
             sh.run("sudo systemctl unset-environment ES_KEYSTORE_PASSPHRASE_FILE");
         }
     }
 
-    public void test51WrongKeystorePasswordFromFile() throws Exception {
+    public void test31WrongKeystorePasswordFromFile() throws Exception {
         assumeTrue("only for systemd", Platforms.isSystemd() && distribution().isPackage());
         Path esKeystorePassphraseFile = installation.config.resolve("eks");
 
@@ -271,49 +225,52 @@ public class KeystoreManagementTests extends PackagingTestCase {
      * Check that we can mount a password-protected keystore to a docker image
      * and provide a password via an environment variable.
      */
-    public void test60DockerEnvironmentVariablePassword() throws Exception {
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/76124")
+    public void test40DockerEnvironmentVariablePassword() throws Exception {
         assumeTrue(distribution().isDocker());
-        String password = "keystore-password";
-        Path dockerKeystore = installation.config("elasticsearch.keystore");
 
-        Path localKeystoreFile = getKeystoreFileFromDockerContainer(password, dockerKeystore);
+        Path localConfigDir = getMountedLocalConfDirWithKeystore(KEYSTORE_PASSWORD, installation.config);
 
-        // restart ES with password and mounted keystore
-        Map<Path, Path> volumes = Map.of(localKeystoreFile, dockerKeystore);
-        Map<String, String> envVars = Map.of("KEYSTORE_PASSWORD", password);
-        runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
-        waitForElasticsearch(installation);
-        ServerUtils.runElasticsearchTests();
+        // restart ES with password and mounted config dir containing password protected keystore
+        runContainer(
+            distribution(),
+            builder().volume(localConfigDir.resolve("config"), installation.config)
+                .envVar("KEYSTORE_PASSWORD", KEYSTORE_PASSWORD)
+                .envVar("ELASTIC_PASSWORD", ELASTIC_PASSWORD)
+        );
+        waitForElasticsearch(installation, "elastic", ELASTIC_PASSWORD);
+        runElasticsearchTestsAsElastic(ELASTIC_PASSWORD);
     }
 
     /**
      * Check that we can mount a password-protected keystore to a docker image
      * and provide a password via a file, pointed at from an environment variable.
      */
-    public void test61DockerEnvironmentVariablePasswordFromFile() throws Exception {
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/76124")
+    public void test41DockerEnvironmentVariablePasswordFromFile() throws Exception {
         assumeTrue(distribution().isDocker());
 
         Path tempDir = null;
         try {
-            tempDir = createTempDir(DockerTests.class.getSimpleName());
+            tempDir = createTempDir(KeystoreManagementTests.class.getSimpleName());
 
-            String password = "keystore-password";
             String passwordFilename = "password.txt";
-            Files.writeString(tempDir.resolve(passwordFilename), password + "\n");
+            Files.writeString(tempDir.resolve(passwordFilename), KEYSTORE_PASSWORD + "\n");
             Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p600);
 
-            Path dockerKeystore = installation.config("elasticsearch.keystore");
+            Path localConfigDir = getMountedLocalConfDirWithKeystore(KEYSTORE_PASSWORD, installation.config);
 
-            Path localKeystoreFile = getKeystoreFileFromDockerContainer(password, dockerKeystore);
+            // restart ES with password and mounted config dir containing password protected keystore
+            runContainer(
+                distribution(),
+                builder().volume(localConfigDir.resolve("config"), installation.config)
+                    .volume(tempDir, "/run/secrets")
+                    .envVar("KEYSTORE_PASSWORD_FILE", "/run/secrets/" + passwordFilename)
+                    .envVar("ELASTIC_PASSWORD", ELASTIC_PASSWORD)
+            );
 
-            // restart ES with password and mounted keystore
-            Map<Path, Path> volumes = Map.of(localKeystoreFile, dockerKeystore, tempDir, Path.of("/run/secrets"));
-            Map<String, String> envVars = Map.of("KEYSTORE_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
-
-            runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
-
-            waitForElasticsearch(installation);
-            ServerUtils.runElasticsearchTests();
+            waitForElasticsearch(installation, "elastic", ELASTIC_PASSWORD);
+            runElasticsearchTestsAsElastic(ELASTIC_PASSWORD);
         } finally {
             if (tempDir != null) {
                 rm(tempDir);
@@ -325,18 +282,50 @@ public class KeystoreManagementTests extends PackagingTestCase {
      * Check that if we provide the wrong password for a mounted and password-protected
      * keystore, Elasticsearch doesn't start.
      */
-    public void test62DockerEnvironmentVariableBadPassword() throws Exception {
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/76124")
+    public void test42DockerEnvironmentVariableBadPassword() throws Exception {
         assumeTrue(distribution().isDocker());
-        String password = "keystore-password";
-        Path dockerKeystore = installation.config("elasticsearch.keystore");
 
-        Path localKeystoreFile = getKeystoreFileFromDockerContainer(password, dockerKeystore);
+        Path localConfigPath = getMountedLocalConfDirWithKeystore(KEYSTORE_PASSWORD, installation.config);
 
-        // restart ES with password and mounted keystore
-        Map<Path, Path> volumes = Map.of(localKeystoreFile, dockerKeystore);
-        Map<String, String> envVars = Map.of("KEYSTORE_PASSWORD", "wrong");
-        Shell.Result r = runContainerExpectingFailure(distribution(), builder().volumes(volumes).envVars(envVars));
+        // restart ES with password and mounted config dir containing password protected keystore
+        Shell.Result r = runContainerExpectingFailure(
+            distribution(),
+            builder().volume(localConfigPath.resolve("config"), installation.config).envVar("KEYSTORE_PASSWORD", "wrong")
+        );
         assertThat(r.stderr, containsString(ERROR_INCORRECT_PASSWORD));
+    }
+
+    public void test50CreateKeystoreManually() throws Exception {
+        // Run this test last so that removing the existing keystore doesn't make subsequent tests fail
+        rmKeystoreIfExists();
+        createKeystore(null);
+
+        final Installation.Executables bin = installation.executables();
+        verifyKeystorePermissions();
+
+        Shell.Result r = bin.keystoreTool.run("list");
+        assertThat(r.stdout, containsString("keystore.seed"));
+    }
+
+    public void test60AutoCreateKeystore() throws Exception {
+        // Run this test last so that removing the existing keystore doesn't make subsequent tests fail
+        assumeTrue("Packages and docker are installed with a keystore file", distribution.isArchive());
+        rmKeystoreIfExists();
+        // Elasticsearch was auto-configured for security. We need to remove that configuration as it depended on settings in the previous
+        // keystore
+        ServerUtils.disableSecurityFeatures(installation);
+
+        startElasticsearch();
+        stopElasticsearch();
+
+        Platforms.onWindows(() -> sh.chown(installation.config("elasticsearch.keystore")));
+
+        verifyKeystorePermissions();
+
+        final Installation.Executables bin = installation.executables();
+        Shell.Result r = bin.keystoreTool.run("list");
+        assertThat(r.stdout, containsString("keystore.seed"));
     }
 
     /**
@@ -346,11 +335,10 @@ public class KeystoreManagementTests extends PackagingTestCase {
      * the keystore, and then returns the path of the file that appears in the
      * mounted directory (now accessible from the local filesystem).
      */
-    private Path getKeystoreFileFromDockerContainer(String password, Path dockerKeystore) throws IOException {
+    private Path getMountedLocalConfDirWithKeystore(String password, Path dockerKeystore) throws IOException {
         // Mount a temporary directory for copying the keystore
         Path dockerTemp = Path.of("/usr/tmp/keystore-tmp");
         Path tempDirectory = createTempDir(KeystoreManagementTests.class.getSimpleName());
-        Map<Path, Path> volumes = Map.of(tempDirectory, dockerTemp);
 
         // It's very tricky to properly quote a pipeline that you're passing to
         // a docker exec command, so we're just going to put a small script in the
@@ -363,7 +351,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         Files.write(tempDirectory.resolve("set-pass.sh"), setPasswordScript);
 
-        runContainer(distribution(), builder().volumes(volumes));
+        runContainer(distribution(), builder().volume(tempDirectory, dockerTemp));
         try {
             waitForPathToExist(dockerTemp);
             waitForPathToExist(dockerKeystore);
@@ -379,8 +367,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
         sh.run("bash " + dockerTemp.resolve("set-pass.sh"));
 
         // copy keystore to temp file to make it available to docker host
-        sh.run("cp " + dockerKeystore + " " + dockerTemp);
-        return tempDirectory.resolve("elasticsearch.keystore");
+        sh.run("cp -arf" + dockerKeystore + " " + dockerTemp);
+        return tempDirectory;
     }
 
     /** Create a keystore. Provide a password to password-protect it, otherwise use null */
@@ -388,12 +376,6 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Path keystore = installation.config("elasticsearch.keystore");
         final Installation.Executables bin = installation.executables();
         bin.keystoreTool.run("create");
-
-        // this is a hack around the fact that we can't run a command in the same session as the same user but not as administrator.
-        // the keystore ends up being owned by the Administrators group, so we manually set it to be owned by the vagrant user here.
-        // from the server's perspective the permissions aren't really different, this is just to reflect what we'd expect in the tests.
-        // when we run these commands as a role user we won't have to do this
-        Platforms.onWindows(() -> sh.chown(keystore));
 
         if (distribution().isDocker()) {
             try {
@@ -406,6 +388,12 @@ public class KeystoreManagementTests extends PackagingTestCase {
         if (password != null) {
             setKeystorePassword(password);
         }
+
+        // this is a hack around the fact that we can't run a command in the same session as the same user but not as administrator.
+        // the keystore ends up being owned by the Administrators group, so we manually set it to be owned by the vagrant user here.
+        // from the server's perspective the permissions aren't really different, this is just to reflect what we'd expect in the tests.
+        // when we run these commands as a role user we won't have to do this
+        Platforms.onWindows(() -> sh.chown(keystore));
     }
 
     private void rmKeystoreIfExists() {
@@ -455,7 +443,10 @@ public class KeystoreManagementTests extends PackagingTestCase {
                 break;
             case DOCKER:
             case DOCKER_UBI:
-                assertPermissionsAndOwnership(keystore, p660);
+            case DOCKER_IRON_BANK:
+            case DOCKER_CLOUD:
+            case DOCKER_CLOUD_ESS:
+                assertThat(keystore, DockerFileMatcher.file(p660));
                 break;
             default:
                 throw new IllegalStateException("Unknown Elasticsearch packaging type.");

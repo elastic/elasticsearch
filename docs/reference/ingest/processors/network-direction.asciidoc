@@ -1,0 +1,120 @@
+[role="xpack"]
+[testenv="basic"]
+[[network-direction-processor]]
+=== Network direction processor
+++++
+<titleabbrev>Network direction</titleabbrev>
+++++
+
+Calculates the network direction given a source IP address, destination IP
+address, and a list of internal networks.
+
+The network direction processor reads IP addresses from
+{ecs-ref}[Elastic Common Schema (ECS)] fields by default. If you use the ECS,
+only the `internal_networks` option must be specified.
+
+[[network-direction-options]]
+.Network Direction Options
+[options="header"]
+|======
+| Name               | Required | Default       | Description
+| `source_ip`        | no       | `source.ip`   | Field containing the source IP address.
+| `destination_ip`   | no       | `destination.ip` | Field containing the destination IP address.
+| `target_field`     | no       | `network.direction` | Output field for the network direction.
+| `internal_networks`| yes *    |               | List of internal networks. Supports IPv4 and
+IPv6 addresses and ranges in CIDR notation. Also supports the named ranges listed below. These may be constructed with <<template-snippets,template snippets>>. * Must specify only one of `internal_networks` or `internal_networks_field`.
+| `internal_networks_field`| no      |               | A field on the given document to read the `internal_networks` configuration from.
+| `ignore_missing`   | no       | `true`        | If `true` and any required fields are missing,
+the processor quietly exits without modifying the document.
+
+
+include::common-options.asciidoc[]
+|======
+
+One of either `internal_networks` or `internal_networks_field` must be specified. If `internal_networks_field` is specified, it follows the behavior specified by `ignore_missing`.
+
+[float]
+[[supported-named-network-ranges]]
+===== Supported named network ranges
+
+The named ranges supported for the `internal_networks` option are:
+
+- `loopback` - Matches loopback addresses in the range of `127.0.0.0/8` or
+  `::1/128`.
+- `unicast` or `global_unicast` - Matches global unicast addresses defined in
+   RFC 1122, RFC 4632, and RFC 4291 with the exception of the IPv4 broadcast
+   address (`255.255.255.255`). This includes private address ranges.
+- `multicast` - Matches multicast addresses.
+- `interface_local_multicast` - Matches IPv6 interface-local multicast addresses.
+- `link_local_unicast` - Matches link-local unicast addresses.
+- `link_local_multicast` - Matches link-local multicast addresses.
+- `private` - Matches private address ranges defined in RFC 1918 (IPv4) and
+  RFC 4193 (IPv6).
+- `public` - Matches addresses that are not loopback, unspecified, IPv4
+  broadcast, link local unicast, link local multicast, interface local
+  multicast, or private.
+- `unspecified` - Matches unspecified addresses (either the IPv4 address
+  "0.0.0.0" or the IPv6 address "::").
+
+
+[discrete]
+[[network-direction-processor-ex]]
+===== Examples
+
+The following example illustrates the use of the network direction processor:
+
+[source,console]
+----
+POST _ingest/pipeline/_simulate
+{
+  "pipeline": {
+    "processors": [
+      {
+        "network_direction": {
+          "internal_networks": ["private"]
+        }
+      }
+    ]
+  },
+  "docs": [
+    {
+      "_source": {
+        "source": {
+          "ip": "128.232.110.120"
+        },
+        "destination": {
+          "ip": "192.168.1.1"
+        }
+      }
+    }
+  ]
+}
+----
+
+Which produces the following result:
+
+[source,console-result]
+----
+{
+  "docs": [
+    {
+      "doc": {
+        ...
+        "_source": {
+          "destination": {
+            "ip": "192.168.1.1"
+          },
+          "source": {
+            "ip": "128.232.110.120"
+          },
+          "network": {
+            "direction": "inbound"
+          }
+        }
+      }
+    }
+  ]
+}
+----
+// TESTRESPONSE[s/\.\.\./"_index":"_index","_id":"_id","_ingest":{"timestamp":$body.docs.0.doc._ingest.timestamp},/]
+// NOTCONSOLE

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.slm;
@@ -20,7 +21,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -51,7 +53,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -99,46 +100,60 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
     }
 
     public void testSnapshotEligibleForDeletion() {
+        final String repoName = "repo";
         SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("policy", "snap", "1 * * * * ?",
-            "repo", null, new SnapshotRetentionConfiguration(TimeValue.timeValueDays(30), null, null));
-        SnapshotLifecyclePolicy policyWithNoRetention = new SnapshotLifecyclePolicy("policy", "snap", "1 * * * * ?",
-            "repo", null, randomBoolean() ? null : SnapshotRetentionConfiguration.EMPTY);
+            repoName, null, new SnapshotRetentionConfiguration(TimeValue.timeValueDays(30), null, null));
         Map<String, SnapshotLifecyclePolicy> policyMap = Collections.singletonMap("policy", policy);
-        Map<String, SnapshotLifecyclePolicy> policyWithNoRetentionMap = Collections.singletonMap("policy", policyWithNoRetention);
         Function<SnapshotInfo, Map<String, List<SnapshotInfo>>> mkInfos = i ->
-            Collections.singletonMap("repo", Collections.singletonList(i));
-
-        // Test when user metadata is null
-        SnapshotInfo info = new SnapshotInfo(new SnapshotId("name", "uuid"), Collections.singletonList("index"),
-            Collections.emptyList(),0L, null, 1L, 1, Collections.emptyList(), true, null);
-        assertThat(SnapshotRetentionTask.snapshotEligibleForDeletion(info, mkInfos.apply(info), policyMap), equalTo(false));
-
-        // Test when no retention is configured
-        info = new SnapshotInfo(new SnapshotId("name", "uuid"), Collections.singletonList("index"), Collections.emptyList(),
-            0L, null, 1L, 1, Collections.emptyList(), true, null);
-        assertThat(SnapshotRetentionTask.snapshotEligibleForDeletion(info, mkInfos.apply(info), policyWithNoRetentionMap), equalTo(false));
-
-        // Test when user metadata is a map that doesn't contain "policy"
-        info = new SnapshotInfo(new SnapshotId("name", "uuid"), Collections.singletonList("index"), Collections.emptyList(),
-            0L, null, 1L, 1, Collections.emptyList(), true, Collections.singletonMap("foo", "bar"));
-        assertThat(SnapshotRetentionTask.snapshotEligibleForDeletion(info, mkInfos.apply(info), policyMap), equalTo(false));
+            Collections.singletonMap(repoName, Collections.singletonList(i));
 
         // Test with an ancient snapshot that should be expunged
-        info = new SnapshotInfo(new SnapshotId("name", "uuid"), Collections.singletonList("index"), Collections.emptyList(),
-            0L, null, 1L, 1, Collections.emptyList(), true, Collections.singletonMap("policy", "policy"));
+        SnapshotInfo info = new SnapshotInfo(
+            new Snapshot(repoName, new SnapshotId("name", "uuid")),
+            Collections.singletonList("index"),
+            Collections.emptyList(),
+            Collections.emptyList(),
+            null,
+            1L,
+            1,
+            Collections.emptyList(),
+            true,
+            Collections.singletonMap("policy", "policy"),
+            0L,
+            Collections.emptyMap());
         assertThat(SnapshotRetentionTask.snapshotEligibleForDeletion(info, mkInfos.apply(info), policyMap), equalTo(true));
 
         // Test with a snapshot that's start date is old enough to be expunged (but the finish date is not)
         long time = System.currentTimeMillis() - TimeValue.timeValueDays(30).millis() - 1;
-        info = new SnapshotInfo(new SnapshotId("name", "uuid"), Collections.singletonList("index"), Collections.emptyList(),
-            time, null, time + TimeValue.timeValueDays(4).millis(), 1, Collections.emptyList(),
-            true, Collections.singletonMap("policy", "policy"));
+        info = new SnapshotInfo(
+            new Snapshot(repoName, new SnapshotId("name", "uuid")),
+            Collections.singletonList("index"),
+            Collections.emptyList(),
+            Collections.emptyList(),
+            null,
+            time + TimeValue.timeValueDays(4).millis(),
+            1,
+            Collections.emptyList(),
+            true,
+            Collections.singletonMap("policy", "policy"),
+            time,
+            Collections.emptyMap());
         assertThat(SnapshotRetentionTask.snapshotEligibleForDeletion(info, mkInfos.apply(info), policyMap), equalTo(true));
 
         // Test with a fresh snapshot that should not be expunged
-        info = new SnapshotInfo(new SnapshotId("name", "uuid"), Collections.singletonList("index"), Collections.emptyList(),
-            System.currentTimeMillis(), null, System.currentTimeMillis() + 1,
-            1, Collections.emptyList(), true, Collections.singletonMap("policy", "policy"));
+        info = new SnapshotInfo(
+            new Snapshot(repoName, new SnapshotId("name", "uuid")),
+            Collections.singletonList("index"),
+            Collections.emptyList(),
+            Collections.emptyList(),
+            null,
+            System.currentTimeMillis() + 1,
+            1,
+            Collections.emptyList(),
+            true,
+            Collections.singletonMap("policy", "policy"),
+            System.currentTimeMillis(),
+            Collections.emptyMap());
         assertThat(SnapshotRetentionTask.snapshotEligibleForDeletion(info, mkInfos.apply(info), policyMap), equalTo(false));
     }
 
@@ -163,11 +178,23 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             ClusterState state = createState(policy);
             ClusterServiceUtils.setState(clusterService, state);
 
-            final SnapshotInfo eligibleSnapshot = new SnapshotInfo(new SnapshotId("name", "uuid"), Collections.singletonList("index"),
-                Collections.emptyList(), 0L, null, 1L, 1, Collections.emptyList(), true, Collections.singletonMap("policy", policyId));
-            final SnapshotInfo ineligibleSnapshot = new SnapshotInfo(new SnapshotId("name2", "uuid2"), Collections.singletonList("index"),
-                Collections.emptyList(), System.currentTimeMillis(), null, System.currentTimeMillis() + 1, 1,
-                Collections.emptyList(), true, Collections.singletonMap("policy", policyId));
+            final SnapshotInfo eligibleSnapshot = new SnapshotInfo(
+                    new Snapshot(repoId, new SnapshotId("name", "uuid")), Collections.singletonList("index"),
+                Collections.emptyList(), Collections.emptyList(), null, 1L, 1, Collections.emptyList(), true,
+                Collections.singletonMap("policy", policyId), 0L, Collections.emptyMap());
+            final SnapshotInfo ineligibleSnapshot = new SnapshotInfo(
+                new Snapshot(repoId, new SnapshotId("name2", "uuid2")),
+                Collections.singletonList("index"),
+                Collections.emptyList(),
+                Collections.emptyList(),
+                null,
+                System.currentTimeMillis() + 1,
+                1,
+                Collections.emptyList(),
+                true,
+                Collections.singletonMap("policy", policyId),
+                System.currentTimeMillis(),
+                Collections.emptyMap());
 
             Set<SnapshotId> deleted = ConcurrentHashMap.newKeySet();
             Set<String> deletedSnapshotsInHistory = ConcurrentHashMap.newKeySet();
@@ -238,7 +265,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                      if (request instanceof GetSnapshotsRequest) {
                          logger.info("--> called");
                          listener.onResponse((Response) new GetSnapshotsResponse(
-                             Collections.singleton(GetSnapshotsResponse.Response.snapshots(repoId, Collections.emptyList()))));
+                             Collections.emptyList(), Collections.emptyMap(), null, 0, 0));
                      } else {
                          super.doExecute(action, request, listener);
                      }
@@ -256,7 +283,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                     (historyItem) -> fail("should never write history")));
 
             AtomicReference<Exception> errHandlerCalled = new AtomicReference<>(null);
-            task.getAllRetainableSnapshots(Collections.singleton(repoId), new ActionListener<>() {
+            task.getAllRetainableSnapshots(Collections.singleton(repoId), Collections.singleton(policyId), new ActionListener<>() {
                 @Override
                 public void onResponse(Map<String, List<SnapshotInfo>> stringListMap) {
                     logger.info("--> forcing failure");
@@ -265,9 +292,9 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    fail("we have another err handler that should have been called");
+                    errHandlerCalled.set(e);
                 }
-            }, errHandlerCalled::set);
+            });
 
             assertNotNull(errHandlerCalled.get());
             assertThat(errHandlerCalled.get().getMessage(), equalTo("forced failure"));
@@ -448,9 +475,8 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
         }
 
         @Override
-        void getAllRetainableSnapshots(Collection<String> repositories,
-                                       ActionListener<Map<String, List<SnapshotInfo>>> listener,
-                                       Consumer<Exception> errorHandler) {
+        void getAllRetainableSnapshots(Collection<String> repositories, Set<String> policies,
+                                       ActionListener<Map<String, List<SnapshotInfo>>> listener) {
             listener.onResponse(this.snapshotRetriever.get());
         }
 

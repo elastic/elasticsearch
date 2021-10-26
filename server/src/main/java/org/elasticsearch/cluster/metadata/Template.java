@@ -1,42 +1,34 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -57,8 +49,18 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
 
     static {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Settings.fromXContent(p), SETTINGS);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) ->
-            new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(p.mapOrdered()))), MAPPINGS);
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
+            XContentParser.Token token = p.currentToken();
+            if (token == XContentParser.Token.VALUE_STRING) {
+                return new CompressedXContent(Base64.getDecoder().decode(p.text()));
+            } else if(token == XContentParser.Token.VALUE_EMBEDDED_OBJECT){
+                return new CompressedXContent(p.binaryValue());
+            } else if (token == XContentParser.Token.START_OBJECT){
+                return new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(p.mapOrdered())));
+            } else {
+                throw new IllegalArgumentException("Unexpected token: " + token);
+            }
+        }, MAPPINGS, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             Map<String, AliasMetadata> aliasMap = new HashMap<>();
             while ((p.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -100,14 +102,17 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
         }
     }
 
+    @Nullable
     public Settings settings() {
         return settings;
     }
 
+    @Nullable
     public CompressedXContent mappings() {
         return mappings;
     }
 
+    @Nullable
     public Map<String, AliasMetadata> aliases() {
         return aliases;
     }
@@ -149,7 +154,7 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
         }
         Template other = (Template) obj;
         return Objects.equals(settings, other.settings) &&
-            Objects.equals(mappings, other.mappings) &&
+            mappingsEquals(this.mappings, other.mappings) &&
             Objects.equals(aliases, other.aliases);
     }
 
@@ -167,11 +172,17 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
             builder.endObject();
         }
         if (this.mappings != null) {
-            Map<String, Object> uncompressedMapping =
-                XContentHelper.convertToMap(this.mappings.uncompressed(), true, XContentType.JSON).v2();
-            if (uncompressedMapping.size() > 0) {
-                builder.field(MAPPINGS.getPreferredName());
-                builder.map(reduceMapping(uncompressedMapping));
+            String context = params.param(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API);
+            boolean binary = params.paramAsBoolean("binary", false);
+            if (Metadata.CONTEXT_MODE_API.equals(context) || binary == false) {
+                Map<String, Object> uncompressedMapping =
+                    XContentHelper.convertToMap(this.mappings.uncompressed(), true, XContentType.JSON).v2();
+                if (uncompressedMapping.size() > 0) {
+                    builder.field(MAPPINGS.getPreferredName());
+                    builder.map(reduceMapping(uncompressedMapping));
+                }
+            } else {
+                builder.field(MAPPINGS.getPreferredName(), mappings.compressed());
             }
         }
         if (this.aliases != null) {
@@ -186,11 +197,33 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
     }
 
     @SuppressWarnings("unchecked")
-    private static Map<String, Object> reduceMapping(Map<String, Object> mapping) {
+    static Map<String, Object> reduceMapping(Map<String, Object> mapping) {
         if (mapping.size() == 1 && MapperService.SINGLE_MAPPING_NAME.equals(mapping.keySet().iterator().next())) {
             return (Map<String, Object>) mapping.values().iterator().next();
         } else {
             return mapping;
         }
+    }
+
+    static boolean mappingsEquals(CompressedXContent m1, CompressedXContent m2) {
+        if (m1 == m2) {
+            return true;
+        }
+
+        if (m1 == null || m2 == null) {
+            return false;
+        }
+
+        if (m1.equals(m2)) {
+            return true;
+        }
+
+        Map<String, Object> thisUncompressedMapping = reduceMapping(
+            XContentHelper.convertToMap(m1.uncompressed(), true, XContentType.JSON).v2()
+        );
+        Map<String, Object> otherUncompressedMapping = reduceMapping(
+            XContentHelper.convertToMap(m2.uncompressed(), true, XContentType.JSON).v2()
+        );
+        return Maps.deepEquals(thisUncompressedMapping, otherUncompressedMapping);
     }
 }

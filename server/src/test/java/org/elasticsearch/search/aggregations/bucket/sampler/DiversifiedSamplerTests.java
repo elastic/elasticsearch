@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
@@ -154,25 +143,36 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
         }
     }
 
-    private void testCase(IndexSearcher indexSearcher, MappedFieldType genreFieldType, String executionHint,
-                          Consumer<InternalSampler> verify) throws IOException {
+    private void testCase(
+        IndexSearcher indexSearcher,
+        MappedFieldType genreFieldType,
+        String executionHint,
+        Consumer<InternalSampler> verify
+    ) throws IOException {
         testCase(indexSearcher, genreFieldType, executionHint, verify, 100, 1);
     }
 
-    private void testCase(IndexSearcher indexSearcher, MappedFieldType genreFieldType, String executionHint,
-                          Consumer<InternalSampler> verify, int shardSize, int maxDocsPerValue) throws IOException {
+    private void testCase(
+        IndexSearcher indexSearcher,
+        MappedFieldType genreFieldType,
+        String executionHint,
+        Consumer<InternalSampler> verify,
+        int shardSize,
+        int maxDocsPerValue
+    ) throws IOException {
         MappedFieldType idFieldType = new KeywordFieldMapper.KeywordFieldType("id");
 
         SortedNumericIndexFieldData fieldData = new SortedNumericIndexFieldData("price", IndexNumericFieldData.NumericType.DOUBLE);
-        FunctionScoreQuery query = new FunctionScoreQuery(new MatchAllDocsQuery(),
-                new FieldValueFactorFunction("price", 1, FieldValueFactorFunction.Modifier.RECIPROCAL, null, fieldData));
+        FunctionScoreQuery query = new FunctionScoreQuery(
+            new MatchAllDocsQuery(),
+            new FieldValueFactorFunction("price", 1, FieldValueFactorFunction.Modifier.RECIPROCAL, null, fieldData)
+        );
 
-        DiversifiedAggregationBuilder builder = new DiversifiedAggregationBuilder("_name")
-                .field(genreFieldType.name())
-                .executionHint(executionHint)
-                .maxDocsPerValue(maxDocsPerValue)
-                .shardSize(shardSize)
-                .subAggregation(new TermsAggregationBuilder("terms").field("id"));
+        DiversifiedAggregationBuilder builder = new DiversifiedAggregationBuilder("_name").field(genreFieldType.name())
+            .executionHint(executionHint)
+            .maxDocsPerValue(maxDocsPerValue)
+            .shardSize(shardSize)
+            .subAggregation(new TermsAggregationBuilder("terms").field("id"));
 
         InternalSampler result = searchAndReduce(indexSearcher, query, builder, genreFieldType, idFieldType);
         verify.accept(result);
@@ -189,9 +189,8 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
 
         MappedFieldType genreFieldType = new KeywordFieldMapper.KeywordFieldType("genre");
 
-        DiversifiedAggregationBuilder builder = new DiversifiedAggregationBuilder("_name")
-                .field(genreFieldType.name())
-                .subAggregation(new TermsAggregationBuilder("terms").field("id"));
+        DiversifiedAggregationBuilder builder = new DiversifiedAggregationBuilder("_name").field(genreFieldType.name())
+            .subAggregation(new TermsAggregationBuilder("terms").field("id"));
 
         InternalSampler result = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder, genreFieldType, idFieldType);
         Terms terms = result.getAggregations().get("terms");

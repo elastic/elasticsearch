@@ -7,7 +7,7 @@
 The `lowercase` tokenizer, like the
 <<analysis-letter-tokenizer, `letter` tokenizer>> breaks text into terms
 whenever it encounters a character which is not a letter, but it also
-lowercases all terms.  It is functionally equivalent to the
+lowercases all terms. It is functionally equivalent to the
 <<analysis-letter-tokenizer, `letter` tokenizer>> combined with the
 <<analysis-lowercase-tokenfilter, `lowercase` token filter>>, but is more
 efficient as it performs both steps in a single pass.

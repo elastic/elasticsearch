@@ -282,11 +282,11 @@ parameter and a link to their predefined stop words in Lucene.
 
 [[english-stop-words]]
 `_english_`::
-https://github.com/apache/lucene-solr/blob/master/lucene/analysis/common/src/java/org/apache/lucene/analysis/en/EnglishAnalyzer.java#L46[English stop words]
+{lucene-gh-main-link}/analysis/common/src/java/org/apache/lucene/analysis/en/EnglishAnalyzer.java#L48[English stop words]
 
 [[estonian-stop-words]]
 `_estonian_`::
-https://github.com/apache/lucene-solr/blob/master/lucene/analysis/common/src/resources/org/apache/lucene/analysis/et/stopwords.txt[Estonian stop words]
+{lucene-stop-word-link}/et/stopwords.txt[Estonian stop words]
 
 [[finnish-stop-words]]
 `_finnish_`::

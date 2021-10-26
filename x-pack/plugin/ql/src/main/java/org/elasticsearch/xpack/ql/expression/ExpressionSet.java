@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression;
 
@@ -63,7 +64,7 @@ public class ExpressionSet<E extends Expression> implements Set<E> {
     @Override
     public boolean containsAll(Collection<?> c) {
         for (Object o : c) {
-            if (!contains(o)) {
+            if (contains(o) == false) {
                 return false;
             }
         }
@@ -107,7 +108,7 @@ public class ExpressionSet<E extends Expression> implements Set<E> {
                     break;
                 }
             }
-            if (!found) {
+            if (found == false) {
                 keys.remove();
             }
         }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
@@ -61,9 +50,17 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
     private final int window;
     private final int shift;
 
-    MovFnPipelineAggregator(String name, String bucketsPath, Script script, int window, int shift, DocValueFormat formatter,
-                            BucketHelpers.GapPolicy gapPolicy, Map<String, Object> metadata) {
-        super(name, new String[]{bucketsPath}, metadata);
+    MovFnPipelineAggregator(
+        String name,
+        String bucketsPath,
+        Script script,
+        int window,
+        int shift,
+        DocValueFormat formatter,
+        BucketHelpers.GapPolicy gapPolicy,
+        Map<String, Object> metadata
+    ) {
+        super(name, new String[] { bucketsPath }, metadata);
         this.bucketsPath = bucketsPath;
         this.script = script;
         this.formatter = formatter;
@@ -74,9 +71,12 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
 
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, InternalAggregation.ReduceContext reduceContext) {
-        InternalMultiBucketAggregation<? extends InternalMultiBucketAggregation, ? extends InternalMultiBucketAggregation.InternalBucket>
-            histo = (InternalMultiBucketAggregation<? extends InternalMultiBucketAggregation, ? extends
-            InternalMultiBucketAggregation.InternalBucket>) aggregation;
+        @SuppressWarnings("rawtypes")
+        InternalMultiBucketAggregation<
+            ? extends InternalMultiBucketAggregation,
+            ? extends InternalMultiBucketAggregation.InternalBucket> histo = (InternalMultiBucketAggregation<
+                ? extends InternalMultiBucketAggregation,
+                ? extends InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = histo.getBuckets();
         HistogramFactory factory = (HistogramFactory) histo;
 
@@ -100,7 +100,7 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
             Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], gapPolicy);
 
-            // Default is to reuse existing bucket.  Simplifies the rest of the logic,
+            // Default is to reuse existing bucket. Simplifies the rest of the logic,
             // since we only change newBucket if we can add to it
             MultiBucketsAggregation.Bucket newBucket = bucket;
 
@@ -112,13 +112,10 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
                 int toIndex = clamp(index + shift, values);
                 double movavg = executableScript.execute(
                     vars,
-                    values.subList(fromIndex, toIndex).stream()
-                        .mapToDouble(Double::doubleValue)
-                        .toArray()
+                    values.subList(fromIndex, toIndex).stream().mapToDouble(Double::doubleValue).toArray()
                 );
 
-                List<InternalAggregation> aggs = StreamSupport
-                    .stream(bucket.getAggregations().spliterator(), false)
+                List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
                     .map(InternalAggregation.class::cast)
                     .collect(Collectors.toList());
                 aggs.add(new InternalSimpleValue(name(), movavg, formatter, metadata()));

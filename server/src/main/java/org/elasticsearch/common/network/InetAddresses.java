@@ -16,7 +16,7 @@
 
 package org.elasticsearch.common.network;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 
 import java.net.Inet4Address;
 import java.net.Inet6Address;
@@ -160,7 +160,7 @@ public class InetAddresses {
         // If we found a ::, then we must have skipped at least one part.
         // Otherwise, we must have exactly the right number of parts.
         int partsSkipped = IPV6_PART_COUNT - (partsHi + partsLo);
-        if (!(skipIndex >= 0 ? partsSkipped >= 1 : partsSkipped == 0)) {
+        if ((skipIndex >= 0 ? partsSkipped >= 1 : partsSkipped == 0) == false) {
             return null;
         }
 
@@ -249,7 +249,7 @@ public class InetAddresses {
             byte[] bytes = ip.getAddress();
             return (bytes[0] & 0xff) + "." + (bytes[1] & 0xff) + "." + (bytes[2] & 0xff) + "." + (bytes[3] & 0xff);
         }
-        if (!(ip instanceof Inet6Address)) {
+        if ((ip instanceof Inet6Address) == false) {
             throw new IllegalArgumentException("ip");
         }
         byte[] bytes = ip.getAddress();

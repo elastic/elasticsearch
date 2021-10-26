@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ilm;
 
@@ -13,9 +14,9 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
@@ -116,23 +117,6 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
             (idxMeta, stepKey) -> new MockStep(stepKey, new StepKey("next-phase", "action", "step")), state -> {});
         ClusterState newState = task.execute(clusterState);
         assertThat(newState, sameInstance(clusterState));
-    }
-
-    public void testOnFailure() {
-        StepKey currentStepKey = new StepKey("current-phase", "current-action", "current-name");
-        long now = randomNonNegativeLong();
-        Exception cause = new ElasticsearchException("THIS IS AN EXPECTED CAUSE");
-
-        setStateToKey(currentStepKey);
-
-        MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(index, policy, currentStepKey, cause, () -> now,
-            (idxMeta, stepKey) -> new MockStep(stepKey, new StepKey("next-phase", "action", "step")), state -> {});
-        Exception expectedException = new RuntimeException();
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                () -> task.onFailure(randomAlphaOfLength(10), expectedException));
-        assertEquals("policy [" + policy + "] for index [" + index.getName() + "] failed trying to move from step [" + currentStepKey
-                + "] to the ERROR step.", exception.getMessage());
-        assertSame(expectedException, exception.getCause());
     }
 
     private void setStatePolicy(String policy) {

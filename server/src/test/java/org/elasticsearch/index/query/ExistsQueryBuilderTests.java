@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
@@ -27,13 +16,13 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -57,13 +46,14 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
     }
 
     @Override
-    protected void doAssertLuceneQuery(ExistsQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(ExistsQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         String fieldPattern = queryBuilder.fieldName();
-        Collection<String> fields = context.simpleMatchToIndexNames(fieldPattern);
-        Collection<String> mappedFields = fields.stream().filter((field) -> context.getObjectMapper(field) != null
-                || context.isFieldMapped(field)).collect(Collectors.toList());
-        if (mappedFields.size() == 0) {
-            assertThat(query, instanceOf(MatchNoDocsQuery.class));
+        Collection<String> fields = context.getMatchingFieldNames(fieldPattern);
+        if (fields.size() == 0 && Regex.isSimpleMatchPattern(fieldPattern) == false && context.getObjectMapper(fieldPattern) != null) {
+            fields = context.getMatchingFieldNames(fieldPattern + ".*");
+        }
+        if (fields.size() == 0) {
+            assertThat(fieldPattern, query, instanceOf(MatchNoDocsQuery.class));
         } else if (fields.size() == 1) {
             assertThat(query, instanceOf(ConstantScoreQuery.class));
             ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;
@@ -96,8 +86,8 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
             ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;
             assertThat(constantScoreQuery.getQuery(), instanceOf(BooleanQuery.class));
             BooleanQuery booleanQuery = (BooleanQuery) constantScoreQuery.getQuery();
-            assertThat(booleanQuery.clauses().size(), equalTo(mappedFields.size()));
-            for (int i = 0; i < mappedFields.size(); i++) {
+            assertThat(booleanQuery.clauses().size(), equalTo(fields.size()));
+            for (int i = 0; i < fields.size(); i++) {
                 BooleanClause booleanClause = booleanQuery.clauses().get(i);
                 assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
             }
@@ -106,7 +96,7 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
 
     @Override
     public void testMustRewrite() {
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         context.setAllowUnmappedFields(true);
         ExistsQueryBuilder queryBuilder = new ExistsQueryBuilder("foo");
         IllegalStateException e = expectThrows(IllegalStateException.class,

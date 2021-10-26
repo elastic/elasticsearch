@@ -1,0 +1,52 @@
+---
+"Create and Get API key in the upgraded cluster":
+
+  - skip:
+      features: headers
+
+  - do:
+      security.create_api_key:
+        body:  >
+          {
+            "name": "my-new-api-key",
+            "metadata": {"application": "myapp"}
+          }
+  - match: { name: "my-new-api-key" }
+  - is_true: id
+  - is_true: api_key
+
+  - do:
+      security.get_api_key:
+        name: "my-old-api-key"
+
+  - length: { api_keys: 1 }
+
+  - match: { api_keys.0.name: "my-old-api-key" }
+  - match: { api_keys.0.metadata: {} }
+
+  - do:
+      security.get_api_key:
+        name: "my-new-api-key"
+
+  - length: { api_keys: 1 }
+
+  - match: { api_keys.0.name: "my-new-api-key" }
+  - match: { api_keys.0.metadata: { "application": "myapp" } }
+
+  - do:
+      security.get_api_key:
+        name: "my-mixed-api-key-1"
+
+  - length: { api_keys: 1 }
+
+  - match: { api_keys.0.name: "my-mixed-api-key-1" }
+  - match: { api_keys.0.metadata: {} }
+
+  - do:
+      security.get_api_key:
+        name: "my-mixed-api-key-2"
+
+  - length: { api_keys: 1 }
+
+  - match: { api_keys.0.name: "my-mixed-api-key-2" }
+  - match: { api_keys.0.metadata: {"foo": "bar"} }

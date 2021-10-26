@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test.transport;
@@ -40,9 +29,12 @@ import org.elasticsearch.transport.TransportStats;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+
+import static junit.framework.TestCase.assertTrue;
 
 public class StubbableTransport implements Transport {
 
@@ -105,9 +97,22 @@ public class StubbableTransport implements Transport {
 
     void clearOutboundBehaviors() {
         this.defaultSendRequest = null;
-        sendBehaviors.clear();
+        final Iterator<SendRequestBehavior> sendBehaviorIterator = sendBehaviors.values().iterator();
+        while (sendBehaviorIterator.hasNext()) {
+            final SendRequestBehavior behavior = sendBehaviorIterator.next();
+            sendBehaviorIterator.remove();
+            behavior.clearCallback();
+        }
+        assertTrue(sendBehaviors.isEmpty());
+
         this.defaultConnectBehavior = null;
-        connectBehaviors.clear();
+        final Iterator<OpenConnectionBehavior> connectBehaviorIterator = connectBehaviors.values().iterator();
+        while (connectBehaviorIterator.hasNext()) {
+            final OpenConnectionBehavior behavior = connectBehaviorIterator.next();
+            connectBehaviorIterator.remove();
+            behavior.clearCallback();
+        }
+        assertTrue(connectBehaviors.isEmpty());
     }
 
     void clearOutboundBehaviors(TransportAddress transportAddress) {
@@ -151,8 +156,7 @@ public class StubbableTransport implements Transport {
         OpenConnectionBehavior behavior = connectBehaviors.getOrDefault(address, defaultConnectBehavior);
 
         ActionListener<Connection> wrappedListener =
-            ActionListener.delegateFailure(listener,
-                (delegatedListener, connection) -> delegatedListener.onResponse(new WrappedConnection(connection)));
+            listener.delegateFailure((delegatedListener, connection) -> delegatedListener.onResponse(new WrappedConnection(connection)));
 
         if (behavior == null) {
             delegate.openConnection(node, profile, wrappedListener);
@@ -241,6 +245,10 @@ public class StubbableTransport implements Transport {
             connection.addCloseListener(listener);
         }
 
+        @Override
+        public void addRemovedListener(ActionListener<Void> listener) {
+            connection.addRemovedListener(listener);
+        }
 
         @Override
         public boolean isClosed() {
@@ -262,8 +270,38 @@ public class StubbableTransport implements Transport {
             connection.close();
         }
 
+        @Override
+        public void onRemoved() {
+            connection.onRemoved();
+        }
+
         public Transport.Connection getConnection() {
             return connection;
+        }
+
+        @Override
+        public String toString() {
+            return "WrappedConnection[" + connection + "]";
+        }
+
+        @Override
+        public void incRef() {
+            connection.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return connection.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return connection.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return connection.hasReferences();
         }
     }
 

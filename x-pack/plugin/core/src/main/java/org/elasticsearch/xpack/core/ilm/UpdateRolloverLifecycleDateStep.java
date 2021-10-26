@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -69,7 +70,7 @@ public class UpdateRolloverLifecycleDateStep extends ClusterStateActionStep {
         IndexMetadata.Builder newIndexMetadata = IndexMetadata.builder(indexMetadata);
         newIndexMetadata.putCustom(ILM_CUSTOM_METADATA_KEY, newLifecycleState.build().asMap());
         return ClusterState.builder(currentState).metadata(Metadata.builder(currentState.metadata())
-            .put(newIndexMetadata)).build();
+            .put(newIndexMetadata).build(false)).build();
     }
 
     private static String getRolloverTarget(Index index, ClusterState currentState) {

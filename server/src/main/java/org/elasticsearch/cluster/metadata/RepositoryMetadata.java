@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.metadata;
 
@@ -23,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -33,6 +23,7 @@ import java.util.Objects;
 public class RepositoryMetadata implements Writeable {
 
     private final String name;
+    private final String uuid;
     private final String type;
     private final Settings settings;
 
@@ -54,15 +45,16 @@ public class RepositoryMetadata implements Writeable {
      * @param settings repository settings
      */
     public RepositoryMetadata(String name, String type, Settings settings) {
-        this(name, type, settings, RepositoryData.UNKNOWN_REPO_GEN, RepositoryData.EMPTY_REPO_GEN);
+        this(name, RepositoryData.MISSING_UUID, type, settings, RepositoryData.UNKNOWN_REPO_GEN, RepositoryData.EMPTY_REPO_GEN);
     }
 
     public RepositoryMetadata(RepositoryMetadata metadata, long generation, long pendingGeneration) {
-        this(metadata.name, metadata.type, metadata.settings, generation, pendingGeneration);
+        this(metadata.name, metadata.uuid, metadata.type, metadata.settings, generation, pendingGeneration);
     }
 
-    public RepositoryMetadata(String name, String type, Settings settings, long generation, long pendingGeneration) {
+    public RepositoryMetadata(String name, String uuid, String type, Settings settings, long generation, long pendingGeneration) {
         this.name = name;
+        this.uuid = uuid;
         this.type = type;
         this.settings = settings;
         this.generation = generation;
@@ -87,6 +79,19 @@ public class RepositoryMetadata implements Writeable {
      */
     public String type() {
         return this.type;
+    }
+
+    /**
+     * Return the repository UUID, if set and known. The repository UUID is stored in the repository and typically populated here when the
+     * repository is registered or when we write to it. It may not be set if the repository is maintaining support for versions before
+     * {@link SnapshotsService#UUIDS_IN_REPO_DATA_VERSION}. It may not be known if the repository was registered with {@code
+     * ?verify=false} and has had no subsequent writes. Consumers may, if desired, try and fill in a missing value themselves by retrieving
+     * the {@link RepositoryData} and calling {@link org.elasticsearch.repositories.RepositoriesService#updateRepositoryUuidInMetadata}.
+     *
+     * @return repository UUID, or {@link RepositoryData#MISSING_UUID} if the UUID is not set or not known.
+     */
+    public String uuid() {
+        return this.uuid;
     }
 
     /**
@@ -124,6 +129,11 @@ public class RepositoryMetadata implements Writeable {
 
     public RepositoryMetadata(StreamInput in) throws IOException {
         name = in.readString();
+        if (in.getVersion().onOrAfter(SnapshotsService.UUIDS_IN_REPO_DATA_VERSION)) {
+            uuid = in.readString();
+        } else {
+            uuid = RepositoryData.MISSING_UUID;
+        }
         type = in.readString();
         settings = Settings.readSettingsFromStream(in);
         generation = in.readLong();
@@ -138,6 +148,9 @@ public class RepositoryMetadata implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
+        if (out.getVersion().onOrAfter(SnapshotsService.UUIDS_IN_REPO_DATA_VERSION)) {
+            out.writeString(uuid);
+        }
         out.writeString(type);
         Settings.writeSettingsToStream(settings, out);
         out.writeLong(generation);
@@ -151,7 +164,7 @@ public class RepositoryMetadata implements Writeable {
      * @return {@code true} if both instances equal in all fields but the generation fields
      */
     public boolean equalsIgnoreGenerations(RepositoryMetadata other) {
-        return name.equals(other.name) && type.equals(other.type()) && settings.equals(other.settings());
+        return name.equals(other.name) && uuid.equals(other.uuid()) && type.equals(other.type()) && settings.equals(other.settings());
     }
 
     @Override
@@ -161,8 +174,9 @@ public class RepositoryMetadata implements Writeable {
 
         RepositoryMetadata that = (RepositoryMetadata) o;
 
-        if (!name.equals(that.name)) return false;
-        if (!type.equals(that.type)) return false;
+        if (name.equals(that.name) == false) return false;
+        if (uuid.equals(that.uuid) == false) return false;
+        if (type.equals(that.type) == false) return false;
         if (generation != that.generation) return false;
         if (pendingGeneration != that.pendingGeneration) return false;
         return settings.equals(that.settings);
@@ -170,11 +184,20 @@ public class RepositoryMetadata implements Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, type, settings, generation, pendingGeneration);
+        return Objects.hash(name, uuid, type, settings, generation, pendingGeneration);
     }
 
     @Override
     public String toString() {
-        return "RepositoryMetadata{" + name + "}{" + type + "}{" + settings + "}{" + generation + "}{" + pendingGeneration + "}";
+        return "RepositoryMetadata{" + name + "}{" + uuid + "}{" + type + "}{" + settings + "}{"
+                + generation + "}{" + pendingGeneration + "}";
+    }
+
+    public RepositoryMetadata withUuid(String uuid) {
+        return new RepositoryMetadata(name, uuid, type, settings, generation, pendingGeneration);
+    }
+
+    public RepositoryMetadata withSettings(Settings settings) {
+        return new RepositoryMetadata(name, uuid, type, settings, generation, pendingGeneration);
     }
 }

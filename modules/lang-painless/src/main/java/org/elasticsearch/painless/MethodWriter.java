@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
@@ -22,7 +11,6 @@ package org.elasticsearch.painless;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
@@ -31,7 +19,6 @@ import org.objectweb.asm.commons.GeneratorAdapter;
 import org.objectweb.asm.commons.Method;
 
 import java.lang.reflect.Modifier;
-import java.time.ZonedDateTime;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -73,10 +60,8 @@ import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_SHORT_EXPLICIT
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_SHORT_IMPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_STRING_EXPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_STRING_IMPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_ZONEDDATETIME;
 import static org.elasticsearch.painless.WriterConstants.DEF_UTIL_TYPE;
 import static org.elasticsearch.painless.WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE;
-import static org.elasticsearch.painless.WriterConstants.JCZDT_TO_ZONEDDATETIME;
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.MAX_INDY_STRING_CONCAT_ARGS;
 import static org.elasticsearch.painless.WriterConstants.PAINLESS_ERROR_TYPE;
@@ -164,9 +149,6 @@ public final class MethodWriter extends GeneratorAdapter {
             invokeStatic(UTILITY_TYPE, CHAR_TO_STRING);
         } else if (cast.originalType == String.class && cast.targetType == char.class) {
             invokeStatic(UTILITY_TYPE, STRING_TO_CHAR);
-        // TODO: remove this when the transition from Joda to Java datetimes is completed
-        } else if (cast.originalType == JodaCompatibleZonedDateTime.class && cast.targetType == ZonedDateTime.class) {
-            invokeStatic(UTILITY_TYPE, JCZDT_TO_ZONEDDATETIME);
         } else if (cast.unboxOriginalType != null && cast.boxTargetType != null) {
             unbox(getType(cast.unboxOriginalType));
             writeCast(cast.unboxOriginalType, cast.boxTargetType);
@@ -202,8 +184,6 @@ public final class MethodWriter extends GeneratorAdapter {
                 else if (cast.targetType == Float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_FLOAT_EXPLICIT);
                 else if (cast.targetType == Double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_DOUBLE_EXPLICIT);
                 else if (cast.targetType == String.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_STRING_EXPLICIT);
-                // TODO: remove this when the transition from Joda to Java datetimes is completed
-                else if (cast.targetType == ZonedDateTime.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_ZONEDDATETIME);
                 else {
                     writeCast(cast.originalType, cast.targetType);
                 }
@@ -225,8 +205,6 @@ public final class MethodWriter extends GeneratorAdapter {
                 else if (cast.targetType == Float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_FLOAT_IMPLICIT);
                 else if (cast.targetType == Double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_DOUBLE_IMPLICIT);
                 else if (cast.targetType == String.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_STRING_IMPLICIT);
-                // TODO: remove this when the transition from Joda to Java datetimes is completed
-                else if (cast.targetType == ZonedDateTime.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_ZONEDDATETIME);
                 else {
                     writeCast(cast.originalType, cast.targetType);
                 }
@@ -244,7 +222,7 @@ public final class MethodWriter extends GeneratorAdapter {
         if (from != boolean.class && from.isPrimitive() && to != boolean.class && to.isPrimitive()) {
             cast(getType(from), getType(to));
         } else {
-            if (!to.isAssignableFrom(from)) {
+            if (to.isAssignableFrom(from) == false) {
                 checkCast(getType(to));
             }
         }
@@ -357,7 +335,7 @@ public final class MethodWriter extends GeneratorAdapter {
                 // so we don't need a special NPE guard.
                 // otherwise, we need to allow nulls for possible string concatenation.
                 boolean hasPrimitiveArg = lhs.isPrimitive() || rhs.isPrimitive();
-                if (!hasPrimitiveArg) {
+                if (hasPrimitiveArg == false) {
                     flags |= DefBootstrap.OPERATOR_ALLOWS_NULL;
                 }
                 invokeDefCall("add", methodType, DefBootstrap.BINARY_OPERATOR, flags);
@@ -466,7 +444,7 @@ public final class MethodWriter extends GeneratorAdapter {
 
     @Override
     public void endMethod() {
-        if (stringConcatArgs != null && !stringConcatArgs.isEmpty()) {
+        if (stringConcatArgs != null && stringConcatArgs.isEmpty() == false) {
             throw new IllegalStateException("String concat bytecode not completed.");
         }
         super.endMethod();
@@ -525,11 +503,6 @@ public final class MethodWriter extends GeneratorAdapter {
         args[6] = functionRef.isDelegateAugmented ? 1 : 0;
         System.arraycopy(functionRef.delegateInjections, 0, args, 7, functionRef.delegateInjections.length);
 
-        invokeDynamic(
-                functionRef.interfaceMethodName,
-                functionRef.factoryMethodType.toMethodDescriptorString(),
-                LAMBDA_BOOTSTRAP_HANDLE,
-                args
-        );
+        invokeDynamic(functionRef.interfaceMethodName, functionRef.getFactoryMethodDescriptor(), LAMBDA_BOOTSTRAP_HANDLE, args);
     }
 }

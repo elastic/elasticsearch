@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.search.action;
 
@@ -10,7 +11,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -28,7 +29,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see AsyncSearchResponse
  */
 public class SubmitAsyncSearchRequest extends ActionRequest {
-    public static long MIN_KEEP_ALIVE = TimeValue.timeValueMinutes(1).millis();
+    public static long MIN_KEEP_ALIVE = TimeValue.timeValueSeconds(1).millis();
 
     private TimeValue waitForCompletionTimeout = TimeValue.timeValueSeconds(1);
     private boolean keepOnCompletion = false;
@@ -135,7 +136,8 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
         }
         if (keepAlive.getMillis() < MIN_KEEP_ALIVE) {
             validationException =
-                addValidationError("[keep_alive] must be greater than 1 minute, got:" + keepAlive.toString(), validationException);
+                addValidationError("[keep_alive] must be greater or equals than 1 second, got:" +
+                    keepAlive.toString(), validationException);
         }
         if (request.isCcsMinimizeRoundtrips()) {
             validationException =
@@ -152,11 +154,6 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new CancellableTask(id, type, action, null, parentTaskId, headers) {
-            @Override
-            public boolean shouldCancelChildrenOnCancellation() {
-                return true;
-            }
-
             @Override
             public String getDescription() {
                 // generating description in a lazy way since source can be quite big

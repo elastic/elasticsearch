@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.routing.allocation.decider;
 
@@ -42,7 +31,7 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
      */
     public void testEnableRebalance() throws InterruptedException {
         final String firstNode = internalCluster().startNode();
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE))
                 .get();
         // we test with 2 shards since otherwise it's pretty fragile if there are difference in the num or shards such that
@@ -80,7 +69,7 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
         // flip the cluster wide setting such that we can also balance for index
         // test_1 eventually we should have one shard of each index on each node
         client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(),
+                .setPersistentSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(),
                         randomBoolean() ? EnableAllocationDecider.Rebalance.PRIMARIES : EnableAllocationDecider.Rebalance.ALL))
                 .get();
         logger.info("--> balance index [test_1]");
@@ -100,7 +89,7 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
         internalCluster().startNodes(2);
         // same same_host to true, since 2 nodes are started on the same host,
         // only primaries should be assigned
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(
             Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), true)
         ).get();
         final String indexName = "idx";
@@ -113,7 +102,7 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
             clusterState.getRoutingTable().index(indexName).shardsWithState(ShardRoutingState.UNASSIGNED).isEmpty());
         // now, update the same_host setting to allow shards to be allocated to multiple nodes on
         // the same host - the replica should get assigned
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(
             Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), false)
         ).get();
         clusterState = client().admin().cluster().prepareState().get().getState();

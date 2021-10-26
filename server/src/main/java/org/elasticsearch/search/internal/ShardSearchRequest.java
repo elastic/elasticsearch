@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.internal;
@@ -28,26 +17,31 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AliasFilterParsingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchSortValuesAndFormats;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -74,10 +68,12 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private final ShardId shardId;
     private final int shardRequestIndex;
     private final int numberOfShards;
+    private final long waitForCheckpoint;
+    private final TimeValue waitForCheckpointsTimeout;
     private final SearchType searchType;
     private final Scroll scroll;
     private final float indexBoost;
-    private final Boolean requestCache;
+    private Boolean requestCache;
     private final long nowInMillis;
     private final boolean allowPartialSearchResults;
     private final OriginalIndices originalIndices;
@@ -90,6 +86,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private SearchSourceBuilder source;
     private final ShardSearchContextId readerId;
     private final TimeValue keepAlive;
+
+    private final Version channelVersion;
 
     public ShardSearchRequest(OriginalIndices originalIndices,
                               SearchRequest searchRequest,
@@ -129,20 +127,37 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             nowInMillis,
             clusterAlias,
             readerId,
-            keepAlive);
+            keepAlive,
+            computeWaitForCheckpoint(searchRequest.getWaitForCheckpoints(), shardId, shardRequestIndex),
+            searchRequest.getWaitForCheckpointsTimeout());
         // If allowPartialSearchResults is unset (ie null), the cluster-level default should have been substituted
         // at this stage. Any NPEs in the above are therefore an error in request preparation logic.
         assert searchRequest.allowPartialSearchResults() != null;
+    }
+
+    private static final long[] EMPTY_LONG_ARRAY = new long[0];
+
+    public static long computeWaitForCheckpoint(Map<String, long[]> indexToWaitForCheckpoints, ShardId shardId, int shardRequestIndex) {
+        final long[] waitForCheckpoints = indexToWaitForCheckpoints.getOrDefault(shardId.getIndex().getName(), EMPTY_LONG_ARRAY);
+
+        long waitForCheckpoint;
+        if (waitForCheckpoints.length == 0) {
+            waitForCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
+        } else {
+            assert waitForCheckpoints.length > shardRequestIndex;
+            waitForCheckpoint = waitForCheckpoints[shardRequestIndex];
+        }
+        return waitForCheckpoint;
     }
 
     public ShardSearchRequest(ShardId shardId,
                               long nowInMillis,
                               AliasFilter aliasFilter) {
         this(OriginalIndices.NONE, shardId, -1, -1, SearchType.QUERY_THEN_FETCH, null, null,
-            aliasFilter, 1.0f, false, null, nowInMillis, null, null, null);
+            aliasFilter, 1.0f, true, null, nowInMillis, null, null, null, SequenceNumbers.UNASSIGNED_SEQ_NO, SearchService.NO_TIMEOUT);
     }
 
-    private ShardSearchRequest(OriginalIndices originalIndices,
+    public ShardSearchRequest(OriginalIndices originalIndices,
                                ShardId shardId,
                                int shardRequestIndex,
                                int numberOfShards,
@@ -156,7 +171,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                                long nowInMillis,
                                @Nullable String clusterAlias,
                                ShardSearchContextId readerId,
-                               TimeValue keepAlive) {
+                               TimeValue keepAlive,
+                               long waitForCheckpoint,
+                               TimeValue waitForCheckpointsTimeout) {
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
         this.numberOfShards = numberOfShards;
@@ -173,6 +190,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.readerId = readerId;
         this.keepAlive = keepAlive;
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
+        this.channelVersion = Version.CURRENT;
+        this.waitForCheckpoint = waitForCheckpoint;
+        this.waitForCheckpointsTimeout = waitForCheckpointsTimeout;
     }
 
     public ShardSearchRequest(StreamInput in) throws IOException {
@@ -212,8 +232,16 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             readerId = null;
             keepAlive = null;
         }
-        originalIndices = OriginalIndices.readOriginalIndices(in);
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
+        channelVersion = Version.min(Version.readVersion(in), in.getVersion());
+        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
+            waitForCheckpoint = in.readLong();
+            waitForCheckpointsTimeout = in.readTimeValue();
+        } else {
+            waitForCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            waitForCheckpointsTimeout = SearchService.NO_TIMEOUT;
+        }
+        originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
     public ShardSearchRequest(ShardSearchRequest clone) {
@@ -234,6 +262,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.originalIndices = clone.originalIndices;
         this.readerId = clone.readerId;
         this.keepAlive = clone.keepAlive;
+        this.channelVersion = clone.channelVersion;
+        this.waitForCheckpoint = clone.waitForCheckpoint;
+        this.waitForCheckpointsTimeout = clone.waitForCheckpointsTimeout;
     }
 
     @Override
@@ -275,6 +306,15 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             out.writeOptionalWriteable(bottomSortValues);
             out.writeOptionalWriteable(readerId);
             out.writeOptionalTimeValue(keepAlive);
+        }
+        Version.writeVersion(channelVersion, out);
+        Version waitForCheckpointsVersion = Version.V_7_16_0;
+        if (out.getVersion().onOrAfter(waitForCheckpointsVersion)) {
+            out.writeLong(waitForCheckpoint);
+            out.writeTimeValue(waitForCheckpointsTimeout);
+        } else if (waitForCheckpoint != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            throw new IllegalArgumentException("Remote node version [" + out.getVersion() + " incompatible with " +
+                "wait_for_checkpoints. All nodes must be version [" + waitForCheckpointsVersion + "] or greater.");
         }
     }
 
@@ -342,6 +382,10 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         return requestCache;
     }
 
+    public void requestCache(Boolean requestCache) {
+        this.requestCache = requestCache;
+    }
+
     public boolean allowPartialSearchResults() {
         return allowPartialSearchResults;
     }
@@ -394,15 +438,25 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         return keepAlive;
     }
 
+    public long waitForCheckpoint() {
+        return waitForCheckpoint;
+    }
+
+    public TimeValue getWaitForCheckpointsTimeout() {
+        return waitForCheckpointsTimeout;
+    }
+
     /**
      * Returns the cache key for this shard search request, based on its content
      */
-    public BytesReference cacheKey() throws IOException {
+    public BytesReference cacheKey(CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> differentiator) throws IOException {
         BytesStreamOutput out = scratch.get();
         try {
             this.innerWriteTo(out, true);
-            // copy it over since we don't want to share the thread-local bytes in #scratch
-            return out.copyBytes();
+            if (differentiator != null) {
+                differentiator.accept(this, out);
+            }
+            return new BytesArray(MessageDigests.digest(out.bytes(), MessageDigests.sha256()));
         } finally {
             out.reset();
         }
@@ -442,12 +496,12 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             SearchSourceBuilder newSource = request.source() == null ? null : Rewriteable.rewrite(request.source(), ctx);
             AliasFilter newAliasFilter = Rewriteable.rewrite(request.getAliasFilter(), ctx);
 
-            QueryShardContext shardContext = ctx.convertToShardContext();
+            SearchExecutionContext searchExecutionContext = ctx.convertToSearchExecutionContext();
 
             FieldSortBuilder primarySort = FieldSortBuilder.getPrimaryFieldSortOrNull(newSource);
-            if (shardContext != null
+            if (searchExecutionContext != null
                     && primarySort != null
-                    && primarySort.isBottomSortShardDisjoint(shardContext, request.getBottomSortValues())) {
+                    && primarySort.isBottomSortShardDisjoint(searchExecutionContext, request.getBottomSortValues())) {
                 assert newSource != null : "source should contain a primary sort field";
                 newSource = newSource.shallowCopy();
                 int trackTotalHitsUpTo = SearchRequest.resolveTrackTotalHitsUpTo(request.scroll, request.source);
@@ -526,5 +580,14 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     public final Map<String, Object> getRuntimeMappings() {
         return source == null ? emptyMap() : source.runtimeMappings();
+    }
+
+    /**
+     * Returns the minimum version of the channel that the request has been passed. If the request never passes around, then the channel
+     * version is {@link Version#CURRENT}; otherwise, it's the minimum version of the coordinating node and data node (and the proxy node
+     * in case the request is sent to the proxy node of the remote cluster before reaching the data node).
+     */
+    public Version getChannelVersion() {
+        return channelVersion;
     }
 }

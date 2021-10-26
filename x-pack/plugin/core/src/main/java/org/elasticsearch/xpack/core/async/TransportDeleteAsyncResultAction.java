@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.async;
 
@@ -15,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -33,13 +35,14 @@ public class TransportDeleteAsyncResultAction extends HandledTransportAction<Del
                                             ClusterService clusterService,
                                             NamedWriteableRegistry registry,
                                             Client client,
-                                            ThreadPool threadPool) {
+                                            ThreadPool threadPool,
+                                            BigArrays bigArrays) {
         super(DeleteAsyncResultAction.NAME, transportService, actionFilters, DeleteAsyncResultRequest::new);
         this.transportService = transportService;
         this.clusterService = clusterService;
         AsyncTaskIndexService<?> store = new AsyncTaskIndexService<>(XPackPlugin.ASYNC_RESULTS_INDEX, clusterService,
             threadPool.getThreadContext(), client, ASYNC_SEARCH_ORIGIN,
-            (in) -> {throw new UnsupportedOperationException("Reading is not supported during deletion");}, registry);
+            (in) -> {throw new UnsupportedOperationException("Reading is not supported during deletion");}, registry, bigArrays);
         this.deleteResultsService = new DeleteAsyncResultsService(store, transportService.getTaskManager());
     }
 
@@ -49,7 +52,7 @@ public class TransportDeleteAsyncResultAction extends HandledTransportAction<Del
         AsyncExecutionId searchId = AsyncExecutionId.decode(request.getId());
         DiscoveryNode node = clusterService.state().nodes().get(searchId.getTaskId().getNodeId());
         if (clusterService.localNode().getId().equals(searchId.getTaskId().getNodeId()) || node == null) {
-            deleteResultsService.deleteResult(request, listener);
+            deleteResultsService.deleteResponse(request, listener);
         } else {
             transportService.sendRequest(node, DeleteAsyncResultAction.NAME, request,
                 new ActionListenerResponseHandler<>(listener, AcknowledgedResponse::readFrom, ThreadPool.Names.SAME));

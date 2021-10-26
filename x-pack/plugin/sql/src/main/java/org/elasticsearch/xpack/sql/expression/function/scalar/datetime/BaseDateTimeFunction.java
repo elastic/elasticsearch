@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import java.time.ZoneId;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.sql.expression.SqlTypeResolutions.isDate;
 
 abstract class BaseDateTimeFunction extends UnaryScalarFunction {
@@ -35,7 +36,7 @@ abstract class BaseDateTimeFunction extends UnaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        return isDate(field(), sourceText(), ParamOrdinal.DEFAULT);
+        return isDate(field(), sourceText(), DEFAULT);
     }
 
     public ZoneId zoneId() {

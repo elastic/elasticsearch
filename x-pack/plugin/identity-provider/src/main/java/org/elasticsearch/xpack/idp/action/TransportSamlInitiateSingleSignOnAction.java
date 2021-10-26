@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.idp.action;
 
@@ -115,18 +116,19 @@ public class TransportSamlInitiateSingleSignOnAction
                                              ActionListener<UserServiceAuthentication> listener) {
         User user = secondaryAuthentication.getUser();
         secondaryAuthentication.execute(ignore -> {
-                privilegeResolver.resolve(serviceProvider.getPrivileges(), ActionListener.wrap(
-                    userPrivileges -> {
-                        if (userPrivileges.hasAccess == false) {
-                            listener.onResponse(null);
-                        } else {
-                            logger.debug("Resolved [{}] for [{}]", userPrivileges, user);
-                            listener.onResponse(new UserServiceAuthentication(user.principal(), user.fullName(), user.email(),
-                                userPrivileges.roles, serviceProvider));
-                        }
-                    },
-                    listener::onFailure
-                ));
+            ActionListener<UserPrivilegeResolver.UserPrivileges> wrapped = ActionListener.wrap(
+                userPrivileges -> {
+                    if (userPrivileges.hasAccess == false) {
+                        listener.onResponse(null);
+                    } else {
+                        logger.debug("Resolved [{}] for [{}]", userPrivileges, user);
+                        listener.onResponse(new UserServiceAuthentication(user.principal(), user.fullName(), user.email(),
+                            userPrivileges.roles, serviceProvider));
+                    }
+                },
+                listener::onFailure
+            );
+                privilegeResolver.resolve(serviceProvider.getPrivileges(), wrapped);
                 return null;
             }
         );

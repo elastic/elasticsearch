@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest.common;
@@ -28,9 +17,17 @@ import org.elasticsearch.ingest.ValueSource;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
+import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SetProcessorTests extends ESTestCase {
@@ -141,18 +138,117 @@ public class SetProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue(Metadata.IF_PRIMARY_TERM.getFieldName(), Long.class), Matchers.equalTo(ifPrimaryTerm));
     }
 
+    public void testSetDynamicTemplates() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        int iters = between(1, 3);
+        for (int i = 0; i < iters; i++) {
+            Map<String, String> dynamicTemplates = IntStream.range(0, between(0, 3)).boxed()
+                .collect(Collectors.toMap(n -> "field-" + n, n -> randomFrom("int", "geo_point", "keyword")));
+            Processor processor = createSetProcessor(Metadata.DYNAMIC_TEMPLATES.getFieldName(), dynamicTemplates, null, true, false);
+            processor.execute(ingestDocument);
+            assertThat(ingestDocument.getFieldValue(Metadata.DYNAMIC_TEMPLATES.getFieldName(), Map.class), equalTo(dynamicTemplates));
+        }
+    }
+
     public void testCopyFromOtherField() throws Exception {
         Map<String, Object> document = new HashMap<>();
         Object fieldValue = RandomDocumentPicks.randomFieldValue(random());
         document.put("field", fieldValue);
 
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-        String fieldName = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
+        String fieldName;
+        if (document.size() > 1) {
+            // select an existing field as target if one exists other than the copy_from field
+            do {
+                fieldName = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
+            } while (fieldName.equals("field") || fieldName.startsWith("field."));
+        } else {
+            // otherwise make up a new target field
+            fieldName = randomAlphaOfLength(6);
+        }
 
         Processor processor = createSetProcessor(fieldName, null, "field", true, false);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(fieldName), equalTo(true));
-        assertThat(ingestDocument.getFieldValue(fieldName, Object.class), equalTo(fieldValue));
+        Object copiedValue = ingestDocument.getFieldValue(fieldName, Object.class);
+        if (fieldValue instanceof Map) {
+            assertMapEquals(copiedValue, fieldValue);
+        } else {
+            assertThat(copiedValue, equalTo(fieldValue));
+        }
+    }
+
+    private static void assertMapEquals(Object actual, Object expected) {
+        if (expected instanceof Map) {
+            Map<?, ?> expectedMap = (Map<?, ?>) expected;
+            Map<?, ?> actualMap = (Map<?, ?>) actual;
+            assertThat(actualMap.keySet().toArray(), arrayContainingInAnyOrder(expectedMap.keySet().toArray()));
+            for (Map.Entry<?, ?> entry : actualMap.entrySet()) {
+                if (entry.getValue() instanceof Map) {
+                    assertMapEquals(entry.getValue(), expectedMap.get(entry.getKey()));
+                } else {
+                    assertThat(entry.getValue(), equalTo(expectedMap.get(entry.getKey())));
+                }
+            }
+        }
+    }
+
+    public void testCopyFromDeepCopiesNonPrimitiveMutableTypes() throws Exception {
+        final String originalField = "originalField";
+        final String targetField = "targetField";
+        Processor processor = createSetProcessor(targetField, null, originalField, true, false);
+
+        // map types
+        Map<String, Object> document = new HashMap<>();
+        Map<String, Object> originalMap = new HashMap<>();
+        originalMap.put("foo", "bar");
+        document.put(originalField, originalMap);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        IngestDocument output = processor.execute(ingestDocument);
+        originalMap.put("foo", "not-bar");
+        Map<?, ?> outputMap = output.getFieldValue(targetField, Map.class);
+        assertThat(outputMap.get("foo"), equalTo("bar"));
+
+        // set types
+        document = new HashMap<>();
+        Set<String> originalSet = randomUnique(() -> randomAlphaOfLength(5), 5);
+        Set<String> preservedSet = new HashSet<>(originalSet);
+        document.put(originalField, originalSet);
+        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        processor.execute(ingestDocument);
+        originalSet.add(randomValueOtherThanMany(originalSet::contains, () -> randomAlphaOfLength(5)));
+        assertThat(ingestDocument.getFieldValue(targetField, Object.class), equalTo(preservedSet));
+
+        // list types
+        document = new HashMap<>();
+        List<String> originalList = randomList(1, 5, () -> randomAlphaOfLength(5));
+        List<String> preservedList = new ArrayList<>(originalList);
+        document.put(originalField, originalList);
+        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        processor.execute(ingestDocument);
+        originalList.add(randomValueOtherThanMany(originalList::contains, () -> randomAlphaOfLength(5)));
+        assertThat(ingestDocument.getFieldValue(targetField, Object.class), equalTo(preservedList));
+
+        // byte[] types
+        document = new HashMap<>();
+        byte[] originalBytes = randomByteArrayOfLength(10);
+        byte[] preservedBytes = new byte[originalBytes.length];
+        System.arraycopy(originalBytes, 0, preservedBytes, 0, originalBytes.length);
+        document.put(originalField, originalBytes);
+        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        processor.execute(ingestDocument);
+        originalBytes[0] = originalBytes[0] == 0 ? (byte) 1 : (byte) 0;
+        assertThat(ingestDocument.getFieldValue(targetField, Object.class), equalTo(preservedBytes));
+
+        // Date types
+        document = new HashMap<>();
+        Date originalDate = new Date();
+        Date preservedDate = new Date(originalDate.getTime());
+        document.put(originalField, originalDate);
+        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        processor.execute(ingestDocument);
+        originalDate.setTime(originalDate.getTime() + 1);
+        assertThat(ingestDocument.getFieldValue(targetField, Object.class), equalTo(preservedDate));
     }
 
     private static Processor createSetProcessor(String fieldName, Object fieldValue, String copyFrom, boolean overrideEnabled,

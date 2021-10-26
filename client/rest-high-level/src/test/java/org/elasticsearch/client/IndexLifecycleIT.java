@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.client.core.AcknowledgedResponse;
@@ -51,8 +41,10 @@ import org.elasticsearch.client.ilm.StartILMRequest;
 import org.elasticsearch.client.ilm.StopILMRequest;
 import org.elasticsearch.client.ilm.UnfollowAction;
 import org.elasticsearch.client.ilm.WaitForSnapshotAction;
+import org.elasticsearch.client.slm.PutSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -61,7 +53,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -76,9 +71,10 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
     public void testRemoveIndexLifecyclePolicy() throws Exception {
         String policyName = randomAlphaOfLength(10);
         LifecyclePolicy policy = createRandomPolicy(policyName);
+        ensurePrerequisites(policy);
         PutLifecyclePolicyRequest putRequest = new PutLifecyclePolicyRequest(policy);
         assertAcked(execute(putRequest, highLevelClient().indexLifecycle()::putLifecyclePolicy,
-                highLevelClient().indexLifecycle()::putLifecyclePolicyAsync));
+            highLevelClient().indexLifecycle()::putLifecyclePolicyAsync));
 
         createIndex("foo", Settings.builder().put("index.lifecycle.name", policyName).build());
         createIndex("baz", Settings.builder().put("index.lifecycle.name", policyName).build());
@@ -95,7 +91,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         indices.add("rbh");
         RemoveIndexLifecyclePolicyRequest removeReq = new RemoveIndexLifecyclePolicyRequest(indices);
         RemoveIndexLifecyclePolicyResponse removeResp = execute(removeReq, highLevelClient().indexLifecycle()::removeIndexLifecyclePolicy,
-                highLevelClient().indexLifecycle()::removeIndexLifecyclePolicyAsync);
+            highLevelClient().indexLifecycle()::removeIndexLifecyclePolicyAsync);
         assertThat(removeResp.hasFailures(), is(false));
         assertThat(removeResp.getFailedIndexes().isEmpty(), is(true));
 
@@ -109,6 +105,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
     public void testStartStopILM() throws Exception {
         String policyName = randomAlphaOfLength(10);
         LifecyclePolicy policy = createRandomPolicy(policyName);
+        ensurePrerequisites(policy);
         PutLifecyclePolicyRequest putRequest = new PutLifecyclePolicyRequest(policy);
         assertAcked(execute(putRequest, highLevelClient().indexLifecycle()::putLifecyclePolicy,
             highLevelClient().indexLifecycle()::putLifecyclePolicyAsync));
@@ -126,19 +123,19 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
 
         StopILMRequest stopReq = new StopILMRequest();
         AcknowledgedResponse stopResponse = execute(stopReq, highLevelClient().indexLifecycle()::stopILM,
-                highLevelClient().indexLifecycle()::stopILMAsync);
+            highLevelClient().indexLifecycle()::stopILMAsync);
         assertTrue(stopResponse.isAcknowledged());
 
 
         statusResponse = execute(statusRequest, highLevelClient().indexLifecycle()::lifecycleManagementStatus,
             highLevelClient().indexLifecycle()::lifecycleManagementStatusAsync);
         assertThat(statusResponse.getOperationMode(),
-                Matchers.anyOf(equalTo(OperationMode.STOPPING),
-                    equalTo(OperationMode.STOPPED)));
+            Matchers.anyOf(equalTo(OperationMode.STOPPING),
+                equalTo(OperationMode.STOPPED)));
 
         StartILMRequest startReq = new StartILMRequest();
         AcknowledgedResponse startResponse = execute(startReq, highLevelClient().indexLifecycle()::startILM,
-                highLevelClient().indexLifecycle()::startILMAsync);
+            highLevelClient().indexLifecycle()::startILMAsync);
         assertTrue(startResponse.isAcknowledged());
 
         statusResponse = execute(statusRequest, highLevelClient().indexLifecycle()::lifecycleManagementStatus,
@@ -149,14 +146,14 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
     public void testExplainLifecycle() throws Exception {
         Map<String, Phase> lifecyclePhases = new HashMap<>();
         Map<String, LifecycleAction> hotActions = new HashMap<>();
-        hotActions.put(RolloverAction.NAME, new RolloverAction(null, TimeValue.timeValueHours(50 * 24), null));
+        hotActions.put(RolloverAction.NAME, new RolloverAction(null, null, TimeValue.timeValueHours(50 * 24), null));
         Phase hotPhase = new Phase("hot", randomFrom(TimeValue.ZERO, null), hotActions);
         lifecyclePhases.put("hot", hotPhase);
 
         Map<String, LifecycleAction> warmActions = new HashMap<>();
         warmActions.put(UnfollowAction.NAME, new UnfollowAction());
         warmActions.put(AllocateAction.NAME, new AllocateAction(null, null, null, Collections.singletonMap("_name", "node-1")));
-        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1));
+        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null));
         warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1000));
         lifecyclePhases.put("warm", new Phase("warm", TimeValue.timeValueSeconds(1000), warmActions));
 
@@ -172,6 +169,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         lifecyclePhases.put("delete", new Phase("delete", TimeValue.timeValueSeconds(3000), deleteActions));
 
         LifecyclePolicy policy = new LifecyclePolicy(randomAlphaOfLength(10), lifecyclePhases);
+        ensurePrerequisites(policy);
         PutLifecyclePolicyRequest putRequest = new PutLifecyclePolicyRequest(policy);
         AcknowledgedResponse putResponse = execute(putRequest, highLevelClient().indexLifecycle()::putLifecyclePolicy,
             highLevelClient().indexLifecycle()::putLifecyclePolicyAsync);
@@ -226,6 +224,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
     public void testDeleteLifecycle() throws IOException {
         String policyName = randomAlphaOfLength(10);
         LifecyclePolicy policy = createRandomPolicy(policyName);
+        ensurePrerequisites(policy);
         PutLifecyclePolicyRequest putRequest = new PutLifecyclePolicyRequest(policy);
         assertAcked(execute(putRequest, highLevelClient().indexLifecycle()::putLifecyclePolicy,
             highLevelClient().indexLifecycle()::putLifecyclePolicyAsync));
@@ -244,6 +243,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
     public void testPutLifecycle() throws IOException {
         String name = randomAlphaOfLengthBetween(5, 20);
         LifecyclePolicy policy = createRandomPolicy(name);
+        ensurePrerequisites(policy);
         PutLifecyclePolicyRequest putRequest = new PutLifecyclePolicyRequest(policy);
 
         assertAcked(execute(putRequest, highLevelClient().indexLifecycle()::putLifecyclePolicy,
@@ -262,6 +262,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         for (int i = 0; i < numPolicies; i++) {
             policyNames[i] = "policy-" + randomAlphaOfLengthBetween(5, 10);
             policies[i] = createRandomPolicy(policyNames[i]);
+            ensurePrerequisites(policies[i]);
             PutLifecyclePolicyRequest putRequest = new PutLifecyclePolicyRequest(policies[i]);
             assertAcked(execute(putRequest, highLevelClient().indexLifecycle()::putLifecyclePolicy,
                 highLevelClient().indexLifecycle()::putLifecyclePolicyAsync));
@@ -278,6 +279,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
     public void testRetryLifecycleStep() throws IOException {
         String policyName = randomAlphaOfLength(10);
         LifecyclePolicy policy = createRandomPolicy(policyName);
+        ensurePrerequisites(policy);
         PutLifecyclePolicyRequest putRequest = new PutLifecyclePolicyRequest(policy);
         assertAcked(execute(putRequest, highLevelClient().indexLifecycle()::putLifecyclePolicy,
             highLevelClient().indexLifecycle()::putLifecyclePolicyAsync));
@@ -295,5 +297,58 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
                 " that has not encountered an error when running a Lifecycle Policy]",
             ex.getRootCause().getMessage()
         );
+    }
+
+    public void ensurePrerequisites(LifecyclePolicy policy) throws IOException {
+        Set<String> repositories = policy.getPhases().values().stream()
+            .map(phase -> (SearchableSnapshotAction) phase.getActions().get(SearchableSnapshotAction.NAME))
+            .filter(Objects::nonNull)
+            .map(action -> action.getSnapshotRepository())
+            .collect(Collectors.toSet());
+
+        if (repositories.isEmpty()) {
+            repositories = Set.of("repo");
+        }
+
+        // create any referenced snapshot repositories, or a 'repo' repository if no repositories are otherwise referenced
+        for (String repository : repositories) {
+            createSnapshotRepo(repository, randomBoolean());
+        }
+
+        Set<String> slmPolicies = policy.getPhases().values().stream()
+            .map(phase -> (WaitForSnapshotAction) phase.getActions().get(WaitForSnapshotAction.NAME))
+            .filter(Objects::nonNull)
+            .map(action -> action.getPolicy())
+            .collect(Collectors.toSet());
+
+        // create any slm policies, using one of the snapshot repositories previously created
+        for (String slmPolicy : slmPolicies) {
+            createSlmPolicy(slmPolicy, randomFrom(repositories));
+        }
+    }
+
+    public static void createSnapshotRepo(String repoName, boolean compress) throws IOException {
+        PutRepositoryRequest request = new PutRepositoryRequest(repoName)
+            .type("fs")
+            .settings(Settings.builder()
+                .put("compress", compress)
+                .put("location", System.getProperty("tests.path.repo") + "/" + randomAlphaOfLengthBetween(4, 10))
+                .put("max_snapshot_bytes_per_sec", "100m"));
+        assertTrue(highLevelClient().snapshot()
+            .createRepository(request, RequestOptions.DEFAULT)
+            .isAcknowledged());
+    }
+
+    private void createSlmPolicy(String slmPolicy, String repo) throws IOException {
+        PutSnapshotLifecyclePolicyRequest request = new PutSnapshotLifecyclePolicyRequest(new SnapshotLifecyclePolicy(
+            slmPolicy,
+            "snap" + randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT),
+            "59 59 23 31 12 ? 2099",
+            repo,
+            null,
+            null));
+        assertTrue(highLevelClient().indexLifecycle().
+            putSnapshotLifecyclePolicy(request, RequestOptions.DEFAULT)
+            .isAcknowledged());
     }
 }

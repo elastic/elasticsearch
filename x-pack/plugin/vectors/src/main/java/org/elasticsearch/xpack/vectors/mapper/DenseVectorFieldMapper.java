@@ -1,31 +1,46 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 
 package org.elasticsearch.xpack.vectors.mapper;
 
+import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.apache.lucene.codecs.lucene90.Lucene90HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.KnnVectorField;
+import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.KnnVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
-import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.MappingParser;
+import org.elasticsearch.index.mapper.PerFieldKnnVectorsFormatFieldMapper;
+import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser.Token;
+import org.elasticsearch.xpack.vectors.query.KnnVectorFieldExistsQuery;
+import org.elasticsearch.xpack.vectors.query.KnnVectorQueryBuilder;
 import org.elasticsearch.xpack.vectors.query.VectorIndexFieldData;
 
 import java.io.IOException;
@@ -33,6 +48,7 @@ import java.nio.ByteBuffer;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -40,7 +56,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 /**
  * A {@link FieldMapper} for indexing a dense vector of floats.
  */
-public class DenseVectorFieldMapper extends FieldMapper {
+public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVectorsFormatFieldMapper {
 
     public static final String CONTENT_TYPE = "dense_vector";
     public static short MAX_DIMS_COUNT = 2048; //maximum allowed number of dimensions
@@ -51,10 +67,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     public static class Builder extends FieldMapper.Builder {
-
-        Parameter<Integer> dims
+        private final Parameter<Integer> dims
             = new Parameter<>("dims", false, () -> null, (n, c, o) -> XContentMapValues.nodeIntegerValue(o), m -> toType(m).dims)
-            .setValidator(dims -> {
+            .addValidator(dims -> {
                 if (dims == null) {
                     throw new MapperParsingException("Missing required parameter [dims] for field [" + name + "]");
                 }
@@ -63,44 +78,136 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         "] should be in the range [1, " + MAX_DIMS_COUNT + "] but was [" + dims + "]");
                 }
             });
-        Parameter<Map<String, String>> meta = Parameter.metaParam();
+
+        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, false);
+        private final Parameter<VectorSimilarity> similarity = Parameter.enumParam(
+                "similarity", false, m -> toType(m).similarity, null, VectorSimilarity.class);
+        private final Parameter<IndexOptions> indexOptions = new Parameter<>("index_options", false, () -> null,
+            (n, c, o) ->  o == null ? null : parseIndexOptions(n, o), m -> toType(m).indexOptions);
+        private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         final Version indexVersionCreated;
 
         public Builder(String name, Version indexVersionCreated) {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
+
+            this.indexed.requiresParameters(similarity);
+            this.similarity.setSerializerCheck((id, ic, v) -> v != null);
+            this.similarity.requiresParameters(indexed);
+            this.indexOptions.requiresParameters(indexed);
+            this.indexOptions.setSerializerCheck((id, ic, v) -> v != null);
         }
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return List.of(dims, meta);
+            return List.of(dims, indexed, similarity, indexOptions, meta);
         }
 
         @Override
-        public DenseVectorFieldMapper build(ContentPath contentPath) {
+        public DenseVectorFieldMapper build(MapperBuilderContext context) {
             return new DenseVectorFieldMapper(
                 name,
-                new DenseVectorFieldType(buildFullName(contentPath), dims.getValue(), meta.getValue()),
+                new DenseVectorFieldType(context.buildFullName(name), indexVersionCreated,
+                    dims.getValue(), indexed.getValue(), similarity.getValue(), meta.getValue()),
                 dims.getValue(),
+                indexed.getValue(),
+                similarity.getValue(),
+                indexOptions.getValue(),
                 indexVersionCreated,
-                multiFieldsBuilder.build(this, contentPath),
+                multiFieldsBuilder.build(this, context),
                 copyTo.build());
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated()));
+    enum VectorSimilarity {
+        l2_norm(VectorSimilarityFunction.EUCLIDEAN),
+        cosine(VectorSimilarityFunction.COSINE),
+        dot_product(VectorSimilarityFunction.DOT_PRODUCT);
 
-    public static final class DenseVectorFieldType extends MappedFieldType {
-        private final int dims;
+        public final VectorSimilarityFunction function;
+        VectorSimilarity(VectorSimilarityFunction function) {
+            this.function = function;
+        }
+    }
 
-        public DenseVectorFieldType(String name, int dims, Map<String, String> meta) {
-            super(name, false, false, true, TextSearchInfo.NONE, meta);
-            this.dims = dims;
+    private abstract static class IndexOptions implements ToXContent {
+        final String type;
+        IndexOptions(String type) {
+            this.type = type;
+        }
+    }
+
+    private static class HnswIndexOptions extends IndexOptions {
+        private final int m;
+        private final int efConstruction;
+
+        static IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
+            Object mNode = indexOptionsMap.remove("m");
+            Object efConstructionNode = indexOptionsMap.remove("ef_construction");
+            if (mNode == null) {
+                throw new MapperParsingException("[index_options] of type [hnsw] requires field [m] to be configured");
+            }
+            if (efConstructionNode == null) {
+                throw new MapperParsingException("[index_options] of type [hnsw] requires field [ef_construction] to be configured");
+            }
+            int m = XContentMapValues.nodeIntegerValue(mNode);
+            int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode);
+            MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
+            return new HnswIndexOptions(m, efConstruction);
         }
 
-        int dims() {
-            return dims;
+        private HnswIndexOptions(int m, int efConstruction) {
+            super("hnsw");
+            this.m = m;
+            this.efConstruction = efConstruction;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("type", type);
+            builder.field("m", m);
+            builder.field("ef_construction", efConstruction);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            HnswIndexOptions that = (HnswIndexOptions) o;
+            return m == that.m && efConstruction == that.efConstruction;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(type, m, efConstruction);
+        }
+
+        @Override
+        public String toString() {
+            return "{type=" + type + ", m=" + m + ", ef_construction=" + efConstruction + " }";
+        }
+    }
+
+    public static final TypeParser PARSER
+        = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated()), notInMultiFields(CONTENT_TYPE));
+
+    public static final class DenseVectorFieldType extends SimpleMappedFieldType {
+        private final int dims;
+        private final boolean indexed;
+        private final VectorSimilarity similarity;
+        private final Version indexVersionCreated;
+
+        public DenseVectorFieldType(String name, Version indexVersionCreated, int dims,boolean indexed,
+                                    VectorSimilarity similarity, Map<String, String> meta) {
+            super(name, indexed, false, indexed == false, TextSearchInfo.NONE, meta);
+            this.dims = dims;
+            this.indexed = indexed;
+            this.similarity = similarity;
+            this.indexVersionCreated = indexVersionCreated;
         }
 
         @Override
@@ -109,7 +216,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
@@ -123,7 +230,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-            throw new UnsupportedOperationException(
+            throw new IllegalArgumentException(
                 "Field [" + name() + "] of type [" + typeName() + "] doesn't support docvalue_fields or aggregations");
         }
 
@@ -134,24 +241,83 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            return new VectorIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
+            return new VectorIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, indexVersionCreated, dims, indexed);
         }
 
         @Override
-        public Query termQuery(Object value, QueryShardContext context) {
+        public Query existsQuery(SearchExecutionContext context) {
+            if (indexed) {
+                return new KnnVectorFieldExistsQuery(name());
+            } else {
+                assert hasDocValues();
+                return new DocValuesFieldExistsQuery(name());
+            }
+        }
+
+        @Override
+        public Query termQuery(Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException(
                 "Field [" + name() + "] of type [" + typeName() + "] doesn't support queries");
         }
+
+        public KnnVectorQuery createKnnQuery(float[] queryVector, int numCands) {
+            if (isSearchable() == false) {
+                throw new IllegalArgumentException("[" + KnnVectorQueryBuilder.NAME + "] " +
+                    "queries are not supported if [index] is disabled");
+            }
+
+            if (queryVector.length != dims) {
+                throw new IllegalArgumentException("the query vector has a different dimension [" + queryVector.length + "] "
+                    + "than the index vectors [" + dims + "]");
+            }
+
+            if (similarity == VectorSimilarity.dot_product) {
+                double squaredMagnitude = 0.0;
+                for (float e : queryVector) {
+                    squaredMagnitude += e * e;
+                }
+                checkVectorMagnitude(queryVector, squaredMagnitude);
+            }
+            return new KnnVectorQuery(name(), queryVector, numCands);
+        }
+
+        private void checkVectorMagnitude(float[] vector, double squaredMagnitude) {
+            if (Math.abs(squaredMagnitude - 1.0f) > 1e-4) {
+                // Include the first five elements of the invalid vector in the error message
+                StringBuilder sb = new StringBuilder("The [" + VectorSimilarity.dot_product.name() + "] similarity can " +
+                    "only be used with unit-length vectors. Preview of invalid vector: ");
+                sb.append("[");
+                for (int i = 0; i < Math.min(5, vector.length); i++) {
+                    if (i > 0) {
+                        sb.append(", ");
+                    }
+                    sb.append(vector[i]);
+                }
+                if (vector.length >= 5) {
+                    sb.append(", ...");
+                }
+                sb.append("]");
+
+                throw new IllegalArgumentException(sb.toString());
+            }
+        }
     }
 
-    private final Version indexCreatedVersion;
     private final int dims;
+    private final boolean indexed;
+    private final VectorSimilarity similarity;
+    private final IndexOptions indexOptions;
+    private final Version indexCreatedVersion;
 
-    private DenseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType, int dims,
+    private DenseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType, int dims, boolean indexed,
+                                   VectorSimilarity similarity, IndexOptions indexOptions,
                                    Version indexCreatedVersion, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
-        this.indexCreatedVersion = indexCreatedVersion;
         this.dims = dims;
+        this.indexed = indexed;
+        this.similarity = similarity;
+        this.indexOptions = indexOptions;
+        this.indexCreatedVersion = indexCreatedVersion;
     }
 
     @Override
@@ -165,12 +331,38 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException {
-        if (context.externalValueSet()) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] can't be used in multi-fields");
+    public void parse(DocumentParserContext context) throws IOException {
+        if (context.doc().getByKey(fieldType().name()) != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
+                "] doesn't not support indexing multiple values for the same field in the same document");
         }
-        int dims = fieldType().dims(); //number of vector dimensions
 
+        Field field = fieldType().indexed
+            ? parseKnnVector(context)
+            : parseBinaryDocValuesVector(context);
+        context.doc().addWithKey(fieldType().name(), field);
+    }
+
+    private Field parseKnnVector(DocumentParserContext context) throws IOException {
+        float[] vector = new float[dims];
+        double squaredMagnitude = 0.0;
+        int index = 0;
+        for (Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser().nextToken()) {
+            checkDimensionExceeded(index, context);
+            ensureExpectedToken(Token.VALUE_NUMBER, token, context.parser());
+
+            float value = context.parser().floatValue(true);
+            vector[index++] = value;
+            squaredMagnitude += value * value;
+        }
+        checkDimensionMatches(index, context);
+        if (similarity == VectorSimilarity.dot_product) {
+            fieldType().checkVectorMagnitude(vector, squaredMagnitude);
+        }
+        return new KnnVectorField(fieldType().name(), vector, similarity.function);
+    }
+
+    private Field parseBinaryDocValuesVector(DocumentParserContext context) throws IOException {
         // encode array of floats as array of integers and store into buf
         // this code is here and not int the VectorEncoderDecoder so not to create extra arrays
         byte[] bytes = indexCreatedVersion.onOrAfter(Version.V_7_5_0) ? new byte[dims * INT_BYTES + INT_BYTES] : new byte[dims * INT_BYTES];
@@ -178,39 +370,43 @@ public class DenseVectorFieldMapper extends FieldMapper {
         ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
         double dotProduct = 0f;
 
-        int dim = 0;
+        int index = 0;
         for (Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser().nextToken()) {
-            if (dim++ >= dims) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] of doc [" +
-                    context.sourceToParse().id() + "] has exceeded the number of dimensions [" + dims + "] defined in mapping");
-            }
+            checkDimensionExceeded(index, context);
             ensureExpectedToken(Token.VALUE_NUMBER, token, context.parser());
             float value = context.parser().floatValue(true);
-
             byteBuffer.putFloat(value);
             dotProduct += value * value;
+            index++;
         }
-        if (dim != dims) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] of doc [" +
-                context.sourceToParse().id() + "] has number of dimensions [" + dim +
-                "] less than defined in the mapping [" +  dims +"]");
-        }
+        checkDimensionMatches(index, context);
 
         if (indexCreatedVersion.onOrAfter(Version.V_7_5_0)) {
             // encode vector magnitude at the end
             float vectorMagnitude = (float) Math.sqrt(dotProduct);
             byteBuffer.putFloat(vectorMagnitude);
         }
-        BinaryDocValuesField field = new BinaryDocValuesField(fieldType().name(), new BytesRef(bytes));
-        if (context.doc().getByKey(fieldType().name()) != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
-                "] doesn't not support indexing multiple values for the same field in the same document");
+        return new BinaryDocValuesField(fieldType().name(), new BytesRef(bytes));
+    }
+
+    private void checkDimensionExceeded(int index, DocumentParserContext context) {
+        if (index >= dims) {
+            throw new IllegalArgumentException("The [" + typeName() + "] field [" + name() +
+                "] in doc [" + context.sourceToParse().id() + "] has more dimensions " +
+                "than defined in the mapping [" + dims + "]");
         }
-        context.doc().addWithKey(fieldType().name(), field);
+    }
+
+    private void checkDimensionMatches(int index, DocumentParserContext context) {
+        if (index != dims) {
+            throw new IllegalArgumentException("The [" + typeName() + "] field [" + name() +
+                "] in doc [" + context.sourceToParse().id() + "] has a different number of dimensions " +
+                "[" + index + "] than defined in the mapping [" + dims + "]");
+        }
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) {
+    protected void parseCreateField(DocumentParserContext context) {
         throw new AssertionError("parse is implemented directly");
     }
 
@@ -222,5 +418,30 @@ public class DenseVectorFieldMapper extends FieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexCreatedVersion).init(this);
+    }
+
+    private static IndexOptions parseIndexOptions(String fieldName, Object propNode) {
+        @SuppressWarnings("unchecked")
+        Map<String, ?> indexOptionsMap = (Map<String, ?>) propNode;
+        Object typeNode = indexOptionsMap.remove("type");
+        if (typeNode == null) {
+            throw new MapperParsingException("[index_options] requires field [type] to be configured");
+        }
+        String type = XContentMapValues.nodeStringValue(typeNode);
+        if (type.equals("hnsw")) {
+            return HnswIndexOptions.parseIndexOptions(fieldName, indexOptionsMap);
+        } else {
+            throw new MapperParsingException("Unknown vector index options type [" + type + "] for field [" + fieldName + "]");
+        }
+    }
+
+    @Override
+    public KnnVectorsFormat getKnnVectorsFormatForField() {
+        if (indexOptions == null) {
+            return null; // use default format
+        } else {
+            HnswIndexOptions hnswIndexOptions = (HnswIndexOptions) indexOptions;
+            return new Lucene90HnswVectorsFormat(hnswIndexOptions.m, hnswIndexOptions.efConstruction);
+        }
     }
 }

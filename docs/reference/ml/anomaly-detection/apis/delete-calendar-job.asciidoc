@@ -16,9 +16,8 @@ Deletes {anomaly-jobs} from a calendar.
 [[ml-delete-calendar-job-prereqs]]
 == {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `manage_ml` or
-`manage` cluster privileges to use this API. See
-<<security-privileges>> and {ml-docs-setup-privileges}.
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
 [[ml-delete-calendar-job-path-parms]]
 == {api-path-parms-title}

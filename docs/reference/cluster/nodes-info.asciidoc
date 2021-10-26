@@ -18,6 +18,12 @@ Returns cluster nodes information.
 
 `GET /_nodes/<node_id>/<metric>`
 
+[[cluster-nodes-info-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
 
 [[cluster-nodes-info-api-desc]]
 ==== {api-description-title}
@@ -40,18 +46,28 @@ comma-separated list, such as `http,ingest`.
 [%collapsible%open]
 .Valid values for `<metric>`
 ====
+`aggregations`::
+Information about the available types of aggregation.
+
 `http`::
-HTTP connection information.
+Information about the HTTP interface of this node.
+
+`indices`::
++
+--
+Node-level configuration related to indexing:
+
+* `total_indexing_buffer`: the maximum size of the indexing buffer on this node.
+--
 
 `ingest`::
-Statistics about ingest preprocessing.
+Information about ingest pipelines and processors.
 
 `jvm`::
-JVM stats, memory pool information, garbage collection, buffer pools, number of
-loaded/unloaded classes.
+JVM information, including its name, its version, and its configuration.
 
 `os`::
-Operating system stats, load average, mem, swap.
+Operating system information, including its name and version.
 
 `plugins`::
 +
@@ -68,22 +84,24 @@ process
 --
 
 `process`::
-Process statistics, memory consumption, cpu usage, open file descriptors.
+Process information, including the numeric process ID.
 
 `settings`::
 Lists all node settings in use as defined in the `elasticsearch.yml` file.
 
 `thread_pool`::
-Statistics about each thread pool, including current size, queue and rejected
-tasks
+Information about the configuration of each thread pool.
 
 `transport`::
-Transport statistics about sent and received bytes in cluster communication.
+Information about the transport interface of the node.
 ====
 
+If you use the full `GET /_nodes/<node_id>/<metric>` form of this API then you
+can also request the metric `_all` to retrieve all metrics, or you can request
+the metric `_none` to suppress all metrics and retrieve only the identity of
+the node.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
-
 
 [[cluster-nodes-info-api-response-body]]
 ==== {api-response-body-title}
@@ -102,7 +120,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
 
 `total_indexing_buffer`::
 		Total heap allowed to be used to hold recently indexed
-		documents before they must be written to disk.  This size is
+		documents before they must be written to disk. This size is
 		a shared pool across all shards on this node, and is
     controlled by <<indexing-buffer,Indexing Buffer settings>>.
 

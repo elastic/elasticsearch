@@ -1,22 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
@@ -28,11 +29,14 @@ import java.util.List;
  */
 public class SetPriorityAction implements LifecycleAction {
     public static final String NAME = "set_priority";
-    private static final ParseField RECOVERY_PRIORITY_FIELD = new ParseField("priority");
+    public static final ParseField RECOVERY_PRIORITY_FIELD = new ParseField("priority");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<SetPriorityAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
         a -> new SetPriorityAction((Integer) a[0]));
+
+    private static final Settings NULL_PRIORITY_SETTINGS =
+        Settings.builder().putNull(IndexMetadata.INDEX_PRIORITY_SETTING.getKey()).build();
 
     //package private for testing
     final Integer recoveryPriority;
@@ -63,6 +67,10 @@ public class SetPriorityAction implements LifecycleAction {
         return NAME;
     }
 
+    public Integer getRecoveryPriority() {
+        return recoveryPriority;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -85,7 +93,7 @@ public class SetPriorityAction implements LifecycleAction {
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
         StepKey key = new StepKey(phase, NAME, NAME);
         Settings indexPriority = recoveryPriority == null ?
-            Settings.builder().putNull(IndexMetadata.INDEX_PRIORITY_SETTING.getKey()).build()
+                NULL_PRIORITY_SETTINGS
             : Settings.builder().put(IndexMetadata.INDEX_PRIORITY_SETTING.getKey(), recoveryPriority).build();
         return Collections.singletonList(new UpdateSettingsStep(key, nextStepKey, client, indexPriority));
     }

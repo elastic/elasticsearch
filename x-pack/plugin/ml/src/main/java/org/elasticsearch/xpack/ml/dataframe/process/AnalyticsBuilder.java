@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
 
@@ -30,6 +31,7 @@ public class AnalyticsBuilder {
     private static final String LENGTH_ENCODED_INPUT_ARG = "--lengthEncodedInput";
     private static final String CONFIG_ARG = "--config=";
     private static final String MEMORY_USAGE_ESTIMATION_ONLY_ARG = "--memoryUsageEstimationOnly";
+    private static final String LICENSE_KEY_VALIDATED_ARG = "--validElasticLicenseKeyConfirmed=";
 
     private final Supplier<Path> tempDirPathSupplier;
     private final NativeController nativeController;
@@ -66,6 +68,8 @@ public class AnalyticsBuilder {
         if (performMemoryUsageEstimationOnly) {
             command.add(MEMORY_USAGE_ESTIMATION_ONLY_ARG);
         }
+        // License was validated when the data frame analytics job was started
+        command.add(LICENSE_KEY_VALIDATED_ARG + true);
         return command;
     }
 

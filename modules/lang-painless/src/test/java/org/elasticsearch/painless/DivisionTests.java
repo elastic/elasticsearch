@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
@@ -24,7 +13,7 @@ package org.elasticsearch.painless;
 public class DivisionTests extends ScriptTestCase {
 
     // TODO: byte,short,char
-    
+
     public void testBasics() throws Exception {
         assertEquals(2.25F / 1.5F, exec("return 2.25F / 1.5F;"));
         assertEquals(0.5, exec("double x = 1; float y = 2; return x / y;"));
@@ -137,7 +126,7 @@ public class DivisionTests extends ScriptTestCase {
             exec("return 1L/0L;");
         });
     }
-    
+
     public void testDef() {
         assertEquals(1, exec("def x = (byte)2; def y = (byte)2; return x / y"));
         assertEquals(1, exec("def x = (short)2; def y = (byte)2; return x / y"));
@@ -203,7 +192,7 @@ public class DivisionTests extends ScriptTestCase {
         assertEquals(1F, exec("def x = (float)2; def y = (float)2; return x / y"));
         assertEquals(1D, exec("def x = (double)2; def y = (double)2; return x / y"));
     }
-    
+
     public void testDefTypedLHS() {
         assertEquals(1, exec("byte x = (byte)2; def y = (byte)2; return x / y"));
         assertEquals(1, exec("short x = (short)2; def y = (byte)2; return x / y"));
@@ -269,7 +258,7 @@ public class DivisionTests extends ScriptTestCase {
         assertEquals(1F, exec("float x = (float)2; def y = (float)2; return x / y"));
         assertEquals(1D, exec("double x = (double)2; def y = (double)2; return x / y"));
     }
-    
+
     public void testDefTypedRHS() {
         assertEquals(1, exec("def x = (byte)2; byte y = (byte)2; return x / y"));
         assertEquals(1, exec("def x = (short)2; byte y = (byte)2; return x / y"));
@@ -335,7 +324,7 @@ public class DivisionTests extends ScriptTestCase {
         assertEquals(1F, exec("def x = (float)2; float y = (float)2; return x / y"));
         assertEquals(1D, exec("def x = (double)2; double y = (double)2; return x / y"));
     }
-    
+
     public void testCompoundAssignment() {
         // byte
         assertEquals((byte) 15, exec("byte x = 45; x /= 3; return x;"));
@@ -358,7 +347,7 @@ public class DivisionTests extends ScriptTestCase {
         assertEquals(15D, exec("double x = 45.0; x /= 3; return x;"));
         assertEquals(-5D, exec("double x = 5.0; x /= -1; return x;"));
     }
-    
+
     public void testDefCompoundAssignment() {
         // byte
         assertEquals((byte) 15, exec("def x = (byte)45; x /= 3; return x;"));
@@ -381,7 +370,7 @@ public class DivisionTests extends ScriptTestCase {
         assertEquals(15D, exec("def x = 45.0; x /= 3; return x;"));
         assertEquals(-5D, exec("def x = 5.0; x /= -1; return x;"));
     }
-    
+
     public void testCompoundAssignmentByZero() {
         // byte
         expectScriptThrows(ArithmeticException.class, () -> {
@@ -407,7 +396,7 @@ public class DivisionTests extends ScriptTestCase {
         expectScriptThrows(ArithmeticException.class, () -> {
             exec("long x = 1; x /= 0; return x;");
         });
-        
+
         // def
         expectScriptThrows(ArithmeticException.class, () -> {
             exec("def x = 1; x /= 0; return x;");

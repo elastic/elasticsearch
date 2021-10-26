@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -26,12 +15,11 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigu
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
@@ -80,7 +68,11 @@ public class PublicationTests extends ESTestCase {
 
         final CoordinationState coordinationState;
 
-        public MockPublication publish(ClusterState clusterState, Discovery.AckListener ackListener, Set<DiscoveryNode> faultyNodes) {
+        public MockPublication publish(
+            ClusterState clusterState,
+            ClusterStatePublisher.AckListener ackListener,
+            Set<DiscoveryNode> faultyNodes
+        ) {
             PublishRequest publishRequest = coordinationState.handleClientValue(clusterState);
             MockPublication currentPublication = new MockPublication(publishRequest, ackListener, () -> 0L) {
                 @Override
@@ -113,7 +105,7 @@ public class PublicationTests extends ESTestCase {
         Map<DiscoveryNode, Join> joins = new HashMap<>();
         Set<DiscoveryNode> missingJoins = new HashSet<>();
 
-        MockPublication(PublishRequest publishRequest, Discovery.AckListener ackListener, LongSupplier currentTimeSupplier) {
+        MockPublication(PublishRequest publishRequest, ClusterStatePublisher.AckListener ackListener, LongSupplier currentTimeSupplier) {
             super(publishRequest, ackListener, currentTimeSupplier);
             this.publishRequest = publishRequest;
         }
@@ -465,7 +457,7 @@ public class PublicationTests extends ESTestCase {
                 attributes.put("custom", randomBoolean() ? "match" : randomAlphaOfLengthBetween(3, 5));
             }
             final DiscoveryNode node = newNode(i, attributes,
-                new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)));
+                new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles())));
             nodesList.add(node);
         }
         return nodesList;
@@ -484,7 +476,7 @@ public class PublicationTests extends ESTestCase {
             });
     }
 
-    public static class AssertingAckListener implements Discovery.AckListener {
+    public static class AssertingAckListener implements ClusterStatePublisher.AckListener {
         private final List<Tuple<DiscoveryNode, Throwable>> errors = new CopyOnWriteArrayList<>();
         private final Set<DiscoveryNode> successfulAcks = Collections.synchronizedSet(new HashSet<>());
         private final CountDownLatch countDown;

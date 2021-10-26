@@ -69,8 +69,8 @@ increases the relevance score.
 (Optional, string) Method used to rewrite the query. For valid values and more information, see the
 <<query-dsl-multi-term-rewrite, `rewrite` parameter>>.
 
-`case_insensitive`::
-(Optional, Boolean) allows case insensitive matching of the
+`case_insensitive` added:[7.10.0]::
+(Optional, Boolean) Allows case insensitive matching of the
 pattern with the indexed field values when set to true. Default is false which means
 the case sensitivity of matching depends on the underlying field's mapping.
 

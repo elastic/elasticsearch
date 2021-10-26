@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test;
@@ -33,12 +22,12 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.shard.IndexShardRecoveringException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -68,8 +57,8 @@ public final class RandomObjects {
 
     /**
      * Returns a tuple containing random stored field values and their corresponding expected values once printed out
-     * via {@link org.elasticsearch.common.xcontent.ToXContent#toXContent(XContentBuilder, ToXContent.Params)} and parsed back via
-     * {@link org.elasticsearch.common.xcontent.XContentParser#objectText()}.
+     * via {@link ToXContent#toXContent(XContentBuilder, ToXContent.Params)} and parsed back via
+     * {@link org.elasticsearch.xcontent.XContentParser#objectText()}.
      * Generates values based on what can get printed out. Stored fields values are retrieved from lucene and converted via
      * {@link org.elasticsearch.index.mapper.MappedFieldType#valueForDisplay(Object)} to either strings, numbers or booleans.
      *
@@ -129,20 +118,20 @@ public final class RandomObjects {
 
     /**
      * Converts the provided field value to its corresponding expected value once printed out
-     * via {@link org.elasticsearch.common.xcontent.ToXContent#toXContent(XContentBuilder, ToXContent.Params)} and parsed back via
-     * {@link org.elasticsearch.common.xcontent.XContentParser#objectText()}.
+     * via {@link ToXContent#toXContent(XContentBuilder, ToXContent.Params)} and parsed back via
+     * {@link org.elasticsearch.xcontent.XContentParser#objectText()}.
      * Generates values based on what can get printed out. Stored fields values are retrieved from lucene and converted via
      * {@link org.elasticsearch.index.mapper.MappedFieldType#valueForDisplay(Object)} to either strings, numbers or booleans.
      */
     public static Object getExpectedParsedValue(XContentType xContentType, Object value) {
         if (value instanceof BytesArray) {
-            if (xContentType == XContentType.JSON) {
+            if (xContentType.canonical() == XContentType.JSON) {
                 //JSON writes base64 format
                 return Base64.getEncoder().encodeToString(((BytesArray)value).toBytesRef().bytes);
             }
         }
         if (value instanceof Float) {
-            if (xContentType == XContentType.CBOR || xContentType == XContentType.SMILE) {
+            if (xContentType.canonical() == XContentType.CBOR || xContentType.canonical() == XContentType.SMILE) {
                 // with binary content types we pass back the object as is
                 return value;
             }

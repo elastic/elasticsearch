@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authz.interceptor;
 
@@ -12,10 +13,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.common.MemoizedSupplier;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
@@ -23,6 +22,8 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.Authoriza
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+
+import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 
 /**
  * Similar to {@link UpdateRequestInterceptor}, but checks if there are update requests embedded in a bulk request.
@@ -42,9 +43,7 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
     @Override
     public void intercept(RequestInfo requestInfo, AuthorizationEngine authzEngine, AuthorizationInfo authorizationInfo,
                           ActionListener<Void> listener) {
-        boolean shouldIntercept = licenseState.isSecurityEnabled();
-        var licenseChecker = new MemoizedSupplier<>(() -> licenseState.checkFeature(Feature.SECURITY_DLS_FLS));
-        if (requestInfo.getRequest() instanceof BulkShardRequest && shouldIntercept) {
+        if (requestInfo.getRequest() instanceof BulkShardRequest) {
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             BulkShardRequest bulkShardRequest = (BulkShardRequest) requestInfo.getRequest();
             // this uses the {@code BulkShardRequest#index()} because the {@code bulkItemRequest#index()}
@@ -52,13 +51,14 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
             IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(bulkShardRequest.index());
             // TODO replace if condition with assertion
             if (indexAccessControl != null) {
+                final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
                 for (BulkItemRequest bulkItemRequest : bulkShardRequest.items()) {
                     boolean found = false;
                     if (bulkItemRequest.request() instanceof UpdateRequest) {
                         boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
                         boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
                         // the feature usage checker is a "last-ditch" verification, it doesn't have practical importance
-                        if ((fls || dls) && licenseChecker.get()) {
+                        if ((fls || dls) && isDlsLicensed) {
                             found = true;
                             logger.trace("aborting bulk item update request for index [{}]", bulkShardRequest.index());
                             bulkItemRequest.abort(bulkItemRequest.index(), new ElasticsearchSecurityException("Can't execute a bulk " +

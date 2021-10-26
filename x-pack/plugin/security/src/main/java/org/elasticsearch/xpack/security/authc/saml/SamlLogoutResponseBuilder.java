@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
@@ -40,7 +41,7 @@ class SamlLogoutResponseBuilder extends SamlMessageBuilder {
 
         final LogoutResponse res = SamlUtils.buildObject(LogoutResponse.class, LogoutResponse.DEFAULT_ELEMENT_NAME);
         res.setID(buildId());
-        res.setIssueInstant(now());
+        res.setIssueInstant(clock.instant());
         res.setDestination(destination);
         res.setIssuer(buildIssuer());
         res.setInResponseTo(inResponseTo);

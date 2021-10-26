@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.restart;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -44,13 +44,16 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
 
     @Before
     public void waitForMlTemplates() throws Exception {
-        List<String> templatesToWaitFor = XPackRestTestConstants.ML_POST_V660_TEMPLATES;
-        XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor);
+        List<String> templatesToWaitFor = (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_7_12_0))
+            ? XPackRestTestConstants.ML_POST_V660_TEMPLATES
+            : XPackRestTestConstants.ML_POST_V7120_TEMPLATES;
+        boolean clusterUnderstandsComposableTemplates =
+            isRunningAgainstOldCluster() == false || getOldClusterVersion().onOrAfter(Version.V_7_8_0);
+        XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor, clusterUnderstandsComposableTemplates);
     }
 
     public void testMlConfigIndexMappingsAfterMigration() throws Exception {
         if (isRunningAgainstOldCluster()) {
-            assertThatMlConfigIndexDoesNotExist();
             // trigger .ml-config index creation
             createAnomalyDetectorJob(OLD_CLUSTER_JOB_ID);
             if (getOldClusterVersion().onOrAfter(Version.V_7_3_0)) {
@@ -67,18 +70,6 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
             // assert that the mappings are updated
             IndexMappingTemplateAsserter.assertMlMappingsMatchTemplates(client());
         }
-    }
-
-    private void assertThatMlConfigIndexDoesNotExist() {
-        Request getIndexRequest = new Request("GET", ".ml-config");
-        getIndexRequest.setOptions(expectVersionSpecificWarnings(v -> {
-            final String systemIndexWarning = "this request accesses system indices: [.ml-config], but in a future major version, direct " +
-                "access to system indices will be prevented by default";
-            v.current(systemIndexWarning);
-            v.compatible(systemIndexWarning);
-        }));
-        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(getIndexRequest));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
     }
 
     private void createAnomalyDetectorJob(String jobId) throws IOException {

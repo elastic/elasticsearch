@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
@@ -44,11 +45,9 @@ public class InsertProcessorTests extends AbstractWireSerializingTestCase<Insert
 
     public void testInsertWithEdgeCases() {
         assertNull(new Insert(EMPTY, l(null), l(4), l(3), l("baz")).makePipe().asProcessor().process(null));
-        assertEquals("foobar", new Insert(EMPTY, l("foobar"), l(4), l(3), l(null)).makePipe().asProcessor().process(null));
-        assertEquals("foobar",
-                new Insert(EMPTY, l("foobar"), l(null), l(3), l("baz")).makePipe().asProcessor().process(null));
-        assertEquals("foobar",
-                new Insert(EMPTY, l("foobar"), l(4), l(null), l("baz")).makePipe().asProcessor().process(null));
+        assertNull(new Insert(EMPTY, l("foobar"), l(null), l(3), l("baz")).makePipe().asProcessor().process(null));
+        assertNull(new Insert(EMPTY, l("foobar"), l(4), l(null), l("baz")).makePipe().asProcessor().process(null));
+        assertNull(new Insert(EMPTY, l("foobar"), l(4), l(3), l(null)).makePipe().asProcessor().process(null));
         assertEquals("bazbar", new Insert(EMPTY, l("foobar"), l(-1), l(3), l("baz")).makePipe().asProcessor().process(null));
         assertEquals("foobaz", new Insert(EMPTY, l("foobar"), l(4), l(30), l("baz")).makePipe().asProcessor().process(null));
         assertEquals("foobaz", new Insert(EMPTY, l("foobar"), l(6), l(1), l('z')).makePipe().asProcessor().process(null));

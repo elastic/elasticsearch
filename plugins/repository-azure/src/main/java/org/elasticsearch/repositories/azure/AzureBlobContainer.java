@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories.azure;
@@ -23,7 +12,8 @@ import com.azure.storage.blob.models.BlobStorageException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.util.Throwables;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -33,10 +23,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.NoSuchFileException;
-import java.util.List;
+import java.util.Iterator;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public class AzureBlobContainer extends AbstractBlobContainer {
 
@@ -57,26 +47,27 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     private InputStream openInputStream(String blobName, long position, @Nullable Long length) throws IOException {
+        String blobKey = buildKey(blobName);
         logger.trace("readBlob({}) from position [{}] with length [{}]", blobName, position, length != null ? length : "unlimited");
-        if (blobStore.getLocationMode() == LocationMode.SECONDARY_ONLY && !blobExists(blobName)) {
+        if (blobStore.getLocationMode() == LocationMode.SECONDARY_ONLY && blobExists(blobName) == false) {
             // On Azure, if the location path is a secondary location, and the blob does not
             // exist, instead of returning immediately from the getInputStream call below
             // with a 404 StorageException, Azure keeps trying and trying for a long timeout
             // before throwing a storage exception.  This can cause long delays in retrieving
             // snapshots, so we first check if the blob exists before trying to open an input
             // stream to it.
-            throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
+            throw new NoSuchFileException("Blob [" + blobKey + "] not found");
         }
         try {
-            return blobStore.getInputStream(buildKey(blobName), position, length);
+            return blobStore.getInputStream(blobKey, position, length);
         } catch (Exception e) {
             Throwable rootCause = Throwables.getRootCause(e);
             if (rootCause instanceof BlobStorageException) {
                 if (((BlobStorageException) rootCause).getStatusCode() == 404) {
-                    throw new NoSuchFileException("Blob [" + blobName + "] not found");
+                    throw new NoSuchFileException("Blob [" + blobKey + "] not found");
                 }
             }
-            throw new IOException("Unable to get input stream for blob [" + blobName + "]", e);
+            throw new IOException("Unable to get input stream for blob [" + blobKey + "]", e);
         }
     }
 
@@ -107,17 +98,36 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
+    public void writeBlob(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
+        blobStore.writeBlob(buildKey(blobName), bytes, failIfAlreadyExists);
+    }
+
+    @Override
+    public void writeBlob(String blobName,
+                          boolean failIfAlreadyExists,
+                          boolean atomic,
+                          CheckedConsumer<OutputStream, IOException> writer) throws IOException {
+        blobStore.writeBlob(buildKey(blobName), failIfAlreadyExists, writer);
+    }
+
+    @Override
     public DeleteResult delete() throws IOException {
         return blobStore.deleteBlobDirectory(keyPath);
     }
 
     @Override
-    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
-        List<String> blobsWithFullPath = blobNames.stream()
-            .map(this::buildKey)
-            .collect(Collectors.toList());
+    public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
+        blobStore.deleteBlobs(new Iterator<>() {
+            @Override
+            public boolean hasNext() {
+                return blobNames.hasNext();
+            }
 
-        blobStore.deleteBlobList(blobsWithFullPath);
+            @Override
+            public String next() {
+                return buildKey(blobNames.next());
+            }
+        });
     }
 
     @Override

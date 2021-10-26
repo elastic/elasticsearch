@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest.attachment;
@@ -55,7 +44,7 @@ public class AttachmentProcessorTests extends ESTestCase {
     @Before
     public void createStandardProcessor() {
         processor = new AttachmentProcessor(randomAlphaOfLength(10), null, "source_field",
-            "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 10000, false, null, null);
+            "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 10000, false, null, null, false);
     }
 
     public void testEnglishTextDocument() throws Exception {
@@ -88,7 +77,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             selectedProperties.add(AttachmentProcessor.Property.DATE);
         }
         processor = new AttachmentProcessor(randomAlphaOfLength(10), null, "source_field",
-            "target_field", selectedProperties, 10000, false, null, null);
+            "target_field", selectedProperties, 10000, false, null, null, false);
 
         Map<String, Object> attachmentData = parseDocument("htmlWithEmptyDateMeta.html", processor);
         assertThat(attachmentData.keySet(), hasSize(selectedFieldNames.length));
@@ -248,7 +237,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             Collections.singletonMap("source_field", null));
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         Processor processor = new AttachmentProcessor(randomAlphaOfLength(10), null, "source_field",
-            "randomTarget", null, 10, true, null, null);
+            "randomTarget", null, 10, true, null, null, false);
         processor.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
     }
@@ -257,7 +246,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         Processor processor = new AttachmentProcessor(randomAlphaOfLength(10), null, "source_field",
-            "randomTarget", null, 10, true, null, null);
+            "randomTarget", null, 10, true, null, null, false);
         processor.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
     }
@@ -267,7 +256,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             Collections.singletonMap("source_field", null));
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         Processor processor = new AttachmentProcessor(randomAlphaOfLength(10), null, "source_field",
-            "randomTarget", null, 10, false, null, null);
+            "randomTarget", null, 10, false, null, null, false);
         Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
         assertThat(exception.getMessage(), equalTo("field [source_field] is null, cannot parse."));
     }
@@ -276,7 +265,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         Processor processor = new AttachmentProcessor(randomAlphaOfLength(10), null, "source_field",
-            "randomTarget", null, 10, false, null, null);
+            "randomTarget", null, 10, false, null, null, false);
         Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
         assertThat(exception.getMessage(), equalTo("field [source_field] not present as part of path [source_field]"));
     }
@@ -310,7 +299,7 @@ public class AttachmentProcessorTests extends ESTestCase {
 
     public void testIndexedChars() throws Exception {
         processor = new AttachmentProcessor(randomAlphaOfLength(10), null, "source_field",
-            "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 19, false, null, null);
+            "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 19, false, null, null, false);
 
         Map<String, Object> attachmentData = parseDocument("text-in-english.txt", processor);
 
@@ -321,7 +310,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         assertThat(attachmentData.get("content_length"), is(19L));
 
         processor = new AttachmentProcessor(randomAlphaOfLength(10), null, "source_field",
-            "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 19, false, "max_length", null);
+            "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 19, false, "max_length", null, false);
 
         attachmentData = parseDocument("text-in-english.txt", processor);
 
@@ -349,11 +338,10 @@ public class AttachmentProcessorTests extends ESTestCase {
 
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66086")
     public void testIndexedCharsWithResourceName() throws Exception {
         processor = new AttachmentProcessor(randomAlphaOfLength(10), null, "source_field",
             "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 100,
-            false, null, "resource_name");
+            false, null, "resource_name", false);
 
         Map<String, Object> attachmentData = parseDocument("text-cjk-big5.txt", processor, Collections.singletonMap("max_length", 100),
             true);
@@ -375,10 +363,31 @@ public class AttachmentProcessorTests extends ESTestCase {
         attachmentData = parseDocument("text-cjk-euc-jp.txt", processor, Collections.singletonMap("max_length", 100), true);
 
         assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content", "content_type", "content_length"));
-        assertThat(attachmentData.get("content").toString(), containsString("碩鼠よ碩鼠よ、\n我が黍を食らう無かれ！"));
+        assertThat(attachmentData.get("content").toString(), containsString("碩鼠よ碩鼠よ、" + System.lineSeparator() + "我が黍を食らう無かれ！"));
         assertThat(attachmentData.get("content_type").toString(), containsString("text/plain"));
         assertThat(attachmentData.get("content_type").toString(), containsString("charset=EUC-JP"));
         assertThat(attachmentData.get("content_length"), is(100L));
+    }
+
+    public void testRemoveBinary() throws Exception {
+        {
+            // Test the default behavior.
+            Map<String, Object> document = new HashMap<>();
+            document.put("source_field", getAsBinaryOrBase64("text-in-english.txt"));
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+            processor.execute(ingestDocument);
+            assertThat(ingestDocument.hasField("source_field"), is(true));
+        }
+        {
+            // Remove the binary field.
+            processor = new AttachmentProcessor(randomAlphaOfLength(10), null, "source_field",
+                "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 10000, false, null, null, true);
+            Map<String, Object> document = new HashMap<>();
+            document.put("source_field", getAsBinaryOrBase64("text-in-english.txt"));
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+            processor.execute(ingestDocument);
+            assertThat(ingestDocument.hasField("source_field"), is(false));
+        }
     }
 
     private Object getAsBinaryOrBase64(String filename) throws Exception {

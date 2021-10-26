@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.test;
 
@@ -57,12 +58,6 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
     private static SecuritySettingsSource SECURITY_DEFAULT_SETTINGS = null;
     private static CustomSecuritySettingsSource customSecuritySettingsSource = null;
     private static RestClient restClient = null;
-    private static SecureString BOOTSTRAP_PASSWORD = null;
-
-    @BeforeClass
-    public static void generateBootstrapPassword() {
-        BOOTSTRAP_PASSWORD = TEST_PASSWORD_SECURE_STRING.clone();
-    }
 
     @BeforeClass
     public static void initDefaultSettings() {
@@ -81,10 +76,6 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
     public static void destroyDefaultSettings() {
         SECURITY_DEFAULT_SETTINGS = null;
         customSecuritySettingsSource = null;
-        if (BOOTSTRAP_PASSWORD != null) {
-            BOOTSTRAP_PASSWORD.close();
-            BOOTSTRAP_PASSWORD = null;
-        }
         tearDownRestClient();
     }
 
@@ -166,7 +157,7 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
     @Override
     protected Settings nodeSettings() {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings());
-        Settings customSettings = customSecuritySettingsSource.nodeSettings(0);
+        Settings customSettings = customSecuritySettingsSource.nodeSettings(0, Settings.EMPTY);
         builder.put(customSettings, false); // handle secure settings separately
         builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         builder.put("transport.type", "security4");
@@ -179,8 +170,15 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
         if (builder.getSecureSettings() == null) {
             builder.setSecureSettings(new MockSecureSettings());
         }
-        ((MockSecureSettings) builder.getSecureSettings()).setString("bootstrap.password", BOOTSTRAP_PASSWORD.toString());
+        SecureString boostrapPassword = getBootstrapPassword();
+        if (boostrapPassword != null) {
+            ((MockSecureSettings) builder.getSecureSettings()).setString("bootstrap.password", boostrapPassword.toString());
+        }
         return builder.build();
+    }
+
+    protected SecureString getBootstrapPassword() {
+        return TEST_PASSWORD_SECURE_STRING;
     }
 
     @Override
@@ -211,6 +209,10 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
 
     protected String configOperatorUsers() {
         return SECURITY_DEFAULT_SETTINGS.configOperatorUsers();
+    }
+
+    protected String configServiceTokens() {
+        return SECURITY_DEFAULT_SETTINGS.configServiceTokens();
     }
 
     /**
@@ -258,6 +260,11 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
         @Override
         protected String configOperatorUsers() {
             return SecuritySingleNodeTestCase.this.configOperatorUsers();
+        }
+
+        @Override
+        protected String configServiceTokens() {
+            return SecuritySingleNodeTestCase.this.configServiceTokens();
         }
 
         @Override

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.create;
@@ -29,21 +18,21 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
@@ -53,7 +42,6 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
@@ -76,7 +64,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     private String index;
 
-    private Settings settings = EMPTY_SETTINGS;
+    private Settings settings = Settings.EMPTY;
 
     private String mappings = "{}";
 
@@ -84,6 +72,12 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
+    private String origin = "";
+
+    /**
+     * Constructs a new request by deserializing an input
+     * @param in the input from which to deserialize
+     */
     public CreateIndexRequest(StreamInput in) throws IOException {
         super(in);
         cause = in.readString();
@@ -107,20 +101,28 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             aliases.add(new Alias(in));
         }
         waitForActiveShards = ActiveShardCount.readFrom(in);
+        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
+            origin = in.readString();
+        }
     }
 
     public CreateIndexRequest() {
     }
 
     /**
-     * Constructs a new request to create an index with the specified name.
+     * Constructs a request to create an index.
+     *
+     * @param index the name of the index
      */
     public CreateIndexRequest(String index) {
-        this(index, EMPTY_SETTINGS);
+        this(index, Settings.EMPTY);
     }
 
     /**
-     * Constructs a new request to create an index with the specified name and settings.
+     * Constructs a request to create an index.
+     *
+     * @param index the name of the index
+     * @param settings the settings to apply to the index
      */
     public CreateIndexRequest(String index, Settings settings) {
         this.index = index;
@@ -170,6 +172,15 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      */
     public String cause() {
         return cause;
+    }
+
+    public String origin() {
+        return origin;
+    }
+
+    public CreateIndexRequest origin(String origin) {
+        this.origin = Objects.requireNonNull(origin);
+        return this;
     }
 
     /**
@@ -260,7 +271,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     private CreateIndexRequest mapping(String type, Map<String, ?> source) {
         // wrap it in a type map if its not
-        if (source.size() != 1 || !source.containsKey(type)) {
+        if (source.size() != 1 || source.containsKey(type) == false) {
             source = Map.of(MapperService.SINGLE_MAPPING_NAME, source);
         }
         else if (MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
@@ -462,6 +473,27 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             alias.writeTo(out);
         }
         waitForActiveShards.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
+            out.writeString(origin);
+        }
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        CreateIndexRequest that = (CreateIndexRequest) obj;
+        return Objects.equals(cause, that.cause) &&
+            Objects.equals(index, that.index) &&
+            Objects.equals(settings, that.settings) &&
+            Objects.equals(mappings, that.mappings) &&
+            Objects.equals(aliases, that.aliases) &&
+            Objects.equals(waitForActiveShards, that.waitForActiveShards) &&
+            Objects.equals(origin, that.origin);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(cause, index, settings, mappings, aliases, waitForActiveShards, origin);
+    }
 }

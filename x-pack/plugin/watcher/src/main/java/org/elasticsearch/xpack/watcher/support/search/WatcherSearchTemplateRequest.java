@@ -1,22 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.support.search;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 
@@ -139,7 +140,7 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
                 builder.rawField(BODY_FIELD.getPreferredName(), stream);
             }
         }
-        if (indicesOptions != DEFAULT_INDICES_OPTIONS) {
+        if (indicesOptions.equals(DEFAULT_INDICES_OPTIONS) == false) {
             builder.startObject(INDICES_OPTIONS_FIELD.getPreferredName());
             indicesOptions.toXContent(builder, params);
             builder.endObject();
@@ -188,7 +189,7 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
                         searchSource = BytesReference.bytes(builder);
                     }
                 } else if (INDICES_OPTIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    indicesOptions = IndicesOptions.fromXContent(parser);
+                    indicesOptions = IndicesOptions.fromXContent(parser, DEFAULT_INDICES_OPTIONS);
                 } else if (TEMPLATE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     template = Script.parse(parser, Script.DEFAULT_TEMPLATE_LANG);
                 } else {

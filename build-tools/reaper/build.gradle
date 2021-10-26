@@ -1,0 +1,18 @@
+plugins {
+  id 'java'
+  id 'elasticsearch.eclipse'
+  id 'elasticsearch.versions'
+  id 'elasticsearch.formatting'
+}
+
+group = "org.elasticsearch.gradle"
+version = versions.getProperty("elasticsearch")
+targetCompatibility = versions.get("minimumRuntimeJava")
+sourceCompatibility = versions.get("minimumRuntimeJava")
+
+tasks.named("jar").configure {
+  archiveFileName = "${project.name}.jar"
+  manifest {
+    attributes 'Main-Class': 'org.elasticsearch.gradle.reaper.Reaper'
+  }
+}

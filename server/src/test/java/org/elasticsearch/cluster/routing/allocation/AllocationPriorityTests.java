@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.routing.allocation;
 
@@ -28,6 +17,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 
 public class AllocationPriorityTests extends ESAllocationTestCase {
@@ -76,25 +66,25 @@ public class AllocationPriorityTests extends ESAllocationTestCase {
         clusterState = allocation.reroute(clusterState, "reroute");
 
         clusterState = allocation.reroute(clusterState, "reroute");
-        assertEquals(2, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size());
-        assertEquals(highPriorityName, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).get(0).getIndexName());
-        assertEquals(highPriorityName, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).get(1).getIndexName());
+        assertEquals(2, shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size());
+        assertEquals(highPriorityName, shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).get(0).getIndexName());
+        assertEquals(highPriorityName, shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).get(1).getIndexName());
 
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
-        assertEquals(2, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size());
-        assertEquals(lowPriorityName, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).get(0).getIndexName());
-        assertEquals(lowPriorityName, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).get(1).getIndexName());
+        assertEquals(2, shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size());
+        assertEquals(lowPriorityName, shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).get(0).getIndexName());
+        assertEquals(lowPriorityName, shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).get(1).getIndexName());
 
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
-        assertEquals(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).toString(),2,
-            clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size());
-        assertEquals(highPriorityName, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).get(0).getIndexName());
-        assertEquals(highPriorityName, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).get(1).getIndexName());
+        assertEquals(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).toString(),2,
+            shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size());
+        assertEquals(highPriorityName, shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).get(0).getIndexName());
+        assertEquals(highPriorityName, shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).get(1).getIndexName());
 
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
-        assertEquals(2, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size());
-        assertEquals(lowPriorityName, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).get(0).getIndexName());
-        assertEquals(lowPriorityName, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).get(1).getIndexName());
+        assertEquals(2, shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size());
+        assertEquals(lowPriorityName, shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).get(0).getIndexName());
+        assertEquals(lowPriorityName, shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).get(1).getIndexName());
 
     }
 }

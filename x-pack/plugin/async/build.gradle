@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 
 esplugin {
     name 'x-pack-async'
@@ -10,10 +10,10 @@ archivesBaseName = 'x-pack-async'
 
 dependencies {
   compileOnly project(":server")
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  compileOnly project(path: xpackModule('core'))
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   ignoreSha 'x-pack-core'
 }
 

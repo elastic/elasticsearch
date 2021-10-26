@@ -1,28 +1,43 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.collect;
 
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 
 public class Iterators {
+
+    /**
+     * Returns a single element iterator over the supplied value.
+     */
+    public static <T> Iterator<T> single(T element) {
+        return new Iterator<>() {
+
+            private T value = Objects.requireNonNull(element);
+
+            @Override
+            public boolean hasNext() {
+                return value != null;
+            }
+
+            @Override
+            public T next() {
+                final T res = value;
+                value = null;
+                return res;
+            }
+        };
+    }
+
+    @SafeVarargs
+    @SuppressWarnings("varargs")
     public static <T> Iterator<T> concat(Iterator<? extends T>... iterators) {
         if (iterators == null) {
             throw new NullPointerException("iterators");
@@ -36,6 +51,8 @@ public class Iterators {
         private final Iterator<? extends T>[] iterators;
         private int index = 0;
 
+        @SafeVarargs
+        @SuppressWarnings("varargs")
         ConcatenatedIterator(Iterator<? extends T>... iterators) {
             if (iterators == null) {
                 throw new NullPointerException("iterators");
@@ -51,7 +68,7 @@ public class Iterators {
         @Override
         public boolean hasNext() {
             boolean hasNext = false;
-            while (index < iterators.length && !(hasNext = iterators[index].hasNext())) {
+            while (index < iterators.length && (hasNext = iterators[index].hasNext()) == false) {
                 index++;
             }
 
@@ -60,7 +77,7 @@ public class Iterators {
 
         @Override
         public T next() {
-            if (!hasNext()) {
+            if (hasNext() == false) {
                 throw new NoSuchElementException();
             }
             return iterators[index].next();

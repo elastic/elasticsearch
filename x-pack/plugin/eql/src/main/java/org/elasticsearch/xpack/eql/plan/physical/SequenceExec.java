@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.plan.physical;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.eql.execution.assembler.ExecutionManager;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.session.EqlSession;
@@ -72,11 +72,6 @@ public class SequenceExec extends PhysicalPlan {
 
     @Override
     public PhysicalPlan replaceChildren(List<PhysicalPlan> newChildren) {
-        if (newChildren.size() != children().size()) {
-            throw new EqlIllegalArgumentException("Expected the same number of children [{}] but got [{}]",
-                    children().size(),
-                    newChildren.size());
-        }
         return new SequenceExec(source(), newChildren, keys, timestamp, tiebreaker, limit, direction, maxSpan);
     }
 

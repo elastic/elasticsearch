@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.gateway;
 
@@ -30,13 +19,14 @@ import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -45,6 +35,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
 
@@ -75,6 +67,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     private final AtomicLong round = new AtomicLong();
     private boolean closed;
 
+    @SuppressWarnings("unchecked")
     protected AsyncShardFetch(Logger logger, String type, ShardId shardId, String customDataPath,
                               Lister<? extends BaseNodesResponse<T>, T> action) {
         this.logger = logger;
@@ -254,7 +247,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             }
         }
         // remove nodes that are not longer part of the data nodes set
-        shardCache.keySet().removeIf(nodeId -> !nodes.nodeExists(nodeId));
+        shardCache.keySet().removeIf(nodeId -> nodes.nodeExists(nodeId) == false);
     }
 
     /**
@@ -292,6 +285,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         action.list(shardId, customDataPath, nodes, new ActionListener<BaseNodesResponse<T>>() {
             @Override
             public void onResponse(BaseNodesResponse<T> response) {
+                assert assertSameNodes(response);
                 processAsyncFetch(response.getNodes(), response.failures(), fetchingRound);
             }
 
@@ -302,6 +296,17 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
                     failures.add(new FailedNodeException(node.getId(), "total failure in fetching", e));
                 }
                 processAsyncFetch(null, failures, fetchingRound);
+            }
+
+            private boolean assertSameNodes(BaseNodesResponse<T> response) {
+                final Map<String, DiscoveryNode> nodesById
+                    = Arrays.stream(nodes).collect(Collectors.toMap(DiscoveryNode::getEphemeralId, Function.identity()));
+                for (T nodeResponse : response.getNodes()) {
+                    final DiscoveryNode responseNode = nodeResponse.getNode();
+                    final DiscoveryNode localNode = nodesById.get(responseNode.getEphemeralId());
+                    assert localNode == responseNode : "not reference equal: " + localNode + " vs " + responseNode;
+                }
+                return true;
             }
         });
     }

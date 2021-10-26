@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher;
 
@@ -21,7 +22,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
@@ -201,7 +202,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
             return;
         }
 
-        if (event.state().nodes().getLocalNode().isDataNode() && event.metadataChanged()) {
+        if (event.state().nodes().getLocalNode().canContainData() && event.metadataChanged()) {
             try {
                 IndexMetadata metadata = WatchStoreUtils.getConcreteIndex(Watch.INDEX, event.state().metadata());
                 if (metadata == null) {

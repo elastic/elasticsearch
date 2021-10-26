@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action;
@@ -78,11 +67,11 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -137,9 +126,9 @@ public class IndicesRequestIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int ordinal) {
+    protected Settings nodeSettings(int ordinal, Settings otherSettings) {
         // must set this independently of the plugin so it overrides MockTransportService
-        return Settings.builder().put(super.nodeSettings(ordinal))
+        return Settings.builder().put(super.nodeSettings(ordinal, otherSettings))
             // InternalClusterInfoService sends IndicesStatsRequest periodically which messes with this test
             // this setting disables it...
             .put("cluster.routing.allocation.disk.threshold_enabled", false).build();
@@ -190,7 +179,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     }
 
     public void testFieldCapabilities() {
-        String fieldCapabilitiesShardAction = FieldCapabilitiesAction.NAME + "[index][s]";
+        String fieldCapabilitiesShardAction = FieldCapabilitiesAction.NAME + "[n]";
         interceptTransportActions(fieldCapabilitiesShardAction);
 
         FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest();
@@ -392,7 +381,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         internalCluster().coordOnlyNodeClient().admin().indices().flush(flushRequest).actionGet();
 
         clearInterceptedActions();
-        String[] indices = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
+        String[] indices = TestIndexNameExpressionResolver.newInstance()
                 .concreteIndexNames(client().admin().cluster().prepareState().get().getState(), flushRequest);
         assertIndicesSubset(Arrays.asList(indices), indexShardActions);
     }
@@ -417,7 +406,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         internalCluster().coordOnlyNodeClient().admin().indices().refresh(refreshRequest).actionGet();
 
         clearInterceptedActions();
-        String[] indices = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
+        String[] indices = TestIndexNameExpressionResolver.newInstance()
                 .concreteIndexNames(client().admin().cluster().prepareState().get().getState(), refreshRequest);
         assertIndicesSubset(Arrays.asList(indices), indexShardActions);
     }
@@ -566,9 +555,10 @@ public class IndicesRequestIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
 
         clearInterceptedActions();
-        assertSameIndices(searchRequest, SearchTransportService.QUERY_ACTION_NAME, SearchTransportService.FETCH_ID_ACTION_NAME);
+        assertIndicesSubset(Arrays.asList(searchRequest.indices()), SearchTransportService.QUERY_ACTION_NAME,
+            SearchTransportService.FETCH_ID_ACTION_NAME);
         //free context messages are not necessarily sent, but if they are, check their indices
-        assertSameIndicesOptionalRequests(searchRequest, SearchTransportService.FREE_CONTEXT_ACTION_NAME);
+        assertIndicesSubsetOptionalRequests(Arrays.asList(searchRequest.indices()), SearchTransportService.FREE_CONTEXT_ACTION_NAME);
     }
 
     public void testSearchDfsQueryThenFetch() throws Exception {
@@ -587,10 +577,10 @@ public class IndicesRequestIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
 
         clearInterceptedActions();
-        assertSameIndices(searchRequest, SearchTransportService.DFS_ACTION_NAME, SearchTransportService.QUERY_ID_ACTION_NAME,
-                SearchTransportService.FETCH_ID_ACTION_NAME);
+        assertIndicesSubset(Arrays.asList(searchRequest.indices()), SearchTransportService.DFS_ACTION_NAME,
+            SearchTransportService.QUERY_ID_ACTION_NAME, SearchTransportService.FETCH_ID_ACTION_NAME);
         //free context messages are not necessarily sent, but if they are, check their indices
-        assertSameIndicesOptionalRequests(searchRequest, SearchTransportService.FREE_CONTEXT_ACTION_NAME);
+        assertIndicesSubsetOptionalRequests(Arrays.asList(searchRequest.indices()), SearchTransportService.FREE_CONTEXT_ACTION_NAME);
     }
 
     private static void assertSameIndices(IndicesRequest originalRequest, String... actions) {
@@ -604,7 +594,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     private static void assertSameIndices(IndicesRequest originalRequest, boolean optional, String... actions) {
         for (String action : actions) {
             List<TransportRequest> requests = consumeTransportRequests(action);
-            if (!optional) {
+            if (optional == false) {
                 assertThat("no internal requests intercepted for action [" + action + "]", requests.size(), greaterThan(0));
             }
             for (TransportRequest internalRequest : requests) {
@@ -614,11 +604,22 @@ public class IndicesRequestIT extends ESIntegTestCase {
             }
         }
     }
+
     private static void assertIndicesSubset(List<String> indices, String... actions) {
+        assertIndicesSubset(indices, false, actions);
+    }
+
+    private static void assertIndicesSubsetOptionalRequests(List<String> indices, String... actions) {
+        assertIndicesSubset(indices, true, actions);
+    }
+
+    private static void assertIndicesSubset(List<String> indices, boolean optional, String... actions) {
         //indices returned by each bulk shard request need to be a subset of the original indices
         for (String action : actions) {
             List<TransportRequest> requests = consumeTransportRequests(action);
-            assertThat("no internal requests intercepted for action [" + action + "]", requests.size(), greaterThan(0));
+            if (optional == false) {
+                assertThat("no internal requests intercepted for action [" + action + "]", requests.size(), greaterThan(0));
+            }
             for (TransportRequest internalRequest : requests) {
                 IndicesRequest indicesRequest = convertRequest(internalRequest);
                 for (String index : indicesRequest.indices()) {

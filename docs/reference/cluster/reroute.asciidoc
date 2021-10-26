@@ -12,6 +12,12 @@ Changes the allocation of shards in a cluster.
 
 `POST /_cluster/reroute`
 
+[[cluster-reroute-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
+
 [[cluster-reroute-api-desc]]
 ==== {api-description-title}
 

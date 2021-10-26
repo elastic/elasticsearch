@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.email;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -84,7 +85,7 @@ public class HtmlSanitizer {
     }
 
     public String sanitize(String html) {
-        if (!enabled) {
+        if (enabled == false) {
             return html;
         }
         return sanitizer.apply(html);
@@ -179,7 +180,7 @@ public class HtmlSanitizer {
             }
         }
 
-        if (!images.isEmpty()) {
+        if (images.isEmpty() == false) {
             policyBuilder.allowAttributes("src").onElements("img").allowUrlProtocols("cid");
             if (images.contains(Images.ALL)) {
                 policyBuilder.allowElements("img");
@@ -206,7 +207,7 @@ public class HtmlSanitizer {
 
         @Override
         public String apply(String elementName, List<String> attrs) {
-            if (!"img".equals(elementName) || attrs.size() == 0) {
+            if ("img".equals(elementName) == false || attrs.isEmpty()) {
                 return elementName;
             }
             String attrName = null;
@@ -216,7 +217,7 @@ public class HtmlSanitizer {
                     continue;
                 }
                 // reject external image source (only allow embedded ones)
-                if ("src".equals(attrName) && !attr.startsWith("cid:")) {
+                if ("src".equals(attrName) && attr.startsWith("cid:") == false) {
                     return null;
                 }
             }

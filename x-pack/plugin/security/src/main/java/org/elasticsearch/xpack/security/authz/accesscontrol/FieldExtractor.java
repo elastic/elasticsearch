@@ -1,16 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authz.accesscontrol;
 
 import org.apache.lucene.index.PrefixCodedTerms.TermIterator;
+import org.apache.lucene.queries.spans.SpanTermQuery;
+import org.apache.lucene.sandbox.search.DocValuesNumbersQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
-import org.apache.lucene.search.DocValuesNumbersQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -22,23 +24,23 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.Weight;
-import org.apache.lucene.search.spans.SpanTermQuery;
 
 import java.util.HashSet;
 import java.util.Set;
 
-/** 
+/**
  * Extracts fields from a query, or throws UnsupportedOperationException.
  * <p>
- * Lucene queries have {@link Weight#extractTerms}, but this is really geared at things
+ * Lucene queries used to have Weight#extractTerms, but this was really geared at things
  * such as highlighting, not security. For example terms in a Boolean {@code MUST_NOT} clause
  * are not included, TermsQuery doesn't implement the method as it could be terribly slow, etc.
+ *
+ * TODO reimplement this using QueryVisitors
  */
 class FieldExtractor {
 
     /**
-     * Populates {@code fields} with the set of fields used by the query, or throws 
+     * Populates {@code fields} with the set of fields used by the query, or throws
      * UnsupportedOperationException if it doesn't know how to do this.
      */
     static void extractFields(Query query, Set<String> fields) throws UnsupportedOperationException {
@@ -56,7 +58,7 @@ class FieldExtractor {
                 extractFields(clause, fields);
             }
         } else if (query instanceof SpanTermQuery) {
-            // we just do SpanTerm, other spans are trickier, they could contain 
+            // we just do SpanTerm, other spans are trickier, they could contain
             // the evil FieldMaskingSpanQuery: so SpanQuery.getField cannot be trusted.
             fields.add(((SpanTermQuery)query).getField());
         } else if (query instanceof TermQuery) {

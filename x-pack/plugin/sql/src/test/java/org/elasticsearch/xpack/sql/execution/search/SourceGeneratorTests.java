@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
@@ -91,22 +92,22 @@ public class SourceGeneratorTests extends ESTestCase {
 
     public void testSortScoreSpecified() {
         QueryContainer container = new QueryContainer()
-                .addSort("id", new ScoreSort(Direction.DESC, null));
+                .prependSort("id", new ScoreSort(Direction.DESC, null));
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
         assertEquals(singletonList(scoreSort()), sourceBuilder.sorts());
     }
 
     public void testSortFieldSpecified() {
         FieldSortBuilder sortField = fieldSort("test").unmappedType("keyword");
-        
+
         QueryContainer container = new QueryContainer()
-                .addSort("id", new AttributeSort(new FieldAttribute(Source.EMPTY, "test", new KeywordEsField("test")),
+                .prependSort("id", new AttributeSort(new FieldAttribute(Source.EMPTY, "test", new KeywordEsField("test")),
                         Direction.ASC, Missing.LAST));
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
         assertEquals(singletonList(sortField.order(SortOrder.ASC).missing("_last")), sourceBuilder.sorts());
 
         container = new QueryContainer()
-                .addSort("id", new AttributeSort(new FieldAttribute(Source.EMPTY, "test", new KeywordEsField("test")),
+                .prependSort("id", new AttributeSort(new FieldAttribute(Source.EMPTY, "test", new KeywordEsField("test")),
                         Direction.DESC, Missing.FIRST));
         sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
         assertEquals(singletonList(sortField.order(SortOrder.DESC).missing("_first")), sourceBuilder.sorts());

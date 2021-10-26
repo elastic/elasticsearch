@@ -36,6 +36,12 @@ DELETE /_snapshot/my_repository/my_snapshot
 
 `DELETE /_snapshot/<repository>/<snapshot>`
 
+[[delete-snapshot-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
+
 [[delete-snapshot-api-desc]]
 ==== {api-description-title}
 

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.fetch.subphase.highlight;
 
@@ -47,6 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.search.fetch.subphase.highlight.AbstractHighlighterBuilder.MAX_ANALYZED_OFFSET_FIELD;
 import static org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter.convertFieldValue;
 
 public class PlainHighlighter implements Highlighter {
@@ -61,7 +51,7 @@ public class PlainHighlighter implements Highlighter {
 
         Encoder encoder = field.fieldOptions().encoder().equals("html") ? HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
 
-        if (!fieldContext.cache.containsKey(CACHE_KEY)) {
+        if (fieldContext.cache.containsKey(CACHE_KEY) == false) {
             fieldContext.cache.put(CACHE_KEY, new HashMap<>());
         }
         @SuppressWarnings("unchecked")
@@ -100,27 +90,32 @@ public class PlainHighlighter implements Highlighter {
         int numberOfFragments = field.fieldOptions().numberOfFragments() == 0 ? 1 : field.fieldOptions().numberOfFragments();
         ArrayList<TextFragment> fragsList = new ArrayList<>();
         List<Object> textsToHighlight;
-        Analyzer analyzer = context.getQueryShardContext().getIndexAnalyzer(f -> Lucene.KEYWORD_ANALYZER);
-        final int maxAnalyzedOffset = context.getQueryShardContext().getIndexSettings().getHighlightMaxAnalyzedOffset();
+        final int maxAnalyzedOffset = context.getSearchExecutionContext().getIndexSettings().getHighlightMaxAnalyzedOffset();
+        Integer queryMaxAnalyzedOffset = fieldContext.field.fieldOptions().maxAnalyzedOffset();
+        Analyzer analyzer = wrapAnalyzer(
+            context.getSearchExecutionContext().getIndexAnalyzer(f -> Lucene.KEYWORD_ANALYZER),
+            queryMaxAnalyzedOffset
+        );
 
         textsToHighlight
-            = HighlightUtils.loadFieldValues(fieldType, context.getQueryShardContext(), hitContext, fieldContext.forceSource);
+            = HighlightUtils.loadFieldValues(fieldType, context.getSearchExecutionContext(), hitContext, fieldContext.forceSource);
 
         for (Object textToHighlight : textsToHighlight) {
             String text = convertFieldValue(fieldType, textToHighlight);
             int textLength = text.length();
-            if (textLength > maxAnalyzedOffset) {
+            if ((queryMaxAnalyzedOffset == null || queryMaxAnalyzedOffset > maxAnalyzedOffset) && (textLength > maxAnalyzedOffset)) {
                 throw new IllegalArgumentException(
-                    "The length of [" + fieldContext.fieldName + "] field of [" + hitContext.hit().getId() +
-                        "] doc of [" + context.getIndexName() + "] index " +
-                        "has exceeded [" + maxAnalyzedOffset + "] - maximum allowed to be analyzed for highlighting. " +
-                        "This maximum can be set by changing the [" + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() +
-                        "] index level setting. " + "For large texts, indexing with offsets or term vectors, and highlighting " +
-                        "with unified or fvh highlighter is recommended!");
+                    "The length [" + textLength + "] of field [" + field +"] in doc[" + hitContext.hit().getId() + "]/index["
+                        + context.getIndexName() +"] exceeds the [" + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() + "] "
+                        + "limit [" + maxAnalyzedOffset + "]. To avoid this error, set the query parameter ["
+                        + MAX_ANALYZED_OFFSET_FIELD.toString() + "] to a value less than index setting [" + maxAnalyzedOffset + "] and "
+                        + "this will tolerate long field values by truncating them."
+                );
             }
 
             try (TokenStream tokenStream = analyzer.tokenStream(fieldType.name(), text)) {
-                if (!tokenStream.hasAttribute(CharTermAttribute.class) || !tokenStream.hasAttribute(OffsetAttribute.class)) {
+                if (tokenStream.hasAttribute(CharTermAttribute.class) == false
+                        || tokenStream.hasAttribute(OffsetAttribute.class) == false) {
                     // can't perform highlighting if the stream has no terms (binary token stream) or no offsets
                     continue;
                 }
@@ -140,8 +135,9 @@ public class PlainHighlighter implements Highlighter {
             }
         }
 
-        if (field.fieldOptions().scoreOrdered()) {
-            CollectionUtil.introSort(fragsList, (o1, o2) -> Math.round(o2.getScore() - o1.getScore()));
+        // fragments are ordered by score by default since we add them in best
+        if (field.fieldOptions().scoreOrdered() == false) {
+            CollectionUtil.introSort(fragsList, (o1, o2) -> o1.getFragNum() - o2.getFragNum());
         }
         String[] fragments;
         // number_of_fragments is set to 0 but we have a multivalued field
@@ -183,7 +179,7 @@ public class PlainHighlighter implements Highlighter {
     private static int findGoodEndForNoHighlightExcerpt(int noMatchSize, Analyzer analyzer, String fieldName, String contents)
             throws IOException {
         try (TokenStream tokenStream = analyzer.tokenStream(fieldName, contents)) {
-            if (!tokenStream.hasAttribute(OffsetAttribute.class)) {
+            if (tokenStream.hasAttribute(OffsetAttribute.class) == false) {
                 // Can't split on term boundaries without offsets
                 return -1;
             }
@@ -204,5 +200,12 @@ public class PlainHighlighter implements Highlighter {
             // We've exhausted the token stream so we should just highlight everything.
             return end;
         }
+    }
+
+    private Analyzer wrapAnalyzer(Analyzer analyzer, Integer maxAnalyzedOffset) {
+        if (maxAnalyzedOffset != null) {
+            return new LimitTokenOffsetAnalyzer(analyzer, maxAnalyzedOffset);
+        }
+        return analyzer;
     }
 }

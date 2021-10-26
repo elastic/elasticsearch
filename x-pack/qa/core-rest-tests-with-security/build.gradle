@@ -1,7 +1,10 @@
-apply plugin: 'elasticsearch.testclusters'
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.authenticated-testclusters'
 
 dependencies {
   testImplementation project(':x-pack:qa')
@@ -19,19 +22,16 @@ tasks.named("integTest").configure {
         'index/10_with_id/Index with ID',
         'indices.get_alias/10_basic/Get alias against closed indices'
       ].join(',')
-
-    systemProperty 'tests.rest.cluster.username', System.getProperty('tests.rest.cluster.username', 'test_user')
-    systemProperty 'tests.rest.cluster.password', System.getProperty('tests.rest.cluster.password', 'x-pack-test-password')
 }
 
 testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
-  setting 'xpack.security.enabled', 'true'
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'indices.lifecycle.history_index_enabled', 'false'
-
-  user username: System.getProperty('tests.rest.cluster.username', 'test_user'),
-    password: System.getProperty('tests.rest.cluster.password', 'x-pack-test-password')
+  setting 'xpack.security.autoconfiguration.enabled', 'false'
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
 }

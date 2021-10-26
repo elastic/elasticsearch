@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.collector;
 
@@ -13,10 +14,10 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
@@ -40,7 +41,8 @@ public abstract class Collector {
      * List of indices names whose stats will be exported (default to all indices)
      */
     public static final Setting<List<String>> INDICES =
-            listSetting(collectionSetting("indices"), emptyList(), Function.identity(), Property.Dynamic, Property.NodeScope);
+            listSetting(collectionSetting("indices"), emptyList(), Function.identity(), Property.Dynamic, Property.NodeScope,
+                Setting.Property.Deprecated);
 
     private final String name;
     private final Setting<TimeValue> collectionTimeoutSetting;
@@ -84,7 +86,7 @@ public abstract class Collector {
                 return doCollect(convertNode(timestamp, clusterService.localNode()), interval, clusterState);
             }
         } catch (ElasticsearchTimeoutException e) {
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("collector [{}] timed out when collecting data", name()));
+            logger.error("collector [{}] timed out when collecting data: {}", name(), e.getMessage());
         } catch (Exception e) {
             logger.error((Supplier<?>) () -> new ParameterizedMessage("collector [{}] failed to collect data", name()), e);
         }
@@ -169,6 +171,6 @@ public abstract class Collector {
 
     protected static Setting<TimeValue> collectionTimeoutSetting(final String settingName) {
         String name = collectionSetting(settingName);
-        return timeSetting(name, TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
+        return timeSetting(name, TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope, Property.Deprecated);
     }
 }

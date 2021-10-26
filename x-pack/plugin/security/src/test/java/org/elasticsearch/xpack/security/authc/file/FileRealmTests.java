@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.file;
 
@@ -45,8 +46,9 @@ public class FileRealmTests extends ESTestCase {
 
     private static final RealmConfig.RealmIdentifier REALM_IDENTIFIER = new RealmConfig.RealmIdentifier("file", "file-test");
 
-    private static final Answer<AuthenticationResult> VERIFY_PASSWORD_ANSWER = inv -> {
+    private static final Answer<AuthenticationResult<User>> VERIFY_PASSWORD_ANSWER = inv -> {
         assertThat(inv.getArguments().length, is(3));
+        @SuppressWarnings("unchecked")
         Supplier<User> supplier = (Supplier<User>) inv.getArguments()[2];
         return AuthenticationResult.success(supplier.get());
     };
@@ -71,16 +73,16 @@ public class FileRealmTests extends ESTestCase {
     }
 
     public void testAuthenticate() throws Exception {
-        when(userPasswdStore.verifyPassword(eq("user1"), eq(new SecureString("longtestpassword")), any(Supplier.class)))
+        when(userPasswdStore.verifyPassword(eq("user1"), eq(new SecureString("longtestpassword")), anySupplier()))
                 .thenAnswer(VERIFY_PASSWORD_ANSWER);
         when(userRolesStore.roles("user1")).thenReturn(new String[] { "role1", "role2" });
         RealmConfig config = getRealmConfig(globalSettings);
         FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore, threadPool);
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("user1", new SecureString("longtestpassword")), future);
-        final AuthenticationResult result = future.actionGet();
+        final AuthenticationResult<User> result = future.actionGet();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
-        User user = result.getUser();
+        User user = result.getValue();
         assertThat(user, notNullValue());
         assertThat(user.principal(), equalTo("user1"));
         assertThat(user.roles(), notNullValue());
@@ -99,16 +101,16 @@ public class FileRealmTests extends ESTestCase {
             .put(globalSettings)
             .build();
         RealmConfig config = getRealmConfig(settings);
-        when(userPasswdStore.verifyPassword(eq("user1"), eq(new SecureString("longtestpassword")), any(Supplier.class)))
+        when(userPasswdStore.verifyPassword(eq("user1"), eq(new SecureString("longtestpassword")), anySupplier()))
                 .thenAnswer(VERIFY_PASSWORD_ANSWER);
         when(userRolesStore.roles("user1")).thenReturn(new String[]{"role1", "role2"});
         FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore, threadPool);
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("user1", new SecureString("longtestpassword")), future);
-        User user1 = future.actionGet().getUser();
+        User user1 = future.actionGet().getValue();
         future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("user1", new SecureString("longtestpassword")), future);
-        User user2 = future.actionGet().getUser();
+        User user2 = future.actionGet().getValue();
         assertThat(user1, sameInstance(user2));
     }
 
@@ -116,44 +118,44 @@ public class FileRealmTests extends ESTestCase {
         RealmConfig config = getRealmConfig(globalSettings);
         userPasswdStore = spy(new UserPasswdStore(config));
         userRolesStore = spy(new UserRolesStore(config));
-        when(userPasswdStore.verifyPassword(eq("user1"), eq(new SecureString("longtestpassword")), any(Supplier.class)))
+        when(userPasswdStore.verifyPassword(eq("user1"), eq(new SecureString("longtestpassword")), anySupplier()))
                 .thenAnswer(VERIFY_PASSWORD_ANSWER);
         doReturn(new String[] { "role1", "role2" }).when(userRolesStore).roles("user1");
         FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore, threadPool);
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("user1", new SecureString("longtestpassword")), future);
-        User user1 = future.actionGet().getUser();
+        User user1 = future.actionGet().getValue();
         future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("user1", new SecureString("longtestpassword")), future);
-        User user2 = future.actionGet().getUser();
+        User user2 = future.actionGet().getValue();
         assertThat(user1, sameInstance(user2));
 
         userPasswdStore.notifyRefresh();
 
         future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("user1", new SecureString("longtestpassword")), future);
-        User user3 = future.actionGet().getUser();
+        User user3 = future.actionGet().getValue();
         assertThat(user2, not(sameInstance(user3)));
         future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("user1", new SecureString("longtestpassword")), future);
-        User user4 = future.actionGet().getUser();
+        User user4 = future.actionGet().getValue();
         assertThat(user3, sameInstance(user4));
 
         userRolesStore.notifyRefresh();
 
         future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("user1", new SecureString("longtestpassword")), future);
-        User user5 = future.actionGet().getUser();
+        User user5 = future.actionGet().getValue();
         assertThat(user4, not(sameInstance(user5)));
         future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("user1", new SecureString("longtestpassword")), future);
-        User user6 = future.actionGet().getUser();
+        User user6 = future.actionGet().getValue();
         assertThat(user5, sameInstance(user6));
     }
 
     public void testToken() throws Exception {
         RealmConfig config = getRealmConfig(globalSettings);
-        when(userPasswdStore.verifyPassword(eq("user1"), eq(new SecureString("longtestpassword")), any(Supplier.class)))
+        when(userPasswdStore.verifyPassword(eq("user1"), eq(new SecureString("longtestpassword")), anySupplier()))
             .thenAnswer(VERIFY_PASSWORD_ANSWER);
         when(userRolesStore.roles("user1")).thenReturn(new String[]{"role1", "role2"});
         FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore, threadPool);
@@ -273,6 +275,11 @@ public class FileRealmTests extends ESTestCase {
         UserRolesStore(RealmConfig config) {
             super(config, mock(ResourceWatcherService.class));
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> Supplier<T> anySupplier() {
+        return any(Supplier.class);
     }
 
 }

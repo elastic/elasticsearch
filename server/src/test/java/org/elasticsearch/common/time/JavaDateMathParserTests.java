@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.time;
@@ -317,10 +306,10 @@ public class JavaDateMathParserTests extends ESTestCase {
         long datetime = parser.parse("1418248078", () -> 0).toEpochMilli();
         assertDateEquals(datetime, "1418248078", "2014-12-10T21:47:58.000");
 
-        // a timestamp before 100000 is a year
+        // for date_optional_time a timestamp with more than 9digits is epoch
         assertDateMathEquals("9999", "9999-01-01T00:00:00.000");
         assertDateMathEquals("10000", "10000-01-01T00:00:00.000");
-        assertDateMathEquals("100000", "1970-01-01T00:01:40.000");
+        assertDateMathEquals("1000000000", "1970-01-12T13:46:40.000Z");
 
         // but 10000 with T is still a date format
         assertDateMathEquals("10000-01-01T", "10000-01-01T00:00:00.000");

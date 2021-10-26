@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.collector.indices;
 
@@ -13,7 +14,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
@@ -162,7 +163,7 @@ public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTes
     private CommonStats mockCommonStats() {
         final CommonStats commonStats = new CommonStats(CommonStatsFlags.ALL);
         commonStats.getDocs().add(new DocsStats(1L, 0L, randomNonNegativeLong()));
-        commonStats.getStore().add(new StoreStats(2L, 0L));
+        commonStats.getStore().add(new StoreStats(2L, 0L, 0L));
 
         final IndexingStats.Stats indexingStats = new IndexingStats.Stats(3L, 4L, 0L, 0L, 0L, 0L, 0L, 0L, true, 5L);
         commonStats.getIndexing().add(new IndexingStats(indexingStats));

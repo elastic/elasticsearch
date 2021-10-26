@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.logging;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -43,10 +33,11 @@ import java.util.regex.Pattern;
 public class HeaderWarning {
     /**
      * Regular expression to test if a string matches the RFC7234 specification for warning headers. This pattern assumes that the warn code
-     * is always 299. Further, this pattern assumes that the warn agent represents a version of Elasticsearch including the build hash.
+     * is always 299 or 300. Further, this pattern assumes that the warn agent represents a version of Elasticsearch including the build
+     * hash.
      */
     public static final Pattern WARNING_HEADER_PATTERN = Pattern.compile(
-        "299 " + // warn code
+        "(?:299|300) " + // log level code
             "Elasticsearch-" + // warn agent
             "\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?-" + // warn agent
             "(?:[a-f0-9]{7}(?:[a-f0-9]{33})?|unknown) " + // warn agent
@@ -64,15 +55,16 @@ public class HeaderWarning {
 
     /*
      * RFC7234 specifies the warning format as warn-code <space> warn-agent <space> "warn-text" [<space> "warn-date"]. Here, warn-code is a
-     * three-digit number with various standard warn codes specified. The warn code 299 is apt for our purposes as it represents a
-     * miscellaneous persistent warning (can be presented to a human, or logged, and must not be removed by a cache). The warn-agent is an
-     * arbitrary token; here we use the Elasticsearch version and build hash. The warn text must be quoted. The warn-date is an optional
-     * quoted field that can be in a variety of specified date formats; here we use RFC 1123 format.
+     * three-digit number with various standard warn codes specified, and is left off of this static prefix so that it can be added based
+     * on the log level received. The warn code will be either 299 or 300 at runtime, which are apt for our purposes as
+     * they represent miscellaneous persistent warnings (can be presented to a human, or logged, and must not be removed by a cache).
+     * The warn-agent is an arbitrary token; here we use the Elasticsearch version and build hash. The warn text must be quoted. The
+     * warn-date is an optional quoted field that can be in a variety of specified date formats; here we use RFC 1123 format.
      */
     private static final String WARNING_PREFIX =
         String.format(
             Locale.ROOT,
-            "299 Elasticsearch-%s%s-%s",
+            " Elasticsearch-%s%s-%s",
             Version.CURRENT.toString(),
             Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "",
             Build.CURRENT.hash());
@@ -200,14 +192,15 @@ public class HeaderWarning {
      * Format a warning string in the proper warning format by prepending a warn code, warn agent, wrapping the warning string in quotes,
      * and appending the RFC 7231 date.
      *
+     * @param level the level of the warning - Level.WARN or DeprecationLogger.CRITICAL
      * @param s the warning string to format
      * @return a warning value formatted according to RFC 7234
      */
-    public static String formatWarning(final String s) {
+    public static String formatWarning(final Level level, final String s) {
         // Assume that the common scenario won't have a string to escape and encode.
-        int length = WARNING_PREFIX.length() + s.length() + 3;
+        int length = WARNING_PREFIX.length() + s.length() + 6;
         final StringBuilder sb = new StringBuilder(length);
-        sb.append(WARNING_PREFIX).append(" \"").append(escapeAndEncode(s)).append("\"");
+        sb.append(level.intLevel() + WARNING_PREFIX).append(" \"").append(escapeAndEncode(s)).append("\"");
         return sb.toString();
     }
 
@@ -321,16 +314,21 @@ public class HeaderWarning {
             .orElse("");
     }
 
-    public static void addWarning(String message, Object... params) {
-        addWarning(THREAD_CONTEXT, message, params);
+    public static void addWarning(Level level, String message, Object... params) {
+        addWarning(THREAD_CONTEXT, level, message, params);
     }
 
     // package scope for testing
     static void addWarning(Set<ThreadContext> threadContexts, String message, Object... params) {
+        addWarning(threadContexts, DeprecationLogger.CRITICAL, message, params);
+    }
+
+    // package scope for testing
+    static void addWarning(Set<ThreadContext> threadContexts, Level level, String message, Object... params) {
         final Iterator<ThreadContext> iterator = threadContexts.iterator();
         if (iterator.hasNext()) {
             final String formattedMessage = LoggerMessageFormat.format(message, params);
-            final String warningHeaderValue = formatWarning(formattedMessage);
+            final String warningHeaderValue = formatWarning(level, formattedMessage);
             assert WARNING_HEADER_PATTERN.matcher(warningHeaderValue).matches();
             assert extractWarningValueFromWarningHeader(warningHeaderValue, false)
                 .equals(escapeAndEncode(formattedMessage));

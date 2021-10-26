@@ -1,8 +1,9 @@
 #!/usr/bin/python3
 #
 # Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
-# or more contributor license agreements. Licensed under the Elastic License;
-# you may not use this file except in compliance with the Elastic License.
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0; you may not use this file except in compliance with the Elastic License
+# 2.0.
 #
 
 import subprocess
@@ -204,10 +205,10 @@ def parse_args():
     parser = argparse.ArgumentParser(description="TDVT runner of the Tableau connector for Elasticsearch.",
             formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument("-t", "--taco-dir", help="Directory containing the connector file.", 
+    parser.add_argument("-t", "--taco-dir", help="Directory containing the connector file.",
             default=TACO_SRC_DIR)
     parser.add_argument("-s", "--signed", help="Is the .taco signed?", action="store_true", default=TACO_SIGNED)
-    parser.add_argument("-r", "--run-dir", help="Directory to run the testing under.", 
+    parser.add_argument("-r", "--run-dir", help="Directory to run the testing under.",
             default=TDVT_RUN_DIR)
     parser.add_argument("-u", "--url", help="Elasticsearch URL.", type=str, default=ES_URL)
     parser.add_argument("-c", "--clean", help="Clean-up run directory", action="store_true", default=False)

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.analytics.stringstats;
@@ -24,13 +25,16 @@ class StringStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
     private final StringStatsAggregatorSupplier aggregatorSupplier;
     private final boolean showDistribution;
 
-    StringStatsAggregatorFactory(String name, ValuesSourceConfig config,
-                                 Boolean showDistribution,
-                                 AggregationContext context,
-                                 AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                                 Map<String, Object> metadata,
-                                 StringStatsAggregatorSupplier aggregatorSupplier)
-                                    throws IOException {
+    StringStatsAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        Boolean showDistribution,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata,
+        StringStatsAggregatorSupplier aggregatorSupplier
+    ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
 
         this.aggregatorSupplier = aggregatorSupplier;
@@ -38,9 +42,7 @@ class StringStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(
-            StringStatsAggregationBuilder.REGISTRY_KEY,
-            CoreValuesSourceType.BYTES, StringStatsAggregator::new, true);
+        builder.register(StringStatsAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.KEYWORD, StringStatsAggregator::new, true);
     }
 
     @Override
@@ -49,11 +51,9 @@ class StringStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(Aggregator parent,
-                                          CardinalityUpperBound cardinality,
-                                          Map<String, Object> metadata) throws IOException {
-        return aggregatorSupplier
-            .build(name, config.getValuesSource(), showDistribution, config.format(), context, parent, metadata);
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
+        return aggregatorSupplier.build(name, config.getValuesSource(), showDistribution, config.format(), context, parent, metadata);
     }
 
 }

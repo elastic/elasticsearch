@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -9,11 +10,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
@@ -32,6 +33,11 @@ final class WaitForFollowShardTasksStep extends AsyncWaitStep {
 
     WaitForFollowShardTasksStep(StepKey key, StepKey nextStepKey, Client client) {
         super(key, nextStepKey, client);
+    }
+
+    @Override
+    public boolean isRetryable() {
+        return true;
     }
 
     @Override
@@ -88,7 +94,7 @@ final class WaitForFollowShardTasksStep extends AsyncWaitStep {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(SHARD_FOLLOW_TASKS.getPreferredName(), shardFollowTaskInfos);
+            builder.xContentList(SHARD_FOLLOW_TASKS.getPreferredName(), shardFollowTaskInfos);
             String message;
             if (shardFollowTaskInfos.size() > 0) {
                 message = "Waiting for [" + shardFollowTaskInfos.size() + "] shard follow tasks to be in sync";

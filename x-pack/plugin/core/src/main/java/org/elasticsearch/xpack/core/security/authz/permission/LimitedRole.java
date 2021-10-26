@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.authz.permission;
@@ -52,7 +53,32 @@ public final class LimitedRole extends Role {
 
     @Override
     public RunAsPermission runAs() {
-        throw new UnsupportedOperationException("cannot retrieve cluster permission on limited role");
+        throw new UnsupportedOperationException("cannot retrieve run_as permission on limited role");
+    }
+
+    @Override
+    public boolean hasFieldOrDocumentLevelSecurity() {
+        return super.hasFieldOrDocumentLevelSecurity() || limitedBy.hasFieldOrDocumentLevelSecurity();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (super.equals(o) == false) {
+            return false;
+        }
+        LimitedRole that = (LimitedRole) o;
+        return this.limitedBy.equals(that.limitedBy);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), limitedBy);
     }
 
     @Override
@@ -63,7 +89,6 @@ public final class LimitedRole extends Role {
             super.authorize(action, requestedIndicesOrAliases, aliasAndIndexLookup, fieldPermissionsCache);
         IndicesAccessControl limitedByIndicesAccessControl = limitedBy.authorize(action, requestedIndicesOrAliases, aliasAndIndexLookup,
                 fieldPermissionsCache);
-
         return indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
     }
 

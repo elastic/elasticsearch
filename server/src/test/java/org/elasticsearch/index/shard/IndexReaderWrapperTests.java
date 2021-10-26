@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.shard;
 
@@ -33,10 +22,12 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.search.stats.ShardFieldUsageTracker;
+import org.elasticsearch.search.internal.FieldUsageTrackingDirectoryReader;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -44,6 +35,9 @@ import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
 
 public class IndexReaderWrapperTests extends ESTestCase {
 
@@ -67,7 +61,7 @@ public class IndexReaderWrapperTests extends ESTestCase {
         final AtomicBoolean closeCalled = new AtomicBoolean(false);
         final Engine.Searcher wrap =  IndexShard.wrapSearcher(new Engine.Searcher("foo", open,
             IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(),
-            () -> closeCalled.set(true)), wrapper);
+            () -> closeCalled.set(true)), mock(ShardFieldUsageTracker.FieldUsageStatsTrackingSession.class), wrapper);
         assertEquals(1, wrap.getIndexReader().getRefCount());
         ElasticsearchDirectoryReader.addReaderCloseListener(wrap.getDirectoryReader(), key -> {
             if (key == open.getReaderCacheHelper().getKey()) {
@@ -108,7 +102,7 @@ public class IndexReaderWrapperTests extends ESTestCase {
         AtomicBoolean closeCalled = new AtomicBoolean(false);
         try (Engine.Searcher wrap =  IndexShard.wrapSearcher(new Engine.Searcher("foo", open,
                 IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(),
-                () -> closeCalled.set(true)), wrapper)) {
+                () -> closeCalled.set(true)), mock(ShardFieldUsageTracker.FieldUsageStatsTrackingSession.class), wrapper)) {
             ElasticsearchDirectoryReader.addReaderCloseListener(wrap.getDirectoryReader(), key -> {
                 cache.remove(key);
             });
@@ -124,7 +118,7 @@ public class IndexReaderWrapperTests extends ESTestCase {
         assertEquals(1, closeCalls.get());
     }
 
-    public void testNoWrap() throws IOException {
+    public void testAlwaysWrapWithFieldUsageTrackingDirectoryReader() throws IOException {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig();
         IndexWriter writer = new IndexWriter(dir, iwc);
@@ -139,9 +133,11 @@ public class IndexReaderWrapperTests extends ESTestCase {
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = directoryReader -> directoryReader;
         try (Engine.Searcher engineSearcher =  IndexShard.wrapSearcher(new Engine.Searcher("foo", open,
                 IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(),
-                open::close), wrapper)) {
-            final Engine.Searcher wrap = IndexShard.wrapSearcher(engineSearcher, wrapper);
-            assertSame(wrap, engineSearcher);
+                open::close), mock(ShardFieldUsageTracker.FieldUsageStatsTrackingSession.class), wrapper)) {
+            final Engine.Searcher wrap = IndexShard.wrapSearcher(engineSearcher,
+                mock(ShardFieldUsageTracker.FieldUsageStatsTrackingSession.class), wrapper);
+            assertNotSame(wrap, engineSearcher);
+            assertThat(wrap.getDirectoryReader(), instanceOf(FieldUsageTrackingDirectoryReader.class));
         }
         IOUtils.close(writer, dir);
     }

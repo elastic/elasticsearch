@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.utils.persistence;
 
@@ -27,7 +28,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException;
@@ -84,7 +85,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
     private static final IndexRequest INDEX_REQUEST_FAILURE =
         new IndexRequest("my-index").id("fail").source(Collections.singletonMap("data", "fail"));
     private static final BulkItemResponse BULK_ITEM_RESPONSE_SUCCESS =
-        new BulkItemResponse(
+        BulkItemResponse.success(
             1,
             DocWriteRequest.OpType.INDEX,
             new IndexResponse(new ShardId(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared", "uuid", 1),
@@ -94,7 +95,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
                 1,
                 true));
     private static final BulkItemResponse BULK_ITEM_RESPONSE_FAILURE =
-        new BulkItemResponse(
+        BulkItemResponse.failure(
             2,
             DocWriteRequest.OpType.INDEX,
             new BulkItemResponse.Failure("my-index", "fail", new Exception("boom")));
@@ -263,7 +264,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
     public void testBulkRequestChangeOnIrrecoverableFailures() {
         int maxFailureRetries = 10;
         resultsPersisterService.setMaxFailureRetries(maxFailureRetries);
-        BulkItemResponse irrecoverable = new BulkItemResponse(
+        BulkItemResponse irrecoverable = BulkItemResponse.failure(
             2,
             DocWriteRequest.OpType.INDEX,
             new BulkItemResponse.Failure("my-index", "fail", new ElasticsearchStatusException("boom", RestStatus.BAD_REQUEST)));

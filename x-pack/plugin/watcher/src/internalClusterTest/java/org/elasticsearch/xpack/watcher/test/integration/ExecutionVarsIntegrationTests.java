@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.test.integration;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
@@ -108,6 +109,7 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67908")
     public void testVars() throws Exception {
         PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client()).setId(watchId).setSource(watchBuilder()
                 .trigger(schedule(cron("0/1 * * * * ?")))

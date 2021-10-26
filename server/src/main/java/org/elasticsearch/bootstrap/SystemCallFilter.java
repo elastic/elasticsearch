@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.bootstrap;
@@ -114,7 +103,7 @@ final class SystemCallFilter {
         LinuxLibrary lib = null;
         if (Constants.LINUX) {
             try {
-                lib = (LinuxLibrary) Native.loadLibrary("c", LinuxLibrary.class);
+                lib = Native.loadLibrary("c", LinuxLibrary.class);
             } catch (UnsatisfiedLinkError e) {
                 logger.warn("unable to link C library. native methods (seccomp) will be disabled.", e);
             }
@@ -432,7 +421,7 @@ final class SystemCallFilter {
         MacLibrary lib = null;
         if (Constants.MAC_OS_X) {
             try {
-                lib = (MacLibrary) Native.loadLibrary("c", MacLibrary.class);
+                lib = Native.loadLibrary("c", MacLibrary.class);
             } catch (UnsatisfiedLinkError e) {
                 logger.warn("unable to link C library. native methods (seatbelt) will be disabled.", e);
             }
@@ -501,7 +490,7 @@ final class SystemCallFilter {
         SolarisLibrary lib = null;
         if (Constants.SUN_OS) {
             try {
-                lib = (SolarisLibrary) Native.loadLibrary("c", SolarisLibrary.class);
+                lib = Native.loadLibrary("c", SolarisLibrary.class);
             } catch (UnsatisfiedLinkError e) {
                 logger.warn("unable to link C library. native methods (priv_set) will be disabled.", e);
             }
@@ -564,7 +553,7 @@ final class SystemCallFilter {
     // windows impl via job ActiveProcessLimit
 
     static void windowsImpl() {
-        if (!Constants.WINDOWS) {
+        if (Constants.WINDOWS == false) {
             throw new IllegalStateException("bug: should not be trying to initialize ActiveProcessLimit for an unsupported OS");
         }
 
@@ -581,7 +570,7 @@ final class SystemCallFilter {
             int clazz = JNAKernel32Library.JOBOBJECT_BASIC_LIMIT_INFORMATION_CLASS;
             JNAKernel32Library.JOBOBJECT_BASIC_LIMIT_INFORMATION limits = new JNAKernel32Library.JOBOBJECT_BASIC_LIMIT_INFORMATION();
             limits.write();
-            if (!lib.QueryInformationJobObject(job, clazz, limits.getPointer(), limits.size(), null)) {
+            if (lib.QueryInformationJobObject(job, clazz, limits.getPointer(), limits.size(), null) == false) {
                 throw new UnsupportedOperationException("QueryInformationJobObject: " + Native.getLastError());
             }
             limits.read();
@@ -589,11 +578,11 @@ final class SystemCallFilter {
             limits.ActiveProcessLimit = 1;
             limits.LimitFlags = JNAKernel32Library.JOB_OBJECT_LIMIT_ACTIVE_PROCESS;
             limits.write();
-            if (!lib.SetInformationJobObject(job, clazz, limits.getPointer(), limits.size())) {
+            if (lib.SetInformationJobObject(job, clazz, limits.getPointer(), limits.size()) == false) {
                 throw new UnsupportedOperationException("SetInformationJobObject: " + Native.getLastError());
             }
             // assign ourselves to the job
-            if (!lib.AssignProcessToJobObject(job, lib.GetCurrentProcess())) {
+            if (lib.AssignProcessToJobObject(job, lib.GetCurrentProcess()) == false) {
                 throw new UnsupportedOperationException("AssignProcessToJobObject: " + Native.getLastError());
             }
         } finally {

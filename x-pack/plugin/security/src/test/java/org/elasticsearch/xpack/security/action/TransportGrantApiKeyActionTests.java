@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.action;
@@ -33,6 +34,7 @@ import org.junit.Before;
 
 import java.util.List;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
@@ -94,12 +96,13 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
             assertThat(token.principal(), equalTo(username));
             assertThat(token.credentials(), equalTo(password));
 
+            @SuppressWarnings("unchecked")
             ActionListener<Authentication> listener = (ActionListener<Authentication>) args[args.length - 1];
             listener.onResponse(authentication);
 
             return null;
         }).when(authenticationService)
-            .authenticate(eq(GrantApiKeyAction.NAME), same(request), any(UsernamePasswordToken.class), any(ActionListener.class));
+            .authenticate(eq(GrantApiKeyAction.NAME), same(request), any(UsernamePasswordToken.class), anyActionListener());
 
         setupApiKeyGenerator(authentication, request, response);
 
@@ -132,12 +135,13 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
             assertThat(token.principal(), equalTo(username));
             assertThat(token.credentials(), equalTo(password));
 
+            @SuppressWarnings("unchecked")
             ActionListener<Authentication> listener = (ActionListener<Authentication>) args[args.length - 1];
             listener.onFailure(new ElasticsearchSecurityException("authentication failed for testing"));
 
             return null;
         }).when(authenticationService)
-            .authenticate(eq(GrantApiKeyAction.NAME), same(request), any(UsernamePasswordToken.class), any(ActionListener.class));
+            .authenticate(eq(GrantApiKeyAction.NAME), same(request), any(UsernamePasswordToken.class), anyActionListener());
 
         setupApiKeyGenerator(authentication, request, response);
 
@@ -220,11 +224,12 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
             assertThat(args[0], equalTo(authentication));
             assertThat(args[1], sameInstance(request.getApiKeyRequest()));
 
+            @SuppressWarnings("unchecked")
             ActionListener<CreateApiKeyResponse> listener = (ActionListener<CreateApiKeyResponse>) args[args.length - 1];
             listener.onResponse(response);
 
             return null;
-        }).when(apiKeyGenerator).generateApiKey(any(Authentication.class), any(CreateApiKeyRequest.class), any(ActionListener.class));
+        }).when(apiKeyGenerator).generateApiKey(any(Authentication.class), any(CreateApiKeyRequest.class), anyActionListener());
     }
 
 }

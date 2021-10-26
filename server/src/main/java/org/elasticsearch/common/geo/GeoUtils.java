@@ -1,35 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.geo;
 
-import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
-import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.common.xcontent.XContentSubParser;
-import org.elasticsearch.common.xcontent.support.MapXContentParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.XContentSubParser;
+import org.elasticsearch.xcontent.support.MapXContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.GeoPointValues;
@@ -76,6 +63,9 @@ public class GeoUtils {
 
     /** rounding error for quantized latitude and longitude values */
     public static final double TOLERANCE = 1E-6;
+
+    private static final int QUAD_MAX_LEVELS_POSSIBLE = 50;
+    private static final int GEOHASH_MAX_LEVELS_POSSIBLE = 24;
 
     /** Returns true if latitude is actually a valid latitude value.*/
     public static boolean isValidLatitude(double latitude) {
@@ -169,7 +159,7 @@ public class GeoUtils {
     public static int quadTreeLevelsForPrecision(double meters) {
         assert meters >= 0;
         if(meters == 0) {
-            return QuadPrefixTree.MAX_LEVELS_POSSIBLE;
+            return QUAD_MAX_LEVELS_POSSIBLE;
         } else {
             final double ratio = 1+(EARTH_POLAR_DISTANCE / EARTH_EQUATOR); // cell ratio
             final double width = Math.sqrt((meters*meters)/(ratio*ratio)); // convert to cell width
@@ -199,7 +189,7 @@ public class GeoUtils {
         assert meters >= 0;
 
         if(meters == 0) {
-            return GeohashPrefixTree.getMaxLevelsPossible();
+            return GEOHASH_MAX_LEVELS_POSSIBLE;
         } else {
             final double ratio = 1+(EARTH_POLAR_DISTANCE / EARTH_EQUATOR); // cell ratio
             final double width = Math.sqrt((meters*meters)/(ratio*ratio)); // convert to cell width
@@ -485,7 +475,7 @@ public class GeoUtils {
                 }
             }
             if (geohash != null) {
-                if(!Double.isNaN(lat) || !Double.isNaN(lon)) {
+                if(Double.isNaN(lat) == false || Double.isNaN(lon) == false) {
                     throw new ElasticsearchParseException("field must be either lat/lon or geohash");
                 } else {
                     return point.parseGeoHash(geohash, effectivePoint);
@@ -610,8 +600,8 @@ public class GeoUtils {
      * 4 decimal degrees
      */
     public static double planeDistance(double lat1, double lon1, double lat2, double lon2) {
-        double x = (lon2 - lon1) * SloppyMath.TO_RADIANS * Math.cos((lat2 + lat1) / 2.0 * SloppyMath.TO_RADIANS);
-        double y = (lat2 - lat1) * SloppyMath.TO_RADIANS;
+        double x = Math.toRadians(lon2 - lon1) * Math.cos(Math.toRadians((lat2 + lat1) / 2.0));
+        double y = Math.toRadians(lat2 - lat1);
         return Math.sqrt(x * x + y * y) * EARTH_MEAN_RADIUS;
     }
 

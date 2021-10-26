@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster;
@@ -23,8 +12,8 @@ import org.apache.lucene.mockfile.FilterFileStore;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.mockfile.FilterPath;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.io.PathUtilsForTesting;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -37,6 +26,7 @@ import org.junit.Before;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileStore;
 import java.nio.file.FileSystem;
@@ -87,7 +77,7 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         final Path dataPath = fileSystemProvider.getRootDir().resolve("node-" + nodeOrdinal);
         try {
             Files.createDirectories(dataPath);
@@ -96,7 +86,7 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
         }
         fileSystemProvider.addTrackedPath(dataPath);
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(Environment.PATH_DATA_SETTING.getKey(), dataPath)
             .put(FsService.ALWAYS_REFRESH_SETTING.getKey(), true)
             .build();
@@ -159,6 +149,10 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
 
         private static long getTotalFileSize(Path path) throws IOException {
             if (Files.isRegularFile(path)) {
+                if (path.getFileName().toString().equals("nodes")
+                    && Files.readString(path, StandardCharsets.UTF_8).contains("prevent a downgrade")) {
+                    return 0;
+                }
                 try {
                     return Files.size(path);
                 } catch (NoSuchFileException | FileNotFoundException e) {

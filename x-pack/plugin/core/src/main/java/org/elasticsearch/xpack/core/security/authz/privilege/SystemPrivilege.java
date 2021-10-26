@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
@@ -35,7 +36,11 @@ public final class SystemPrivilege extends Privilege {
         RetentionLeaseActions.Remove.ACTION_NAME + "*", // needed for CCR to remove retention leases
         RetentionLeaseActions.Renew.ACTION_NAME + "*", // needed for CCR to renew retention leases
         "indices:admin/settings/update", // needed for DiskThresholdMonitor.markIndicesReadOnly
-        CompletionPersistentTaskAction.NAME // needed for ShardFollowTaskCleaner
+        CompletionPersistentTaskAction.NAME, // needed for ShardFollowTaskCleaner
+        "indices:data/write/*", // needed for SystemIndexMigrator
+        "indices:data/read/*", // needed for SystemIndexMigrator
+        "indices:admin/refresh", // needed for SystemIndexMigrator
+        "indices:admin/aliases" // needed for SystemIndexMigrator
     );
 
     private static final Predicate<String> PREDICATE = (action) -> {

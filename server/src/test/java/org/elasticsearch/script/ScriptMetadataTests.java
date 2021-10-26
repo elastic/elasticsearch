@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.script;
 
@@ -22,57 +11,18 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collections;
 
 public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetadata> {
-
-    public void testFromXContentLoading() throws Exception {
-        // failure to load to old namespace scripts with the same id but different langs
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject().field("lang0#id0", "script0").field("lang1#id0", "script1").endObject();
-        XContentParser parser0 = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                    BytesReference.bytes(builder).streamInput());
-        expectThrows(IllegalArgumentException.class, () -> ScriptMetadata.fromXContent(parser0));
-
-        // failure to load a new namespace script and old namespace script with the same id but different langs
-        builder = XContentFactory.jsonBuilder();
-        builder.startObject().field("lang0#id0", "script0")
-            .startObject("id0").field("lang", "lang1").field("source", "script1").endObject().endObject();
-        XContentParser parser1 = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                    BytesReference.bytes(builder).streamInput());
-        expectThrows(IllegalArgumentException.class, () -> ScriptMetadata.fromXContent(parser1));
-
-        // failure to load a new namespace script and old namespace script with the same id but different langs with additional scripts
-        builder = XContentFactory.jsonBuilder();
-        builder.startObject().field("lang0#id0", "script0").field("lang0#id1", "script1")
-            .startObject("id1").field("lang", "lang0").field("source", "script0").endObject()
-            .startObject("id0").field("lang", "lang1").field("source", "script1").endObject().endObject();
-        XContentParser parser2 = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                    BytesReference.bytes(builder).streamInput());
-        expectThrows(IllegalArgumentException.class, () -> ScriptMetadata.fromXContent(parser2));
-
-        // okay to load the same script from the new and old namespace if the lang is the same
-        builder = XContentFactory.jsonBuilder();
-        builder.startObject().field("lang0#id0", "script0")
-            .startObject("id0").field("lang", "lang0").field("source", "script1").endObject().endObject();
-        XContentParser parser3 = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                    BytesReference.bytes(builder).streamInput());
-        ScriptMetadata.fromXContent(parser3);
-    }
 
     public void testGetScript() throws Exception {
         ScriptMetadata.Builder builder = new ScriptMetadata.Builder(null);
@@ -137,72 +87,18 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
 
     public void testLoadEmptyScripts() throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject().field("mustache#empty", "").endObject();
+        builder.startObject().startObject("script").field("lang", "lang").field("source", "").endObject().endObject();
         XContentParser parser = XContentType.JSON.xContent()
             .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
                 BytesReference.bytes(builder).streamInput());
-        ScriptMetadata.fromXContent(parser);
-        assertWarnings("empty templates should no longer be used");
-
-        builder = XContentFactory.jsonBuilder();
-        builder.startObject().field("lang#empty", "").endObject();
-        parser = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                BytesReference.bytes(builder).streamInput());
-        ScriptMetadata.fromXContent(parser);
-        assertWarnings("empty scripts should no longer be used");
-
-        builder = XContentFactory.jsonBuilder();
-        builder.startObject().startObject("script").field("lang", "lang").field("source", "").endObject().endObject();
-        parser = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                BytesReference.bytes(builder).streamInput());
-        ScriptMetadata.fromXContent(parser);
-        assertWarnings("empty scripts should no longer be used");
+        assertTrue(ScriptMetadata.fromXContent(parser).getStoredScripts().isEmpty());
 
         builder = XContentFactory.jsonBuilder();
         builder.startObject().startObject("script").field("lang", "mustache").field("source", "").endObject().endObject();
         parser = XContentType.JSON.xContent()
             .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
                 BytesReference.bytes(builder).streamInput());
-        ScriptMetadata.fromXContent(parser);
-        assertWarnings("empty templates should no longer be used");
-    }
-
-    public void testOldStyleDropped() throws IOException {
-        XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
-
-        builder.startObject();
-        {
-            builder.startObject("painless#test");
-            {
-                builder.field("lang", "painless");
-                builder.field("source", "code");
-            }
-            builder.endObject();
-            builder.startObject("lang#test");
-            {
-                builder.field("lang", "test");
-                builder.field("source", "code");
-            }
-            builder.endObject();
-            builder.startObject("test");
-            {
-                builder.field("lang", "painless");
-                builder.field("source", "code");
-            }
-            builder.endObject();
-        }
-        builder.endObject();
-
-        XContentParser parser = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        BytesReference.bytes(builder).streamInput());
-        ScriptMetadata smd = ScriptMetadata.fromXContent(parser);
-        assertNull(smd.getStoredScript("painless#test"));
-        assertNull(smd.getStoredScript("lang#test"));
-        assertEquals(new StoredScriptSource("painless", "code", Collections.emptyMap()), smd.getStoredScript("test"));
-        assertEquals(1, smd.getStoredScripts().size());
+        assertTrue(ScriptMetadata.fromXContent(parser).getStoredScripts().isEmpty());
     }
 
     @Override

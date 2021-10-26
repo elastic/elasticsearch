@@ -1,12 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.plan.logical;
 
-import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -77,9 +77,6 @@ public class Join extends LogicalPlan {
 
     @Override
     public Join replaceChildren(List<LogicalPlan> newChildren) {
-        if (newChildren.size() < 2) {
-            throw new EqlIllegalArgumentException("expected at least [2] children but received [{}]", newChildren.size());
-        }
         int lastIndex = newChildren.size() - 1;
         return new Join(source(), newChildren.subList(0, lastIndex), newChildren.get(lastIndex), timestamp, tiebreaker, direction);
     }
@@ -115,7 +112,7 @@ public class Join extends LogicalPlan {
     public Attribute timestamp() {
         return timestamp;
     }
-    
+
     public Attribute tiebreaker() {
         return tiebreaker;
     }

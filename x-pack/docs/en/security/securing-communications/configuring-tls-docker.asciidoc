@@ -10,7 +10,7 @@ HTTPS and transport using the {es} Docker image. The example uses
 Docker Compose to manage the containers.
 
 For further details, see
-<<encrypting-communications>> and
+<<configuring-stack-security>> and
 https://www.elastic.co/subscriptions[available subscriptions].
 
 [discrete]

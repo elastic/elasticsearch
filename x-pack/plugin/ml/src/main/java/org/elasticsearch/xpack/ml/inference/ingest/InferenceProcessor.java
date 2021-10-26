@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.inference.ingest;
 
@@ -32,10 +33,23 @@ import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
@@ -156,7 +170,12 @@ public class InferenceProcessor extends AbstractProcessor {
             throw new ElasticsearchStatusException("Unexpected empty inference response", RestStatus.INTERNAL_SERVER_ERROR);
         }
         assert response.getInferenceResults().size() == 1;
-        InferenceResults.writeResult(response.getInferenceResults().get(0), ingestDocument, targetField, modelId);
+        InferenceResults.writeResult(
+            response.getInferenceResults().get(0),
+            ingestDocument,
+            targetField,
+            response.getModelId() != null ? response.getModelId() : modelId
+        );
     }
 
     @Override
@@ -192,15 +211,17 @@ public class InferenceProcessor extends AbstractProcessor {
         @Override
         public void accept(ClusterState state) {
             minNodeVersion = state.nodes().getMinNodeVersion();
+            currentInferenceProcessors = countNumberInferenceProcessors(state);
+        }
+
+        public static int countNumberInferenceProcessors(ClusterState state) {
             Metadata metadata = state.getMetadata();
             if (metadata == null) {
-                currentInferenceProcessors = 0;
-                return;
+                return 0;
             }
             IngestMetadata ingestMetadata = metadata.custom(IngestMetadata.TYPE);
             if (ingestMetadata == null) {
-                currentInferenceProcessors = 0;
-                return;
+                return 0;
             }
 
             int count = 0;
@@ -213,14 +234,14 @@ public class InferenceProcessor extends AbstractProcessor {
                             count += numInferenceProcessors(entry.getKey(), entry.getValue());
                         }
                     }
-                // We cannot throw any exception here. It might break other pipelines.
+                    // We cannot throw any exception here. It might break other pipelines.
                 } catch (Exception ex) {
                     logger.debug(
                         () -> new ParameterizedMessage("failed gathering processors for pipeline [{}]", configuration.getId()),
                         ex);
                 }
             }
-            currentInferenceProcessors = count;
+            return count;
         }
 
         @SuppressWarnings("unchecked")
@@ -293,7 +314,7 @@ public class InferenceProcessor extends AbstractProcessor {
                 fieldMap = ConfigurationUtils.readOptionalMap(TYPE, tag, config, FIELD_MAPPINGS);
                 //TODO Remove in 8.x
                 if (fieldMap != null) {
-                    LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(null, () -> null, FIELD_MAPPINGS, FIELD_MAP);
+                    LoggingDeprecationHandler.INSTANCE.logRenamedField(null, () -> null, FIELD_MAPPINGS, FIELD_MAP);
                 }
             }
             if (fieldMap == null) {
@@ -347,13 +368,42 @@ public class InferenceProcessor extends AbstractProcessor {
             if (configMap.containsKey(ClassificationConfig.NAME.getPreferredName())) {
                 checkSupportedVersion(ClassificationConfig.EMPTY_PARAMS);
                 return ClassificationConfigUpdate.fromMap(valueMap);
+            } else if (configMap.containsKey(FillMaskConfig.NAME)) {
+                checkNlpSupported(FillMaskConfig.NAME);
+                return FillMaskConfigUpdate.fromMap(valueMap);
+            } else if (configMap.containsKey(NerConfig.NAME)) {
+                checkNlpSupported(NerConfig.NAME);
+                return NerConfigUpdate.fromMap(valueMap);
+            } else if (configMap.containsKey(PassThroughConfig.NAME)) {
+                checkNlpSupported(PassThroughConfig.NAME);
+                return PassThroughConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(RegressionConfig.NAME.getPreferredName())) {
                 checkSupportedVersion(RegressionConfig.EMPTY_PARAMS);
                 return RegressionConfigUpdate.fromMap(valueMap);
-            } else {
+            } else if (configMap.containsKey(TextClassificationConfig.NAME)) {
+                checkNlpSupported(TextClassificationConfig.NAME);
+                return TextClassificationConfigUpdate.fromMap(valueMap);
+            } else if (configMap.containsKey(TextEmbeddingConfig.NAME)) {
+                checkNlpSupported(TextEmbeddingConfig.NAME);
+                return TextEmbeddingConfigUpdate.fromMap(valueMap);
+            } else if (configMap.containsKey(ZeroShotClassificationConfig.NAME)) {
+                checkNlpSupported(ZeroShotClassificationConfig.NAME);
+                return ZeroShotClassificationConfigUpdate.fromMap(valueMap);
+            }
+            // TODO missing update types
+            else {
                 throw ExceptionsHelper.badRequestException("unrecognized inference configuration type {}. Supported types {}",
                     configMap.keySet(),
                     Arrays.asList(ClassificationConfig.NAME.getPreferredName(), RegressionConfig.NAME.getPreferredName()));
+            }
+        }
+
+        void checkNlpSupported(String taskType) {
+            if (NlpConfig.MINIMUM_NLP_SUPPORTED_VERSION.after(minNodeVersion)) {
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INFERENCE_CONFIG_NOT_SUPPORTED_ON_VERSION,
+                    taskType,
+                    NlpConfig.MINIMUM_NLP_SUPPORTED_VERSION,
+                    minNodeVersion));
             }
         }
 

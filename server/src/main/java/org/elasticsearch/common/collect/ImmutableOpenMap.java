@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.collect;
@@ -31,8 +20,18 @@ import com.carrotsearch.hppc.predicates.ObjectObjectPredicate;
 import com.carrotsearch.hppc.predicates.ObjectPredicate;
 import com.carrotsearch.hppc.procedures.ObjectObjectProcedure;
 
+import java.util.AbstractCollection;
+import java.util.AbstractMap;
+import java.util.AbstractSet;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * An immutable map implementation based on open hash map.
@@ -47,7 +46,6 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
     private ImmutableOpenMap(ObjectObjectHashMap<KType, VType> map) {
         this.map = map;
     }
-
     /**
      * @return Returns the value associated with the given key or the default value
      * for the key type, if the key is not associated with any value.
@@ -143,10 +141,26 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
     }
 
     /**
-     * @return Returns a container with all values stored in this map.
+     * Returns a {@link Set} view of the keys contained in this map.
      */
-    public ObjectContainer<VType> values() {
-        return map.values();
+    public Set<KType> keySet() {
+        return new AbstractSet<>() {
+            @Override
+            public Iterator<KType> iterator() {
+                return keysIt();
+            }
+
+            @Override
+            public int size() {
+                return map.size();
+            }
+
+            @Override
+            @SuppressWarnings("unchecked")
+            public boolean contains(Object o) {
+                return map.containsKey((KType) o);
+            }
+        };
     }
 
     /**
@@ -154,6 +168,23 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
      */
     public Iterator<VType> valuesIt() {
         return iterator(map.values());
+    }
+
+    /**
+     * Returns a {@link Collection} view of the values contained in the map.
+     */
+    public Collection<VType> values() {
+        return new AbstractCollection<VType>() {
+            @Override
+            public Iterator<VType> iterator() {
+                return valuesIt();
+            }
+
+            @Override
+            public int size() {
+                return map.size();
+            }
+        };
     }
 
     static <T> Iterator<T> iterator(ObjectCollection<T> collection) {
@@ -174,6 +205,26 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         };
     }
 
+    /**
+     * Returns a sequential unordered stream of the map entries.
+     *
+     * @return a {@link Stream} of the map entries as {@link Map.Entry}
+     */
+    public Stream<Map.Entry<KType, VType>> stream() {
+        final Iterator<ObjectObjectCursor<KType, VType>> mapIterator = map.iterator();
+        return StreamSupport.stream(new Spliterators.AbstractSpliterator<>(map.size(), Spliterator.SIZED | Spliterator.DISTINCT) {
+            @Override
+            public boolean tryAdvance(Consumer<? super Map.Entry<KType, VType>> action) {
+                if (mapIterator.hasNext() == false) {
+                    return false;
+                }
+                ObjectObjectCursor<KType, VType> cursor = mapIterator.next();
+                action.accept(new AbstractMap.SimpleImmutableEntry<>(cursor.key, cursor.value));
+                return true;
+            }
+        }, false);
+    }
+
     @Override
     public String toString() {
         return map.toString();
@@ -187,7 +238,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
 
         ImmutableOpenMap that = (ImmutableOpenMap) o;
 
-        if (!map.equals(that.map)) return false;
+        if (map.equals(that.map) == false) return false;
 
         return true;
     }

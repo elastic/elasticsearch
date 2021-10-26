@@ -1,16 +1,18 @@
+import org.elasticsearch.gradle.Architecture
+
 Project idpFixtureProject = xpackProject("test:idp-fixture")
 
-apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testImplementation 'com.google.jimfs:jimfs:1.1'
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
 }
-testFixtures.useFixture ":x-pack:test:idp-fixture"
 
+testFixtures.useFixture ":x-pack:test:idp-fixture"
 
 String outputDir = "${project.buildDir}/generated-resources/${project.name}"
 def copyIdpFiles = tasks.register("copyIdpFiles", Copy) {
@@ -18,12 +20,12 @@ def copyIdpFiles = tasks.register("copyIdpFiles", Copy) {
     'idp/shibboleth-idp/credentials/sp-signing.key', 'idp/shibboleth-idp/credentials/sp-signing.crt');
   into outputDir
 }
-project.sourceSets.test.output.dir(outputDir, builtBy: copyIdpFiles)
 
-tasks.register("setupPorts") {
+def setupPorts = tasks.register("setupPorts") {
   dependsOn copyIdpFiles, idpFixtureProject.postProcessFixture
   // Don't attempt to get ephemeral ports when Docker is not available
-  onlyIf { idpFixtureProject.postProcessFixture.state.skipped == false }
+  // Also, shibboleth fixture is not available on aarch64
+  onlyIf { idpFixtureProject.postProcessFixture.state.skipped == false && Architecture.current() == Architecture.X64 }
   doLast {
     String portString = idpFixtureProject.postProcessFixture.ext."test.fixtures.shibboleth-idp.tcp.4443"
     int ephemeralPort = Integer.valueOf(portString)
@@ -39,7 +41,12 @@ tasks.register("setupPorts") {
   }
 }
 
-integTest.dependsOn "setupPorts"
+project.sourceSets.test.output.dir(outputDir, builtBy: [copyIdpFiles])
+
+tasks.named("integTest").configure {
+  dependsOn setupPorts
+  onlyIf { idpFixtureProject.postProcessFixture.state.skipped == false && Architecture.current() == Architecture.X64 }
+}
 
 testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
@@ -97,19 +104,4 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/*.der'
   exclude '**/*.p12'
   exclude '**/*.key'
-}
-
-tasks.named("thirdPartyAudit").configure {
-  ignoreViolations(
-    // uses internal java api: sun.misc.Unsafe
-    'com.google.common.cache.Striped64',
-    'com.google.common.cache.Striped64$1',
-    'com.google.common.cache.Striped64$Cell',
-    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1'
-  )
-
-  ignoreMissingClasses(
-    'com.ibm.icu.lang.UCharacter'
-  )
 }

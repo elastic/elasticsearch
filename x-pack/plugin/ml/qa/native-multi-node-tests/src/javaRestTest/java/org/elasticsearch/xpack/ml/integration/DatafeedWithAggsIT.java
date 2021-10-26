@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -9,9 +10,11 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
@@ -25,6 +28,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.junit.After;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -41,14 +45,41 @@ public class DatafeedWithAggsIT extends MlNativeAutodetectIntegTestCase {
     }
 
     public void testRealtime() throws Exception {
-        String dataIndex = "datafeed-with-aggs-rt-data";
+        AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
+        aggs.addAggregator(AggregationBuilders.dateHistogram("time").field("time")
+            .fixedInterval(new DateHistogramInterval("1000ms"))
+            .subAggregation(AggregationBuilders.max("time").field("time")));
+        testDfWithAggs(
+            aggs,
+            new Detector.Builder("count", null),
+            "datafeed-with-aggs-rt-job",
+            "datafeed-with-aggs-rt-data"
+        );
+    }
+
+    public void testRealtimeComposite() throws Exception {
+        AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
+        aggs.addAggregator(AggregationBuilders.composite("buckets",
+            Arrays.asList(
+                new DateHistogramValuesSourceBuilder("time").field("time").fixedInterval(new DateHistogramInterval("1000ms")),
+                new TermsValuesSourceBuilder("field").field("field")
+            ))
+            .size(1000)
+            .subAggregation(AggregationBuilders.max("time").field("time")));
+        testDfWithAggs(
+            aggs,
+            new Detector.Builder("count", null).setByFieldName("field"),
+            "datafeed-with-composite-aggs-rt-job",
+            "datafeed-with-composite-aggs-rt-data"
+        );
+    }
+
+    private void testDfWithAggs(AggregatorFactories.Builder aggs, Detector.Builder detector, String jobId, String dfId) throws Exception {
 
         // A job with a bucket_span of 2s
-        String jobId = "datafeed-with-aggs-rt-job";
         DataDescription.Builder dataDescription = new DataDescription.Builder();
 
-        Detector.Builder d = new Detector.Builder("count", null);
-        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(d.build()));
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
         analysisConfig.setBucketSpan(TimeValue.timeValueSeconds(2));
         analysisConfig.setSummaryCountFieldName("doc_count");
 
@@ -63,26 +94,21 @@ public class DatafeedWithAggsIT extends MlNativeAutodetectIntegTestCase {
         DatafeedConfig.Builder datafeedBuilder = new DatafeedConfig.Builder(datafeedId, jobId);
         datafeedBuilder.setQueryDelay(TimeValue.timeValueMillis(100));
         datafeedBuilder.setFrequency(TimeValue.timeValueSeconds(1));
-        datafeedBuilder.setIndices(Collections.singletonList(dataIndex));
+        datafeedBuilder.setIndices(Collections.singletonList(dfId));
 
-        AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
-        aggs.addAggregator(AggregationBuilders.dateHistogram("time").field("time")
-            .fixedInterval(new DateHistogramInterval("1000ms"))
-            .subAggregation(AggregationBuilders.max("time").field("time")));
         datafeedBuilder.setParsedAggregations(aggs);
 
         DatafeedConfig datafeed = datafeedBuilder.build();
 
         // Create stuff and open job
-        registerJob(jobBuilder);
         putJob(jobBuilder);
-        registerDatafeed(datafeed);
+
         putDatafeed(datafeed);
         openJob(jobId);
 
         // Now let's index the data
-        client().admin().indices().prepareCreate(dataIndex)
-            .setMapping("time", "type=date")
+        client().admin().indices().prepareCreate(dfId)
+            .setMapping("time", "type=date", "field", "type=keyword")
             .get();
 
         // Index a doc per second from a minute ago to a minute later
@@ -92,8 +118,8 @@ public class DatafeedWithAggsIT extends MlNativeAutodetectIntegTestCase {
         long curTime = aMinuteAgo;
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         while (curTime < aMinuteLater) {
-            IndexRequest indexRequest = new IndexRequest(dataIndex);
-            indexRequest.source("time", curTime);
+            IndexRequest indexRequest = new IndexRequest(dfId);
+            indexRequest.source("time", curTime, "field", randomFrom("foo", "bar", "baz"));
             bulkRequestBuilder.add(indexRequest);
             curTime += TimeValue.timeValueSeconds(1).millis();
         }

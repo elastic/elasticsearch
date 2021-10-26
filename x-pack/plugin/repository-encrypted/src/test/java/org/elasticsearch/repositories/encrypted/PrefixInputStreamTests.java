@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.repositories.encrypted;
 
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.mockito.invocation.InvocationOnMock;
@@ -184,11 +185,11 @@ public class PrefixInputStreamTests extends ESTestCase {
         when(mockSource.skip(org.mockito.Matchers.anyLong())).thenAnswer(invocationOnMock -> {
             final long n = (long) invocationOnMock.getArguments()[0];
             if (n <= 0 || bytesRemaining.get() <= 0) {
-                return 0;
+                return 0L;
             }
             int bytesSkipped = 1 + Randomness.get().nextInt(Math.min(bytesRemaining.get(), Math.toIntExact(n)));
             bytesRemaining.addAndGet(-bytesSkipped);
-            return bytesSkipped;
+            return (long) bytesSkipped;
         });
         when(mockSource.available()).thenAnswer(invocationOnMock -> {
             if (bytesRemaining.get() <= 0) {

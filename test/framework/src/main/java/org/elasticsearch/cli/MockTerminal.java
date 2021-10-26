@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cli;
 
 import java.io.ByteArrayOutputStream;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
@@ -50,6 +40,7 @@ public class MockTerminal extends Terminal {
     private final List<String> secretInput = new ArrayList<>();
     private int secretIndex = 0;
 
+    private boolean hasOutputStream = true;
     public MockTerminal() {
         super("\n"); // always *nix newlines for tests
     }
@@ -76,8 +67,17 @@ public class MockTerminal extends Terminal {
     }
 
     @Override
+    public OutputStream getOutputStream() {
+        return hasOutputStream ? stdoutBuffer : null;
+    }
+
+    @Override
     public PrintWriter getErrorWriter() {
         return errorWriter;
+    }
+
+    public void setHasOutputStream(boolean hasOutputStream) {
+        this.hasOutputStream = hasOutputStream;
     }
 
     /** Adds an an input that will be return from {@link #readText(String)}. Values are read in FIFO order. */
@@ -93,6 +93,11 @@ public class MockTerminal extends Terminal {
     /** Returns all output written to this terminal. */
     public String getOutput() throws UnsupportedEncodingException {
         return stdoutBuffer.toString("UTF-8");
+    }
+
+    /** Returns all bytes  written to this terminal. */
+    public byte[] getOutputBytes() {
+        return stdoutBuffer.toByteArray();
     }
 
     /** Returns all output written to this terminal. */

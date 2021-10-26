@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
@@ -24,6 +25,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * <p>
@@ -134,7 +137,7 @@ public interface AuthorizationEngine {
                               ActionListener<IndexAuthorizationResult> listener);
 
     /**
-     * Asynchronously loads a list of alias and index names for which the user is authorized
+     * Asynchronously loads a set of alias and index names for which the user is authorized
      * to execute the requested action.
      *
      * @param requestInfo object contain the request and associated information such as the action
@@ -146,7 +149,7 @@ public interface AuthorizationEngine {
      * @param listener the listener to be notified of the authorization result
      */
     void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                               Map<String, IndexAbstraction> indicesLookup, ActionListener<List<String>> listener);
+                               Map<String, IndexAbstraction> indicesLookup, ActionListener<Set<String>> listener);
 
 
     /**
@@ -245,11 +248,19 @@ public interface AuthorizationEngine {
         private final Authentication authentication;
         private final TransportRequest request;
         private final String action;
+        @Nullable
+        private final AuthorizationContext originatingAuthorizationContext;
 
-        public RequestInfo(Authentication authentication, TransportRequest request, String action) {
-            this.authentication = authentication;
-            this.request = request;
-            this.action = action;
+        public RequestInfo(
+            Authentication authentication,
+            TransportRequest request,
+            String action,
+            AuthorizationContext originatingContext
+        ) {
+            this.authentication = Objects.requireNonNull(authentication);
+            this.request = Objects.requireNonNull(request);
+            this.action = Objects.requireNonNull(action);
+            this.originatingAuthorizationContext = originatingContext;
         }
 
         public String getAction() {
@@ -262,6 +273,27 @@ public interface AuthorizationEngine {
 
         public TransportRequest getRequest() {
             return request;
+        }
+
+        @Nullable
+        public AuthorizationContext getOriginatingAuthorizationContext() {
+            return originatingAuthorizationContext;
+        }
+
+        @Override
+        public String toString() {
+            return getClass().getSimpleName()
+                + '{'
+                + "authentication=["
+                + authentication
+                + "], request=["
+                + request
+                + "], action=["
+                + action
+                + ']'
+                + ", parent=["
+                + originatingAuthorizationContext
+                + "]}";
         }
     }
 
@@ -341,7 +373,35 @@ public interface AuthorizationEngine {
         }
 
         public static String getFailureDescription(Collection<?> deniedIndices) {
+            if (deniedIndices.isEmpty()) {
+                return null;
+            }
             return "on indices [" + Strings.collectionToCommaDelimitedString(deniedIndices) + "]";
+        }
+
+        public IndicesAccessControl getIndicesAccessControl() {
+            return indicesAccessControl;
+        }
+    }
+
+
+    final class AuthorizationContext {
+        private final String action;
+        private final AuthorizationInfo authorizationInfo;
+        private final IndicesAccessControl indicesAccessControl;
+
+        public AuthorizationContext(String action, AuthorizationInfo authorizationInfo, IndicesAccessControl accessControl) {
+            this.action = action;
+            this.authorizationInfo = authorizationInfo;
+            this.indicesAccessControl = accessControl;
+        }
+
+        public String getAction() {
+            return action;
+        }
+
+        public AuthorizationInfo getAuthorizationInfo() {
+            return authorizationInfo;
         }
 
         public IndicesAccessControl getIndicesAccessControl() {

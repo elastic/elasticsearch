@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -35,6 +24,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -127,8 +117,8 @@ public class RebalanceAfterActiveTests extends ESAllocationTestCase {
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         // we only allow one relocation at a time
-        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(5));
-        assertThat(clusterState.routingTable().shardsWithState(RELOCATING).size(), equalTo(5));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(5));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), RELOCATING).size(), equalTo(5));
         for (int i = 0; i < clusterState.routingTable().index("test").shards().size(); i++) {
             int num = 0;
             for (ShardRouting routing : clusterState.routingTable().index("test").shard(i).shards()) {
@@ -144,8 +134,8 @@ public class RebalanceAfterActiveTests extends ESAllocationTestCase {
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         // we now only relocate 3, since 2 remain where they are!
-        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(7));
-        assertThat(clusterState.routingTable().shardsWithState(RELOCATING).size(), equalTo(3));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(7));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), RELOCATING).size(), equalTo(3));
         for (int i = 0; i < clusterState.routingTable().index("test").shards().size(); i++) {
             for (ShardRouting routing : clusterState.routingTable().index("test").shard(i).shards()) {
                 if (routing.state() == RELOCATING || routing.state() == INITIALIZING) {
@@ -159,7 +149,7 @@ public class RebalanceAfterActiveTests extends ESAllocationTestCase {
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
 
-        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(10));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(10));
         // make sure we have an even relocation
         for (RoutingNode routingNode : routingNodes) {
             assertThat(routingNode.size(), equalTo(1));

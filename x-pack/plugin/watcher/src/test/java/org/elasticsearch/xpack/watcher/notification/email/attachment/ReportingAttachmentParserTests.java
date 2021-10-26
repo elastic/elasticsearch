@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
@@ -11,10 +12,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.execution.Wid;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.notification.email.Attachment;
+import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentParser.EmailAttachment;
 import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -47,7 +49,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.notification.email.attachment.ReportingAttachmentParser.INTERVAL_SETTING;
 import static org.elasticsearch.xpack.watcher.notification.email.attachment.ReportingAttachmentParser.REPORT_WARNING_ENABLED_SETTING;
 import static org.elasticsearch.xpack.watcher.notification.email.attachment.ReportingAttachmentParser.REPORT_WARNING_TEXT;
@@ -71,7 +73,7 @@ import static org.mockito.Mockito.when;
 public class ReportingAttachmentParserTests extends ESTestCase {
 
     private HttpClient httpClient;
-    private Map<String, EmailAttachmentParser> attachmentParsers = new HashMap<>();
+    private Map<String, EmailAttachmentParser<? extends EmailAttachment>> attachmentParsers = new HashMap<>();
     private EmailAttachmentsParser emailAttachmentsParser;
     private ReportingAttachmentParser reportingAttachmentParser;
     private MockTextTemplateEngine templateEngine = new MockTextTemplateEngine();
@@ -104,8 +106,8 @@ public class ReportingAttachmentParserTests extends ESTestCase {
         TimeValue interval = null;
         boolean withInterval = randomBoolean();
         if (withInterval) {
-            builder.field("interval", "1s");
-            interval = TimeValue.timeValueSeconds(1);
+            interval = TimeValue.parseTimeValue(randomTimeValue(1, 100, "s", "m", "h"), "interval");
+            builder.field("interval", interval.getStringRep());
         }
 
         boolean isInline = randomBoolean();
@@ -141,7 +143,7 @@ public class ReportingAttachmentParserTests extends ESTestCase {
         assertThat(emailAttachments.getAttachments(), hasSize(1));
 
         XContentBuilder toXcontentBuilder = jsonBuilder().startObject();
-        List<EmailAttachmentParser.EmailAttachment> attachments = new ArrayList<>(emailAttachments.getAttachments());
+        List<EmailAttachment> attachments = new ArrayList<>(emailAttachments.getAttachments());
         WatcherParams watcherParams = WatcherParams.builder().hideSecrets(isPasswordEncrypted).build();
         attachments.get(0).toXContent(toXcontentBuilder, watcherParams);
         toXcontentBuilder.endObject();

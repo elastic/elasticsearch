@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe.extractor;
 
@@ -34,11 +35,12 @@ public class DataFrameDataExtractorFactory {
     private final Map<String, String> headers;
     private final boolean supportsRowsWithMissingValues;
     private final TrainTestSplitterFactory trainTestSplitterFactory;
+    private final Map<String, Object> runtimeMappings;
 
     private DataFrameDataExtractorFactory(Client client, String analyticsId, List<String> indices, QueryBuilder sourceQuery,
                                           ExtractedFields extractedFields, List<RequiredField> requiredFields, Map<String, String> headers,
-                                          boolean supportsRowsWithMissingValues,
-                                          TrainTestSplitterFactory trainTestSplitterFactory) {
+                                          boolean supportsRowsWithMissingValues, TrainTestSplitterFactory trainTestSplitterFactory,
+                                          Map<String, Object> runtimeMappings) {
         this.client = Objects.requireNonNull(client);
         this.analyticsId = Objects.requireNonNull(analyticsId);
         this.indices = Objects.requireNonNull(indices);
@@ -48,6 +50,7 @@ public class DataFrameDataExtractorFactory {
         this.headers = headers;
         this.supportsRowsWithMissingValues = supportsRowsWithMissingValues;
         this.trainTestSplitterFactory = Objects.requireNonNull(trainTestSplitterFactory);
+        this.runtimeMappings = Objects.requireNonNull(runtimeMappings);
     }
 
     public DataFrameDataExtractor newExtractor(boolean includeSource) {
@@ -60,7 +63,8 @@ public class DataFrameDataExtractorFactory {
                 headers,
                 includeSource,
                 supportsRowsWithMissingValues,
-                trainTestSplitterFactory
+                trainTestSplitterFactory,
+                runtimeMappings
             );
         return new DataFrameDataExtractor(client, context);
     }
@@ -89,7 +93,8 @@ public class DataFrameDataExtractorFactory {
                                                                        ExtractedFields extractedFields) {
         return new DataFrameDataExtractorFactory(client, taskId, Arrays.asList(config.getSource().getIndex()),
             config.getSource().getParsedQuery(), extractedFields, config.getAnalysis().getRequiredFields(), config.getHeaders(),
-            config.getAnalysis().supportsMissingValues(), createTrainTestSplitterFactory(client, config, extractedFields));
+            config.getAnalysis().supportsMissingValues(), createTrainTestSplitterFactory(client, config, extractedFields),
+            config.getSource().getRuntimeMappings());
     }
 
     private static TrainTestSplitterFactory createTrainTestSplitterFactory(Client client, DataFrameAnalyticsConfig config,
@@ -123,7 +128,7 @@ public class DataFrameDataExtractorFactory {
                 DataFrameDataExtractorFactory extractorFactory = new DataFrameDataExtractorFactory(client, config.getId(),
                     Collections.singletonList(config.getDest().getIndex()), config.getSource().getParsedQuery(), extractedFields,
                     config.getAnalysis().getRequiredFields(), config.getHeaders(), config.getAnalysis().supportsMissingValues(),
-                    createTrainTestSplitterFactory(client, config, extractedFields));
+                    createTrainTestSplitterFactory(client, config, extractedFields), Collections.emptyMap());
                 listener.onResponse(extractorFactory);
             },
             listener::onFailure

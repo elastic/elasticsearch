@@ -256,7 +256,7 @@ class BindingProcessor extends AbstractProcessor {
         }
 
         Binding<?> original = injector.state.getExplicitBinding(key);
-        if (original != null && !isOkayDuplicate(original, binding)) {
+        if (original != null && isOkayDuplicate(original, binding) == false) {
             errors.bindingAlreadySet(key, original.getSource());
             return;
         }

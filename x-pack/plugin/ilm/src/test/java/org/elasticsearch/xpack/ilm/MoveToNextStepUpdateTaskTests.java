@@ -1,19 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ilm;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
@@ -62,9 +62,9 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
     }
 
-    public void testExecuteSuccessfullyMoved() {
+    public void testExecuteSuccessfullyMoved() throws Exception {
         long now = randomNonNegativeLong();
-        List<Step> steps = lifecyclePolicy.toSteps(null);
+        List<Step> steps = lifecyclePolicy.toSteps(null, null);
         StepKey currentStepKey = steps.get(0).getKey();
         StepKey nextStepKey = steps.get(0).getNextStepKey();
 
@@ -84,7 +84,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         assertTrue(changed.get());
     }
 
-    public void testExecuteDifferentCurrentStep() {
+    public void testExecuteDifferentCurrentStep() throws Exception {
         StepKey currentStepKey = new StepKey("current-phase", "current-action", "current-name");
         StepKey notCurrentStepKey = new StepKey("not-current", "not-current", "not-current");
         long now = randomNonNegativeLong();
@@ -95,7 +95,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         assertSame(newState, clusterState);
     }
 
-    public void testExecuteDifferentPolicy() {
+    public void testExecuteDifferentPolicy() throws Exception {
         StepKey currentStepKey = new StepKey("current-phase", "current-action", "current-name");
         long now = randomNonNegativeLong();
         setStateToKey(currentStepKey, now);
@@ -106,9 +106,9 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         assertSame(newState, clusterState);
     }
 
-    public void testExecuteSuccessfulMoveWithInvalidNextStep() {
+    public void testExecuteSuccessfulMoveWithInvalidNextStep() throws Exception {
         long now = randomNonNegativeLong();
-        List<Step> steps = lifecyclePolicy.toSteps(null);
+        List<Step> steps = lifecyclePolicy.toSteps(null, null);
         StepKey currentStepKey = steps.get(0).getKey();
         StepKey invalidNextStep = new StepKey("next-invalid", "next-invalid", "next-invalid");
 
@@ -138,11 +138,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(index, policy, currentStepKey, nextStepKey, () -> now,
             new AlwaysExistingStepRegistry(), state -> {});
         Exception expectedException = new RuntimeException();
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                () -> task.onFailure(randomAlphaOfLength(10), expectedException));
-        assertEquals("policy [" + policy + "] for index [" + index.getName() + "] failed trying to move from step [" + currentStepKey
-                + "] to step [" + nextStepKey + "].", exception.getMessage());
-        assertSame(expectedException, exception.getCause());
+        task.onFailure(randomAlphaOfLength(10), expectedException);
     }
 
     /**
@@ -151,7 +147,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
     private static class AlwaysExistingStepRegistry extends PolicyStepsRegistry {
 
         AlwaysExistingStepRegistry() {
-            super(new NamedXContentRegistry(Collections.emptyList()), null);
+            super(new NamedXContentRegistry(Collections.emptyList()), null, null);
         }
 
         @Override

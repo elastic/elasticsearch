@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest;
@@ -32,6 +21,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.DoubleStream;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.both;
@@ -49,6 +39,8 @@ public class IngestDocumentTests extends ESTestCase {
 
     private static final ZonedDateTime BOGUS_TIMESTAMP = ZonedDateTime.of(2016, 10, 23, 0, 0, 0, 0, ZoneOffset.UTC);
     private IngestDocument ingestDocument;
+    private static final String DOUBLE_ARRAY_FIELD = "double_array_field";
+    private static final String DOUBLE_DOUBLE_ARRAY_FIELD = "double_double_array";
 
     @Before
     public void setTestIngestDocument() {
@@ -80,6 +72,14 @@ public class IngestDocumentTests extends ESTestCase {
         list2.add("bar");
         list2.add("baz");
         document.put("list2", list2);
+        document.put(DOUBLE_ARRAY_FIELD, DoubleStream.generate(ESTestCase::randomDouble).limit(randomInt(1000)).toArray());
+        document.put(
+            DOUBLE_DOUBLE_ARRAY_FIELD,
+            new double[][] {
+                DoubleStream.generate(ESTestCase::randomDouble).limit(randomInt(1000)).toArray(),
+                DoubleStream.generate(ESTestCase::randomDouble).limit(randomInt(1000)).toArray(),
+                DoubleStream.generate(ESTestCase::randomDouble).limit(randomInt(1000)).toArray() }
+        );
 
         ingestDocument = new IngestDocument("index", "id", null, null, null, document);
     }
@@ -790,23 +790,23 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testRemoveField() {
         ingestDocument.removeField("foo");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(7));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(9));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("foo"), equalTo(false));
         ingestDocument.removeField("_index");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(6));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("_index"), equalTo(false));
         ingestDocument.removeField("_source.fizz");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(5));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(7));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("fizz"), equalTo(false));
         assertThat(ingestDocument.getIngestMetadata().size(), equalTo(1));
         ingestDocument.removeField("_ingest.timestamp");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(5));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(7));
         assertThat(ingestDocument.getIngestMetadata().size(), equalTo(0));
     }
 
     public void testRemoveInnerField() {
         ingestDocument.removeField("fizz.buzz");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(10));
         assertThat(ingestDocument.getSourceAndMetadata().get("fizz"), instanceOf(Map.class));
         @SuppressWarnings("unchecked")
         Map<String, Object> map = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("fizz");
@@ -815,17 +815,17 @@ public class IngestDocumentTests extends ESTestCase {
 
         ingestDocument.removeField("fizz.foo_null");
         assertThat(map.size(), equalTo(2));
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(10));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
 
         ingestDocument.removeField("fizz.1");
         assertThat(map.size(), equalTo(1));
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(10));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
 
         ingestDocument.removeField("fizz.list");
         assertThat(map.size(), equalTo(0));
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(10));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
     }
 
@@ -859,7 +859,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testRemoveIngestObject() {
         ingestDocument.removeField("_ingest");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(7));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(9));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("_ingest"), equalTo(false));
     }
 
@@ -881,7 +881,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testListRemoveField() {
         ingestDocument.removeField("list.0.field");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(10));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("list"), equalTo(true));
         Object object = ingestDocument.getSourceAndMetadata().get("list");
         assertThat(object, instanceOf(List.class));
@@ -1055,6 +1055,22 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(e.getMessage(),
                     containsString("field [source_field] of unknown type [" + expectedClassName + "], must be string or byte array"));
         }
+    }
+
+    public void testDeepCopy() {
+        IngestDocument copiedDoc = new IngestDocument(
+            IngestDocument.deepCopyMap(ingestDocument.getSourceAndMetadata()),
+            IngestDocument.deepCopyMap(ingestDocument.getIngestMetadata())
+        );
+        assertArrayEquals(
+            copiedDoc.getFieldValue(DOUBLE_ARRAY_FIELD, double[].class),
+            ingestDocument.getFieldValue(DOUBLE_ARRAY_FIELD, double[].class),
+            1e-10
+        );
+        assertArrayEquals(
+            copiedDoc.getFieldValue(DOUBLE_DOUBLE_ARRAY_FIELD, double[][].class),
+            ingestDocument.getFieldValue(DOUBLE_DOUBLE_ARRAY_FIELD, double[][].class)
+        );
     }
 
 }

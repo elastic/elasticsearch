@@ -9,8 +9,8 @@ For example, the following search collapses results by `user.id` and sorts them
 by `http.response.bytes`.
 
 [source,console]
---------------------------------------------------
-GET /my-index-000001/_search
+----
+GET my-index-000001/_search
 {
   "query": {
     "match": {
@@ -18,24 +18,30 @@ GET /my-index-000001/_search
     }
   },
   "collapse": {
-    "field": "user.id"                <1>
+    "field": "user.id"         <1>
   },
-  "sort": [ "http.response.bytes" ],  <2>
-  "from": 10                          <3>
+  "sort": [
+    {
+      "http.response.bytes": { <2>
+        "order": "desc"
+      }
+    }
+  ],
+  "from": 0                    <3>
 }
---------------------------------------------------
+----
 // TEST[setup:my_index]
 
-<1> Collapse the result set using the "user.id" field
+<1> Collapse the result set using the `user.id` field
 <2> Sort the results by `http.response.bytes`
-<3> define the offset of the first collapsed result
+<3> Define the offset of the first collapsed result
 
 WARNING: The total number of hits in the response indicates the number of matching documents without collapsing.
 The total number of distinct group is unknown.
 
-The field used for collapsing must be a single valued <<keyword, `keyword`>> or <<number, `numeric`>> field with <<doc-values, `doc_values`>> activated
+The field used for collapsing must be a single valued <<keyword, `keyword`>> or <<number, `numeric`>> field with <<doc-values, `doc_values`>> activated.
 
-NOTE: The collapsing is applied to the top hits only and does not affect aggregations.
+NOTE: Collapsing is applied to the top hits only and does not affect aggregations.
 
 [discrete]
 [[expand-collapse-results]]
@@ -44,7 +50,7 @@ NOTE: The collapsing is applied to the top hits only and does not affect aggrega
 It is also possible to expand each collapsed top hits with the `inner_hits` option.
 
 [source,console]
---------------------------------------------------
+----
 GET /my-index-000001/_search
 {
   "query": {
@@ -57,28 +63,34 @@ GET /my-index-000001/_search
     "inner_hits": {
       "name": "most_recent",                  <2>
       "size": 5,                              <3>
-      "sort": [ { "@timestamp": "asc" } ]     <4>
+      "sort": [ { "@timestamp": "desc" } ]    <4>
     },
     "max_concurrent_group_searches": 4        <5>
   },
-  "sort": [ "http.response.bytes" ]
+  "sort": [
+    {
+      "http.response.bytes": {
+        "order": "desc"
+      }
+    }
+  ]
 }
---------------------------------------------------
+----
 // TEST[setup:my_index]
 
-<1> collapse the result set using the "user.id" field
-<2> the name used for the inner hit section in the response
-<3> the number of inner_hits to retrieve per collapse key
-<4> how to sort the document inside each group
-<5> the number of concurrent requests allowed to retrieve the `inner_hits` per group
+<1> Collapse the result set using the `user.id` field
+<2> The name used for the inner hit section in the response
+<3> The number of `inner_hits` to retrieve per collapse key
+<4> How to sort the document inside each group
+<5> The number of concurrent requests allowed to retrieve the `inner_hits` per group
 
 See <<inner-hits, inner hits>> for the complete list of supported options and the format of the response.
 
-It is also possible to request multiple `inner_hits` for each collapsed hit.  This can be useful when you want to get
+It is also possible to request multiple `inner_hits` for each collapsed hit. This can be useful when you want to get
 multiple representations of the collapsed hits.
 
 [source,console]
---------------------------------------------------
+----
 GET /my-index-000001/_search
 {
   "query": {
@@ -87,51 +99,110 @@ GET /my-index-000001/_search
     }
   },
   "collapse": {
-    "field": "user.id",                      <1>
-      "inner_hits": [
+    "field": "user.id",                   <1>
+    "inner_hits": [
       {
-        "name": "largest_responses",         <2>
+        "name": "largest_responses",      <2>
         "size": 3,
-        "sort": [ "http.response.bytes" ]
+        "sort": [
+          {
+            "http.response.bytes": {
+              "order": "desc"
+            }
+          }
+        ]
       },
       {
-        "name": "most_recent",               <3>
+        "name": "most_recent",             <3>
         "size": 3,
-        "sort": [ { "@timestamp": "asc" } ]
+        "sort": [
+          {
+            "@timestamp": {
+              "order": "desc"
+            }
+          }
+        ]
       }
     ]
   },
-  "sort": [ "http.response.bytes" ]
+  "sort": [
+    "http.response.bytes"
+  ]
 }
---------------------------------------------------
+----
 // TEST[setup:my_index]
 
-<1> collapse the result set using the "user.id" field
-<2> return the three largest HTTP responses for the user
-<3> return the three most recent HTTP responses for the user
+<1> Collapse the result set using the `user.id` field
+<2> Return the three largest HTTP responses for the user
+<3> Return the three most recent HTTP responses for the user
 
 The expansion of the group is done by sending an additional query for each
-`inner_hit` request for each collapsed hit returned in the response.  This can significantly slow things down
-if you have too many groups and/or `inner_hit` requests.
+`inner_hit` request for each collapsed hit returned in the response. This can
+significantly slow your search if you have too many groups or `inner_hit`
+requests.
 
 The `max_concurrent_group_searches` request parameter can be used to control
 the maximum number of concurrent searches allowed in this phase.
 The default is based on the number of data nodes and the default search thread pool size.
 
-WARNING: `collapse` cannot be used in conjunction with <<scroll-search-results, scroll>>,
-<<rescore, rescore>> or <<search-after, search after>>.
+WARNING: `collapse` cannot be used in conjunction with <<scroll-search-results, scroll>> or
+<<rescore, rescore>>.
+
+[discrete]
+[[collapsing-with-search-after]]
+=== Collapsing with `search_after`
+Field collapsing can be used with the <<search-after, `search_after`>>
+parameter. Using `search_after` is only supported when sorting and collapsing
+on the same field. Secondary sorts are also not allowed. For example, we can
+collapse and sort on `user.id`, while paging through the results using
+`search_after`:
+
+[source,console]
+----
+GET /my-index-000001/_search
+{
+  "query": {
+    "match": {
+      "message": "GET /search"
+    }
+  },
+  "collapse": {
+    "field": "user.id"
+  },
+  "sort": [ "user.id" ],
+  "search_after": ["dd5ce1ad"]
+}
+----
+// TEST[setup:my_index]
 
 [discrete]
 [[second-level-of-collapsing]]
 === Second level of collapsing
 
-Second level of collapsing is also supported and is applied to `inner_hits`.
+A second level of collapsing is also supported and is applied to `inner_hits`.
 
 For example, the following search collapses results by `geo.country_name`.
 Within each `geo.country_name`, inner hits are collapsed by `user.id`.
 
-[source,js]
---------------------------------------------------
+NOTE: Second level of collapsing doesn't allow `inner_hits`.
+
+///////////////
+[source,console]
+----
+PUT my-index-000001/
+{"mappings":{"properties":{"@timestamp":{"type":"date"},"geo":{"properties":{"country_name":{"type":"keyword"}}},"http":{"properties":{"request":{"properties":{"method":{"type":"keyword"}}}}},"message":{"type":"text","fields":{"keyword":{"type":"keyword"}}},"user":{"properties":{"id":{"type":"keyword","doc_values":true}}}}}}
+----
+
+[source,console]
+----
+POST my-index-000001/_doc/oX9uXXoB0da05OCR3adK?refresh=true
+{"@timestamp":"2099-11-15T14:12:12","geo":{"country_name":"Amsterdam"},"http":{"request":{"method":"get"},"response":{"bytes":1070000,"status_code":200},"version":"1.1"},"message":"GET /search HTTP/1.1 200 1070000","source":{"ip":"127.0.0.1"},"user":{"id":"kimchy"}}
+----
+// TEST[continued]
+///////////////
+
+[source,console]
+----
 GET /my-index-000001/_search
 {
   "query": {
@@ -148,79 +219,95 @@ GET /my-index-000001/_search
     }
   }
 }
---------------------------------------------------
-// NOTCONSOLE
+----
+// TEST[continued]
+// TEST[s/_search/_search\?filter_path=hits.hits/]
 
-
-Response:
-[source,js]
---------------------------------------------------
+[source,console-result]
+----
 {
-  ...
-  "hits": [
-    {
-      "_index": "my-index-000001",
-      "_type": "_doc",
-      "_id": "9",
-      "_score": ...,
-      "_source": {...},
-      "fields": { "geo": { "country_name": [ "UK" ] }},
-      "inner_hits": {
-        "by_location": {
-          "hits": {
-            ...,
-            "hits": [
-              {
-                ...
-                "fields": { "user": "id": { [ "user124" ] }}
+  "hits" : {
+    "hits" : [
+      {
+        "_index" : "my-index-000001",
+        "_id" : "oX9uXXoB0da05OCR3adK",
+        "_score" : 0.5753642,
+        "_source" : {
+          "@timestamp" : "2099-11-15T14:12:12",
+          "geo" : {
+            "country_name" : "Amsterdam"
+          },
+          "http" : {
+            "request" : {
+              "method" : "get"
+            },
+            "response" : {
+              "bytes" : 1070000,
+              "status_code" : 200
+            },
+            "version" : "1.1"
+          },
+          "message" : "GET /search HTTP/1.1 200 1070000",
+          "source" : {
+            "ip" : "127.0.0.1"
+          },
+          "user" : {
+            "id" : "kimchy"
+          }
+        },
+        "fields" : {
+          "geo.country_name" : [
+            "Amsterdam"
+          ]
+        },
+        "inner_hits" : {
+          "by_location" : {
+            "hits" : {
+              "total" : {
+                "value" : 1,
+                "relation" : "eq"
               },
-              {
-                ...
-                "fields": { "user": "id": { [ "user589" ] }}
-              },
-              {
-                ...
-                "fields": { "user": "id": { [ "user001" ] }}
-              }
-            ]
+              "max_score" : null,
+              "hits" : [
+                {
+                  "_index" : "my-index-000001",
+                  "_id" : "oX9uXXoB0da05OCR3adK",
+                  "_score" : 0.5753642,
+                  "_source" : {
+                    "@timestamp" : "2099-11-15T14:12:12",
+                    "geo" : {
+                      "country_name" : "Amsterdam"
+                    },
+                    "http" : {
+                      "request" : {
+                        "method" : "get"
+                      },
+                      "response" : {
+                        "bytes" : 1070000,
+                        "status_code" : 200
+                      },
+                      "version" : "1.1"
+                    },
+                    "message" : "GET /search HTTP/1.1 200 1070000",
+                    "source" : {
+                      "ip" : "127.0.0.1"
+                    },
+                    "user" : {
+                      "id" : "kimchy"
+                    }
+                  },
+                  "fields" : {
+                    "user.id" : [
+                      "kimchy"
+                    ]
+                  }
+                }
+              ]
+            }
           }
         }
       }
-    },
-    {
-      "_index": "my-index-000001",
-      "_type": "_doc",
-      "_id": "1",
-      "_score": ..,
-      "_source": {...
-      },
-      "fields": { "geo": { "country_name": [ "Canada" ] }},
-      "inner_hits": {
-        "by_location": {
-          "hits": {
-            ...,
-            "hits": [
-              {
-                ...
-                "fields": { "user": "id": { [ "user444" ] }}
-              },
-              {
-                ...
-                "fields": { "user": "id": { [ "user1111" ] }
-              },
-              {
-                ...
-                  "fields": { "user": "id": { [ "user999" ] }}
-              }
-            ]
-          }
-        }
-      }
-    },
-    ...
-  ]
+    ]
+  }
 }
---------------------------------------------------
-// NOTCONSOLE
-
-NOTE: Second level of collapsing doesn't allow `inner_hits`.
+----

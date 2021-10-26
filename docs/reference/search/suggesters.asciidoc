@@ -34,10 +34,6 @@ using a suggester. The suggest request part is defined alongside the query part
 in a `_search` request. If the query part is left out, only suggestions are 
 returned.
 
-NOTE: `_suggest` endpoint has been deprecated in favour of using suggest via
-`_search` endpoint. In 5.0, the `_search` endpoint has been optimized for
-suggest only search requests.
-
 
 [[search-suggesters-api-example]]
 ==== {api-examples-title}

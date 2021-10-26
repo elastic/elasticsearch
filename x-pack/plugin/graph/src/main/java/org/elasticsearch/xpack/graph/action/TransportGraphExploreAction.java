@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.graph.action;
 
@@ -17,7 +18,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -48,6 +49,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.graph.action.GraphExploreAction;
+import org.elasticsearch.xpack.graph.Graph;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -92,7 +94,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
     @Override
     protected void doExecute(Task task, GraphExploreRequest request, ActionListener<GraphExploreResponse> listener) {
-        if (licenseState.checkFeature(XPackLicenseState.Feature.GRAPH)) {
+        if (Graph.GRAPH_FEATURE.check(licenseState)) {
             new AsyncGraphAction(request, listener).start();
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.GRAPH));
@@ -312,7 +314,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
             // System.out.println(source);
             logger.trace("executing expansion graph search request");
-            client.search(searchRequest, new ActionListener<SearchResponse>() {
+            client.search(searchRequest, new ActionListener.Delegating<>(listener) {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
                     // System.out.println(searchResponse);
@@ -514,11 +516,6 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                     }
                     return totalSignalOutput;
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-            }
             });
         }
 
@@ -659,7 +656,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                 searchRequest.source(source);
                 // System.out.println(source);
                 logger.trace("executing initial graph search request");
-                client.search(searchRequest, new ActionListener<SearchResponse>() {
+                client.search(searchRequest, new ActionListener.Delegating<>(listener) {
                     @Override
                     public void onResponse(SearchResponse searchResponse) {
                         addShardFailures(searchResponse.getShardFailures());
@@ -717,11 +714,6 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                         }
                         return totalSignalStrength;
                     }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
                 });
             } catch (Exception e) {
                 logger.error("unable to execute the graph query", e);
@@ -767,7 +759,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
         }
 
         void addShardFailures(ShardOperationFailedException[] failures) {
-            if (!CollectionUtils.isEmpty(failures)) {
+            if (CollectionUtils.isEmpty(failures) == false) {
                 ShardOperationFailedException[] duplicates = new ShardOperationFailedException[shardFailures.length + failures.length];
                 System.arraycopy(shardFailures, 0, duplicates, 0, shardFailures.length);
                 System.arraycopy(failures, 0, duplicates, shardFailures.length, failures.length);

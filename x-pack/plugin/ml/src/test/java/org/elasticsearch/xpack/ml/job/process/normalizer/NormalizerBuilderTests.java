@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
@@ -22,9 +23,10 @@ public class NormalizerBuilderTests extends ESTestCase {
         String jobId = "unit-test-job";
 
         List<String> command = new NormalizerBuilder(env, jobId, null, 300).build();
-        assertEquals(3, command.size());
+        assertEquals(4, command.size());
         assertTrue(command.contains("./normalize"));
-        assertTrue(command.contains(AutodetectBuilder.BUCKET_SPAN_ARG + "300"));
+        assertTrue(command.contains(NormalizerBuilder.BUCKET_SPAN_ARG + "300"));
         assertTrue(command.contains(AutodetectBuilder.LENGTH_ENCODED_INPUT_ARG));
+        assertTrue(command.contains(AutodetectBuilder.LICENSE_KEY_VALIDATED_ARG + true));
     }
 }

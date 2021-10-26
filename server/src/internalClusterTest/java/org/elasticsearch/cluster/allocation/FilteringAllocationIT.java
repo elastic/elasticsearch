@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.allocation;
@@ -25,6 +14,7 @@ import org.elasticsearch.cluster.metadata.AutoExpandReplicas;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
@@ -75,7 +65,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
         logger.info("--> decommission the second node");
         client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", node_1))
+                .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", node_1))
                 .execute().actionGet();
         ensureGreen("test");
 
@@ -116,7 +106,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         logger.info("--> filter out the second node");
         if (randomBoolean()) {
             client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", node_1))
+                .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", node_1))
                 .execute().actionGet();
         } else {
             client().admin().indices().prepareUpdateSettings("test")
@@ -178,7 +168,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
         if (numShardsOnNode1 > ThrottlingAllocationDecider.DEFAULT_CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES) {
             client().admin().cluster().prepareUpdateSettings()
-            .setTransientSettings(Settings.builder()
+            .setPersistentSettings(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", numShardsOnNode1)).execute().actionGet();
             // make sure we can recover all the nodes at once otherwise we might run into a state where
             // one of the shards has not yet started relocating but we already fired up the request to wait for 0 relocating shards.
@@ -216,7 +206,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         Setting<String> filterSetting = randomFrom(FilterAllocationDecider.CLUSTER_ROUTING_REQUIRE_GROUP_SETTING,
             FilterAllocationDecider.CLUSTER_ROUTING_INCLUDE_GROUP_SETTING, FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().cluster().prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(filterSetting.getKey() + ipKey, "192.168.1.1."))
+            .setPersistentSettings(Settings.builder().put(filterSetting.getKey() + ipKey, "192.168.1.1."))
             .execute().actionGet());
         assertEquals("invalid IP address [192.168.1.1.] for [" + filterSetting.getKey() + ipKey + "]", e.getMessage());
     }
@@ -247,7 +237,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
         ClusterState state = client().admin().cluster().prepareState().get().getState();
 
-        for (ShardRouting shard : state.getRoutingTable().shardsWithState(ShardRoutingState.STARTED)) {
+        for (ShardRouting shard : RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED)) {
             String node = state.getRoutingNodes().node(shard.currentNodeId()).node().getName();
             logger.info("--> shard on {} - {}", node, shard);
             assertTrue("shard on " + node + " but should only be on the include node list: " +
@@ -269,7 +259,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         // The transient settings still exist in the state
         assertThat(state.metadata().transientSettings(), equalTo(exclude));
 
-        for (ShardRouting shard : state.getRoutingTable().shardsWithState(ShardRoutingState.STARTED)) {
+        for (ShardRouting shard : RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED)) {
             String node = state.getRoutingNodes().node(shard.currentNodeId()).node().getName();
             logger.info("--> shard on {} - {}", node, shard);
             assertTrue("shard on " + node + " but should only be on the include node list: " +

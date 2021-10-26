@@ -1,10 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authc;
 
+import org.elasticsearch.ElasticsearchAuthenticationProcessingError;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestRequest;
@@ -99,12 +101,22 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
 
     @Override
     public ElasticsearchSecurityException exceptionProcessingRequest(RestRequest request, Exception e, ThreadContext context) {
+        // a couple of authn processing errors can also return {@link RestStatus#INTERNAL_SERVER_ERROR} or
+        // {@link RestStatus#SERVICE_UNAVAILABLE}, besides the obvious {@link RestStatus#UNAUTHORIZED}
+        if (e instanceof ElasticsearchAuthenticationProcessingError) {
+            return (ElasticsearchAuthenticationProcessingError) e;
+        }
         return createAuthenticationError("error attempting to authenticate request", e, (Object[]) null);
     }
 
     @Override
     public ElasticsearchSecurityException exceptionProcessingRequest(TransportMessage message, String action, Exception e,
             ThreadContext context) {
+        // a couple of authn processing errors can also return {@link RestStatus#INTERNAL_SERVER_ERROR} or
+        // {@link RestStatus#SERVICE_UNAVAILABLE}, besides the obvious {@link RestStatus#UNAUTHORIZED}
+        if (e instanceof ElasticsearchAuthenticationProcessingError) {
+            return (ElasticsearchAuthenticationProcessingError) e;
+        }
         return createAuthenticationError("error attempting to authenticate request", e, (Object[]) null);
     }
 

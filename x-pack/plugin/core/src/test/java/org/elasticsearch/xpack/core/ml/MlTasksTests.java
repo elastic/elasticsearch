@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ml;
@@ -22,11 +23,12 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 
 import java.net.InetAddress;
-import java.util.Collections;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasProperty;
 
 public class MlTasksTests extends ESTestCase {
 
@@ -169,6 +171,65 @@ public class MlTasksTests extends ESTestCase {
                 containsInAnyOrder("datafeed_without_assignment", "datafeed_without_node"));
     }
 
+    public void testDatafeedTasksOnNode() {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        assertThat(MlTasks.openJobIds(tasksBuilder.build()), empty());
+
+        tasksBuilder.addTask(MlTasks.datafeedTaskId("df1"), MlTasks.DATAFEED_TASK_NAME,
+            new StartDatafeedAction.DatafeedParams("df1", 0L),
+            new PersistentTasksCustomMetadata.Assignment("node-1", "test assignment"));
+        tasksBuilder.addTask(MlTasks.jobTaskId("job-2"), MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams("foo-2"),
+            new PersistentTasksCustomMetadata.Assignment("node-2", "test assignment"));
+        tasksBuilder.addTask(MlTasks.datafeedTaskId("df2"), MlTasks.DATAFEED_TASK_NAME,
+            new StartDatafeedAction.DatafeedParams("df2", 0L),
+            new PersistentTasksCustomMetadata.Assignment("node-2", "test assignment"));
+
+        assertThat(MlTasks.datafeedTasksOnNode(tasksBuilder.build(), "node-2"), contains(hasProperty("id", equalTo("datafeed-df2"))));
+    }
+
+    public void testJobTasksOnNode() {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        assertThat(MlTasks.openJobIds(tasksBuilder.build()), empty());
+
+        tasksBuilder.addTask(MlTasks.jobTaskId("job-1"), MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams("foo-1"),
+            new PersistentTasksCustomMetadata.Assignment("node-1", "test assignment"));
+        tasksBuilder.addTask(MlTasks.datafeedTaskId("df1"), MlTasks.DATAFEED_TASK_NAME,
+            new StartDatafeedAction.DatafeedParams("df1", 0L),
+            new PersistentTasksCustomMetadata.Assignment("node-1", "test assignment"));
+        tasksBuilder.addTask(MlTasks.jobTaskId("job-2"), MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams("foo-2"),
+            new PersistentTasksCustomMetadata.Assignment("node-2", "test assignment"));
+        tasksBuilder.addTask(MlTasks.datafeedTaskId("df2"), MlTasks.DATAFEED_TASK_NAME,
+            new StartDatafeedAction.DatafeedParams("df2", 0L),
+            new PersistentTasksCustomMetadata.Assignment("node-2", "test assignment"));
+        tasksBuilder.addTask(MlTasks.jobTaskId("job-3"), MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams("foo-3"),
+            new PersistentTasksCustomMetadata.Assignment("node-2", "test assignment"));
+
+        assertThat(MlTasks.jobTasksOnNode(tasksBuilder.build(), "node-2"),
+            containsInAnyOrder(hasProperty("id", equalTo("job-job-2")), hasProperty("id", equalTo("job-job-3"))));
+    }
+
+    public void testNonFailedJobTasksOnNode() {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        assertThat(MlTasks.openJobIds(tasksBuilder.build()), empty());
+
+        tasksBuilder.addTask(MlTasks.jobTaskId("job-1"), MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams("foo-1"),
+            new PersistentTasksCustomMetadata.Assignment("node-1", "test assignment"));
+        tasksBuilder.updateTaskState(MlTasks.jobTaskId("job-1"), new JobTaskState(JobState.FAILED, 1, "testing"));
+        tasksBuilder.addTask(MlTasks.jobTaskId("job-2"), MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams("foo-2"),
+            new PersistentTasksCustomMetadata.Assignment("node-1", "test assignment"));
+        if (randomBoolean()) {
+            tasksBuilder.updateTaskState(MlTasks.jobTaskId("job-2"), new JobTaskState(JobState.OPENED, 2, "testing"));
+        }
+        tasksBuilder.addTask(MlTasks.jobTaskId("job-3"), MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams("foo-3"),
+            new PersistentTasksCustomMetadata.Assignment("node-2", "test assignment"));
+        if (randomBoolean()) {
+            tasksBuilder.updateTaskState(MlTasks.jobTaskId("job-3"), new JobTaskState(JobState.FAILED, 3, "testing"));
+        }
+
+        assertThat(MlTasks.nonFailedJobTasksOnNode(tasksBuilder.build(), "node-1"),
+            contains(hasProperty("id", equalTo("job-job-2"))));
+    }
+
     public void testGetDataFrameAnalyticsState_GivenNullTask() {
         DataFrameAnalyticsState state = MlTasks.getDataFrameAnalyticsState(null);
         assertThat(state, equalTo(DataFrameAnalyticsState.STOPPED));
@@ -197,46 +258,6 @@ public class MlTasksTests extends ESTestCase {
         String jobId = "foo";
         PersistentTasksCustomMetadata.PersistentTask<?> task = createDataFrameAnalyticsTask(jobId, "test_node",
             DataFrameAnalyticsState.STARTED, true);
-
-        DataFrameAnalyticsState state = MlTasks.getDataFrameAnalyticsState(task);
-
-        assertThat(state, equalTo(DataFrameAnalyticsState.STARTING));
-    }
-
-    public void testGetDataFrameAnalyticsState_GivenTaskWithReindexingState() {
-        String jobId = "foo";
-        PersistentTasksCustomMetadata.PersistentTask<?> task = createDataFrameAnalyticsTask(jobId, "test_node",
-            DataFrameAnalyticsState.REINDEXING, false);
-
-        DataFrameAnalyticsState state = MlTasks.getDataFrameAnalyticsState(task);
-
-        assertThat(state, equalTo(DataFrameAnalyticsState.REINDEXING));
-    }
-
-    public void testGetDataFrameAnalyticsState_GivenStaleTaskWithReindexingState() {
-        String jobId = "foo";
-        PersistentTasksCustomMetadata.PersistentTask<?> task = createDataFrameAnalyticsTask(jobId, "test_node",
-            DataFrameAnalyticsState.REINDEXING, true);
-
-        DataFrameAnalyticsState state = MlTasks.getDataFrameAnalyticsState(task);
-
-        assertThat(state, equalTo(DataFrameAnalyticsState.STARTING));
-    }
-
-    public void testGetDataFrameAnalyticsState_GivenTaskWithAnalyzingState() {
-        String jobId = "foo";
-        PersistentTasksCustomMetadata.PersistentTask<?> task = createDataFrameAnalyticsTask(jobId, "test_node",
-            DataFrameAnalyticsState.ANALYZING, false);
-
-        DataFrameAnalyticsState state = MlTasks.getDataFrameAnalyticsState(task);
-
-        assertThat(state, equalTo(DataFrameAnalyticsState.ANALYZING));
-    }
-
-    public void testGetDataFrameAnalyticsState_GivenStaleTaskWithAnalyzingState() {
-        String jobId = "foo";
-        PersistentTasksCustomMetadata.PersistentTask<?> task = createDataFrameAnalyticsTask(jobId, "test_node",
-            DataFrameAnalyticsState.ANALYZING, true);
 
         DataFrameAnalyticsState state = MlTasks.getDataFrameAnalyticsState(task);
 
@@ -288,7 +309,7 @@ public class MlTasksTests extends ESTestCase {
                                                                                                 boolean isStale) {
         PersistentTasksCustomMetadata.Builder builder = PersistentTasksCustomMetadata.builder();
         builder.addTask(MlTasks.dataFrameAnalyticsTaskId(jobId), MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams(jobId, Version.CURRENT, Collections.emptyList(), false),
+            new StartDataFrameAnalyticsAction.TaskParams(jobId, Version.CURRENT, false),
             new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment"));
         if (state != null) {
             builder.updateTaskState(MlTasks.dataFrameAnalyticsTaskId(jobId),
@@ -297,4 +318,5 @@ public class MlTasksTests extends ESTestCase {
         PersistentTasksCustomMetadata tasks = builder.build();
         return tasks.getTask(MlTasks.dataFrameAnalyticsTaskId(jobId));
     }
+
 }

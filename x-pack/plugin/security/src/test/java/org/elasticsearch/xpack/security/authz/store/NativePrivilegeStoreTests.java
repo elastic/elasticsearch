@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authz.store;
 
@@ -28,8 +29,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -38,6 +39,7 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheRequest;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
+import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
@@ -70,6 +72,7 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.instanceOf;
@@ -83,9 +86,10 @@ public class NativePrivilegeStoreTests extends ESTestCase {
 
     private NativePrivilegeStore store;
     private List<ActionRequest> requests;
-    private AtomicReference<ActionListener> listener;
+    private AtomicReference<ActionListener<ActionResponse>> listener;
     private Client client;
     private SecurityIndexManager securityIndex;
+    private CacheInvalidatorRegistry cacheInvalidatorRegistry;
 
     @Before
     public void setup() {
@@ -93,10 +97,11 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         listener = new AtomicReference<>();
         client = new NoOpClient(getTestName()) {
             @Override
+            @SuppressWarnings("unchecked")
             protected <Request extends ActionRequest, Response extends ActionResponse>
             void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
                 NativePrivilegeStoreTests.this.requests.add(request);
-                NativePrivilegeStoreTests.this.listener.set(listener);
+                NativePrivilegeStoreTests.this.listener.set((ActionListener<ActionResponse>) listener);
             }
         };
         securityIndex = mock(SecurityIndexManager.class);
@@ -108,14 +113,15 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             assertThat(invocationOnMock.getArguments()[1], instanceOf(Runnable.class));
             ((Runnable) invocationOnMock.getArguments()[1]).run();
             return null;
-        }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(securityIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
         Mockito.doAnswer(invocationOnMock -> {
             assertThat(invocationOnMock.getArguments().length, equalTo(2));
             assertThat(invocationOnMock.getArguments()[1], instanceOf(Runnable.class));
             ((Runnable) invocationOnMock.getArguments()[1]).run();
             return null;
-        }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
-        store = new NativePrivilegeStore(Settings.EMPTY, client, securityIndex);
+        }).when(securityIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
+        cacheInvalidatorRegistry = new CacheInvalidatorRegistry();
+        store = new NativePrivilegeStore(Settings.EMPTY, client, securityIndex, cacheInvalidatorRegistry);
     }
 
     @After
@@ -157,7 +163,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             "_scrollId1", 1, 1, 0, 1, null, null));
 
         final Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors = future.get(1, TimeUnit.SECONDS);
-        assertThat(applicationPrivilegeDescriptors.size(), equalTo(0));
+        assertThat(applicationPrivilegeDescriptors, empty());
     }
 
     public void testGetPrivilegesByApplicationName() throws Exception {
@@ -382,7 +388,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         store.getPrivileges(null, null, future);
 
         // Before the results can be cached, invalidate the cache to simulate stale search results
-        store.invalidateAll();
+        store.getDescriptorsAndApplicationNamesCache().invalidateAll();
         final SearchHit[] hits = buildHits(sourcePrivileges);
         listener.get().onResponse(new SearchResponse(new SearchResponseSections(
             new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
@@ -406,10 +412,12 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         // Hence the cache invalidation will be block at acquiring the write lock.
         // This simulates the scenario when stale results are cached just before the invalidation call arrives.
         // In this case, we guarantee the cache will be invalidate and the stale results won't stay for long.
-        final NativePrivilegeStore store1 = new NativePrivilegeStore(Settings.EMPTY, client, securityIndex) {
+        final NativePrivilegeStore store1 =
+            new NativePrivilegeStore(Settings.EMPTY, client, securityIndex, new CacheInvalidatorRegistry()) {
             @Override
-            protected void cacheFetchedDescriptors(
-                Set<String> applicationNamesCacheKey, Map<String, Set<ApplicationPrivilegeDescriptor>> mapOfFetchedDescriptors) {
+            protected void cacheFetchedDescriptors(Set<String> applicationNamesCacheKey,
+                                                   Map<String, Set<ApplicationPrivilegeDescriptor>> mapOfFetchedDescriptors,
+                                                   long invalidationCount) {
                 getPrivilegeCountDown.countDown();
                 try {
                     // wait till the invalidation call is at the door step
@@ -417,7 +425,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
-                super.cacheFetchedDescriptors(applicationNamesCacheKey, mapOfFetchedDescriptors);
+                super.cacheFetchedDescriptors(applicationNamesCacheKey, mapOfFetchedDescriptors, invalidationCount);
                 // Assert that cache is successful
                 assertEquals(1, getApplicationNamesCache().count());
                 assertEquals(1, getDescriptorsCache().count());
@@ -437,7 +445,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         new Thread(() -> {
             // Let the caching proceed
             invalidationCountDown.countDown();
-            store.invalidateAll();
+            store.getDescriptorsAndApplicationNamesCache().invalidateAll();
         }).start();
         // The cache should be cleared
         assertEquals(0, store.getApplicationNamesCache().count());
@@ -460,7 +468,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         requests.stream().map(IndexRequest.class::cast).forEach(indexRequests::add);
         requests.clear();
 
-        final ActionListener indexListener = listener.get();
+        final ActionListener<ActionResponse> indexListener = listener.get();
         final String uuid = UUIDs.randomBase64UUID(random());
         for (int i = 0; i < putPrivileges.size(); i++) {
             ApplicationPrivilegeDescriptor privilege = putPrivileges.get(i);
@@ -504,7 +512,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         requests.stream().map(DeleteRequest.class::cast).forEach(deletes::add);
         requests.clear();
 
-        final ActionListener deleteListener = listener.get();
+        final ActionListener<ActionResponse> deleteListener = listener.get();
         final String uuid = UUIDs.randomBase64UUID(random());
         for (int i = 0; i < privilegeNames.size(); i++) {
             String name = privilegeNames.get(i);
@@ -536,7 +544,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             singleton(new ApplicationPrivilegeDescriptor("app-1", "read", emptySet(), emptyMap())));
         store.getDescriptorsCache().put("app-2",
             singleton(new ApplicationPrivilegeDescriptor("app-2", "read", emptySet(), emptyMap())));
-        store.invalidate(singletonList("app-1"));
+        store.getDescriptorsAndApplicationNamesCache().invalidate(singletonList("app-1"));
         assertEquals(0, store.getApplicationNamesCache().count());
         assertEquals(1, store.getDescriptorsCache().count());
     }
@@ -547,7 +555,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             singleton(new ApplicationPrivilegeDescriptor("app-1", "read", emptySet(), emptyMap())));
         store.getDescriptorsCache().put("app-2",
             singleton(new ApplicationPrivilegeDescriptor("app-2", "read", emptySet(), emptyMap())));
-        store.invalidateAll();
+        store.getDescriptorsAndApplicationNamesCache().invalidateAll();
         assertEquals(0, store.getApplicationNamesCache().count());
         assertEquals(0, store.getDescriptorsCache().count());
     }
@@ -556,39 +564,40 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         final String securityIndexName = randomFrom(
             RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6, RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7);
 
-        long count = store.getNumInvalidation().get();
+        long count = store.getNumInvalidation();
 
         // Cache should be cleared when security is back to green
-        store.onSecurityIndexStateChange(
+        cacheInvalidatorRegistry.onSecurityIndexStateChange(
             dummyState(securityIndexName, true, randomFrom((ClusterHealthStatus) null, ClusterHealthStatus.RED)),
             dummyState(securityIndexName, true, randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW)));
-        assertEquals(++count, store.getNumInvalidation().get());
+        assertEquals(++count, store.getNumInvalidation());
 
         // Cache should be cleared when security is deleted
-        store.onSecurityIndexStateChange(
+        cacheInvalidatorRegistry.onSecurityIndexStateChange(
             dummyState(securityIndexName, true, randomFrom(ClusterHealthStatus.values())),
             dummyState(securityIndexName, true, null));
-        assertEquals(++count, store.getNumInvalidation().get());
+        assertEquals(++count, store.getNumInvalidation());
 
         // Cache should be cleared if indexUpToDate changed
         final boolean isIndexUpToDate = randomBoolean();
         final List<ClusterHealthStatus> allPossibleHealthStatus =
                 CollectionUtils.appendToCopy(Arrays.asList(ClusterHealthStatus.values()), null);
-        store.onSecurityIndexStateChange(
+        cacheInvalidatorRegistry.onSecurityIndexStateChange(
             dummyState(securityIndexName, isIndexUpToDate, randomFrom(allPossibleHealthStatus)),
-            dummyState(securityIndexName, !isIndexUpToDate, randomFrom(allPossibleHealthStatus)));
-        assertEquals(++count, store.getNumInvalidation().get());
+            dummyState(securityIndexName, isIndexUpToDate == false, randomFrom(allPossibleHealthStatus)));
+        assertEquals(++count, store.getNumInvalidation());
     }
 
     public void testCacheWillBeDisabledWhenTtlIsZero() {
         final Settings settings = Settings.builder().put("xpack.security.authz.store.privileges.cache.ttl", 0).build();
-        final NativePrivilegeStore store1 = new NativePrivilegeStore(settings, client, securityIndex);
+        final NativePrivilegeStore store1 = new NativePrivilegeStore(settings, client, securityIndex, new CacheInvalidatorRegistry());
         assertNull(store1.getApplicationNamesCache());
         assertNull(store1.getDescriptorsCache());
     }
     public void testGetPrivilegesWorkWithoutCache() throws Exception {
         final Settings settings = Settings.builder().put("xpack.security.authz.store.privileges.cache.ttl", 0).build();
-        final NativePrivilegeStore store1 = new NativePrivilegeStore(settings, client, securityIndex);
+        final NativePrivilegeStore store1 = new NativePrivilegeStore(settings, client, securityIndex, new CacheInvalidatorRegistry());
+        assertNull(store1.getDescriptorsAndApplicationNamesCache());
         final List<ApplicationPrivilegeDescriptor> sourcePrivileges = Arrays.asList(
             new ApplicationPrivilegeDescriptor("myapp", "admin", newHashSet("action:admin/*", "action:login", "data:read/*"), emptyMap())
         );
@@ -601,16 +610,13 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             "_scrollId1", 1, 1, 0, 1, null, null));
 
         assertResult(sourcePrivileges, future);
-        // They are no-op but should "work" (pass-through)
-        store1.invalidate(singleton("myapp"));
-        store1.invalidateAll();
     }
 
     private SecurityIndexManager.State dummyState(
         String concreteSecurityIndexName, boolean isIndexUpToDate, ClusterHealthStatus healthStatus) {
         return new SecurityIndexManager.State(
             Instant.now(), isIndexUpToDate, true, true, null,
-            concreteSecurityIndexName, healthStatus, IndexMetadata.State.OPEN
+            concreteSecurityIndexName, healthStatus, IndexMetadata.State.OPEN, null, "my_uuid"
         );
     }
 
@@ -629,5 +635,10 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         final Collection<ApplicationPrivilegeDescriptor> getPrivileges = future.get(1, TimeUnit.SECONDS);
         assertThat(getPrivileges, iterableWithSize(sourcePrivileges.size()));
         assertThat(new HashSet<>(getPrivileges), equalTo(new HashSet<>(sourcePrivileges)));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> Consumer<T> anyConsumer() {
+        return any(Consumer.class);
     }
 }

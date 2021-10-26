@@ -18,9 +18,8 @@ Deletes expired and unused machine learning data.
 [[ml-delete-expired-data-prereqs]]
 == {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `manage_ml` or
-`manage` cluster privileges to use this API. See
-<<security-privileges>> and {ml-docs-setup-privileges}.
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
 [[ml-delete-expired-data-desc]]
 == {api-description-title}
@@ -29,10 +28,10 @@ Deletes all job results, model snapshots and forecast data that have exceeded
 their `retention days` period. Machine learning state documents that are not
 associated with any job are also deleted.
 
-You can limit the request to a single or set of {anomaly-jobs} by using a job identifier,
-a group name, a comma-separated list of jobs, or a wildcard expression.
-You can delete expired data for all {anomaly-jobs} by using `_all`, by specifying
-`*` as the `<job_id>`, or by omitting the `<job_id>`.
+You can limit the request to a single or set of {anomaly-jobs} by using a job 
+identifier, a group name, a comma-separated list of jobs, or a wildcard 
+expression. You can delete expired data for all {anomaly-jobs} by using `_all`, 
+by specifying `*` as the `<job_id>`, or by omitting the `<job_id>`.
 
 [[ml-delete-expired-data-path-parms]]
 == {api-path-parms-title}

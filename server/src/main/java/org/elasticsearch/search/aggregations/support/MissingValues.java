@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.support;
@@ -87,6 +76,7 @@ public enum MissingValues {
                     return missing;
                 }
             }
+
             @Override
             public String toString() {
                 return "anon SortedBinaryDocValues of [" + super.toString() + "]";
@@ -120,6 +110,7 @@ public enum MissingValues {
                 final SortedNumericDoubleValues values = valuesSource.doubleValues(context);
                 return replaceMissing(values, missing.doubleValue());
             }
+
             @Override
             public String toString() {
                 return "anon ValuesSource.Numeric of [" + super.toString() + "]";
@@ -220,17 +211,19 @@ public enum MissingValues {
             }
 
             @Override
-            public SortedSetDocValues globalOrdinalsValues(LeafReaderContext context)
-                    throws IOException {
+            public SortedSetDocValues globalOrdinalsValues(LeafReaderContext context) throws IOException {
                 SortedSetDocValues values = valuesSource.globalOrdinalsValues(context);
                 return replaceMissing(values, missing);
             }
 
             @Override
             public LongUnaryOperator globalOrdinalsMapping(LeafReaderContext context) throws IOException {
-                return getGlobalMapping(valuesSource.ordinalsValues(context),
-                        valuesSource.globalOrdinalsValues(context),
-                        valuesSource.globalOrdinalsMapping(context), missing);
+                return getGlobalMapping(
+                    valuesSource.ordinalsValues(context),
+                    valuesSource.globalOrdinalsValues(context),
+                    valuesSource.globalOrdinalsMapping(context),
+                    missing
+                );
             }
 
             @Override
@@ -241,8 +234,7 @@ public enum MissingValues {
         };
     }
 
-    static SortedSetDocValues replaceMissing(final SortedSetDocValues values,
-            final BytesRef missing) throws IOException {
+    static SortedSetDocValues replaceMissing(final SortedSetDocValues values, final BytesRef missing) throws IOException {
         final long missingOrd = values.lookupTerm(missing);
         if (missingOrd >= 0) {
             // The value already exists
@@ -253,8 +245,7 @@ public enum MissingValues {
         }
     }
 
-    static SortedSetDocValues replaceMissingOrd(final SortedSetDocValues values,
-            final long missingOrd) {
+    static SortedSetDocValues replaceMissingOrd(final SortedSetDocValues values, final long missingOrd) {
         return new AbstractSortedSetDocValues() {
 
             private boolean hasOrds;
@@ -301,8 +292,7 @@ public enum MissingValues {
         };
     }
 
-    static SortedSetDocValues insertOrd(final SortedSetDocValues values, final long insertedOrd,
-            final BytesRef missingValue) {
+    static SortedSetDocValues insertOrd(final SortedSetDocValues values, final long insertedOrd, final BytesRef missingValue) {
         return new AbstractSortedSetDocValues() {
 
             private boolean hasOrds;
@@ -359,8 +349,12 @@ public enum MissingValues {
         };
     }
 
-    static LongUnaryOperator getGlobalMapping(SortedSetDocValues values, SortedSetDocValues globalValues,
-            LongUnaryOperator segmentToGlobalOrd, BytesRef missing) throws IOException {
+    static LongUnaryOperator getGlobalMapping(
+        SortedSetDocValues values,
+        SortedSetDocValues globalValues,
+        LongUnaryOperator segmentToGlobalOrd,
+        BytesRef missing
+    ) throws IOException {
         final long missingGlobalOrd = globalValues.lookupTerm(missing);
         final long missingSegmentOrd = values.lookupTerm(missing);
 

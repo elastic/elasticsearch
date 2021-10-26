@@ -110,7 +110,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console]
 --------------------------------------------------
-GET _cat/ml/trained_models?h=c,o,l,ct,v&v
+GET _cat/ml/trained_models?h=c,o,l,ct,v&v=ture
 --------------------------------------------------
 // TEST[skip:kibana sample data]
 

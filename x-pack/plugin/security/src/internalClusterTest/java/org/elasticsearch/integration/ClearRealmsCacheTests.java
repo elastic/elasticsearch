@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.integration;
 
@@ -149,7 +150,7 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
                 }
             });
 
-            if (!latch.await(5, TimeUnit.SECONDS)) {
+            if (latch.await(5, TimeUnit.SECONDS) == false) {
                 fail("waiting for clear realms cache request too long");
             }
 
@@ -233,9 +234,9 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
         Map<String, Map<Realm, User>> users = new HashMap<>();
         for (Realm realm : realms) {
             for (String username : usernames) {
-                PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+                PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
                 realm.authenticate(tokens.get(username), future);
-                User user = future.actionGet().getUser();
+                User user = future.actionGet().getValue();
                 assertThat(user, notNullValue());
                 Map<Realm, User> realmToUser = users.get(username);
                 if (realmToUser == null) {
@@ -250,9 +251,9 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
 
         for (String username : usernames) {
             for (Realm realm : realms) {
-                PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+                PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
                 realm.authenticate(tokens.get(username), future);
-                User user = future.actionGet().getUser();
+                User user = future.actionGet().getValue();
                 assertThat(user, sameInstance(users.get(username).get(realm)));
             }
         }
@@ -263,9 +264,9 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
         // now, user_a should have been evicted, but user_b should still be cached
         for (String username : usernames) {
             for (Realm realm : realms) {
-                PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+                PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
                 realm.authenticate(tokens.get(username), future);
-                User user = future.actionGet().getUser();
+                User user = future.actionGet().getValue();
                 assertThat(user, notNullValue());
                 scenario.assertEviction(users.get(username).get(realm), user);
             }

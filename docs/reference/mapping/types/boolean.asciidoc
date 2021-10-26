@@ -19,7 +19,7 @@ True values::
 For example:
 
 [source,console]
---------------------------------------------------
+----
 PUT my-index-000001
 {
   "mappings": {
@@ -31,7 +31,7 @@ PUT my-index-000001
   }
 }
 
-POST my-index-000001/_doc/1
+POST my-index-000001/_doc/1?refresh
 {
   "is_published": "true" <1>
 }
@@ -44,24 +44,44 @@ GET my-index-000001/_search
     }
   }
 }
---------------------------------------------------
-
+----
+// TEST[s/_search/_search?filter_path=hits.hits/]
 <1> Indexing a document with `"true"`, which is interpreted as `true`.
 <2> Searching for documents with a JSON `true`.
 
+////
+[source,console-result]
+----
+{
+  "hits": {
+    "hits": [
+      {
+        "_id": "1",
+        "_index": "my-index-000001",
+        "_score": "$body.hits.hits.0._score",
+        "_source": {
+          "is_published": "true"
+        }
+      }
+    ]
+  }
+}
+----
+////
+
 Aggregations like the <<search-aggregations-bucket-terms-aggregation,`terms`
 aggregation>>  use `1` and `0` for the `key`, and the strings `"true"` and
-`"false"` for the `key_as_string`. Boolean fields  when used in scripts,
-return `1` and `0`:
+`"false"` for the `key_as_string`. Boolean fields when used in scripts,
+return `true` and `false`:
 
 [source,console]
---------------------------------------------------
-POST my-index-000001/_doc/1
+----
+POST my-index-000001/_doc/1?refresh
 {
   "is_published": true
 }
 
-POST my-index-000001/_doc/2
+POST my-index-000001/_doc/2?refresh
 {
   "is_published": false
 }
@@ -75,16 +95,69 @@ GET my-index-000001/_search
       }
     }
   },
-  "script_fields": {
-    "is_published": {
-      "script": {
-        "lang": "painless",
-        "source": "doc['is_published'].value"
-      }
+  "sort": [ "is_published" ],
+  "fields": [
+    {"field": "weight"}
+  ],
+  "runtime_mappings": {
+    "weight": {
+      "type": "long",
+      "script": "emit(doc['is_published'].value ? 10 : 0)"
     }
   }
 }
---------------------------------------------------
+----
+// TEST[s/_search/_search?filter_path=aggregations,hits.hits/]
+
+////
+[source,console-result]
+----
+{
+  "aggregations": {
+    "publish_state": {
+      "doc_count_error_upper_bound": 0,
+      "sum_other_doc_count": 0,
+      "buckets": [
+        {
+          "key": 0,
+          "key_as_string": "false",
+          "doc_count": 1
+        },
+        {
+          "key": 1,
+          "key_as_string": "true",
+          "doc_count": 1
+        }
+      ]
+    }
+  },
+  "hits": {
+    "hits": [
+      {
+        "_id": "2",
+        "_index": "my-index-000001",
+        "_score": null,
+        "_source": {
+          "is_published": false
+        },
+        "sort": [0],
+        "fields": {"weight": [0]}
+      },
+      {
+        "_id": "1",
+        "_index": "my-index-000001",
+        "_score": null,
+        "_source": {
+          "is_published": true
+        },
+        "sort": [1],
+        "fields": {"weight": [10]}
+      }
+    ]
+  }
+}
+----
+////
 
 [[boolean-params]]
 ==== Parameters for `boolean` fields
@@ -106,8 +179,28 @@ The following parameters are accepted by `boolean` fields:
 <<null-value,`null_value`>>::
 
     Accepts any of the true or false values listed above. The value is
-    substituted for any explicit `null` values.  Defaults to `null`, which
-    means the field is treated as missing.
+    substituted for any explicit `null` values. Defaults to `null`, which
+    means the field is treated as missing. Note that this cannot be set
+    if the `script` parameter is used.
+
+`on_script_error`::
+
+    Defines what to do if the script defined by the `script` parameter
+    throws an error at indexing time. Accepts `fail` (default), which
+    will cause the entire document to be rejected, and `continue`, which
+    will register the field in the document's
+    <<mapping-ignored-field,`_ignored`>> metadata field and continue
+    indexing. This parameter can only be set if the `script` field is
+    also set.
+
+`script`::
+
+    If this parameter is set, then the field will index values generated
+    by this script, rather than reading the values directly from the
+    source. If a value is set for this field on the input document, then
+    the document will be rejected with an error.
+    Scripts are in the same format as their
+    <<runtime-mapping-fields,runtime equivalent>>.
 
 <<mapping-store,`store`>>::
 

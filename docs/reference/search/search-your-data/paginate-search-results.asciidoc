@@ -62,18 +62,30 @@ The API returns a PIT ID.
 [source,console-result]
 ----
 {
-  "id": "46ToAwMDaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQNpZHkFdXVpZDIrBm5vZGVfMwAAAAAAAAAAKgFjA2lkeQV1dWlkMioGbm9kZV8yAAAAAAAAAAAMAWICBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA=="
+  "id": "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADaWR5BXV1aWQyKgZub2RlXzIAAAAAAAAAAAwBYgACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA=="
 }
 ----
-// TESTRESPONSE[s/"id": "46ToAwMDaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQNpZHkFdXVpZDIrBm5vZGVfMwAAAAAAAAAAKgFjA2lkeQV1dWlkMioGbm9kZV8yAAAAAAAAAAAMAWICBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA=="/"id": $body.id/]
+// TESTRESPONSE[s/"id": "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADaWR5BXV1aWQyKgZub2RlXzIAAAAAAAAAAAwBYgACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA=="/"id": $body.id/]
 
 To get the first page of results, submit a search request with a `sort`
 argument. If using a PIT, specify the PIT ID in the `pit.id` parameter and omit
 the target data stream or index from the request path.
 
-IMPORTANT: We recommend you include a tiebreaker field in your `sort`. This
-tiebreaker field should contain a unique value for each document. If you don't
-include a tiebreaker field, your paged results could miss or duplicate hits.
+IMPORTANT: All PIT search requests add an implicit sort tiebreaker field called `_shard_doc`,
+which can also be provided explicitly.
+If you cannot use a PIT, we recommend that you include a tiebreaker field
+in your `sort`. This tiebreaker field should contain a unique value for each document.
+If you don't include a tiebreaker field, your paged results could miss or duplicate hits.
+
+NOTE: Search after requests have optimizations that make them faster when the sort
+order is `_shard_doc` and total hits are not tracked. If you want to iterate over all documents regardless of the
+order, this is the most efficient option.
+
+IMPORTANT: If the `sort` field is a <<date,`date`>> in some target data streams or indices
+but a <<date_nanos,`date_nanos`>> field in other targets, use the `numeric_type` parameter
+to convert the values to a single resolution and the `format` parameter to specify a
+<<mapping-date-format, date format>> for the `sort` field. Otherwise, {es} won't interpret
+the search after parameter correctly in each request.
 
 [source,console]
 ----
@@ -86,27 +98,56 @@ GET /_search
     }
   },
   "pit": {
-	    "id":  "46ToAwMDaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQNpZHkFdXVpZDIrBm5vZGVfMwAAAAAAAAAAKgFjA2lkeQV1dWlkMioGbm9kZV8yAAAAAAAAAAAMAWICBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA==", <1>
-	    "keep_alive": "1m"
+    "id":  "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADaWR5BXV1aWQyKgZub2RlXzIAAAAAAAAAAAwBYgACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA==", <1>
+    "keep_alive": "1m"
   },
   "sort": [ <2>
-    {"@timestamp": "asc"},
-    {"tie_breaker_id": "asc"}
+    {"@timestamp": {"order": "asc", "format": "strict_date_optional_time_nanos", "numeric_type" : "date_nanos" }}
   ]
 }
 ----
 // TEST[catch:missing]
 
 <1> PIT ID for the search.
-<2> Sorts hits for the search.
+<2> Sorts hits for the search with an implicit tiebreak on `_shard_doc` ascending.
 
 The search response includes an array of `sort` values for each hit. If you used
-a PIT, the response's `pit_id` parameter contains an updated PIT ID.
+a PIT, a tiebreaker is included as the last `sort` values for each hit.
+This tiebreaker called `_shard_doc` is added automatically on every search requests that use a PIT.
+The `_shard_doc` value is the combination of the shard index within the PIT and the Lucene's internal doc ID,
+it is unique per document and constant within a PIT.
+You can also add the tiebreaker explicitly in the search request to customize the order:
+
+[source,console]
+----
+GET /_search
+{
+  "size": 10000,
+  "query": {
+    "match" : {
+      "user.id" : "elkbee"
+    }
+  },
+  "pit": {
+    "id":  "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADaWR5BXV1aWQyKgZub2RlXzIAAAAAAAAAAAwBYgACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA==", <1>
+    "keep_alive": "1m"
+  },
+  "sort": [ <2>
+    {"@timestamp": {"order": "asc", "format": "strict_date_optional_time_nanos"}},
+    {"_shard_doc": "desc"}
+  ]
+}
+----
+// TEST[catch:missing]
+
+<1> PIT ID for the search.
+<2> Sorts hits for the search with an explicit tiebreak on `_shard_doc` descending.
+
 
 [source,console-result]
 ----
 {
-  "pit_id" : "46ToAwEPbXktaW5kZXgtMDAwMDAxFnVzaTVuenpUVGQ2TFNheUxVUG5LVVEAFldicVdzOFFtVHZTZDFoWWowTGkwS0EAAAAAAAAAAAQURzZzcUszUUJ5U1NMX3Jyak5ET0wBFnVzaTVuenpUVGQ2TFNheUxVUG5LVVEAAA==", <1>
+  "pit_id" : "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADaWR5BXV1aWQyKgZub2RlXzIAAAAAAAAAAAwBYgACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA==", <1>
   "took" : 17,
   "timed_out" : false,
   "_shards" : ...,
@@ -121,8 +162,8 @@ a PIT, the response's `pit_id` parameter contains an updated PIT ID.
         "_score" : null,
         "_source" : ...,
         "sort" : [                                <2>
-          4098435132000,
-          "FaslK3QBySSL_rrj9zM5"
+          "2021-05-20T05:30:04.832Z",
+          4294967298                              <3>
         ]
       }
     ]
@@ -133,9 +174,10 @@ a PIT, the response's `pit_id` parameter contains an updated PIT ID.
 
 <1> Updated `id` for the point in time.
 <2> Sort values for the last returned hit.
+<3> The tiebreaker value, unique per document within the `pit_id`.
 
 To get the next page of results, rerun the previous search using the last hit's
-sort values as the `search_after` argument. If using a PIT, use the latest PIT
+sort values (including the tiebreaker) as the `search_after` argument. If using a PIT, use the latest PIT
 ID in the `pit.id` parameter. The search's `query` and `sort` arguments must
 remain unchanged. If provided, the `from` argument must be `0` (default) or `-1`.
 
@@ -150,23 +192,24 @@ GET /_search
     }
   },
   "pit": {
-	    "id":  "46ToAwEPbXktaW5kZXgtMDAwMDAxFnVzaTVuenpUVGQ2TFNheUxVUG5LVVEAFldicVdzOFFtVHZTZDFoWWowTGkwS0EAAAAAAAAAAAQURzZzcUszUUJ5U1NMX3Jyak5ET0wBFnVzaTVuenpUVGQ2TFNheUxVUG5LVVEAAA==", <1>
-	    "keep_alive": "1m"
+    "id":  "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADaWR5BXV1aWQyKgZub2RlXzIAAAAAAAAAAAwBYgACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA==", <1>
+    "keep_alive": "1m"
   },
   "sort": [
-    {"@timestamp": "asc"},
-    {"tie_breaker_id": "asc"}
+    {"@timestamp": {"order": "asc", "format": "strict_date_optional_time_nanos"}}
   ],
   "search_after": [                                <2>
-    4098435132000,
-    "FaslK3QBySSL_rrj9zM5"
-  ]
+    "2021-05-20T05:30:04.832Z",
+    4294967298
+  ],
+  "track_total_hits": false                        <3>
 }
 ----
 // TEST[catch:missing]
 
 <1> PIT ID returned by the previous search.
 <2> Sort values from the previous search's last hit.
+<3> Disable the tracking of total hits to speed up pagination.
 
 You can repeat this process to get additional pages of results. If using a PIT,
 you can extend the PIT's retention period using the
@@ -178,11 +221,10 @@ When you're finished, you should delete your PIT.
 ----
 DELETE /_pit
 {
-    "id" : "46ToAwEPbXktaW5kZXgtMDAwMDAxFnVzaTVuenpUVGQ2TFNheUxVUG5LVVEAFldicVdzOFFtVHZTZDFoWWowTGkwS0EAAAAAAAAAAAQURzZzcUszUUJ5U1NMX3Jyak5ET0wBFnVzaTVuenpUVGQ2TFNheUxVUG5LVVEAAA=="
+    "id" : "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADaWR5BXV1aWQyKgZub2RlXzIAAAAAAAAAAAwBYgACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA=="
 }
 ----
 // TEST[catch:missing]
-
 
 [discrete]
 [[scroll-search-results]]
@@ -224,7 +266,7 @@ JavaScript::
 *********************************************
 
 NOTE: The results that are returned from a scroll request reflect the state of
-the data stream or index at the time that the initial `search` request was  made, like a
+the data stream or index at the time that the initial `search` request was made, like a
 snapshot in time. Subsequent changes to documents (index, update or delete)
 will only affect later search requests.
 
@@ -267,7 +309,7 @@ POST /_search/scroll                                                            
 <3> The `scroll_id` parameter
 
 The `size` parameter allows you to configure the maximum number of hits to be
-returned with each batch of results.  Each call to the `scroll` API returns the
+returned with each batch of results. Each call to the `scroll` API returns the
 next batch of results until there are no more results left to return, ie the
 `hits` array is empty.
 
@@ -308,7 +350,7 @@ request) tells Elasticsearch how long it should keep the search context alive.
 Its value (e.g. `1m`, see <<time-units>>) does not need to be long enough to
 process all data -- it just needs to be long enough to process the previous
 batch of results. Each `scroll` request (with the `scroll` parameter) sets a
-new  expiry time. If a `scroll` request doesn't pass in the `scroll`
+new expiry time. If a `scroll` request doesn't pass in the `scroll`
 parameter, then the search context will be freed as part of _that_ `scroll`
 request.
 
@@ -394,8 +436,8 @@ DELETE /_search/scroll/DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMN
 [[slice-scroll]]
 ==== Sliced scroll
 
-For scroll queries that return a lot of documents it is possible to split the scroll in multiple slices which
-can be consumed independently:
+When paging through a large number of documents, it can be helpful to split the search into multiple slices
+to consume them independently:
 
 [source,console]
 --------------------------------------------------
@@ -429,24 +471,27 @@ GET /my-index-000001/_search?scroll=1m
 <1> The id of the slice
 <2> The maximum number of slices
 
-The result from the first request returned documents that belong to the first slice (id: 0) and the result from the
-second request returned documents that belong to the second slice. Since the maximum number of slices is set to 2
- the union of the results of the two requests is equivalent to the results of a scroll query without slicing.
-By default the splitting is done on the shards first and then locally on each shard using the _id field
-with the following formula:
-`slice(doc) = floorMod(hashCode(doc._id), max)`
-For instance if the number of shards is equal to 2 and the user requested 4 slices then the slices 0 and 2 are assigned
-to the first shard and the slices 1 and 3 are assigned to the second shard.
+The result from the first request returned documents that belong to the first slice (id: 0) and
+the result from the second request returned documents that belong to the second slice. Since the
+maximum number of slices is set to 2 the union of the results of the two requests is equivalent
+to the results of a scroll query without slicing. By default the splitting is done first on the
+shards, then locally on each shard using the `_id` field. The local splitting follows the formula
+`slice(doc) = floorMod(hashCode(doc._id), max))`.
 
 Each scroll is independent and can be processed in parallel like any scroll request.
 
-NOTE: If the number of slices is bigger than the number of shards the slice filter is very slow on the first calls, it has a complexity of O(N) and a memory cost equals
-to N bits per slice where N is the total number of documents in the shard.
-After few calls the filter should be cached and subsequent calls should be faster but you should limit the number of
- sliced query you perform in parallel to avoid the memory explosion.
+NOTE: If the number of slices is bigger than the number of shards the slice filter is very slow on
+the first calls, it has a complexity of O(N) and a memory cost equals to N bits per slice where N
+is the total number of documents in the shard. After few calls the filter should be cached and
+subsequent calls should be faster but you should limit the number of sliced query you perform in
+parallel to avoid the memory explosion.
 
-To avoid this cost entirely it is possible to use the `doc_values` of another field to do the slicing
-but the user must ensure that the field has the following properties:
+The <<point-in-time-api,point-in-time>> API supports a more efficient partitioning strategy and
+does not suffer from this problem. When possible, it's recommended to use a point-in-time search
+with slicing instead of a scroll.
+
+Another way to avoid this high cost is to use the `doc_values` of another field to do the slicing.
+The field must have the following properties:
 
     * The field is numeric.
 
@@ -478,6 +523,3 @@ GET /my-index-000001/_search?scroll=1m
 // TEST[setup:my_index_big]
 
 For append only time-based indices, the `timestamp` field can be used safely.
-
-NOTE: By default the maximum number of slices allowed per scroll is limited to 1024.
-You can update the `index.max_slices_per_scroll` index setting to bypass this limit.

@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.LazyMap;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
@@ -78,7 +68,6 @@ public final class IngestDocument {
         if (versionType != null) {
             sourceAndMetadata.put(Metadata.VERSION_TYPE.getFieldName(), VersionType.toString(versionType));
         }
-
         this.ingestMetadata = new HashMap<>();
         this.ingestMetadata.put(TIMESTAMP, ZonedDateTime.now(ZoneOffset.UTC));
     }
@@ -672,12 +661,14 @@ public final class IngestDocument {
     }
 
     private Map<String, Object> createTemplateModel() {
-        Map<String, Object> model = new HashMap<>(sourceAndMetadata);
-        model.put(SourceFieldMapper.NAME, sourceAndMetadata);
-        // If there is a field in the source with the name '_ingest' it gets overwritten here,
-        // if access to that field is required then it get accessed via '_source._ingest'
-        model.put(INGEST_KEY, ingestMetadata);
-        return model;
+        return new LazyMap<>(() -> {
+            Map<String, Object> model = new HashMap<>(sourceAndMetadata);
+            model.put(SourceFieldMapper.NAME, sourceAndMetadata);
+            // If there is a field in the source with the name '_ingest' it gets overwritten here,
+            // if access to that field is required then it get accessed via '_source._ingest'
+            model.put(INGEST_KEY, ingestMetadata);
+            return model;
+        });
     }
 
     /**
@@ -725,7 +716,7 @@ public final class IngestDocument {
         return (Map<K, V>) deepCopy(source);
     }
 
-    private static Object deepCopy(Object value) {
+    public static Object deepCopy(Object value) {
         if (value instanceof Map) {
             Map<?, ?> mapValue = (Map<?, ?>) value;
             Map<Object, Object> copy = new HashMap<>(mapValue.size());
@@ -750,6 +741,16 @@ public final class IngestDocument {
         } else if (value instanceof byte[]) {
             byte[] bytes = (byte[]) value;
             return Arrays.copyOf(bytes, bytes.length);
+        } else if (value instanceof double[][]) {
+            double[][] doubles = (double[][]) value;
+            double[][] result = new double[doubles.length][];
+            for (int i = 0; i < doubles.length; i++) {
+                result[i] = Arrays.copyOf(doubles[i], doubles[i].length);
+            }
+            return result;
+        } else if (value instanceof double[]) {
+            double[] doubles = (double[]) value;
+            return Arrays.copyOf(doubles, doubles.length);
         } else if (value == null || value instanceof String || value instanceof Integer ||
             value instanceof Long || value instanceof Float ||
             value instanceof Double || value instanceof Boolean ||
@@ -822,12 +823,14 @@ public final class IngestDocument {
 
     public enum Metadata {
         INDEX(IndexFieldMapper.NAME),
+        TYPE("_type"),
         ID(IdFieldMapper.NAME),
         ROUTING(RoutingFieldMapper.NAME),
         VERSION(VersionFieldMapper.NAME),
         VERSION_TYPE("_version_type"),
         IF_SEQ_NO("_if_seq_no"),
-        IF_PRIMARY_TERM("_if_primary_term");
+        IF_PRIMARY_TERM("_if_primary_term"),
+        DYNAMIC_TEMPLATES("_dynamic_templates");
 
         private final String fieldName;
 

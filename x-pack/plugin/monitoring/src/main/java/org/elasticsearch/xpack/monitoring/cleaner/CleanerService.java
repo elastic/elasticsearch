@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.cleaner;
 
@@ -10,11 +11,10 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
@@ -83,36 +83,19 @@ public class CleanerService extends AbstractLifecycleComponent {
 
     /**
      * Get the retention that can be used.
-     * <p>
-     * This will ignore the global retention if the license does not allow retention updates.
      *
      * @return Never {@code null}
-     * @see XPackLicenseState.Feature#MONITORING_UPDATE_RETENTION
      */
     public TimeValue getRetention() {
-        // we only care about their value if they are allowed to set it
-        if (licenseState.checkFeature(Feature.MONITORING_UPDATE_RETENTION) && globalRetention != null) {
-            return globalRetention;
-        }
-        else {
-            return MonitoringField.HISTORY_DURATION.getDefault(Settings.EMPTY);
-        }
+        return globalRetention;
     }
 
     /**
      * Set the global retention. This is expected to be used by the cluster settings to dynamically control the global retention time.
-     * <p>
-     * Even if the current license prevents retention updates, it will accept the change so that they do not need to re-set it if they
-     * upgrade their license (they can always unset it).
      *
      * @param globalRetention The global retention to use dynamically.
      */
     public void setGlobalRetention(TimeValue globalRetention) {
-        // notify the user that their setting will be ignored until they get the right license
-        if (licenseState.checkFeature(Feature.MONITORING_UPDATE_RETENTION) == false) {
-            logger.warn("[{}] setting will be ignored until an appropriate license is applied", MonitoringField.HISTORY_DURATION.getKey());
-        }
-
         this.globalRetention = globalRetention;
     }
 

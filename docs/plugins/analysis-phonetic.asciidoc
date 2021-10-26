@@ -16,7 +16,7 @@ The `phonetic` token filter takes the following settings:
 
 `encoder`::
 
-    Which phonetic encoder to use.  Accepts `metaphone` (default),
+    Which phonetic encoder to use. Accepts `metaphone` (default),
     `double_metaphone`, `soundex`, `refined_soundex`, `caverphone1`,
     `caverphone2`, `cologne`, `nysiis`, `koelnerphonetik`, `haasephonetik`,
     `beider_morse`, `daitch_mokotoff`.
@@ -24,7 +24,7 @@ The `phonetic` token filter takes the following settings:
 `replace`::
 
     Whether or not the original token should be replaced by the phonetic
-    token. Accepts `true` (default) and `false`.  Not supported by
+    token. Accepts `true` (default) and `false`. Not supported by
     `beider_morse` encoding.
 
 [source,console]
@@ -81,7 +81,7 @@ supported:
 
 `max_code_len`::
 
-    The maximum length of the emitted metaphone token.  Defaults to `4`.
+    The maximum length of the emitted metaphone token. Defaults to `4`.
 
 [discrete]
 ===== Beider Morse settings

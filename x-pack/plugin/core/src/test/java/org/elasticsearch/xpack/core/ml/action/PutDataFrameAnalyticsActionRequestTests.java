@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -80,7 +81,7 @@ public class PutDataFrameAnalyticsActionRequestTests extends AbstractSerializing
 
     public void testValidate_GivenRequestWithIncludedAnalyzedFieldThatIsExcludedInSourceFiltering() {
         DataFrameAnalyticsSource source = new DataFrameAnalyticsSource(new String[] {"index"}, null,
-            new FetchSourceContext(true, null, new String[] {"excluded"}));
+            new FetchSourceContext(true, null, new String[] {"excluded"}), null);
         FetchSourceContext analyzedFields = new FetchSourceContext(true, new String[] {"excluded"}, null);
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
             .setId("foo")
@@ -98,7 +99,7 @@ public class PutDataFrameAnalyticsActionRequestTests extends AbstractSerializing
 
     public void testValidate_GivenRequestWithIncludedAnalyzedFieldThatIsIncludedInSourceFiltering() {
         DataFrameAnalyticsSource source = new DataFrameAnalyticsSource(new String[] {"index"}, null,
-            new FetchSourceContext(true, new String[] {"included"}, null));
+            new FetchSourceContext(true, new String[] {"included"}, null), null);
         FetchSourceContext analyzedFields = new FetchSourceContext(true, new String[] {"included"}, null);
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
             .setId("foo")

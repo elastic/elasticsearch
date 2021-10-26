@@ -3,7 +3,7 @@
 [[config-monitoring-indices]]
 == Configuring indices for monitoring
 
-<<indices-templates,Index templates>> are used to configure the indices
+<<indices-templates-v1,Index templates>> are used to configure the indices
 that store the monitoring data collected from a cluster.
 
 You can retrieve the templates through the `_template` API:

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
@@ -35,6 +24,7 @@ import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -43,14 +33,15 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -72,6 +63,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
@@ -152,7 +144,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
 
         @Override
-        protected NodeResponse newNodeResponse(StreamInput in) throws IOException {
+        protected NodeResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
             return new NodeResponse(in);
         }
     }
@@ -510,7 +502,11 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         responseLatch.await(10, TimeUnit.SECONDS);
     }
 
-    public void testFailedTasksCount() throws ExecutionException, InterruptedException, IOException {
+    @TestLogging(reason="debugging for https://github.com/elastic/elasticsearch/issues/69731",
+        value="org.elasticsearch.transport.TcpTransport:TRACE," +
+            "org.elasticsearch.transport.TransportService.tracer:TRACE," +
+            "org.elasticsearch.tasks.TaskManager:TRACE")
+    public void testFailedTasksCount() throws Exception {
         Settings settings = Settings.builder().put(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.getKey(), true).build();
         setupTestNodes(settings);
         connectNodes(testNodes);
@@ -522,15 +518,30 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                     testNodes[i].transportService) {
                 @Override
                 protected NodeResponse nodeOperation(NodeRequest request, Task task) {
-                    logger.info("Action on node {}", node);
+                    TransportTasksActionTests.this.logger.info("Action on node {}", node);
                     throw new RuntimeException("Test exception");
                 }
             };
         }
 
-        for (TestNode testNode : testNodes) {
-            assertEquals(0, testNode.transportService.getTaskManager().getTasks().size());
-        }
+        logger.info("--> checking for ongoing tasks before starting test actions");
+        final String immediateTaskDescriptions = getAllTaskDescriptions();
+
+        // Hunting for cause of https://github.com/elastic/elasticsearch/issues/69731: if there's an unexpected task then we check whether
+        // it goes away if we wait for long enough first.
+        assertBusy(() -> {
+            final String ongoingTaskDescriptions = getAllTaskDescriptions();
+            assertThat(
+                "initially:\n" + immediateTaskDescriptions + "\nongoing:\n" + ongoingTaskDescriptions,
+                ongoingTaskDescriptions.length(),
+                equalTo(0));
+        });
+
+        assertThat(
+            "eventually completed, but still unexpected:\n" + immediateTaskDescriptions,
+            immediateTaskDescriptions.length(),
+            equalTo(0));
+
         NodesRequest request = new NodesRequest("Test Request");
         NodesResponse responses = ActionTestUtils.executeBlockingWithTask(testNodes[0].transportService.getTaskManager(),
             testNodes[0].transportService.getLocalNodeConnection(), actions[0], request);
@@ -546,6 +557,22 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             assertEquals(1, listeners[i].getRegistrationEvents().size());
             assertEquals(1, listeners[i].getUnregistrationEvents().size());
         }
+    }
+
+    private String getAllTaskDescriptions() {
+        final StringBuilder taskDescriptions = new StringBuilder();
+        for (TestNode testNode : testNodes) {
+            final Map<Long, Task> tasks = testNode.transportService.getTaskManager().getTasks();
+            if (tasks.isEmpty() == false) {
+                taskDescriptions.append("still running tasks on node [").append(testNode.getNodeId()).append("]\n");
+                for (Map.Entry<Long, Task> entry : tasks.entrySet()) {
+                    final Task task = entry.getValue();
+                    taskDescriptions.append(entry.getKey()).append(": [").append(task.getId()).append("][").append(task.getAction())
+                            .append("] started at ").append(task.getStartTime()).append('\n');
+                }
+            }
+        }
+        return taskDescriptions.toString();
     }
 
     public void testTaskLevelActionFailures() throws ExecutionException, InterruptedException, IOException {

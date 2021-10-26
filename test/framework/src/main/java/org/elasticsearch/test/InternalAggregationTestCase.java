@@ -1,39 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.common.xcontent.ContextParser;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -149,6 +134,12 @@ import org.elasticsearch.search.aggregations.pipeline.PercentilesBucketPipelineA
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
+import org.elasticsearch.xcontent.ContextParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -193,12 +184,14 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return new InternalAggregation.ReduceContextBuilder() {
             @Override
             public InternalAggregation.ReduceContext forPartialReduction() {
-                return InternalAggregation.ReduceContext.forPartialReduction(BigArrays.NON_RECYCLING_INSTANCE, null, () -> pipelineTree);
+                return InternalAggregation.ReduceContext.forPartialReduction(
+                    BigArrays.NON_RECYCLING_INSTANCE, null, () -> pipelineTree, () -> false);
             }
 
             @Override
             public ReduceContext forFinalReduction() {
-                return InternalAggregation.ReduceContext.forFinalReduction(BigArrays.NON_RECYCLING_INSTANCE, null, b -> {}, pipelineTree);
+                return InternalAggregation.ReduceContext.forFinalReduction(
+                    BigArrays.NON_RECYCLING_INSTANCE, null, b -> {}, pipelineTree, () -> false);
             }
         };
     }
@@ -333,6 +326,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     protected final Class<T> categoryClass() {
         return (Class<T>) InternalAggregation.class;
     }
@@ -371,7 +365,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             // Sort aggs so that unmapped come last.  This mimicks the behavior of InternalAggregations.reduce()
             toPartialReduce.sort(INTERNAL_AGG_COMPARATOR);
             InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(
-                    bigArrays, mockScriptService, () -> PipelineAggregator.PipelineTree.EMPTY);
+                    bigArrays, mockScriptService, () -> PipelineAggregator.PipelineTree.EMPTY, () -> false);
             @SuppressWarnings("unchecked")
             T reduced = (T) toPartialReduce.get(0).reduce(toPartialReduce, context);
             int initialBucketCount = 0;
@@ -395,7 +389,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(DEFAULT_MAX_BUCKETS,
             new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
         InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
-                bigArrays, mockScriptService, bucketConsumer, PipelineTree.EMPTY);
+                bigArrays, mockScriptService, bucketConsumer, PipelineTree.EMPTY, () -> false);
         @SuppressWarnings("unchecked")
         T reduced = (T) inputs.get(0).reduce(toReduce, context);
         doAssertReducedMultiBucketConsumer(reduced, bucketConsumer);
@@ -474,10 +468,14 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         final boolean humanReadable = randomBoolean();
 
         final BytesReference originalBytes;
-        if (shuffled) {
-            originalBytes = toShuffledXContent(aggregation, xContentType, params, humanReadable);
-        } else {
-            originalBytes = toXContent(aggregation, xContentType, params, humanReadable);
+        try {
+            if (shuffled) {
+                originalBytes = toShuffledXContent(aggregation, xContentType, params, humanReadable);
+            } else {
+                originalBytes = toXContent(aggregation, xContentType, params, humanReadable);
+            }
+        } catch (IOException e) {
+            throw new IOException("error converting " + aggregation, e);
         }
         BytesReference mutated;
         if (addRandomFields) {
@@ -536,14 +534,30 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     }
 
     /**
-     * @return a random {@link DocValueFormat} that can be used in aggregations which
+     * A random {@link DocValueFormat} that can be used in aggregations which
      * compute numbers.
      */
-    protected static DocValueFormat randomNumericDocValueFormat() {
+    public static DocValueFormat randomNumericDocValueFormat() {
         final List<Supplier<DocValueFormat>> formats = new ArrayList<>(3);
         formats.add(() -> DocValueFormat.RAW);
         formats.add(() -> new DocValueFormat.Decimal(randomFrom("###.##", "###,###.##")));
         return randomFrom(formats).get();
+    }
+
+    /**
+     * A random {@link DocValueFormat} that can be used in aggregations which
+     * compute dates.
+     */
+    public static DocValueFormat randomDateDocValueFormat() {
+        DocValueFormat.DateTime format = new DocValueFormat.DateTime(
+            DateFormatter.forPattern(randomDateFormatterPattern()),
+            randomZone(),
+            randomFrom(Resolution.values())
+        );
+        if (randomBoolean()) {
+            return DocValueFormat.enableFormatSortValues(format);
+        }
+        return format;
     }
 
     public static void assertMultiBucketConsumer(Aggregation agg, MultiBucketConsumer bucketConsumer) {

@@ -4,7 +4,7 @@
 <titleabbrev>Sort</titleabbrev>
 ++++
 
-Sorts the elements of an array ascending or descending.  Homogeneous arrays of numbers will be sorted
+Sorts the elements of an array ascending or descending. Homogeneous arrays of numbers will be sorted
 numerically, while arrays of strings or heterogeneous arrays of strings + numbers will be sorted lexicographically.
 Throws an error when the field is not an array.
 

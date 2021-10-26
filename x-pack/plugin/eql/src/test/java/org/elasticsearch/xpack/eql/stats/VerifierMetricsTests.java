@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.stats;
@@ -163,23 +164,14 @@ public class VerifierMetricsTests extends ESTestCase {
     }
 
     private Counters eql(String query) {
-        return eql(query, null);
-    }
-
-    private Counters eql(String query, Verifier v) {
-        Verifier verifier = v;
-        Metrics metrics = null;
-        if (v == null) {
-            metrics = new Metrics();
-            verifier = new Verifier(metrics);
-        }
+        Metrics metrics = new Metrics();
+        Verifier verifier = new Verifier(metrics);
         Analyzer analyzer = new Analyzer(EqlTestUtils.randomConfiguration(), eqlFunctionRegistry, verifier);
         analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(query), index));
-
-        return metrics == null ? null : metrics.stats();
+        return metrics.stats();
     }
 
-    private class MetricsHolder {
+    private static class MetricsHolder {
         long[] metrics;
 
         MetricsHolder() {

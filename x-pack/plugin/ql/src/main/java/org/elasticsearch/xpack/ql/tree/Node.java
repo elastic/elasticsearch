@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.tree;
 
@@ -69,9 +70,9 @@ public abstract class Node<T extends Node<T>> {
     }
 
     @SuppressWarnings("unchecked")
-    public <E extends T> void forEachDown(Consumer<? super E> action, final Class<E> typeToken) {
+    public <E extends T> void forEachDown(Class<E> typeToken, Consumer<? super E> action) {
         forEachDown(t -> {
-            if (typeToken.isInstance(t))  {
+            if (typeToken.isInstance(t)) {
                 action.accept((E) t);
             }
         });
@@ -84,7 +85,7 @@ public abstract class Node<T extends Node<T>> {
     }
 
     @SuppressWarnings("unchecked")
-    public <E extends T> void forEachUp(Consumer<? super E> action, final Class<E> typeToken) {
+    public <E extends T> void forEachUp(Class<E> typeToken, Consumer<? super E> action) {
         forEachUp(t -> {
             if (typeToken.isInstance(t)) {
                 action.accept((E) t);
@@ -92,23 +93,23 @@ public abstract class Node<T extends Node<T>> {
         });
     }
 
-    public <E> void forEachPropertiesOnly(Consumer<? super E> rule, Class<E> typeToken) {
-        forEachProperty(rule, typeToken);
+    public <E> void forEachPropertyOnly(Class<E> typeToken, Consumer<? super E> rule) {
+        forEachProperty(typeToken, rule);
     }
 
-    public <E> void forEachPropertiesDown(Consumer<? super E> rule, Class<E> typeToken) {
-        forEachDown(e -> e.forEachProperty(rule, typeToken));
+    public <E> void forEachPropertyDown(Class<E> typeToken, Consumer<? super E> rule) {
+        forEachDown(e -> e.forEachProperty(typeToken, rule));
     }
 
-    public <E> void forEachPropertiesUp(Consumer<? super E> rule, Class<E> typeToken) {
-        forEachUp(e -> e.forEachProperty(rule, typeToken));
+    public <E> void forEachPropertyUp(Class<E> typeToken, Consumer<? super E> rule) {
+        forEachUp(e -> e.forEachProperty(typeToken, rule));
     }
 
     @SuppressWarnings("unchecked")
-    protected <E> void forEachProperty(Consumer<? super E> rule, Class<E> typeToken) {
+    protected <E> void forEachProperty(Class<E> typeToken, Consumer<? super E> rule) {
         for (Object prop : info().properties()) {
             // skip children (only properties are interesting)
-            if (prop != children && !children.contains(prop) && typeToken.isInstance(prop)) {
+            if (prop != children && children.contains(prop) == false && typeToken.isInstance(prop)) {
                 rule.accept((E) prop);
             }
         }
@@ -117,7 +118,7 @@ public abstract class Node<T extends Node<T>> {
     @SuppressWarnings("unchecked")
     public boolean anyMatch(Predicate<? super T> predicate) {
         boolean result = predicate.test((T) this);
-        if (!result) {
+        if (result == false) {
             for (T child : children) {
                 if (child.anyMatch(predicate)) {
                     return true;
@@ -179,7 +180,7 @@ public abstract class Node<T extends Node<T>> {
     }
 
     @SuppressWarnings("unchecked")
-    public <E extends T> T transformDown(Function<E, ? extends T> rule, final Class<E> typeToken) {
+    public <E extends T> T transformDown(Class<E> typeToken, Function<E, ? extends T> rule) {
         // type filtering function
         return transformDown((t) -> (typeToken.isInstance(t) ? rule.apply((E) t) : t));
     }
@@ -192,7 +193,7 @@ public abstract class Node<T extends Node<T>> {
     }
 
     @SuppressWarnings("unchecked")
-    public <E extends T> T transformUp(Function<E, ? extends T> rule, final Class<E> typeToken) {
+    public <E extends T> T transformUp(Class<E> typeToken, Function<E, ? extends T> rule) {
         // type filtering function
         return transformUp((t) -> (typeToken.isInstance(t) ? rule.apply((E) t) : t));
     }
@@ -208,38 +209,42 @@ public abstract class Node<T extends Node<T>> {
 
         for (T child : children) {
             T next = traversalOperation.apply(child);
-            if (!child.equals(next)) {
-                childrenChanged = true;
-            }
-            else {
+            if (child.equals(next)) {
                 // use the initial value
                 next = child;
+            } else {
+                childrenChanged = true;
             }
             transformedChildren.add(next);
         }
 
-        return (childrenChanged ? replaceChildren(transformedChildren) : (T) this);
+        return (childrenChanged ? replaceChildrenSameSize(transformedChildren) : (T) this);
     }
 
-    /**
-     * Replace the children of this node.
-     */
+     public final T replaceChildrenSameSize(List<T> newChildren) {
+        if (newChildren.size() != children.size()) {
+            throw new QlIllegalArgumentException(
+                "Expected the same number of children [" + children.size() + "], but received [" + newChildren.size() + "]");
+        }
+        return replaceChildren(newChildren);
+    }
+
     public abstract T replaceChildren(List<T> newChildren);
 
     //
     // transform the node properties and use the tree only for navigation
     //
 
-    public <E> T transformPropertiesOnly(Function<? super E, ? extends E> rule, Class<E> typeToken) {
-        return transformNodeProps(rule, typeToken);
+    public <E> T transformPropertiesOnly(Class<E> typeToken, Function<? super E, ? extends E> rule) {
+        return transformNodeProps(typeToken, rule);
     }
 
-    public <E> T transformPropertiesDown(Function<? super E, ? extends E> rule, Class<E> typeToken) {
-        return transformDown(t -> t.transformNodeProps(rule, typeToken));
+    public <E> T transformPropertiesDown(Class<E> typeToken, Function<? super E, ? extends E> rule) {
+        return transformDown(t -> t.transformNodeProps(typeToken, rule));
     }
 
-    public <E> T transformPropertiesUp(Function<? super E, ? extends E> rule, Class<E> typeToken) {
-        return transformUp(t -> t.transformNodeProps(rule, typeToken));
+    public <E> T transformPropertiesUp(Class<E> typeToken, Function<? super E, ? extends E> rule) {
+        return transformUp(t -> t.transformNodeProps(typeToken, rule));
     }
 
     /**
@@ -250,7 +255,7 @@ public abstract class Node<T extends Node<T>> {
      * we return the closest thing we do have: {@code T}, which is the
      * root of the hierarchy for the this node.
      */
-    protected final <E> T transformNodeProps(Function<? super E, ? extends E> rule, Class<E> typeToken) {
+    protected final <E> T transformNodeProps(Class<E> typeToken, Function<? super E, ? extends E> rule) {
         return info().transform(rule, typeToken);
     }
 
@@ -338,7 +343,7 @@ public abstract class Node<T extends Node<T>> {
         sb.append(nodeString());
 
         List<T> children = children();
-        if (!children.isEmpty()) {
+        if (children.isEmpty() == false) {
             sb.append("\n");
         }
         for (int i = 0; i < children.size(); i++) {
@@ -370,7 +375,7 @@ public abstract class Node<T extends Node<T>> {
         for (Object prop : props) {
             // consider a property if it is not ignored AND
             // it's not a child (optional)
-            if (!(skipIfChild && (children.contains(prop) || children.equals(prop)))) {
+            if ((skipIfChild && (children.contains(prop) || children.equals(prop))) == false) {
                 if (remainingProperties-- < 0) {
                     sb.append("...").append(props.size() - TO_STRING_MAX_PROP).append("fields not shown");
                     break;
@@ -379,9 +384,9 @@ public abstract class Node<T extends Node<T>> {
                 if (needsComma) {
                     sb.append(",");
                 }
-                
+
                 String stringValue = toString(prop);
-                
+
                 //: Objects.toString(prop);
                 if (maxWidth + stringValue.length() > TO_STRING_MAX_WIDTH) {
                     int cutoff = Math.max(0, TO_STRING_MAX_WIDTH - maxWidth);

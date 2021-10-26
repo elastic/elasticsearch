@@ -1,33 +1,33 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ContextParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ContextParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * Represents set of {@link LifecycleAction}s which should be executed at a
@@ -41,8 +41,16 @@ public class Phase implements ToXContentObject, Writeable {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<Phase, String> PARSER = new ConstructingObjectParser<>("phase", false,
-            (a, name) -> new Phase(name, (TimeValue) a[0], ((List<LifecycleAction>) a[1]).stream()
-                    .collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()))));
+            (a, name) -> {
+                final List<LifecycleAction> lifecycleActions = (List<LifecycleAction>) a[1];
+                Map<String, LifecycleAction> map = new HashMap<>(lifecycleActions.size());
+                for (LifecycleAction lifecycleAction : lifecycleActions) {
+                    if (map.put(lifecycleAction.getWriteableName(), lifecycleAction) != null) {
+                        throw new IllegalStateException("Duplicate key");
+                    }
+                }
+                return new Phase(name, (TimeValue) a[0], map);
+            });
     static {
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
             (ContextParser<String, Object>) (p, c) -> {
@@ -147,7 +155,7 @@ public class Phase implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(MIN_AGE.getPreferredName(), minimumAge.getStringRep());
-        builder.field(ACTIONS_FIELD.getPreferredName(), actions);
+        builder.xContentValuesMap(ACTIONS_FIELD.getPreferredName(), actions);
         builder.endObject();
         return builder;
     }

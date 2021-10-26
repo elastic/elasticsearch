@@ -154,8 +154,8 @@ POST /my-data-stream/_open/
 [[reindex-with-a-data-stream]]
 === Reindex with a data stream
 
-Use the <<docs-reindex,reindex API>> to copy documents from an
-existing index, index alias, or data stream to a data stream. Because data streams are
+Use the <<docs-reindex,reindex API>> to copy documents from an existing index,
+alias, or data stream to a data stream. Because data streams are
 <<data-streams-append-only,append-only>>, a reindex into a data stream must use
 an `op_type` of `create`. A reindex cannot update existing documents in a data
 stream.

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.constantkeyword.mapper;
@@ -16,6 +17,7 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xpack.constantkeyword.mapper.ConstantKeywordFieldMapper.ConstantKeywordFieldType;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -113,13 +115,14 @@ public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase {
         SourceLookup nullValueLookup = new SourceLookup();
         nullValueLookup.setSource(Collections.singletonMap("field", null));
 
-        assertTrue(fetcher.fetchValues(missingValueLookup).isEmpty());
-        assertTrue(fetcher.fetchValues(nullValueLookup).isEmpty());
+        List<Object> ignoredValues = new ArrayList<>();
+        assertTrue(fetcher.fetchValues(missingValueLookup, ignoredValues).isEmpty());
+        assertTrue(fetcher.fetchValues(nullValueLookup, ignoredValues).isEmpty());
 
         MappedFieldType valued = new ConstantKeywordFieldMapper.ConstantKeywordFieldType("field", "foo");
         fetcher = valued.valueFetcher(null, null);
 
-        assertEquals(List.of("foo"), fetcher.fetchValues(missingValueLookup));
-        assertEquals(List.of("foo"), fetcher.fetchValues(nullValueLookup));
+        assertEquals(List.of("foo"), fetcher.fetchValues(missingValueLookup, ignoredValues));
+        assertEquals(List.of("foo"), fetcher.fetchValues(nullValueLookup, ignoredValues));
     }
 }

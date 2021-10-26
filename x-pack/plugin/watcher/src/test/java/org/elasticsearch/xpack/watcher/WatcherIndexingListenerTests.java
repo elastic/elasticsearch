@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher;
 
@@ -27,6 +28,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.Index;
@@ -713,13 +715,18 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
             IndexMetadata indexMetadata = mock(IndexMetadata.class);
             when(indexMetadata.getIndex()).thenReturn(new Index(watchIndex, randomAlphaOfLength(10)));
-            indices.put(watchIndex, new IndexAbstraction.Index(indexMetadata));
+            indices.put(watchIndex, new IndexAbstraction.ConcreteIndex(indexMetadata));
 
             // now point the alias, if the watch index is not .watches
             if (watchIndex.equals(Watch.INDEX) == false) {
                 AliasMetadata aliasMetadata = mock(AliasMetadata.class);
-                when(aliasMetadata.alias()).thenReturn(watchIndex);
-                indices.put(Watch.INDEX, new IndexAbstraction.Alias(aliasMetadata, indexMetadata));
+                when(aliasMetadata.writeIndex()).thenReturn(true);
+                when(aliasMetadata.getAlias()).thenReturn(Watch.INDEX);
+                ImmutableOpenMap.Builder<String, AliasMetadata> aliases = ImmutableOpenMap.builder();
+                aliases.put(Watch.INDEX, aliasMetadata);
+                when(indexMetadata.getAliases()).thenReturn(aliases.build());
+                indices.put(Watch.INDEX, new IndexAbstraction.Alias(aliasMetadata, List.of(indexMetadata)));
+                when(metadata.index(any(Index.class))).thenReturn(indexMetadata);
             }
 
             when(metadata.getIndicesLookup()).thenReturn(indices);
@@ -747,6 +754,6 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
     private static DiscoveryNode newNode(String nodeId) {
         return new DiscoveryNode(nodeId, ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-                DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+            DiscoveryNodeRole.roles(), Version.CURRENT);
     }
 }

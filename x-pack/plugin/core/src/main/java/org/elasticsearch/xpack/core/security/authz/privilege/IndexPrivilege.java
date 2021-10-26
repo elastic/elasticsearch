@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
@@ -19,16 +20,20 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
+import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.elasticsearch.xpack.core.action.GetDataStreamAction;
+import org.elasticsearch.xpack.core.action.PromoteDataStreamAction;
 import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
+import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.Arrays;
@@ -62,15 +67,17 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton WRITE_AUTOMATON = patterns("indices:data/write/*", AutoPutMappingAction.NAME);
     private static final Automaton MONITOR_AUTOMATON = patterns("indices:monitor/*");
     private static final Automaton MANAGE_AUTOMATON =
-            unionAndMinimize(Arrays.asList(MONITOR_AUTOMATON, patterns("indices:admin/*")));
+            unionAndMinimize(Arrays.asList(MONITOR_AUTOMATON, patterns("indices:admin/*", FieldCapabilitiesAction.NAME + "*",
+                GetRollupIndexCapsAction.NAME + "*")));
     private static final Automaton CREATE_INDEX_AUTOMATON = patterns(CreateIndexAction.NAME, AutoCreateAction.NAME,
             CreateDataStreamAction.NAME);
     private static final Automaton DELETE_INDEX_AUTOMATON = patterns(DeleteIndexAction.NAME, DeleteDataStreamAction.NAME);
     private static final Automaton VIEW_METADATA_AUTOMATON = patterns(GetAliasesAction.NAME, GetIndexAction.NAME,
             GetFieldMappingsAction.NAME + "*", GetMappingsAction.NAME, ClusterSearchShardsAction.NAME, ValidateQueryAction.NAME + "*",
-            GetSettingsAction.NAME, ExplainLifecycleAction.NAME, GetDataStreamAction.NAME, ResolveIndexAction.NAME);
+            GetSettingsAction.NAME, ExplainLifecycleAction.NAME, GetDataStreamAction.NAME, ResolveIndexAction.NAME,
+            FieldCapabilitiesAction.NAME + "*", GetRollupIndexCapsAction.NAME + "*");
     private static final Automaton MANAGE_FOLLOW_INDEX_AUTOMATON = patterns(PutFollowAction.NAME, UnfollowAction.NAME,
-        CloseIndexAction.NAME + "*");
+        CloseIndexAction.NAME + "*", PromoteDataStreamAction.NAME, RolloverAction.NAME);
     private static final Automaton MANAGE_LEADER_INDEX_AUTOMATON = patterns(ForgetFollowerAction.NAME + "*");
     private static final Automaton MANAGE_ILM_AUTOMATON = patterns("indices:admin/ilm/*");
     private static final Automaton MAINTENANCE_AUTOMATON = patterns("indices:admin/refresh*", "indices:admin/flush*",

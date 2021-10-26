@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -26,7 +27,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -51,9 +52,9 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
         public void remove(
             float requestsPerSec,
             ActionListener<Boolean> listener,
-            Supplier<Boolean> isTimedOutSupplier
+            BooleanSupplier isTimedOutSupplier
         ) {
-            listener.onResponse(isTimedOutSupplier.get() == false);
+            listener.onResponse(isTimedOutSupplier.getAsBoolean() == false);
         }
     }
 
@@ -87,7 +88,7 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
             e -> fail(e.getMessage())
         );
 
-        Supplier<Boolean> isTimedOutSupplier = () -> false;
+        BooleanSupplier isTimedOutSupplier = () -> false;
 
         DeleteExpiredDataAction.Request request = new DeleteExpiredDataAction.Request(null, null);
         transportDeleteExpiredDataAction.deleteExpiredData(request, removers.iterator(), 1.0f, finalListener, isTimedOutSupplier, true);
@@ -108,7 +109,7 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
             e -> fail(e.getMessage())
         );
 
-        Supplier<Boolean> isTimedOutSupplier = () -> (removersRemaining.getAndDecrement() <= 0);
+        BooleanSupplier isTimedOutSupplier = () -> (removersRemaining.getAndDecrement() <= 0);
 
         DeleteExpiredDataAction.Request request = new DeleteExpiredDataAction.Request(null, null);
         request.setJobId("_all");
@@ -135,7 +136,7 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
             e -> fail(e.getMessage())
         );
 
-        Supplier<Boolean> isTimedOutSupplier = () -> (removersRemaining.getAndDecrement() <= 0);
+        BooleanSupplier isTimedOutSupplier = () -> (removersRemaining.getAndDecrement() <= 0);
 
         DeleteExpiredDataAction.Request request = new DeleteExpiredDataAction.Request(null, null);
         request.setJobId("foo*");

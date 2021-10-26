@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.client;
@@ -15,13 +16,13 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.proto.Mode;
@@ -41,6 +42,7 @@ import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -60,7 +62,7 @@ public class HttpClientRequestTests extends ESTestCase {
 
     private static RawRequestMockWebServer webServer = new RawRequestMockWebServer();
     private static final Logger logger = LogManager.getLogger(HttpClientRequestTests.class);
-    
+
     @BeforeClass
     public static void init() throws Exception {
         webServer.start();
@@ -74,34 +76,34 @@ public class HttpClientRequestTests extends ESTestCase {
             webServer = null;
         }
     }
-    
+
     public void testBinaryRequestForCLIEnabled() throws URISyntaxException {
         assertBinaryRequestForCLI(true, XContentType.CBOR);
     }
-    
+
     public void testBinaryRequestForCLIDisabled() throws URISyntaxException {
         assertBinaryRequestForCLI(false, XContentType.JSON);
     }
-    
+
     public void testBinaryRequestForDriversEnabled() throws URISyntaxException {
         assertBinaryRequestForDrivers(true, XContentType.CBOR);
     }
-    
+
     public void testBinaryRequestForDriversDisabled() throws URISyntaxException {
         assertBinaryRequestForDrivers(false, XContentType.JSON);
     }
-    
+
     private void assertBinaryRequestForCLI(boolean isBinary, XContentType xContentType) throws URISyntaxException {
         String url = "http://" + webServer.getHostName() + ":" + webServer.getPort();
         String query = randomAlphaOfLength(256);
         int fetchSize = randomIntBetween(1, 100);
         Properties props = new Properties();
         props.setProperty(ConnectionConfiguration.BINARY_COMMUNICATION, Boolean.toString(isBinary));
-        
+
         URI uri = new URI(url);
         ConnectionConfiguration conCfg = new ConnectionConfiguration(uri, url, props);
         HttpClient httpClient = new HttpClient(conCfg);
-        
+
         prepareMockResponse();
         try {
             httpClient.basicQuery(query, fetchSize);
@@ -112,7 +114,7 @@ public class HttpClientRequestTests extends ESTestCase {
         RawRequest recordedRequest = webServer.takeRequest();
         assertEquals(xContentType.mediaTypeWithoutParameters(), recordedRequest.getHeader("Content-Type"));
         assertEquals("POST", recordedRequest.getMethod());
-        
+
         BytesReference bytesRef = recordedRequest.getBodyAsBytes();
         Map<String, Object> reqContent = XContentHelper.convertToMap(bytesRef, false, xContentType).v2();
 
@@ -137,7 +139,7 @@ public class HttpClientRequestTests extends ESTestCase {
         recordedRequest = webServer.takeRequest();
         assertEquals(xContentType.mediaTypeWithoutParameters(), recordedRequest.getHeader("Content-Type"));
         assertEquals("POST", recordedRequest.getMethod());
-        
+
         bytesRef = recordedRequest.getBodyAsBytes();
         reqContent = XContentHelper.convertToMap(bytesRef, false, xContentType).v2();
 
@@ -152,15 +154,16 @@ public class HttpClientRequestTests extends ESTestCase {
         String query = randomAlphaOfLength(256);
         Properties props = new Properties();
         props.setProperty(ConnectionConfiguration.BINARY_COMMUNICATION, Boolean.toString(isBinary));
-        
+
         URI uri = new URI(url);
         ConnectionConfiguration conCfg = new ConnectionConfiguration(uri, url, props);
         HttpClient httpClient = new HttpClient(conCfg);
-        
+
         Mode mode = randomFrom(Mode.JDBC, Mode.ODBC);
         SqlQueryRequest request = new SqlQueryRequest(query,
                 null,
                 ZoneId.of("Z"),
+                randomAlphaOfLength(10),
                 randomIntBetween(1, 100),
                 TimeValue.timeValueMillis(randomNonNegativeLong()),
                 TimeValue.timeValueMillis(randomNonNegativeLong()),
@@ -170,8 +173,9 @@ public class HttpClientRequestTests extends ESTestCase {
                 new RequestInfo(mode, ClientVersion.CURRENT),
                 randomBoolean(),
                 randomBoolean(),
-                isBinary);
-        
+                isBinary,
+                Collections.emptyMap());
+
         prepareMockResponse();
         try {
             httpClient.query(request);
@@ -182,7 +186,7 @@ public class HttpClientRequestTests extends ESTestCase {
         RawRequest recordedRequest = webServer.takeRequest();
         assertEquals(xContentType.mediaTypeWithoutParameters(), recordedRequest.getHeader("Content-Type"));
         assertEquals("POST", recordedRequest.getMethod());
-        
+
         BytesReference bytesRef = recordedRequest.getBodyAsBytes();
         Map<String, Object> reqContent = XContentHelper.convertToMap(bytesRef, false, xContentType).v2();
 
@@ -195,7 +199,7 @@ public class HttpClientRequestTests extends ESTestCase {
     private void prepareMockResponse() {
         webServer.enqueue(new Response().setResponseCode(200).addHeader("Content-Type", "application/json").setBody("{\"rows\":[]}"));
     }
-    
+
     @SuppressForbidden(reason = "use http server")
     private static class RawRequestMockWebServer implements Closeable {
         private HttpServer server;
@@ -214,7 +218,7 @@ public class HttpClientRequestTests extends ESTestCase {
             server.start();
             this.hostname = server.getAddress().getHostString();
             this.port = server.getAddress().getPort();
-            
+
             server.createContext("/", s -> {
                 try {
                     Response response = responses.poll();
@@ -281,9 +285,9 @@ public class HttpClientRequestTests extends ESTestCase {
         }
     }
 
-    
+
     private static class RawRequest {
-        
+
         private final String method;
         private final Headers headers;
         private BytesReference bodyAsBytes = null;
@@ -309,7 +313,7 @@ public class HttpClientRequestTests extends ESTestCase {
             this.bodyAsBytes = bodyAsBytes;
         }
     }
-    
+
     private class Response {
 
         private String body = null;

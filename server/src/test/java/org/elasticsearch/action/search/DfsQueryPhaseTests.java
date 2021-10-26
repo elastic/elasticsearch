@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.search;
 
@@ -24,7 +13,6 @@ import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.MockDirectoryWrapper;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
@@ -58,9 +46,9 @@ public class DfsQueryPhaseTests extends ESTestCase {
         AtomicArray<DfsSearchResult> results = new AtomicArray<>(2);
         AtomicReference<AtomicArray<SearchPhaseResult>> responseRef = new AtomicReference<>();
         results.set(0, newSearchResult(0, new ShardSearchContextId("", 1),
-            new SearchShardTarget("node1", new ShardId("test", "na", 0), null, OriginalIndices.NONE)));
+            new SearchShardTarget("node1", new ShardId("test", "na", 0), null)));
         results.set(1, newSearchResult(1, new ShardSearchContextId("", 2),
-            new SearchShardTarget("node2", new ShardId("test", "na", 0), null, OriginalIndices.NONE)));
+            new SearchShardTarget("node2", new ShardId("test", "na", 0), null)));
         results.get(0).termsStatistics(new Term[0], new TermStatistics[0]);
         results.get(1).termsStatistics(new Term[0], new TermStatistics[0]);
 
@@ -70,7 +58,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
                                          SearchActionListener<QuerySearchResult> listener) {
                 if (request.contextId().getId() == 1) {
                     QuerySearchResult queryResult = new QuerySearchResult(new ShardSearchContextId("", 123),
-                        new SearchShardTarget("node1", new ShardId("test", "na", 0), null, OriginalIndices.NONE), null);
+                        new SearchShardTarget("node1", new ShardId("test", "na", 0), null), null);
                     queryResult.topDocs(new TopDocsAndMaxScore(
                             new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                                     new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 2.0F), new DocValueFormat[0]);
@@ -78,7 +66,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
                     listener.onResponse(queryResult);
                 } else if (request.contextId().getId() == 2) {
                     QuerySearchResult queryResult = new QuerySearchResult(new ShardSearchContextId("", 123),
-                        new SearchShardTarget("node2", new ShardId("test", "na", 0), null, OriginalIndices.NONE), null);
+                        new SearchShardTarget("node2", new ShardId("test", "na", 0), null), null);
                     queryResult.topDocs(new TopDocsAndMaxScore(
                             new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] {new ScoreDoc(84, 2.0F)}), 2.0F),
                             new DocValueFormat[0]);
@@ -92,8 +80,8 @@ public class DfsQueryPhaseTests extends ESTestCase {
         SearchPhaseController searchPhaseController = searchPhaseController();
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP, mockSearchPhaseContext.searchRequest,
+        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), () -> false, SearchProgressListener.NOOP, mockSearchPhaseContext.searchRequest,
             results.length(), exc -> {});
         DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, consumer,
             (response) -> new SearchPhase("test") {
@@ -122,9 +110,9 @@ public class DfsQueryPhaseTests extends ESTestCase {
         AtomicArray<DfsSearchResult> results = new AtomicArray<>(2);
         AtomicReference<AtomicArray<SearchPhaseResult>> responseRef = new AtomicReference<>();
         results.set(0, newSearchResult(0, new ShardSearchContextId("", 1),
-            new SearchShardTarget("node1", new ShardId("test", "na", 0), null, OriginalIndices.NONE)));
+            new SearchShardTarget("node1", new ShardId("test", "na", 0), null)));
         results.set(1, newSearchResult(1, new ShardSearchContextId("", 2),
-            new SearchShardTarget("node2", new ShardId("test", "na", 0), null, OriginalIndices.NONE)));
+            new SearchShardTarget("node2", new ShardId("test", "na", 0), null)));
         results.get(0).termsStatistics(new Term[0], new TermStatistics[0]);
         results.get(1).termsStatistics(new Term[0], new TermStatistics[0]);
 
@@ -135,7 +123,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 if (request.contextId().getId() == 1) {
                     QuerySearchResult queryResult = new QuerySearchResult(new ShardSearchContextId("", 123),
                         new SearchShardTarget("node1", new ShardId("test", "na", 0),
-                        null, OriginalIndices.NONE), null);
+                        null), null);
                     queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(
                             new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                             new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 2.0F), new DocValueFormat[0]);
@@ -151,8 +139,8 @@ public class DfsQueryPhaseTests extends ESTestCase {
         SearchPhaseController searchPhaseController = searchPhaseController();
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP, mockSearchPhaseContext.searchRequest,
+        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), () -> false, SearchProgressListener.NOOP, mockSearchPhaseContext.searchRequest,
             results.length(), exc -> {});
         DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, consumer,
             (response) -> new SearchPhase("test") {
@@ -184,9 +172,9 @@ public class DfsQueryPhaseTests extends ESTestCase {
         AtomicArray<DfsSearchResult> results = new AtomicArray<>(2);
         AtomicReference<AtomicArray<SearchPhaseResult>> responseRef = new AtomicReference<>();
         results.set(0, newSearchResult(0, new ShardSearchContextId("", 1),
-            new SearchShardTarget("node1", new ShardId("test", "na", 0), null, OriginalIndices.NONE)));
+            new SearchShardTarget("node1", new ShardId("test", "na", 0), null)));
         results.set(1, newSearchResult(1, new ShardSearchContextId("", 2),
-            new SearchShardTarget("node2", new ShardId("test", "na", 0), null, OriginalIndices.NONE)));
+            new SearchShardTarget("node2", new ShardId("test", "na", 0), null)));
         results.get(0).termsStatistics(new Term[0], new TermStatistics[0]);
         results.get(1).termsStatistics(new Term[0], new TermStatistics[0]);
 
@@ -196,7 +184,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
                                          SearchActionListener<QuerySearchResult> listener) {
                 if (request.contextId().getId() == 1) {
                     QuerySearchResult queryResult = new QuerySearchResult(new ShardSearchContextId("", 123),
-                        new SearchShardTarget("node1", new ShardId("test", "na", 0), null, OriginalIndices.NONE), null);
+                        new SearchShardTarget("node1", new ShardId("test", "na", 0), null), null);
                     queryResult.topDocs(new TopDocsAndMaxScore(
                             new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                                     new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 2.0F), new DocValueFormat[0]);
@@ -212,8 +200,8 @@ public class DfsQueryPhaseTests extends ESTestCase {
         SearchPhaseController searchPhaseController = searchPhaseController();
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP, mockSearchPhaseContext.searchRequest,
+        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), () -> false, SearchProgressListener.NOOP, mockSearchPhaseContext.searchRequest,
             results.length(), exc -> {});
         DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, consumer,
             (response) -> new SearchPhase("test") {
@@ -228,6 +216,6 @@ public class DfsQueryPhaseTests extends ESTestCase {
     }
 
     private SearchPhaseController searchPhaseController() {
-        return new SearchPhaseController(writableRegistry(), request -> InternalAggregationTestCase.emptyReduceContextBuilder());
+        return new SearchPhaseController((task, request) -> InternalAggregationTestCase.emptyReduceContextBuilder());
     }
  }

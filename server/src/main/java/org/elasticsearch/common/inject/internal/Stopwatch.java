@@ -16,7 +16,7 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.logging.Logger;
 

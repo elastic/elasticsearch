@@ -1,37 +1,29 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.cat;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.StepListener;
+import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -59,17 +51,53 @@ public class RestTemplatesAction extends AbstractCatAction {
     @Override
     protected RestChannelConsumer doCatRequest(final RestRequest request, NodeClient client) {
         final String matchPattern = request.hasParam("name") ? request.param("name") : null;
-        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
-        clusterStateRequest.clear().metadata(true);
-        clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
 
-        return channel -> client.admin().cluster().state(clusterStateRequest, new RestResponseListener<ClusterStateResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(ClusterStateResponse clusterStateResponse) throws Exception {
-                return RestTable.buildResponse(buildTable(request, clusterStateResponse, matchPattern), channel);
-            }
-        });
+        final GetIndexTemplatesRequest getIndexTemplatesRequest
+            = matchPattern == null
+            ? new GetIndexTemplatesRequest()
+            : new GetIndexTemplatesRequest(matchPattern);
+        getIndexTemplatesRequest.local(request.paramAsBoolean("local", getIndexTemplatesRequest.local()));
+        getIndexTemplatesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexTemplatesRequest.masterNodeTimeout()));
+
+        final GetComposableIndexTemplateAction.Request getComposableTemplatesRequest
+            = new GetComposableIndexTemplateAction.Request(matchPattern);
+        getComposableTemplatesRequest.local(request.paramAsBoolean("local", getComposableTemplatesRequest.local()));
+        getComposableTemplatesRequest.masterNodeTimeout(
+            request.paramAsTime("master_timeout", getComposableTemplatesRequest.masterNodeTimeout()));
+
+        return channel -> {
+
+            final StepListener<GetIndexTemplatesResponse> getIndexTemplatesStep = new StepListener<>();
+            client.admin().indices().getTemplates(getIndexTemplatesRequest, getIndexTemplatesStep);
+
+            final StepListener<GetComposableIndexTemplateAction.Response> getComposableTemplatesStep = new StepListener<>();
+            client.execute(
+                GetComposableIndexTemplateAction.INSTANCE,
+                getComposableTemplatesRequest,
+                getComposableTemplatesStep.delegateResponse((l, e) -> {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                        l.onResponse(new GetComposableIndexTemplateAction.Response(Collections.emptyMap()));
+                    } else {
+                        l.onFailure(e);
+                    }
+                }));
+
+            final ActionListener<Table> tableListener = new RestResponseListener<>(channel) {
+                @Override
+                public RestResponse buildResponse(Table table) throws Exception {
+                    return RestTable.buildResponse(table, channel);
+                }
+            };
+
+            getIndexTemplatesStep.whenComplete(getIndexTemplatesResponse ->
+                getComposableTemplatesStep.whenComplete(getComposableIndexTemplatesResponse ->
+                    ActionListener.completeWith(tableListener, () -> buildTable(
+                        request,
+                        getIndexTemplatesResponse,
+                        getComposableIndexTemplatesResponse)
+                    ), tableListener::onFailure
+                ), tableListener::onFailure);
+        };
     }
 
     @Override
@@ -85,35 +113,34 @@ public class RestTemplatesAction extends AbstractCatAction {
         return table;
     }
 
-    private Table buildTable(RestRequest request, ClusterStateResponse clusterStateResponse, String patternString) {
-        Table table = getTableWithHeader(request);
-        Metadata metadata = clusterStateResponse.getState().metadata();
-        for (ObjectObjectCursor<String, IndexTemplateMetadata> entry : metadata.templates()) {
-            IndexTemplateMetadata indexData = entry.value;
-            if (patternString == null || Regex.simpleMatch(patternString, indexData.name())) {
-                table.startRow();
-                table.addCell(indexData.name());
-                table.addCell("[" + String.join(", ", indexData.patterns()) + "]");
-                table.addCell(indexData.getOrder());
-                table.addCell(indexData.getVersion());
-                table.addCell("");
-                table.endRow();
-            }
+    private Table buildTable(
+        RestRequest request,
+        GetIndexTemplatesResponse getIndexTemplatesResponse,
+        GetComposableIndexTemplateAction.Response getComposableIndexTemplatesResponse
+    ) {
+        final Table table = getTableWithHeader(request);
+        for (IndexTemplateMetadata indexData : getIndexTemplatesResponse.getIndexTemplates()) {
+            table.startRow();
+            table.addCell(indexData.name());
+            table.addCell("[" + String.join(", ", indexData.patterns()) + "]");
+            table.addCell(indexData.getOrder());
+            table.addCell(indexData.getVersion());
+            table.addCell("");
+            table.endRow();
         }
 
-        for (Map.Entry<String, ComposableIndexTemplate> entry : metadata.templatesV2().entrySet()) {
-            String name = entry.getKey();
-            ComposableIndexTemplate template = entry.getValue();
-            if (patternString == null || Regex.simpleMatch(patternString, name)) {
-                table.startRow();
-                table.addCell(name);
-                table.addCell("[" + String.join(", ", template.indexPatterns()) + "]");
-                table.addCell(template.priorityOrZero());
-                table.addCell(template.version());
-                table.addCell("[" + String.join(", ", template.composedOf()) + "]");
-                table.endRow();
-            }
+        for (Map.Entry<String, ComposableIndexTemplate> entry : getComposableIndexTemplatesResponse.indexTemplates().entrySet()) {
+            final String name = entry.getKey();
+            final ComposableIndexTemplate template = entry.getValue();
+            table.startRow();
+            table.addCell(name);
+            table.addCell("[" + String.join(", ", template.indexPatterns()) + "]");
+            table.addCell(template.priorityOrZero());
+            table.addCell(template.version());
+            table.addCell("[" + String.join(", ", template.composedOf()) + "]");
+            table.endRow();
         }
+
         return table;
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authc;
 
@@ -118,7 +119,7 @@ public abstract class Realm implements Comparable<Realm> {
      * @param token           The authentication token
      * @param listener        The listener to pass the authentication result to
      */
-    public abstract void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult> listener);
+    public abstract void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult<User>> listener);
 
     /**
      * Looks up the user identified the String identifier. A successful lookup will call the {@link ActionListener#onResponse}

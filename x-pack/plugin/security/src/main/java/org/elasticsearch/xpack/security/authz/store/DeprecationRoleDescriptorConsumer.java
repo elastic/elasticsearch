@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.authz.store;
@@ -11,10 +12,11 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
@@ -186,26 +188,25 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
             final Automaton aliasPrivilegeAutomaton = IndexPrivilege.get(aliasPrivilegeNames).getAutomaton();
             final SortedSet<String> inferiorIndexNames = new TreeSet<>();
             // check if the alias grants superiors privileges than the indices it points to
-            for (IndexMetadata indexMetadata : aliasOrIndexMap.get(aliasName).getIndices()) {
-                final String indexName = indexMetadata.getIndex().getName();
-                final Set<String> indexPrivileges = privilegesByIndexMap.get(indexName);
+            for (Index index : aliasOrIndexMap.get(aliasName).getIndices()) {
+                final Set<String> indexPrivileges = privilegesByIndexMap.get(index.getName());
                 // null iff the index does not have *any* privilege
                 if (indexPrivileges != null) {
                     // compute automaton once per index no matter how many times it is pointed to
-                    final Automaton indexPrivilegeAutomaton = indexAutomatonMap.computeIfAbsent(indexName,
+                    final Automaton indexPrivilegeAutomaton = indexAutomatonMap.computeIfAbsent(index.getName(),
                             i -> IndexPrivilege.get(indexPrivileges).getAutomaton());
                     if (false == Operations.subsetOf(indexPrivilegeAutomaton, aliasPrivilegeAutomaton)) {
-                        inferiorIndexNames.add(indexName);
+                        inferiorIndexNames.add(index.getName());
                     }
                 } else {
-                    inferiorIndexNames.add(indexName);
+                    inferiorIndexNames.add(index.getName());
                 }
             }
             // log inferior indices for this role, for this alias
             if (false == inferiorIndexNames.isEmpty()) {
                 final String logMessage = String.format(Locale.ROOT, ROLE_PERMISSION_DEPRECATION_STANZA, roleDescriptor.getName(),
                         aliasName, String.join(", ", inferiorIndexNames));
-                deprecationLogger.deprecate("index_permissions_on_alias", logMessage);
+                deprecationLogger.critical(DeprecationCategory.SECURITY, "index_permissions_on_alias", logMessage);
             }
         }
     }

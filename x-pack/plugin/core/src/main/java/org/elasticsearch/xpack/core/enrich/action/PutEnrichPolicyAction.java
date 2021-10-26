@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.enrich.action;
 
@@ -12,7 +13,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.io.IOException;
@@ -38,7 +39,7 @@ public class PutEnrichPolicyAction extends ActionType<AcknowledgedResponse> {
 
         public Request(String name, EnrichPolicy policy) {
             this.name = Objects.requireNonNull(name, "name cannot be null");
-            if (!Version.CURRENT.equals(policy.getElasticsearchVersion())) {
+            if (Version.CURRENT.equals(policy.getElasticsearchVersion()) == false) {
                 throw new IllegalArgumentException("Cannot set [version_created] field on enrich policy [" + name +
                     "]. Found [" + policy.getElasticsearchVersion() + "]");
             }

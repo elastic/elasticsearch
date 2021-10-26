@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.operator;
@@ -11,15 +12,15 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -28,7 +29,6 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 
 import java.io.IOException;
@@ -41,8 +41,8 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
 
 public class FileOperatorUsersStore {
@@ -54,7 +54,7 @@ public class FileOperatorUsersStore {
     public FileOperatorUsersStore(Environment env, ResourceWatcherService watcherService) {
         this.file =  XPackPlugin.resolveConfigFile(env, "operator_users.yml");
         this.operatorUsersDescriptor = parseFile(this.file, logger);
-        FileWatcher watcher = new FileWatcher(file.getParent());
+        FileWatcher watcher = new FileWatcher(file.getParent(), true);
         watcher.addListener(new FileOperatorUsersStore.FileListener());
         try {
             watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
@@ -64,13 +64,6 @@ public class FileOperatorUsersStore {
     }
 
     public boolean isOperatorUser(Authentication authentication) {
-        if (authentication.getUser().isRunAs()) {
-            return false;
-        } else if (User.isInternal(authentication.getUser())) {
-            // Internal user are considered operator users
-            return true;
-        }
-
         // Other than realm name, other criteria must always be an exact match for the user to be an operator.
         // Realm name of a descriptor can be null. When it is null, it is ignored for comparison.
         // If not null, it will be compared exactly as well.
@@ -78,10 +71,13 @@ public class FileOperatorUsersStore {
         // not matter what the name is.
         return operatorUsersDescriptor.groups.stream().anyMatch(group -> {
             final Authentication.RealmRef realm = authentication.getSourceRealm();
-            return group.usernames.contains(authentication.getUser().principal())
+            final boolean match = group.usernames.contains(authentication.getUser().principal())
                 && group.authenticationType == authentication.getAuthenticationType()
                 && realm.getType().equals(group.realmType)
                 && (group.realmName == null || group.realmName.equals(realm.getName()));
+            logger.trace("Matching user [{}] against operator rule [{}] is [{}]",
+                authentication.getUser(), group, match);
+            return match;
         });
     }
 
@@ -216,7 +212,13 @@ public class FileOperatorUsersStore {
         } else {
             logger.debug("Reading operator users file [{}]", file.toAbsolutePath());
             try (InputStream in = Files.newInputStream(file, StandardOpenOption.READ)) {
-                return parseConfig(in);
+                final OperatorUsersDescriptor operatorUsersDescriptor = parseConfig(in);
+                logger.info("parsed [{}] group(s) with a total of [{}] operator user(s) from file [{}]",
+                    operatorUsersDescriptor.groups.size(),
+                    operatorUsersDescriptor.groups.stream().mapToLong(g -> g.usernames.size()).sum(),
+                    file.toAbsolutePath());
+                logger.debug("operator user descriptor: [{}]", operatorUsersDescriptor);
+                return operatorUsersDescriptor;
             } catch (IOException | RuntimeException e) {
                 logger.error(new ParameterizedMessage("Failed to parse operator users file [{}].", file), e);
                 throw new ElasticsearchParseException("Error parsing operator users file [{}]", e, file.toAbsolutePath());
@@ -224,11 +226,10 @@ public class FileOperatorUsersStore {
         }
     }
 
-    public static OperatorUsersDescriptor parseConfig(InputStream in) throws IOException {
+    // package method for testing
+    static OperatorUsersDescriptor parseConfig(InputStream in) throws IOException {
         try (XContentParser parser = yamlParser(in)) {
-            final OperatorUsersDescriptor operatorUsersDescriptor = OPERATOR_USER_PARSER.parse(parser, null);
-            logger.trace("Parsed: [{}]", operatorUsersDescriptor);
-            return operatorUsersDescriptor;
+            return OPERATOR_USER_PARSER.parse(parser, null);
         }
     }
 

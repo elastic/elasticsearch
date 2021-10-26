@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
@@ -268,7 +269,7 @@ public class Tile2DVisitorTests extends ESTestCase {
         });
     }
 
-    static void assertRelation(GeoRelation expectedRelation, GeometryDocValueReader reader, Extent extent) {
+    static void assertRelation(GeoRelation expectedRelation, GeometryDocValueReader reader, Extent extent) throws IOException {
         Tile2DVisitor tile2DVisitor = new Tile2DVisitor();
         tile2DVisitor.reset(extent.minX(), extent.minY(), extent.maxX(), extent.maxY());
         reader.visit(tile2DVisitor);

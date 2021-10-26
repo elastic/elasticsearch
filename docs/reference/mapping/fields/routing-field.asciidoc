@@ -2,14 +2,19 @@
 === `_routing` field
 
 A document is routed to a particular shard in an index using the following
-formula:
+formulas:
+    
+    routing_factor = num_routing_shards / num_primary_shards
+    shard_num = (hash(_routing) % num_routing_shards) / routing_factor
 
-    shard_num = hash(_routing) % num_primary_shards
+`num_routing_shards` is the value of the
+<<index-number-of-routing-shards,`index.number_of_routing_shards`>> index
+setting. `num_primary_shards` is the value of the
+<<index-number-of-shards,`index.number_of_shards`>> index setting.
 
-The default value used for `_routing` is the document's <<mapping-id-field,`_id`>>.
-
+The default `_routing` value is the document's <<mapping-id-field,`_id`>>.
 Custom routing patterns can be implemented by specifying a custom `routing`
-value per document.  For instance:
+value per document. For instance:
 
 [source,console]
 ------------------------------
@@ -48,7 +53,7 @@ appropriate backing index for the stream.
 
 ==== Searching with custom routing
 
-Custom routing can reduce the impact of searches.  Instead of having to fan
+Custom routing can reduce the impact of searches. Instead of having to fan
 out a search request to all the shards in an index, the request can be sent to
 just the shard that matches the specific routing value (or values):
 
@@ -74,7 +79,7 @@ whenever <<docs-index_,indexing>>, <<docs-get,getting>>,
 <<docs-delete,deleting>>, or <<docs-update,updating>> a document.
 
 Forgetting the routing value can lead to a document being indexed on more than
-one shard.  As a safeguard, the `_routing` field can be configured to make a
+one shard. As a safeguard, the `_routing` field can be configured to make a
 custom `routing` value required for all CRUD operations:
 
 [source,console]
@@ -118,9 +123,10 @@ This is done by providing the index level setting <<routing-partition-size,`inde
 As the partition size increases, the more evenly distributed the data will become at the
 expense of having to search more shards per request.
 
-When this setting is present, the formula for calculating the shard becomes:
+When this setting is present, the formulas for calculating the shard become:
 
-    shard_num = (hash(_routing) + hash(_id) % routing_partition_size) % num_primary_shards
+    routing_value = hash(_routing) + hash(_id) % routing_partition_size
+    shard_num = (routing_value % num_routing_shards) / routing_factor
 
 That is, the `_routing` field is used to calculate a set of shards within the index and then the
 `_id` is used to pick a shard within that set.

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.monitoring.exporter.http;
@@ -49,7 +50,7 @@ class AsyncHttpResourceHelper {
         doAnswer(invocation -> {
             ((ResponseListener)invocation.getArguments()[1]).onSuccess(response);
             return null;
-        }).when(client).performRequestAsync(argThat(request), any(ResponseListener.class));
+        }).when(client).performRequestAsync(argThat(request::matches), any(ResponseListener.class));
     }
 
     static void whenPerformRequestAsyncWith(final RestClient client, final Matcher<Request> request, final List<Response> responses) {
@@ -93,7 +94,7 @@ class AsyncHttpResourceHelper {
             });
         }
 
-        stub.when(client).performRequestAsync(argThat(request), any(ResponseListener.class));
+        stub.when(client).performRequestAsync(argThat(request::matches), any(ResponseListener.class));
     }
 
     static void whenPerformRequestAsyncWith(final RestClient client, final Request request, final Response response) {
@@ -114,7 +115,7 @@ class AsyncHttpResourceHelper {
         doAnswer(invocation -> {
             ((ResponseListener)invocation.getArguments()[1]).onFailure(exception);
             return null;
-        }).when(client).performRequestAsync(argThat(request), any(ResponseListener.class));
+        }).when(client).performRequestAsync(argThat(request::matches), any(ResponseListener.class));
     }
 
     static void whenPerformRequestAsyncWith(final RestClient client, final Request request, final Exception exception) {

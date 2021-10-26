@@ -1,6 +1,9 @@
 [role="xpack"]
 [[security-api-oidc-authenticate]]
 === OpenID Connect authenticate API
+++++
+<titleabbrev>OpenID Connect authenticate</titleabbrev>
+++++
 
 Submits the response to an oAuth 2.0 authentication request for consumption from
 {es}. Upon successful validation, {es} will respond with an {es} internal Access

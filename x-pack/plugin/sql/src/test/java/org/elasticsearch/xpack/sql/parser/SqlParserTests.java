@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.parser;
 
@@ -141,9 +142,14 @@ public class SqlParserTests extends ESTestCase {
     public void testUseBothTopAndLimitInvalid() {
         ParsingException e = expectThrows(ParsingException.class, () -> parseStatement("SELECT TOP 10 * FROM test LIMIT 20"));
         assertEquals("line 1:28: TOP and LIMIT are not allowed in the same query - use one or the other", e.getMessage());
+
         e = expectThrows(ParsingException.class,
             () -> parseStatement("SELECT TOP 30 a, count(*) cnt FROM test WHERE b = 20 GROUP BY a HAVING cnt > 10 LIMIT 40"));
         assertEquals("line 1:82: TOP and LIMIT are not allowed in the same query - use one or the other", e.getMessage());
+
+        e = expectThrows(ParsingException.class,
+            () -> parseStatement("SELECT TOP 30 * FROM test ORDER BY a LIMIT 40"));
+        assertEquals("line 1:39: TOP and LIMIT are not allowed in the same query - use one or the other", e.getMessage());
     }
 
     public void testsSelectNonReservedKeywords() {
@@ -254,9 +260,9 @@ public class SqlParserTests extends ESTestCase {
         // 1000 elements is ok
         new SqlParser().createExpression(join(" OR ", nCopies(1000, "a = b")));
 
-        // 5000 elements cause stack overflow
+        // 10000 elements cause stack overflow
         ParsingException e = expectThrows(ParsingException.class, () ->
-            new SqlParser().createExpression(join(" OR ", nCopies(5000, "a = b"))));
+            new SqlParser().createExpression(join(" OR ", nCopies(10000, "a = b"))));
         assertThat(e.getMessage(),
             startsWith("line -1:0: SQL statement is too large, causing stack overflow when generating the parsing tree: ["));
     }
@@ -270,7 +276,7 @@ public class SqlParserTests extends ESTestCase {
 
         // 5000 elements cause stack overflow
         ParsingException e = expectThrows(ParsingException.class, () -> new SqlParser().createExpression(
-            join("", nCopies(1000, "abs(")).concat("i").concat(join("", nCopies(1000, ")")))));
+            join("", nCopies(5000, "abs(")).concat("i").concat(join("", nCopies(5000, ")")))));
         assertThat(e.getMessage(),
             startsWith("line -1:0: SQL statement is too large, causing stack overflow when generating the parsing tree: ["));
     }
@@ -281,9 +287,9 @@ public class SqlParserTests extends ESTestCase {
         // 1000 elements is ok
         new SqlParser().createExpression(join(" + ", nCopies(1000, "a")));
 
-        // 5000 elements cause stack overflow
+        // 10000 elements cause stack overflow
         ParsingException e = expectThrows(ParsingException.class, () ->
-            new SqlParser().createExpression(join(" + ", nCopies(5000, "a"))));
+            new SqlParser().createExpression(join(" + ", nCopies(10000, "a"))));
         assertThat(e.getMessage(),
             startsWith("line -1:0: SQL statement is too large, causing stack overflow when generating the parsing tree: ["));
     }
@@ -297,11 +303,11 @@ public class SqlParserTests extends ESTestCase {
                 .concat("t")
                 .concat(join("", nCopies(199, ")"))));
 
-        // 500 elements cause stack overflow
+        // 1000 elements cause stack overflow
         ParsingException e = expectThrows(ParsingException.class, () -> new SqlParser().createStatement(
-            join(" (", nCopies(500, "SELECT * FROM"))
+            join(" (", nCopies(1000, "SELECT * FROM"))
                 .concat("t")
-                .concat(join("", nCopies(499, ")")))));
+                .concat(join("", nCopies(999, ")")))));
         assertThat(e.getMessage(),
             startsWith("line -1:0: SQL statement is too large, causing stack overflow when generating the parsing tree: ["));
     }

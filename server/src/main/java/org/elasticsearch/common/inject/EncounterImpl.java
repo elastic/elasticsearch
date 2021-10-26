@@ -59,7 +59,7 @@ final class EncounterImpl<T> implements TypeEncounter<T> {
 
     @Override
     public void register(MembersInjector<? super T> membersInjector) {
-        if (!valid) {
+        if (valid == false) {
             throw new IllegalStateException("Encounters may not be used after hear() returns.");
         }
 
@@ -72,7 +72,7 @@ final class EncounterImpl<T> implements TypeEncounter<T> {
 
     @Override
     public void register(InjectionListener<? super T> injectionListener) {
-        if (!valid) {
+        if (valid == false) {
             throw new IllegalStateException("Encounters may not be used after hear() returns.");
         }
 
@@ -85,7 +85,7 @@ final class EncounterImpl<T> implements TypeEncounter<T> {
 
     @Override
     public void addError(String message, Object... arguments) {
-        if (!valid) {
+        if (valid == false) {
             throw new IllegalStateException("Encounters may not be used after hear() returns.");
         }
         errors.addMessage(message, arguments);
@@ -93,7 +93,7 @@ final class EncounterImpl<T> implements TypeEncounter<T> {
 
     @Override
     public void addError(Throwable t) {
-        if (!valid) {
+        if (valid == false) {
             throw new IllegalStateException("Encounters may not be used after hear() returns.");
         }
         errors.errorInUserCode(t, "An exception was caught and reported. Message: %s", t.getMessage());
@@ -101,7 +101,7 @@ final class EncounterImpl<T> implements TypeEncounter<T> {
 
     @Override
     public void addError(Message message) {
-        if (!valid) {
+        if (valid == false) {
             throw new IllegalStateException("Encounters may not be used after hear() returns.");
         }
         errors.addMessage(message);
@@ -109,7 +109,7 @@ final class EncounterImpl<T> implements TypeEncounter<T> {
 
     @Override
     public <T> Provider<T> getProvider(Key<T> key) {
-        if (!valid) {
+        if (valid == false) {
             throw new IllegalStateException("Encounters may not be used after hear() returns.");
         }
         return lookups.getProvider(key);
@@ -122,7 +122,7 @@ final class EncounterImpl<T> implements TypeEncounter<T> {
 
     @Override
     public <T> MembersInjector<T> getMembersInjector(TypeLiteral<T> typeLiteral) {
-        if (!valid) {
+        if (valid == false) {
             throw new IllegalStateException("Encounters may not be used after hear() returns.");
         }
         return lookups.getMembersInjector(typeLiteral);

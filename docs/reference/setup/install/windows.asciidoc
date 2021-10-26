@@ -3,7 +3,7 @@
 
 beta[]
 
-Elasticsearch can be installed on Windows using the `.msi` package.  This can
+Elasticsearch can be installed on Windows using the `.msi` package. This can
 install Elasticsearch as a Windows service or allow it to be run manually using
 the included `elasticsearch.exe` executable.
 
@@ -90,12 +90,6 @@ security configuration and built-in user configuration:
 
 [[msi-installer-xpack]]
 image::images/msi_installer/msi_installer_xpack.png[]
-
-NOTE: {xpack} includes a choice of a Trial or Basic license. A Trial license is
-valid for 30 days, after which you can obtain one of the available subscriptions.
-The Basic license is free and perpetual. Consult the
-https://www.elastic.co/subscriptions[available subscriptions] for further
-details on which features are available under which license.
 
 After clicking the install button, the installation will begin:
 
@@ -335,7 +329,7 @@ different installation directory to the default one:
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------
-start /wait msiexec.exe /i elasticsearch-{version}.msi /qn INSTALLDIR="C:\Custom Install Directory\{version}" 
+start /wait msiexec.exe /i elasticsearch-{version}.msi /qn INSTALLDIR="C:\Custom Install Directory\{version}"
 --------------------------------------------
 
 Consult the https://msdn.microsoft.com/en-us/library/windows/desktop/aa367988(v=vs.85).aspx[Windows Installer SDK Command-Line Options]
@@ -368,7 +362,7 @@ the command line, using the `-E` syntax as follows:
 .\bin\elasticsearch.exe -E cluster.name=my_cluster -E node.name=node_1
 --------------------------------------------
 
-NOTE: Values that contain spaces must be surrounded with quotes.  For instance `-E path.logs="C:\My Logs\logs"`.
+NOTE: Values that contain spaces must be surrounded with quotes. For instance `-E path.logs="C:\My Logs\logs"`.
 
 TIP: Typically, any cluster-wide settings (like `cluster.name`) should be
 added to the `elasticsearch.yml` config file, while any node-specific settings

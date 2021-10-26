@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.integration.continuous;
@@ -16,7 +17,6 @@ import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.transform.DeleteTransformRequest;
@@ -33,14 +33,15 @@ import org.elasticsearch.client.transform.transforms.TransformConfig;
 import org.elasticsearch.client.transform.transforms.TransformStats;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.After;
@@ -53,6 +54,7 @@ import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
@@ -63,7 +65,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.core.Is.is;
@@ -88,7 +90,7 @@ import static org.hamcrest.core.Is.is;
  *       - sync config for continuous mode
  *       - page size 10 to trigger paging
  *       - count field to test how many buckets
- *       - max run field to check what was the hight run field, see below for more details
+ *       - max run field to check what was the highest run field, see below for more details
  *       - a test ingest pipeline
  *    - execute 10 rounds ("run"):
  *      - set run = #round
@@ -106,6 +108,7 @@ import static org.hamcrest.core.Is.is;
  *          to check that optimizations worked
  *      - repeat
  */
+@SuppressWarnings("removal")
 public class TransformContinuousIT extends ESRestTestCase {
 
     private List<ContinuousTestCase> transformTestCases = new ArrayList<>();
@@ -117,7 +120,7 @@ public class TransformContinuousIT extends ESRestTestCase {
         // see: https://github.com/elastic/elasticsearch/issues/45562
         Request addFailureRetrySetting = new Request("PUT", "/_cluster/settings");
         addFailureRetrySetting.setJsonEntity(
-            "{\"transient\": {\"xpack.transform.num_transform_failure_retries\": \""
+            "{\"persistent\": {\"xpack.transform.num_transform_failure_retries\": \""
                 + 0
                 + "\","
                 + "\"logger.org.elasticsearch.action.bulk\": \"info\","
@@ -191,7 +194,7 @@ public class TransformContinuousIT extends ESRestTestCase {
         for (int i = 0; i < 100; i++) {
             dates.add(
                 // create a random date between 1/1/2001 and 1/1/2006
-                ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC"))
+                formatTimestmap(dateType)
                     .format(Instant.ofEpochMilli(randomLongBetween(978307200000L, 1136073600000L)))
             );
         }
@@ -228,7 +231,7 @@ public class TransformContinuousIT extends ESRestTestCase {
                 Integer metric = metric_bucket.get((numDoc + randomIntBetween(0, 50)) % 50);
                 if (metric != null) {
                     // randomize, but ensure it falls into the same bucket
-                    int randomizedMetric = metric + randomIntBetween(0, 99);
+                    int randomizedMetric = run * ContinuousTestCase.METRIC_TREND + metric + randomIntBetween(0, 99);
                     source.append("\"metric\":").append(randomizedMetric).append(",");
                 }
 
@@ -246,16 +249,18 @@ public class TransformContinuousIT extends ESRestTestCase {
                 }
 
                 // simulate a different timestamp that is off from the timestamp used for sync, so it can fall into the previous bucket
-                String metricDateString = ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC"))
+                String metricDateString = formatTimestmap(dateType)
                     .format(runDate.minusSeconds(randomIntBetween(0, 2)).plusNanos(randomIntBetween(0, 999999)));
                 source.append("\"metric-timestamp\":\"").append(metricDateString).append("\",");
 
-                String dateString = ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC"))
-                    .format(runDate.plusNanos(randomIntBetween(0, 999999)));
+                final Instant timestamp = runDate.plusNanos(randomIntBetween(0, 999999));
+                String dateString = formatTimestmap(dateType)
+                    .format(timestamp);
 
                 source.append("\"timestamp\":\"").append(dateString).append("\",");
                 // for data streams
-                source.append("\"@timestamp\":\"").append(dateString).append("\",");
+                //dynamic field results in a date type
+                source.append("\"@timestamp\":\"").append(formatTimestmap("date").format(timestamp)).append("\",");
                 source.append("\"run\":").append(run);
                 source.append("}");
 
@@ -274,13 +279,8 @@ public class TransformContinuousIT extends ESRestTestCase {
             // start all transforms, wait until the processed all data and stop them
             startTransforms();
 
-            // at random we added between 0 and 999_999ns == (1ms - 1ns) to every data point, so we add 1ms, so every data point is before
-            // the checkpoint
-            waitUntilTransformsReachedUpperBound(runDate.toEpochMilli() + 1, run);
+            waitUntilTransformsProcessedNewData(ContinuousTestCase.SYNC_DELAY, run);
             stopTransforms();
-
-            // TODO: the transform dest index requires a refresh, see gh#51154
-            refreshAllIndices();
 
             // test the output
             for (ContinuousTestCase testCase : transformTestCases) {
@@ -303,11 +303,21 @@ public class TransformContinuousIT extends ESRestTestCase {
         }
     }
 
+    private DateFormatter formatTimestmap(String dateType) {
+        if(dateType == "date_nanos"){
+            return DateFormatter.forPattern("strict_date_optional_time_nanos").withZone(ZoneId.of("UTC"));
+        } else {
+            return DateFormatter.forPattern("strict_date_optional_time").withZone(ZoneId.of("UTC"));
+        }
+    }
+
     /**
      * Create the transform source index with randomized settings to increase test coverage, for example
      * index sorting, triggers query optimizations.
      */
     private void putIndex(String indexName, String dateType, boolean isDataStream) throws IOException {
+        List<String> sortedFields = Collections.emptyList();
+
         // create mapping and settings
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
@@ -317,9 +327,8 @@ public class TransformContinuousIT extends ESRestTestCase {
                 if (randomBoolean()) {
                     builder.field("codec", "best_compression");
                 }
-                // TODO: crashes with assertions enabled in lucene
-                if (false && randomBoolean()) {
-                    List<String> sortedFields = new ArrayList<>(
+                if (randomBoolean()) {
+                    sortedFields = new ArrayList<>(
                         // note: no index sort for geo_point
                         randomUnique(() -> randomFrom("event", "metric", "run", "timestamp"), randomIntBetween(1, 3))
                     );
@@ -343,11 +352,16 @@ public class TransformContinuousIT extends ESRestTestCase {
                 }
                 builder.endObject();
 
+                // gh#72741 : index sort does not support unsigned_long
+                final String metricType = sortedFields.contains("metric")
+                    ? randomFrom("integer", "long")
+                    : randomFrom("integer", "long", "unsigned_long");
+
                 builder.startObject("event")
                     .field("type", "keyword")
                     .endObject()
                     .startObject("metric")
-                    .field("type", randomFrom("integer", "long", "unsigned_long"))
+                    .field("type", metricType)
                     .endObject()
                     .startObject("location")
                     .field("type", "geo_point")
@@ -404,8 +418,8 @@ public class TransformContinuousIT extends ESRestTestCase {
                     .endObject()
                     .endObject();
 
-                // random overlay of existing field
-                if (randomBoolean()) {
+                // random overlay of existing field, only if its not part of sorted fields
+                if (sortedFields.contains("metric") == false && randomBoolean()) {
                     if (randomBoolean()) {
                         builder.startObject("metric").field("type", "long").endObject();
                     } else {
@@ -495,11 +509,12 @@ public class TransformContinuousIT extends ESRestTestCase {
         }
     }
 
-    private void waitUntilTransformsReachedUpperBound(long timeStampUpperBoundMillis, int iteration) throws Exception {
+    private void waitUntilTransformsProcessedNewData(TimeValue delay, int iteration) throws Exception {
+        Instant waitUntil = Instant.now().plusMillis(delay.getMillis());
         logger.info(
-            "wait until transform reaches timestamp_millis: {} iteration: {}",
-            ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC"))
-                .format(Instant.ofEpochMilli(timeStampUpperBoundMillis)),
+            "wait until transform reaches timestamp_millis: {} (takes into account the delay: {}) iteration: {}",
+            ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC")).format(waitUntil),
+            delay,
             iteration
         );
         for (ContinuousTestCase testCase : transformTestCases) {
@@ -512,10 +527,10 @@ public class TransformContinuousIT extends ESRestTestCase {
                         + stats.getState()
                         + ", reason: "
                         + stats.getReason(),
-                    stats.getCheckpointingInfo().getLast().getTimeUpperBoundMillis(),
-                    greaterThan(timeStampUpperBoundMillis)
+                    stats.getCheckpointingInfo().getLastSearchTime(),
+                    greaterThan(waitUntil)
                 );
-            }, 20, TimeUnit.SECONDS);
+            }, 30, TimeUnit.SECONDS);
         }
     }
 

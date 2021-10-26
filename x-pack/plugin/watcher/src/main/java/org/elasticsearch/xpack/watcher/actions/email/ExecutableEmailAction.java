@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions.email;
 
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.watcher.notification.email.Email;
 import org.elasticsearch.xpack.watcher.notification.email.EmailService;
 import org.elasticsearch.xpack.watcher.notification.email.HtmlSanitizer;
 import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentParser;
+import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentParser.EmailAttachment;
 import org.elasticsearch.xpack.watcher.support.Variables;
 
 import java.io.IOException;
@@ -34,10 +36,16 @@ public class ExecutableEmailAction extends ExecutableAction<EmailAction> {
     private final EmailService emailService;
     private final TextTemplateEngine templateEngine;
     private final HtmlSanitizer htmlSanitizer;
-    private final Map<String, EmailAttachmentParser> emailAttachmentParsers;
+    private final Map<String, EmailAttachmentParser<? extends EmailAttachment>> emailAttachmentParsers;
 
-    public ExecutableEmailAction(EmailAction action, Logger logger, EmailService emailService, TextTemplateEngine templateEngine,
-                                 HtmlSanitizer htmlSanitizer, Map<String, EmailAttachmentParser> emailAttachmentParsers) {
+    public ExecutableEmailAction(
+        EmailAction action,
+        Logger logger,
+        EmailService emailService,
+        TextTemplateEngine templateEngine,
+        HtmlSanitizer htmlSanitizer,
+        Map<String, EmailAttachmentParser<? extends EmailAttachment>> emailAttachmentParsers
+    ) {
         super(action, logger);
         this.emailService = emailService;
         this.templateEngine = templateEngine;
@@ -56,8 +64,10 @@ public class ExecutableEmailAction extends ExecutableAction<EmailAction> {
         }
 
         if (action.getAttachments() != null && action.getAttachments().getAttachments().size() > 0) {
-            for (EmailAttachmentParser.EmailAttachment emailAttachment : action.getAttachments().getAttachments()) {
-                EmailAttachmentParser parser = emailAttachmentParsers.get(emailAttachment.type());
+            for (EmailAttachment emailAttachment : action.getAttachments().getAttachments()) {
+                @SuppressWarnings("unchecked")
+                EmailAttachmentParser<EmailAttachment> parser =
+                    (EmailAttachmentParser<EmailAttachment>) emailAttachmentParsers.get(emailAttachment.type());
                 try {
                     Attachment attachment = parser.toAttachment(ctx, payload, emailAttachment);
                     attachments.put(attachment.id(), attachment);

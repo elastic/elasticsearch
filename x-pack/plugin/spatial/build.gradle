@@ -1,33 +1,34 @@
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
   name 'spatial'
   description 'A plugin for Basic Spatial features'
   classname 'org.elasticsearch.xpack.spatial.SpatialPlugin'
-  extendedPlugins = ['x-pack-core']
+  extendedPlugins = ['x-pack-core', 'legacy-geo']
 }
 
 dependencies {
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  yamlRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  api project(path: ':modules:geo', configuration: 'default')
-  restTestConfig project(path: ':modules:geo', configuration: 'restTests')
+  compileOnly project(path: ':modules:legacy-geo')
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(path: xpackModule('vector-tile'))
+  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 restResources {
   restApi {
-    includeCore '_common', 'bulk', 'indices', 'index', 'search'
-    includeXpack 'xpack'
+    include '_common', 'bulk', 'indices', 'index', 'search', 'xpack'
   }
   restTests {
     includeCore 'geo_shape'
   }
 }
 
-testClusters.all {
+testClusters.configureEach {
   setting 'xpack.license.self_generated.type', 'trial'
   testDistribution = 'DEFAULT'
+  setting 'xpack.security.enabled', 'false'
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.search;
 
@@ -14,6 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -36,19 +38,21 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
                                          ClusterService clusterService,
                                          NamedWriteableRegistry registry,
                                          Client client,
-                                         ThreadPool threadPool) {
+                                         ThreadPool threadPool,
+                                         BigArrays bigArrays) {
         super(GetAsyncSearchAction.NAME, transportService, actionFilters, GetAsyncResultRequest::new);
         this.transportService = transportService;
-        this.resultsService = createResultsService(transportService, clusterService, registry, client, threadPool);
+        this.resultsService = createResultsService(transportService, clusterService, registry, client, threadPool, bigArrays);
     }
 
     static AsyncResultsService<AsyncSearchTask, AsyncSearchResponse> createResultsService(TransportService transportService,
                                                                                           ClusterService clusterService,
                                                                                           NamedWriteableRegistry registry,
                                                                                           Client client,
-                                                                                          ThreadPool threadPool) {
+                                                                                          ThreadPool threadPool,
+                                                                                          BigArrays bigArrays) {
         AsyncTaskIndexService<AsyncSearchResponse> store = new AsyncTaskIndexService<>(XPackPlugin.ASYNC_RESULTS_INDEX, clusterService,
-            threadPool.getThreadContext(), client, ASYNC_SEARCH_ORIGIN, AsyncSearchResponse::new, registry);
+            threadPool.getThreadContext(), client, ASYNC_SEARCH_ORIGIN, AsyncSearchResponse::new, registry, bigArrays);
         return new AsyncResultsService<>(store, true, AsyncSearchTask.class, AsyncSearchTask::addCompletionListener,
             transportService.getTaskManager(), clusterService);
     }

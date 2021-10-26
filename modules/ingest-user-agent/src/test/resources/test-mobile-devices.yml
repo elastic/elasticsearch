@@ -1,0 +1,124 @@
+# Apache License, Version 2.0
+# ===========================
+#
+# Copyright 2009 Google Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+mobile_devices:
+  - type: Phone
+    os: Android
+    browser: Chrome
+  - type: Phone
+    os: iOS
+    browser: Firefox
+#  - type: Phone
+#    os: Windows Phone
+#    browser: Edge
+  - type: Phone
+    os: KaiOS
+    browser: Firefox
+  - type: Phone
+    os: Sailfish
+    browser: SailfishBrowser
+  - type: Phone
+    os: Maemo
+    browser: Fennec
+  - type: Phone
+    os: BlackBerry OS
+    browser: Mobile Safari
+  - type: Phone
+    browser: Chrome Mobile
+    os: Android
+  - type: Phone
+    browser: Mobile Safari
+    os: iOS
+  - type: Phone
+    browser: Chrome Mobile WebView
+    os: Android
+  - type: Phone
+    browser: Firefox Mobile
+    os: Android
+  - type: Phone
+    browser: Chrome Mobile iOS
+    os: iOS
+  - type: Phone
+    browser: Facebook
+    os: Android
+  - type: Phone
+    browser: Mobile Safari UI/WKWebView
+    os: iOS
+  - type: Phone
+    browser: Firefox iOS
+    os: iOS
+  - type: Phone
+    browser: Opera Mobile
+    os: Android
+  - type: Phone
+    browser: MiuiBrowser
+    os: Android
+  - type: Phone
+    browser: Edge Mobile
+    os: Android
+  - type: Phone
+    browser: Android
+    os: Android
+  - type: Phone
+    browser: LINE
+    os: iOS
+  - type: Phone
+    browser: QQ Browser Mobile
+    os: Android
+  - type: Phone
+    browser: Flipboard
+    os: Android
+  - type: Phone
+    browser: Instagram
+    os: iOS
+  - type: Phone
+    browser: Pinterest
+    os: iOS
+  - type: Phone
+    browser: OktaMobile
+    os: iOS
+  - type: Phone
+    browser: Twitter
+    os: Android
+  - type: Phone
+    browser: Mint Browser
+    os: Android
+  - type: Phone
+    browser: Snapchat
+    os: iOS
+  - type: Phone
+    browser: IE Mobile
+    os: Windows Phone
+  - type: Phone
+    browser: Sailfish Browser
+    os: Linux
+  - type: Phone
+    browser: MobileIron
+    os: iOS
+  - type: Phone
+    browser: charlotte
+    os: Android
+  - type: Phone
+    browser: BlackBerry WebKit
+    os: BlackBerry
+  - type: Phone
+    browser: YandexSearch
+    os: Android
+  - type: Phone
+    browser: Salesforce
+    os: iOS
+

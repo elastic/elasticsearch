@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.protocol.xpack.license;
 
@@ -9,7 +10,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.protocol.xpack.common.ProtocolUtils;
 
 import java.io.IOException;
@@ -84,7 +85,7 @@ public class PutLicenseResponse extends AcknowledgedResponse {
     @Override
     protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
         builder.field("license_status", status.toString());
-        if (!acknowledgeMessages.isEmpty()) {
+        if (acknowledgeMessages.isEmpty() == false) {
             builder.startObject("acknowledge");
             builder.field("message", acknowledgeHeader);
             for (Map.Entry<String, String[]> entry : acknowledgeMessages.entrySet()) {
@@ -107,7 +108,7 @@ public class PutLicenseResponse extends AcknowledgedResponse {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (super.equals(o) == false) return false;
         PutLicenseResponse that = (PutLicenseResponse) o;
 
         return status == that.status &&

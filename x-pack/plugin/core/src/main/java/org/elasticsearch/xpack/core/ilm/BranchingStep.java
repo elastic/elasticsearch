@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ilm;
@@ -26,10 +27,10 @@ public class BranchingStep extends ClusterStateActionStep {
 
     private static final Logger logger = LogManager.getLogger(BranchingStep.class);
 
-    private StepKey nextStepKeyOnFalse;
-    private StepKey nextStepKeyOnTrue;
-    private BiPredicate<Index, ClusterState> predicate;
-    private SetOnce<Boolean> predicateValue;
+    private final StepKey nextStepKeyOnFalse;
+    private final StepKey nextStepKeyOnTrue;
+    private final BiPredicate<Index, ClusterState> predicate;
+    private final SetOnce<Boolean> predicateValue;
 
     /**
      * {@link BranchingStep} is a step whose next step is based on
@@ -105,7 +106,7 @@ public class BranchingStep extends ClusterStateActionStep {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (super.equals(o) == false) return false;
         BranchingStep that = (BranchingStep) o;
         return super.equals(o)
             && Objects.equals(nextStepKeyOnFalse, that.nextStepKeyOnFalse)

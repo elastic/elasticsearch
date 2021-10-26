@@ -1,0 +1,80 @@
+---
+"Test put and reset transient settings":
+  - skip:
+      version: " - 7.15.99"
+      reason:  "transient settings deprecation"
+      features: "warnings"
+
+  - do:
+      warnings:
+        - "[transient settings removal] Updating cluster settings through transientSettings is deprecated. Use persistent settings instead."
+      cluster.put_settings:
+        body:
+          transient:
+            cluster.routing.allocation.enable: "none"
+        flat_settings: true
+
+  - match: {transient: {cluster.routing.allocation.enable: "none"}}
+
+  - do:
+      cluster.get_settings:
+        flat_settings: true
+
+  - match: {transient: {cluster.routing.allocation.enable: "none"}}
+
+  - do:
+      warnings:
+        - "[transient settings removal] Updating cluster settings through transientSettings is deprecated. Use persistent settings instead."
+      cluster.put_settings:
+        body:
+          transient:
+            cluster.routing.allocation.enable: null
+        flat_settings: true
+
+  - match: {transient: {}}
+
+  - do:
+      cluster.get_settings:
+        flat_settings: true
+
+  - match: {transient: {}}
+---
+"Test put and reset persistent settings":
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            cluster.routing.allocation.enable: "none"
+        flat_settings: true
+
+  - match: {persistent: {cluster.routing.allocation.enable: "none"}}
+
+  - do:
+      cluster.get_settings:
+        flat_settings: true
+
+  - match: {persistent: {cluster.routing.allocation.enable: "none"}}
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            cluster.routing.allocation.enable: null
+        flat_settings: true
+
+  - match: {persistent: {}}
+
+  - do:
+      cluster.get_settings:
+        flat_settings: true
+
+  - match: {persistent: {}}
+
+---
+"Test get a default settings":
+
+ - do:
+      cluster.get_settings:
+        include_defaults: true
+
+ - match: {defaults.node.attr.testattr: "test"}

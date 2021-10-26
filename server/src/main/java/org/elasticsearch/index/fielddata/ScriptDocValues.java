@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.fielddata;
@@ -23,15 +12,16 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.geometry.utils.Geohash;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.AbstractList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -78,6 +68,13 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         throw new UnsupportedOperationException("doc values are unmodifiable");
     }
 
+    protected void throwIfEmpty() {
+        if (size() == 0) {
+            throw new IllegalStateException("A document doesn't have a value for a field! " +
+                "Use doc[<field>].size()==0 to check if a document is missing a field!");
+        }
+    }
+
     public static final class Longs extends ScriptDocValues<Long> {
         private final SortedNumericDocValues in;
         private long[] values = new long[0];
@@ -117,10 +114,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public Long get(int index) {
-            if (count == 0) {
-                throw new IllegalStateException("A document doesn't have a value for a field! " +
-                    "Use doc[<field>].size()==0 to check if a document is missing a field!");
-            }
+            throwIfEmpty();
             return values[index];
         }
 
@@ -130,7 +124,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
-    public static final class Dates extends ScriptDocValues<JodaCompatibleZonedDateTime> {
+    public static final class Dates extends ScriptDocValues<ZonedDateTime> {
 
         private final SortedNumericDocValues in;
         private final boolean isNanos;
@@ -138,7 +132,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         /**
          * Values wrapped in {@link java.time.ZonedDateTime} objects.
          */
-        private JodaCompatibleZonedDateTime[] dates;
+        private ZonedDateTime[] dates;
         private int count;
 
         public Dates(SortedNumericDocValues in, boolean isNanos) {
@@ -150,12 +144,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          * Fetch the first field value or 0 millis after epoch if there are no
          * in.
          */
-        public JodaCompatibleZonedDateTime getValue() {
+        public ZonedDateTime getValue() {
             return get(0);
         }
 
         @Override
-        public JodaCompatibleZonedDateTime get(int index) {
+        public ZonedDateTime get(int index) {
             if (count == 0) {
                 throw new IllegalStateException("A document doesn't have a value for a field! " +
                     "Use doc[<field>].size()==0 to check if a document is missing a field!");
@@ -192,13 +186,13 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             }
             if (dates == null || count > dates.length) {
                 // Happens for the document. We delay allocating dates so we can allocate it with a reasonable size.
-                dates = new JodaCompatibleZonedDateTime[count];
+                dates = new ZonedDateTime[count];
             }
             for (int i = 0; i < count; ++i) {
                 if (isNanos) {
-                    dates[i] = new JodaCompatibleZonedDateTime(DateUtils.toInstant(in.nextValue()), ZoneOffset.UTC);
+                    dates[i] = ZonedDateTime.ofInstant(DateUtils.toInstant(in.nextValue()), ZoneOffset.UTC);
                 } else {
-                    dates[i] = new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(in.nextValue()), ZoneOffset.UTC);
+                    dates[i] = ZonedDateTime.ofInstant(Instant.ofEpochMilli(in.nextValue()), ZoneOffset.UTC);
                 }
             }
         }
@@ -258,10 +252,25 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
-    public static final class GeoPoints extends ScriptDocValues<GeoPoint> {
+    public abstract static class Geometry<T> extends ScriptDocValues<T> {
+        /** Returns the dimensional type of this geometry */
+        public abstract int getDimensionalType();
+        /** Returns the bounding box of this geometry  */
+        public abstract GeoBoundingBox getBoundingBox();
+        /** Returns the centroid of this geometry  */
+        public abstract GeoPoint getCentroid();
+        /** Returns the width of the bounding box diagonal in the spherical Mercator projection (meters)  */
+        public abstract double getMercatorWidth();
+        /** Returns the height of the bounding box diagonal in the spherical Mercator projection (meters) */
+        public abstract double getMercatorHeight();
+    }
+
+    public static final class GeoPoints extends Geometry<GeoPoint> {
 
         private final MultiGeoPointValues in;
         private GeoPoint[] values = new GeoPoint[0];
+        private final GeoPoint centroid = new GeoPoint();
+        private final GeoBoundingBox boundingBox = new GeoBoundingBox(new GeoPoint(), new GeoPoint());
         private int count;
 
         public GeoPoints(MultiGeoPointValues in) {
@@ -272,13 +281,44 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         public void setNextDocId(int docId) throws IOException {
             if (in.advanceExact(docId)) {
                 resize(in.docValueCount());
-                for (int i = 0; i < count; i++) {
-                    GeoPoint point = in.nextValue();
-                    values[i] = new GeoPoint(point.lat(), point.lon());
+                if (count == 1) {
+                    setSingleValue();
+                } else {
+                    setMultiValue();
                 }
             } else {
                 resize(0);
             }
+        }
+
+        private void setSingleValue() throws IOException {
+            GeoPoint point = in.nextValue();
+            values[0].reset(point.lat(), point.lon());
+            centroid.reset(point.lat(), point.lon());
+            boundingBox.topLeft().reset(point.lat(), point.lon());
+            boundingBox.bottomRight().reset(point.lat(), point.lon());
+        }
+
+        private void setMultiValue() throws IOException {
+            double centroidLat = 0;
+            double centroidLon = 0;
+            double maxLon = Double.NEGATIVE_INFINITY;
+            double minLon = Double.POSITIVE_INFINITY;
+            double maxLat = Double.NEGATIVE_INFINITY;
+            double minLat = Double.POSITIVE_INFINITY;
+            for (int i = 0; i < count; i++) {
+                GeoPoint point = in.nextValue();
+                values[i].reset(point.lat(), point.lon());
+                centroidLat += point.getLat();
+                centroidLon += point.getLon();
+                maxLon = Math.max(maxLon, values[i].getLon());
+                minLon = Math.min(minLon, values[i].getLon());
+                maxLat = Math.max(maxLat, values[i].getLat());
+                minLat = Math.min(minLat, values[i].getLat());
+            }
+            centroid.reset(centroidLat / count, centroidLon / count);
+            boundingBox.topLeft().reset(maxLat, minLon);
+            boundingBox.bottomRight().reset(minLat, maxLon);
         }
 
         /**
@@ -291,7 +331,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                 int oldLength = values.length;
                 values = ArrayUtil.grow(values, count);
                 for (int i = oldLength; i < values.length; ++i) {
-                values[i] = new GeoPoint();
+                    values[i] = new GeoPoint();
                 }
             }
         }
@@ -375,6 +415,31 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             }
             return geohashDistance(geohash);
         }
+
+        @Override
+        public int getDimensionalType() {
+            return size() == 0 ? -1 : 0;
+        }
+
+        @Override
+        public GeoPoint getCentroid() {
+            return size() == 0 ? null : centroid;
+        }
+
+        @Override
+        public double getMercatorWidth() {
+            return 0;
+        }
+
+        @Override
+        public double getMercatorHeight() {
+            return 0;
+        }
+
+        @Override
+        public GeoBoundingBox getBoundingBox() {
+          return size() == 0 ? null : boundingBox;
+        }
     }
 
     public static final class Booleans extends ScriptDocValues<Boolean> {
@@ -434,7 +499,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             } else
                 return array;
         }
-
     }
 
     abstract static class BinaryScriptDocValues<T> extends ScriptDocValues<T> {
@@ -532,6 +596,5 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         public BytesRef getValue() {
             return get(0);
         }
-
     }
 }

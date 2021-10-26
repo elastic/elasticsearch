@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.percolator;
 
@@ -24,9 +13,9 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
@@ -34,7 +23,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
@@ -52,7 +41,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
@@ -258,15 +247,15 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
 
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
             long[] currentTime = new long[] {System.currentTimeMillis()};
-            QueryShardContext queryShardContext =
-                indexService.newQueryShardContext(0, 0, searcher, () -> currentTime[0], null, emptyMap());
+            SearchExecutionContext searchExecutionContext =
+                indexService.newSearchExecutionContext(0, 0, searcher, () -> currentTime[0], null, emptyMap());
 
             BytesReference source = BytesReference.bytes(jsonBuilder().startObject()
                 .field("field1", "value")
                 .field("field2", currentTime[0])
                 .endObject());
             QueryBuilder queryBuilder = new PercolateQueryBuilder("query", source, XContentType.JSON);
-            Query query = queryBuilder.toQuery(queryShardContext);
+            Query query = queryBuilder.toQuery(searchExecutionContext);
             assertThat(searcher.count(query), equalTo(3));
 
             currentTime[0] = currentTime[0] + 10800000; // + 3 hours
@@ -275,7 +264,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
                 .field("field2", currentTime[0])
                 .endObject());
             queryBuilder = new PercolateQueryBuilder("query", source, XContentType.JSON);
-            query = queryBuilder.toQuery(queryShardContext);
+            query = queryBuilder.toQuery(searchExecutionContext);
             assertThat(searcher.count(query), equalTo(3));
         }
     }

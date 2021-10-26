@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.bulk;
@@ -34,18 +23,19 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexAbstraction.Index;
+import org.elasticsearch.cluster.metadata.IndexAbstraction.ConcreteIndex;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
@@ -83,16 +73,20 @@ public class TransportBulkActionTests extends ESTestCase {
 
         volatile boolean failIndexCreation = false;
         boolean indexCreated = false; // set when the "real" index is created
+        Runnable beforeIndexCreation = null;
 
         TestTransportBulkAction() {
             super(TransportBulkActionTests.this.threadPool, transportService, clusterService, null,
                     null, new ActionFilters(Collections.emptySet()), new Resolver(),
-                    new IndexingPressure(Settings.EMPTY), new SystemIndices(Map.of()));
+                    new IndexingPressure(Settings.EMPTY), EmptySystemIndices.INSTANCE);
         }
 
         @Override
         void createIndex(String index, TimeValue timeout, Version minNodeVersion, ActionListener<CreateIndexResponse> listener) {
             indexCreated = true;
+            if (beforeIndexCreation != null) {
+                beforeIndexCreation.run();
+            }
             if (failIndexCreation) {
                 listener.onFailure(new ResourceAlreadyExistsException("index already exists"));
             } else {
@@ -106,7 +100,7 @@ public class TransportBulkActionTests extends ESTestCase {
         super.setUp();
         threadPool = new TestThreadPool(getClass().getName());
         DiscoveryNode discoveryNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-            DiscoveryNodeRole.BUILT_IN_ROLES, VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
+            DiscoveryNodeRole.roles(), VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
         clusterService = createClusterService(threadPool, discoveryNode);
         CapturingTransport capturingTransport = new CapturingTransport();
         transportService = capturingTransport.createTransportService(clusterService.getSettings(), threadPool,
@@ -133,7 +127,7 @@ public class TransportBulkActionTests extends ESTestCase {
 
         BulkResponse response = future.actionGet();
         assertFalse(bulkAction.indexCreated);
-        BulkItemResponse[] bulkResponses = ((BulkResponse) response).getItems();
+        BulkItemResponse[] bulkResponses = response.getItems();
         assertEquals(bulkResponses.length, 1);
         assertTrue(bulkResponses[0].isFailed());
         assertTrue(bulkResponses[0].getFailure().getCause() instanceof IndexNotFoundException);
@@ -237,8 +231,9 @@ public class TransportBulkActionTests extends ESTestCase {
             .routing("custom");
         IllegalArgumentException exception =
             expectThrows(IllegalArgumentException.class, () -> prohibitCustomRoutingOnDataStream(writeRequestAgainstDataStream, metadata));
-        assertThat(exception.getMessage(), is("index request targeting data stream [logs-foobar] specifies a custom routing. target the " +
-            "backing indices directly or remove the custom routing."));
+        assertThat(exception.getMessage(), is(
+            "index request targeting data stream [logs-foobar] specifies a custom routing "
+                + "but the [allow_custom_routing] setting was not enabled in the data stream's template."));
 
         // test custom routing is allowed when the index request targets the backing index
         DocWriteRequest<?> writeRequestAgainstIndex =
@@ -251,10 +246,11 @@ public class TransportBulkActionTests extends ESTestCase {
         SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
         Settings settings = Settings.builder().put("index.version.created", Version.CURRENT).build();
         indicesLookup.put(".foo",
-            new Index(IndexMetadata.builder(".foo").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build()));
+            new ConcreteIndex(IndexMetadata.builder(".foo").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build()));
         indicesLookup.put(".bar",
-            new Index(IndexMetadata.builder(".bar").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build()));
-        SystemIndices systemIndices = new SystemIndices(Map.of("plugin", List.of(new SystemIndexDescriptor(".test", ""))));
+            new ConcreteIndex(IndexMetadata.builder(".bar").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build()));
+        SystemIndices systemIndices = new SystemIndices(
+            Map.of("plugin", new SystemIndices.Feature("plugin", "test feature", List.of(new SystemIndexDescriptor(".test*", "")))));
         List<String> onlySystem = List.of(".foo", ".bar");
         assertTrue(bulkAction.isOnlySystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));
 
@@ -268,15 +264,29 @@ public class TransportBulkActionTests extends ESTestCase {
         assertFalse(bulkAction.isOnlySystem(buildBulkRequest(mixed), indicesLookup, systemIndices));
     }
 
-    public void testRejectionAfterCreateIndexIsPropagated() throws Exception {
+    public void testRejectCoordination() throws Exception {
         BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()));
-        bulkAction.failIndexCreation = randomBoolean();
 
         try {
             threadPool.startForcingRejections();
             PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
             ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
             expectThrows(EsRejectedExecutionException.class, future::actionGet);
+        } finally {
+            threadPool.stopForcingRejections();
+        }
+    }
+
+    public void testRejectionAfterCreateIndexIsPropagated() throws Exception {
+        BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()));
+
+        bulkAction.failIndexCreation = randomBoolean();
+        try {
+            bulkAction.beforeIndexCreation = threadPool::startForcingRejections;
+            PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
+            ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
+            expectThrows(EsRejectedExecutionException.class, future::actionGet);
+            assertTrue(bulkAction.indexCreated);
         } finally {
             threadPool.stopForcingRejections();
         }

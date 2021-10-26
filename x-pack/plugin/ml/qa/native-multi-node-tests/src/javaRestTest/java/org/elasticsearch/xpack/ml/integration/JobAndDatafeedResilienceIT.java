@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -28,7 +29,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class JobAndDatafeedResilienceIT extends MlNativeAutodetectIntegTestCase {
 
-    private String index = "empty_index";
+    private final String index = "empty_index";
 
     @After
     public void cleanUpTest() {
@@ -74,11 +75,10 @@ public class JobAndDatafeedResilienceIT extends MlNativeAutodetectIntegTestCase 
         DatafeedConfig.Builder datafeedConfigBuilder =
             createDatafeedBuilder(job.getId() + "-datafeed", job.getId(), Collections.singletonList(index));
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
-        registerJob(job);
+
         putJob(job);
         openJob(job.getId());
 
-        registerDatafeed(datafeedConfig);
         putDatafeed(datafeedConfig);
         startDatafeed(datafeedConfig.getId(), 0L, null);
 
@@ -91,7 +91,6 @@ public class JobAndDatafeedResilienceIT extends MlNativeAutodetectIntegTestCase 
             client().execute(StopDatafeedAction.INSTANCE, request).actionGet();
         });
         assertThat(ex.getMessage(), equalTo("No datafeed with id [job-with-missing-datafeed-with-config-datafeed] exists"));
-
 
         forceStopDatafeed(datafeedConfig.getId());
         assertBusy(() ->
@@ -116,7 +115,6 @@ public class JobAndDatafeedResilienceIT extends MlNativeAutodetectIntegTestCase 
 
         putJob(job1);
         openJob(job1.getId());
-        registerJob(job2);
         putJob(job2);
         openJob(job2.getId());
 
@@ -154,10 +152,8 @@ public class JobAndDatafeedResilienceIT extends MlNativeAutodetectIntegTestCase 
         Job.Builder job1 = createJob(jobId1, TimeValue.timeValueMinutes(5), "count", null);
         Job.Builder job2 = createJob(jobId2, TimeValue.timeValueMinutes(5), "count", null);
 
-        registerJob(job1);
         putJob(job1);
         openJob(job1.getId());
-        registerJob(job2);
         putJob(job2);
         openJob(job2.getId());
 
@@ -222,7 +218,6 @@ public class JobAndDatafeedResilienceIT extends MlNativeAutodetectIntegTestCase 
 
     private Job.Builder createJob(String id, TimeValue bucketSpan, String function, String field, String summaryCountField) {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setFormat(DataDescription.DataFormat.XCONTENT);
         dataDescription.setTimeField("time");
         dataDescription.setTimeFormat(DataDescription.EPOCH_MS);
 

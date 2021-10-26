@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
@@ -49,7 +50,7 @@ public class BinaryMathProcessorTests extends AbstractWireSerializingTestCase<Bi
         Processor ba = new Power(EMPTY, l(2), l(2)).makePipe().asProcessor();
         assertEquals(4d, ba.process(null));
     }
-    
+
     public void testRoundWithValidInput() {
         assertEquals(123.0, new Round(EMPTY, l(123), l(3)).makePipe().asProcessor().process(null));
         assertEquals(123.5, new Round(EMPTY, l(123.45), l(1)).makePipe().asProcessor().process(null));
@@ -60,7 +61,7 @@ public class BinaryMathProcessorTests extends AbstractWireSerializingTestCase<Bi
         assertEquals(-124.0, new Round(EMPTY, l(-123.5), l(0)).makePipe().asProcessor().process(null));
         assertEquals(-123.0, new Round(EMPTY, l(-123.45), null).makePipe().asProcessor().process(null));
     }
-    
+
     public void testRoundFunctionWithEdgeCasesInputs() {
         assertNull(new Round(EMPTY, l(null), l(3)).makePipe().asProcessor().process(null));
         assertEquals(-0.0, new Round(EMPTY, l(0), l(0)).makePipe().asProcessor().process(null));
@@ -68,7 +69,7 @@ public class BinaryMathProcessorTests extends AbstractWireSerializingTestCase<Bi
                 .makePipe().asProcessor().process(null));
         assertEquals(0.0, new Round(EMPTY, l(123.456), l(Integer.MAX_VALUE)).makePipe().asProcessor().process(null));
     }
-    
+
     public void testRoundInputValidation() {
         SqlIllegalArgumentException siae = expectThrows(SqlIllegalArgumentException.class,
                 () -> new Round(EMPTY, l(5), l("foobarbar")).makePipe().asProcessor().process(null));
@@ -80,7 +81,7 @@ public class BinaryMathProcessorTests extends AbstractWireSerializingTestCase<Bi
                 () -> new Round(EMPTY, l(123.34), l(0.1)).makePipe().asProcessor().process(null));
         assertEquals("An integer number is required; received [0.1] as second parameter", siae.getMessage());
     }
-    
+
     public void testTruncateWithValidInput() {
         assertEquals(123.0, new Truncate(EMPTY, l(123), l(3)).makePipe().asProcessor().process(null));
         assertEquals(123.4, new Truncate(EMPTY, l(123.45), l(1)).makePipe().asProcessor().process(null));
@@ -91,7 +92,7 @@ public class BinaryMathProcessorTests extends AbstractWireSerializingTestCase<Bi
         assertEquals(-123.0, new Truncate(EMPTY, l(-123.5), l(0)).makePipe().asProcessor().process(null));
         assertEquals(-123.0, new Truncate(EMPTY, l(-123.45), null).makePipe().asProcessor().process(null));
     }
-    
+
     public void testTruncateFunctionWithEdgeCasesInputs() {
         assertNull(new Truncate(EMPTY, l(null), l(3)).makePipe().asProcessor().process(null));
         assertEquals(0.0, new Truncate(EMPTY, l(0), l(0)).makePipe().asProcessor().process(null));
@@ -100,7 +101,7 @@ public class BinaryMathProcessorTests extends AbstractWireSerializingTestCase<Bi
         assertEquals(Double.NaN, new Truncate(EMPTY, l(123.456), l(Integer.MAX_VALUE))
                 .makePipe().asProcessor().process(null));
     }
-    
+
     public void testTruncateInputValidation() {
         SqlIllegalArgumentException siae = expectThrows(SqlIllegalArgumentException.class,
                 () -> new Truncate(EMPTY, l(5), l("foobarbar")).makePipe().asProcessor().process(null));
@@ -117,7 +118,7 @@ public class BinaryMathProcessorTests extends AbstractWireSerializingTestCase<Bi
         assertNull(new ATan2(EMPTY, l(null), l(3)).makePipe().asProcessor().process(null));
         assertNull(new Power(EMPTY, l(null), l(null)).makePipe().asProcessor().process(null));
     }
-    
+
     private static Literal l(Object value) {
         return SqlTestUtils.literal(value);
     }

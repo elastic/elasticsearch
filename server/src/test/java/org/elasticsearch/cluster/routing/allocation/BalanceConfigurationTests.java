@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -47,6 +36,7 @@ import org.hamcrest.Matchers;
 
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 
@@ -127,8 +117,8 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
 
         Metadata metadata = metadataBuilder.build();
 
-        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-            routingTableBuilder.addAsNew(cursor.value);
+        for (IndexMetadata indexMetadata : metadata.indices().values()) {
+            routingTableBuilder.addAsNew(indexMetadata);
         }
 
         RoutingTable initialRoutingTable = routingTableBuilder.build();
@@ -202,7 +192,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         if (unassigned > 0) {
             // Ensure that if there any unassigned shards, all of their replicas are unassigned as well
             // (i.e. unassigned count is always [replicas] + 1 for each shard unassigned shardId)
-            nodes.shardsWithState(UNASSIGNED).stream().collect(
+            shardsWithState(nodes, UNASSIGNED).stream().collect(
                 Collectors.toMap(
                     ShardRouting::shardId,
                     s -> 1,
@@ -275,7 +265,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
     public void testNoRebalanceOnPrimaryOverload() {
         Settings.Builder settings = Settings.builder();
         AllocationService strategy = new AllocationService(randomAllocationDeciders(settings.build(),
-                new ClusterSettings(Settings.Builder.EMPTY_SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), random()),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), random()),
                 new TestGatewayAllocator(), new ShardsAllocator() {
             /*
              *  // this allocator tries to rebuild this scenario where a rebalance is
@@ -355,8 +345,8 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
             .settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1);
         metadataBuilder = metadataBuilder.put(indexMeta);
         Metadata metadata = metadataBuilder.build();
-        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-            routingTableBuilder.addAsNew(cursor.value);
+        for (IndexMetadata indexMetadata : metadata.indices().values()) {
+            routingTableBuilder.addAsNew(indexMetadata);
         }
         RoutingTable routingTable = routingTableBuilder.build();
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.repositories.encrypted;
@@ -17,15 +18,17 @@ import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.security.GeneralSecurityException;
@@ -38,6 +41,12 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugin {
+
+    static final LicensedFeature.Momentary ENCRYPTED_SNAPSHOT_FEATURE = LicensedFeature.momentary(
+        null,
+        "encrypted-snapshot",
+        License.OperationMode.PLATINUM
+    );
 
     private static final Boolean ENCRYPTED_REPOSITORY_FEATURE_FLAG_REGISTERED;
     static {
@@ -80,6 +89,13 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
         return List.of(ENCRYPTION_PASSWORD_SETTING);
     }
 
+    // public for testing
+    // Checks if the plugin is currently disabled because we're running a release build or the feature flag is turned off
+    public static boolean isDisabled() {
+        return false == Build.CURRENT.isSnapshot()
+            && (ENCRYPTED_REPOSITORY_FEATURE_FLAG_REGISTERED == null || ENCRYPTED_REPOSITORY_FEATURE_FLAG_REGISTERED == false);
+    }
+
     @Override
     public Map<String, Repository.Factory> getRepositories(
         Environment env,
@@ -88,6 +104,10 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
         BigArrays bigArrays,
         RecoverySettings recoverySettings
     ) {
+        if (isDisabled()) {
+            return Map.of();
+        }
+
         // load all the passwords from the keystore in memory because the keystore is not readable when the repository is created
         final Map<String, SecureString> repositoryPasswordsMapBuilder = new HashMap<>();
         for (String passwordName : ENCRYPTION_PASSWORD_SETTING.getNamespaces(env.settings())) {
@@ -96,12 +116,6 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
             logger.debug("Loaded repository password [{}] from the node keystore", passwordName);
         }
         final Map<String, SecureString> repositoryPasswordsMap = Map.copyOf(repositoryPasswordsMapBuilder);
-
-        if (false == Build.CURRENT.isSnapshot()
-            && (ENCRYPTED_REPOSITORY_FEATURE_FLAG_REGISTERED == null || ENCRYPTED_REPOSITORY_FEATURE_FLAG_REGISTERED == false)) {
-            return Map.of();
-        }
-
         return Collections.singletonMap(REPOSITORY_TYPE_NAME, new Repository.Factory() {
 
             @Override
@@ -148,7 +162,7 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
                 if (false == (delegatedRepository instanceof BlobStoreRepository) || delegatedRepository instanceof EncryptedRepository) {
                     throw new IllegalArgumentException("Unsupported delegate repository type [" + DELEGATE_TYPE_SETTING.getKey() + "]");
                 }
-                if (false == getLicenseState().checkFeature(XPackLicenseState.Feature.ENCRYPTED_SNAPSHOT)) {
+                if (false == ENCRYPTED_SNAPSHOT_FEATURE.check(getLicenseState())) {
                     logger.warn(
                         new ParameterizedMessage(
                             "Encrypted snapshots are not allowed for the currently installed license [{}]."

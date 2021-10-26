@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.sql.client.ClientVersion;
 import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
@@ -22,6 +23,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.sql.client.StringUtils.EMPTY;
 
 /**
@@ -30,6 +32,7 @@ import static org.elasticsearch.xpack.sql.client.StringUtils.EMPTY;
  */
 class JdbcHttpClient {
     private final HttpClient httpClient;
+    private final JdbcConnection jdbcConn;
     private final JdbcConfiguration conCfg;
     private InfoResponse serverInfo;
 
@@ -37,13 +40,14 @@ class JdbcHttpClient {
      * The SQLException is the only type of Exception the JDBC API can throw (and that the user expects).
      * If we remove it, we need to make sure no other types of Exceptions (runtime or otherwise) are thrown
      */
-    JdbcHttpClient(JdbcConfiguration conCfg) throws SQLException {
-        this(conCfg, true);
+    JdbcHttpClient(JdbcConnection jdbcConn) throws SQLException {
+        this(jdbcConn, true);
     }
 
-    JdbcHttpClient(JdbcConfiguration conCfg, boolean checkServer) throws SQLException {
+    JdbcHttpClient(JdbcConnection jdbcConn, boolean checkServer) throws SQLException {
+        this.jdbcConn = jdbcConn;
+        conCfg = jdbcConn.config();
         httpClient = new HttpClient(conCfg);
-        this.conCfg = conCfg;
         if (checkServer) {
             this.serverInfo = fetchServerInfo();
             checkServerVersion();
@@ -57,6 +61,7 @@ class JdbcHttpClient {
     Cursor query(String sql, List<SqlTypedParamValue> params, RequestMeta meta) throws SQLException {
         int fetch = meta.fetchSize() > 0 ? meta.fetchSize() : conCfg.pageSize();
         SqlQueryRequest sqlRequest = new SqlQueryRequest(sql, params, conCfg.zoneId(),
+                jdbcConn.getCatalog(),
                 fetch,
                 TimeValue.timeValueMillis(meta.timeoutInMs()),
                 TimeValue.timeValueMillis(meta.queryTimeoutInMs()),
@@ -66,7 +71,8 @@ class JdbcHttpClient {
                 new RequestInfo(Mode.JDBC, ClientVersion.CURRENT),
                 conCfg.fieldMultiValueLeniency(),
                 conCfg.indexIncludeFrozen(),
-                conCfg.binaryCommunication());
+                conCfg.binaryCommunication(),
+                emptyMap());
         SqlQueryResponse response = httpClient.query(sqlRequest);
         return new DefaultCursor(this, response.cursor(), toJdbcColumnInfo(response.columns()), response.rows(), meta);
     }

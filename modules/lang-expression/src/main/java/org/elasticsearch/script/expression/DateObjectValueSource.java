@@ -1,46 +1,35 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.script.expression;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
-import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.search.MultiValueMode;
-import org.joda.time.DateTimeZone;
-import org.joda.time.MutableDateTime;
-import org.joda.time.ReadableDateTime;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Objects;
 import java.util.function.ToIntFunction;
 
-/** Extracts a portion of a date field with joda time */
+/** Extracts a portion of a date field with Java time */
 class DateObjectValueSource extends FieldDataValueSource {
 
     final String methodName;
-    final ToIntFunction<ReadableDateTime> function;
+    final ToIntFunction<ZonedDateTime> function;
 
     DateObjectValueSource(IndexFieldData<?> indexFieldData, MultiValueMode multiValueMode,
-                          String methodName, ToIntFunction<ReadableDateTime> function) {
+                          String methodName, ToIntFunction<ZonedDateTime> function) {
         super(indexFieldData, multiValueMode);
 
         Objects.requireNonNull(methodName);
@@ -52,13 +41,11 @@ class DateObjectValueSource extends FieldDataValueSource {
     @Override
     public DoubleValues getValues(LeafReaderContext leaf, DoubleValues scores) {
         LeafNumericFieldData leafData = (LeafNumericFieldData) fieldData.load(leaf);
-        MutableDateTime joda = new MutableDateTime(0, DateTimeZone.UTC);
         NumericDoubleValues docValues = multiValueMode.select(leafData.getDoubleValues());
         return new DoubleValues() {
             @Override
             public double doubleValue() throws IOException {
-                joda.setMillis((long)docValues.doubleValue());
-                return function.applyAsInt(joda);
+                return function.applyAsInt(ZonedDateTime.ofInstant(Instant.ofEpochMilli((long)docValues.doubleValue()), ZoneOffset.UTC));
             }
 
             @Override
@@ -77,7 +64,7 @@ class DateObjectValueSource extends FieldDataValueSource {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (super.equals(o) == false) return false;
 
         DateObjectValueSource that = (DateObjectValueSource) o;
         return methodName.equals(that.methodName);

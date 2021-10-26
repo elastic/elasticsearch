@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -23,6 +12,7 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -35,6 +25,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.RestoreService.RestoreInProgressUpdater;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -82,6 +73,9 @@ public class RoutingAllocation {
         nodesChangedObserver, indexMetadataUpdater, restoreInProgressUpdater
     );
 
+    private final Map<String, SingleNodeShutdownMetadata> nodeShutdowns;
+    private final Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets;
+
 
     /**
      * Creates a new {@link RoutingAllocation}
@@ -101,6 +95,14 @@ public class RoutingAllocation {
         this.clusterInfo = clusterInfo;
         this.shardSizeInfo = shardSizeInfo;
         this.currentNanoTime = currentNanoTime;
+        this.nodeShutdowns = metadata.nodeShutdowns();
+        Map<String, SingleNodeShutdownMetadata> targetNameToShutdown = new HashMap<>();
+        for (SingleNodeShutdownMetadata shutdown : this.nodeShutdowns.values()) {
+            if (shutdown.getType() == SingleNodeShutdownMetadata.Type.REPLACE) {
+                targetNameToShutdown.put(shutdown.getTargetNodeName(), shutdown);
+            }
+        }
+        this.nodeReplacementTargets = Collections.unmodifiableMap(targetNameToShutdown);
     }
 
     /** returns the nano time captured at the beginning of the allocation. used to make sure all time based decisions are aligned */
@@ -156,8 +158,23 @@ public class RoutingAllocation {
         return shardSizeInfo;
     }
 
+    /**
+     * Returns the map of node id to shutdown metadata currently in the cluster
+     */
+    public Map<String, SingleNodeShutdownMetadata> nodeShutdowns() {
+        return this.nodeShutdowns;
+    }
+
+    /**
+     * Returns a map of target node name to replacement shutdown
+     */
+    public Map<String, SingleNodeShutdownMetadata> replacementTargetShutdowns() {
+        return this.nodeReplacementTargets;
+    }
+
+    @SuppressWarnings("unchecked")
     public <T extends ClusterState.Custom> T custom(String key) {
-        return (T)customs.get(key);
+        return (T) customs.get(key);
     }
 
     public ImmutableOpenMap<String, ClusterState.Custom> getCustoms() {

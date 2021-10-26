@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml;
 
@@ -9,7 +10,9 @@ import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicensedFeature;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
@@ -24,6 +27,12 @@ public final class MachineLearningField {
             Setting.memorySizeSetting("xpack.ml.max_model_memory_limit", ByteSizeValue.ZERO,
                     Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final TimeValue STATE_PERSIST_RESTORE_TIMEOUT = TimeValue.timeValueMinutes(30);
+    public static final String ML_FEATURE_FAMILY = "machine-learning";
+    public static final LicensedFeature.Momentary ML_API_FEATURE = LicensedFeature.momentary(
+        ML_FEATURE_FAMILY,
+        "api",
+        License.OperationMode.PLATINUM
+    );
 
     private MachineLearningField() {}
 

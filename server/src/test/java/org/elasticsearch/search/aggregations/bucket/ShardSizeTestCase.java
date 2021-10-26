@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket;
@@ -27,10 +16,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.is;
 
 public abstract class ShardSizeTestCase extends ESIntegTestCase {
@@ -42,8 +31,7 @@ public abstract class ShardSizeTestCase extends ESIntegTestCase {
     }
 
     protected void createIdx(String keyFieldMapping) {
-        assertAcked(prepareCreate("idx")
-                .setMapping("key", keyFieldMapping));
+        assertAcked(prepareCreate("idx").setMapping("key", keyFieldMapping));
     }
 
     protected static String routing1; // routing key to shard 1
@@ -86,7 +74,7 @@ public abstract class ShardSizeTestCase extends ESIntegTestCase {
         docs.addAll(indexDoc(routing2, "4", 2));
         docs.addAll(indexDoc(routing2, "5", 1));
 
-        // total docs in shard "2"  = 12
+        // total docs in shard "2" = 12
 
         indexRandom(true, docs);
 
@@ -103,11 +91,9 @@ public abstract class ShardSizeTestCase extends ESIntegTestCase {
     protected List<IndexRequestBuilder> indexDoc(String shard, String key, int times) throws Exception {
         IndexRequestBuilder[] builders = new IndexRequestBuilder[times];
         for (int i = 0; i < times; i++) {
-            builders[i] = client().prepareIndex("idx").setRouting(shard).setSource(jsonBuilder()
-                    .startObject()
-                    .field("key", key)
-                    .field("value", 1)
-                    .endObject());
+            builders[i] = client().prepareIndex("idx")
+                .setRouting(shard)
+                .setSource(jsonBuilder().startObject().field("key", key).field("value", 1).endObject());
         }
         return Arrays.asList(builders);
     }

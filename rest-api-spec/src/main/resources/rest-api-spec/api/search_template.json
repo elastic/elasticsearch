@@ -75,9 +75,7 @@
         "type":"enum",
         "options":[
           "query_then_fetch",
-          "query_and_fetch",
-          "dfs_query_then_fetch",
-          "dfs_query_and_fetch"
+          "dfs_query_then_fetch"
         ],
         "description":"Search operation type"
       },

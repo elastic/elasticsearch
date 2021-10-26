@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.support;
@@ -10,8 +11,12 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class StringMatcherTests extends ESTestCase {
 
@@ -20,6 +25,31 @@ public class StringMatcherTests extends ESTestCase {
         for (int i = 0; i < 10; i++) {
             assertNoMatch(matcher, randomAlphaOfLengthBetween(i, 20));
         }
+    }
+
+    public void testMatchAllWildcard() throws Exception {
+        Supplier<String> randomPattern = () -> {
+            final String s = randomAlphaOfLengthBetween(3, 5);
+            switch (randomIntBetween(1, 4)) {
+                case 1:
+                    return s;
+                case 2:
+                    return s + "*";
+                case 3:
+                    return "*" + s;
+                default:
+                    return "*" + s + "*";
+            }
+        };
+        final List<String> patterns = Stream.of(randomList(0, 3, randomPattern), List.of("*"), randomList(0, 3, randomPattern))
+            .flatMap(List::stream)
+            .collect(Collectors.toList());
+        final StringMatcher matcher = StringMatcher.of(patterns);
+        for (int i = 0; i < 10; i++) {
+            assertMatch(matcher, randomAlphaOfLengthBetween(i, 20));
+        }
+
+        assertThat(matcher.getPredicate(), sameInstance(StringMatcher.ALWAYS_TRUE_PREDICATE));
     }
 
     public void testSingleWildcard() throws Exception {
@@ -44,7 +74,8 @@ public class StringMatcherTests extends ESTestCase {
 
     public void testUnicodeWildcard() throws Exception {
         // Lucene automatons don't work correctly on strings with high surrogates
-        final String prefix = randomValueOtherThanMany(StringMatcherTests::hasHighSurrogate,
+        final String prefix = randomValueOtherThanMany(
+            s -> StringMatcherTests.hasHighSurrogate(s) || s.contains("\\") || s.startsWith("/"),
             () -> randomRealisticUnicodeOfLengthBetween(3, 5));
         final StringMatcher matcher = StringMatcher.of(prefix + "*");
         for (int i = 0; i < 10; i++) {

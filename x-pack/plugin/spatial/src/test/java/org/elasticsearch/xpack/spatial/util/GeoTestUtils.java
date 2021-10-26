@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.spatial.util;
@@ -13,14 +14,14 @@ import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeometryParser;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
@@ -42,7 +43,7 @@ public class GeoTestUtils {
         CentroidCalculator centroidCalculator = new CentroidCalculator();
         centroidCalculator.add(geometry);
         GeometryDocValueReader reader = new GeometryDocValueReader();
-        reader.reset(GeometryDocValueWriter.write(indexer.indexShape(null, geometry), encoder, centroidCalculator));
+        reader.reset(GeometryDocValueWriter.write(indexer.indexShape(geometry), encoder, centroidCalculator));
         return reader;
     }
 
@@ -50,13 +51,14 @@ public class GeoTestUtils {
         GeoShapeIndexer indexer = new GeoShapeIndexer(true, name);
         geometry = indexer.prepareForIndexing(geometry);
         BinaryGeoShapeDocValuesField field = new BinaryGeoShapeDocValuesField(name);
-        field.add(indexer.indexShape(null, geometry) , geometry);
+        field.add(indexer.indexShape(geometry) , geometry);
         return field;
     }
 
     public static GeoShapeValues.GeoShapeValue geoShapeValue(Geometry geometry) throws IOException {
-        GeometryDocValueReader reader = geometryDocValueReader(geometry, CoordinateEncoder.GEO);
-        return new GeoShapeValues.GeoShapeValue(reader);
+        GeoShapeValues.GeoShapeValue value = new GeoShapeValues.GeoShapeValue();
+        value.reset(binaryGeoShapeDocValuesField("test", geometry).binaryValue());
+        return value;
     }
 
     public static GeoBoundingBox randomBBox() {

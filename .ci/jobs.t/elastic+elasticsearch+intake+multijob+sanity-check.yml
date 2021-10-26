@@ -1,0 +1,7 @@
+---
+jjbb-template: generic-gradle-unix.yml
+vars:
+  - job-name: elastic+elasticsearch+%BRANCH%+intake+multijob+sanity-check
+  - job-display-name: "elastic / elasticsearch # %BRANCH% - intake sanity check"
+  - job-description: Elasticsearch %BRANCH% branch intake sanity check.
+  - gradle-args: "-Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files precommit"

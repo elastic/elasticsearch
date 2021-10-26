@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
@@ -82,9 +83,9 @@ public class SamlLogoutRequestMessageBuilderTests extends SamlTestCase {
         assertThat(logoutRequest.getConsent(), nullValue());
         assertThat(logoutRequest.getNotOnOrAfter(), nullValue());
         assertThat(logoutRequest.getIssueInstant(), notNullValue());
-        assertThat(logoutRequest.getIssueInstant().getMillis(), equalTo(fixedClock.millis()));
+        assertThat(logoutRequest.getIssueInstant(), equalTo(fixedClock.instant()));
         assertThat(logoutRequest.getSessionIndexes(), iterableWithSize(1));
-        assertThat(logoutRequest.getSessionIndexes().get(0).getSessionIndex(), equalTo(session));
+        assertThat(logoutRequest.getSessionIndexes().get(0).getValue(), equalTo(session));
         assertThat(logoutRequest.getDestination(), equalTo("http://idp.example.com/saml/logout/redirect"));
         assertThat(logoutRequest.getID(), notNullValue());
         assertThat(logoutRequest.getID().length(), greaterThan(20));

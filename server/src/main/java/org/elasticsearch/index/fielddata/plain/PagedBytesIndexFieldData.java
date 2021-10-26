@@ -1,27 +1,12 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.lucene.codecs.blocktree.FieldReader;
-import org.apache.lucene.codecs.blocktree.Stats;
 import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -34,9 +19,9 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PagedBytes;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -56,7 +41,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.io.IOException;
 
 public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
-    private static final Logger logger = LogManager.getLogger(PagedBytesIndexFieldData.class);
 
     private final double minFrequency, maxFrequency;
     private final int minSegmentSize;
@@ -154,7 +138,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
             success = true;
             return data;
         } finally {
-            if (!success) {
+            if (success == false) {
                 // If something went wrong, unwind any current estimations we've made
                 estimator.afterLoad(termsEnum, 0);
             } else {
@@ -200,32 +184,6 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         }
 
         /**
-         * @return the estimate for loading the entire term set into field data, or 0 if unavailable
-         */
-        public long estimateStringFieldData() {
-            try {
-                LeafReader reader = context.reader();
-                Terms terms = reader.terms(getFieldName());
-
-                final Terms fieldTerms = reader.terms(getFieldName());
-
-                if (fieldTerms instanceof FieldReader) {
-                    final Stats stats = ((FieldReader) fieldTerms).getStats();
-                    long totalTermBytes = stats.totalTermBytes;
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("totalTermBytes: {}, terms.size(): {}, terms.getSumDocFreq(): {}",
-                                totalTermBytes, terms.size(), terms.getSumDocFreq());
-                    }
-                    long totalBytes = totalTermBytes + (2 * terms.size()) + (4 * terms.getSumDocFreq());
-                    return totalBytes;
-                }
-            } catch (Exception e) {
-                logger.warn("Unable to estimate memory overhead", e);
-            }
-            return 0;
-        }
-
-        /**
          * Determine whether the BlockTreeTermsReader.FieldReader can be used
          * for estimating the field data, adding the estimate to the circuit
          * breaker if it can, otherwise wrapping the terms in a
@@ -240,25 +198,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
             TermsEnum iterator = terms.iterator();
             TermsEnum filteredIterator = filter(terms, iterator, reader);
-            final boolean filtered = iterator != filteredIterator;
-            iterator = filteredIterator;
-
-            if (filtered) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("Filter exists, can't circuit break normally, using RamAccountingTermsEnum");
-                }
-                return new RamAccountingTermsEnum(iterator, breaker, this, this.fieldName);
-            } else {
-                estimatedBytes = this.estimateStringFieldData();
-                // If we weren't able to estimate, wrap in the RamAccountingTermsEnum
-                if (estimatedBytes == 0) {
-                    iterator = new RamAccountingTermsEnum(iterator, breaker, this, this.fieldName);
-                } else {
-                    breaker.addEstimateBytesAndMaybeBreak(estimatedBytes, fieldName);
-                }
-
-                return iterator;
-            }
+            return new RamAccountingTermsEnum(filteredIterator, breaker, this, this.fieldName);
         }
 
         private TermsEnum filter(Terms terms, TermsEnum iterator, LeafReader reader) throws IOException {

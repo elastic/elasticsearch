@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.integration;
@@ -11,7 +12,7 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStats;
@@ -19,20 +20,16 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesRegex;
 
 public class TransformTaskFailedStateIT extends TransformRestTestCase {
-
-    private final List<String> failureTransforms = new ArrayList<>();
 
     @Before
     public void setClusterSettings() throws IOException {
@@ -41,7 +38,7 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         // see: https://github.com/elastic/elasticsearch/issues/45562
         Request addFailureRetrySetting = new Request("PUT", "/_cluster/settings");
         addFailureRetrySetting.setJsonEntity(
-            "{\"transient\": {\"xpack.transform.num_transform_failure_retries\": \""
+            "{\"persistent\": {\"xpack.transform.num_transform_failure_retries\": \""
                 + 0
                 + "\","
                 + "\"logger.org.elasticsearch.action.bulk\": \"info\","
@@ -54,12 +51,7 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
 
     @After
     public void cleanUpPotentiallyFailedTransform() throws Exception {
-        // If the tests failed in the middle, we should force stop it. This prevents other transform tests from failing due
-        // to this left over transform
-        for (String transformId : failureTransforms) {
-            stopTransform(transformId, true);
-            deleteTransform(transformId);
-        }
+        adminClient().performRequest(new Request("POST", "/_features/_reset"));
     }
 
     public void testForceStopFailedTransform() throws Exception {
@@ -68,7 +60,6 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         String transformIndex = "failure_pivot_reviews";
         createDestinationIndexWithBadMapping(transformIndex);
         createContinuousPivotReviewsTransform(transformId, transformIndex, null);
-        failureTransforms.add(transformId);
         startTransform(transformId);
         awaitState(transformId, TransformStats.State.FAILED);
         Map<?, ?> fullState = getTransformStateAndStats(transformId);
@@ -106,7 +97,6 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         String transformIndex = "failure_pivot_reviews";
         createDestinationIndexWithBadMapping(transformIndex);
         createContinuousPivotReviewsTransform(transformId, transformIndex, null);
-        failureTransforms.add(transformId);
         startTransform(transformId);
         awaitState(transformId, TransformStats.State.FAILED);
         Map<?, ?> fullState = getTransformStateAndStats(transformId);

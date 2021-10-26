@@ -1,29 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -76,8 +65,7 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
@@ -138,22 +126,32 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
     @Override
     public double metric(String name, long owningBucketOrd) {
         if (valuesSource == null || owningBucketOrd >= counts.size()) {
-            switch(InternalStats.Metrics.resolve(name)) {
-                case count: return 0;
-                case sum: return 0;
-                case min: return Double.POSITIVE_INFINITY;
-                case max: return Double.NEGATIVE_INFINITY;
-                case avg: return Double.NaN;
+            switch (InternalStats.Metrics.resolve(name)) {
+                case count:
+                    return 0;
+                case sum:
+                    return 0;
+                case min:
+                    return Double.POSITIVE_INFINITY;
+                case max:
+                    return Double.NEGATIVE_INFINITY;
+                case avg:
+                    return Double.NaN;
                 default:
                     throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
             }
         }
-        switch(InternalStats.Metrics.resolve(name)) {
-            case count: return counts.get(owningBucketOrd);
-            case sum: return sums.get(owningBucketOrd);
-            case min: return mins.get(owningBucketOrd);
-            case max: return maxes.get(owningBucketOrd);
-            case avg: return sums.get(owningBucketOrd) / counts.get(owningBucketOrd);
+        switch (InternalStats.Metrics.resolve(name)) {
+            case count:
+                return counts.get(owningBucketOrd);
+            case sum:
+                return sums.get(owningBucketOrd);
+            case min:
+                return mins.get(owningBucketOrd);
+            case max:
+                return maxes.get(owningBucketOrd);
+            case avg:
+                return sums.get(owningBucketOrd) / counts.get(owningBucketOrd);
             default:
                 throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
         }
@@ -164,8 +162,7 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
         if (valuesSource == null || bucket >= sums.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalStats(name, counts.get(bucket), sums.get(bucket), mins.get(bucket),
-                maxes.get(bucket), format, metadata());
+        return new InternalStats(name, counts.get(bucket), sums.get(bucket), mins.get(bucket), maxes.get(bucket), format, metadata());
     }
 
     @Override

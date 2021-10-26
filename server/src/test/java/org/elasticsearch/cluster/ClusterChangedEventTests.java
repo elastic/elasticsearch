@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
@@ -42,7 +31,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -366,7 +354,7 @@ public class ClusterChangedEventTests extends ESTestCase {
     private static ClusterState nextState(final ClusterState previousState, List<TestCustomMetadata> customMetadataList) {
         final ClusterState.Builder builder = ClusterState.builder(previousState);
         builder.stateUUID(UUIDs.randomBase64UUID());
-        Metadata.Builder metadataBuilder = new Metadata.Builder(previousState.metadata());
+        Metadata.Builder metadataBuilder = Metadata.builder(previousState.metadata());
         for (ObjectObjectCursor<String, Metadata.Custom> customMetadata : previousState.metadata().customs()) {
             if (customMetadata.value instanceof TestCustomMetadata) {
                 metadataBuilder.removeCustom(customMetadata.key);
@@ -490,8 +478,8 @@ public class ClusterChangedEventTests extends ESTestCase {
     // Create the routing table for a cluster state.
     private static RoutingTable createRoutingTable(final long version, final Metadata metadata) {
         final RoutingTable.Builder builder = RoutingTable.builder().version(version);
-        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-            builder.addAsNew(cursor.value);
+        for (IndexMetadata indexMetadata : metadata.indices().values()) {
+            builder.addAsNew(indexMetadata);
         }
         return builder.build();
     }
@@ -520,8 +508,8 @@ public class ClusterChangedEventTests extends ESTestCase {
                                                           final TombstoneDeletionQuantity deletionQuantity) {
         final int numAdd = randomIntBetween(0, 5); // add random # of indices to the next cluster state
         final List<Index> stateIndices = new ArrayList<>();
-        for (Iterator<IndexMetadata> iter = previousState.metadata().indices().valuesIt(); iter.hasNext();) {
-            stateIndices.add(iter.next().getIndex());
+        for (IndexMetadata indexMetadata : previousState.metadata().indices().values()) {
+            stateIndices.add(indexMetadata.getIndex());
         }
         final int numDel;
         switch (deletionQuantity) {

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.settings;
@@ -35,13 +24,19 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.HashSet;
+import java.util.Set;
+
+import static org.elasticsearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
 
 public class TransportClusterUpdateSettingsAction extends
     TransportMasterNodeAction<ClusterUpdateSettingsRequest, ClusterUpdateSettingsResponse> {
@@ -62,20 +57,60 @@ public class TransportClusterUpdateSettingsAction extends
         this.clusterSettings = clusterSettings;
     }
 
+    /**
+     skip check block if:
+     * Only at least one of cluster.blocks.read_only or cluster.blocks.read_only_allow_delete is being cleared (set to null or false).
+     * Or all of the following are true:
+     * 1. At least one of cluster.blocks.read_only or cluster.blocks.read_only_allow_delete is being cleared (set to null or false).
+     * 2. Neither cluster.blocks.read_only nor cluster.blocks.read_only_allow_delete is being set to true.
+     * 3. The only other settings in this update are archived ones being set to null.
+     */
     @Override
     protected ClusterBlockException checkBlock(ClusterUpdateSettingsRequest request, ClusterState state) {
-        // allow for dedicated changes to the metadata blocks, so we don't block those to allow to "re-enable" it
-        if (request.transientSettings().size() + request.persistentSettings().size() == 1) {
-            // only one setting
-            if (Metadata.SETTING_READ_ONLY_SETTING.exists(request.persistentSettings())
-                || Metadata.SETTING_READ_ONLY_SETTING.exists(request.transientSettings())
-                || Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.exists(request.transientSettings())
-                || Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.exists(request.persistentSettings())) {
-                // one of the settings above as the only setting in the request means - resetting the block!
+        Set<String> clearedBlockAndArchivedSettings = new HashSet<>();
+        if (checkClearedBlockAndArchivedSettings(request.transientSettings(), clearedBlockAndArchivedSettings)
+            && checkClearedBlockAndArchivedSettings(request.persistentSettings(), clearedBlockAndArchivedSettings)) {
+            if (clearedBlockAndArchivedSettings.contains(Metadata.SETTING_READ_ONLY_SETTING.getKey())
+                || clearedBlockAndArchivedSettings.contains(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey())) {
                 return null;
             }
         }
+
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+    }
+
+    /**
+     * Check settings that only contains block and archived settings.
+     * @param settings target settings to be checked.
+     * @param clearedBlockAndArchivedSettings block settings that have been set to null or false,
+     *                                        archived settings that have been set to null.
+     * @return true if all settings are clear blocks or archived settings.
+     */
+    private boolean checkClearedBlockAndArchivedSettings(final Settings settings,
+                                                         final Set<String> clearedBlockAndArchivedSettings) {
+        for (String key : settings.keySet()) {
+            if (Metadata.SETTING_READ_ONLY_SETTING.getKey().equals(key)) {
+                if (Metadata.SETTING_READ_ONLY_SETTING.get(settings)) {
+                    // set block as true
+                    return false;
+                }
+            } else if (Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey().equals(key)) {
+                if (Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(settings)) {
+                    // set block as true
+                    return false;
+                }
+            } else if (key.startsWith(ARCHIVED_SETTINGS_PREFIX)) {
+                if (settings.get(key) != null) {
+                    // archived setting value is not null
+                    return false;
+                }
+            } else {
+                // other settings
+                return false;
+            }
+            clearedBlockAndArchivedSettings.add(key);
+        }
+        return true;
     }
 
     @Override
@@ -114,7 +149,7 @@ public class TransportClusterUpdateSettingsAction extends
                 // We're about to send a second update task, so we need to check if we're still the elected master
                 // For example the minimum_master_node could have been breached and we're no longer elected master,
                 // so we should *not* execute the reroute.
-                if (!clusterService.state().nodes().isLocalNodeElectedMaster()) {
+                if (clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
                     logger.debug("Skipping reroute after cluster update settings, because node is no longer master");
                     listener.onResponse(new ClusterUpdateSettingsResponse(updateSettingsAcked, updater.getTransientUpdates(),
                         updater.getPersistentUpdate()));

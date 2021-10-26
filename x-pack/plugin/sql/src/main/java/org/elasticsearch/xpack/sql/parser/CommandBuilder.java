@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.parser;
 
 import org.antlr.v4.runtime.Token;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DebugContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ExplainContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ShowCatalogsContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ShowColumnsContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ShowFunctionsContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ShowSchemasContext;
@@ -27,6 +29,7 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SysTypesContext;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.plan.logical.command.Debug;
 import org.elasticsearch.xpack.sql.plan.logical.command.Explain;
+import org.elasticsearch.xpack.sql.plan.logical.command.ShowCatalogs;
 import org.elasticsearch.xpack.sql.plan.logical.command.ShowColumns;
 import org.elasticsearch.xpack.sql.plan.logical.command.ShowFunctions;
 import org.elasticsearch.xpack.sql.plan.logical.command.ShowSchemas;
@@ -42,6 +45,8 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 
 abstract class CommandBuilder extends LogicalPlanBuilder {
 
@@ -114,7 +119,7 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
         }
         boolean graphViz = ctx.format != null && ctx.format.getType() == SqlBaseLexer.GRAPHVIZ;
         Explain.Format format = graphViz ? Explain.Format.GRAPHVIZ : Explain.Format.TEXT;
-        boolean verify = (ctx.verify != null ? Booleans.parseBoolean(ctx.verify.getText().toLowerCase(Locale.ROOT), true) : true);
+        boolean verify = (ctx.verify == null || Booleans.parseBoolean(ctx.verify.getText().toLowerCase(Locale.ROOT), true));
 
         return new Explain(source, plan(ctx.statement()), type, format, verify);
     }
@@ -128,7 +133,8 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
     public Object visitShowTables(ShowTablesContext ctx) {
         TableIdentifier ti = visitTableIdentifier(ctx.tableIdent);
         String index = ti != null ? ti.qualifiedIndex() : null;
-        return new ShowTables(source(ctx), index, visitLikePattern(ctx.likePattern()), ctx.FROZEN() != null);
+        return new ShowTables(source(ctx), visitLikePattern(ctx.clusterLike), visitString(ctx.cluster), index,
+            visitLikePattern(ctx.tableLike), ctx.FROZEN() != null);
     }
 
     @Override
@@ -140,7 +146,12 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
     public Object visitShowColumns(ShowColumnsContext ctx) {
         TableIdentifier ti = visitTableIdentifier(ctx.tableIdent);
         String index = ti != null ? ti.qualifiedIndex() : null;
-        return new ShowColumns(source(ctx), index, visitLikePattern(ctx.likePattern()), ctx.FROZEN() != null);
+        return new ShowColumns(source(ctx), string(ctx.cluster), index, visitLikePattern(ctx.tableLike), ctx.FROZEN() != null);
+    }
+
+    @Override
+    public Object visitShowCatalogs(ShowCatalogsContext ctx) {
+        return new ShowCatalogs(source(ctx));
     }
 
     @Override

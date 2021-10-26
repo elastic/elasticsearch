@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
@@ -38,13 +39,13 @@ class SamlLogoutRequestMessageBuilder extends SamlMessageBuilder {
         }
 
         final SessionIndex sessionIndex = SamlUtils.buildObject(SessionIndex.class, SessionIndex.DEFAULT_ELEMENT_NAME);
-        sessionIndex.setSessionIndex(session);
+        sessionIndex.setValue(session);
 
         final Issuer issuer = buildIssuer();
 
         final LogoutRequest request = SamlUtils.buildObject(LogoutRequest.class, LogoutRequest.DEFAULT_ELEMENT_NAME);
         request.setID(buildId());
-        request.setIssueInstant(now());
+        request.setIssueInstant(clock.instant());
         request.setDestination(logoutUrl);
         request.setNameID(nameId);
         request.getSessionIndexes().add(sessionIndex);

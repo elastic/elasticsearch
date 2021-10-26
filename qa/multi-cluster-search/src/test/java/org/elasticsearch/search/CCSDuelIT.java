@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.action.ActionListener;
@@ -44,7 +34,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -85,7 +74,9 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.test.NotEqualMessageBuilder;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -106,10 +97,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static java.util.stream.Collectors.toList;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 /**
  * This test class executes twice, first against the remote cluster, and then against another cluster that has the remote cluster
@@ -120,6 +115,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * such parameter, hence we want to verify that results are the same in both scenarios.
  */
 @TimeoutSuite(millis = 5 * TimeUnits.MINUTE) // to account for slow as hell VMs
+@SuppressWarnings("removal")
 public class CCSDuelIT extends ESRestTestCase {
 
     private static final String INDEX_NAME = "ccs_duel_index";
@@ -204,7 +200,7 @@ public class CCSDuelIT extends ESRestTestCase {
                 public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
                     throw new AssertionError("Failed to execute bulk", failure);
                 }
-            }).build();
+            }, "CCSDuelIT").build();
 
         int numQuestions = randomIntBetween(50, 100);
         for (int i = 0; i < numQuestions; i++) {
@@ -217,8 +213,7 @@ public class CCSDuelIT extends ESRestTestCase {
         assertTrue(bulkProcessor.awaitClose(30, TimeUnit.SECONDS));
 
         RefreshResponse refreshResponse = restHighLevelClient.indices().refresh(new RefreshRequest(INDEX_NAME), RequestOptions.DEFAULT);
-        assertEquals(0, refreshResponse.getFailedShards());
-        assertEquals(numShards, refreshResponse.getSuccessfulShards());
+        ElasticsearchAssertions.assertNoFailures(refreshResponse);
     }
 
     private static IndexRequest buildIndexRequest(String id, String type, String questionId) {
@@ -415,6 +410,10 @@ public class CCSDuelIT extends ESRestTestCase {
         duelSearch(searchRequest, response -> {
             assertHits(response);
             assertFalse(response.getProfileResults().isEmpty());
+            assertThat(
+                response.getProfileResults().values().stream().filter(sr -> sr.getFetchPhase() != null).collect(toList()),
+                not(empty())
+            );
         });
     }
 
@@ -441,7 +440,6 @@ public class CCSDuelIT extends ESRestTestCase {
         assumeMultiClusterSetup();
         SearchRequest searchRequest = initSearchRequest();
         // set to a value greater than the number of shards to avoid differences due to the skipping of shards
-        searchRequest.setPreFilterShardSize(128);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         boolean onlyRemote = randomBoolean();
         sourceBuilder.query(new TermQueryBuilder("_index", onlyRemote ? REMOTE_INDEX_NAME : INDEX_NAME));
@@ -727,7 +725,11 @@ public class CCSDuelIT extends ESRestTestCase {
     private static SearchRequest initSearchRequest() {
         List<String> indices = Arrays.asList(INDEX_NAME, "my_remote_cluster:" + INDEX_NAME);
         Collections.shuffle(indices, random());
-        return new SearchRequest(indices.toArray(new String[0]));
+        final SearchRequest request = new SearchRequest(indices.toArray(new String[0]));
+        if (randomBoolean()) {
+            request.setPreFilterShardSize(between(1, 20));
+        }
+        return request;
     }
 
     private static void duelSearch(SearchRequest searchRequest, Consumer<SearchResponse> responseChecker) throws Exception {
@@ -769,6 +771,7 @@ public class CCSDuelIT extends ESRestTestCase {
                 message.compareMaps(minimizeRoundtripsResponseMap, fanOutResponseMap);
                 throw new AssertionError("Didn't match expected value:\n" + message);
             }
+            assertThat(minimizeRoundtripsSearchResponse.getSkippedShards(), lessThanOrEqualTo(fanOutSearchResponse.getSkippedShards()));
         }
     }
 
@@ -823,7 +826,19 @@ public class CCSDuelIT extends ESRestTestCase {
             List<Map<String, Object>> shards = (List <Map<String, Object>>)profile.get("shards");
             for (Map<String, Object> shard : shards) {
                 replaceProfileTime(shard);
+                /*
+                 * The way we try to reduce round trips is by fetching all
+                 * of the results we could possibly need from the remote
+                 * cluster and then merging *those* together locally. This
+                 * will end up fetching more documents total. So we can't
+                 * really compare the fetch profiles here.
+                 */
+                shard.remove("fetch");
             }
+        }
+        Map<String, Object> shards = (Map<String, Object>)responseMap.get("_shards");
+        if (shards != null) {
+            shards.remove("skipped");
         }
         return responseMap;
     }

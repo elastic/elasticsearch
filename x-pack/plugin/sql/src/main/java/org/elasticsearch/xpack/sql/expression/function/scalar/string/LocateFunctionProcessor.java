@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
@@ -42,19 +43,16 @@ public class LocateFunctionProcessor implements Processor {
     public Object process(Object input) {
         return doProcess(pattern().process(input), input().process(input), start() == null ? null : start().process(input));
     }
-
+    
     public static Integer doProcess(Object pattern, Object input, Object start) {
-        if (input == null) {
+        if (pattern == null || input == null) {
             return null;
         }
-        if (!(input instanceof String || input instanceof Character)) {
+        if ((input instanceof String || input instanceof Character) == false) {
             throw new SqlIllegalArgumentException("A string/char is required; received [{}]", input);
         }
-        if (pattern == null) {
-            return 0;
-        }
 
-        if (!(pattern instanceof String || pattern instanceof Character)) {
+        if ((pattern instanceof String || pattern instanceof Character) == false) {
             throw new SqlIllegalArgumentException("A string/char is required; received [{}]", pattern);
         }
 
@@ -65,9 +63,9 @@ public class LocateFunctionProcessor implements Processor {
         String stringInput = input instanceof Character ? input.toString() : (String) input;
         String stringPattern = pattern instanceof Character ? pattern.toString() : (String) pattern;
 
-        return Integer.valueOf(1 + (start != null ?
-                stringInput.indexOf(stringPattern, ((Number) start).intValue() - 1)
-                : stringInput.indexOf(stringPattern)));
+        
+        int startIndex = start == null ? 0 : ((Number) start).intValue() - 1;
+        return 1 + stringInput.indexOf(stringPattern, startIndex);
     }
 
     @Override

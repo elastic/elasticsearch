@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.dataframe.process;
@@ -10,7 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.license.License;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.FeatureImportanceBaselineTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TotalFeatureImportanceTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.HyperparametersTests;
@@ -76,7 +78,7 @@ public class ChunkedTrainedModelPersisterTests extends ESTestCase {
         DataFrameAnalyticsConfig analyticsConfig = new DataFrameAnalyticsConfig.Builder()
             .setId(JOB_ID)
             .setDescription(JOB_DESCRIPTION)
-            .setSource(new DataFrameAnalyticsSource(new String[] {"my_source"}, null, null))
+            .setSource(new DataFrameAnalyticsSource(new String[] {"my_source"}, null, null, null))
             .setDest(new DataFrameAnalyticsDest("my_dest", null))
             .setAnalysis(randomBoolean() ? new Regression("foo") : new Classification("foo"))
             .build();
@@ -118,7 +120,7 @@ public class ChunkedTrainedModelPersisterTests extends ESTestCase {
             .limit(randomIntBetween(1, 10))
             .collect(Collectors.toList()));
 
-        resultProcessor.createAndIndexInferenceModelConfig(modelSizeInfo);
+        resultProcessor.createAndIndexInferenceModelConfig(modelSizeInfo, TrainedModelType.TREE_ENSEMBLE);
         resultProcessor.createAndIndexInferenceModelDoc(chunk1);
         resultProcessor.createAndIndexInferenceModelDoc(chunk2);
         resultProcessor.createAndIndexInferenceModelMetadata(modelMetadata);

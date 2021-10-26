@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.upgrades;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
@@ -34,9 +24,9 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -48,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -63,6 +54,7 @@ import static org.hamcrest.Matchers.is;
  *     <li>Run against the current version cluster from the second step: {@link TestStep#STEP4_NEW_CLUSTER}</li>
  * </ul>
  */
+@SuppressWarnings("removal")
 public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
 
     private enum TestStep {
@@ -116,7 +108,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
             final int shards = 3;
             final String index = "test-index";
             createIndex(client, index, shards);
-            createRepository(client, repoName, false);
+            createRepository(client, repoName, false, true);
             createSnapshot(client, repoName, "snapshot-" + TEST_STEP, index);
             final String snapshotToDeleteName = "snapshot-to-delete";
             // Create a snapshot and delete it right away again to test the impact of each version's cleanup functionality that is run
@@ -145,10 +137,10 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
                     break;
             }
             if (TEST_STEP == TestStep.STEP3_OLD_CLUSTER) {
-                ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards);
+                ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards, index);
             } else if (TEST_STEP == TestStep.STEP4_NEW_CLUSTER) {
                 for (TestStep value : TestStep.values()) {
-                    ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + value, shards);
+                    ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + value, shards, index);
                 }
             }
         } finally {
@@ -161,7 +153,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
         try (RestHighLevelClient client = new RestHighLevelClient(RestClient.builder(adminClient().getNodes().toArray(new Node[0])))) {
             final int shards = 3;
             final boolean readOnly = TEST_STEP.ordinal() > 1; // only restore from read-only repo in steps 3 and 4
-            createRepository(client, repoName, readOnly);
+            createRepository(client, repoName, readOnly, true);
             final String index = "test-index";
             if (readOnly == false) {
                 createIndex(client, index, shards);
@@ -185,13 +177,16 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
                     "snapshot-" + TestStep.STEP1_OLD_CLUSTER, "snapshot-" + TestStep.STEP2_NEW_CLUSTER);
             }
             if (TEST_STEP == TestStep.STEP3_OLD_CLUSTER) {
-                ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards);
+                ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards, index);
             } else if (TEST_STEP == TestStep.STEP4_NEW_CLUSTER) {
-                ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards);
-                ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + TestStep.STEP2_NEW_CLUSTER, shards);
+                ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards, index);
+                ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + TestStep.STEP2_NEW_CLUSTER, shards, index);
             }
         }
     }
+
+    private static final List<Class<? extends Exception>> EXPECTED_BWC_EXCEPTIONS =
+            List.of(ResponseException.class, ElasticsearchStatusException.class);
 
     public void testUpgradeMovesRepoToNewMetaVersion() throws IOException {
         final String repoName = getTestName();
@@ -199,7 +194,16 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
             final int shards = 3;
             final String index=  "test-index";
             createIndex(client, index, shards);
-            createRepository(client, repoName, false);
+            final Version minNodeVersion = minimumNodeVersion();
+            // 7.12.0+ will try to load RepositoryData during repo creation if verify is true, which is impossible in case of version
+            // incompatibility in the downgrade test step. We verify that it is impossible here and then create the repo using verify=false
+            // to check behavior on other operations below.
+            final boolean verify = TEST_STEP != TestStep.STEP3_OLD_CLUSTER || SnapshotsService.includesUUIDs(minNodeVersion)
+                    || minNodeVersion.before(Version.V_7_12_0);
+            if (verify == false) {
+                expectThrowsAnyOf(EXPECTED_BWC_EXCEPTIONS, () -> createRepository(client, repoName, false, true));
+            }
+            createRepository(client, repoName, false, verify);
             // only create some snapshots in the first two steps
             if (TEST_STEP == TestStep.STEP1_OLD_CLUSTER || TEST_STEP == TestStep.STEP2_NEW_CLUSTER) {
                 createSnapshot(client, repoName, "snapshot-" + TEST_STEP, index);
@@ -209,30 +213,28 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
                 assertSnapshotStatusSuccessful(client, repoName,
                     snapshots.stream().map(sn -> (String) sn.get("snapshot")).toArray(String[]::new));
                 if (TEST_STEP == TestStep.STEP1_OLD_CLUSTER) {
-                    ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards);
+                    ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards, index);
                 } else {
                     deleteSnapshot(client, repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER);
-                    ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + TestStep.STEP2_NEW_CLUSTER, shards);
+                    ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + TestStep.STEP2_NEW_CLUSTER, shards, index);
                     createSnapshot(client, repoName, "snapshot-1", index);
-                    ensureSnapshotRestoreWorks(client, repoName, "snapshot-1", shards);
+                    ensureSnapshotRestoreWorks(client, repoName, "snapshot-1", shards, index);
                     deleteSnapshot(client, repoName, "snapshot-" + TestStep.STEP2_NEW_CLUSTER);
                     createSnapshot(client, repoName, "snapshot-2", index);
-                    ensureSnapshotRestoreWorks(client, repoName, "snapshot-2", shards);
+                    ensureSnapshotRestoreWorks(client, repoName, "snapshot-2", shards, index);
                 }
             } else {
-                if (SnapshotsService.useIndexGenerations(minimumNodeVersion()) == false) {
+                if (SnapshotsService.includesUUIDs(minNodeVersion) == false) {
                     assertThat(TEST_STEP, is(TestStep.STEP3_OLD_CLUSTER));
-                    final List<Class<? extends Exception>> expectedExceptions =
-                        List.of(ResponseException.class, ElasticsearchStatusException.class);
-                    expectThrowsAnyOf(expectedExceptions, () -> listSnapshots(repoName));
-                    expectThrowsAnyOf(expectedExceptions, () -> deleteSnapshot(client, repoName, "snapshot-1"));
-                    expectThrowsAnyOf(expectedExceptions, () -> deleteSnapshot(client, repoName, "snapshot-2"));
-                    expectThrowsAnyOf(expectedExceptions, () -> createSnapshot(client, repoName, "snapshot-impossible", index));
+                    expectThrowsAnyOf(EXPECTED_BWC_EXCEPTIONS, () -> listSnapshots(repoName));
+                    expectThrowsAnyOf(EXPECTED_BWC_EXCEPTIONS, () -> deleteSnapshot(client, repoName, "snapshot-1"));
+                    expectThrowsAnyOf(EXPECTED_BWC_EXCEPTIONS, () -> deleteSnapshot(client, repoName, "snapshot-2"));
+                    expectThrowsAnyOf(EXPECTED_BWC_EXCEPTIONS, () -> createSnapshot(client, repoName, "snapshot-impossible", index));
                 } else {
                     assertThat(listSnapshots(repoName), hasSize(2));
                     if (TEST_STEP == TestStep.STEP4_NEW_CLUSTER) {
-                        ensureSnapshotRestoreWorks(client, repoName, "snapshot-1", shards);
-                        ensureSnapshotRestoreWorks(client, repoName, "snapshot-2", shards);
+                        ensureSnapshotRestoreWorks(client, repoName, "snapshot-1", shards, index);
+                        ensureSnapshotRestoreWorks(client, repoName, "snapshot-2", shards, index);
                     }
                 }
             }
@@ -260,29 +262,26 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
             new Request("GET", "/_snapshot/" + repoName + "/_all")).getEntity().getContent();
              XContentParser parser = JsonXContent.jsonXContent.createParser(
                  xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, entity)) {
-            final Map<String, Object> raw = parser.map();
-            // Bwc lookup since the format of the snapshots response changed between versions
-            if (raw.containsKey("snapshots")) {
-                return (List<Map<String, Object>>) raw.get("snapshots");
-            } else {
-                return (List<Map<String, Object>>) ((List<Map<?, ?>>) raw.get("responses")).get(0).get("snapshots");
-            }
+            return (List<Map<String, Object>>) parser.map().get("snapshots");
         }
     }
 
     private static void ensureSnapshotRestoreWorks(RestHighLevelClient client, String repoName, String name,
-                                                   int shards) throws IOException {
+                                                   int shards, String index) throws IOException {
         wipeAllIndices();
         final RestoreInfo restoreInfo =
-            client.snapshot().restore(new RestoreSnapshotRequest().repository(repoName).snapshot(name).waitForCompletion(true),
+            client.snapshot().restore(
+                new RestoreSnapshotRequest().repository(repoName).snapshot(name).indices(index).waitForCompletion(true),
                 RequestOptions.DEFAULT).getRestoreInfo();
         assertThat(restoreInfo.failedShards(), is(0));
         assertThat(restoreInfo.successfulShards(), equalTo(shards));
     }
 
-    private static void createRepository(RestHighLevelClient client, String repoName, boolean readOnly) throws IOException {
+    private static void createRepository(RestHighLevelClient client, String repoName, boolean readOnly,
+                                         boolean verify) throws IOException {
         assertThat(client.snapshot().createRepository(new PutRepositoryRequest(repoName).type("fs").settings(
-            Settings.builder().put("location", "./" + repoName).put("readonly", readOnly)), RequestOptions.DEFAULT).isAcknowledged(),
+            Settings.builder().put("location", "./" + repoName).put(READONLY_SETTING_KEY, readOnly)).verify(verify), RequestOptions.DEFAULT)
+                .isAcknowledged(),
             is(true));
     }
 

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -69,7 +70,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         cleanUp();
         client().admin().cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().putNull("search.max_buckets"))
+            .setPersistentSettings(Settings.builder().putNull("search.max_buckets"))
             .get();
     }
 
@@ -587,13 +588,13 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     public void testEvaluate_ConfusionMatrixMetricWithDefaultSize() {
         evaluateMulticlassConfusionMatrix();
 
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("search.max_buckets", 20)).get();
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().put("search.max_buckets", 20)).get();
         evaluateMulticlassConfusionMatrix();
 
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("search.max_buckets", 7)).get();
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().put("search.max_buckets", 7)).get();
         evaluateMulticlassConfusionMatrix();
 
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("search.max_buckets", 6)).get();
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().put("search.max_buckets", 6)).get();
         ElasticsearchException e = expectThrows(ElasticsearchException.class, this::evaluateMulticlassConfusionMatrix);
 
         assertThat(e.getCause(), is(instanceOf(TooManyBucketsException.class)));

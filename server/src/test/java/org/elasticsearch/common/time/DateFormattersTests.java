@@ -1,32 +1,25 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.time;
 
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
@@ -36,10 +29,36 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class DateFormattersTests extends ESTestCase {
+
+    private void assertParseException(String input, String format) {
+        DateFormatter javaTimeFormatter = DateFormatter.forPattern(format);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> javaTimeFormatter.parse(input));
+        assertThat(e.getMessage(), containsString(input));
+        assertThat(e.getMessage(), containsString(format));
+    }
+
+    private void assertParses(String input, String format) {
+        DateFormatter javaFormatter = DateFormatter.forPattern(format);
+        assertParses(input, javaFormatter);
+    }
+
+    private void assertParses(String input, DateFormatter formatter) {
+
+        TemporalAccessor javaTimeAccessor = formatter.parse(input);
+        ZonedDateTime zonedDateTime = DateFormatters.from(javaTimeAccessor);
+
+        assertThat(zonedDateTime, notNullValue());
+    }
+
+    private void assertDateMathEquals(String text, String pattern) {
+        long gotMillisJava = dateMathToMillis(text, DateFormatter.forPattern(pattern));
+        assertThat(gotMillisJava, not(0));
+    }
 
     public void testWeekBasedDates() {
         // as per WeekFields.ISO first week starts on Monday and has minimum 4 days
@@ -66,9 +85,6 @@ public class DateFormattersTests extends ESTestCase {
             equalTo(ZonedDateTime.of(2014,12,29, 0,0,0,0,ZoneOffset.UTC)));
     }
 
-    // this is not in the duelling tests, because the epoch millis parser in joda time drops the milliseconds after the comma
-    // but is able to parse the rest
-    // as this feature is supported it also makes sense to make it exact
     public void testEpochMillisParser() {
         DateFormatter formatter = DateFormatters.forPattern("epoch_millis");
         {
@@ -95,8 +111,8 @@ public class DateFormattersTests extends ESTestCase {
     public void testPrintersLongMinMaxValue() {
         for (FormatNames format : FormatNames.values()) {
             DateFormatter formatter = DateFormatters.forPattern(format.getName());
-            formatter.format(DateFieldMapper.Resolution.MILLISECONDS.toInstant(Long.MIN_VALUE));
-            formatter.format(DateFieldMapper.Resolution.MILLISECONDS.toInstant(Long.MAX_VALUE));
+            formatter.format(DateFieldMapper.Resolution.MILLISECONDS.toInstant(DateUtils.MAX_MILLIS_BEFORE_9999));
+            formatter.format(DateFieldMapper.Resolution.MILLISECONDS.toInstant(DateUtils.MAX_MILLIS_BEFORE_MINUS_9999));
         }
     }
 
@@ -109,9 +125,6 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("failed to parse date field [123.1234567] with format [epoch_millis]"));
     }
 
-    // this is not in the duelling tests, because the epoch second parser in joda time drops the milliseconds after the comma
-    // but is able to parse the rest
-    // as this feature is supported it also makes sense to make it exact
     public void testEpochSecondParserWithFraction() {
         DateFormatter formatter = DateFormatters.forPattern("epoch_second");
 
@@ -397,5 +410,708 @@ public class DateFormattersTests extends ESTestCase {
             Instant instant = Instant.from(formatter.parse("2019-05-06T14:52:37.123456789Z"));
             assertThat(instant.getNano(), is(123_456_789));
         }
+    }
+
+    public void testIncorrectFormat() {
+        assertParseException("2021-01-01T23-35-00Z", "strict_date_optional_time||epoch_millis");
+        assertParseException("2021-01-01T23-35-00Z", "strict_date_optional_time");
+    }
+
+    public void testMinMillis() {
+        String javaFormatted = DateFormatter.forPattern("strict_date_optional_time").formatMillis(Long.MIN_VALUE);
+        assertThat(javaFormatted, equalTo("-292275055-05-16T16:47:04.192Z"));
+    }
+
+    public void testYearParsing() {
+        //this one is considered a year
+        assertParses("1234", "strict_date_optional_time||epoch_millis");
+        //this one is considered a 12345milliseconds since epoch
+        assertParses("12345", "strict_date_optional_time||epoch_millis");
+    }
+
+    public void testTimezoneParsing() {
+        assertParses("2016-11-30T00+01", "strict_date_optional_time");
+        assertParses("2016-11-30T00+0100", "strict_date_optional_time");
+        assertParses("2016-11-30T00+01:00", "strict_date_optional_time");
+    }
+
+    public void testPartialTimeParsing() {
+        /*
+         This does not work in Joda as it reports 2016-11-30T01:00:00Z
+         because StrictDateOptionalTime confuses +01 with an hour (which is a signed fixed length digit)
+         assertSameDateAs("2016-11-30T+01", "strict_date_optional_time", "strict_date_optional_time");
+         ES java.time implementation does not suffer from this,
+         but we intentionally not allow parsing timezone without a time part as it is not allowed in iso8601
+        */
+        assertParseException("2016-11-30T+01","strict_date_optional_time");
+
+        assertParses("2016-11-30T12+01", "strict_date_optional_time");
+        assertParses("2016-11-30T12:00+01", "strict_date_optional_time");
+        assertParses("2016-11-30T12:00:00+01", "strict_date_optional_time");
+        assertParses("2016-11-30T12:00:00.000+01", "strict_date_optional_time");
+
+        //without timezone
+        assertParses("2016-11-30T", "strict_date_optional_time");
+        assertParses("2016-11-30T12", "strict_date_optional_time");
+        assertParses("2016-11-30T12:00", "strict_date_optional_time");
+        assertParses("2016-11-30T12:00:00", "strict_date_optional_time");
+        assertParses("2016-11-30T12:00:00.000", "strict_date_optional_time");
+    }
+
+    // date_optional part of a parser names "strict_date_optional_time" or "date_optional"time
+    // means that date part can be partially parsed.
+    public void testPartialDateParsing() {
+        assertParses("2001", "strict_date_optional_time_nanos");
+        assertParses("2001-01", "strict_date_optional_time_nanos");
+        assertParses("2001-01-01", "strict_date_optional_time_nanos");
+
+        assertParses("2001", "strict_date_optional_time");
+        assertParses("2001-01", "strict_date_optional_time");
+        assertParses("2001-01-01", "strict_date_optional_time");
+
+        assertParses("2001", "date_optional_time");
+        assertParses("2001-01", "date_optional_time");
+        assertParses("2001-01-01", "date_optional_time");
+
+
+        assertParses("2001", "iso8601");
+        assertParses("2001-01", "iso8601");
+        assertParses("2001-01-01", "iso8601");
+
+        assertParses("9999","date_optional_time||epoch_second");
+    }
+
+    public void testCompositeDateMathParsing(){
+        //in all these examples the second pattern will be used
+        assertDateMathEquals("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SSS");
+        assertDateMathEquals("2014-06-06T12:01:02.123", "strict_date_time_no_millis||yyyy-MM-dd'T'HH:mm:ss.SSS");
+        assertDateMathEquals("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss+HH:MM||yyyy-MM-dd'T'HH:mm:ss.SSS");
+    }
+
+    public void testExceptionWhenCompositeParsingFailsDateMath(){
+        //both parsing failures should contain pattern and input text in exception
+        //both patterns fail parsing the input text due to only 2 digits of millis. Hence full text was not parsed.
+        String pattern = "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SS";
+        String text = "2014-06-06T12:01:02.123";
+        ElasticsearchParseException e1 = expectThrows(ElasticsearchParseException.class,
+            () -> dateMathToMillis(text, DateFormatter.forPattern(pattern)));
+        assertThat(e1.getMessage(), containsString(pattern));
+        assertThat(e1.getMessage(), containsString(text));
+    }
+
+    private long dateMathToMillis(String text, DateFormatter dateFormatter) {
+        DateFormatter javaFormatter = dateFormatter.withLocale(randomLocale(random()));
+        DateMathParser javaDateMath = javaFormatter.toDateMathParser();
+        return javaDateMath.parse(text, () -> 0, true, (ZoneId) null).toEpochMilli();
+    }
+
+    public void testDayOfWeek() {
+        //7 (ok joda) vs 1 (java by default) but 7 with customized org.elasticsearch.common.time.IsoLocale.ISO8601
+        ZonedDateTime now = LocalDateTime.of(2009,11,15,1,32,8,328402)
+            .atZone(ZoneOffset.UTC); //Sunday
+        DateFormatter javaFormatter = DateFormatter.forPattern("8e").withZone(ZoneOffset.UTC);
+        assertThat(javaFormatter.format(now), equalTo("7"));
+    }
+
+    public void testStartOfWeek() {
+        //2019-21 (ok joda) vs 2019-22 (java by default) but 2019-21 with customized org.elasticsearch.common.time.IsoLocale.ISO8601
+        ZonedDateTime now = LocalDateTime.of(2019,5,26,1,32,8,328402)
+            .atZone(ZoneOffset.UTC);
+        DateFormatter javaFormatter = DateFormatter.forPattern("8YYYY-ww").withZone(ZoneOffset.UTC);
+        assertThat(javaFormatter.format(now), equalTo("2019-21"));
+    }
+
+    //these parsers should allow both ',' and '.' as a decimal point
+    public void testDecimalPointParsing(){
+        assertParses("2001-01-01T00:00:00.123Z", "strict_date_optional_time");
+        assertParses("2001-01-01T00:00:00,123Z", "strict_date_optional_time");
+
+        assertParses("2001-01-01T00:00:00.123Z", "date_optional_time");
+        assertParses("2001-01-01T00:00:00,123Z", "date_optional_time");
+
+        // only java.time has nanos parsing, but the results for 3digits should be the same
+        DateFormatter javaFormatter = DateFormatter.forPattern("strict_date_optional_time_nanos");
+        assertParses("2001-01-01T00:00:00.123Z", javaFormatter);
+        assertParses("2001-01-01T00:00:00,123Z", javaFormatter);
+
+        assertParseException("2001-01-01T00:00:00.123,456Z", "strict_date_optional_time");
+        assertParseException("2001-01-01T00:00:00.123,456Z", "date_optional_time");
+        //This should fail, but java is ok with this because the field has the same value
+//        assertJavaTimeParseException("2001-01-01T00:00:00.123,123Z", "strict_date_optional_time_nanos");
+    }
+
+    public void testTimeZoneFormatting() {
+        assertParses("2001-01-01T00:00:00Z", "date_time_no_millis");
+        // the following fail under java 8 but work under java 10, needs investigation
+        assertParses("2001-01-01T00:00:00-0800", "date_time_no_millis");
+        assertParses("2001-01-01T00:00:00+1030", "date_time_no_millis");
+        assertParses("2001-01-01T00:00:00-08", "date_time_no_millis");
+        assertParses("2001-01-01T00:00:00+10:30", "date_time_no_millis");
+
+        // different timezone parsing styles require a different number of letters
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss.SSSXXX", Locale.ROOT);
+        formatter.parse("20181126T121212.123Z");
+        formatter.parse("20181126T121212.123-08:30");
+
+        DateTimeFormatter formatter2 = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss.SSSXXXX", Locale.ROOT);
+        formatter2.parse("20181126T121212.123+1030");
+        formatter2.parse("20181126T121212.123-0830");
+
+        // ... and can be combined, note that this is not an XOR, so one could append both timezones with this example
+        DateTimeFormatter formatter3 = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss.SSS[XXXX][XXX]", Locale.ROOT);
+        formatter3.parse("20181126T121212.123Z");
+        formatter3.parse("20181126T121212.123-08:30");
+        formatter3.parse("20181126T121212.123+1030");
+        formatter3.parse("20181126T121212.123-0830");
+    }
+
+    public void testCustomTimeFormats() {
+        assertParses("2010 12 06 11:05:15", "yyyy dd MM HH:mm:ss");
+        assertParses("12/06", "dd/MM");
+        assertParses("Nov 24 01:29:01 -0800", "MMM dd HH:mm:ss Z");
+    }
+
+    public void testCustomLocales() {
+        // also ensure that locale based dates are the same
+        DateFormatter formatter = DateFormatter.forPattern("E, d MMM yyyy HH:mm:ss Z").withLocale(LocaleUtils.parse("de"));
+        assertParses("Di, 05 Dez 2000 02:55:00 -0800", formatter);
+        assertParses("Mi, 06 Dez 2000 02:55:00 -0800", formatter);
+        assertParses("Do, 07 Dez 2000 00:00:00 -0800", formatter);
+        assertParses("Fr, 08 Dez 2000 00:00:00 -0800", formatter);
+    }
+
+    public void testFormatsValidParsing() {
+        assertParses("1522332219", "epoch_second");
+        assertParses("0", "epoch_second");
+        assertParses("1", "epoch_second");
+        assertParses("1522332219321", "epoch_millis");
+        assertParses("0", "epoch_millis");
+        assertParses("1", "epoch_millis");
+
+        assertParses("20181126", "basic_date");
+        assertParses("20181126T121212.123Z", "basic_date_time");
+        assertParses("20181126T121212.123+10:00", "basic_date_time");
+        assertParses("20181126T121212.123-0800", "basic_date_time");
+
+        assertParses("20181126T121212Z", "basic_date_time_no_millis");
+        assertParses("20181126T121212+01:00", "basic_date_time_no_millis");
+        assertParses("20181126T121212+0100", "basic_date_time_no_millis");
+        assertParses("2018363", "basic_ordinal_date");
+        assertParses("2018363T121212.1Z", "basic_ordinal_date_time");
+        assertParses("2018363T121212.123Z", "basic_ordinal_date_time");
+        assertParses("2018363T121212.123456789Z", "basic_ordinal_date_time");
+        assertParses("2018363T121212.123+0100", "basic_ordinal_date_time");
+        assertParses("2018363T121212.123+01:00", "basic_ordinal_date_time");
+        assertParses("2018363T121212Z", "basic_ordinal_date_time_no_millis");
+        assertParses("2018363T121212+0100", "basic_ordinal_date_time_no_millis");
+        assertParses("2018363T121212+01:00", "basic_ordinal_date_time_no_millis");
+        assertParses("121212.1Z", "basic_time");
+        assertParses("121212.123Z", "basic_time");
+        assertParses("121212.123456789Z", "basic_time");
+        assertParses("121212.1+0100", "basic_time");
+        assertParses("121212.123+0100", "basic_time");
+        assertParses("121212.123+01:00", "basic_time");
+        assertParses("121212Z", "basic_time_no_millis");
+        assertParses("121212+0100", "basic_time_no_millis");
+        assertParses("121212+01:00", "basic_time_no_millis");
+        assertParses("T121212.1Z", "basic_t_time");
+        assertParses("T121212.123Z", "basic_t_time");
+        assertParses("T121212.123456789Z", "basic_t_time");
+        assertParses("T121212.1+0100", "basic_t_time");
+        assertParses("T121212.123+0100", "basic_t_time");
+        assertParses("T121212.123+01:00", "basic_t_time");
+        assertParses("T121212Z", "basic_t_time_no_millis");
+        assertParses("T121212+0100", "basic_t_time_no_millis");
+        assertParses("T121212+01:00", "basic_t_time_no_millis");
+        assertParses("2018W313", "basic_week_date");
+        assertParses("1W313", "basic_week_date");
+        assertParses("18W313", "basic_week_date");
+        assertParses("2018W313T121212.1Z", "basic_week_date_time");
+        assertParses("2018W313T121212.123Z", "basic_week_date_time");
+        assertParses("2018W313T121212.123456789Z", "basic_week_date_time");
+        assertParses("2018W313T121212.123+0100", "basic_week_date_time");
+        assertParses("2018W313T121212.123+01:00", "basic_week_date_time");
+        assertParses("2018W313T121212Z", "basic_week_date_time_no_millis");
+        assertParses("2018W313T121212+0100", "basic_week_date_time_no_millis");
+        assertParses("2018W313T121212+01:00", "basic_week_date_time_no_millis");
+
+        assertParses("2018-12-31", "date");
+        assertParses("18-5-6", "date");
+        assertParses("10000-5-6", "date");
+
+        assertParses("2018-12-31T12", "date_hour");
+        assertParses("2018-12-31T8", "date_hour");
+
+        assertParses("2018-12-31T12:12", "date_hour_minute");
+        assertParses("2018-12-31T8:3", "date_hour_minute");
+
+        assertParses("2018-12-31T12:12:12", "date_hour_minute_second");
+        assertParses("2018-12-31T12:12:1", "date_hour_minute_second");
+
+        assertParses("2018-12-31T12:12:12.1", "date_hour_minute_second_fraction");
+        assertParses("2018-12-31T12:12:12.123", "date_hour_minute_second_fraction");
+        assertParses("2018-12-31T12:12:12.123456789", "date_hour_minute_second_fraction");
+        assertParses("2018-12-31T12:12:12.1", "date_hour_minute_second_millis");
+        assertParses("2018-12-31T12:12:12.123", "date_hour_minute_second_millis");
+        assertParseException("2018-12-31T12:12:12.123456789", "date_hour_minute_second_millis");
+        assertParses("2018-12-31T12:12:12.1", "date_hour_minute_second_millis");
+        assertParses("2018-12-31T12:12:12.1", "date_hour_minute_second_fraction");
+
+        assertParses("2018-05", "date_optional_time");
+        assertParses("2018-05-30", "date_optional_time");
+        assertParses("2018-05-30T20", "date_optional_time");
+        assertParses("2018-05-30T20:21", "date_optional_time");
+        assertParses("2018-05-30T20:21:23", "date_optional_time");
+        assertParses("2018-05-30T20:21:23.1", "date_optional_time");
+        assertParses("2018-05-30T20:21:23.123", "date_optional_time");
+        assertParses("2018-05-30T20:21:23.123456789", "date_optional_time");
+        assertParses("2018-05-30T20:21:23.123Z", "date_optional_time");
+        assertParses("2018-05-30T20:21:23.123456789Z", "date_optional_time");
+        assertParses("2018-05-30T20:21:23.1+0100", "date_optional_time");
+        assertParses("2018-05-30T20:21:23.123+0100", "date_optional_time");
+        assertParses("2018-05-30T20:21:23.1+01:00", "date_optional_time");
+        assertParses("2018-05-30T20:21:23.123+01:00", "date_optional_time");
+        assertParses("2018-12-1", "date_optional_time");
+        assertParses("2018-12-31T10:15:30", "date_optional_time");
+        assertParses("2018-12-31T10:15:3", "date_optional_time");
+        assertParses("2018-12-31T10:5:30", "date_optional_time");
+        assertParses("2018-12-31T1:15:30", "date_optional_time");
+
+        assertParses("2018-12-31T10:15:30.1Z", "date_time");
+        assertParses("2018-12-31T10:15:30.123Z", "date_time");
+        assertParses("2018-12-31T10:15:30.123456789Z", "date_time");
+        assertParses("2018-12-31T10:15:30.1+0100", "date_time");
+        assertParses("2018-12-31T10:15:30.123+0100", "date_time");
+        assertParses("2018-12-31T10:15:30.123+01:00", "date_time");
+        assertParses("2018-12-31T10:15:30.1+01:00", "date_time");
+        assertParses("2018-12-31T10:15:30.11Z", "date_time");
+        assertParses("2018-12-31T10:15:30.11+0100", "date_time");
+        assertParses("2018-12-31T10:15:30.11+01:00", "date_time");
+        assertParses("2018-12-31T10:15:3.1Z", "date_time");
+        assertParses("2018-12-31T10:15:3.123Z", "date_time");
+        assertParses("2018-12-31T10:15:3.123456789Z", "date_time");
+        assertParses("2018-12-31T10:15:3.1+0100", "date_time");
+        assertParses("2018-12-31T10:15:3.123+0100", "date_time");
+        assertParses("2018-12-31T10:15:3.123+01:00", "date_time");
+        assertParses("2018-12-31T10:15:3.1+01:00", "date_time");
+
+        assertParses("2018-12-31T10:15:30Z", "date_time_no_millis");
+        assertParses("2018-12-31T10:15:30+0100", "date_time_no_millis");
+        assertParses("2018-12-31T10:15:30+01:00", "date_time_no_millis");
+        assertParses("2018-12-31T10:5:30Z", "date_time_no_millis");
+        assertParses("2018-12-31T10:5:30+0100", "date_time_no_millis");
+        assertParses("2018-12-31T10:5:30+01:00", "date_time_no_millis");
+        assertParses("2018-12-31T10:15:3Z", "date_time_no_millis");
+        assertParses("2018-12-31T10:15:3+0100", "date_time_no_millis");
+        assertParses("2018-12-31T10:15:3+01:00", "date_time_no_millis");
+        assertParses("2018-12-31T1:15:30Z", "date_time_no_millis");
+        assertParses("2018-12-31T1:15:30+0100", "date_time_no_millis");
+        assertParses("2018-12-31T1:15:30+01:00", "date_time_no_millis");
+
+        assertParses("12", "hour");
+        assertParses("01", "hour");
+        assertParses("1", "hour");
+
+        assertParses("12:12", "hour_minute");
+        assertParses("12:01", "hour_minute");
+        assertParses("12:1", "hour_minute");
+
+        assertParses("12:12:12", "hour_minute_second");
+        assertParses("12:12:01", "hour_minute_second");
+        assertParses("12:12:1", "hour_minute_second");
+
+        assertParses("12:12:12.123", "hour_minute_second_fraction");
+        assertParses("12:12:12.123456789", "hour_minute_second_fraction");
+        assertParses("12:12:12.1", "hour_minute_second_fraction");
+        assertParseException("12:12:12", "hour_minute_second_fraction");
+        assertParses("12:12:12.123", "hour_minute_second_millis");
+        assertParseException("12:12:12.123456789", "hour_minute_second_millis");
+        assertParses("12:12:12.1", "hour_minute_second_millis");
+        assertParseException("12:12:12", "hour_minute_second_millis");
+
+        assertParses("2018-128", "ordinal_date");
+        assertParses("2018-1", "ordinal_date");
+
+        assertParses("2018-128T10:15:30.1Z", "ordinal_date_time");
+        assertParses("2018-128T10:15:30.123Z", "ordinal_date_time");
+        assertParses("2018-128T10:15:30.123456789Z", "ordinal_date_time");
+        assertParses("2018-128T10:15:30.123+0100", "ordinal_date_time");
+        assertParses("2018-128T10:15:30.123+01:00", "ordinal_date_time");
+        assertParses("2018-1T10:15:30.1Z", "ordinal_date_time");
+        assertParses("2018-1T10:15:30.123Z", "ordinal_date_time");
+        assertParses("2018-1T10:15:30.123456789Z", "ordinal_date_time");
+        assertParses("2018-1T10:15:30.123+0100", "ordinal_date_time");
+        assertParses("2018-1T10:15:30.123+01:00", "ordinal_date_time");
+
+        assertParses("2018-128T10:15:30Z", "ordinal_date_time_no_millis");
+        assertParses("2018-128T10:15:30+0100", "ordinal_date_time_no_millis");
+        assertParses("2018-128T10:15:30+01:00", "ordinal_date_time_no_millis");
+        assertParses("2018-1T10:15:30Z", "ordinal_date_time_no_millis");
+        assertParses("2018-1T10:15:30+0100", "ordinal_date_time_no_millis");
+        assertParses("2018-1T10:15:30+01:00", "ordinal_date_time_no_millis");
+
+        assertParses("10:15:30.1Z", "time");
+        assertParses("10:15:30.123Z", "time");
+        assertParses("10:15:30.123456789Z", "time");
+        assertParses("10:15:30.123+0100", "time");
+        assertParses("10:15:30.123+01:00", "time");
+        assertParses("1:15:30.1Z", "time");
+        assertParses("1:15:30.123Z", "time");
+        assertParses("1:15:30.123+0100", "time");
+        assertParses("1:15:30.123+01:00", "time");
+        assertParses("10:1:30.1Z", "time");
+        assertParses("10:1:30.123Z", "time");
+        assertParses("10:1:30.123+0100", "time");
+        assertParses("10:1:30.123+01:00", "time");
+        assertParses("10:15:3.1Z", "time");
+        assertParses("10:15:3.123Z", "time");
+        assertParses("10:15:3.123+0100", "time");
+        assertParses("10:15:3.123+01:00", "time");
+        assertParseException("10:15:3.1", "time");
+        assertParseException("10:15:3Z", "time");
+
+        assertParses("10:15:30Z", "time_no_millis");
+        assertParses("10:15:30+0100", "time_no_millis");
+        assertParses("10:15:30+01:00", "time_no_millis");
+        assertParses("01:15:30Z", "time_no_millis");
+        assertParses("01:15:30+0100", "time_no_millis");
+        assertParses("01:15:30+01:00", "time_no_millis");
+        assertParses("1:15:30Z", "time_no_millis");
+        assertParses("1:15:30+0100", "time_no_millis");
+        assertParses("1:15:30+01:00", "time_no_millis");
+        assertParses("10:5:30Z", "time_no_millis");
+        assertParses("10:5:30+0100", "time_no_millis");
+        assertParses("10:5:30+01:00", "time_no_millis");
+        assertParses("10:15:3Z", "time_no_millis");
+        assertParses("10:15:3+0100", "time_no_millis");
+        assertParses("10:15:3+01:00", "time_no_millis");
+        assertParseException("10:15:3", "time_no_millis");
+
+        assertParses("T10:15:30.1Z", "t_time");
+        assertParses("T10:15:30.123Z", "t_time");
+        assertParses("T10:15:30.123456789Z", "t_time");
+        assertParses("T10:15:30.1+0100", "t_time");
+        assertParses("T10:15:30.123+0100", "t_time");
+        assertParses("T10:15:30.123+01:00", "t_time");
+        assertParses("T10:15:30.1+01:00", "t_time");
+        assertParses("T1:15:30.123Z", "t_time");
+        assertParses("T1:15:30.123+0100", "t_time");
+        assertParses("T1:15:30.123+01:00", "t_time");
+        assertParses("T10:1:30.123Z", "t_time");
+        assertParses("T10:1:30.123+0100", "t_time");
+        assertParses("T10:1:30.123+01:00", "t_time");
+        assertParses("T10:15:3.123Z", "t_time");
+        assertParses("T10:15:3.123+0100", "t_time");
+        assertParses("T10:15:3.123+01:00", "t_time");
+        assertParseException("T10:15:3.1", "t_time");
+        assertParseException("T10:15:3Z", "t_time");
+
+        assertParses("T10:15:30Z", "t_time_no_millis");
+        assertParses("T10:15:30+0100", "t_time_no_millis");
+        assertParses("T10:15:30+01:00", "t_time_no_millis");
+        assertParses("T1:15:30Z", "t_time_no_millis");
+        assertParses("T1:15:30+0100", "t_time_no_millis");
+        assertParses("T1:15:30+01:00", "t_time_no_millis");
+        assertParses("T10:1:30Z", "t_time_no_millis");
+        assertParses("T10:1:30+0100", "t_time_no_millis");
+        assertParses("T10:1:30+01:00", "t_time_no_millis");
+        assertParses("T10:15:3Z", "t_time_no_millis");
+        assertParses("T10:15:3+0100", "t_time_no_millis");
+        assertParses("T10:15:3+01:00", "t_time_no_millis");
+        assertParseException("T10:15:3", "t_time_no_millis");
+
+        assertParses("2012-W48-6", "week_date");
+        assertParses("2012-W01-6", "week_date");
+        assertParses("2012-W1-6", "week_date");
+        assertParseException("2012-W1-8", "week_date");
+
+        assertParses("2012-W48-6T10:15:30.1Z", "week_date_time");
+        assertParses("2012-W48-6T10:15:30.123Z", "week_date_time");
+        assertParses("2012-W48-6T10:15:30.123456789Z", "week_date_time");
+        assertParses("2012-W48-6T10:15:30.1+0100", "week_date_time");
+        assertParses("2012-W48-6T10:15:30.123+0100", "week_date_time");
+        assertParses("2012-W48-6T10:15:30.1+01:00", "week_date_time");
+        assertParses("2012-W48-6T10:15:30.123+01:00", "week_date_time");
+        assertParses("2012-W1-6T10:15:30.1Z", "week_date_time");
+        assertParses("2012-W1-6T10:15:30.123Z", "week_date_time");
+        assertParses("2012-W1-6T10:15:30.1+0100", "week_date_time");
+        assertParses("2012-W1-6T10:15:30.123+0100", "week_date_time");
+        assertParses("2012-W1-6T10:15:30.1+01:00", "week_date_time");
+        assertParses("2012-W1-6T10:15:30.123+01:00", "week_date_time");
+
+        assertParses("2012-W48-6T10:15:30Z", "week_date_time_no_millis");
+        assertParses("2012-W48-6T10:15:30+0100", "week_date_time_no_millis");
+        assertParses("2012-W48-6T10:15:30+01:00", "week_date_time_no_millis");
+        assertParses("2012-W1-6T10:15:30Z", "week_date_time_no_millis");
+        assertParses("2012-W1-6T10:15:30+0100", "week_date_time_no_millis");
+        assertParses("2012-W1-6T10:15:30+01:00", "week_date_time_no_millis");
+
+        assertParses("2012", "year");
+        assertParses("1", "year");
+        assertParses("-2000", "year");
+
+        assertParses("2012-12", "year_month");
+        assertParses("1-1", "year_month");
+
+        assertParses("2012-12-31", "year_month_day");
+        assertParses("1-12-31", "year_month_day");
+        assertParses("2012-1-31", "year_month_day");
+        assertParses("2012-12-1", "year_month_day");
+
+        assertParses("2018", "weekyear");
+        assertParses("1", "weekyear");
+        assertParses("2017", "weekyear");
+
+        assertParses("2018-W29", "weekyear_week");
+        assertParses("2018-W1", "weekyear_week");
+
+        assertParses("2012-W31-5", "weekyear_week_day");
+        assertParses("2012-W1-1", "weekyear_week_day");
+    }
+
+    public void testCompositeParsing(){
+        //in all these examples the second pattern will be used
+        assertParses("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SSS");
+        assertParses("2014-06-06T12:01:02.123", "strict_date_time_no_millis||yyyy-MM-dd'T'HH:mm:ss.SSS");
+        assertParses("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss+HH:MM||yyyy-MM-dd'T'HH:mm:ss.SSS");
+    }
+
+    public void testExceptionWhenCompositeParsingFails(){
+        assertParseException("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SS");
+    }
+
+    public void testStrictParsing() {
+        assertParses("2018W313", "strict_basic_week_date");
+        assertParseException("18W313", "strict_basic_week_date");
+        assertParses("2018W313T121212.1Z", "strict_basic_week_date_time");
+        assertParses("2018W313T121212.123Z", "strict_basic_week_date_time");
+        assertParses("2018W313T121212.123456789Z", "strict_basic_week_date_time");
+        assertParses("2018W313T121212.1+0100", "strict_basic_week_date_time");
+        assertParses("2018W313T121212.123+0100", "strict_basic_week_date_time");
+        assertParses("2018W313T121212.1+01:00", "strict_basic_week_date_time");
+        assertParses("2018W313T121212.123+01:00", "strict_basic_week_date_time");
+        assertParseException("2018W313T12128.123Z", "strict_basic_week_date_time");
+        assertParseException("2018W313T12128.123456789Z", "strict_basic_week_date_time");
+        assertParseException("2018W313T81212.123Z", "strict_basic_week_date_time");
+        assertParseException("2018W313T12812.123Z", "strict_basic_week_date_time");
+        assertParseException("2018W313T12812.1Z", "strict_basic_week_date_time");
+        assertParses("2018W313T121212Z", "strict_basic_week_date_time_no_millis");
+        assertParses("2018W313T121212+0100", "strict_basic_week_date_time_no_millis");
+        assertParses("2018W313T121212+01:00", "strict_basic_week_date_time_no_millis");
+        assertParseException("2018W313T12128Z", "strict_basic_week_date_time_no_millis");
+        assertParseException("2018W313T12128+0100", "strict_basic_week_date_time_no_millis");
+        assertParseException("2018W313T12128+01:00", "strict_basic_week_date_time_no_millis");
+        assertParseException("2018W313T81212Z", "strict_basic_week_date_time_no_millis");
+        assertParseException("2018W313T81212+0100", "strict_basic_week_date_time_no_millis");
+        assertParseException("2018W313T81212+01:00", "strict_basic_week_date_time_no_millis");
+        assertParseException("2018W313T12812Z", "strict_basic_week_date_time_no_millis");
+        assertParseException("2018W313T12812+0100", "strict_basic_week_date_time_no_millis");
+        assertParseException("2018W313T12812+01:00", "strict_basic_week_date_time_no_millis");
+        assertParses("2018-12-31", "strict_date");
+        assertParseException("10000-12-31", "strict_date");
+        assertParseException("2018-8-31", "strict_date");
+        assertParses("2018-12-31T12", "strict_date_hour");
+        assertParseException("2018-12-31T8", "strict_date_hour");
+        assertParses("2018-12-31T12:12", "strict_date_hour_minute");
+        assertParseException("2018-12-31T8:3", "strict_date_hour_minute");
+        assertParses("2018-12-31T12:12:12", "strict_date_hour_minute_second");
+        assertParseException("2018-12-31T12:12:1", "strict_date_hour_minute_second");
+        assertParses("2018-12-31T12:12:12.1", "strict_date_hour_minute_second_fraction");
+        assertParses("2018-12-31T12:12:12.123", "strict_date_hour_minute_second_fraction");
+        assertParses("2018-12-31T12:12:12.123456789", "strict_date_hour_minute_second_fraction");
+        assertParses("2018-12-31T12:12:12.123", "strict_date_hour_minute_second_millis");
+        assertParses("2018-12-31T12:12:12.1", "strict_date_hour_minute_second_millis");
+        assertParses("2018-12-31T12:12:12.1", "strict_date_hour_minute_second_fraction");
+        assertParseException("2018-12-31T12:12:12", "strict_date_hour_minute_second_millis");
+        assertParseException("2018-12-31T12:12:12", "strict_date_hour_minute_second_fraction");
+        assertParses("2018-12-31", "strict_date_optional_time");
+        assertParseException("2018-12-1", "strict_date_optional_time");
+        assertParseException("2018-1-31", "strict_date_optional_time");
+        assertParseException("10000-01-31", "strict_date_optional_time");
+        assertParses("2010-01-05T02:00", "strict_date_optional_time");
+        assertParses("2018-12-31T10:15:30", "strict_date_optional_time");
+        assertParses("2018-12-31T10:15:30Z", "strict_date_optional_time");
+        assertParses("2018-12-31T10:15:30+0100", "strict_date_optional_time");
+        assertParses("2018-12-31T10:15:30+01:00", "strict_date_optional_time");
+        assertParseException("2018-12-31T10:15:3", "strict_date_optional_time");
+        assertParseException("2018-12-31T10:5:30", "strict_date_optional_time");
+        assertParseException("2018-12-31T9:15:30", "strict_date_optional_time");
+        assertParses("2015-01-04T00:00Z", "strict_date_optional_time");
+        assertParses("2018-12-31T10:15:30.1Z", "strict_date_time");
+        assertParses("2018-12-31T10:15:30.123Z", "strict_date_time");
+        assertParses("2018-12-31T10:15:30.123456789Z", "strict_date_time");
+        assertParses("2018-12-31T10:15:30.1+0100", "strict_date_time");
+        assertParses("2018-12-31T10:15:30.123+0100", "strict_date_time");
+        assertParses("2018-12-31T10:15:30.1+01:00", "strict_date_time");
+        assertParses("2018-12-31T10:15:30.123+01:00", "strict_date_time");
+        assertParses("2018-12-31T10:15:30.11Z", "strict_date_time");
+        assertParses("2018-12-31T10:15:30.11+0100", "strict_date_time");
+        assertParses("2018-12-31T10:15:30.11+01:00", "strict_date_time");
+        assertParseException("2018-12-31T10:15:3.123Z", "strict_date_time");
+        assertParseException("2018-12-31T10:5:30.123Z", "strict_date_time");
+        assertParseException("2018-12-31T1:15:30.123Z", "strict_date_time");
+        assertParses("2018-12-31T10:15:30Z", "strict_date_time_no_millis");
+        assertParses("2018-12-31T10:15:30+0100", "strict_date_time_no_millis");
+        assertParses("2018-12-31T10:15:30+01:00", "strict_date_time_no_millis");
+        assertParseException("2018-12-31T10:5:30Z", "strict_date_time_no_millis");
+        assertParseException("2018-12-31T10:15:3Z", "strict_date_time_no_millis");
+        assertParseException("2018-12-31T1:15:30Z", "strict_date_time_no_millis");
+        assertParses("12", "strict_hour");
+        assertParses("01", "strict_hour");
+        assertParseException("1", "strict_hour");
+        assertParses("12:12", "strict_hour_minute");
+        assertParses("12:01", "strict_hour_minute");
+        assertParseException("12:1", "strict_hour_minute");
+        assertParses("12:12:12", "strict_hour_minute_second");
+        assertParses("12:12:01", "strict_hour_minute_second");
+        assertParseException("12:12:1", "strict_hour_minute_second");
+        assertParses("12:12:12.123", "strict_hour_minute_second_fraction");
+        assertParses("12:12:12.123456789", "strict_hour_minute_second_fraction");
+        assertParses("12:12:12.1", "strict_hour_minute_second_fraction");
+        assertParseException("12:12:12", "strict_hour_minute_second_fraction");
+        assertParses("12:12:12.123", "strict_hour_minute_second_millis");
+        assertParses("12:12:12.1", "strict_hour_minute_second_millis");
+        assertParseException("12:12:12", "strict_hour_minute_second_millis");
+        assertParses("2018-128", "strict_ordinal_date");
+        assertParseException("2018-1", "strict_ordinal_date");
+
+        assertParses("2018-128T10:15:30.1Z", "strict_ordinal_date_time");
+        assertParses("2018-128T10:15:30.123Z", "strict_ordinal_date_time");
+        assertParses("2018-128T10:15:30.123456789Z", "strict_ordinal_date_time");
+        assertParses("2018-128T10:15:30.1+0100", "strict_ordinal_date_time");
+        assertParses("2018-128T10:15:30.123+0100", "strict_ordinal_date_time");
+        assertParses("2018-128T10:15:30.1+01:00", "strict_ordinal_date_time");
+        assertParses("2018-128T10:15:30.123+01:00", "strict_ordinal_date_time");
+        assertParseException("2018-1T10:15:30.123Z", "strict_ordinal_date_time");
+
+        assertParses("2018-128T10:15:30Z", "strict_ordinal_date_time_no_millis");
+        assertParses("2018-128T10:15:30+0100", "strict_ordinal_date_time_no_millis");
+        assertParses("2018-128T10:15:30+01:00", "strict_ordinal_date_time_no_millis");
+        assertParseException("2018-1T10:15:30Z", "strict_ordinal_date_time_no_millis");
+
+        assertParses("10:15:30.1Z", "strict_time");
+        assertParses("10:15:30.123Z", "strict_time");
+        assertParses("10:15:30.123456789Z", "strict_time");
+        assertParses("10:15:30.123+0100", "strict_time");
+        assertParses("10:15:30.123+01:00", "strict_time");
+        assertParseException("1:15:30.123Z", "strict_time");
+        assertParseException("10:1:30.123Z", "strict_time");
+        assertParseException("10:15:3.123Z", "strict_time");
+        assertParseException("10:15:3.1", "strict_time");
+        assertParseException("10:15:3Z", "strict_time");
+
+        assertParses("10:15:30Z", "strict_time_no_millis");
+        assertParses("10:15:30+0100", "strict_time_no_millis");
+        assertParses("10:15:30+01:00", "strict_time_no_millis");
+        assertParses("01:15:30Z", "strict_time_no_millis");
+        assertParses("01:15:30+0100", "strict_time_no_millis");
+        assertParses("01:15:30+01:00", "strict_time_no_millis");
+        assertParseException("1:15:30Z", "strict_time_no_millis");
+        assertParseException("10:5:30Z", "strict_time_no_millis");
+        assertParseException("10:15:3Z", "strict_time_no_millis");
+        assertParseException("10:15:3", "strict_time_no_millis");
+
+        assertParses("T10:15:30.1Z", "strict_t_time");
+        assertParses("T10:15:30.123Z", "strict_t_time");
+        assertParses("T10:15:30.123456789Z", "strict_t_time");
+        assertParses("T10:15:30.1+0100", "strict_t_time");
+        assertParses("T10:15:30.123+0100", "strict_t_time");
+        assertParses("T10:15:30.1+01:00", "strict_t_time");
+        assertParses("T10:15:30.123+01:00", "strict_t_time");
+        assertParseException("T1:15:30.123Z", "strict_t_time");
+        assertParseException("T10:1:30.123Z", "strict_t_time");
+        assertParseException("T10:15:3.123Z", "strict_t_time");
+        assertParseException("T10:15:3.1", "strict_t_time");
+        assertParseException("T10:15:3Z", "strict_t_time");
+
+        assertParses("T10:15:30Z", "strict_t_time_no_millis");
+        assertParses("T10:15:30+0100", "strict_t_time_no_millis");
+        assertParses("T10:15:30+01:00", "strict_t_time_no_millis");
+        assertParseException("T1:15:30Z", "strict_t_time_no_millis");
+        assertParseException("T10:1:30Z", "strict_t_time_no_millis");
+        assertParseException("T10:15:3Z", "strict_t_time_no_millis");
+        assertParseException("T10:15:3", "strict_t_time_no_millis");
+
+        assertParses("2012-W48-6", "strict_week_date");
+        assertParses("2012-W01-6", "strict_week_date");
+        assertParseException("2012-W1-6", "strict_week_date");
+        assertParseException("2012-W1-8", "strict_week_date");
+
+        assertParses("2012-W48-6", "strict_week_date");
+        assertParses("2012-W01-6", "strict_week_date");
+        assertParseException("2012-W1-6", "strict_week_date");
+        assertParseException("2012-W01-8", "strict_week_date");
+
+        assertParses("2012-W48-6T10:15:30.1Z", "strict_week_date_time");
+        assertParses("2012-W48-6T10:15:30.123Z", "strict_week_date_time");
+        assertParses("2012-W48-6T10:15:30.123456789Z", "strict_week_date_time");
+        assertParses("2012-W48-6T10:15:30.1+0100", "strict_week_date_time");
+        assertParses("2012-W48-6T10:15:30.123+0100", "strict_week_date_time");
+        assertParses("2012-W48-6T10:15:30.1+01:00", "strict_week_date_time");
+        assertParses("2012-W48-6T10:15:30.123+01:00", "strict_week_date_time");
+        assertParseException("2012-W1-6T10:15:30.123Z", "strict_week_date_time");
+
+        assertParses("2012-W48-6T10:15:30Z", "strict_week_date_time_no_millis");
+        assertParses("2012-W48-6T10:15:30+0100", "strict_week_date_time_no_millis");
+        assertParses("2012-W48-6T10:15:30+01:00", "strict_week_date_time_no_millis");
+        assertParseException("2012-W1-6T10:15:30Z", "strict_week_date_time_no_millis");
+
+        assertParses("2012", "strict_year");
+        assertParseException("1", "strict_year");
+        assertParses("-2000", "strict_year");
+
+        assertParses("2012-12", "strict_year_month");
+        assertParseException("1-1", "strict_year_month");
+
+        assertParses("2012-12-31", "strict_year_month_day");
+        assertParseException("1-12-31", "strict_year_month_day");
+        assertParseException("2012-1-31", "strict_year_month_day");
+        assertParseException("2012-12-1", "strict_year_month_day");
+
+        assertParses("2018", "strict_weekyear");
+        assertParseException("1", "strict_weekyear");
+
+        assertParses("2018", "strict_weekyear");
+        assertParses("2017", "strict_weekyear");
+        assertParseException("1", "strict_weekyear");
+
+        assertParses("2018-W29", "strict_weekyear_week");
+        assertParses("2018-W01", "strict_weekyear_week");
+        assertParseException("2018-W1", "strict_weekyear_week");
+
+        assertParses("2012-W31-5", "strict_weekyear_week_day");
+        assertParseException("2012-W1-1", "strict_weekyear_week_day");
+    }
+
+    public void testDateFormatterWithLocale() {
+        Locale locale = randomLocale(random());
+        String pattern = randomBoolean() ? "strict_date_optional_time||date_time" : "date_time||strict_date_optional_time";
+        DateFormatter formatter = DateFormatter.forPattern(pattern).withLocale(locale);
+        assertThat(formatter.pattern(), is(pattern));
+        assertThat(formatter.locale(), is(locale));
+    }
+
+    public void testSeveralTimeFormats() {
+        {
+            String format = "year_month_day||ordinal_date";
+            DateFormatter javaFormatter = DateFormatter.forPattern(format);
+            assertParses("2018-12-12", javaFormatter);
+            assertParses("2018-128", javaFormatter);
+        }
+        {
+            String format = "strict_date_optional_time||dd-MM-yyyy";
+            DateFormatter javaFormatter = DateFormatter.forPattern(format);
+            assertParses("31-01-2014", javaFormatter);
+        }
+    }
+
+    public void testParsingLocalDateFromYearOfEra(){
+        //with strict resolving, YearOfEra expect an era, otherwise it won't resolve to a date
+        assertParses("2018363", DateFormatter.forPattern("uuuuDDD"));
+    }
+    public void testParsingMissingTimezone() {
+        long millisJava = DateFormatter.forPattern("8yyyy-MM-dd HH:mm:ss").parseMillis("2018-02-18 17:47:17");
+        long millisJoda = DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss").parseMillis("2018-02-18 17:47:17");
+        assertThat(millisJava, is(millisJoda));
     }
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.util;
@@ -22,15 +11,21 @@ package org.elasticsearch.common.util;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.util.Arrays;
+
+import static org.elasticsearch.common.util.BigDoubleArray.VH_PLATFORM_NATIVE_DOUBLE;
+import static org.elasticsearch.common.util.BigFloatArray.VH_PLATFORM_NATIVE_FLOAT;
+import static org.elasticsearch.common.util.BigIntArray.VH_PLATFORM_NATIVE_INT;
+import static org.elasticsearch.common.util.BigLongArray.VH_PLATFORM_NATIVE_LONG;
 
 /** Utility class to work with arrays. */
 public class BigArrays {
@@ -157,13 +152,14 @@ public class BigArrays {
         }
     }
 
-    private static class IntArrayWrapper extends AbstractArrayWrapper implements IntArray {
+    private static class ByteArrayAsIntArrayWrapper extends AbstractArrayWrapper implements IntArray {
 
-        private final int[] array;
+        final byte[] array;
 
-        IntArrayWrapper(BigArrays bigArrays, int[] array, long size, Recycler.V<int[]> releasable, boolean clearOnResize) {
-            super(bigArrays, size, releasable, clearOnResize);
-            this.array = array;
+        ByteArrayAsIntArrayWrapper(BigArrays bigArrays, long size, boolean clearOnResize) {
+            super(bigArrays, size, null, clearOnResize);
+            assert size >= 0L && size <= PageCacheRecycler.INT_PAGE_SIZE;
+            this.array = new byte[(int) size << 2];
         }
 
         @Override
@@ -173,40 +169,48 @@ public class BigArrays {
 
         @Override
         public int get(long index) {
-            assert indexIsInt(index);
-            return array[(int) index];
+            assert index >= 0 && index < size();
+            return (int) VH_PLATFORM_NATIVE_INT.get(array, (int) index << 2);
         }
 
         @Override
         public int set(long index, int value) {
-            assert indexIsInt(index);
-            final int ret = array[(int) index];
-            array[(int) index] = value;
+            assert index >= 0 && index < size();
+            final int ret = (int) VH_PLATFORM_NATIVE_INT.get(array, (int) index << 2);
+            VH_PLATFORM_NATIVE_INT.set(array, (int) index << 2, value);
             return ret;
         }
 
         @Override
         public int increment(long index, int inc) {
-            assert indexIsInt(index);
-            return array[(int) index] += inc;
+            assert index >= 0 && index < size();
+            final int ret = (int) VH_PLATFORM_NATIVE_INT.get(array, (int) index << 2) + inc;
+            VH_PLATFORM_NATIVE_INT.set(array, (int) index << 2, ret);
+            return ret;
         }
 
         @Override
         public void fill(long fromIndex, long toIndex, int value) {
-            assert indexIsInt(fromIndex);
-            assert indexIsInt(toIndex);
-            Arrays.fill(array, (int) fromIndex, (int) toIndex, value);
+            assert fromIndex >= 0 && fromIndex <= toIndex;
+            assert toIndex >= 0 && toIndex <= size();
+            BigIntArray.fill(array, (int) fromIndex, (int) toIndex, value);
         }
 
+        @Override
+        public void set(long index, byte[] buf, int offset, int len) {
+            assert index >= 0 && index < size();
+            System.arraycopy(buf, offset << 2, array, (int) index << 2, len << 2);
+        }
     }
 
-    private static class LongArrayWrapper extends AbstractArrayWrapper implements LongArray {
+    private static class ByteArrayAsLongArrayWrapper extends AbstractArrayWrapper implements LongArray {
 
-        private final long[] array;
+        private final byte[] array;
 
-        LongArrayWrapper(BigArrays bigArrays, long[] array, long size, Recycler.V<long[]> releasable, boolean clearOnResize) {
-            super(bigArrays, size, releasable, clearOnResize);
-            this.array = array;
+        ByteArrayAsLongArrayWrapper(BigArrays bigArrays, long size, boolean clearOnResize) {
+            super(bigArrays, size, null, clearOnResize);
+            assert size >= 0 && size <= PageCacheRecycler.LONG_PAGE_SIZE;
+            this.array = new byte[(int) size << 3];
         }
 
         @Override
@@ -216,39 +220,48 @@ public class BigArrays {
 
         @Override
         public long get(long index) {
-            assert indexIsInt(index);
-            return array[(int) index];
+            assert index >= 0 && index < size();
+            return (long) VH_PLATFORM_NATIVE_LONG.get(array, (int) index << 3);
         }
 
         @Override
         public long set(long index, long value) {
-            assert indexIsInt(index);
-            final long ret = array[(int) index];
-            array[(int) index] = value;
+            assert index >= 0 && index < size();
+            final long ret = (long) VH_PLATFORM_NATIVE_LONG.get(array, (int) index << 3);
+            VH_PLATFORM_NATIVE_LONG.set(array, (int) index << 3, value);
             return ret;
         }
 
         @Override
         public long increment(long index, long inc) {
-            assert indexIsInt(index);
-            return array[(int) index] += inc;
+            assert index >= 0 && index < size();
+            final long ret = (long) VH_PLATFORM_NATIVE_LONG.get(array, (int) index << 3) + inc;
+            VH_PLATFORM_NATIVE_LONG.set(array, (int) index << 3, ret);
+            return ret;
         }
 
         @Override
         public void fill(long fromIndex, long toIndex, long value) {
-            assert indexIsInt(fromIndex);
-            assert indexIsInt(toIndex);
-            Arrays.fill(array, (int) fromIndex, (int) toIndex, value);
+            assert fromIndex >= 0 && fromIndex <= toIndex;
+            assert toIndex >= 0 && toIndex <= size();
+            BigLongArray.fill(array, (int) fromIndex, (int) toIndex, value);
+        }
+
+        @Override
+        public void set(long index, byte[] buf, int offset, int len) {
+            assert index >= 0 && index < size();
+            System.arraycopy(buf, offset << 3, array, (int) index << 3, len << 3);
         }
     }
 
-    private static class DoubleArrayWrapper extends AbstractArrayWrapper implements DoubleArray {
+    private static class ByteArrayAsDoubleArrayWrapper extends AbstractArrayWrapper implements DoubleArray {
 
-        private final long[] array;
+        private final byte[] array;
 
-        DoubleArrayWrapper(BigArrays bigArrays, long[] array, long size, Recycler.V<long[]> releasable, boolean clearOnResize) {
-            super(bigArrays, size, releasable, clearOnResize);
-            this.array = array;
+        ByteArrayAsDoubleArrayWrapper(BigArrays bigArrays, long size, boolean clearOnResize) {
+            super(bigArrays, size, null, clearOnResize);
+            assert size >= 0L && size <= PageCacheRecycler.DOUBLE_PAGE_SIZE;
+            this.array = new byte[(int) size << 3];
         }
 
         @Override
@@ -258,40 +271,48 @@ public class BigArrays {
 
         @Override
         public double get(long index) {
-            assert indexIsInt(index);
-            return Double.longBitsToDouble(array[(int) index]);
+            assert index >= 0 && index < size();
+            return (double) VH_PLATFORM_NATIVE_DOUBLE.get(array, (int) index << 3);
         }
 
         @Override
         public double set(long index, double value) {
-            assert indexIsInt(index);
-            double ret = Double.longBitsToDouble(array[(int) index]);
-            array[(int) index] = Double.doubleToRawLongBits(value);
+            assert index >= 0 && index < size();
+            final double ret = (double) VH_PLATFORM_NATIVE_DOUBLE.get(array, (int) index << 3);
+            VH_PLATFORM_NATIVE_DOUBLE.set(array, (int) index << 3, value);
             return ret;
         }
 
         @Override
         public double increment(long index, double inc) {
-            assert indexIsInt(index);
-            return array[(int) index] = Double.doubleToRawLongBits(Double.longBitsToDouble(array[(int) index]) + inc);
+            assert index >= 0 && index < size();
+            final double ret = (double) VH_PLATFORM_NATIVE_DOUBLE.get(array, (int) index << 3) + inc;
+            VH_PLATFORM_NATIVE_DOUBLE.set(array, (int) index << 3, ret);
+            return ret;
         }
 
         @Override
         public void fill(long fromIndex, long toIndex, double value) {
-            assert indexIsInt(fromIndex);
-            assert indexIsInt(toIndex);
-            Arrays.fill(array, (int) fromIndex, (int) toIndex, Double.doubleToRawLongBits(value));
+            assert fromIndex >= 0 && fromIndex <= toIndex;
+            assert toIndex >= 0 && toIndex <= size();
+            BigDoubleArray.fill(array, (int) fromIndex, (int) toIndex, value);
         }
 
+        @Override
+        public void set(long index, byte[] buf, int offset, int len) {
+            assert index >= 0 && index < size();
+            System.arraycopy(buf, offset << 3, array, (int) index << 3, len << 3);
+        }
     }
 
-    private static class FloatArrayWrapper extends AbstractArrayWrapper implements FloatArray {
+    private static class ByteArrayAsFloatArrayWrapper extends AbstractArrayWrapper implements FloatArray {
 
-        private final int[] array;
+        private final byte[] array;
 
-        FloatArrayWrapper(BigArrays bigArrays, int[] array, long size, Recycler.V<int[]> releasable, boolean clearOnResize) {
-            super(bigArrays, size, releasable, clearOnResize);
-            this.array = array;
+        ByteArrayAsFloatArrayWrapper(BigArrays bigArrays, long size, boolean clearOnResize) {
+            super(bigArrays, size, null, clearOnResize);
+            assert size >= 0 && size <= PageCacheRecycler.FLOAT_PAGE_SIZE;
+            this.array = new byte[(int) size << 2];
         }
 
         @Override
@@ -301,31 +322,38 @@ public class BigArrays {
 
         @Override
         public float get(long index) {
-            assert indexIsInt(index);
-            return Float.intBitsToFloat(array[(int) index]);
+            assert index >= 0 && index < size();
+            return (float) VH_PLATFORM_NATIVE_FLOAT.get(array, (int) index << 2);
         }
 
         @Override
         public float set(long index, float value) {
-            assert indexIsInt(index);
-            float ret = Float.intBitsToFloat(array[(int) index]);
-            array[(int) index] = Float.floatToRawIntBits(value);
+            assert index >= 0 && index < size();
+            final float ret = (float) VH_PLATFORM_NATIVE_FLOAT.get(array, (int) index << 2);
+            VH_PLATFORM_NATIVE_FLOAT.set(array, (int) index << 2, value);
             return ret;
         }
 
         @Override
         public float increment(long index, float inc) {
-            assert indexIsInt(index);
-            return array[(int) index] = Float.floatToRawIntBits(Float.intBitsToFloat(array[(int) index]) + inc);
+            assert index >= 0 && index < size();
+            final float ret = (float) VH_PLATFORM_NATIVE_FLOAT.get(array, (int) index << 2) + inc;
+            VH_PLATFORM_NATIVE_FLOAT.set(array, (int) index << 2, ret);
+            return ret;
         }
 
         @Override
         public void fill(long fromIndex, long toIndex, float value) {
-            assert indexIsInt(fromIndex);
-            assert indexIsInt(toIndex);
-            Arrays.fill(array, (int) fromIndex, (int) toIndex, Float.floatToRawIntBits(value));
+            assert fromIndex >= 0 && fromIndex <= toIndex;
+            assert toIndex >= 0 && toIndex <= size();
+            BigFloatArray.fill(array, (int) fromIndex, (int) toIndex, value);
         }
 
+        @Override
+        public void set(long index, byte[] buf, int offset, int len) {
+            assert index >= 0 && index < size();
+            System.arraycopy(buf, offset << 2, array, (int) index << 2, len << 2);
+        }
     }
 
     private static class ObjectArrayWrapper<T> extends AbstractArrayWrapper implements ObjectArray<T> {
@@ -346,13 +374,13 @@ public class BigArrays {
         @SuppressWarnings("unchecked")
         @Override
         public T get(long index) {
-            assert indexIsInt(index);
+            assert index >= 0 && index < size();
             return (T) array[(int) index];
         }
 
         @Override
         public T set(long index, T value) {
-            assert indexIsInt(index);
+            assert index >= 0 && index < size();
             @SuppressWarnings("unchecked")
             T ret = (T) array[(int) index];
             array[(int) index] = value;
@@ -430,6 +458,14 @@ public class BigArrays {
         return this.circuitBreakingInstance;
     }
 
+    /**
+     * Creates a new {@link BigArray} pointing at the specified
+     * {@link CircuitBreakerService}. Use with {@link PreallocatedCircuitBreakerService}.
+     */
+    public BigArrays withBreakerService(CircuitBreakerService breakerService) {
+        return new BigArrays(recycler, breakerService, breakerName, checkBreaker);
+    }
+
     public CircuitBreakerService breakerService() {   // TODO this feels like it is for tests but it has escaped
         return this.circuitBreakingInstance.breakerService;
     }
@@ -452,8 +488,8 @@ public class BigArrays {
             adjustBreaker(array.ramBytesUsed(), true);
             success = true;
         } finally {
-            if (!success) {
-                Releasables.closeWhileHandlingException(array);
+            if (success == false) {
+                Releasables.closeExpectNoException(array);
             }
         }
         return array;
@@ -549,16 +585,13 @@ public class BigArrays {
      * @param clearOnResize whether values should be set to 0 on initialization and resize
      */
     public IntArray newIntArray(long size, boolean clearOnResize) {
-        if (size > PageCacheRecycler.INT_PAGE_SIZE) {
+        if (size > PageCacheRecycler.INT_PAGE_SIZE || (size >= PageCacheRecycler.INT_PAGE_SIZE / 2 && recycler != null)) {
             // when allocating big arrays, we want to first ensure we have the capacity by
             // checking with the circuit breaker before attempting to allocate
             adjustBreaker(BigIntArray.estimateRamBytes(size), false);
             return new BigIntArray(size, this, clearOnResize);
-        } else if (size >= PageCacheRecycler.INT_PAGE_SIZE / 2 && recycler != null) {
-            final Recycler.V<int[]> page = recycler.intPage(clearOnResize);
-            return validate(new IntArrayWrapper(this, page.v(), size, page, clearOnResize));
         } else {
-            return validate(new IntArrayWrapper(this, new int[(int) size], size, null, clearOnResize));
+            return validate(new ByteArrayAsIntArrayWrapper(this, size, clearOnResize));
         }
     }
 
@@ -577,9 +610,7 @@ public class BigArrays {
         } else {
             AbstractArray arr = (AbstractArray) array;
             final IntArray newArray = newIntArray(size, arr.clearOnResize);
-            for (long i = 0, end = Math.min(size, array.size()); i < end; ++i) {
-                newArray.set(i, array.get(i));
-            }
+            newArray.set(0, ((ByteArrayAsIntArrayWrapper) arr).array, 0, (int) Math.min(size, array.size()));
             array.close();
             return newArray;
         }
@@ -601,16 +632,13 @@ public class BigArrays {
      * @param clearOnResize whether values should be set to 0 on initialization and resize
      */
     public LongArray newLongArray(long size, boolean clearOnResize) {
-        if (size > PageCacheRecycler.LONG_PAGE_SIZE) {
+        if (size > PageCacheRecycler.LONG_PAGE_SIZE || (size >= PageCacheRecycler.LONG_PAGE_SIZE / 2 && recycler != null)) {
             // when allocating big arrays, we want to first ensure we have the capacity by
             // checking with the circuit breaker before attempting to allocate
             adjustBreaker(BigLongArray.estimateRamBytes(size), false);
             return new BigLongArray(size, this, clearOnResize);
-        } else if (size >= PageCacheRecycler.LONG_PAGE_SIZE / 2 && recycler != null) {
-            final Recycler.V<long[]> page = recycler.longPage(clearOnResize);
-            return validate(new LongArrayWrapper(this, page.v(), size, page, clearOnResize));
         } else {
-            return validate(new LongArrayWrapper(this, new long[(int) size], size, null, clearOnResize));
+            return validate(new ByteArrayAsLongArrayWrapper(this, size, clearOnResize));
         }
     }
 
@@ -629,9 +657,7 @@ public class BigArrays {
         } else {
             AbstractArray arr = (AbstractArray) array;
             final LongArray newArray = newLongArray(size, arr.clearOnResize);
-            for (long i = 0, end = Math.min(size, array.size()); i < end; ++i) {
-                newArray.set(i, array.get(i));
-            }
+            newArray.set(0, ((ByteArrayAsLongArrayWrapper) arr).array, 0, (int) Math.min(size, array.size()));
             array.close();
             return newArray;
         }
@@ -653,16 +679,13 @@ public class BigArrays {
      * @param clearOnResize whether values should be set to 0 on initialization and resize
      */
     public DoubleArray newDoubleArray(long size, boolean clearOnResize) {
-        if (size > PageCacheRecycler.LONG_PAGE_SIZE) {
+        if (size > PageCacheRecycler.DOUBLE_PAGE_SIZE || (size >= PageCacheRecycler.DOUBLE_PAGE_SIZE / 2 && recycler != null)) {
             // when allocating big arrays, we want to first ensure we have the capacity by
             // checking with the circuit breaker before attempting to allocate
             adjustBreaker(BigDoubleArray.estimateRamBytes(size), false);
             return new BigDoubleArray(size, this, clearOnResize);
-        } else if (size >= PageCacheRecycler.LONG_PAGE_SIZE / 2 && recycler != null) {
-            final Recycler.V<long[]> page = recycler.longPage(clearOnResize);
-            return validate(new DoubleArrayWrapper(this, page.v(), size, page, clearOnResize));
         } else {
-            return validate(new DoubleArrayWrapper(this, new long[(int) size], size, null, clearOnResize));
+            return validate(new ByteArrayAsDoubleArrayWrapper(this, size, clearOnResize));
         }
     }
 
@@ -678,9 +701,7 @@ public class BigArrays {
         } else {
             AbstractArray arr = (AbstractArray) array;
             final DoubleArray newArray = newDoubleArray(size, arr.clearOnResize);
-            for (long i = 0, end = Math.min(size, array.size()); i < end; ++i) {
-                newArray.set(i, array.get(i));
-            }
+            newArray.set(0, ((ByteArrayAsDoubleArrayWrapper) arr).array, 0, (int) Math.min(size, array.size()));
             array.close();
             return newArray;
         }
@@ -692,7 +713,7 @@ public class BigArrays {
         if (minSize <= array.size()) {
             return array;
         }
-        final long newSize = overSize(minSize, PageCacheRecycler.LONG_PAGE_SIZE, Long.BYTES);
+        final long newSize = overSize(minSize, PageCacheRecycler.DOUBLE_PAGE_SIZE, Double.BYTES);
         return resize(array, newSize);
     }
 
@@ -731,16 +752,13 @@ public class BigArrays {
      * @param clearOnResize whether values should be set to 0 on initialization and resize
      */
     public FloatArray newFloatArray(long size, boolean clearOnResize) {
-        if (size > PageCacheRecycler.INT_PAGE_SIZE) {
+        if (size > PageCacheRecycler.FLOAT_PAGE_SIZE || (size >= PageCacheRecycler.FLOAT_PAGE_SIZE / 2 && recycler != null)) {
             // when allocating big arrays, we want to first ensure we have the capacity by
             // checking with the circuit breaker before attempting to allocate
             adjustBreaker(BigFloatArray.estimateRamBytes(size), false);
             return new BigFloatArray(size, this, clearOnResize);
-        } else if (size >= PageCacheRecycler.INT_PAGE_SIZE / 2 && recycler != null) {
-            final Recycler.V<int[]> page = recycler.intPage(clearOnResize);
-            return validate(new FloatArrayWrapper(this, page.v(), size, page, clearOnResize));
         } else {
-            return validate(new FloatArrayWrapper(this, new int[(int) size], size, null, clearOnResize));
+            return validate(new ByteArrayAsFloatArrayWrapper(this, size, clearOnResize));
         }
     }
 
@@ -756,9 +774,7 @@ public class BigArrays {
         } else {
             AbstractArray arr = (AbstractArray) array;
             final FloatArray newArray = newFloatArray(size, arr.clearOnResize);
-            for (long i = 0, end = Math.min(size, array.size()); i < end; ++i) {
-                newArray.set(i, array.get(i));
-            }
+            newArray.set(0, ((ByteArrayAsFloatArrayWrapper) arr).array, 0, (int) Math.min(size, array.size()));
             arr.close();
             return newArray;
         }
@@ -770,7 +786,7 @@ public class BigArrays {
         if (minSize <= array.size()) {
             return array;
         }
-        final long newSize = overSize(minSize, PageCacheRecycler.INT_PAGE_SIZE, Float.BYTES);
+        final long newSize = overSize(minSize, PageCacheRecycler.FLOAT_PAGE_SIZE, Float.BYTES);
         return resize(array, newSize);
     }
 

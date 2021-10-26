@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.bulk;
@@ -43,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.bulk.stats.ShardBulkStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -72,6 +62,7 @@ import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
@@ -740,7 +731,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkItemRequest itemRequest = new BulkItemRequest(0, new IndexRequest("index").source(Requests.INDEX_CONTENT_TYPE));
         final String failureMessage = "simulated primary failure";
         final IOException exception = new IOException(failureMessage);
-        itemRequest.setPrimaryResponse(new BulkItemResponse(0,
+        itemRequest.setPrimaryResponse(BulkItemResponse.failure(0,
             randomFrom(
                 DocWriteRequest.OpType.CREATE,
                 DocWriteRequest.OpType.DELETE,
@@ -918,10 +909,54 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         }
     }
 
+    public void testPerformOnPrimaryReportsBulkStats() throws Exception {
+        IndexShard shard = newStartedShard(true);
+        BulkItemRequest[] items = new BulkItemRequest[5];
+        for (int i = 0; i < items.length; i++) {
+            DocWriteRequest<IndexRequest> writeRequest = new IndexRequest("index").id("id_" + i)
+                // we need to induce mapping updates because it's on the mapping update code path where introduce delays to make sure the
+                // average operation time is gt 1ms (so we can assert it's *always* gt 0)
+                .source(Requests.INDEX_CONTENT_TYPE, "foo" + i, "bar")
+                .opType(DocWriteRequest.OpType.INDEX);
+            items[i] = new BulkItemRequest(i, writeRequest);
+        }
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        TransportShardBulkAction.performOnPrimary(
+            bulkShardRequest, shard, null, threadPool::absoluteTimeInMillis,
+            (update, shardId, listener) -> {
+                try {
+                    // delay the operation so our time stats are always GT 0
+                    Thread.sleep(100);
+                } catch (InterruptedException ignored) {
+                } finally {
+                    listener.onResponse(null);
+                }
+            },
+            listener -> listener.onFailure(new IllegalStateException("no failure expected")),
+            new LatchedActionListener<>(
+                ActionTestUtils.assertNoFailureListener(result -> {
+                    try {
+                        BulkStats bulkStats = shard.bulkStats();
+                        assertThat(bulkStats.getTotalOperations(), greaterThan(0L));
+                        assertThat(bulkStats.getTotalTimeInMillis(), greaterThan(0L));
+                        assertThat(bulkStats.getAvgTimeInMillis(), greaterThan(0L));
+                        assertThat(bulkStats.getAvgSizeInBytes(), greaterThan(0L));
+
+                    } finally {
+                        closeShards(shard);
+                    }
+                    }), latch),
+            threadPool, Names.WRITE);
+
+        latch.await();
+    }
+
     private void randomlySetIgnoredPrimaryResponse(BulkItemRequest primaryRequest) {
         if (randomBoolean()) {
             // add a response to the request and thereby check that it is ignored for the primary.
-            primaryRequest.setPrimaryResponse(new BulkItemResponse(0, DocWriteRequest.OpType.INDEX, new IndexResponse(shardId,
+            primaryRequest.setPrimaryResponse(BulkItemResponse.success(0, DocWriteRequest.OpType.INDEX, new IndexResponse(shardId,
                 "ignore-primary-response-on-primary", 42, 42, 42, false)));
         }
     }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.script;
@@ -34,17 +23,20 @@ import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -57,14 +49,34 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class ScriptService implements Closeable, ClusterStateApplier {
+public class ScriptService implements Closeable, ClusterStateApplier, ScriptCompiler {
 
     private static final Logger logger = LogManager.getLogger(ScriptService.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ScriptService.class);
 
     static final String DISABLE_DYNAMIC_SCRIPTING_SETTING = "script.disable_dynamic";
 
+    // Special setting value for SCRIPT_GENERAL_MAX_COMPILATIONS_RATE to indicate the script service should use context
+    // specific caches
+    static final ScriptCache.CompilationRate USE_CONTEXT_RATE_VALUE = new ScriptCache.CompilationRate(-1, TimeValue.MINUS_ONE);
+    static final String USE_CONTEXT_RATE_KEY = "use-context";
+
+    public static final Setting<Integer> SCRIPT_GENERAL_CACHE_SIZE_SETTING =
+        Setting.intSetting("script.cache.max_size", 3000, 0, Property.Dynamic, Property.NodeScope);
+    public static final Setting<TimeValue> SCRIPT_GENERAL_CACHE_EXPIRE_SETTING =
+        Setting.positiveTimeSetting("script.cache.expire", TimeValue.timeValueMillis(0), Property.Dynamic, Property.NodeScope);
     public static final Setting<Integer> SCRIPT_MAX_SIZE_IN_BYTES =
         Setting.intSetting("script.max_size_in_bytes", 65535, 0, Property.Dynamic, Property.NodeScope);
+    public static final Setting<ScriptCache.CompilationRate> SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING =
+        new Setting<>("script.max_compilations_rate", "150/5m",
+            (String value) -> value.equals(USE_CONTEXT_RATE_KEY) ? USE_CONTEXT_RATE_VALUE: new ScriptCache.CompilationRate(value),
+            Property.Dynamic, Property.NodeScope);
+
+    public static final String USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE = "[" + USE_CONTEXT_RATE_KEY + "] is deprecated for the setting [" +
+        SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey() + "] as system scripts are now exempt from the rate limit. " +
+        "Set to a value such as [150/5m] (a rate of 150 compilations per five minutes) to rate limit user scripts in case the " +
+        "script cache [" + SCRIPT_GENERAL_CACHE_SIZE_SETTING.getKey() + "] is undersized causing script compilation thrashing.";
+
 
     // Per-context settings
     static final String CONTEXT_PREFIX = "script.context.";
@@ -73,11 +85,15 @@ public class ScriptService implements Closeable, ClusterStateApplier {
 
     public static final Setting.AffixSetting<Integer> SCRIPT_CACHE_SIZE_SETTING =
         Setting.affixKeySetting(CONTEXT_PREFIX,
-            "cache_max_size", key -> Setting.intSetting(key, 0, Property.NodeScope, Property.Dynamic));
+            "cache_max_size",
+            key -> Setting.intSetting(key, SCRIPT_GENERAL_CACHE_SIZE_SETTING, 0,
+                                      Property.NodeScope, Property.Dynamic, Property.Deprecated));
 
     public static final Setting.AffixSetting<TimeValue> SCRIPT_CACHE_EXPIRE_SETTING =
         Setting.affixKeySetting(CONTEXT_PREFIX,
-            "cache_expire", key -> Setting.positiveTimeSetting(key, TimeValue.timeValueMillis(0), Property.NodeScope, Property.Dynamic));
+            "cache_expire",
+            key -> Setting.positiveTimeSetting(key, SCRIPT_GENERAL_CACHE_EXPIRE_SETTING, TimeValue.timeValueMillis(0),
+                                               Property.NodeScope, Property.Dynamic, Property.Deprecated));
 
     // Unlimited compilation rate for context-specific script caches
     static final String UNLIMITED_COMPILATION_RATE_KEY = "unlimited";
@@ -87,8 +103,8 @@ public class ScriptService implements Closeable, ClusterStateApplier {
             "max_compilations_rate",
             key -> new Setting<ScriptCache.CompilationRate>(key, "75/5m",
                 (String value) -> value.equals(UNLIMITED_COMPILATION_RATE_KEY) ? ScriptCache.UNLIMITED_COMPILATION_RATE:
-                    new ScriptCache.CompilationRate(value),
-                Property.NodeScope, Property.Dynamic));
+                                                                                 new ScriptCache.CompilationRate(value),
+                Property.NodeScope, Property.Dynamic, Property.Deprecated));
 
     private static final ScriptCache.CompilationRate SCRIPT_COMPILATION_RATE_ZERO = new ScriptCache.CompilationRate(0, TimeValue.ZERO);
 
@@ -116,8 +132,8 @@ public class ScriptService implements Closeable, ClusterStateApplier {
     final AtomicReference<CacheHolder> cacheHolder = new AtomicReference<>();
 
     public ScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext<?>> contexts) {
-        this.engines = Objects.requireNonNull(engines);
-        this.contexts = Objects.requireNonNull(contexts);
+        this.engines = Collections.unmodifiableMap(Objects.requireNonNull(engines));
+        this.contexts = Collections.unmodifiableMap(Objects.requireNonNull(contexts));
 
         if (Strings.hasLength(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING))) {
             throw new IllegalArgumentException(DISABLE_DYNAMIC_SCRIPTING_SETTING + " is not a supported setting, replace with " +
@@ -196,7 +212,11 @@ public class ScriptService implements Closeable, ClusterStateApplier {
 
         // Validation requires knowing which contexts exist.
         this.validateCacheSettings(settings);
-        this.cacheHolder.set(contextCacheHolder(settings));
+        this.setCacheHolder(settings);
+    }
+
+    public static boolean isUseContextCacheSet(Settings settings) {
+        return SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings).equals(USE_CONTEXT_RATE_VALUE);
     }
 
     /**
@@ -213,12 +233,28 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         for (ScriptContext<?> context: contexts.values()) {
             clusterSettings.addSettingsUpdateConsumer(
                 (settings) -> cacheHolder.get().set(context.name, contextCache(settings, context)),
-                List.of(SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(context.name),
-                        SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace(context.name),
-                        SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(context.name)
+                Arrays.asList(SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(context.name),
+                              SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace(context.name),
+                              SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(context.name),
+                              SCRIPT_GENERAL_CACHE_EXPIRE_SETTING,
+                              // general settings used for fallbacks
+                              SCRIPT_GENERAL_CACHE_SIZE_SETTING
                 )
             );
         }
+
+        // Handle all settings for context and general caches, this flips between general and context caches.
+        clusterSettings.addSettingsUpdateConsumer(
+            this::setCacheHolder,
+            Arrays.asList(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING,
+                          SCRIPT_GENERAL_CACHE_EXPIRE_SETTING,
+                          SCRIPT_GENERAL_CACHE_SIZE_SETTING,
+                          SCRIPT_MAX_COMPILATIONS_RATE_SETTING,
+                          SCRIPT_DISABLE_MAX_COMPILATIONS_RATE_SETTING,
+                          SCRIPT_CACHE_EXPIRE_SETTING,
+                          SCRIPT_CACHE_SIZE_SETTING),
+            this::validateCacheSettings
+        );
     }
 
     /**
@@ -226,8 +262,13 @@ public class ScriptService implements Closeable, ClusterStateApplier {
      * when using the general cache.
      */
     void validateCacheSettings(Settings settings) {
-        List<Setting.AffixSetting<?>> affixes = List.of(SCRIPT_MAX_COMPILATIONS_RATE_SETTING, SCRIPT_CACHE_EXPIRE_SETTING,
-                                                        SCRIPT_CACHE_SIZE_SETTING);
+        boolean useContext = SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings).equals(USE_CONTEXT_RATE_VALUE);
+        if (useContext) {
+            deprecationLogger.warn(DeprecationCategory.SCRIPTING, "scripting-context-cache",
+                    USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE);
+        }
+        List<Setting.AffixSetting<?>> affixes = Arrays.asList(SCRIPT_MAX_COMPILATIONS_RATE_SETTING, SCRIPT_CACHE_EXPIRE_SETTING,
+                                                              SCRIPT_CACHE_SIZE_SETTING);
         List<String> customRates = new ArrayList<>();
         List<String> keys = new ArrayList<>();
         for (Setting.AffixSetting<?> affix: affixes) {
@@ -242,11 +283,22 @@ public class ScriptService implements Closeable, ClusterStateApplier {
                 }
             }
         }
+        if (useContext == false && keys.isEmpty() == false) {
+            keys.sort(Comparator.naturalOrder());
+            throw new IllegalArgumentException("Context cache settings [" + String.join(", ", keys) + "] requires [" +
+                SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey() + "] to be [" + USE_CONTEXT_RATE_KEY + "]");
+        }
         if (SCRIPT_DISABLE_MAX_COMPILATIONS_RATE_SETTING.get(settings)) {
             if (customRates.size() > 0) {
                 customRates.sort(Comparator.naturalOrder());
                 throw new IllegalArgumentException("Cannot set custom context compilation rates [" +
                     String.join(", ", customRates) + "] if compile rates disabled via [" +
+                    SCRIPT_DISABLE_MAX_COMPILATIONS_RATE_SETTING.getKey() + "]");
+            }
+            if (useContext == false && SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.exists(settings)) {
+                throw new IllegalArgumentException("Cannot set custom general compilation rates [" +
+                    SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey() + "] to [" +
+                    SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings) + "] if compile rates disabled via [" +
                     SCRIPT_DISABLE_MAX_COMPILATIONS_RATE_SETTING.getKey() + "]");
             }
         }
@@ -255,6 +307,13 @@ public class ScriptService implements Closeable, ClusterStateApplier {
     @Override
     public void close() throws IOException {
         IOUtils.close(engines.values());
+    }
+
+    /**
+     * @return an unmodifiable {@link Map} of available script context names to {@link ScriptContext}s
+     */
+    public Map<String, ScriptContext<?>> getScriptContexts() {
+        return contexts;
     }
 
     private ScriptEngine getEngine(String lang) {
@@ -281,7 +340,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         maxSizeInBytes = newMaxSizeInBytes;
     }
 
-    /*
+    /**
      * Compiles a script using the given context.
      *
      * @return a compiled script which may be used to construct instances of a script for the given context
@@ -413,6 +472,9 @@ public class ScriptService implements Closeable, ClusterStateApplier {
                 if (context == null) {
                     throw new IllegalArgumentException("Unknown context [" + request.context() + "]");
                 }
+                if (context.allowStoredScript == false) {
+                    throw new IllegalArgumentException("cannot store a script for context [" + request.context() + "]");
+                }
                 scriptEngine.compile(request.id(), source.getSource(), context, Collections.emptyMap());
             }
         } catch (ScriptException good) {
@@ -490,9 +552,48 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         return cacheHolder.get().stats();
     }
 
+    public ScriptCacheStats cacheStats() {
+        return cacheHolder.get().cacheStats();
+    }
+
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
         clusterState = event.state();
+    }
+
+    void setCacheHolder(Settings settings) {
+        CacheHolder current = cacheHolder.get();
+        boolean useContext = SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings).equals(USE_CONTEXT_RATE_VALUE);
+
+        if (current == null) {
+            if (useContext) {
+                cacheHolder.set(contextCacheHolder(settings));
+            } else {
+                cacheHolder.set(generalCacheHolder(settings));
+            }
+            return;
+        }
+
+        // Update
+        if (useContext) {
+            if (current.general != null) {
+                // Flipping to context specific
+                cacheHolder.set(contextCacheHolder(settings));
+            }
+        } else if (current.general == null) {
+            // Flipping to general
+            cacheHolder.set(generalCacheHolder(settings));
+        } else if (current.general.rate.equals(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings)) == false ||
+                   current.general.cacheExpire.equals(SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.get(settings)) == false ||
+                   current.general.cacheSize != SCRIPT_GENERAL_CACHE_SIZE_SETTING.get(settings)) {
+            // General compilation rate, cache expiration or cache size changed
+            cacheHolder.set(generalCacheHolder(settings));
+        }
+    }
+
+    CacheHolder generalCacheHolder(Settings settings) {
+        return new CacheHolder(SCRIPT_GENERAL_CACHE_SIZE_SETTING.get(settings), SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.get(settings),
+            SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings), SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey());
     }
 
     CacheHolder contextCacheHolder(Settings settings) {
@@ -511,13 +612,15 @@ public class ScriptService implements Closeable, ClusterStateApplier {
 
         Setting<ScriptCache.CompilationRate> rateSetting =
             SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(context.name);
-        ScriptCache.CompilationRate rate = null;
-        if (SCRIPT_DISABLE_MAX_COMPILATIONS_RATE_SETTING.get(settings) || compilationLimitsEnabled() == false) {
+        ScriptCache.CompilationRate rate;
+        if (SCRIPT_DISABLE_MAX_COMPILATIONS_RATE_SETTING.get(settings)
+                || compilationLimitsEnabled() == false
+                || context.compilationRateLimited == false) {
             rate = SCRIPT_COMPILATION_RATE_ZERO;
         } else if (rateSetting.existsOrFallbackExists(settings)) {
             rate = rateSetting.get(settings);
         } else {
-            rate = new ScriptCache.CompilationRate(context.maxCompilationRateDefault);
+            rate = new ScriptCache.CompilationRate(ScriptContext.DEFAULT_COMPILATION_RATE_LIMIT);
         }
 
         return new ScriptCache(cacheSize, cacheExpire, rate, rateSetting.getKey());
@@ -529,12 +632,19 @@ public class ScriptService implements Closeable, ClusterStateApplier {
      * 2) context mode, if the context script cache is configured.  There is no general cache in this case.
      */
     static class CacheHolder {
+        final ScriptCache general;
         final Map<String, AtomicReference<ScriptCache>> contextCache;
+
+        CacheHolder(int cacheMaxSize, TimeValue cacheExpire, ScriptCache.CompilationRate maxCompilationRate, String contextRateSetting) {
+            contextCache = null;
+            general = new ScriptCache(cacheMaxSize, cacheExpire, maxCompilationRate, contextRateSetting);
+        }
 
         CacheHolder(Map<String, ScriptCache> context) {
             Map<String, AtomicReference<ScriptCache>> refs = new HashMap<>(context.size());
             context.forEach((k, v) -> refs.put(k, new AtomicReference<>(v)));
             contextCache = Collections.unmodifiableMap(refs);
+            general = null;
         }
 
         /**
@@ -542,6 +652,9 @@ public class ScriptService implements Closeable, ClusterStateApplier {
          * the given context. Returns null in context mode if the requested context does not exist.
          */
         ScriptCache get(String context) {
+            if (general != null) {
+                return general;
+            }
             AtomicReference<ScriptCache> ref = contextCache.get(context);
             if (ref == null) {
                 return null;
@@ -550,17 +663,35 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         }
 
         ScriptStats stats() {
-            List<ScriptContextStats> stats = new ArrayList<>(contextCache.size());
-            for (Map.Entry<String, AtomicReference<ScriptCache>> entry : contextCache.entrySet()) {
-                stats.add(entry.getValue().get().stats(entry.getKey()));
+            if (general != null) {
+                return general.stats();
             }
-            return new ScriptStats(stats);
+            List<ScriptContextStats> contextStats = new ArrayList<>(contextCache.size());
+            for (Map.Entry<String, AtomicReference<ScriptCache>> entry : contextCache.entrySet()) {
+                ScriptCache cache = entry.getValue().get();
+                contextStats.add(cache.stats(entry.getKey()));
+            }
+            return new ScriptStats(contextStats);
+        }
+
+        ScriptCacheStats cacheStats() {
+            if (general != null) {
+                return new ScriptCacheStats(general.stats());
+            }
+            Map<String, ScriptStats> context = new HashMap<>(contextCache.size());
+            for (String name: contextCache.keySet()) {
+                context.put(name, contextCache.get(name).get().stats());
+            }
+            return new ScriptCacheStats(context);
         }
 
         /**
          * Update a single context cache if we're in the context cache mode otherwise no-op.
          */
         void set(String name, ScriptCache cache) {
+            if (general != null) {
+                return;
+            }
             AtomicReference<ScriptCache> ref = contextCache.get(name);
             assert ref != null : "expected script cache to exist for context [" + name + "]";
             ScriptCache oldCache = ref.get();

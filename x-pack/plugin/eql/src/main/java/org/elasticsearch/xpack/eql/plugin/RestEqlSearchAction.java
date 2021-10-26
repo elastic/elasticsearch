@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.plugin;
 
@@ -11,9 +12,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -38,7 +39,8 @@ public class RestEqlSearchAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(GET, SEARCH_PATH),
-            new Route(POST, SEARCH_PATH));
+            new Route(POST, SEARCH_PATH)
+        );
     }
 
     @Override
@@ -60,6 +62,7 @@ public class RestEqlSearchAction extends BaseRestHandler {
                 eqlRequest.keepAlive(request.paramAsTime("keep_alive", eqlRequest.keepAlive()));
             }
             eqlRequest.keepOnCompletion(request.paramAsBoolean("keep_on_completion", eqlRequest.keepOnCompletion()));
+            eqlRequest.ccsMinimizeRoundtrips(request.paramAsBoolean("ccs_minimize_roundtrips", eqlRequest.ccsMinimizeRoundtrips()));
         }
 
         return channel -> {
@@ -79,7 +82,7 @@ public class RestEqlSearchAction extends BaseRestHandler {
                 @Override
                 public void onFailure(Exception e) {
                     Exception finalException = e;
-                    /* 
+                    /*
                      * In a scenario when Security is enabled and a wildcarded pattern gets resolved to no index, the original error
                      * message will not contain the initial pattern, but "*,-*". So, we'll throw a INFE from the PreAnalyzer that will
                      * contain as cause the VerificationException with "*,-*" pattern but we'll rewrite the INFE here with the initial

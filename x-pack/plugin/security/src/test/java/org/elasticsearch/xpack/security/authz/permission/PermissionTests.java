@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authz.permission;
 
@@ -12,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.junit.Before;
 
 import java.util.List;
@@ -30,7 +32,7 @@ public class PermissionTests extends ESTestCase {
 
     @Before
     public void init() {
-        Role.Builder builder = Role.builder("test");
+        Role.Builder builder = Role.builder(Automatons.EMPTY, "test");
         builder.add(MONITOR, "test_*", "/foo.*/");
         builder.add(READ, "baz_*foo", "/fool.*bar/");
         builder.add(MONITOR, "/bar.*/");
@@ -68,7 +70,7 @@ public class PermissionTests extends ESTestCase {
     }
 
     public void testBuildEmptyRole() {
-        Role.Builder permission = Role.builder(new String[] { "some_role" });
+        Role.Builder permission = Role.builder(Automatons.EMPTY, "some_role");
         Role role = permission.build();
         assertThat(role, notNullValue());
         assertThat(role.cluster(), notNullValue());
@@ -77,7 +79,7 @@ public class PermissionTests extends ESTestCase {
     }
 
     public void testRunAs() {
-        Role permission = Role.builder("some_role")
+        Role permission = Role.builder(Automatons.EMPTY, "some_role")
                 .runAs(new Privilege("name", "user1", "run*"))
                 .build();
         assertThat(permission.runAs().check("user1"), is(true));

@@ -115,7 +115,7 @@ the <<ccr-post-unfollow,unfollow API>> is invoked.
 
 `leader_remote_cluster`::
   (Required, string) The alias (from the perspective of the cluster containing
-  the follower index) of the <<modules-remote-clusters,remote cluster>>
+  the follower index) of the <<remote-clusters,remote cluster>>
   containing the leader index.
 
 [[ccr-post-forget-follower-examples]]

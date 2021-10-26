@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.search;
@@ -22,7 +11,6 @@ package org.elasticsearch.action.search;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
@@ -58,17 +46,17 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
 
     @Before
     public void setup() {
-        searchPhaseController = new SearchPhaseController(writableRegistry(),
-            s -> new InternalAggregation.ReduceContextBuilder() {
+        searchPhaseController = new SearchPhaseController(
+            (t, s) -> new InternalAggregation.ReduceContextBuilder() {
                 @Override
                 public InternalAggregation.ReduceContext forPartialReduction() {
                     return InternalAggregation.ReduceContext.forPartialReduction(
-                        BigArrays.NON_RECYCLING_INSTANCE, null, () -> PipelineAggregator.PipelineTree.EMPTY);
+                        BigArrays.NON_RECYCLING_INSTANCE, null, () -> PipelineAggregator.PipelineTree.EMPTY, t);
                 }
 
                 public InternalAggregation.ReduceContext forFinalReduction() {
                     return InternalAggregation.ReduceContext.forFinalReduction(
-                        BigArrays.NON_RECYCLING_INSTANCE, null, b -> {}, PipelineAggregator.PipelineTree.EMPTY);
+                        BigArrays.NON_RECYCLING_INSTANCE, null, b -> {}, PipelineAggregator.PipelineTree.EMPTY, t);
                 };
             });
         threadPool = new TestThreadPool(SearchPhaseControllerTests.class.getName());
@@ -96,8 +84,8 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         searchRequest.setBatchedReduceSize(2);
         AtomicReference<Exception> onPartialMergeFailure = new AtomicReference<>();
         QueryPhaseResultConsumer queryPhaseResultConsumer = new QueryPhaseResultConsumer(searchRequest, executor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST), searchPhaseController, searchProgressListener,
-            writableRegistry(), 10, e -> onPartialMergeFailure.accumulateAndGet(e, (prev, curr) -> {
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), searchPhaseController, () -> false, searchProgressListener,
+            10, e -> onPartialMergeFailure.accumulateAndGet(e, (prev, curr) -> {
                 curr.addSuppressed(prev);
                 return curr;
             }));
@@ -106,7 +94,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
 
         for (int i = 0; i < 10; i++) {
             SearchShardTarget searchShardTarget = new SearchShardTarget("node", new ShardId("index", "uuid", i),
-                null, OriginalIndices.NONE);
+                null);
             QuerySearchResult querySearchResult = new QuerySearchResult();
             TopDocs topDocs = new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]);
             querySearchResult.topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), new DocValueFormat[0]);

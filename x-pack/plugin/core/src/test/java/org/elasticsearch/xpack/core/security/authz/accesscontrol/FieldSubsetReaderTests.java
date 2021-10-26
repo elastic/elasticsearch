@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
@@ -57,7 +58,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -472,7 +473,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         SortedDocValues values = segmentReader.getSortedDocValues("fieldA");
         assertNotNull(values);
         assertTrue(values.advanceExact(0));
-        assertEquals(new BytesRef("testA"), values.binaryValue());
+        assertEquals(new BytesRef("testA"), values.lookupOrd(values.ordValue()));
         assertNull(segmentReader.getSortedDocValues("fieldB"));
 
         TestUtil.checkReader(ir);
@@ -644,7 +645,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         // exclude on exact value
         include = new CharacterRunAutomaton(Operations.minus(
                 Automata.makeAnyString(), Automatons.patterns("foo.bar"),
-                Operations.DEFAULT_MAX_DETERMINIZED_STATES));
+                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
         filtered = FieldSubsetReader.filter(map, include, 0);
         expected = new HashMap<>();
         expected.put("bar", "baz");
@@ -655,7 +656,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         // exclude on wildcard
         include = new CharacterRunAutomaton(Operations.minus(
                 Automata.makeAnyString(), Automatons.patterns("foo.*"),
-                Operations.DEFAULT_MAX_DETERMINIZED_STATES));
+                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
         filtered = FieldSubsetReader.filter(map, include, 0);
         expected = Collections.singletonMap("bar", "baz");
 
@@ -695,7 +696,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         // exclude on inner array
         include = new CharacterRunAutomaton(Operations.minus(
                 Automata.makeAnyString(), Automatons.patterns("foo.baz"),
-                Operations.DEFAULT_MAX_DETERMINIZED_STATES));
+                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
         filtered = FieldSubsetReader.filter(map, include, 0);
         expected = new HashMap<>();
         subArray = new ArrayList<>();
@@ -710,7 +711,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         // exclude on inner array 2
         include = new CharacterRunAutomaton(Operations.minus(
                 Automata.makeAnyString(), Automatons.patterns("foo"),
-                Operations.DEFAULT_MAX_DETERMINIZED_STATES));
+                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
         filtered = FieldSubsetReader.filter(map, include, 0);
         expected = new HashMap<>();
         subArray = new ArrayList<>();
@@ -1028,7 +1029,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[]{"*inner1"}, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
             ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(new String[]{"index"},
-                    index -> fieldPermissions::grantsAccessTo);
+                    index -> fieldPermissions::grantsAccessTo, Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
             MappingMetadata index = mappings.get("index");
             Map<String, Object> sourceAsMap = index.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
@@ -1065,7 +1066,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[]{"object*"}, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
             ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(new String[]{"index"},
-                    index -> fieldPermissions::grantsAccessTo);
+                    index -> fieldPermissions::grantsAccessTo, Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
             MappingMetadata index = mappings.get("index");
             Map<String, Object> sourceAsMap = index.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
@@ -1101,7 +1102,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[]{"object"}, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
             ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(new String[]{"index"},
-                    index -> fieldPermissions::grantsAccessTo);
+                    index -> fieldPermissions::grantsAccessTo, Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
             MappingMetadata index = mappings.get("index");
             Map<String, Object> sourceAsMap = index.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
@@ -1127,7 +1128,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[]{"nested.inner2"}, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
             ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(new String[]{"index"},
-                    index -> fieldPermissions::grantsAccessTo);
+                    index -> fieldPermissions::grantsAccessTo, Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
             MappingMetadata index = mappings.get("index");
             Map<String, Object> sourceAsMap = index.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());

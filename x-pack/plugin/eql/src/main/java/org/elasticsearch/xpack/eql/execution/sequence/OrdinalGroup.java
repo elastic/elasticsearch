@@ -1,12 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.execution.sequence;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 
 import java.util.Iterator;
@@ -20,7 +23,9 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
  * List of in-flight ordinals for a given key. For fast lookup, typically associated with a stage.
  * this class expects the insertion to be ordered
  */
-abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
+abstract class OrdinalGroup<E> implements Iterable<Ordinal>, Accountable {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(OrdinalGroup.class);
 
     private final Function<E, Ordinal> extractor;
 
@@ -128,6 +133,11 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
                 return extractor.apply(iter.next());
             }
         };
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOfCollection(elements);
     }
 
     @Override

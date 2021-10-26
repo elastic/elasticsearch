@@ -1,9 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression;
+
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
 import java.util.AbstractSet;
 import java.util.Collection;
@@ -147,6 +150,8 @@ public class AttributeMap<E> implements Map<Attribute, E> {
         return EMPTY;
     }
 
+    private static final Object NOT_FOUND = new Object();
+
     private final Map<AttributeWrapper, E> delegate;
     private Set<Attribute> keySet = null;
     private Collection<E> values = null;
@@ -180,7 +185,7 @@ public class AttributeMap<E> implements Map<Attribute, E> {
     public AttributeMap<E> subtract(AttributeMap<E> other) {
         AttributeMap<E> diff = new AttributeMap<>();
         for (Entry<AttributeWrapper, E> entry : this.delegate.entrySet()) {
-            if (!other.delegate.containsKey(entry.getKey())) {
+            if (other.delegate.containsKey(entry.getKey()) == false) {
                 diff.delegate.put(entry.getKey(), entry.getValue());
             }
         }
@@ -207,7 +212,7 @@ public class AttributeMap<E> implements Map<Attribute, E> {
             return false;
         }
         for (AttributeWrapper aw : delegate.keySet()) {
-            if (!other.delegate.containsKey(aw)) {
+            if (other.delegate.containsKey(aw) == false) {
                 return false;
             }
         }
@@ -237,14 +242,14 @@ public class AttributeMap<E> implements Map<Attribute, E> {
     @Override
     public boolean containsKey(Object key) {
         if (key instanceof NamedExpression) {
-            return delegate.keySet().contains(new AttributeWrapper(((NamedExpression) key).toAttribute()));
+            return delegate.containsKey(new AttributeWrapper(((NamedExpression) key).toAttribute()));
         }
         return false;
     }
 
     @Override
     public boolean containsValue(Object value) {
-        return delegate.values().contains(value);
+        return delegate.containsValue(value);
     }
 
     @Override
@@ -257,10 +262,32 @@ public class AttributeMap<E> implements Map<Attribute, E> {
 
     @Override
     public E getOrDefault(Object key, E defaultValue) {
-        E e;
-        return (((e = get(key)) != null) || containsKey(key))
-            ? e
-            : defaultValue;
+        if (key instanceof NamedExpression) {
+            return delegate.getOrDefault(new AttributeWrapper(((NamedExpression) key).toAttribute()), defaultValue);
+        }
+        return defaultValue;
+    }
+
+    public E resolve(Object key) {
+        return resolve(key, null);
+    }
+
+    public E resolve(Object key, E defaultValue) {
+        E value = defaultValue;
+        E candidate = null;
+        int allowedLookups = 1000;
+        while ((candidate = get(key)) != null || containsKey(key)) {
+            // instead of circling around, return
+            if (candidate == key) {
+                return candidate;
+            }
+            if (--allowedLookups == 0) {
+                throw new QlIllegalArgumentException("Potential cycle detected");
+            }
+            key = candidate;
+            value = candidate;
+        }
+        return value;
     }
 
     @Override

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.admin.cluster;
@@ -23,7 +12,8 @@ import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclu
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -36,6 +26,10 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
     private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(30L);
 
+    private static final String DEPRECATION_MESSAGE = "POST /_cluster/voting_config_exclusions/{node_name} " +
+        "has been removed. You must use POST /_cluster/voting_config_exclusions?node_ids=... " +
+        "or POST /_cluster/voting_config_exclusions?node_names=... instead.";
+
     @Override
     public String getName() {
         return "add_voting_config_exclusions_action";
@@ -43,7 +37,11 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_cluster/voting_config_exclusions"));
+        return List.of(
+            new Route(POST, "/_cluster/voting_config_exclusions"),
+            Route.builder(POST, "/_cluster/voting_config_exclusions/{node_name}")
+                .deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+        );
     }
 
     @Override
@@ -59,6 +57,10 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
     AddVotingConfigExclusionsRequest resolveVotingConfigExclusionsRequest(final RestRequest request) {
         String nodeIds = null;
         String nodeNames = null;
+
+        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("node_name")) {
+            throw new IllegalArgumentException("[node_name] has been removed, you must set [node_names] or [node_ids]");
+        }
 
         if (request.hasParam("node_ids")) {
             nodeIds = request.param("node_ids");

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest;
@@ -262,7 +251,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         String key3 = randomAlphaOfLength(10);
 
         Pipeline pipeline = new Pipeline(
-            pipelineId, null, null, new CompoundProcessor(
+            pipelineId, null, null, null, new CompoundProcessor(
             new TestProcessor(ingestDocument -> {ingestDocument.setFieldValue(key1, randomInt()); }),
             new TestProcessor(ingestDocument -> {ingestDocument.setFieldValue(key2, randomInt()); }),
             new TestProcessor(ingestDocument -> { ingestDocument.setFieldValue(key3, randomInt()); }))
@@ -324,7 +313,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         );
 
         Pipeline pipeline1 = new Pipeline(
-            pipelineId1, null, null, new CompoundProcessor(
+            pipelineId1, null, null, null, new CompoundProcessor(
             new TestProcessor(ingestDocument -> {ingestDocument.setFieldValue(key1, randomInt()); }),
             new ConditionalProcessor(
                 randomAlphaOfLength(10),
@@ -336,7 +325,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         );
 
         Pipeline pipeline2 = new Pipeline(
-            pipelineId2, null, null, new CompoundProcessor(
+            pipelineId2, null, null, null, new CompoundProcessor(
                 new TestProcessor(ingestDocument -> { ingestDocument.setFieldValue(key2, randomInt()); })));
 
         when(ingestService.getPipeline(pipelineId1)).thenReturn(pipeline1);
@@ -404,7 +393,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         );
 
         Pipeline pipeline1 = new Pipeline(
-            pipelineId1, null, null, new CompoundProcessor(
+            pipelineId1, null, null, null, new CompoundProcessor(
             new TestProcessor(ingestDocument -> {ingestDocument.setFieldValue(key1, randomInt()); }),
             new ConditionalProcessor(
                 randomAlphaOfLength(10),
@@ -416,7 +405,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         );
 
         Pipeline pipeline2 = new Pipeline(
-            pipelineId2, null, null, new CompoundProcessor(
+            pipelineId2, null, null, null, new CompoundProcessor(
             new TestProcessor(ingestDocument -> { ingestDocument.setFieldValue(key2, randomInt()); })));
 
         when(ingestService.getPipeline(pipelineId1)).thenReturn(pipeline1);
@@ -467,7 +456,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         String key3 = randomAlphaOfLength(10);
 
         Pipeline pipeline = new Pipeline(
-            pipelineId, null, null, new CompoundProcessor(
+            pipelineId, null, null, null, new CompoundProcessor(
             new TestProcessor(ingestDocument -> { ingestDocument.setFieldValue(key1, randomInt()); }),
             new CompoundProcessor(
                 false,
@@ -523,7 +512,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         IllegalStateException exception = new IllegalStateException("Not a pipeline cycle error");
 
         Pipeline pipeline = new Pipeline(
-            pipelineId, null, null, new CompoundProcessor(
+            pipelineId, null, null, null, new CompoundProcessor(
             new TestProcessor(ingestDocument -> ingestDocument.setFieldValue(key1, randomInt())),
             new TestProcessor(ingestDocument -> { throw exception; }))
         );
@@ -562,10 +551,10 @@ public class TrackingResultProcessorTests extends ESTestCase {
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
 
         Pipeline pipeline1 = new Pipeline(
-            pipelineId1, null, null, new CompoundProcessor(factory.create(Collections.emptyMap(), null, null, pipelineConfig2)));
+            pipelineId1, null, null, null, new CompoundProcessor(factory.create(Collections.emptyMap(), null, null, pipelineConfig2)));
 
         Pipeline pipeline2 = new Pipeline(
-            pipelineId2, null, null, new CompoundProcessor(factory.create(Collections.emptyMap(), null, null, pipelineConfig1)));
+            pipelineId2, null, null, null, new CompoundProcessor(factory.create(Collections.emptyMap(), null, null, pipelineConfig1)));
 
         when(ingestService.getPipeline(pipelineId1)).thenReturn(pipeline1);
         when(ingestService.getPipeline(pipelineId2)).thenReturn(pipeline2);
@@ -592,7 +581,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         String key1 = randomAlphaOfLength(10);
         PipelineProcessor pipelineProcessor = factory.create(Collections.emptyMap(), null, null, pipelineConfig);
         Pipeline pipeline = new Pipeline(
-            pipelineId, null, null, new CompoundProcessor(
+            pipelineId, null, null, null, new CompoundProcessor(
             new TestProcessor(ingestDocument -> { ingestDocument.setFieldValue(key1, randomInt()); }))
         );
         when(ingestService.getPipeline(pipelineId)).thenReturn(pipeline);

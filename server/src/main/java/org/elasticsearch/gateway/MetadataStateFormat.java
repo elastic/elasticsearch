@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.gateway;
 
@@ -29,17 +18,17 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.SimpleFSDirectory;
+import org.apache.lucene.store.NIOFSDirectory;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.FileNotFoundException;
@@ -68,8 +57,11 @@ public abstract class MetadataStateFormat<T> {
     public static final String STATE_FILE_EXTENSION = ".st";
 
     private static final String STATE_FILE_CODEC = "state";
+    // original version format
     private static final int MIN_COMPATIBLE_STATE_FILE_VERSION = 1;
-    private static final int STATE_FILE_VERSION = 1;
+    // Lucene directory API changed to LE, ES 8.0
+    private static final int LE_VERSION = 2;
+    private static final int CURRENT_VERSION = LE_VERSION;
     private final String prefix;
     private final Pattern stateFilePattern;
 
@@ -105,7 +97,7 @@ public abstract class MetadataStateFormat<T> {
         try {
             deleteFileIfExists(stateLocation, stateDir, tmpFileName);
             try (IndexOutput out = stateDir.createOutput(tmpFileName, IOContext.DEFAULT)) {
-                CodecUtil.writeHeader(out, STATE_FILE_CODEC, STATE_FILE_VERSION);
+                CodecUtil.writeHeader(out, STATE_FILE_CODEC, CURRENT_VERSION);
                 out.writeInt(FORMAT.index());
                 try (XContentBuilder builder = newXContentBuilder(FORMAT, new IndexOutputOutputStream(out) {
                     @Override
@@ -288,8 +280,14 @@ public abstract class MetadataStateFormat<T> {
             try (IndexInput indexInput = dir.openInput(file.getFileName().toString(), IOContext.DEFAULT)) {
                 // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
                 CodecUtil.checksumEntireFile(indexInput);
-                CodecUtil.checkHeader(indexInput, STATE_FILE_CODEC, MIN_COMPATIBLE_STATE_FILE_VERSION, STATE_FILE_VERSION);
-                final XContentType xContentType = XContentType.values()[indexInput.readInt()];
+                final int format =
+                    CodecUtil.checkHeader(indexInput, STATE_FILE_CODEC, MIN_COMPATIBLE_STATE_FILE_VERSION, CURRENT_VERSION);
+                final XContentType xContentType;
+                if (format < LE_VERSION) {
+                    xContentType = XContentType.values()[Integer.reverseBytes(indexInput.readInt())];
+                } else {
+                    xContentType = XContentType.values()[indexInput.readInt()];
+                }
                 if (xContentType != FORMAT) {
                     throw new IllegalStateException("expected state in " + file + " to be " + FORMAT + " format but was " + xContentType);
                 }
@@ -310,7 +308,7 @@ public abstract class MetadataStateFormat<T> {
     }
 
     protected Directory newDirectory(Path dir) throws IOException {
-        return new SimpleFSDirectory(dir);
+        return new NIOFSDirectory(dir);
     }
 
 
@@ -345,7 +343,7 @@ public abstract class MetadataStateFormat<T> {
      * @return maximum id of state file or -1 if no such files are found
      * @throws IOException if IOException occurs
      */
-    private long findMaxGenerationId(final String prefix, Path... locations) throws IOException {
+     long findMaxGenerationId(final String prefix, Path... locations) throws IOException {
         long maxId = -1;
         for (Path dataLocation : locations) {
             final Path resolve = dataLocation.resolve(STATE_DIR_NAME);
@@ -364,7 +362,7 @@ public abstract class MetadataStateFormat<T> {
         return maxId;
     }
 
-    private List<Path> findStateFilesByGeneration(final long generation, Path... locations) {
+    List<Path> findStateFilesByGeneration(final long generation, Path... locations) {
         List<Path> files = new ArrayList<>();
         if (generation == -1) {
             return files;
@@ -432,6 +430,9 @@ public abstract class MetadataStateFormat<T> {
         long generation = findMaxGenerationId(prefix, dataLocations);
         T state = loadGeneration(logger, namedXContentRegistry, generation, dataLocations);
 
+        // It may not be possible to get into this state, if there's a bad state file the above
+        // call will throw ElasticsearchException. If there are no state files, we won't find a
+        // generation.
         if (generation > -1 && state == null) {
             throw new IllegalStateException("unable to find state files with generation id " + generation +
                     " returned by findMaxGenerationId function, in data folders [" +

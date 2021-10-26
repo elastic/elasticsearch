@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.parser;
 
+import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.BooleanExpressionContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.EventFilterContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.IntegerLiteralContext;
@@ -55,13 +57,15 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.text;
 import static org.elasticsearch.xpack.ql.tree.Source.synthetic;
 
 public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
-    private static final String FILTER_PIPE = "filter", HEAD_PIPE = "head", TAIL_PIPE = "tail";
+    static final String FILTER_PIPE = "filter", HEAD_PIPE = "head", TAIL_PIPE = "tail", RUNS = "runs";
 
-    private static final Set<String> SUPPORTED_PIPES = Sets.newHashSet("count", FILTER_PIPE, HEAD_PIPE, "sort", TAIL_PIPE, "unique",
+    static final Set<String> SUPPORTED_PIPES = Sets.newHashSet("count", FILTER_PIPE, HEAD_PIPE, "sort", TAIL_PIPE, "unique",
             "unique_count");
 
     private final UnresolvedRelation RELATION = new UnresolvedRelation(synthetic("<relation>"), null, "", false, "");
@@ -123,7 +127,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
                 } else {
                     previous = new Tail(defaultLimitSource, defaultSize, previous);
                 }
-                plan = plan.replaceChildren(singletonList(previous));
+                plan = plan.replaceChildrenSameSize(singletonList(previous));
             }
             previous = plan;
         }
@@ -250,7 +254,45 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
                             found);
                 }
             }
-            queries.add(sequenceTerm);
+            // check runs
+            Token key = sequenceTermCtx.key;
+            if (key != null) {
+                String k = key.getText();
+                if (RUNS.equals(k) == false) {
+                    throw new ParsingException(source(key), "Unrecognized option [{}], expecting [{}]", k, RUNS);
+                }
+            }
+
+            int runs = 1;
+            NumberContext numberCtx = sequenceTermCtx.number();
+            if (numberCtx instanceof IntegerLiteralContext) {
+                Number number = (Number) visitIntegerLiteral((IntegerLiteralContext) numberCtx).fold();
+                long value = number.longValue();
+                if (value < 1) {
+                    throw new ParsingException(source(numberCtx), "A positive runs value is required; found [{}]", value);
+                }
+                if (value > 100) {
+                    throw new ParsingException(source(numberCtx), "A query cannot be repeated more than 100 times; found [{}]", value);
+                }
+                runs = (int) value;
+            }
+
+            int numberOfQueries = queries.size() + runs;
+            if (numberOfQueries > 256) {
+                throw new ParsingException(
+                    source(sequenceTermCtx),
+                    "Sequence cannot contain more than 256 queries; found [{}]",
+                    numberOfQueries
+                );
+            }
+
+            for (int i = 0; i < runs; i++) {
+                queries.add(sequenceTerm);
+            }
+        }
+
+        if (queries.size() < 2) {
+            throw new ParsingException(source, "A sequence requires a minimum of 2 queries, found [{}]", queries.size());
         }
 
         // until is already parsed through sequenceTerm() above
@@ -263,7 +305,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         return new Sequence(source, queries, until, maxSpan, fieldTimestamp(), fieldTiebreaker(), resultPosition());
     }
 
-    public KeyedFilter visitSequenceTerm(SequenceTermContext ctx, List<Attribute> joinKeys) {
+    private KeyedFilter visitSequenceTerm(SequenceTermContext ctx, List<Attribute> joinKeys) {
         return keyedFilter(joinKeys, ctx, ctx.by, ctx.subquery());
     }
 
@@ -347,7 +389,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
                 return new Tail(source(ctx), tailLimit, plan);
 
             default:
-                throw new ParsingException(source(ctx), "Pipe [{}] is not supported yet", name);
+                throw new ParsingException(source(ctx), "Pipe [{}] is not supported", name);
         }
     }
 

@@ -1,28 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cli;
+
+import org.elasticsearch.core.Nullable;
 
 import java.io.BufferedReader;
 import java.io.Console;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.io.Reader;
 import java.nio.charset.Charset;
@@ -60,7 +52,7 @@ public abstract class Terminal {
     }
 
     /** The current verbosity for the terminal, defaulting to {@link Verbosity#NORMAL}. */
-    private Verbosity verbosity = Verbosity.NORMAL;
+    private Verbosity currentVerbosity = Verbosity.NORMAL;
 
     /** The newline used when calling println. */
     private final String lineSeparator;
@@ -71,7 +63,7 @@ public abstract class Terminal {
 
     /** Sets the verbosity of the terminal. */
     public void setVerbosity(Verbosity verbosity) {
-        this.verbosity = verbosity;
+        this.currentVerbosity = verbosity;
     }
 
     /** Reads clear text from the terminal input. See {@link Console#readLine()}. */
@@ -93,18 +85,25 @@ public abstract class Terminal {
     /** Returns a Writer which can be used to write to the terminal directly using standard output. */
     public abstract PrintWriter getWriter();
 
+    /**
+     * Returns an OutputStream which can be used to write to the terminal directly using standard output.
+     * May return {@code null} if this Terminal is not capable of binary output
+      */
+    @Nullable
+    public abstract OutputStream getOutputStream();
+
     /** Returns a Writer which can be used to write to the terminal directly using standard error. */
     public PrintWriter getErrorWriter() {
         return ERROR_WRITER;
     }
 
     /** Prints a line to the terminal at {@link Verbosity#NORMAL} verbosity level. */
-    public final void println(String msg) {
+    public final void println(CharSequence msg) {
         println(Verbosity.NORMAL, msg);
     }
 
     /** Prints a line to the terminal at {@code verbosity} level. */
-    public final void println(Verbosity verbosity, String msg) {
+    public final void println(Verbosity verbosity, CharSequence msg) {
         print(verbosity, msg + lineSeparator);
     }
 
@@ -139,7 +138,7 @@ public abstract class Terminal {
 
     /** Checks if is enough {@code verbosity} level to be printed */
     public final boolean isPrintable(Verbosity verbosity) {
-        return this.verbosity.ordinal() >= verbosity.ordinal();
+        return this.currentVerbosity.ordinal() >= verbosity.ordinal();
     }
 
     /**
@@ -225,6 +224,11 @@ public abstract class Terminal {
         }
 
         @Override
+        public OutputStream getOutputStream() {
+            return null;
+        }
+
+        @Override
         public String readText(String prompt) {
             return CONSOLE.readLine("%s", prompt);
         }
@@ -262,6 +266,12 @@ public abstract class Terminal {
         @Override
         public PrintWriter getWriter() {
             return WRITER;
+        }
+
+        @Override
+        @SuppressForbidden(reason = "Use system.out in CLI framework")
+        public OutputStream getOutputStream() {
+            return System.out;
         }
 
         @Override

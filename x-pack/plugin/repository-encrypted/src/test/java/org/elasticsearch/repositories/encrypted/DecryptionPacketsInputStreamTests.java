@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.repositories.encrypted;
@@ -10,14 +11,15 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
-import javax.crypto.KeyGenerator;
-import javax.crypto.SecretKey;
 import java.io.ByteArrayInputStream;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.SecureRandom;
 import java.util.Arrays;
+
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
 
 public class DecryptionPacketsInputStreamTests extends ESTestCase {
 

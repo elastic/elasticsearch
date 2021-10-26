@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xpack.core.ml.utils.MemoryTrackedTaskState;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -18,7 +20,7 @@ import java.util.Locale;
  * When a job is created it is initialised in to the state closed
  * i.e. it is not running.
  */
-public enum JobState implements Writeable {
+public enum JobState implements Writeable, MemoryTrackedTaskState {
 
     CLOSING, CLOSED, OPENED, FAILED, OPENING;
 
@@ -48,8 +50,25 @@ public enum JobState implements Writeable {
         return Arrays.stream(candidates).anyMatch(candidate -> this == candidate);
     }
 
+    /**
+     * @return {@code true} if state matches none of the given {@code candidates}
+     */
+    public boolean isNoneOf(JobState... candidates) {
+        return Arrays.stream(candidates).noneMatch(candidate -> this == candidate);
+    }
+
     @Override
     public String toString() {
         return name().toLowerCase(Locale.ROOT);
+    }
+
+    @Override
+    public boolean consumesMemory() {
+        return isNoneOf(CLOSED, FAILED);
+    }
+
+    @Override
+    public boolean isAllocating() {
+        return this == OPENING;
     }
 }

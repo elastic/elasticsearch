@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.idp.action;
 
@@ -31,12 +32,12 @@ import org.elasticsearch.xpack.idp.saml.sp.WildcardServiceProviderResolver;
 import org.elasticsearch.xpack.idp.saml.support.SamlAuthenticationState;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
-import org.joda.time.Duration;
 import org.mockito.Mockito;
 import org.opensaml.saml.saml2.core.StatusCode;
 import org.opensaml.security.x509.X509Credential;
 
 import java.net.URL;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Set;
@@ -44,7 +45,8 @@ import java.util.Set;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.arrayWithSize;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -116,6 +118,7 @@ public class TransportSamlInitiateSingleSignOnActionTests extends IdpSamlTestCas
         assertThat(response.getSamlResponse(), containsString("InResponseTo=\"" + requestId + "\""));
     }
 
+    @SuppressWarnings("unchecked")
     private TransportSamlInitiateSingleSignOnAction setupTransportAction(boolean withSecondaryAuth) throws Exception {
         final Settings settings = Settings.builder()
             .put("path.home", createTempDir())
@@ -155,7 +158,7 @@ public class TransportSamlInitiateSingleSignOnActionTests extends IdpSamlTestCas
             true,
             new URL("https://sp.some.org/api/security/v1/saml"),
             TRANSIENT,
-            Duration.standardMinutes(5),
+            Duration.ofMinutes(5),
             null,
             new SamlServiceProvider.AttributeNames(
                 "https://saml.elasticsearch.org/attributes/principal",
@@ -166,7 +169,7 @@ public class TransportSamlInitiateSingleSignOnActionTests extends IdpSamlTestCas
         mockRegisteredServiceProvider(serviceResolver, "https://sp.some.org", serviceProvider);
         mockRegisteredServiceProvider(serviceResolver, "https://sp2.other.org", null);
         final ServiceProviderDefaults defaults = new ServiceProviderDefaults(
-            "elastic-cloud", TRANSIENT, Duration.standardMinutes(15));
+            "elastic-cloud", TRANSIENT, Duration.ofMinutes(15));
         final X509Credential signingCredential = readCredentials("RSA", randomFrom(1024, 2048, 4096));
         final SamlIdentityProvider idp = SamlIdentityProvider
             .builder(serviceResolver, wildcardResolver)
@@ -177,16 +180,14 @@ public class TransportSamlInitiateSingleSignOnActionTests extends IdpSamlTestCas
         final SamlFactory factory = new SamlFactory();
         final UserPrivilegeResolver privilegeResolver = Mockito.mock(UserPrivilegeResolver.class);
         doAnswer(inv -> {
-            final Object[] args = inv.getArguments();
-            assertThat(args, arrayWithSize(2));
-            ActionListener<UserPrivilegeResolver.UserPrivileges> listener
-                = (ActionListener<UserPrivilegeResolver.UserPrivileges>) args[args.length - 1];
+            assertThat(inv.getArguments(), arrayWithSize(2));
+            ActionListener<UserPrivilegeResolver.UserPrivileges> listener = inv.getArgument(1);
             final UserPrivilegeResolver.UserPrivileges privileges = new UserPrivilegeResolver.UserPrivileges(
                 "saml_enduser", true, Set.of(generateRandomStringArray(5, 8, false, false))
             );
             listener.onResponse(privileges);
             return null;
-        }).when(privilegeResolver).resolve(any(ServiceProviderPrivileges.class), any(ActionListener.class));
+        }).when(privilegeResolver).resolve(nullable(ServiceProviderPrivileges.class), any());
         return new TransportSamlInitiateSingleSignOnAction(transportService, actionFilters, securityContext,
             idp, factory, privilegeResolver);
     }

@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateUtils;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -27,6 +29,19 @@ import java.util.Calendar;
 import java.util.Locale;
 import java.util.StringJoiner;
 
+import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.BOOLEAN;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.BYTE;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.DOUBLE;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.FLOAT;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.INTEGER;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.KEYWORD;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.LONG;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.SHORT;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_DRIVER_VERSION;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.extractNanosOnly;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.randomTimeInNanos;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.versionSupportsDateNanos;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -42,7 +57,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
         byte byteVal = randomByte();
         short shortVal = randomShort();
         BigDecimal bigDecimalVal = BigDecimal.valueOf(randomDouble());
-        long millis = randomNonNegativeLong();
+        long millis = randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999);
         Calendar calendarVal = Calendar.getInstance(randomTimeZone(), Locale.ROOT);
         Timestamp timestampVal = new Timestamp(millis);
         Timestamp timestampValWithCal = new Timestamp(JdbcTestUtils.convertFromCalendarToUTC(timestampVal.getTime(), calendarVal));
@@ -65,25 +80,26 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
                 sql.add("?");
             }
             try (PreparedStatement statement = connection.prepareStatement(sql.toString())) {
-                statement.setString(1, stringVal);
-                statement.setInt(2, intVal);
-                statement.setLong(3, longVal);
-                statement.setFloat(4, floatVal);
-                statement.setDouble(5, doubleVal);
-                statement.setNull(6, JDBCType.DOUBLE.getVendorTypeNumber());
-                statement.setBoolean(7, booleanVal);
-                statement.setByte(8, byteVal);
-                statement.setShort(9, shortVal);
-                statement.setBigDecimal(10, bigDecimalVal);
-                statement.setTimestamp(11, timestampVal);
-                statement.setTimestamp(12, timestampVal, calendarVal);
-                statement.setDate(13, dateVal);
-                statement.setDate(14, dateVal, calendarVal);
-                statement.setTime(15, timeVal);
-                statement.setTime(16, timeVal, calendarVal);
-                statement.setObject(17, calendarVal);
-                statement.setObject(18, utilDateVal);
-                statement.setObject(19, localDateTimeVal);
+                int index = 1;
+                statement.setString(index++, stringVal);
+                statement.setInt(index++, intVal);
+                statement.setLong(index++, longVal);
+                statement.setFloat(index++, floatVal);
+                statement.setDouble(index++, doubleVal);
+                statement.setNull(index++, JDBCType.DOUBLE.getVendorTypeNumber());
+                statement.setBoolean(index++, booleanVal);
+                statement.setByte(index++, byteVal);
+                statement.setShort(index++, shortVal);
+                statement.setBigDecimal(index++, bigDecimalVal);
+                statement.setTimestamp(index++, timestampVal);
+                statement.setTimestamp(index++, timestampVal, calendarVal);
+                statement.setDate(index++, dateVal);
+                statement.setDate(index++, dateVal, calendarVal);
+                statement.setTime(index++, timeVal);
+                statement.setTime(index++, timeVal, calendarVal);
+                statement.setObject(index++, calendarVal);
+                statement.setObject(index++, utilDateVal);
+                statement.setObject(index++, localDateTimeVal);
 
                 try (ResultSet results = statement.executeQuery()) {
                     ResultSetMetaData resultSetMetaData = results.getMetaData();
@@ -94,25 +110,26 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
                         assertEquals(parameterMetaData.getParameterType(i), resultSetMetaData.getColumnType(i));
                     }
                     assertTrue(results.next());
-                    assertEquals(stringVal, results.getString(1));
-                    assertEquals(intVal, results.getInt(2));
-                    assertEquals(longVal, results.getLong(3));
-                    assertEquals(floatVal, results.getFloat(4), 0.00001f);
-                    assertEquals(doubleVal, results.getDouble(5), 0.00001f);
-                    assertNull(results.getObject(6));
-                    assertEquals(booleanVal, results.getBoolean(7));
-                    assertEquals(byteVal, results.getByte(8));
-                    assertEquals(shortVal, results.getShort(9));
-                    assertEquals(bigDecimalVal, results.getBigDecimal(10));
-                    assertEquals(timestampVal, results.getTimestamp(11));
-                    assertEquals(timestampValWithCal, results.getTimestamp(12));
-                    assertEquals(dateVal, results.getDate(13));
-                    assertEquals(dateValWithCal, results.getDate(14));
-                    assertEquals(timeVal, results.getTime(15));
-                    assertEquals(timeValWithCal, results.getTime(16));
-                    assertEquals(new Timestamp(calendarVal.getTimeInMillis()), results.getObject(17));
-                    assertEquals(timestampVal, results.getObject(18));
-                    assertEquals(timestampVal, results.getObject(19));
+                    index = 1;
+                    assertEquals(stringVal, results.getString(index++));
+                    assertEquals(intVal, results.getInt(index++));
+                    assertEquals(longVal, results.getLong(index++));
+                    assertEquals(floatVal, results.getFloat(index++), 0.00001f);
+                    assertEquals(doubleVal, results.getDouble(index++), 0.00001f);
+                    assertNull(results.getObject(index++));
+                    assertEquals(booleanVal, results.getBoolean(index++));
+                    assertEquals(byteVal, results.getByte(index++));
+                    assertEquals(shortVal, results.getShort(index++));
+                    assertEquals(bigDecimalVal, results.getBigDecimal(index++));
+                    assertEquals(timestampVal, results.getTimestamp(index++));
+                    assertEquals(timestampValWithCal, results.getTimestamp(index++));
+                    assertEquals(dateVal, results.getDate(index++));
+                    assertEquals(dateValWithCal, results.getDate(index++));
+                    assertEquals(timeVal, results.getTime(index++));
+                    assertEquals(timeValWithCal, results.getTime(index++));
+                    assertEquals(new Timestamp(calendarVal.getTimeInMillis()), results.getObject(index++));
+                    assertEquals(timestampVal, results.getObject(index++));
+                    assertEquals(timestampVal, results.getObject(index++));
                     assertFalse(results.next());
                 }
             }
@@ -120,7 +137,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
     }
 
     public void testDatetime() throws IOException, SQLException {
-        long randomMillis = randomNonNegativeLong();
+        long randomMillis = randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999);
         setupIndexForDateTimeTests(randomMillis);
 
         try (Connection connection = esJdbc()) {
@@ -137,8 +154,63 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
         }
     }
 
+    public void testDatetimeWithNanos() throws IOException, SQLException {
+        assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
+                versionSupportsDateNanos());
+
+        long randomTimestampWitnNanos = randomTimeInNanos();
+        int randomNanosOnly = extractNanosOnly(randomTimestampWitnNanos);
+        setupIndexForDateTimeTestsWithNanos(randomTimestampWitnNanos);
+
+        try (Connection connection = esJdbc()) {
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "SELECT id, test_date_nanos FROM emps WHERE test_date_nanos = ?")) {
+                Timestamp ts = new Timestamp(toMilliSeconds(randomTimestampWitnNanos));
+                statement.setObject(1, ts);
+                try (ResultSet results = statement.executeQuery()) {
+                    assertFalse(results.next());
+                }
+
+                ts.setNanos(randomNanosOnly);
+                statement.setObject(1, ts);
+                try (ResultSet results = statement.executeQuery()) {
+                    assertTrue(results.next());
+                    assertEquals(1002, results.getInt(1));
+                    assertEquals(ts, results.getTimestamp(2));
+                    assertFalse(results.next());
+                }
+            }
+        }
+    }
+
+    public void testDateTimeWithNanosAgainstDriverWithoutSupport() throws IOException, SQLException {
+        assumeFalse("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
+                versionSupportsDateNanos());
+
+        long randomTimestampWitnNanos = randomTimeInNanos();
+        int randomNanosOnly = extractNanosOnly(randomTimestampWitnNanos);
+        setupIndexForDateTimeTestsWithNanos(randomTimestampWitnNanos);
+
+        try (Connection connection = esJdbc()) {
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "SELECT id, test_date_nanos FROM emps WHERE test_date_nanos = ?")) {
+                Timestamp ts = new Timestamp(toMilliSeconds(randomTimestampWitnNanos));
+                statement.setObject(1, ts);
+                try (ResultSet results = statement.executeQuery()) {
+                    assertFalse(results.next());
+                }
+
+                ts.setNanos(randomNanosOnly);
+                statement.setObject(1, ts);
+                try (ResultSet results = statement.executeQuery()) {
+                    assertFalse(results.next());
+                }
+            }
+        }
+    }
+
     public void testDate() throws IOException, SQLException {
-        long randomMillis = randomNonNegativeLong();
+        long randomMillis = randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999);
         setupIndexForDateTimeTests(randomMillis);
 
         try (Connection connection = esJdbc()) {
@@ -153,7 +225,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
                     for (int i = 1; i <= 3; i++) {
                         assertTrue(results.next());
                         assertEquals(1000 + i, results.getInt(1));
-                        assertEquals(new Timestamp(testMillis(randomMillis, i)), results.getTimestamp(2));
+                        assertEquals(new Timestamp(adjustTimestampForEachDocument(randomMillis, i)), results.getTimestamp(2));
                     }
                     assertFalse(results.next());
                 }
@@ -162,7 +234,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
     }
 
     public void testTime() throws IOException, SQLException {
-        long randomMillis = randomNonNegativeLong();
+        long randomMillis = randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999);
         setupIndexForDateTimeTests(randomMillis);
 
         try (Connection connection = esJdbc()) {
@@ -341,50 +413,71 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
             try (PreparedStatement statement = connection.prepareStatement("SELECT ?")) {
 
                 statement.setString(1, stringVal);
-                assertEquals(new Tuple<>(JDBCType.VARCHAR.getVendorTypeNumber(), stringVal), execute(statement));
+                assertEquals(new Tuple<>(KEYWORD.getName(), stringVal), execute(statement));
                 statement.setInt(1, intVal);
-                assertEquals(new Tuple<>(JDBCType.INTEGER.getVendorTypeNumber(), intVal), execute(statement));
+                assertEquals(new Tuple<>(INTEGER.getName(), intVal), execute(statement));
                 statement.setLong(1, longVal);
-                assertEquals(new Tuple<>(JDBCType.BIGINT.getVendorTypeNumber(), longVal), execute(statement));
+                assertEquals(new Tuple<>(LONG.getName(), longVal), execute(statement));
                 statement.setFloat(1, floatVal);
-                assertEquals(new Tuple<>(JDBCType.REAL.getVendorTypeNumber(), floatVal), execute(statement));
+                assertEquals(new Tuple<>(FLOAT.getName(), floatVal), execute(statement));
                 statement.setDouble(1, doubleVal);
-                assertEquals(new Tuple<>(JDBCType.DOUBLE.getVendorTypeNumber(), doubleVal), execute(statement));
+                assertEquals(new Tuple<>(DOUBLE.getName(), doubleVal), execute(statement));
                 statement.setNull(1, JDBCType.DOUBLE.getVendorTypeNumber());
-                assertEquals(new Tuple<>(JDBCType.DOUBLE.getVendorTypeNumber(), null), execute(statement));
+                assertEquals(new Tuple<>(DOUBLE.getName(), null), execute(statement));
                 statement.setBoolean(1, booleanVal);
-                assertEquals(new Tuple<>(JDBCType.BOOLEAN.getVendorTypeNumber(), booleanVal), execute(statement));
+                assertEquals(new Tuple<>(BOOLEAN.getName(), booleanVal), execute(statement));
                 statement.setByte(1, byteVal);
-                assertEquals(new Tuple<>(JDBCType.TINYINT.getVendorTypeNumber(), byteVal), execute(statement));
+                assertEquals(new Tuple<>(BYTE.getName(), byteVal), execute(statement));
                 statement.setShort(1, shortVal);
-                assertEquals(new Tuple<>(JDBCType.SMALLINT.getVendorTypeNumber(), shortVal), execute(statement));
+                assertEquals(new Tuple<>(SHORT.getName(), shortVal), execute(statement));
             }
         }
     }
 
-    private Tuple<Integer, Object> execute(PreparedStatement statement) throws SQLException {
+    private Tuple<String, Object> execute(PreparedStatement statement) throws SQLException {
         try (ResultSet results = statement.executeQuery()) {
             ResultSetMetaData resultSetMetaData = results.getMetaData();
             assertTrue(results.next());
-            Tuple<Integer, Object> result = new Tuple<>(resultSetMetaData.getColumnType(1), results.getObject(1));
+            Tuple<String, Object> result = new Tuple<>(resultSetMetaData.getColumnTypeName(1), results.getObject(1));
             assertFalse(results.next());
             return result;
         }
     }
 
-    private static long testMillis(long randomMillis, int i) {
+    // Each time the tests pass a random time in millis/nanos and this method slightly changes this timestamp
+    // for each document (based on the iteration index i) so that the test can assert that the filtering is working
+    // properly and only the desired docs are returned (id of each doc is also based on i and relates to the adjusted
+    // timestamp).
+    private static long adjustTimestampForEachDocument(long randomMillis, int i) {
         return randomMillis - 2 + i;
     }
 
     private static void setupIndexForDateTimeTests(long randomMillis) throws IOException {
-        String mapping = "\"properties\":{\"id\":{\"type\":\"integer\"},\"birth_date\":{\"type\":\"date\"}}";
+        setupIndexForDateTimeTests(randomMillis, false);
+    }
+
+    private static void setupIndexForDateTimeTestsWithNanos(long randomNanos) throws IOException {
+        setupIndexForDateTimeTests(randomNanos, true);
+    }
+
+    private static void setupIndexForDateTimeTests(long randomMillisOrNanos, boolean isNanos) throws IOException {
+        String mapping = "\"properties\":{\"id\":{\"type\":\"integer\"},";
+        if (isNanos) {
+            mapping += "\"test_date_nanos\":{\"type\":\"date_nanos\"}}";
+        } else {
+            mapping += "\"birth_date\":{\"type\":\"date\"}}";
+        }
         createIndex("emps", Settings.EMPTY, mapping);
         for (int i = 1; i <= 3; i++) {
             int id = 1000 + i;
-            long testMillis = testMillis(randomMillis, i);
+            long testMillisOrNanos = adjustTimestampForEachDocument(randomMillisOrNanos, i);
             index("emps", "" + i, builder -> {
                 builder.field("id", id);
-                builder.field("birth_date", testMillis);
+                if (isNanos) {
+                    builder.field("test_date_nanos", JdbcTestUtils.asStringTimestampFromNanos(testMillisOrNanos));
+                } else {
+                    builder.field("birth_date", testMillisOrNanos);
+                }
             });
         }
     }

@@ -1,12 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.user;
 
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
@@ -17,14 +17,18 @@ public class XPackUser extends User {
 
     public static final String NAME = UsernamesField.XPACK_NAME;
     public static final String ROLE_NAME = UsernamesField.XPACK_ROLE;
-    public static final Role ROLE = Role.builder(new RoleDescriptor(ROLE_NAME, new String[] { "all" },
-            new RoleDescriptor.IndicesPrivileges[] {
-                    RoleDescriptor.IndicesPrivileges.builder().indices("/@&~(\\.security.*)/").privileges("all").build(),
-                    RoleDescriptor.IndicesPrivileges.builder().indices(IndexAuditTrailField.INDEX_NAME_PREFIX + "-*")
-                            .privileges("read").build()
-            },
-            new String[] { "*" },
-            MetadataUtils.DEFAULT_RESERVED_METADATA), null).build();
+    public static final RoleDescriptor ROLE_DESCRIPTOR = new RoleDescriptor(ROLE_NAME, new String[] { "all" },
+        new RoleDescriptor.IndicesPrivileges[] {
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices("/@&~(\\.security.*)&~(\\.async-search.*)/")
+                .privileges("all")
+                .allowRestrictedIndices(true)
+                .build(),
+            RoleDescriptor.IndicesPrivileges.builder().indices(IndexAuditTrailField.INDEX_NAME_PREFIX + "-*")
+                .privileges("read").build()
+        },
+        new String[] { "*" },
+        MetadataUtils.DEFAULT_RESERVED_METADATA);
     public static final XPackUser INSTANCE = new XPackUser();
 
     private XPackUser() {

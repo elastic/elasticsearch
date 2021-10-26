@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.idp.saml.idp;
@@ -11,9 +12,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
 import org.elasticsearch.xpack.idp.saml.sp.ServiceProviderDefaults;
 import org.elasticsearch.xpack.idp.saml.sp.WildcardServiceProviderResolver;
@@ -27,7 +28,6 @@ import java.net.URL;
 import java.security.PrivateKey;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -287,10 +287,13 @@ public class SamlIdentityProviderBuilder {
     }
 
     static List<X509Credential> buildCredentials(Environment env, Settings settings, String prefix, boolean allowMultiple) {
-        final X509KeyPairSettings keyPairSettings = X509KeyPairSettings.withPrefix(prefix, false);
-        final X509KeyManager keyManager = CertParsingUtils.getKeyManager(keyPairSettings, settings, null, env);
+        final SslKeyConfig keyConfig = CertParsingUtils.createKeyConfig(settings, prefix, env, false);
+        if (keyConfig.hasKeyMaterial() == false) {
+            return List.of();
+        }
+        final X509KeyManager keyManager = keyConfig.createKeyManager();
         if (keyManager == null) {
-            return Collections.emptyList();
+            return List.of();
         }
 
         final List<X509Credential> credentials = new ArrayList<>();

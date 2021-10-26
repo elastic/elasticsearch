@@ -10,8 +10,6 @@
 
 Explains a {dataframe-analytics-config}.
 
-beta::[]
-
 
 [[ml-explain-dfanalytics-request]]
 == {api-request-title}
@@ -28,12 +26,11 @@ beta::[]
 [[ml-explain-dfanalytics-prereq]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
-privileges:
+Requires the following privileges:
 
-* cluster: `monitor_ml`
-  
-For more information, see <<security-privileges>> and {ml-docs-setup-privileges}.
+* cluster: `monitor_ml` (the `machine_learning_user` built-in role grants this 
+  privilege)
+* source indices: `read`, `view_index_metadata`
 
 
 [[ml-explain-dfanalytics-desc]]

@@ -26,7 +26,7 @@ The data for running the TDVT suite needs to be loaded into Elasticsearch prior 
 ODBC's driver test suite is a Python application that, among other things, will load the testing data into a running Elasticsearch instance.
 It requires a Python 3 installation with [requests](python-requests.org) and [psutils](https://pypi.org/project/psutil/) PIP modules installed.
 
-Clone it from its [Github repo](https://github.com/elastic/elasticsearch-sql-odbc/) and run the following from within the top repo directory:
+Clone it from its [GitHub repo](https://github.com/elastic/elasticsearch-sql-odbc/) and run the following from within the top repo directory:
 ```
 python3 ./test/integration/ites.py -p http://user:password@host:port -tx
 ```

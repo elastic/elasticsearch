@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.function.scalar.string;
 
@@ -20,33 +21,33 @@ public class StartsWithFunctionProcessor implements Processor {
 
     private final Processor source;
     private final Processor pattern;
-    private final boolean isCaseSensitive;
+    private final boolean caseInsensitive;
 
-    public StartsWithFunctionProcessor(Processor source, Processor pattern, boolean isCaseSensitive) {
+    public StartsWithFunctionProcessor(Processor source, Processor pattern, boolean caseInsensitive) {
         this.source = source;
         this.pattern = pattern;
-        this.isCaseSensitive = isCaseSensitive;
+        this.caseInsensitive = caseInsensitive;
     }
 
     public StartsWithFunctionProcessor(StreamInput in) throws IOException {
         source = in.readNamedWriteable(Processor.class);
         pattern = in.readNamedWriteable(Processor.class);
-        isCaseSensitive = in.readBoolean();
+        caseInsensitive = in.readBoolean();
     }
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(source);
         out.writeNamedWriteable(pattern);
-        out.writeBoolean(isCaseSensitive);
+        out.writeBoolean(caseInsensitive);
     }
 
     @Override
     public Object process(Object input) {
-        return doProcess(source.process(input), pattern.process(input), isCaseSensitive());
+        return doProcess(source.process(input), pattern.process(input), isCaseInsensitive());
     }
 
-    public static Object doProcess(Object source, Object pattern, boolean isCaseSensitive) {
+    public static Object doProcess(Object source, Object pattern, boolean caseInsensitive) {
         if (source == null) {
             return null;
         }
@@ -60,13 +61,13 @@ public class StartsWithFunctionProcessor implements Processor {
             throw new QlIllegalArgumentException("A string/char is required; received [{}]", pattern);
         }
 
-        if (isCaseSensitive) {
+        if (caseInsensitive == false) {
             return source.toString().startsWith(pattern.toString());
         } else {
             return source.toString().toLowerCase(Locale.ROOT).startsWith(pattern.toString().toLowerCase(Locale.ROOT));
         }
     }
-    
+
     protected Processor source() {
         return source;
     }
@@ -75,8 +76,8 @@ public class StartsWithFunctionProcessor implements Processor {
         return pattern;
     }
 
-    protected boolean isCaseSensitive() {
-        return isCaseSensitive;
+    protected boolean isCaseInsensitive() {
+        return caseInsensitive;
     }
 
     @Override
@@ -84,22 +85,22 @@ public class StartsWithFunctionProcessor implements Processor {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         StartsWithFunctionProcessor other = (StartsWithFunctionProcessor) obj;
         return Objects.equals(source(), other.source())
-                && Objects.equals(pattern(), other.pattern())
-                && Objects.equals(isCaseSensitive(), other.isCaseSensitive());
+            && Objects.equals(pattern(), other.pattern())
+            && Objects.equals(isCaseInsensitive(), other.isCaseInsensitive());
     }
-    
+
     @Override
     public int hashCode() {
-        return Objects.hash(source(), pattern(), isCaseSensitive());
+        return Objects.hash(source(), pattern(), isCaseInsensitive());
     }
-    
+
 
     @Override
     public String getWriteableName() {

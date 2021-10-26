@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.script;
@@ -24,10 +13,10 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
@@ -80,7 +69,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
 
             StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
             StoredScriptSource source = new StoredScriptSource("mustache", code,
-                Collections.singletonMap("content_type", "application/json; charset=UTF-8"));
+                Collections.singletonMap("content_type", "application/json;charset=utf-8"));
 
             assertThat(parsed, equalTo(source));
         }
@@ -94,17 +83,6 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
 
             assertThat(parsed, equalTo(source));
         }
-
-        // complex script using "code" backcompat
-        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-            builder.startObject().field("script").startObject().field("lang", "lang").field("code", "code").endObject().endObject();
-
-            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
-            StoredScriptSource source = new StoredScriptSource("lang", "code", Collections.emptyMap());
-
-            assertThat(parsed, equalTo(source));
-        }
-        assertWarnings("Deprecated field [code] used, expected [source] instead");
 
         // complex script with script object and empty options
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
@@ -177,24 +155,12 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
 
     public void testEmptyTemplateDeprecations() throws IOException {
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-            builder.startObject().endObject();
-
-            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
-            StoredScriptSource source = new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, "", Collections.emptyMap());
-
-            assertThat(parsed, equalTo(source));
-            assertWarnings("empty templates should no longer be used");
-        }
-
-        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject().field("script").startObject().field("lang", "mustache")
                     .field("source", "").endObject().endObject();
 
-            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
-            StoredScriptSource source = new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, "", Collections.emptyMap());
-
-            assertThat(parsed, equalTo(source));
-            assertWarnings("empty templates should no longer be used");
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
+                    StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON));
+            assertEquals("source cannot be empty", iae.getMessage());
         }
     }
 

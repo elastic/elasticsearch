@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -86,7 +87,7 @@ public class CopySettingsStep extends ClusterStateActionStep {
             .put(IndexMetadata.builder(targetIndexMetadata)
                 .settingsVersion(targetIndexMetadata.getSettingsVersion() + 1)
                 .settings(settings));
-        return ClusterState.builder(clusterState).metadata(newMetaData).build();
+        return ClusterState.builder(clusterState).metadata(newMetaData.build(false)).build();
     }
 
     @Override
@@ -97,7 +98,7 @@ public class CopySettingsStep extends ClusterStateActionStep {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        if (!super.equals(o)) {
+        if (super.equals(o) == false) {
             return false;
         }
         CopySettingsStep that = (CopySettingsStep) o;

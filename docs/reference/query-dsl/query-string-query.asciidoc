@@ -4,6 +4,9 @@
 <titleabbrev>Query string</titleabbrev>
 ++++
 
+TIP: This page contains information about the `query_string` query type. For
+information about running a search query in {es}, see <<search-your-data>>.
+
 Returns documents based on a provided query string, using a parser with a strict
 syntax.
 
@@ -77,9 +80,9 @@ documents.
 For mappings with a large number of fields, searching across all eligible fields
 could be expensive.
 
-There is a limit on the number of fields that can be queried at once.
+There is a limit on the number of fields times terms that can be queried at once.
 It is defined by the `indices.query.bool.max_clause_count`
-<<search-settings,search setting>>, which defaults to 1024.
+<<search-settings,search setting>>, which defaults to 4096.
 ====
 --
 
@@ -142,8 +145,8 @@ You can use this parameter query to search across multiple fields. See
 --
 
 `fuzziness`::
-(Optional, string) Maximum edit distance allowed for matching. See <<fuzziness>>
-for valid values and more information.
+(Optional, string) Maximum edit distance allowed for fuzzy matching. For fuzzy
+syntax, see <<query-string-fuzziness>>.
 
 `fuzzy_max_expansions`::
 (Optional, integer) Maximum number of terms to which the query expands for fuzzy

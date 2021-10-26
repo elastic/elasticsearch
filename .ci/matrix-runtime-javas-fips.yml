@@ -1,0 +1,12 @@
+# This file is used as part of a matrix build in Jenkins where the
+# values below are included as an axis of the matrix.
+
+# java11 should always be included as we only support Oracle Java 11 in
+# FIPS 140-2 mode. 
+# We also want to test with the bundled JDK so that we proactively find
+# issues that might later be backported to JDK11. Current bundled JDK is
+# openjdk16
+
+ES_RUNTIME_JAVA:
+  - java11
+  - openjdk16

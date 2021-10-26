@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.transport;
 
@@ -41,7 +30,7 @@ public final class TransportActionProxy {
 
     private TransportActionProxy() {} // no instance
 
-    private static class ProxyRequestHandler<T extends ProxyRequest> implements TransportRequestHandler<T> {
+    private static class ProxyRequestHandler<T extends ProxyRequest<TransportRequest>> implements TransportRequestHandler<T> {
 
         private final TransportService service;
         private final String action;
@@ -92,6 +81,7 @@ public final class TransportActionProxy {
         @Override
         public void handleResponse(T response) {
             try {
+                response.incRef();
                 channel.sendResponse(response);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -108,7 +98,7 @@ public final class TransportActionProxy {
         }
     }
 
-    static class ProxyRequest<T extends TransportRequest> extends TransportRequest {
+    static class ProxyRequest<T extends TransportRequest> extends TransportRequest implements RawIndexingDataTransportRequest {
         final T wrapped;
         final DiscoveryNode targetNode;
 
@@ -130,6 +120,14 @@ public final class TransportActionProxy {
             targetNode.writeTo(out);
             wrapped.writeTo(out);
         }
+
+        @Override
+        public boolean isRawIndexingData() {
+            if (wrapped instanceof RawIndexingDataTransportRequest) {
+                return ((RawIndexingDataTransportRequest) wrapped).isRawIndexingData();
+            }
+            return false;
+        }
     }
 
     private static class CancellableProxyRequest<T extends TransportRequest> extends ProxyRequest<T> {
@@ -140,11 +138,6 @@ public final class TransportActionProxy {
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             return new CancellableTask(id, type, action, "", parentTaskId, headers) {
-                @Override
-                public boolean shouldCancelChildrenOnCancellation() {
-                    return true;
-                }
-
                 @Override
                 public String getDescription() {
                     return "proxy task [" + wrapped.getDescription() + "]";
@@ -174,12 +167,7 @@ public final class TransportActionProxy {
      */
     public static void registerProxyAction(TransportService service, String action, boolean cancellable,
                                            Writeable.Reader<? extends TransportResponse> reader) {
-        RequestHandlerRegistry<? extends TransportRequest> requestHandler = service.getRequestHandler(action);
-        service.registerRequestHandler(getProxyAction(action), ThreadPool.Names.SAME, true, false,
-            in -> cancellable ?
-                new CancellableProxyRequest<>(in, requestHandler::newRequest) :
-                new ProxyRequest<>(in, requestHandler::newRequest),
-            new ProxyRequestHandler<>(service, action, request -> reader));
+        registerProxyActionWithDynamicResponseType(service, action, cancellable, request -> reader);
     }
 
     private static final String PROXY_ACTION_PREFIX = "internal:transport/proxy/";
@@ -202,7 +190,7 @@ public final class TransportActionProxy {
      */
     public static TransportRequest unwrapRequest(TransportRequest request) {
         if (request instanceof ProxyRequest) {
-            return ((ProxyRequest)request).wrapped;
+            return ((ProxyRequest<?>)request).wrapped;
         }
         return request;
     }

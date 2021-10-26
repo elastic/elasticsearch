@@ -7,13 +7,18 @@
 Returns a list of plugins running on each node of a cluster.
 
 
-[[cat-plugins-tasks-api-request]]
+[[cat-plugins-api-request]]
 ==== {api-request-title}
 
 `GET /_cat/plugins`
 
+[[cat-plugins-api-prereqs]]
+==== {api-prereq-title}
 
-[[cat-plugins-tasks-api-query-params]]
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
+[[cat-plugins-api-query-params]]
 ==== {api-query-parms-title}
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
@@ -36,7 +41,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console]
 ------------------------------------------------------------------------------
-GET /_cat/plugins?v&s=component&h=name,component,version,description
+GET /_cat/plugins?v=true&s=component&h=name,component,version,description
 ------------------------------------------------------------------------------
 
 The API returns the following response:

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.fetch.subphase.highlight;
 
@@ -84,7 +73,7 @@ public class FastVectorHighlighter implements Highlighter {
         Encoder encoder = field.fieldOptions().encoder().equals("html") ?
             HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
 
-        if (!fieldContext.cache.containsKey(CACHE_KEY)) {
+        if (fieldContext.cache.containsKey(CACHE_KEY) == false) {
             fieldContext.cache.put(CACHE_KEY, new HighlighterEntry());
         }
         HighlighterEntry cache = (HighlighterEntry) fieldContext.cache.get(CACHE_KEY);
@@ -146,7 +135,7 @@ public class FastVectorHighlighter implements Highlighter {
             Integer.MAX_VALUE : field.fieldOptions().fragmentCharSize();
         // we highlight against the low level reader and docId, because if we load source, we want to reuse it if possible
         // Only send matched fields if they were requested to save time.
-        if (field.fieldOptions().matchedFields() != null && !field.fieldOptions().matchedFields().isEmpty()) {
+        if (field.fieldOptions().matchedFields() != null && field.fieldOptions().matchedFields().isEmpty() == false) {
             fragments = cache.fvh.getBestFragments(fieldQuery, hitContext.reader(), hitContext.docId(),
                 fieldType.name(), field.fieldOptions().matchedFields(), fragmentCharSize,
                 numberOfFragments, entry.fragListBuilder, fragmentsBuilder, field.fieldOptions().preTags(),
@@ -185,7 +174,7 @@ public class FastVectorHighlighter implements Highlighter {
         BoundaryScanner boundaryScanner = getBoundaryScanner(field);
         FieldOptions options = field.fieldOptions();
         Function<SourceLookup, BaseFragmentsBuilder> supplier;
-        if (!forceSource && fieldType.isStored()) {
+        if (forceSource == false && fieldType.isStored()) {
             if (options.numberOfFragments() != 0 && options.scoreOrdered()) {
                 supplier = ignored -> new ScoreOrderFragmentsBuilder(options.preTags(), options.postTags(), boundaryScanner);
             } else {

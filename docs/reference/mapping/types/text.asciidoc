@@ -1,17 +1,35 @@
+[testenv="basic"]
 [[text]]
-=== Text field type
+=== Text type family
 ++++
 <titleabbrev>Text</titleabbrev>
 ++++
+
+The text family includes the following field types:
+
+* <<text-field-type,`text`>>, the traditional field type for full-text content
+such as the body of an email or the description of a product.
+* <<match-only-text-field-type,`match_only_text`>>, a space-optimized variant
+of `text` that disables scoring and performs slower on queries that need
+positions. It is best suited for indexing log messages.
+
+
+[discrete]
+[[text-field-type]]
+=== Text field type
 
 A field to index full-text values, such as the body of an email or the
 description of a product. These fields are `analyzed`, that is they are passed through an
 <<analysis,analyzer>> to convert the string into a list of individual terms
 before being indexed. The analysis process allows Elasticsearch to search for
-individual words _within_  each full text field.  Text fields are not
+individual words _within_ each full text field. Text fields are not
 used for sorting and seldom used for aggregations (although the
 <<search-aggregations-bucket-significanttext-aggregation,significant text aggregation>>
 is a notable exception).
+
+`text` fields are best suited for unstructured but human-readable content. If
+you need to index unstructured machine-generated content, see
+<<mapping-unstructured-content>>.
 
 If you need to index structured content such as email addresses, hostnames, status
 codes, or tags, it is likely that you should rather use a <<keyword,`keyword`>> field.
@@ -89,16 +107,16 @@ The following parameters are accepted by `text` fields:
 <<index-prefixes,`index_prefixes`>>::
 
     If enabled, term prefixes of between 2 and 5 characters are indexed into a
-    separate field.  This allows prefix searches to run more efficiently, at
+    separate field. This allows prefix searches to run more efficiently, at
     the expense of a larger index.
 
 <<index-phrases,`index_phrases`>>::
 
     If enabled, two-term word combinations ('shingles') are indexed into a separate
-    field.  This allows exact phrase queries (no slop) to run more efficiently, at the expense
-    of a larger index.  Note that this works best when stopwords are not removed,
+    field. This allows exact phrase queries (no slop) to run more efficiently, at the expense
+    of a larger index. Note that this works best when stopwords are not removed,
     as phrases containing stopwords will not use the subsidiary field and will fall
-    back to a standard phrase query.  Accepts `true` or `false` (default).
+    back to a standard phrase query. Accepts `true` or `false` (default).
 
 <<norms,`norms`>>::
 
@@ -149,9 +167,8 @@ The following parameters are accepted by `text` fields:
 aggregations, sorting, or scripting. If you try to sort, aggregate, or access
 values from a script on a `text` field, you will see this exception:
 
-[literal]
-Fielddata is disabled on text fields by default.  Set `fielddata=true` on
-[`your_field_name`] in order to load fielddata in memory by uninverting the
+Fielddata is disabled on text fields by default. Set `fielddata=true` on
+`your_field_name` in order to load fielddata in memory by uninverting the
 inverted index. Note that this can however use significant memory.
 
 Field data is the only way to access the analyzed tokens from a full text field
@@ -196,7 +213,7 @@ PUT my-index-000001
 ==== Enabling fielddata on `text` fields
 
 You can enable fielddata on an existing `text` field using the
-<<indices-put-mapping,PUT mapping API>> as follows:
+<<indices-put-mapping,update mapping API>> as follows:
 
 [source,console]
 -----------------------------------
@@ -250,3 +267,5 @@ PUT my-index-000001
   }
 }
 --------------------------------------------------
+
+include::match-only-text.asciidoc[]

@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.pagerduty;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
@@ -20,7 +21,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IncidentEventTests extends ESTestCase {
@@ -95,7 +96,7 @@ public class IncidentEventTests extends ESTestCase {
         }
 
         List<IncidentEventContext> actualLinks = new ArrayList<>();
-        List<Map<String, String>> linkMap = (List<Map<String, String>>) objectPath.evaluate(IncidentEvent.Fields.LINKS.getPreferredName());
+        List<Map<String, String>> linkMap = objectPath.evaluate(IncidentEvent.Fields.LINKS.getPreferredName());
         if (linkMap != null) {
             for (Map<String, String> iecValue : linkMap) {
                 actualLinks.add(IncidentEventContext.link(iecValue.get("href"), iecValue.get("text")));
@@ -103,7 +104,7 @@ public class IncidentEventTests extends ESTestCase {
         }
 
         List<IncidentEventContext> actualImages = new ArrayList<>();
-        List<Map<String, String>> imgMap = (List<Map<String, String>>) objectPath.evaluate(IncidentEvent.Fields.IMAGES.getPreferredName());
+        List<Map<String, String>> imgMap = objectPath.evaluate(IncidentEvent.Fields.IMAGES.getPreferredName());
         if (imgMap != null) {
             for (Map<String, String> iecValue : imgMap) {
                 actualImages.add(IncidentEventContext.image(iecValue.get("src"), iecValue.get("href"), iecValue.get("alt")));

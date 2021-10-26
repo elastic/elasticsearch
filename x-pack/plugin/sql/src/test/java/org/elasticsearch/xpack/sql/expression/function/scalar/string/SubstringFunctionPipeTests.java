@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
@@ -30,11 +31,11 @@ public class SubstringFunctionPipeTests
     protected SubstringFunctionPipe randomInstance() {
         return randomSubstringFunctionPipe();
     }
-    
+
     private Expression randomSubstringFunctionExpression() {
         return randomSubstringFunctionPipe().expression();
     }
-    
+
     public static SubstringFunctionPipe randomSubstringFunctionPipe() {
         return (SubstringFunctionPipe) (new Substring(randomSource(),
                             randomStringLiteral(),
@@ -55,18 +56,18 @@ public class SubstringFunctionPipeTests
                 b1.input(),
                 b1.start(),
                 b1.length());
-        assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
-        
+        assertEquals(newB, b1.transformPropertiesOnly(Expression.class, v -> Objects.equals(v, b1.expression()) ? newExpression : v));
+
         SubstringFunctionPipe b2 = randomInstance();
         Source newLoc = randomValueOtherThan(b2.source(), () -> randomSource());
         newB = new SubstringFunctionPipe(
-                newLoc,
-                b2.expression(),
-                b2.input(),
-                b2.start(),
-                b2.length());
+            newLoc,
+            b2.expression(),
+            b2.input(),
+            b2.start(),
+            b2.length());
         assertEquals(newB,
-                b2.transformPropertiesOnly(v -> Objects.equals(v, b2.source()) ? newLoc : v, Source.class));
+            b2.transformPropertiesOnly(Source.class, v -> Objects.equals(v, b2.source()) ? newLoc : v));
     }
 
     @Override
@@ -77,7 +78,7 @@ public class SubstringFunctionPipeTests
         Pipe newLength = randomValueOtherThan(b.length(), () -> pipe(randomIntLiteral()));
         SubstringFunctionPipe newB = new SubstringFunctionPipe(b.source(), b.expression(), b.input(), b.start(), b.length());
         SubstringFunctionPipe transformed = null;
-        
+
         // generate all the combinations of possible children modifications and test all of them
         for(int i = 1; i < 4; i++) {
             for(BitSet comb : new Combinations(3, i)) {
@@ -97,7 +98,7 @@ public class SubstringFunctionPipeTests
     @Override
     protected SubstringFunctionPipe mutate(SubstringFunctionPipe instance) {
         List<Function<SubstringFunctionPipe, SubstringFunctionPipe>> randoms = new ArrayList<>();
-        
+
         for(int i = 1; i < 4; i++) {
             for(BitSet comb : new Combinations(3, i)) {
                 randoms.add(f -> new SubstringFunctionPipe(
@@ -108,7 +109,7 @@ public class SubstringFunctionPipeTests
                         comb.get(2) ? randomValueOtherThan(f.length(), () -> pipe(randomIntLiteral())): f.length()));
             }
         }
-        
+
         return randomFrom(randoms).apply(instance);
     }
 

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.restart;
 
@@ -14,24 +15,23 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ObjectPath;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 import org.hamcrest.Matcher;
@@ -40,20 +40,19 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.upgrades.FullClusterRestartIT.assertNumHits;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItems;
@@ -202,11 +201,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63088")
     @SuppressWarnings("unchecked")
     public void testWatcherWithApiKey() throws Exception {
         final Request getWatchStatusRequest = new Request("GET", "/_watcher/watch/watch_with_api_key");
-        getWatchStatusRequest.addParameter("filter_path", "status");
 
         if (isRunningAgainstOldCluster()) {
             final Request createApiKeyRequest = new Request("PUT", "/_security/api_key");
@@ -247,15 +244,63 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 final Map<String, Object> status = (Map<String, Object>) getWatchStatusResponse.get("status");
                 final int version = (int) status.get("version");
 
+                final AtomicBoolean versionIncreased = new AtomicBoolean();
+                final AtomicBoolean executed = new AtomicBoolean();
                 assertBusy(() -> {
                     final Map<String, Object> newGetWatchStatusResponse = entityAsMap(client().performRequest(getWatchStatusRequest));
                     final Map<String, Object> newStatus = (Map<String, Object>) newGetWatchStatusResponse.get("status");
-                    assertThat((int) newStatus.get("version"), greaterThan(version + 2));
-                    assertEquals("executed", newStatus.get("execution_state"));
+                    if (false == versionIncreased.get() && version < (int) newStatus.get("version")) {
+                        versionIncreased.set(true);
+                    }
+                    if (false == executed.get() && "executed".equals(newStatus.get("execution_state"))) {
+                        executed.set(true);
+                    }
+                    assertThat("version increased: [" + versionIncreased.get() + "], executed: [" + executed.get() + "]",
+                        versionIncreased.get() && executed.get(), is(true));
                 });
             } finally {
                 stopWatcher();
             }
+        }
+    }
+
+    public void testServiceAccountApiKey() throws IOException {
+        assumeTrue("no service accounts in versions before " + Version.V_7_13_0, getOldClusterVersion().onOrAfter(Version.V_7_13_0));
+        if (isRunningAgainstOldCluster()) {
+            final Request createServiceTokenRequest = new Request("POST", "/_security/service/elastic/fleet-server/credential/token");
+            final Response createServiceTokenResponse = client().performRequest(createServiceTokenRequest);
+            assertOK(createServiceTokenResponse);
+            @SuppressWarnings("unchecked")
+            final String serviceToken = ((Map<String, String>) responseAsMap(createServiceTokenResponse).get("token")).get("value");
+            final Request createApiKeyRequest = new Request("PUT", "/_security/api_key");
+            createApiKeyRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + serviceToken));
+            createApiKeyRequest.setJsonEntity("{\"name\":\"key-1\"}");
+            final Response createApiKeyResponse = client().performRequest(createApiKeyRequest);
+            final Map<String, Object> createApiKeyResponseMap = entityAsMap(createApiKeyResponse);
+            final String authHeader = "ApiKey " + Base64.getEncoder().encodeToString(
+                (createApiKeyResponseMap.get("id") + ":" + createApiKeyResponseMap.get("api_key")).getBytes(StandardCharsets.UTF_8));
+
+            final Request indexRequest = new Request("PUT", "/api_keys/_doc/key-1");
+            indexRequest.setJsonEntity("{\"auth_header\":\"" + authHeader + "\"}");
+            assertOK(client().performRequest(indexRequest));
+        } else {
+            final Request getRequest = new Request("GET", "/api_keys/_doc/key-1");
+            final Response getResponse = client().performRequest(getRequest);
+            assertOK(getResponse);
+            final Map<String, Object> getResponseMap = responseAsMap(getResponse);
+            @SuppressWarnings("unchecked")
+            final String authHeader = ((Map<String, String>) getResponseMap.get("_source")).get("auth_header");
+
+            final Request mainRequest = new Request("GET", "/");
+            mainRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authHeader));
+            assertOK(client().performRequest(mainRequest));
+
+            final Request getUserRequest = new Request("GET", "/_security/user");
+            getUserRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authHeader));
+            final ResponseException e =
+                expectThrows(ResponseException.class, () -> client().performRequest(getUserRequest));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(e.getMessage(), containsString("is unauthorized"));
         }
     }
 
@@ -657,43 +702,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         return null;
     }
 
-    public void testFrozenIndexAfterRestarted() throws Exception {
-        final String index = "test_frozen_index";
-        if (isRunningAgainstOldCluster()) {
-            Settings.Builder settings = Settings.builder();
-            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
-                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
-            }
-            String mappings = randomBoolean() ? "\"_source\": { \"enabled\": false}" : null;
-            createIndex(index, settings.build(), mappings);
-            ensureGreen(index);
-            int numDocs = randomIntBetween(10, 500);
-            for (int i = 0; i < numDocs; i++) {
-                int id = randomIntBetween(0, 100);
-                final Request indexRequest = new Request("POST", "/" + index + "/" + "_doc/" + id);
-                indexRequest.setJsonEntity(Strings.toString(JsonXContent.contentBuilder().startObject().field("f", "v").endObject()));
-                assertOK(client().performRequest(indexRequest));
-                if (rarely()) {
-                    flush(index, randomBoolean());
-                }
-            }
-        } else {
-            ensureGreen(index);
-            final int totalHits = (int) XContentMapValues.extractValue("hits.total.value",
-                entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
-            assertOK(client().performRequest(new Request("POST", index + "/_freeze")));
-            ensureGreen(index);
-            assertNoFileBasedRecovery(index, n -> true);
-            final Request request = new Request("GET", "/" + index + "/_search");
-            request.addParameter("ignore_throttled", "false");
-            assertThat(XContentMapValues.extractValue("hits.total.value", entityAsMap(client().performRequest(request))),
-                equalTo(totalHits));
-            assertOK(client().performRequest(new Request("POST", index + "/_unfreeze")));
-            ensureGreen(index);
-            assertNoFileBasedRecovery(index, n -> true);
-        }
-    }
-
     @SuppressWarnings("unchecked")
     public void testDataStreams() throws Exception {
         assumeTrue("no data streams in versions before " + Version.V_7_9_0, getOldClusterVersion().onOrAfter(Version.V_7_9_0));
@@ -701,13 +709,25 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             createComposableTemplate(client(), "dst", "ds");
 
             Request indexRequest = new Request("POST", "/ds/_doc/1?op_type=create&refresh");
-            XContentBuilder builder = JsonXContent.contentBuilder().startObject()
-                .field("f", "v")
-                .field("@timestamp", new Date())
-                .endObject();
+            XContentBuilder
+                builder =
+                JsonXContent.contentBuilder().startObject().field("f", "v").field("@timestamp", System.currentTimeMillis()).endObject();
             indexRequest.setJsonEntity(Strings.toString(builder));
             assertOK(client().performRequest(indexRequest));
         }
+
+        // It's quite possible that this test will run where the data stream backing index is
+        // created on one day, and then checked on a subsequent day. To avoid this failing the
+        // test, we store the timestamp used when the document is indexed, then when we go to
+        // check the backing index name, we retrieve the time and use it for the backing index
+        // name resolution.
+        Request getDoc = new Request("GET", "/ds/_search");
+        Map<String, Object> doc = entityAsMap(client().performRequest(getDoc));
+        logger.info("--> doc: {}", doc);
+        Map<String, Object> hits = (Map<String, Object>) doc.get("hits");
+        Map<String, Object> docBody = (Map<String, Object>) ((List<Object>) hits.get("hits")).get(0);
+        Long timestamp = (Long) ((Map<String, Object>) docBody.get("_source")).get("@timestamp");
+        logger.info("--> parsed out timestamp of {}", timestamp);
 
         Request getDataStream = new Request("GET", "/_data_stream/ds");
         Response response = client().performRequest(getDataStream);
@@ -718,9 +738,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         List<Map<String, String>> indices = (List<Map<String, String>>) ds.get("indices");
         assertEquals("ds", ds.get("name"));
         assertEquals(1, indices.size());
-        assertEquals(getOldClusterVersion().onOrAfter(Version.V_7_11_0)
-            ? DataStream.getDefaultBackingIndexName("ds", 1)
-            : DataStream.getLegacyDefaultBackingIndexName("ds", 1),
+        assertEquals(DataStreamTestHelper.getLegacyDefaultBackingIndexName("ds", 1, timestamp, getOldClusterVersion()),
             indices.get(0).get("index_name"));
         assertNumHits("ds", 1, 1);
     }

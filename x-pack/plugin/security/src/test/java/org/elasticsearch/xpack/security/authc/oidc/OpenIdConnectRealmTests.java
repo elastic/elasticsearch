@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.oidc;
 
@@ -9,15 +10,15 @@ import com.nimbusds.jwt.JWT;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.oauth2.sdk.id.State;
 import com.nimbusds.openid.connect.sdk.Nonce;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutResponse;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationResponse;
@@ -27,11 +28,13 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
-import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
 import org.hamcrest.Matchers;
 import org.junit.Before;
+import org.mockito.stubbing.Answer;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -45,8 +48,11 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.time.Instant.now;
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm.CONTEXT_TOKEN_DATA;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -76,29 +82,24 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         final UserRoleMapper roleMapper = mock(UserRoleMapper.class);
         final String principal = randomAlphaOfLength(12);
         AtomicReference<UserRoleMapper.UserData> userData = new AtomicReference<>();
-        doAnswer(invocation -> {
-            assert invocation.getArguments().length == 2;
-            userData.set((UserRoleMapper.UserData) invocation.getArguments()[0]);
-            ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
-            listener.onResponse(new HashSet<>(Arrays.asList("kibana_user", "role1")));
-            return null;
-        }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
+        doAnswer(getAnswer(userData)).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), anyActionListener());
 
         final boolean notPopulateMetadata = randomBoolean();
         final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
-        AuthenticationResult result = authenticateWithOidc(principal, roleMapper, notPopulateMetadata, false, authenticatingRealm, null);
+        AuthenticationResult<User> result = authenticateWithOidc(
+            principal, roleMapper, notPopulateMetadata, false, authenticatingRealm, null);
         assertThat(result, notNullValue());
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
-        assertThat(result.getUser().principal(), equalTo(principal));
-        assertThat(result.getUser().email(), equalTo("cbarton@shield.gov"));
-        assertThat(result.getUser().fullName(), equalTo("Clinton Barton"));
-        assertThat(result.getUser().roles(), arrayContainingInAnyOrder("kibana_user", "role1"));
+        assertThat(result.getValue().principal(), equalTo(principal));
+        assertThat(result.getValue().email(), equalTo("cbarton@shield.gov"));
+        assertThat(result.getValue().fullName(), equalTo("Clinton Barton"));
+        assertThat(result.getValue().roles(), arrayContainingInAnyOrder("kibana_user", "role1"));
         if (notPopulateMetadata) {
-            assertThat(result.getUser().metadata().size(), equalTo(0));
+            assertThat(result.getValue().metadata(), anEmptyMap());
         } else {
-            assertThat(result.getUser().metadata().get("oidc(iss)"), equalTo("https://op.company.org"));
-            assertThat(result.getUser().metadata().get("oidc(name)"), equalTo("Clinton Barton"));
-            final Object groups = result.getUser().metadata().get("oidc(groups)");
+            assertThat(result.getValue().metadata().get("oidc(iss)"), equalTo("https://op.company.org"));
+            assertThat(result.getValue().metadata().get("oidc(name)"), equalTo("Clinton Barton"));
+            final Object groups = result.getValue().metadata().get("oidc(groups)");
             assertThat(groups, notNullValue());
             assertThat(groups, instanceOf(Collection.class));
             assertThat((Collection<?>) groups, contains("group1", "group2", "groups3"));
@@ -109,13 +110,7 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         final UserRoleMapper roleMapper = mock(UserRoleMapper.class);
         final String principal = randomAlphaOfLength(12);
         AtomicReference<UserRoleMapper.UserData> userData = new AtomicReference<>();
-        doAnswer(invocation -> {
-            assert invocation.getArguments().length == 2;
-            userData.set((UserRoleMapper.UserData) invocation.getArguments()[0]);
-            ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
-            listener.onResponse(new HashSet<>(Arrays.asList("kibana_user", "role1")));
-            return null;
-        }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
+        doAnswer(getAnswer(userData)).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), anyActionListener());
         Map<String, Object> claimsWithObject = Map.of(
             "groups", List.of(Map.of("key1", List.of("value1", "value2")), Map.of("key2", List.of("value1", "value2")))
         );
@@ -133,13 +128,7 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         final UserRoleMapper roleMapper = mock(UserRoleMapper.class);
         final String principal = randomAlphaOfLength(12);
         AtomicReference<UserRoleMapper.UserData> userData = new AtomicReference<>();
-        doAnswer(invocation -> {
-            assert invocation.getArguments().length == 2;
-            userData.set((UserRoleMapper.UserData) invocation.getArguments()[0]);
-            ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
-            listener.onResponse(new HashSet<>(Arrays.asList("kibana_user", "role1")));
-            return null;
-        }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
+        doAnswer(getAnswer(userData)).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), anyActionListener());
         Map<String, Object> claims = Map.of(
             "string", "String",
             "number", 232,
@@ -150,21 +139,21 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
             "object", Map.of("key", List.of("value1", "value2")),
             "object_array", List.of(Map.of("key1", List.of("value1", "value2")), Map.of("key2", List.of("value1", "value2")))
         );
-        AuthenticationResult result = authenticateWithOidc(principal, roleMapper, false, false, REALM_NAME, claims);
+        AuthenticationResult<User> result = authenticateWithOidc(principal, roleMapper, false, false, REALM_NAME, claims);
         assertThat(result, notNullValue());
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
-        assertThat(result.getUser().principal(), equalTo(principal));
-        assertThat(result.getUser().email(), equalTo("cbarton@shield.gov"));
-        assertThat(result.getUser().fullName(), equalTo("Clinton Barton"));
-        assertThat(result.getUser().roles(), arrayContainingInAnyOrder("kibana_user", "role1"));
-        assertTrue(result.getUser().metadata().containsKey("oidc(string)"));
-        assertTrue(result.getUser().metadata().containsKey("oidc(number)"));
-        assertTrue(result.getUser().metadata().containsKey("oidc(boolean)"));
-        assertTrue(result.getUser().metadata().containsKey("oidc(string_array)"));
-        assertTrue(result.getUser().metadata().containsKey("oidc(boolean_array)"));
-        assertTrue(result.getUser().metadata().containsKey("oidc(number_array)"));
-        assertFalse(result.getUser().metadata().containsKey("oidc(object_array)"));
-        assertFalse(result.getUser().metadata().containsKey("oidc(object)"));
+        assertThat(result.getValue().principal(), equalTo(principal));
+        assertThat(result.getValue().email(), equalTo("cbarton@shield.gov"));
+        assertThat(result.getValue().fullName(), equalTo("Clinton Barton"));
+        assertThat(result.getValue().roles(), arrayContainingInAnyOrder("kibana_user", "role1"));
+        assertTrue(result.getValue().metadata().containsKey("oidc(string)"));
+        assertTrue(result.getValue().metadata().containsKey("oidc(number)"));
+        assertTrue(result.getValue().metadata().containsKey("oidc(boolean)"));
+        assertTrue(result.getValue().metadata().containsKey("oidc(string_array)"));
+        assertTrue(result.getValue().metadata().containsKey("oidc(boolean_array)"));
+        assertTrue(result.getValue().metadata().containsKey("oidc(number_array)"));
+        assertFalse(result.getValue().metadata().containsKey("oidc(object_array)"));
+        assertFalse(result.getValue().metadata().containsKey("oidc(object)"));
     }
 
     public void testWithAuthorizingRealm() throws Exception {
@@ -172,29 +161,31 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         final String principal = randomAlphaOfLength(12);
         doAnswer(invocation -> {
             assert invocation.getArguments().length == 2;
+            @SuppressWarnings("unchecked")
             ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
             listener.onFailure(new RuntimeException("Role mapping should not be called"));
             return null;
-        }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
+        }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), anyActionListener());
         final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
-        AuthenticationResult result = authenticateWithOidc(principal, roleMapper, randomBoolean(), true, authenticatingRealm, null);
+        AuthenticationResult<User> result = authenticateWithOidc(principal, roleMapper, randomBoolean(), true, authenticatingRealm, null);
         assertThat(result, notNullValue());
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
-        assertThat(result.getUser().principal(), equalTo(principal));
-        assertThat(result.getUser().email(), equalTo("cbarton@shield.gov"));
-        assertThat(result.getUser().fullName(), equalTo("Clinton Barton"));
-        assertThat(result.getUser().roles(), arrayContainingInAnyOrder("lookup_user_role"));
-        assertThat(result.getUser().metadata().entrySet(), Matchers.iterableWithSize(1));
-        assertThat(result.getUser().metadata().get("is_lookup"), Matchers.equalTo(true));
+        assertThat(result.getValue().principal(), equalTo(principal));
+        assertThat(result.getValue().email(), equalTo("cbarton@shield.gov"));
+        assertThat(result.getValue().fullName(), equalTo("Clinton Barton"));
+        assertThat(result.getValue().roles(), arrayContainingInAnyOrder("lookup_user_role"));
+        assertThat(result.getValue().metadata().entrySet(), Matchers.iterableWithSize(1));
+        assertThat(result.getValue().metadata().get("is_lookup"), Matchers.equalTo(true));
         assertNotNull(result.getMetadata().get(CONTEXT_TOKEN_DATA));
         assertThat(result.getMetadata().get(CONTEXT_TOKEN_DATA), instanceOf(Map.class));
-        Map<String, Object> tokenMetadata = (Map) result.getMetadata().get(CONTEXT_TOKEN_DATA);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> tokenMetadata = (Map<String, Object>) result.getMetadata().get(CONTEXT_TOKEN_DATA);
         assertThat(tokenMetadata.get("id_token_hint"), equalTo("thisis.aserialized.jwt"));
     }
 
     public void testAuthenticationWithWrongRealm() throws Exception{
         final String principal = randomAlphaOfLength(12);
-        AuthenticationResult result = authenticateWithOidc(principal, mock(UserRoleMapper.class), randomBoolean(), true,
+        AuthenticationResult<User> result = authenticateWithOidc(principal, mock(UserRoleMapper.class), randomBoolean(), true,
             REALM_NAME + randomAlphaOfLength(8), null);
         assertThat(result, notNullValue());
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
@@ -234,14 +225,15 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
             .issuer("https://op.company.org")
             .build();
         doAnswer((i) -> {
+            @SuppressWarnings("unchecked")
             ActionListener<JWTClaimsSet> listener = (ActionListener<JWTClaimsSet>) i.getArguments()[1];
             listener.onResponse(claims);
             return null;
-        }).when(authenticator).authenticate(any(OpenIdConnectToken.class), any(ActionListener.class));
+        }).when(authenticator).authenticate(any(OpenIdConnectToken.class), anyActionListener());
 
-        final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         realm.authenticate(token, future);
-        final AuthenticationResult result = future.actionGet();
+        final AuthenticationResult<User> result = future.actionGet();
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
         assertThat(result.getMessage(), containsString("claims.principal"));
         assertThat(result.getMessage(), containsString("sub"));
@@ -327,7 +319,7 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         final String endSessionUrl = logoutResponse.getEndSessionUrl();
         final Map<String, String> parameters = new HashMap<>();
         RestUtils.decodeQueryString(endSessionUrl, endSessionUrl.indexOf("?") + 1, parameters);
-        assertThat(parameters.size(), equalTo(3));
+        assertThat(parameters, aMapWithSize(3));
         assertThat(parameters, hasKey("id_token_hint"));
         assertThat(parameters, hasKey("post_logout_redirect_uri"));
         assertThat(parameters, hasKey("state"));
@@ -346,7 +338,7 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         final String endSessionUrl = logoutResponse.getEndSessionUrl();
         final Map<String, String> parameters = new HashMap<>();
         RestUtils.decodeQueryString(endSessionUrl, endSessionUrl.indexOf("?") + 1, parameters);
-        assertThat(parameters.size(), equalTo(4));
+        assertThat(parameters, aMapWithSize(4));
         assertThat(parameters, hasKey("parameter"));
         assertThat(parameters, hasKey("post_logout_redirect_uri"));
         assertThat(parameters, hasKey("state"));
@@ -401,7 +393,7 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         assertThat(response.getRealmName(), equalTo(REALM_NAME));
     }
 
-    private AuthenticationResult authenticateWithOidc(String principal, UserRoleMapper roleMapper, boolean notPopulateMetadata,
+    private AuthenticationResult<User> authenticateWithOidc(String principal, UserRoleMapper roleMapper, boolean notPopulateMetadata,
                                                       boolean useAuthorizingRealm, String authenticatingRealm,
                                                       @Nullable Map<String, Object> additionalClaims)
         throws Exception {
@@ -446,24 +438,35 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         }
         final JWTClaimsSet claims = claimsBuilder.build();
         doAnswer((i) -> {
+            @SuppressWarnings("unchecked")
             ActionListener<JWTClaimsSet> listener = (ActionListener<JWTClaimsSet>) i.getArguments()[1];
             listener.onResponse(claims);
             return null;
-        }).when(authenticator).authenticate(any(OpenIdConnectToken.class), any(ActionListener.class));
+        }).when(authenticator).authenticate(any(OpenIdConnectToken.class), anyActionListener());
 
-        final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         realm.authenticate(token, future);
         return future.get();
     }
 
     private void initializeRealms(Realm... realms) {
-        XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_REALM)).thenReturn(true);
+        MockLicenseState licenseState = mock(MockLicenseState.class);
+        when(licenseState.isAllowed(Security.DELEGATED_AUTHORIZATION_FEATURE)).thenReturn(true);
 
         final List<Realm> realmList = Arrays.asList(realms);
         for (Realm realm : realms) {
             realm.initialize(realmList, licenseState);
         }
+    }
+
+    private Answer<Class<Void>> getAnswer(AtomicReference<UserRoleMapper.UserData> userData) {
+        return invocation -> {
+            assert invocation.getArguments().length == 2;
+            userData.set((UserRoleMapper.UserData) invocation.getArguments()[0]);
+            @SuppressWarnings("unchecked")
+            ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
+            listener.onResponse(new HashSet<>(Arrays.asList("kibana_user", "role1")));
+            return null;
+        };
     }
 }

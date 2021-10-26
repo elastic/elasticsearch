@@ -4,6 +4,7 @@ import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.script.ScriptContext;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -12,29 +13,18 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 public class BasicStatementTests extends ScriptTestCase {
 
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = super.scriptContexts();
-        contexts.put(OneArg.CONTEXT, Whitelist.BASE_WHITELISTS);
+        contexts.put(OneArg.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
         return contexts;
     }
 
@@ -518,5 +508,26 @@ public class BasicStatementTests extends ScriptTestCase {
             "}" +
             "[i, j];"
         ));
+    }
+
+    public void testNoLoopCounterInForEach() {
+        String bytecode = Debugger.toString("def x = []; for (y in x) { int z; }");
+        assertFalse(bytecode.contains("IINC"));
+        bytecode = Debugger.toString("List x = []; for (y in x) { int z; }");
+        assertFalse(bytecode.contains("IINC"));
+        bytecode = Debugger.toString("int[] x = new int[] {}; for (y in x) { int z; }");
+        assertFalse(bytecode.contains("IINC 1 -1"));
+
+        int[] test = new int[10000000];
+        Arrays.fill(test, 2);
+        Map<String, Object> params = new HashMap<>();
+        params.put("values", test);
+        int total = (int)exec("int total = 0; for (int value : params['values']) total += value; return total", params, false);
+        assertEquals(total, 20000000);
+
+        PainlessError pe = expectScriptThrows(PainlessError.class, () ->
+            exec("int total = 0; for (int value = 0; value < params['values'].length; ++value) total += value; return total",
+                    params, false));
+        assertEquals("The maximum number of statements that can be executed in a loop has been reached.", pe.getMessage());
     }
 }

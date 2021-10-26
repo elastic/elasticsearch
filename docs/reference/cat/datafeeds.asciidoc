@@ -116,7 +116,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console]
 --------------------------------------------------
-GET _cat/ml/datafeeds?v
+GET _cat/ml/datafeeds?v=true
 --------------------------------------------------
 // TEST[skip:kibana sample data]
 

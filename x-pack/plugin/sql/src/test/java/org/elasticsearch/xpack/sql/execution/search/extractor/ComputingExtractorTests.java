@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
@@ -73,7 +74,7 @@ public class ComputingExtractorTests extends AbstractSqlWireSerializingTestCase<
     public void testGet() {
         String fieldName = randomAlphaOfLength(5);
         ChainingProcessor extractor = new ChainingProcessor(
-                new HitExtractorProcessor(new FieldHitExtractor(fieldName, DOUBLE, UTC, true, false)),
+                new HitExtractorProcessor(new FieldHitExtractor(fieldName, DOUBLE, UTC, false)),
             new MathProcessor(MathOperation.LOG));
 
         int times = between(1, 1000);

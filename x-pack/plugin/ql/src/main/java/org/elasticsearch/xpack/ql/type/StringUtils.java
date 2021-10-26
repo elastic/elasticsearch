@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ql.type;
@@ -19,7 +20,6 @@ import java.util.concurrent.TimeUnit;
 
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
 import static java.time.temporal.ChronoField.HOUR_OF_DAY;
-import static java.time.temporal.ChronoField.MILLI_OF_SECOND;
 import static java.time.temporal.ChronoField.MINUTE_OF_HOUR;
 import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
@@ -29,19 +29,6 @@ import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 final class StringUtils {
 
     public static final String EMPTY = "";
-    
-    public static final DateTimeFormatter ISO_DATE_WITH_MILLIS = new DateTimeFormatterBuilder()
-            .parseCaseInsensitive()
-            .append(ISO_LOCAL_DATE)
-            .appendLiteral('T')
-            .appendValue(HOUR_OF_DAY, 2)
-            .appendLiteral(':')
-            .appendValue(MINUTE_OF_HOUR, 2)
-            .appendLiteral(':')
-            .appendValue(SECOND_OF_MINUTE, 2)
-            .appendFraction(MILLI_OF_SECOND, 3, 3, true)
-            .appendOffsetId()
-            .toFormatter(Locale.ROOT);
 
     public static final DateTimeFormatter ISO_DATE_WITH_NANOS = new DateTimeFormatterBuilder()
             .parseCaseInsensitive()
@@ -56,14 +43,14 @@ final class StringUtils {
             .appendOffsetId()
             .toFormatter(Locale.ROOT);
 
-    public static final DateTimeFormatter ISO_TIME_WITH_MILLIS = new DateTimeFormatterBuilder()
+    public static final DateTimeFormatter ISO_TIME_WITH_NANOS = new DateTimeFormatterBuilder()
             .parseCaseInsensitive()
             .appendValue(HOUR_OF_DAY, 2)
             .appendLiteral(':')
             .appendValue(MINUTE_OF_HOUR, 2)
             .appendLiteral(':')
             .appendValue(SECOND_OF_MINUTE, 2)
-            .appendFraction(MILLI_OF_SECOND, 3, 3, true)
+            .appendFraction(NANO_OF_SECOND, 3, 9, true)
             .appendOffsetId()
             .toFormatter(Locale.ROOT);
 
@@ -77,12 +64,12 @@ final class StringUtils {
         if (value == null) {
             return "null";
         }
-        
+
         if (value instanceof ZonedDateTime) {
-            return ((ZonedDateTime) value).format(ISO_DATE_WITH_MILLIS);
+            return ((ZonedDateTime) value).format(ISO_DATE_WITH_NANOS);
         }
         if (value instanceof OffsetTime) {
-            return ((OffsetTime) value).format(ISO_TIME_WITH_MILLIS);
+            return ((OffsetTime) value).format(ISO_TIME_WITH_NANOS);
         }
         if (value instanceof Timestamp) {
             Timestamp ts = (Timestamp) value;

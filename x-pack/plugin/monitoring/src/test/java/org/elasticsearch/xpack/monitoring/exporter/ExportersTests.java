@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
@@ -18,7 +19,7 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
@@ -116,6 +117,8 @@ public class ExportersTests extends ESTestCase {
         assertThat(e, hasToString(containsString("Failed to parse value [http] for setting [" + prefix + ".type]")));
         assertThat(e.getCause(), instanceOf(SettingsException.class));
         assertThat(e.getCause(), hasToString(containsString("host list for [" + prefix + ".host] is empty")));
+        assertWarnings("[xpack.monitoring.exporters.example.type] setting was deprecated in Elasticsearch and will be removed in a " +
+            "future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testIndexNameTimeFormatMustBeValid() {
@@ -129,6 +132,8 @@ public class ExportersTests extends ESTestCase {
         assertThat(e, hasToString(containsString("Invalid format: [" + value + "]: Unknown pattern letter: j")));
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(e.getCause(), hasToString(containsString("Unknown pattern letter: j")));
+        assertWarnings("[xpack.monitoring.exporters.example.index.name.time_format] setting was deprecated in Elasticsearch and will " +
+            "be removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testExporterIndexPattern() {
@@ -180,6 +185,9 @@ public class ExportersTests extends ESTestCase {
 
         // the only configured exporter is disabled... yet we intentionally don't fallback on the default
         assertThat(internalExporters.size(), is(0));
+
+        assertWarnings("[xpack.monitoring.exporters._name.enabled] setting was deprecated in Elasticsearch and will be removed in a " +
+            "future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testInitExportersSingleUnknownType() throws Exception {
@@ -252,8 +260,8 @@ public class ExportersTests extends ESTestCase {
         assertEquals(settings.get("xpack.monitoring.exporters._name1.type"), "http");
 
         Settings update = Settings.builder()
-                .put("xpack.monitoring.exporters._name0.use_ingest", true)
-                .put("xpack.monitoring.exporters._name1.use_ingest", false)
+                .put("xpack.monitoring.exporters._name0.cluster_alerts.management.blacklist", true)
+                .put("xpack.monitoring.exporters._name1.cluster_alerts.management.blacklist", false)
                 .build();
         clusterSettings.applySettings(update);
         assertThat(settingsHolder.get(), notNullValue());
@@ -261,9 +269,20 @@ public class ExportersTests extends ESTestCase {
         logger.info(settings);
         assertThat(settings.size(), is(4));
         assertEquals(settings.get("xpack.monitoring.exporters._name0.type"), "local");
-        assertEquals(settings.get("xpack.monitoring.exporters._name0.use_ingest"), "true");
+        assertEquals(settings.get("xpack.monitoring.exporters._name0.cluster_alerts.management.blacklist"), "true");
         assertEquals(settings.get("xpack.monitoring.exporters._name1.type"), "http");
-        assertEquals(settings.get("xpack.monitoring.exporters._name1.use_ingest"), "false");
+        assertEquals(settings.get("xpack.monitoring.exporters._name1.cluster_alerts.management.blacklist"), "false");
+
+        assertWarnings(
+            "[xpack.monitoring.exporters._name1.type] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+                "See the breaking changes documentation for the next major version.",
+            "[xpack.monitoring.exporters._name0.type] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+                "See the breaking changes documentation for the next major version.",
+            "[xpack.monitoring.exporters._name0.cluster_alerts.management.blacklist] setting was deprecated in Elasticsearch and will " +
+                "be removed in a future release! See the breaking changes documentation for the next major version.",
+            "[xpack.monitoring.exporters._name1.cluster_alerts.management.blacklist] setting was deprecated in Elasticsearch and will " +
+                "be removed in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testExporterBlocksOnClusterState() {
@@ -310,6 +329,9 @@ public class ExportersTests extends ESTestCase {
         assertExporters(exporters);
 
         exporters.close();
+
+        assertWarnings("[xpack.monitoring.exporters.explicitly_disabled.enabled] setting was deprecated in Elasticsearch and will be " +
+            "removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     /**

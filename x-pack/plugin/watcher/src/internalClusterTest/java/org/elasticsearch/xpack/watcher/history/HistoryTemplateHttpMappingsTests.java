@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.history;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectPath;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -28,7 +29,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -47,6 +47,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.oneOf;
 
 /**
  * This test makes sure that the mapping for the watch_record are correct
@@ -95,7 +96,7 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
                 .get();
 
         assertThat(response, notNullValue());
-        assertThat(response.getHits().getTotalHits().value, is(1L));
+        assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
         Aggregations aggs = response.getAggregations();
         assertThat(aggs, notNullValue());
 
@@ -156,9 +157,7 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         // ensure that enabled is set to false
         List<Boolean> indexed = new ArrayList<>();
         GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings(HistoryStoreField.INDEX_PREFIX + "*").get();
-        Iterator<MappingMetadata> iterator = mappingsResponse.getMappings().valuesIt();
-        while (iterator.hasNext()) {
-            MappingMetadata mapping = iterator.next();
+        for (MappingMetadata mapping : mappingsResponse.getMappings().values()) {
             Map<String, Object> docMapping = mapping.getSourceAsMap();
             if (abortAtInput) {
                 Boolean enabled = ObjectPath.eval("properties.result.properties.input.properties.error.enabled", docMapping);

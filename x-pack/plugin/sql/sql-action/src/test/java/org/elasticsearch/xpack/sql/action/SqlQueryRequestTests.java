@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.action;
 
@@ -9,11 +10,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -31,9 +32,11 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
+import static org.elasticsearch.xpack.ql.TestUtils.randomRuntimeMappings;
 import static org.elasticsearch.xpack.sql.action.SqlTestUtils.randomFilter;
 import static org.elasticsearch.xpack.sql.action.SqlTestUtils.randomFilterOrNull;
 import static org.elasticsearch.xpack.sql.proto.Protocol.BINARY_FORMAT_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.CATALOG_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.CLIENT_ID_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.COLUMNAR_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.CURSOR_NAME;
@@ -41,6 +44,9 @@ import static org.elasticsearch.xpack.sql.proto.Protocol.FETCH_SIZE_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.FIELD_MULTI_VALUE_LENIENCY_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.FILTER_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.INDEX_INCLUDE_FROZEN_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.KEEP_ALIVE_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.KEEP_ON_COMPLETION_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.MIN_KEEP_ALIVE;
 import static org.elasticsearch.xpack.sql.proto.Protocol.MODE_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.PAGE_TIMEOUT_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.PARAMS_NAME;
@@ -48,8 +54,10 @@ import static org.elasticsearch.xpack.sql.proto.Protocol.PARAMS_TYPE_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.PARAMS_VALUE_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.QUERY_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.REQUEST_TIMEOUT_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.RUNTIME_MAPPINGS_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.TIME_ZONE_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.VERSION_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.WAIT_FOR_COMPLETION_TIMEOUT_NAME;
 import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLIENT_IDS;
 
 public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQueryRequest> {
@@ -77,9 +85,9 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
     @Override
     protected SqlQueryRequest createTestInstance() {
         return new SqlQueryRequest(randomAlphaOfLength(10), randomParameters(), SqlTestUtils.randomFilterOrNull(random()),
-                randomZone(), between(1, Integer.MAX_VALUE), randomTV(),
+                randomRuntimeMappings(), randomZone(), randomAlphaOfLength(10), between(1, Integer.MAX_VALUE), randomTV(),
                 randomTV(), randomBoolean(), randomAlphaOfLength(10), requestInfo,
-                randomBoolean(), randomBoolean()
+                randomBoolean(), randomBoolean(), randomTV(), randomBoolean(), randomTVGreaterThan(MIN_KEEP_ALIVE)
         );
     }
 
@@ -96,16 +104,21 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
                 request -> request.query(randomValueOtherThan(request.query(), () -> randomAlphaOfLength(5))),
                 request -> request.params(randomValueOtherThan(request.params(), this::randomParameters)),
                 request -> request.zoneId(randomValueOtherThan(request.zoneId(), ESTestCase::randomZone)),
+                request -> request.catalog(randomValueOtherThan(request.catalog(), () -> randomAlphaOfLength(10))),
                 request -> request.fetchSize(randomValueOtherThan(request.fetchSize(), () -> between(1, Integer.MAX_VALUE))),
                 request -> request.requestTimeout(randomValueOtherThan(request.requestTimeout(), this::randomTV)),
                 request -> request.filter(randomValueOtherThan(request.filter(),
                         () -> request.filter() == null ? randomFilter(random()) : randomFilterOrNull(random()))),
-                request -> request.columnar(randomValueOtherThan(request.columnar(), () -> randomBoolean())),
-                request -> request.cursor(randomValueOtherThan(request.cursor(), SqlQueryResponseTests::randomStringCursor))
+                request -> request.columnar(randomValueOtherThan(request.columnar(), ESTestCase::randomBoolean)),
+                request -> request.cursor(randomValueOtherThan(request.cursor(), SqlQueryResponseTests::randomStringCursor)),
+                request -> request.waitForCompletionTimeout(randomValueOtherThan(request.waitForCompletionTimeout(), this::randomTV)),
+                request -> request.keepOnCompletion(randomValueOtherThan(request.keepOnCompletion(), ESTestCase::randomBoolean)),
+                request -> request.keepAlive(randomValueOtherThan(request.keepAlive(), () -> randomTVGreaterThan(MIN_KEEP_ALIVE)))
         );
-        SqlQueryRequest newRequest = new SqlQueryRequest(instance.query(), instance.params(), instance.filter(),
-                instance.zoneId(), instance.fetchSize(), instance.requestTimeout(), instance.pageTimeout(), instance.columnar(),
-                instance.cursor(), instance.requestInfo(), instance.fieldMultiValueLeniency(), instance.indexIncludeFrozen());
+        SqlQueryRequest newRequest = new SqlQueryRequest(instance.query(), instance.params(), instance.filter(), instance.runtimeMappings(),
+                instance.zoneId(), instance.catalog(), instance.fetchSize(), instance.requestTimeout(), instance.pageTimeout(),
+                instance.columnar(), instance.cursor(), instance.requestInfo(), instance.fieldMultiValueLeniency(),
+                instance.indexIncludeFrozen(), instance.waitForCompletionTimeout(), instance.keepOnCompletion(), instance.keepAlive());
         mutator.accept(newRequest);
         return newRequest;
     }
@@ -152,6 +165,14 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
         return TimeValue.parseTimeValue(randomTimeValue(), null, "test");
     }
 
+    private TimeValue randomTVGreaterThan(TimeValue min) {
+        TimeValue value;
+        do {
+            value = randomTV();
+        } while (value.getMillis() < min.getMillis());
+        return value;
+    }
+
     public List<SqlTypedParamValue> randomParameters() {
         if (randomBoolean()) {
             return Collections.emptyList();
@@ -178,7 +199,7 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
     }
 
     /**
-     * This is needed because {@link SqlQueryRequest#toXContent(XContentBuilder, org.elasticsearch.common.xcontent.ToXContent.Params)}
+     * This is needed because {@link SqlQueryRequest#toXContent(XContentBuilder, ToXContent.Params)}
      * is not serializing {@link SqlTypedParamValue} according to the request's {@link Mode} and it shouldn't, in fact.
      * For testing purposes, different serializing methods for {@link SqlTypedParamValue} are necessary so that
      * {@link SqlQueryRequest#fromXContent(XContentParser)} populates {@link SqlTypedParamValue#hasExplicitType()}
@@ -213,6 +234,9 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
         if (request.zoneId() != null) {
             builder.field(TIME_ZONE_NAME, request.zoneId().getId());
         }
+        if (request.catalog() != null) {
+            builder.field(CATALOG_NAME, request.catalog());
+        }
         if (request.fetchSize() != Protocol.FETCH_SIZE) {
             builder.field(FETCH_SIZE_NAME, request.fetchSize());
         }
@@ -240,6 +264,18 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
         }
         if (request.cursor() != null) {
             builder.field(CURSOR_NAME, request.cursor());
+        }
+        if (request.runtimeMappings() != null) {
+            builder.field(RUNTIME_MAPPINGS_NAME, request.runtimeMappings());
+        }
+        if (request.waitForCompletionTimeout() != null) {
+            builder.field(WAIT_FOR_COMPLETION_TIMEOUT_NAME, request.waitForCompletionTimeout().getStringRep());
+        }
+        if (request.keepOnCompletion()) {
+            builder.field(KEEP_ON_COMPLETION_NAME, request.keepOnCompletion());
+        }
+        if (request.keepAlive() != null) {
+            builder.field(KEEP_ALIVE_NAME, request.keepAlive().getStringRep());
         }
         builder.endObject();
     }

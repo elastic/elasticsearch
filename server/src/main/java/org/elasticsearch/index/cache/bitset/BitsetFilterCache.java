@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.cache.bitset;
@@ -42,14 +31,14 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexWarmer;
 import org.elasticsearch.index.IndexWarmer.TerminationHandle;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
@@ -135,6 +124,10 @@ public final class BitsetFilterCache extends AbstractIndexComponent
         }
         final IndexReader.CacheKey coreCacheReader = cacheHelper.getKey();
         final ShardId shardId = ShardUtils.extractShardId(context.reader());
+        if (shardId == null) {
+            throw new IllegalStateException("Null shardId. If you got here from a test, you need to wrap the directory reader. " +
+                "see for example AggregatorTestCase#wrapInMockESDirectoryReader.  If you got here in production, please file a bug.");
+        }
         if (indexSettings.getIndex().equals(shardId.getIndex()) == false) {
             // insanity
             throw new IllegalStateException("Trying to load bit set for index " + shardId.getIndex()
@@ -205,7 +198,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
 
         @Override
         public boolean equals(Object o) {
-            if (!(o instanceof QueryWrapperBitSetProducer)) return false;
+            if ((o instanceof QueryWrapperBitSetProducer) == false) return false;
             return this.query.equals(((QueryWrapperBitSetProducer) o).query);
         }
 
@@ -230,18 +223,16 @@ public final class BitsetFilterCache extends AbstractIndexComponent
                 return TerminationHandle.NO_WAIT;
             }
 
-            if (!loadRandomAccessFiltersEagerly) {
+            if (loadRandomAccessFiltersEagerly == false) {
                 return TerminationHandle.NO_WAIT;
             }
 
             final Set<Query> warmUp = new HashSet<>();
             final MapperService mapperService = indexShard.mapperService();
-            DocumentMapper docMapper = mapperService.documentMapper();
-            if (docMapper != null) {
-                if (docMapper.hasNestedObjects()) {
-                    warmUp.add(Queries.newNonNestedFilter());
-                    docMapper.getNestedParentMappers().stream().map(ObjectMapper::nestedTypeFilter).forEach(warmUp::add);
-                }
+            MappingLookup lookup = mapperService.mappingLookup();
+            if (lookup.hasNested()) {
+                warmUp.add(Queries.newNonNestedFilter());
+                lookup.getNestedParentMappers().stream().map(NestedObjectMapper::nestedTypeFilter).forEach(warmUp::add);
             }
 
             final CountDownLatch latch = new CountDownLatch(reader.leaves().size() * warmUp.size());

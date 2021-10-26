@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -12,7 +13,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -80,7 +81,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         assertTrue(client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(
+            .setPersistentSettings(
                 Settings.builder()
                     .put(MachineLearning.MAX_LAZY_ML_NODES.getKey(), maxNumberOfLazyNodes))
             .get()
@@ -143,7 +144,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         boolean expectMemoryLimitBeforeCountLimit = maxJobsPerNodeDueToMemoryLimit < maxNumberOfJobsPerNode;
         for (int i = 1; i <= (clusterWideMaxNumberOfJobs + 1); i++) {
             if (i == 2 && testDynamicChange) {
-                ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = new ClusterUpdateSettingsRequest().transientSettings(
+                ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = new ClusterUpdateSettingsRequest().persistentSettings(
                         Settings.builder().put(MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfJobsPerNode).build());
                 client().execute(ClusterUpdateSettingsAction.INSTANCE, clusterUpdateSettingsRequest).actionGet();
             }
@@ -170,13 +171,13 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
                 if (expectMemoryLimitBeforeCountLimit) {
                     int expectedJobsAlreadyOpenOnNode = (i - 1) / numNodes;
                     assertTrue(detailedMessage,
-                        detailedMessage.endsWith("because this node has insufficient available memory. Available memory for ML [" +
+                        detailedMessage.endsWith("node has insufficient available memory. Available memory for ML [" +
                             maxMlMemoryPerNode + "], memory required by existing jobs [" +
                             (expectedJobsAlreadyOpenOnNode * memoryFootprintPerJob) + "], estimated memory required for this job [" +
-                            memoryFootprintPerJob + "]]"));
+                            memoryFootprintPerJob + "].]"));
                 } else {
-                    assertTrue(detailedMessage, detailedMessage.endsWith("because this node is full. Number of opened jobs [" +
-                        maxNumberOfJobsPerNode + "], xpack.ml.max_open_jobs [" + maxNumberOfJobsPerNode + "]]"));
+                    assertTrue(detailedMessage, detailedMessage.endsWith("node is full. Number of opened jobs and allocated native " +
+                        "inference processes [" + maxNumberOfJobsPerNode + "], xpack.ml.max_open_jobs [" + maxNumberOfJobsPerNode + "].]"));
                 }
                 logger.info("good news everybody --> reached maximum number of allowed opened jobs, after trying to open the {}th job", i);
 

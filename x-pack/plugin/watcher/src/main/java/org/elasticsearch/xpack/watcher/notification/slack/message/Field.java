@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.slack.message;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 
@@ -37,7 +38,7 @@ class Field implements MessageElement {
         Field field = (Field) o;
 
         if (isShort != field.isShort) return false;
-        if (!title.equals(field.title)) return false;
+        if (title.equals(field.title) == false) return false;
         return value.equals(field.value);
     }
 
@@ -83,7 +84,7 @@ class Field implements MessageElement {
             Template template = (Template) o;
 
             if (isShort != template.isShort) return false;
-            if (!title.equals(template.title)) return false;
+            if (title.equals(template.title) == false) return false;
             return value.equals(template.value);
         }
 

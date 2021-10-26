@@ -1,6 +1,6 @@
 [role="xpack"]
 [[java-rest-high-x-pack-watcher-put-watch]]
-=== Put watch API
+=== Create or update watch API
 
 [[java-rest-high-x-pack-watcher-put-watch-execution]]
 ==== Execution

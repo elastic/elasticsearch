@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
@@ -22,9 +11,7 @@ package org.elasticsearch.painless;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 
-import java.time.ZonedDateTime;
 import java.util.Objects;
 
 /**
@@ -74,18 +61,10 @@ public final class AnalyzerCaster {
                 return PainlessCast.originalTypetoTargetType(def.class, Float.class, explicit);
             } else if (expected == Double.class) {
                 return PainlessCast.originalTypetoTargetType(def.class, Double.class, explicit);
-            // TODO: remove this when the transition from Joda to Java datetimes is completed
-            } else if (expected == ZonedDateTime.class) {
-                return PainlessCast.originalTypetoTargetType(def.class, ZonedDateTime.class, explicit);
             }
         } else if (actual == String.class) {
             if (expected == char.class && explicit) {
                 return PainlessCast.originalTypetoTargetType(String.class, char.class, true);
-            }
-        // TODO: remove this when the transition from Joda to Java datetimes is completed
-        } else if (actual == JodaCompatibleZonedDateTime.class) {
-            if (expected == ZonedDateTime.class) {
-                return PainlessCast.originalTypetoTargetType(JodaCompatibleZonedDateTime.class, ZonedDateTime.class, explicit);
             }
         } else if (actual == boolean.class) {
             if (expected == def.class) {
@@ -400,7 +379,7 @@ public final class AnalyzerCaster {
         }
 
         if (
-                actual == def.class                             ||
+                (actual == def.class && expected != void.class) ||
                 (actual != void.class && expected == def.class) ||
                 expected.isAssignableFrom(actual)               ||
                 (actual.isAssignableFrom(expected) && explicit)

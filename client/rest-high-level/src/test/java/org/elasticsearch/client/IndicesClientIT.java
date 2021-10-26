@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -53,7 +42,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
 import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.indices.AnalyzeResponse;
 import org.elasticsearch.client.indices.CloseIndexRequest;
@@ -69,7 +57,6 @@ import org.elasticsearch.client.indices.DataStreamsStatsResponse.DataStreamStats
 import org.elasticsearch.client.indices.DeleteAliasRequest;
 import org.elasticsearch.client.indices.DeleteComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.DeleteDataStreamRequest;
-import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.indices.GetComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.GetComposableIndexTemplatesResponse;
 import org.elasticsearch.client.indices.GetDataStreamRequest;
@@ -91,7 +78,6 @@ import org.elasticsearch.client.indices.ReloadAnalyzersRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersResponse;
 import org.elasticsearch.client.indices.SimulateIndexTemplateRequest;
 import org.elasticsearch.client.indices.SimulateIndexTemplateResponse;
-import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.indices.rollover.RolloverResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -106,15 +92,16 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -144,7 +131,14 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
+@SuppressWarnings("removal")
 public class IndicesClientIT extends ESRestHighLevelClientTestCase {
+
+    public static final RequestOptions LEGACY_TEMPLATE_OPTIONS = RequestOptions.DEFAULT.toBuilder()
+        .setWarningsHandler(warnings -> List.of(RestPutIndexTemplateAction.DEPRECATION_WARNING).equals(warnings) == false).build();
+
+    public static final String FROZEN_INDICES_DEPRECATION_WARNING = "Frozen indices are deprecated because they provide no benefit given " +
+        "improvements in heap memory utilization. They will be removed in a future release.";
 
     public void testIndicesExists() throws IOException {
         // Index present
@@ -669,13 +663,14 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         OpenIndexRequest lenientOpenIndexRequest = new OpenIndexRequest(nonExistentIndex);
         lenientOpenIndexRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         OpenIndexResponse lenientOpenIndexResponse = execute(lenientOpenIndexRequest, highLevelClient().indices()::open,
-                highLevelClient().indices()::openAsync);
+                highLevelClient().indices()::openAsync, IGNORE_THROTTLED_WARNING);
         assertThat(lenientOpenIndexResponse.isAcknowledged(), equalTo(true));
 
         OpenIndexRequest strictOpenIndexRequest = new OpenIndexRequest(nonExistentIndex);
         strictOpenIndexRequest.indicesOptions(IndicesOptions.strictExpandOpen());
         ElasticsearchException strictException = expectThrows(ElasticsearchException.class,
-                () -> execute(openIndexRequest, highLevelClient().indices()::open, highLevelClient().indices()::openAsync));
+                () -> execute(openIndexRequest, highLevelClient().indices()::open,
+                    highLevelClient().indices()::openAsync, IGNORE_THROTTLED_WARNING));
         assertEquals(RestStatus.NOT_FOUND, strictException.status());
     }
 
@@ -969,15 +964,17 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             rolloverRequest.getCreateIndexRequest().mapping(mappings, XContentType.JSON);
             rolloverRequest.dryRun(false);
             rolloverRequest.addMaxIndexSizeCondition(new ByteSizeValue(1, ByteSizeUnit.MB));
+            rolloverRequest.addMaxPrimaryShardSizeCondition(new ByteSizeValue(1, ByteSizeUnit.MB));
             RolloverResponse rolloverResponse = execute(rolloverRequest, highLevelClient().indices()::rollover,
                     highLevelClient().indices()::rolloverAsync);
             assertTrue(rolloverResponse.isRolledOver());
             assertFalse(rolloverResponse.isDryRun());
             Map<String, Boolean> conditionStatus = rolloverResponse.getConditionStatus();
-            assertEquals(3, conditionStatus.size());
+            assertEquals(4, conditionStatus.size());
             assertTrue(conditionStatus.get("[max_docs: 1]"));
             assertTrue(conditionStatus.get("[max_age: 1ms]"));
             assertFalse(conditionStatus.get("[max_size: 1mb]"));
+            assertFalse(conditionStatus.get("[max_primary_shard_size: 1mb]"));
             assertEquals("test", rolloverResponse.getOldIndex());
             assertEquals("test_new", rolloverResponse.getNewIndex());
         }
@@ -1271,10 +1268,14 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         exception = expectThrows(ElasticsearchException.class, () -> execute(indexUpdateSettingsRequest,
                 highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync));
         assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(exception.getMessage(), equalTo(
+        assertThat(
+            exception.getMessage(),
+            equalTo(
                 "Elasticsearch exception [type=illegal_argument_exception, "
-                + "reason=unknown setting [index.no_idea_what_you_are_talking_about] please check that any required plugins are installed, "
-                + "or check the breaking changes documentation for removed settings]"));
+                    + "reason=unknown setting [index.no_idea_what_you_are_talking_about] please check that any required plugins "
+                    + "are installed, or check the breaking changes documentation for removed settings]"
+            )
+        );
     }
 
     @SuppressWarnings("unchecked")
@@ -1288,7 +1289,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             .alias(new Alias("alias-1").indexRouting("abc")).alias(new Alias("{index}-write").searchRouting("xyz"));
 
         AcknowledgedResponse putTemplateResponse = execute(putTemplateRequest,
-            highLevelClient().indices()::putTemplate, highLevelClient().indices()::putTemplateAsync);
+            highLevelClient().indices()::putTemplate, highLevelClient().indices()::putTemplateAsync, LEGACY_TEMPLATE_OPTIONS);
         assertThat(putTemplateResponse.isAcknowledged(), equalTo(true));
 
         Map<String, Object> templates = getAsMap("/_template/my-template");
@@ -1339,20 +1340,23 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         // Create-only specified but an template exists already
         PutIndexTemplateRequest goodTemplate = new PutIndexTemplateRequest("t2", List.of("qa-*", "prod-*"));
-        assertTrue(execute(goodTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged());
+        assertTrue(execute(goodTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync, LEGACY_TEMPLATE_OPTIONS)
+            .isAcknowledged());
         goodTemplate.create(true);
         ElasticsearchException alreadyExistsError = expectThrows(ElasticsearchException.class,
-            () -> execute(goodTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync));
+            () -> execute(goodTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync, LEGACY_TEMPLATE_OPTIONS));
         assertThat(alreadyExistsError.getDetailedMessage(),
             containsString("[type=illegal_argument_exception, reason=index_template [t2] already exists]"));
         goodTemplate.create(false);
-        assertTrue(execute(goodTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged());
+        assertTrue(execute(goodTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync, LEGACY_TEMPLATE_OPTIONS)
+            .isAcknowledged());
 
         // Rejected due to unknown settings
         PutIndexTemplateRequest unknownSettingTemplate = new PutIndexTemplateRequest("t3", List.of("any"))
             .settings(Settings.builder().put("this-setting-does-not-exist", 100));
         ElasticsearchStatusException unknownSettingError = expectThrows(ElasticsearchStatusException.class,
-            () -> execute(unknownSettingTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync));
+            () -> execute(unknownSettingTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync,
+                LEGACY_TEMPLATE_OPTIONS));
         assertThat(unknownSettingError.getDetailedMessage(), containsString("unknown setting [index.this-setting-does-not-exist]"));
     }
 
@@ -1403,12 +1407,13 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         PutIndexTemplateRequest putTemplate1 = new PutIndexTemplateRequest("template-1", List.of("pattern-1", "name-1"))
             .alias(new Alias("alias-1"));
-        assertThat(execute(putTemplate1, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged(),
+        assertThat(execute(putTemplate1, client.indices()::putTemplate, client.indices()::putTemplateAsync, LEGACY_TEMPLATE_OPTIONS)
+            .isAcknowledged(),
             equalTo(true));
         PutIndexTemplateRequest putTemplate2 = new PutIndexTemplateRequest("template-2", List.of("pattern-2", "name-2"))
             .mapping("{\"properties\": { \"name\": { \"type\": \"text\" }}}", XContentType.JSON)
             .settings(Settings.builder().put("number_of_shards", "2").put("number_of_replicas", "0"));
-        assertThat(execute(putTemplate2, client.indices()::putTemplate, client.indices()::putTemplateAsync)
+        assertThat(execute(putTemplate2, client.indices()::putTemplate, client.indices()::putTemplateAsync, LEGACY_TEMPLATE_OPTIONS)
                 .isAcknowledged(), equalTo(true));
 
         GetIndexTemplatesResponse getTemplate1 = execute(
@@ -1483,7 +1488,14 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                 final PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("template-" + suffix,
                     List.of("pattern-" + suffix, "name-" + suffix))
                     .alias(new Alias("alias-" + suffix));
-                assertTrue(execute(putRequest, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged());
+                assertTrue(
+                    execute(
+                        putRequest,
+                        client.indices()::putTemplate,
+                        client.indices()::putTemplateAsync,
+                        LEGACY_TEMPLATE_OPTIONS
+                        ).isAcknowledged()
+                    );
 
                 final IndexTemplatesExistRequest existsRequest = new IndexTemplatesExistRequest("template-" + suffix);
                 assertTrue(execute(existsRequest, client.indices()::existsTemplate, client.indices()::existsTemplateAsync));
@@ -1518,21 +1530,6 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         AnalyzeResponse detailsResponse = execute(detailsRequest, client.indices()::analyze, client.indices()::analyzeAsync);
 
         assertNotNull(detailsResponse.detail());
-    }
-
-    public void testFreezeAndUnfreeze() throws IOException {
-        createIndex("test", Settings.EMPTY);
-        RestHighLevelClient client = highLevelClient();
-
-        ShardsAcknowledgedResponse freeze = execute(new FreezeIndexRequest("test"), client.indices()::freeze,
-            client.indices()::freezeAsync);
-        assertTrue(freeze.isShardsAcknowledged());
-        assertTrue(freeze.isAcknowledged());
-
-        ShardsAcknowledgedResponse unfreeze = execute(new UnfreezeIndexRequest("test"), client.indices()::unfreeze,
-            client.indices()::unfreezeAsync);
-        assertTrue(unfreeze.isShardsAcknowledged());
-        assertTrue(unfreeze.isAcknowledged());
     }
 
     public void testReloadAnalyzer() throws IOException {
@@ -1631,7 +1628,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(dataStreamStat.getDataStream(), equalTo(dataStreamName));
         assertThat(dataStreamStat.getBackingIndices(), equalTo(1));
         assertThat(dataStreamStat.getMaximumTimestamp(), equalTo(0L)); // No data in here
-        assertThat(dataStreamStat.getStoreSize().getBytes(), not(equalTo(0L))); // but still takes up some space on disk
+        // Only asserting existence of store stats, testing any concrete value makes this test flaky.
+        assertThat(dataStreamStat.getStoreSize(), notNullValue());
 
         DeleteDataStreamRequest deleteDataStreamRequest = new DeleteDataStreamRequest(dataStreamName);
         response = execute(deleteDataStreamRequest, indices::deleteDataStream, indices::deleteDataStreamAsync);

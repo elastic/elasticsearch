@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
@@ -54,12 +55,12 @@ public class SysTablesTests extends ESTestCase {
 
     private final SqlParser parser = new SqlParser();
     private final Map<String, EsField> mapping = SqlTypesTests.loadMapping("mapping-multi-field-with-nested.json", true);
-    private final IndexInfo index = new IndexInfo("test", IndexType.STANDARD_INDEX);
-    private final IndexInfo alias = new IndexInfo("alias", IndexType.ALIAS);
-    private final IndexInfo frozen = new IndexInfo("frozen", IndexType.FROZEN_INDEX);
+    private final IndexInfo index = new IndexInfo(CLUSTER_NAME, "test", IndexType.STANDARD_INDEX);
+    private final IndexInfo alias = new IndexInfo(CLUSTER_NAME, "alias", IndexType.ALIAS);
+    private final IndexInfo frozen = new IndexInfo(CLUSTER_NAME, "frozen", IndexType.FROZEN_INDEX);
 
-    private final SqlConfiguration FROZEN_CFG = new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
-            Protocol.PAGE_TIMEOUT, null, Mode.PLAIN, null, null, null, false, true);
+    private final SqlConfiguration FROZEN_CFG = new SqlConfiguration(DateUtils.UTC, null, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
+            Protocol.PAGE_TIMEOUT, null, null, Mode.PLAIN, null, null, null, null, false, true);
 
     //
     // catalog enumeration
@@ -146,6 +147,17 @@ public class SysTablesTests extends ESTestCase {
             assertEquals(0, r.size());
             assertFalse(r.hasCurrentRow());
         });
+    }
+
+    public void testSysTablesLocalCatalog() throws Exception {
+        executeCommand("SYS TABLES CATALOG LIKE '" + CLUSTER_NAME + "'", r -> {
+            assertEquals(2, r.size());
+            assertEquals("test", r.column(2));
+            assertEquals(SQL_TABLE, r.column(3));
+            assertTrue(r.advanceRow());
+            assertEquals("alias", r.column(2));
+            assertEquals(SQL_VIEW, r.column(3));
+        }, index, alias);
     }
 
     public void testSysTablesNoTypes() throws Exception {
@@ -314,12 +326,6 @@ public class SysTablesTests extends ESTestCase {
         }, alias);
     }
 
-    public void testSysTablesWithEmptyCatalogOnlyAliases() throws Exception {
-        executeCommand("SYS TABLES CATALOG LIKE '' LIKE 'test' TYPE 'VIEW'", r -> {
-            assertEquals(0, r.size());
-        }, alias);
-    }
-
     public void testSysTablesWithInvalidType() throws Exception {
         executeCommand("SYS TABLES LIKE 'test' TYPE 'QUE HORA ES'", r -> {
             assertEquals(0, r.size());
@@ -365,9 +371,9 @@ public class SysTablesTests extends ESTestCase {
         IndexResolver resolver = tuple.v2().indexResolver();
 
         doAnswer(invocation -> {
-            ((ActionListener) invocation.getArguments()[3]).onResponse(new LinkedHashSet<>(asList(infos)));
+            ((ActionListener) invocation.getArguments()[4]).onResponse(new LinkedHashSet<>(asList(infos)));
             return Void.TYPE;
-        }).when(resolver).resolveNames(any(), any(), any(), any());
+        }).when(resolver).resolveNames(any(), any(), any(), any(), any());
 
         tuple.v1().execute(tuple.v2(), wrap(p -> consumer.accept((SchemaRowSet) p.rowSet()), ex -> fail(ex.getMessage())));
     }

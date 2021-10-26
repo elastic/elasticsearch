@@ -18,7 +18,7 @@ parent sources.
 ==== Example request
 
 The following `intervals` search returns documents containing `my
-favorite food` immediately followed by `hot water` or `cold porridge` in the
+favorite food` without any gap, followed by `hot water` or `cold porridge` in the
 `my_text` field.
 
 This search would match a `my_text` value of `my favorite food is cold
@@ -182,14 +182,14 @@ The `pattern` is normalized using the search analyzer from this field, unless
 ==== `fuzzy` rule parameters
 
 The `fuzzy` rule matches terms that are similar to the provided term, within an
-edit distance defined by <<fuzziness>>.  If the fuzzy expansion matches more than
+edit distance defined by <<fuzziness>>. If the fuzzy expansion matches more than
 128 terms, {es} returns an error.
 
 `term`::
 (Required, string) The term to match
 
 `prefix_length`::
-(Optional, string) Number of beginning characters left unchanged when creating
+(Optional, integer) Number of beginning characters left unchanged when creating
 expansions. Defaults to `0`.
 
 `transpositions`::
@@ -198,7 +198,7 @@ adjacent characters (ab → ba). Defaults to `true`.
 
 `fuzziness`::
 (Optional, string) Maximum edit distance allowed for matching. See <<fuzziness>>
-for valid values and more information.  Defaults to `auto`.
+for valid values and more information. Defaults to `auto`.
 
 `analyzer`::
 (Optional, string) <<analysis, analyzer>> used to normalize the `term`.

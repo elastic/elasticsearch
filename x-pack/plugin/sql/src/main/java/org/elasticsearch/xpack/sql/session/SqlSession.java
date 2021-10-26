@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.session;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
@@ -32,6 +34,8 @@ import java.util.List;
 import java.util.function.Function;
 
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.common.Strings.hasText;
+import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
 
 public class SqlSession implements Session {
 
@@ -44,7 +48,7 @@ public class SqlSession implements Session {
     private final Optimizer optimizer;
     private final Planner planner;
     private final PlanExecutor planExecutor;
-    
+
     private final SqlConfiguration configuration;
 
     public SqlSession(SqlConfiguration configuration, Client client, FunctionRegistry functionRegistry,
@@ -54,7 +58,7 @@ public class SqlSession implements Session {
             Optimizer optimizer,
             Planner planner,
             PlanExecutor planExecutor) {
-        this.client = client;
+        this.client = configuration.taskId() != null ? new ParentTaskAssigningClient(client, configuration.taskId()) : client;
         this.functionRegistry = functionRegistry;
 
         this.indexResolver = indexResolver;
@@ -86,7 +90,7 @@ public class SqlSession implements Session {
     public Optimizer optimizer() {
         return optimizer;
     }
-    
+
     public Verifier verifier() {
         return verifier;
     }
@@ -124,6 +128,11 @@ public class SqlSession implements Session {
     }
 
     private <T> void preAnalyze(LogicalPlan parsed, Function<IndexResolution, T> action, ActionListener<T> listener) {
+        if (configuration.task() != null && configuration.task().isCancelled()) {
+            listener.onFailure(new TaskCancelledException("cancelled"));
+            return;
+        }
+
         PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
         // TODO we plan to support joins in the future when possible, but for now we'll just fail early if we see one
         if (preAnalysis.indices.size() > 1) {
@@ -134,14 +143,14 @@ public class SqlSession implements Session {
             TableIdentifier table = tableInfo.id();
 
             String cluster = table.cluster();
+            cluster = hasText(cluster) ? cluster : configuration.catalog();
 
-            if (Strings.hasText(cluster) && !indexResolver.clusterName().equals(cluster)) {
-                listener.onFailure(new MappingException("Cannot inspect indices in cluster/catalog [{}]", cluster));
-            }
+            String indexPattern = hasText(cluster) && cluster.equals(configuration.clusterName()) == false ?
+                buildRemoteIndexName(cluster, table.index()) : table.index();
 
             boolean includeFrozen = configuration.includeFrozen() || tableInfo.isFrozen();
-            indexResolver.resolveAsMergedMapping(table.index(), null, includeFrozen,
-                    wrap(indexResult -> listener.onResponse(action.apply(indexResult)), listener::onFailure));
+            indexResolver.resolveAsMergedMapping(indexPattern, includeFrozen,
+                configuration.runtimeMappings(), wrap(indexResult -> listener.onResponse(action.apply(indexResult)), listener::onFailure));
         } else {
             try {
                 // occurs when dealing with local relations (SELECT 5+2)

@@ -16,7 +16,7 @@ CAST(
  AS data_type) <2>
 ----
 
-<1> Expression to cast
+<1> Expression to cast. If `null`, the function returns `null`.
 <2> Target data type to cast to
 
 *Description*: Casts the result of the given expression to the target <<sql-data-types, data type>>.
@@ -55,7 +55,7 @@ CONVERT(
     data_type)  <2>
 ----
 
-<1> Expression to convert
+<1> Expression to convert. If `null`, the function returns `null`.
 <2> Target data type to convert to
 
 *Description*: Works exactly like <<sql-functions-type-conversion-cast>> with slightly different syntax.

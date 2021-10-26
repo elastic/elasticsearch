@@ -1,30 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
-import org.locationtech.spatial4j.exception.InvalidShapeException;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -203,7 +191,7 @@ public class GeoPolygonDecomposer {
         }
         if (signedArea == 0) {
             // Points are collinear or self-intersection
-            throw new InvalidShapeException("Cannot determine orientation: signed area equal to 0." +
+            throw new IllegalArgumentException("Cannot determine orientation: signed area equal to 0." +
                 " Points are collinear or polygon self-intersects.");
         }
         boolean orientation = signedArea < 0;
@@ -228,7 +216,7 @@ public class GeoPolygonDecomposer {
             }
             // correct the orientation post translation (ccw for shell, cw for holes)
             if (component == 0 || (component != 0 && handedness == orientation)) {
-                orientation = !orientation;
+                orientation = orientation == false;
             }
         }
         return concat(component, direction ^ orientation, points, offset, edges, toffset, length);
@@ -279,8 +267,8 @@ public class GeoPolygonDecomposer {
             //    ShapeBuilder.intersection that computes dateline edges as valid intersect points
             //    in support of OGC standards
             if (e1.intersect != Edge.MAX_COORDINATE && e2.intersect != Edge.MAX_COORDINATE
-                && !(e1.next.next.coordinate.equals(e2.coordinate) && Math.abs(e1.next.coordinate.getX()) == DATELINE
-                && Math.abs(e2.coordinate.getX()) == DATELINE)) {
+                && (e1.next.next.coordinate.equals(e2.coordinate) && Math.abs(e1.next.coordinate.getX()) == DATELINE
+                    && Math.abs(e2.coordinate.getX()) == DATELINE) == false) {
                 connect(e1, e2);
             }
         }
@@ -346,11 +334,11 @@ public class GeoPolygonDecomposer {
             if (direction) {
                 edges[edgeOffset + i] = new Edge(nextPoint, edges[edgeOffset + i - 1]);
                 edges[edgeOffset + i].component = component;
-            } else if (!edges[edgeOffset + i - 1].coordinate.equals(nextPoint)) {
+            } else if (edges[edgeOffset + i - 1].coordinate.equals(nextPoint) == false) {
                 edges[edgeOffset + i - 1].next = edges[edgeOffset + i] = new Edge(nextPoint, null);
                 edges[edgeOffset + i - 1].component = component;
             } else {
-                throw new InvalidShapeException("Provided shape has duplicate consecutive coordinates at: (" + nextPoint + ")");
+                throw new IllegalArgumentException("Provided shape has duplicate consecutive coordinates at: (" + nextPoint + ")");
             }
         }
 
@@ -376,16 +364,16 @@ public class GeoPolygonDecomposer {
      */
     private static int intersections(double dateline, Edge[] edges) {
         int numIntersections = 0;
-        assert !Double.isNaN(dateline);
+        assert Double.isNaN(dateline) == false;
         int maxComponent = 0;
         for (int i = 0; i < edges.length; i++) {
             Point p1 = edges[i].coordinate;
             Point p2 = edges[i].next.coordinate;
-            assert !Double.isNaN(p2.getX()) && !Double.isNaN(p1.getX());
+            assert Double.isNaN(p2.getX()) == false && Double.isNaN(p1.getX()) == false;
             edges[i].intersect = Edge.MAX_COORDINATE;
 
             double position = intersection(p1.getX(), p2.getX(), dateline);
-            if (!Double.isNaN(position)) {
+            if (Double.isNaN(position) == false) {
                 edges[i].intersection(position);
                 numIntersections++;
                 maxComponent = Math.max(maxComponent, edges[i].component);
@@ -475,7 +463,7 @@ public class GeoPolygonDecomposer {
             if (intersections == 0) {
                 // There were no edges that intersect the line of longitude through
                 // holes[i].coordinate, so there's no way this hole is within the polygon.
-                throw new InvalidShapeException("Invalid shape: Hole is not within polygon");
+                throw new IllegalArgumentException("Invalid shape: Hole is not within polygon");
             }
 
             // Next we do a binary search to find the position of holes[i].coordinate in the array.
@@ -486,12 +474,12 @@ public class GeoPolygonDecomposer {
             final int pos;
             boolean sharedVertex = false;
             if (((pos = Arrays.binarySearch(edges, 0, intersections, current, INTERSECTION_ORDER)) >= 0)
-                && !(sharedVertex = (edges[pos].intersect.equals(current.coordinate)))) {
+                && (sharedVertex = (edges[pos].intersect.equals(current.coordinate))) == false) {
                 // The binary search returned an exact match, but we checked again using compareTo()
                 // and it didn't match after all.
 
                 // TODO Can this actually happen? Needs a test to exercise it, or else needs to be removed.
-                throw new InvalidShapeException("Invalid shape: Hole is not within polygon");
+                throw new IllegalArgumentException("Invalid shape: Hole is not within polygon");
             }
 
             final int index;
@@ -557,7 +545,7 @@ public class GeoPolygonDecomposer {
                     partitionPoint[1] = current.coordinate.getY();
                     partitionPoint[2] = current.coordinate.getZ();
                     if (connectedComponents > 0 && current.next != edge) {
-                        throw new InvalidShapeException("Shape contains more than one shared point");
+                        throw new IllegalArgumentException("Shape contains more than one shared point");
                     }
 
                     // a negative id flags the edge as visited for the edges(...) method.
@@ -577,7 +565,7 @@ public class GeoPolygonDecomposer {
                         prev.component = visitID;
                         prev = visitedEdge.get(prev.coordinate).v1();
                         ++splitIndex;
-                    } while (!current.coordinate.equals(prev.coordinate));
+                    } while (current.coordinate.equals(prev.coordinate) == false);
                     ++connectedComponents;
                 } else {
                     visitedEdge.put(current.coordinate, new Tuple<Edge, Edge>(prev, current));
@@ -605,10 +593,10 @@ public class GeoPolygonDecomposer {
         // First and last coordinates must be equal
         if (coordinates[0].equals(coordinates[coordinates.length - 1]) == false) {
             if (Double.isNaN(partitionPoint[2])) {
-                throw new InvalidShapeException("Self-intersection at or near point ["
+                throw new IllegalArgumentException("Self-intersection at or near point ["
                     + partitionPoint[0] + "," + partitionPoint[1] + "]");
             } else {
-                throw new InvalidShapeException("Self-intersection at or near point ["
+                throw new IllegalArgumentException("Self-intersection at or near point ["
                     + partitionPoint[0] + "," + partitionPoint[1] + "," + partitionPoint[2] + "]");
             }
         }
@@ -739,7 +727,7 @@ public class GeoPolygonDecomposer {
             if (next != null) {
                 // self-loop throws an invalid shape
                 if (this.coordinate.equals(next.coordinate)) {
-                    throw new InvalidShapeException("Provided shape has duplicate consecutive coordinates at: " + this.coordinate);
+                    throw new IllegalArgumentException("Provided shape has duplicate consecutive coordinates at: " + this.coordinate);
                 }
                 this.next = next;
             }

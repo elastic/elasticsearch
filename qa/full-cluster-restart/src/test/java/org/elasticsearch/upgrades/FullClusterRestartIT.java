@@ -1,66 +1,67 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.transport.Compression;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.IntStream;
 
+import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
+import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_VERSION;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_COMPRESS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -133,6 +134,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                     count,
                     true,
                     true,
+                    randomBoolean(),
                     i -> JsonXContent.contentBuilder().startObject()
                             .field("string", randomAlphaOfLength(10))
                             .field("int", randomInt(100))
@@ -156,7 +158,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertStoredBinaryFields(count);
     }
 
-    public void testNewReplicasWork() throws Exception {
+    public void testNewReplicas() throws Exception {
         if (isRunningAgainstOldCluster()) {
             XContentBuilder mappingsAndSettings = jsonBuilder();
             mappingsAndSettings.startObject();
@@ -185,16 +187,22 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             int numDocs = randomIntBetween(2000, 3000);
             indexRandomDocuments(
-                    numDocs, true, false, i -> JsonXContent.contentBuilder().startObject().field("field", "value").endObject());
+                numDocs,
+                true,
+                false,
+                randomBoolean(),
+                i -> JsonXContent.contentBuilder().startObject().field("field", "value").endObject()
+            );
             logger.info("Refreshing [{}]", index);
             client().performRequest(new Request("POST", "/" + index + "/_refresh"));
         } else {
+            // The test runs with two nodes so this should still go green.
             final int numReplicas = 1;
             final long startTime = System.currentTimeMillis();
             logger.debug("--> creating [{}] replicas for index [{}]", numReplicas, index);
             Request setNumberOfReplicas = new Request("PUT", "/" + index + "/_settings");
             setNumberOfReplicas.setJsonEntity("{ \"index\": { \"number_of_replicas\" : " + numReplicas + " }}");
-            Response response = client().performRequest(setNumberOfReplicas);
+            client().performRequest(setNumberOfReplicas);
 
             ensureGreenLongWait(index);
 
@@ -215,6 +223,125 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
+    public void testSearchTimeSeriesMode() throws Exception {
+        assumeTrue("time series mode introduced in 8.0.0", getOldClusterVersion().onOrAfter(Version.V_8_0_0));
+        int numDocs;
+        if (isRunningAgainstOldCluster()) {
+            numDocs = createTimeSeriesModeIndex(1);
+        } else {
+            numDocs = countOfIndexedRandomDocuments();
+        }
+        assertCountAll(numDocs);
+        Request request = new Request("GET", "/" + index + "/_search");
+        XContentBuilder body = jsonBuilder().startObject();
+        body.field("size", 0);
+        body.startObject("aggs").startObject("check").startObject("scripted_metric");
+        {
+            body.field("init_script", "state.timeSeries = new HashSet()");
+            body.field("map_script", "state.timeSeries.add(doc['dim'].value)");
+            body.field("combine_script", "return state.timeSeries");
+            StringBuilder reduceScript = new StringBuilder();
+            reduceScript.append("Set timeSeries = new TreeSet();");
+            reduceScript.append("for (s in states) {");
+            reduceScript.append("  for (ts in s) {");
+            reduceScript.append("    boolean newTs = timeSeries.add(ts);");
+            reduceScript.append("    if (false == newTs) {");
+            reduceScript.append("      throw new IllegalArgumentException(ts + ' appeared in two shards');");
+            reduceScript.append("    }");
+            reduceScript.append("  }");
+            reduceScript.append("}");
+            reduceScript.append("return timeSeries;");
+            body.field("reduce_script", reduceScript.toString());
+        }
+        body.endObject().endObject().endObject();
+        body.endObject();
+        request.setJsonEntity(Strings.toString(body));
+        Map<String, Object> response = entityAsMap(client().performRequest(request));
+        assertMap(response, matchesMap().extraOk()
+            .entry(
+                "hits",
+                matchesMap().extraOk().entry("total", Map.of("value", numDocs, "relation", "eq")))
+            .entry("aggregations", Map.of("check", Map.of("value", IntStream.range(0, 10).mapToObj(i -> "dim" + i).collect(toList()))))
+        );
+    }
+
+    public void testNewReplicasTimeSeriesMode() throws Exception {
+        assumeTrue("time series mode introduced in 8.0.0", getOldClusterVersion().onOrAfter(Version.V_8_0_0));
+        if (isRunningAgainstOldCluster()) {
+            createTimeSeriesModeIndex(0);
+        } else {
+            // The test runs with two nodes so this should still go green.
+            final int numReplicas = 1;
+            final long startTime = System.currentTimeMillis();
+            logger.debug("--> creating [{}] replicas for index [{}]", numReplicas, index);
+            Request setNumberOfReplicas = new Request("PUT", "/" + index + "/_settings");
+            setNumberOfReplicas.setJsonEntity("{ \"index\": { \"number_of_replicas\" : " + numReplicas + " }}");
+            client().performRequest(setNumberOfReplicas);
+
+            ensureGreenLongWait(index);
+
+            logger.debug("--> index [{}] is green, took [{}] ms", index, (System.currentTimeMillis() - startTime));
+            Map<String, Object> recoverRsp = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_recovery")));
+            logger.debug("--> recovery status:\n{}", recoverRsp);
+
+            Set<Integer> counts = new HashSet<>();
+            for (String node : dataNodes(index, client())) {
+                Request search = new Request("GET", "/" + index + "/_search");
+                search.addParameter("preference", "_only_nodes:" + node);
+                Map<String, Object> responseBody = entityAsMap(client().performRequest(search));
+                assertNoFailures(responseBody);
+                int hits = extractTotalHits(responseBody);
+                counts.add(hits);
+            }
+            assertEquals("All nodes should have a consistent number of documents", 1, counts.size());
+        }
+    }
+
+    private int createTimeSeriesModeIndex(int replicas) throws IOException {
+        XContentBuilder mappingsAndSettings = jsonBuilder();
+        mappingsAndSettings.startObject();
+        {
+            mappingsAndSettings.startObject("settings");
+            mappingsAndSettings.field("number_of_shards", 1);
+            mappingsAndSettings.field("number_of_replicas", replicas);
+            mappingsAndSettings.field("mode", "time_series");
+            mappingsAndSettings.field("routing_path", "dim");
+            mappingsAndSettings.endObject();
+        }
+        {
+            mappingsAndSettings.startObject("mappings");
+            mappingsAndSettings.startObject("properties");
+            {
+                mappingsAndSettings.startObject("@timestamp").field("type", "date").endObject();
+                mappingsAndSettings.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            }
+            mappingsAndSettings.endObject();
+            mappingsAndSettings.endObject();
+        }
+        mappingsAndSettings.endObject();
+
+        Request createIndex = new Request("PUT", "/" + index);
+        createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
+        client().performRequest(createIndex);
+
+        int numDocs = randomIntBetween(2000, 3000);
+        long basetime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2021-01-01T00:00:00Z");
+        indexRandomDocuments(
+            numDocs,
+            true,
+            true,
+            false,
+            i -> JsonXContent.contentBuilder()
+                .startObject()
+                .field("@timestamp", basetime + TimeUnit.MINUTES.toMillis(i))
+                .field("dim", "dim" + (i % 10))
+                .endObject()
+        );
+        logger.info("Refreshing [{}]", index);
+        client().performRequest(new Request("POST", "/" + index + "/_refresh"));
+        return numDocs;
+    }
+
     public void testClusterState() throws Exception {
         if (isRunningAgainstOldCluster()) {
             XContentBuilder mappingsAndSettings = jsonBuilder();
@@ -230,6 +357,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             mappingsAndSettings.endObject();
             Request createTemplate = new Request("PUT", "/_template/template_1");
             createTemplate.setJsonEntity(Strings.toString(mappingsAndSettings));
+            createTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
             client().performRequest(createTemplate);
             client().performRequest(new Request("PUT", "/" + index));
         }
@@ -293,7 +421,12 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             numDocs = randomIntBetween(512, 1024);
             indexRandomDocuments(
-                    numDocs, true, true, i -> JsonXContent.contentBuilder().startObject().field("field", "value").endObject());
+                numDocs,
+                true,
+                true,
+                randomBoolean(),
+                i -> JsonXContent.contentBuilder().startObject().field("field", "value").endObject()
+            );
 
             ensureGreen(index); // wait for source index to be available on both nodes before starting shrink
 
@@ -366,6 +499,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                     numDocs,
                     true,
                     true,
+                    randomBoolean(),
                     i -> JsonXContent.contentBuilder().startObject().field("field", "value").endObject()
             );
         } else {
@@ -463,14 +597,18 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertEquals(expectedCount, extractTotalHits(count));
     }
 
+    void assertCountAll(int count) throws IOException {
+        Map<String, Object> response = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search")));
+        assertNoFailures(response);
+        int numDocs = extractTotalHits(response);
+        logger.info("Found {} in old index", numDocs);
+        assertEquals(count, numDocs);
+    }
+
     void assertBasicSearchWorks(int count) throws IOException {
         logger.info("--> testing basic search");
         {
-            Map<String, Object> response = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search")));
-            assertNoFailures(response);
-            int numDocs = extractTotalHits(response);
-            logger.info("Found {} in old index", numDocs);
-            assertEquals(count, numDocs);
+            assertCountAll(count);
         }
 
         logger.info("--> testing basic search with sort");
@@ -676,7 +814,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             }
             final String mappings = randomBoolean() ? "\"_source\": { \"enabled\": false}" : null;
             createIndex(index, settings.build(), mappings);
-            indexRandomDocuments(count, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
+            indexRandomDocuments(count, true, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
 
             // make sure all recoveries are done
             ensureGreen(index);
@@ -686,9 +824,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             flushRequest.addParameter("force", "true");
             flushRequest.addParameter("wait_if_ongoing", "true");
             assertOK(client().performRequest(flushRequest));
-            if (randomBoolean()) {
-                syncedFlush(index);
-            }
 
             if (shouldHaveTranslog) {
                 // Update a few documents so we are sure to have a translog
@@ -696,6 +831,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                         count / 10,
                         false, // flushing here would invalidate the whole thing
                         false,
+                        true,
                         i -> jsonBuilder().startObject().field("field", "value").endObject()
                 );
             }
@@ -789,7 +925,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
             createIndex(index, settings.build());
-            indexRandomDocuments(count, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
+            indexRandomDocuments(count, true, true, randomBoolean(), i -> jsonBuilder().startObject().field("field", "value").endObject());
         } else {
             count = countOfIndexedRandomDocuments();
         }
@@ -842,6 +978,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         templateBuilder.endObject().endObject();
         Request createTemplateRequest = new Request("PUT", "/_template/test_template");
         createTemplateRequest.setJsonEntity(Strings.toString(templateBuilder));
+        createTemplateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
 
         client().performRequest(createTemplateRequest);
 
@@ -1055,13 +1192,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     private void checkSnapshot(final String snapshotName, final int count, final Version tookOnVersion) throws IOException {
         // Check the snapshot metadata, especially the version
         Request listSnapshotRequest = new Request("GET", "/_snapshot/repo/" + snapshotName);
-        Map<String, Object> responseMap = entityAsMap(client().performRequest(listSnapshotRequest));
-        Map<String, Object> snapResponse;
-        if (responseMap.get("responses") != null) {
-            snapResponse = (Map<String, Object>) ((List<Object>) responseMap.get("responses")).get(0);
-        } else {
-            snapResponse = responseMap;
-        }
+        Map<String, Object> snapResponse = entityAsMap(client().performRequest(listSnapshotRequest));
 
         assertEquals(singletonList(snapshotName), XContentMapValues.extractValue("snapshots.snapshot", snapResponse));
         assertEquals(singletonList("SUCCESS"), XContentMapValues.extractValue("snapshots.state", snapResponse));
@@ -1148,18 +1279,17 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
-    // TODO tests for upgrades after shrink. We've had trouble with shrink in the past.
-
     private void indexRandomDocuments(
             final int count,
             final boolean flushAllowed,
             final boolean saveInfo,
+            final boolean specifyId,
             final CheckedFunction<Integer, XContentBuilder, IOException> docSupplier)
             throws IOException {
         logger.info("Indexing {} random documents", count);
         for (int i = 0; i < count; i++) {
             logger.debug("Indexing document [{}]", i);
-            Request createDocument = new Request("POST", "/" + index + "/_doc/" + i);
+            Request createDocument = new Request("POST", "/" + index + "/_doc/" + (specifyId ? i : ""));
             createDocument.setJsonEntity(Strings.toString(docSupplier.apply(i)));
             client().performRequest(createDocument);
             if (rarely()) {
@@ -1501,7 +1631,13 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             createIndex(index, settings.build());
             ensureGreen(index);
             int numDocs = randomIntBetween(0, 100);
-            indexRandomDocuments(numDocs, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
+            indexRandomDocuments(
+                numDocs,
+                true,
+                true,
+                randomBoolean(),
+                i -> jsonBuilder().startObject().field("field", "value").endObject()
+            );
             // create repo
             XContentBuilder repoConfig = JsonXContent.contentBuilder().startObject();
             {
@@ -1555,7 +1691,13 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             createIndex(index, settings.build());
             ensureGreen(index);
             int numDocs = randomIntBetween(0, 100);
-            indexRandomDocuments(numDocs, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
+            indexRandomDocuments(
+                numDocs,
+                true,
+                true,
+                randomBoolean(),
+                i -> jsonBuilder().startObject().field("field", "value").endObject()
+            );
             // create repo
             XContentBuilder repoConfig = JsonXContent.contentBuilder().startObject();
             {
@@ -1596,6 +1738,44 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
+    /**
+     * In 7.14 the cluster.remote.*.transport.compress setting was change from a boolean to an enum setting
+     * with true/false as options. This test ensures that the old boolean setting in cluster state is
+     * translated properly. This test can be removed in 9.0.
+     */
+    public void testTransportCompressionSetting() throws IOException {
+        assumeTrue("the old transport.compress setting existed before 7.14", getOldClusterVersion().before(Version.V_7_14_0));
+        assumeTrue("Early versions of 6.x do not have cluster.remote* prefixed settings",
+            getOldClusterVersion().onOrAfter(Version.V_7_14_0.minimumCompatibilityVersion()));
+        if (isRunningAgainstOldCluster()) {
+            final Request putSettingsRequest = new Request("PUT", "/_cluster/settings");
+            try (XContentBuilder builder = jsonBuilder()) {
+                builder.startObject();
+                {
+                    builder.startObject("persistent");
+                    {
+                        builder.field("cluster.remote.foo.seeds", Collections.singletonList("localhost:9200"));
+                        builder.field("cluster.remote.foo.transport.compress", "true");
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+                putSettingsRequest.setJsonEntity(Strings.toString(builder));
+            }
+            client().performRequest(putSettingsRequest);
+        } else {
+            final Request getSettingsRequest = new Request("GET", "/_cluster/settings");
+            final Response getSettingsResponse = client().performRequest(getSettingsRequest);
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, getSettingsResponse.getEntity().getContent())) {
+                final ClusterGetSettingsResponse clusterGetSettingsResponse = ClusterGetSettingsResponse.fromXContent(parser);
+                final Settings settings = clusterGetSettingsResponse.getPersistentSettings();
+                assertThat(
+                    REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("foo").get(settings),
+                    equalTo(Compression.Enabled.TRUE));
+            }
+        }
+    }
+
     public static void assertNumHits(String index, int numHits, int totalShards) throws IOException {
         Map<String, Object> resp = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search")));
         assertNoFailures(resp);
@@ -1603,5 +1783,4 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertThat(XContentMapValues.extractValue("_shards.successful", resp), equalTo(totalShards));
         assertThat(extractTotalHits(resp), equalTo(numHits));
     }
-
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.query;
@@ -34,6 +23,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
+import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
@@ -59,6 +49,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
     private DirectoryReader reader;
     private IndexSearcher searcher;
     private LeafReaderContext leafReaderContext;
+    private final SearchLookup lookup = new SearchLookup(null, null);
 
     @Before
     public void initSearcher() throws IOException {
@@ -90,7 +81,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
         });
 
         ScriptScoreQuery query = new ScriptScoreQuery(Queries.newMatchAllQuery(), script, factory,
-            null, "index", 0, Version.CURRENT);
+            lookup, null, "index", 0, Version.CURRENT);
         Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE, 1.0f);
         Explanation explanation = weight.explain(leafReaderContext, 0);
         assertNotNull(explanation);
@@ -103,7 +94,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
         ScoreScript.LeafFactory factory = newFactory(script, true, explanation -> 1.5);
 
         ScriptScoreQuery query = new ScriptScoreQuery(Queries.newMatchAllQuery(), script, factory,
-            null, "index", 0, Version.CURRENT);
+            lookup, null, "index", 0, Version.CURRENT);
         Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE, 1.0f);
         Explanation explanation = weight.explain(leafReaderContext, 0);
         assertNotNull(explanation);
@@ -120,7 +111,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
         ScoreScript.LeafFactory factory = newFactory(script, false, explanation -> 2.0);
 
         ScriptScoreQuery query = new ScriptScoreQuery(Queries.newMatchAllQuery(), script, factory,
-            null, "index", 0, Version.CURRENT);
+            lookup, null, "index", 0, Version.CURRENT);
         Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE, 1.0f);
         Explanation explanation = weight.explain(leafReaderContext, 0);
         assertNotNull(explanation);
@@ -134,7 +125,8 @@ public class ScriptScoreQueryTests extends ESTestCase {
     public void testScriptScoreErrorOnNegativeScore() {
         Script script = new Script("script that returns a negative score");
         ScoreScript.LeafFactory factory = newFactory(script, false, explanation -> -1000.0);
-        ScriptScoreQuery query = new ScriptScoreQuery(Queries.newMatchAllQuery(), script, factory, null, "index", 0, Version.CURRENT);
+        ScriptScoreQuery query = new ScriptScoreQuery(Queries.newMatchAllQuery(), script, factory, lookup, null, "index", 0,
+                Version.CURRENT);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> searcher.search(query, 1));
         assertTrue(e.getMessage().contains("Must be a non-negative score!"));
     }
@@ -151,8 +143,8 @@ public class ScriptScoreQueryTests extends ESTestCase {
             }
 
             @Override
-            public ScoreScript newInstance(LeafReaderContext ctx) throws IOException {
-                return new ScoreScript(script.getParams(), lookup, leafReaderContext) {
+            public ScoreScript newInstance(DocReader docReader) throws IOException {
+                return new ScoreScript(script.getParams(), lookup, docReader) {
                     @Override
                     public double execute(ExplanationHolder explanation) {
                         return function.apply(explanation);

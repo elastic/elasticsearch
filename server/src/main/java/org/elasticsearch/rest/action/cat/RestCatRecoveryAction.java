@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.cat;
@@ -29,13 +18,15 @@ import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestResponseListener;
 
+import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -74,7 +65,8 @@ public class RestCatRecoveryAction extends AbstractCatAction {
         recoveryRequest.activeOnly(request.paramAsBoolean("active_only", false));
         recoveryRequest.indicesOptions(IndicesOptions.fromRequest(request, recoveryRequest.indicesOptions()));
 
-        return channel -> client.admin().indices().recoveries(recoveryRequest, new RestResponseListener<RecoveryResponse>(channel) {
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel())
+                .admin().indices().recoveries(recoveryRequest, new RestResponseListener<RecoveryResponse>(channel) {
             @Override
             public RestResponse buildResponse(final RecoveryResponse response) throws Exception {
                 return RestTable.buildResponse(buildRecoveryTable(request, response), channel);
@@ -155,9 +147,9 @@ public class RestCatRecoveryAction extends AbstractCatAction {
                 t.startRow();
                 t.addCell(index);
                 t.addCell(state.getShardId().id());
-                t.addCell(XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().startTime()));
+                t.addCell(XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(state.getTimer().startTime())));
                 t.addCell(state.getTimer().startTime());
-                t.addCell(XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().stopTime()));
+                t.addCell(XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(state.getTimer().stopTime())));
                 t.addCell(state.getTimer().stopTime());
                 t.addCell(new TimeValue(state.getTimer().time()));
                 t.addCell(state.getRecoverySource().getType().toString().toLowerCase(Locale.ROOT));

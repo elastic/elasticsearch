@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.idp.saml.sp;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.idp.privileges.ServiceProviderPrivileges;
-import org.joda.time.ReadableDuration;
 import org.opensaml.security.x509.X509Credential;
 
 import java.net.URL;
+import java.time.Duration;
 import java.util.Set;
 
 
@@ -22,7 +23,7 @@ public class CloudServiceProvider implements SamlServiceProvider {
     private final boolean enabled;
     private final URL assertionConsumerService;
     private final String allowedNameIdFormat;
-    private final ReadableDuration authnExpiry;
+    private final Duration authnExpiry;
     private final ServiceProviderPrivileges privileges;
     private final AttributeNames attributeNames;
     private final Set<X509Credential> spSigningCredentials;
@@ -30,7 +31,7 @@ public class CloudServiceProvider implements SamlServiceProvider {
     private final boolean signLogoutRequests;
 
     public CloudServiceProvider(String entityId, String name, boolean enabled, URL assertionConsumerService, String allowedNameIdFormat,
-                                ReadableDuration authnExpiry, ServiceProviderPrivileges privileges, AttributeNames attributeNames,
+                                Duration authnExpiry, ServiceProviderPrivileges privileges, AttributeNames attributeNames,
                                 Set<X509Credential> spSigningCredentials, boolean signAuthnRequests, boolean signLogoutRequests) {
         if (Strings.isNullOrEmpty(entityId)) {
             throw new IllegalArgumentException("Service Provider Entity ID cannot be null or empty");
@@ -74,7 +75,7 @@ public class CloudServiceProvider implements SamlServiceProvider {
     }
 
     @Override
-    public ReadableDuration getAuthnExpiry() {
+    public Duration getAuthnExpiry() {
         return authnExpiry;
     }
 

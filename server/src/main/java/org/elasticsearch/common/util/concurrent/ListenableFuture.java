@@ -1,28 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,17 +29,16 @@ import java.util.concurrent.TimeUnit;
 public final class ListenableFuture<V> extends BaseFuture<V> implements ActionListener<V> {
 
     private volatile boolean done = false;
-    private final List<Tuple<ActionListener<V>, ExecutorService>> listeners = new ArrayList<>();
-
+    private List<Tuple<ActionListener<V>, ExecutorService>> listeners;
 
     /**
      * Adds a listener to this future. If the future has not yet completed, the listener will be
-     * notified of a response or exception in a runnable submitted to the ExecutorService provided.
+     * notified of a response or exception on the thread completing this future.
      * If the future has completed, the listener will be notified immediately without forking to
      * a different thread.
      */
-    public void addListener(ActionListener<V> listener, ExecutorService executor) {
-        addListener(listener, executor, null);
+    public void addListener(ActionListener<V> listener) {
+        addListener(listener, EsExecutors.DIRECT_EXECUTOR_SERVICE, null);
     }
 
     /**
@@ -65,7 +52,7 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
     public void addListener(ActionListener<V> listener, ExecutorService executor, ThreadContext threadContext) {
         if (done) {
             // run the callback directly, we don't hold the lock and don't need to fork!
-            notifyListener(listener, EsExecutors.newDirectExecutorService());
+            notifyListenerDirectly(listener);
         } else {
             final boolean run;
             // check done under lock since it could have been modified and protect modifications
@@ -80,6 +67,9 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
                     } else {
                         wrappedListener = ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
                     }
+                    if (listeners == null) {
+                        listeners = new ArrayList<>();
+                    }
                     listeners.add(new Tuple<>(wrappedListener, executor));
                     run = false;
                 }
@@ -87,29 +77,51 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
 
             if (run) {
                 // run the callback directly, we don't hold the lock and don't need to fork!
-                notifyListener(listener, EsExecutors.newDirectExecutorService());
+                notifyListenerDirectly(listener);
             }
         }
     }
 
     @Override
-    protected synchronized void done(boolean ignored) {
-        done = true;
-        listeners.forEach(t -> notifyListener(t.v1(), t.v2()));
-        // release references to any listeners as we no longer need them and will live
-        // much longer than the listeners in most cases
-        listeners.clear();
+    protected void done(boolean ignored) {
+        final List<Tuple<ActionListener<V>, ExecutorService>> existingListeners;
+        synchronized (this) {
+            done = true;
+            existingListeners = listeners;
+            if (existingListeners == null) {
+                return;
+            }
+            listeners = null;
+        }
+        for (Tuple<ActionListener<V>, ExecutorService> t : existingListeners) {
+            final ExecutorService executorService = t.v2();
+            final ActionListener<V> listener = t.v1();
+            if (executorService == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
+                notifyListenerDirectly(listener);
+            } else {
+                notifyListener(listener, executorService);
+            }
+        }
+    }
+
+    private void notifyListenerDirectly(ActionListener<V> listener) {
+        try {
+            // call get in a non-blocking fashion as we could be on a network thread
+            // or another thread like the scheduler, which we should never block!
+            assert done;
+            V value = FutureUtils.get(ListenableFuture.this, 0L, TimeUnit.NANOSECONDS);
+            listener.onResponse(value);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     private void notifyListener(ActionListener<V> listener, ExecutorService executorService) {
         try {
-            executorService.execute(new ActionRunnable<>(listener) {
+            executorService.execute(new Runnable() {
                 @Override
-                protected void doRun() {
-                    // call get in a non-blocking fashion as we could be on a network thread
-                    // or another thread like the scheduler, which we should never block!
-                    V value = FutureUtils.get(ListenableFuture.this, 0L, TimeUnit.NANOSECONDS);
-                    listener.onResponse(value);
+                public void run() {
+                    notifyListenerDirectly(listener);
                 }
 
                 @Override

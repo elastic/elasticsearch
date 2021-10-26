@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.search;
@@ -13,20 +14,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
-import org.elasticsearch.xpack.core.transform.TransformField;
-import org.elasticsearch.xpack.core.transform.TransformNamedXContentProvider;
-import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
-import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -47,12 +43,6 @@ public class AsyncSearchResponseTests extends ESTestCase {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
 
         List<NamedWriteableRegistry.Entry> namedWriteables = searchModule.getNamedWriteables();
-        namedWriteables.add(new NamedWriteableRegistry.Entry(SyncConfig.class, TransformField.TIME_BASED_SYNC.getPreferredName(),
-            TimeSyncConfig::new));
-
-        List<NamedXContentRegistry.Entry> namedXContents = searchModule.getNamedXContents();
-        namedXContents.addAll(new TransformNamedXContentProvider().getNamedXContentParsers());
-
         namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
     }
 
@@ -161,9 +151,9 @@ public class AsyncSearchResponseTests extends ESTestCase {
                 "  \"id\" : \"id\",\n" +
                 "  \"is_partial\" : true,\n" +
                 "  \"is_running\" : true,\n" +
-                "  \"start_time\" : \"" + XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(date.getTime()) + "\",\n" +
+                "  \"start_time\" : \"" + XContentElasticsearchExtension.DEFAULT_FORMATTER.format(date.toInstant()) + "\",\n" +
                 "  \"start_time_in_millis\" : " + date.getTime() + ",\n" +
-                "  \"expiration_time\" : \"" + XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(date.getTime()) + "\",\n" +
+                "  \"expiration_time\" : \"" + XContentElasticsearchExtension.DEFAULT_FORMATTER.format(date.toInstant()) + "\",\n" +
                 "  \"expiration_time_in_millis\" : " + date.getTime() + "\n" +
                 "}", Strings.toString(builder));
         }

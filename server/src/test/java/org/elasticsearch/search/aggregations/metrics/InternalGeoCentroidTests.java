@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.metrics;
 
@@ -63,17 +52,20 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
             totalCount += input.count();
         }
         if (totalCount > 0) {
-            assertEquals(latSum/totalCount, reduced.centroid().getLat(), 1E-5D);
-            assertEquals(lonSum/totalCount, reduced.centroid().getLon(), 1E-5D);
+            assertEquals(latSum / totalCount, reduced.centroid().getLat(), 1E-5D);
+            assertEquals(lonSum / totalCount, reduced.centroid().getLon(), 1E-5D);
         }
         assertEquals(totalCount, reduced.count());
     }
 
     public void testReduceMaxCount() {
-        InternalGeoCentroid maxValueGeoCentroid = new InternalGeoCentroid("agg", new GeoPoint(10, 0),
-            Long.MAX_VALUE, Collections.emptyMap());
-        InternalGeoCentroid reducedGeoCentroid = maxValueGeoCentroid
-            .reduce(Collections.singletonList(maxValueGeoCentroid), null);
+        InternalGeoCentroid maxValueGeoCentroid = new InternalGeoCentroid(
+            "agg",
+            new GeoPoint(10, 0),
+            Long.MAX_VALUE,
+            Collections.emptyMap()
+        );
+        InternalGeoCentroid reducedGeoCentroid = maxValueGeoCentroid.reduce(Collections.singletonList(maxValueGeoCentroid), null);
         assertThat(reducedGeoCentroid.count(), equalTo(Long.MAX_VALUE));
     }
 
@@ -93,41 +85,41 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
         long count = instance.count();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
-        case 0:
-            name += randomAlphaOfLength(5);
-            break;
-        case 1:
-            count += between(1, 100);
-            if (centroid == null) {
-                // if the new count is > 0 then we need to make sure there is a
-                // centroid or the constructor will throw an exception
-                centroid = new GeoPoint(randomDoubleBetween(-90, 90, false), randomDoubleBetween(-180, 180, false));
-            }
-            break;
-        case 2:
-            if (centroid == null) {
-                centroid = new GeoPoint(randomDoubleBetween(-90, 90, false), randomDoubleBetween(-180, 180, false));
-                count = between(1, 100);
-            } else {
-                GeoPoint newCentroid = new GeoPoint(centroid);
-                if (randomBoolean()) {
-                    newCentroid.resetLat(centroid.getLat() / 2.0);
-                } else {
-                    newCentroid.resetLon(centroid.getLon() / 2.0);
+            case 0:
+                name += randomAlphaOfLength(5);
+                break;
+            case 1:
+                count += between(1, 100);
+                if (centroid == null) {
+                    // if the new count is > 0 then we need to make sure there is a
+                    // centroid or the constructor will throw an exception
+                    centroid = new GeoPoint(randomDoubleBetween(-90, 90, false), randomDoubleBetween(-180, 180, false));
                 }
-                centroid = newCentroid;
-            }
-            break;
-        case 3:
-            if (metadata == null) {
-                metadata = new HashMap<>(1);
-            } else {
-                metadata = new HashMap<>(instance.getMetadata());
-            }
-            metadata.put(randomAlphaOfLength(15), randomInt());
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+                break;
+            case 2:
+                if (centroid == null) {
+                    centroid = new GeoPoint(randomDoubleBetween(-90, 90, false), randomDoubleBetween(-180, 180, false));
+                    count = between(1, 100);
+                } else {
+                    GeoPoint newCentroid = new GeoPoint(centroid);
+                    if (randomBoolean()) {
+                        newCentroid.resetLat(centroid.getLat() / 2.0);
+                    } else {
+                        newCentroid.resetLon(centroid.getLon() / 2.0);
+                    }
+                    centroid = newCentroid;
+                }
+                break;
+            case 3:
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
+                } else {
+                    metadata = new HashMap<>(instance.getMetadata());
+                }
+                metadata.put(randomAlphaOfLength(15), randomInt());
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalGeoCentroid(name, centroid, count, metadata);
     }

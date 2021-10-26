@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe;
 
@@ -16,18 +17,18 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchModule;
@@ -151,7 +152,8 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
                 42L,
                 bwcRegression.getLossFunction(),
                 bwcRegression.getLossFunctionParameter(),
-                bwcRegression.getFeatureProcessors());
+                bwcRegression.getFeatureProcessors(),
+                bwcRegression.getEarlyStoppingEnabled());
             testAnalysis = new Regression(testRegression.getDependentVariable(),
                 testRegression.getBoostedTreeParams(),
                 testRegression.getPredictionFieldName(),
@@ -159,7 +161,8 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
                 42L,
                 testRegression.getLossFunction(),
                 testRegression.getLossFunctionParameter(),
-                bwcRegression.getFeatureProcessors());
+                testRegression.getFeatureProcessors(),
+                testRegression.getEarlyStoppingEnabled());
         } else {
             Classification testClassification = (Classification)testInstance.getAnalysis();
             Classification bwcClassification = (Classification)bwcSerializedObject.getAnalysis();
@@ -170,7 +173,8 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
                 bwcClassification.getNumTopClasses(),
                 bwcClassification.getTrainingPercent(),
                 42L,
-                bwcClassification.getFeatureProcessors());
+                bwcClassification.getFeatureProcessors(),
+                bwcClassification.getEarlyStoppingEnabled());
             testAnalysis = new Classification(testClassification.getDependentVariable(),
                 testClassification.getBoostedTreeParams(),
                 testClassification.getPredictionFieldName(),
@@ -178,7 +182,8 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
                 testClassification.getNumTopClasses(),
                 testClassification.getTrainingPercent(),
                 42L,
-                testClassification.getFeatureProcessors());
+                testClassification.getFeatureProcessors(),
+                testClassification.getEarlyStoppingEnabled());
         }
         super.assertOnBWCObject(new DataFrameAnalyticsConfig.Builder(bwcSerializedObject)
             .setAnalysis(bwcAnalysis)
@@ -412,7 +417,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
 
         DataFrameAnalyticsConfig config = builder.buildForExplain();
 
-        assertThat(config.getId(), equalTo("dummy"));
+        assertThat(config.getId(), equalTo(DataFrameAnalyticsConfig.BLANK_ID));
     }
 
     public void testBuildForExplain_MissingDest() {
@@ -423,7 +428,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
 
         DataFrameAnalyticsConfig config = builder.buildForExplain();
 
-        assertThat(config.getDest().getIndex(), equalTo("dummy"));
+        assertThat(config.getDest().getIndex(), equalTo(DataFrameAnalyticsConfig.BLANK_DEST_INDEX));
     }
 
     public void testPreventCreateTimeInjection() throws IOException {
@@ -463,7 +468,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
             .setVersion(Version.CURRENT)
             .setId("test_config")
-            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null))
+            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null, null))
             .setDest(new DataFrameAnalyticsDest("dest_index", null))
             .setAnalysis(regression)
             .build();
@@ -482,7 +487,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
             .setVersion(Version.V_7_5_0)
             .setId("test_config")
-            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null))
+            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null, null))
             .setDest(new DataFrameAnalyticsDest("dest_index", null))
             .setAnalysis(regression)
             .build();
@@ -504,7 +509,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
     public void testCtor_GivenMaxNumThreadsIsZero() {
         ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> new DataFrameAnalyticsConfig.Builder()
             .setId("test_config")
-            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null))
+            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null, null))
             .setDest(new DataFrameAnalyticsDest("dest_index", null))
             .setAnalysis(new Regression("foo"))
             .setMaxNumThreads(0)
@@ -517,7 +522,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
     public void testCtor_GivenMaxNumThreadsIsNegative() {
         ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> new DataFrameAnalyticsConfig.Builder()
             .setId("test_config")
-            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null))
+            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null, null))
             .setDest(new DataFrameAnalyticsDest("dest_index", null))
             .setAnalysis(new Regression("foo"))
             .setMaxNumThreads(randomIntBetween(Integer.MIN_VALUE, 0))

@@ -1,27 +1,6 @@
 [role="xpack"]
 [testenv="platinum"]
 
-//////////////////////////
-
-[source,console]
---------------------------------------------------
-PUT /follower_index/_ccr/follow?wait_for_active_shards=1
-{
-  "remote_cluster" : "remote_cluster",
-  "leader_index" : "leader_index"
-}
---------------------------------------------------
-// TESTSETUP
-// TEST[setup:remote_cluster_and_leader_index]
-
-[source,console]
---------------------------------------------------
-POST /follower_index/_ccr/pause_follow
---------------------------------------------------
-// TEARDOWN
-
-//////////////////////////
-
 [[ccr-managing]]
 === Manage {ccr}
 Use the following information to manage {ccr} tasks, such as inspecting
@@ -101,9 +80,6 @@ To recreate a follower index,
 <<ccr-access-ccr,access Cross-Cluster Replication>> and choose the
 *Follower indices* tab.
 
-[role="screenshot"]
-image::images/ccr-follower-index.png["The Cross-Cluster Replication page in {kib}"]
-
 Select the follower index and pause replication. When the follower index status
 changes to Paused, reselect the follower index and choose to unfollow the
 leader index.
@@ -135,6 +111,7 @@ PUT /follower_index/_ccr/follow?wait_for_active_shards=1
   "leader_index" : "leader_index"
 }
 ----------------------------------------------------------------------
+// TEST[setup:remote_cluster_and_leader_index_and_follower_index teardown:pause_follow]
 ====
 
 [[ccr-terminate-replication]]

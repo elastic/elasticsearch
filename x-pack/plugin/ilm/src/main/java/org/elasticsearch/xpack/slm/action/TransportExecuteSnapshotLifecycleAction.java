@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.slm.action;
@@ -52,12 +53,7 @@ public class TransportExecuteSnapshotLifecycleAction
                                    final ActionListener<ExecuteSnapshotLifecycleAction.Response> listener) {
         try {
             final String policyId = request.getLifecycleId();
-            SnapshotLifecycleMetadata snapMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
-            if (snapMeta == null) {
-                listener.onFailure(new IllegalArgumentException("no such snapshot lifecycle policy [" + policyId + "]"));
-                return;
-            }
-
+            SnapshotLifecycleMetadata snapMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
             SnapshotLifecyclePolicyMetadata policyMetadata = snapMeta.getSnapshotConfigurations().get(policyId);
             if (policyMetadata == null) {
                 listener.onFailure(new IllegalArgumentException("no such snapshot lifecycle policy [" + policyId + "]"));

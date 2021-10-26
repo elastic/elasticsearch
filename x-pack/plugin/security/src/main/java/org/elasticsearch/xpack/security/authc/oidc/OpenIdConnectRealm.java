@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.oidc;
 
@@ -23,9 +24,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsException;
@@ -160,7 +161,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
     }
 
     @Override
-    public void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult> listener) {
+    public void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult<User>> listener) {
         if (token instanceof OpenIdConnectToken && isTokenForRealm((OpenIdConnectToken) token)) {
             OpenIdConnectToken oidcToken = (OpenIdConnectToken) token;
             openIdConnectAuthenticator.authenticate(oidcToken, ActionListener.wrap(
@@ -186,7 +187,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
     }
 
 
-    private void buildUserFromClaims(JWTClaimsSet claims, ActionListener<AuthenticationResult> authResultListener) {
+    private void buildUserFromClaims(JWTClaimsSet claims, ActionListener<AuthenticationResult<User>> authResultListener) {
         final String principal = principalAttribute.getClaimValue(claims);
         if (Strings.isNullOrEmpty(principal)) {
             authResultListener.onResponse(AuthenticationResult.unsuccessful(
@@ -196,12 +197,12 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
 
         final Map<String, Object> tokenMetadata = new HashMap<>();
         tokenMetadata.put("id_token_hint", claims.getClaim("id_token_hint"));
-        ActionListener<AuthenticationResult> wrappedAuthResultListener = ActionListener.wrap(auth -> {
+        ActionListener<AuthenticationResult<User>> wrappedAuthResultListener = ActionListener.wrap(auth -> {
             if (auth.isAuthenticated()) {
                 // Add the ID Token as metadata on the authentication, so that it can be used for logout requests
                 Map<String, Object> metadata = new HashMap<>(auth.getMetadata());
                 metadata.put(CONTEXT_TOKEN_DATA, tokenMetadata);
-                auth = AuthenticationResult.success(auth.getUser(), metadata);
+                auth = AuthenticationResult.success(auth.getValue(), metadata);
             }
             authResultListener.onResponse(auth);
         }, authResultListener::onFailure);
@@ -391,7 +392,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
      */
     private static boolean isAllowedTypeForClaim(Object o) {
         return (o instanceof String || o instanceof Boolean || o instanceof Number
-            || (o instanceof Collection && ((Collection) o).stream()
+            || (o instanceof Collection && ((Collection<?>) o).stream()
             .allMatch(c -> c instanceof String || c instanceof Boolean || c instanceof Number)));
     }
 
@@ -422,6 +423,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
             return name;
         }
 
+        @SuppressWarnings("unchecked")
         private static Collection<String> parseClaimValues(JWTClaimsSet claimsSet, String claimName, String settingKey) {
             Collection<String> values;
             final Object claimValueObject = claimsSet.getClaim(claimName);
@@ -430,7 +432,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
             } else if (claimValueObject instanceof String) {
                 values = List.of((String) claimValueObject);
             } else if (claimValueObject instanceof Collection &&
-                ((Collection) claimValueObject).stream().allMatch(c -> c instanceof String)) {
+                ((Collection<?>) claimValueObject).stream().allMatch(c -> c instanceof String)) {
                 values = (Collection<String>) claimValueObject;
             } else {
                 throw new SettingsException("Setting [ " + settingKey + " expects a claim with String or a String Array value");

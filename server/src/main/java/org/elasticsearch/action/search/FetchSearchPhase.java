@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.search;
 
@@ -147,14 +136,13 @@ final class FetchSearchPhase extends SearchPhase {
                         // in any case we count down this result since we don't talk to this shard anymore
                         counter.countDown();
                     } else {
-                        SearchShardTarget searchShardTarget = queryResult.getSearchShardTarget();
-                        Transport.Connection connection = context.getConnection(searchShardTarget.getClusterAlias(),
-                            searchShardTarget.getNodeId());
+                        SearchShardTarget shardTarget = queryResult.getSearchShardTarget();
+                        Transport.Connection connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
                         ShardFetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult.queryResult().getContextId(), i, entry,
-                            lastEmittedDocPerShard, searchShardTarget.getOriginalIndices(), queryResult.getShardSearchRequest(),
-                            queryResult.getRescoreDocIds());
-                        executeFetch(queryResult.getShardIndex(), searchShardTarget, counter, fetchSearchRequest, queryResult.queryResult(),
-                            connection);
+                            lastEmittedDocPerShard, context.getOriginalIndices(queryResult.getShardIndex()),
+                            queryResult.getShardSearchRequest(), queryResult.getRescoreDocIds());
+                        executeFetch(queryResult.getShardIndex(), shardTarget, counter, fetchSearchRequest,
+                            queryResult.queryResult(), connection);
                     }
                 }
             }
@@ -210,11 +198,12 @@ final class FetchSearchPhase extends SearchPhase {
         // or using a PIT and if it has at least one hit that didn't make it to the global topDocs
         if (queryResult.hasSearchContext()
                 && context.getRequest().scroll() == null
-                && context.getRequest().pointInTimeBuilder() == null) {
+                && (context.isPartOfPointInTime(queryResult.getContextId()) == false)) {
             try {
-                SearchShardTarget searchShardTarget = queryResult.getSearchShardTarget();
-                Transport.Connection connection = context.getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
-                context.sendReleaseSearchContext(queryResult.getContextId(), connection, searchShardTarget.getOriginalIndices());
+                SearchShardTarget shardTarget = queryResult.getSearchShardTarget();
+                Transport.Connection connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
+                context.sendReleaseSearchContext(queryResult.getContextId(), connection,
+                    context.getOriginalIndices(queryResult.getShardIndex()));
             } catch (Exception e) {
                 context.getLogger().trace("failed to release context", e);
             }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations;
 
@@ -23,12 +12,13 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -54,16 +44,19 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
          * Build a {@linkplain ReduceContext} to perform a partial reduction.
          */
         ReduceContext forPartialReduction();
+
         /**
          * Build a {@linkplain ReduceContext} to perform the final reduction.
          */
         ReduceContext forFinalReduction();
     }
+
     public static class ReduceContext {
         private final BigArrays bigArrays;
         private final ScriptService scriptService;
         private final IntConsumer multiBucketConsumer;
         private final PipelineTree pipelineTreeRoot;
+        private final Supplier<Boolean> isCanceled;
         /**
          * Supplies the pipelines when the result of the reduce is serialized
          * to node versions that need pipeline aggregators to be serialized
@@ -74,28 +67,50 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         /**
          * Build a {@linkplain ReduceContext} to perform a partial reduction.
          */
-        public static ReduceContext forPartialReduction(BigArrays bigArrays, ScriptService scriptService,
-                Supplier<PipelineTree> pipelineTreeForBwcSerialization) {
-            return new ReduceContext(bigArrays, scriptService, (s) -> {}, null, pipelineTreeForBwcSerialization);
+        public static ReduceContext forPartialReduction(
+            BigArrays bigArrays,
+            ScriptService scriptService,
+            Supplier<PipelineTree> pipelineTreeForBwcSerialization,
+            Supplier<Boolean> isCanceled
+        ) {
+            return new ReduceContext(bigArrays, scriptService, (s) -> {}, null, pipelineTreeForBwcSerialization, isCanceled);
         }
 
         /**
          * Build a {@linkplain ReduceContext} to perform the final reduction.
          * @param pipelineTreeRoot The root of tree of pipeline aggregations for this request
          */
-        public static ReduceContext forFinalReduction(BigArrays bigArrays, ScriptService scriptService,
-                IntConsumer multiBucketConsumer, PipelineTree pipelineTreeRoot) {
-            return new ReduceContext(bigArrays, scriptService, multiBucketConsumer,
-                    requireNonNull(pipelineTreeRoot, "prefer EMPTY to null"), () -> pipelineTreeRoot);
+        public static ReduceContext forFinalReduction(
+            BigArrays bigArrays,
+            ScriptService scriptService,
+            IntConsumer multiBucketConsumer,
+            PipelineTree pipelineTreeRoot,
+            Supplier<Boolean> isCanceled
+        ) {
+            return new ReduceContext(
+                bigArrays,
+                scriptService,
+                multiBucketConsumer,
+                requireNonNull(pipelineTreeRoot, "prefer EMPTY to null"),
+                () -> pipelineTreeRoot,
+                isCanceled
+            );
         }
 
-        private ReduceContext(BigArrays bigArrays, ScriptService scriptService, IntConsumer multiBucketConsumer,
-                PipelineTree pipelineTreeRoot, Supplier<PipelineTree> pipelineTreeForBwcSerialization) {
+        private ReduceContext(
+            BigArrays bigArrays,
+            ScriptService scriptService,
+            IntConsumer multiBucketConsumer,
+            PipelineTree pipelineTreeRoot,
+            Supplier<PipelineTree> pipelineTreeForBwcSerialization,
+            Supplier<Boolean> isCanceled
+        ) {
             this.bigArrays = bigArrays;
             this.scriptService = scriptService;
             this.multiBucketConsumer = multiBucketConsumer;
             this.pipelineTreeRoot = pipelineTreeRoot;
             this.pipelineTreeForBwcSerialization = pipelineTreeForBwcSerialization;
+            this.isCanceled = isCanceled;
         }
 
         /**
@@ -136,9 +151,16 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
          * the maximum number of buckets allowed in a response
          */
         public void consumeBucketsAndMaybeBreak(int size) {
+            // This is a volatile read.
+            if (isCanceled.get()) {
+                throw new TaskCancelledException("Cancelled");
+            }
             multiBucketConsumer.accept(size);
         }
 
+        public Supplier<Boolean> isCanceled() {
+            return isCanceled;
+        }
     }
 
     protected final String name;
@@ -197,7 +219,8 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      */
     public InternalAggregation copyWithRewritenBuckets(Function<InternalAggregations, InternalAggregations> rewriter) {
         throw new IllegalStateException(
-                "Aggregation [" + getName() + "] must be a bucket aggregation but was [" + getWriteableName() + "]");
+            "Aggregation [" + getName() + "] must be a bucket aggregation but was [" + getWriteableName() + "]"
+        );
     }
 
     /**
@@ -210,7 +233,10 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      * be called after all aggregations have been fully reduced
      */
     public InternalAggregation reducePipelines(
-            InternalAggregation reducedAggs, ReduceContext reduceContext, PipelineTree pipelinesForThisAgg) {
+        InternalAggregation reducedAggs,
+        ReduceContext reduceContext,
+        PipelineTree pipelinesForThisAgg
+    ) {
         assert reduceContext.isFinalReduce();
         for (PipelineAggregator pipelineAggregator : pipelinesForThisAgg.aggregators()) {
             reducedAggs = pipelineAggregator.reduce(reducedAggs, reduceContext);
@@ -313,11 +339,12 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        if (obj == this) { return true; }
+        if (obj == this) {
+            return true;
+        }
 
         InternalAggregation other = (InternalAggregation) obj;
-        return Objects.equals(name, other.name) &&
-                Objects.equals(metadata, other.metadata);
+        return Objects.equals(name, other.name) && Objects.equals(metadata, other.metadata);
     }
 
     @Override

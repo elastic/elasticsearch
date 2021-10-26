@@ -25,14 +25,14 @@ setup:
       index:
         index: source
         id:    2
-        routing: 1
+        routing: "1"
         body:  { "join_field": { "name": "child", "parent": "1" } }
 
   - do:
       index:
         index: source
         id:    3
-        routing: 1
+        routing: "1"
         body:  { "join_field": { "name": "grand_child", "parent": "2" } }
 
   - do:

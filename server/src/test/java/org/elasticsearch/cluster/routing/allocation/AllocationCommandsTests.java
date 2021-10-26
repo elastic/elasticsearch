@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -52,9 +41,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
@@ -68,6 +57,7 @@ import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -164,7 +154,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
                 .add(newNode("node4", singleton(DiscoveryNodeRole.MASTER_ROLE)))
         ).build();
         clusterState = allocation.reroute(clusterState, "reroute");
-        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(0));
 
         logger.info("--> allocating to non-existent node, should fail");
         try {
@@ -242,7 +232,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         } catch (IllegalArgumentException e) {
         }
 
-        logger.info("--> allocate the replica shard on on the second node");
+        logger.info("--> allocate the replica shard on the second node");
         newState = allocation.reroute(clusterState,
             new AllocationCommands(new AllocateReplicaAllocationCommand("test", 0, "node2")), false, false).getClusterState();
         assertThat(newState, not(equalTo(clusterState)));
@@ -297,7 +287,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         clusterState = allocation.reroute(clusterState, "reroute");
 
         // mark all shards as stale
-        final List<ShardRouting> shardRoutings = clusterState.getRoutingNodes().shardsWithState(UNASSIGNED);
+        final List<ShardRouting> shardRoutings = shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED);
         assertThat(shardRoutings, hasSize(2));
 
         logger.info("--> allocating empty primary with acceptDataLoss flag set to true");
@@ -341,7 +331,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
                 .add(newNode("node3"))
         ).build();
         clusterState = allocation.reroute(clusterState, "reroute");
-        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(0));
 
         logger.info("--> allocating empty primary shard with accept_data_loss flag set to true");
         ClusterState newState = allocation.reroute(clusterState,

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.example;
@@ -66,7 +55,7 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
             Authentication authentication =
                 new Authentication(new User("joe", new String[]{"custom_superuser"}, new User("bar", "not_superuser")),
                     new RealmRef("test", "test", "node"), new RealmRef("test", "test", "node"));
-            RequestInfo info = new RequestInfo(authentication, request, action);
+            RequestInfo info = new RequestInfo(authentication, request, action, null);
             PlainActionFuture<AuthorizationInfo> future = new PlainActionFuture<>();
             engine.resolveAuthorizationInfo(info, future);
             AuthorizationInfo authzInfo = future.actionGet();
@@ -83,7 +72,7 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
             Authentication authentication =
                 new Authentication(new User("joe", new String[]{"not_superuser"}, new User("bar", "custom_superuser")),
                     new RealmRef("test", "test", "node"), new RealmRef("test", "test", "node"));
-            RequestInfo info = new RequestInfo(authentication, request, action);
+            RequestInfo info = new RequestInfo(authentication, request, action, null);
             PlainActionFuture<AuthorizationInfo> future = new PlainActionFuture<>();
             engine.resolveAuthorizationInfo(info, future);
             AuthorizationInfo authzInfo = future.actionGet();
@@ -115,7 +104,7 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
         {
             RequestInfo unauthReqInfo =
                 new RequestInfo(new Authentication(new User("joe", "not_superuser"), new RealmRef("test", "test", "node"), null),
-                    requestInfo.getRequest(), requestInfo.getAction());
+                    requestInfo.getRequest(), requestInfo.getAction(), null);
             PlainActionFuture<AuthorizationInfo> future = new PlainActionFuture<>();
             engine.resolveAuthorizationInfo(unauthReqInfo, future);
             AuthorizationInfo authzInfo = future.actionGet();
@@ -140,7 +129,7 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
         {
             RequestInfo requestInfo =
                 new RequestInfo(new Authentication(new User("joe", "custom_superuser"), new RealmRef("test", "test", "node"), null),
-                    new SearchRequest(), "indices:data/read/search");
+                    new SearchRequest(), "indices:data/read/search", null);
             PlainActionFuture<AuthorizationInfo> future = new PlainActionFuture<>();
             engine.resolveAuthorizationInfo(requestInfo, future);
             AuthorizationInfo authzInfo = future.actionGet();
@@ -161,7 +150,7 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
         {
             RequestInfo requestInfo =
                 new RequestInfo(new Authentication(new User("joe", "not_superuser"), new RealmRef("test", "test", "node"), null),
-                    new SearchRequest(), "indices:data/read/search");
+                    new SearchRequest(), "indices:data/read/search", null);
             PlainActionFuture<AuthorizationInfo> future = new PlainActionFuture<>();
             engine.resolveAuthorizationInfo(requestInfo, future);
             AuthorizationInfo authzInfo = future.actionGet();
@@ -183,6 +172,6 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
         final TransportRequest request = new TransportRequest() {};
         final Authentication authentication =
             new Authentication(new User("joe", "custom_superuser"), new RealmRef("test", "test", "node"), null);
-        return new RequestInfo(authentication, request, action);
+        return new RequestInfo(authentication, request, action, null);
     }
 }

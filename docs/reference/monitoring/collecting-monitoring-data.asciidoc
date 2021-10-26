@@ -42,7 +42,7 @@ For more information, see <<monitoring-settings>> and <<cluster-update-settings>
 --
 
 .. Set the `xpack.monitoring.collection.enabled` setting to `true` on each
-node in the cluster. By default, it is is disabled (`false`).
+node in the cluster. By default, it is disabled (`false`).
 +
 --
 NOTE: You can specify this setting in either the `elasticsearch.yml` on each
@@ -55,7 +55,10 @@ For example, use the following APIs to review and change this setting:
 [source,console]
 ----------------------------------
 GET _cluster/settings
+----------------------------------
 
+[source,console]
+----------------------------------
 PUT _cluster/settings
 {
   "persistent": {
@@ -63,6 +66,7 @@ PUT _cluster/settings
   }
 }
 ----------------------------------
+// TEST[warning:[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version.]
 
 Alternatively, you can enable this setting in {kib}. In the side navigation,
 click *Monitoring*. If data collection is disabled, you are prompted to turn it
@@ -125,7 +129,7 @@ HTTP exporter in the `xpack.monitoring.exporters` settings in the
 xpack.monitoring.exporters:
   id1:
     type: http
-    host: ["http://es-mon-1:9200", "http://es-mon2:9200"]
+    host: ["http://es-mon-1:9200", "http://es-mon-2:9200"]
 --------------------------------------------------
 --
 
@@ -148,14 +152,14 @@ For example:
 xpack.monitoring.exporters:
   id1:
     type: http
-    host: ["http://es-mon-1:9200", "http://es-mon2:9200"]
+    host: ["http://es-mon-1:9200", "http://es-mon-2:9200"]
     auth.username: remote_monitoring_user
     # "xpack.monitoring.exporters.id1.auth.secure_password" must be set in the keystore
 --------------------------------------------------
 --
 
 .. If you configured the monitoring cluster to use
-<<configuring-tls,encrypted communications>>, you must use the HTTPS protocol in
+<<encrypt-internode-communication,encrypted communications>>, you must use the HTTPS protocol in
 the `host` setting. You must also specify the trusted CA certificates that will
 be used to verify the identity of the nodes in the monitoring cluster.
 
@@ -169,7 +173,7 @@ specify the location of the PEM encoded certificate with the
 xpack.monitoring.exporters:
   id1:
     type: http
-    host: ["https://es-mon1:9200", "https://es-mon2:9200"]
+    host: ["https://es-mon1:9200", "https://es-mon-2:9200"]
     auth:
       username: remote_monitoring_user
       # "xpack.monitoring.exporters.id1.auth.secure_password" must be set in the keystore
@@ -187,7 +191,7 @@ xpack.monitoring.exporters:
 xpack.monitoring.exporters:
   id1:
     type: http
-    host: ["https://es-mon1:9200", "https://es-mon2:9200"]
+    host: ["https://es-mon1:9200", "https://es-mon-2:9200"]
     auth:
       username: remote_monitoring_user
       # "xpack.monitoring.exporters.id1.auth.secure_password" must be set in the keystore

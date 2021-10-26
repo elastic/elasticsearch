@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -48,6 +37,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Random;
 
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -136,7 +126,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
             } else {
                 clusterState = strategy.reroute(clusterState, "reroute");
             }
-            if (clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size() > 0) {
+            if (shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size() > 0) {
                 clusterState = startInitializingShardsAndReroute(strategy, clusterState);
             }
         }
@@ -159,18 +149,18 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
         do {
             iterations++;
             clusterState = strategy.reroute(clusterState, "reroute");
-            if (clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size() > 0) {
+            if (shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size() > 0) {
                 clusterState = startInitializingShardsAndReroute(strategy, clusterState);
             }
 
-        } while (clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size() != 0 ||
-                clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size() != 0 && iterations < 200);
+        } while (shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING).size() != 0 ||
+            shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.UNASSIGNED).size() != 0 && iterations < 200);
         logger.info("Done Balancing after [{}] iterations. State:\n{}", iterations, clusterState);
         // we stop after 200 iterations if it didn't stabelize by then something is likely to be wrong
         assertThat("max num iteration exceeded", iterations, Matchers.lessThan(200));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(0));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(0));
-        int shards = clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size();
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING).size(), equalTo(0));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.UNASSIGNED).size(), equalTo(0));
+        int shards = shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size();
         assertThat(shards, equalTo(totalNumShards));
         final int numNodes = clusterState.nodes().getSize();
         final int upperBound = (int) Math.round(((shards / numNodes) * 1.10));

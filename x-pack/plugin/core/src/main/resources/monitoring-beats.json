@@ -1,6 +1,6 @@
 {
   "index_patterns": [
-    ".monitoring-beats-${monitoring.template.version}-*"
+    ".monitoring-beats-${xpack.monitoring.template.version}-*"
   ],
   "settings": {
     "index.auto_expand_replicas": "0-1",
@@ -9,7 +9,7 @@
     "index.number_of_replicas": 0,
     "index.number_of_shards": 1
   },
-  "version": 7000099,
+  "version": ${xpack.monitoring.template.release.version},
   "mappings": {
     "_doc": {
       "dynamic": false,
@@ -291,6 +291,9 @@
                               "type": "long"
                             }
                           }
+                        },
+                        "version": {
+                          "type": "keyword"
                         }
                       }
                     },

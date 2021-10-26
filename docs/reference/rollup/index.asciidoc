@@ -6,7 +6,7 @@
 experimental[]
 
 Keeping historical data around for analysis is extremely useful but often avoided due to the financial cost of
-archiving massive amounts of data.  Retention periods are thus driven by financial realities rather than by the
+archiving massive amounts of data. Retention periods are thus driven by financial realities rather than by the
 usefulness of extensive historical data.
 
 // tag::rollup-intro[]

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.routing.allocation.decider;
 
@@ -45,6 +34,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING;
@@ -75,7 +65,7 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
             .nodes(discoveryNodesBuilder).metadata(metadataBuilder).routingTable(routingTableBuilder.build()).build();
 
         while (clusterState.getRoutingNodes().hasUnassignedShards()
-               || clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).isEmpty() == false) {
+               || shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING).isEmpty() == false) {
             clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
         }
 
@@ -109,7 +99,7 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
 
     public void testRebalancingSkippedIfDisabledIncludingOnSpecificIndices() {
         ClusterState clusterState = createClusterStateWithAllShardsAssigned();
-        final IndexMetadata indexMetadata = randomFrom(clusterState.metadata().indices().values().toArray(IndexMetadata.class));
+        final IndexMetadata indexMetadata = randomFrom(clusterState.metadata().indices().values().toArray(IndexMetadata[]::new));
         clusterState = ClusterState.builder(clusterState).metadata(Metadata.builder(clusterState.metadata())
             .put(IndexMetadata.builder(indexMetadata).settings(Settings.builder().put(indexMetadata.getSettings())
                 .put(INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE.name()))).build()).build();
@@ -124,7 +114,7 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
 
     public void testRebalancingAttemptedIfDisabledButOverridenOnSpecificIndices() {
         ClusterState clusterState = createClusterStateWithAllShardsAssigned();
-        final IndexMetadata indexMetadata = randomFrom(clusterState.metadata().indices().values().toArray(IndexMetadata.class));
+        final IndexMetadata indexMetadata = randomFrom(clusterState.metadata().indices().values());
         clusterState = ClusterState.builder(clusterState).metadata(Metadata.builder(clusterState.metadata())
             .put(IndexMetadata.builder(indexMetadata).settings(Settings.builder().put(indexMetadata.getSettings())
                 .put(INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(),

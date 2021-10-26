@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.ssl;
@@ -49,7 +38,7 @@ public class SslConfigurationTests extends ESTestCase {
         final List<String> ciphers = randomSubsetOf(randomIntBetween(1, DEFAULT_CIPHERS.size()), DEFAULT_CIPHERS);
         final List<String> protocols = randomSubsetOf(randomIntBetween(1, 4), VALID_PROTOCOLS);
         final SslConfiguration configuration =
-            new SslConfiguration(trustConfig, keyConfig, verificationMode, clientAuth, ciphers, protocols);
+            new SslConfiguration(true, trustConfig, keyConfig, verificationMode, clientAuth, ciphers, protocols);
 
         assertThat(configuration.getTrustConfig(), is(trustConfig));
         assertThat(configuration.getKeyConfig(), is(keyConfig));
@@ -74,27 +63,27 @@ public class SslConfigurationTests extends ESTestCase {
         final List<String> ciphers = randomSubsetOf(randomIntBetween(1, DEFAULT_CIPHERS.size() - 1), DEFAULT_CIPHERS);
         final List<String> protocols = randomSubsetOf(randomIntBetween(1, VALID_PROTOCOLS.length - 1), VALID_PROTOCOLS);
         final SslConfiguration configuration =
-            new SslConfiguration(trustConfig, keyConfig, verificationMode, clientAuth, ciphers, protocols);
+            new SslConfiguration(true, trustConfig, keyConfig, verificationMode, clientAuth, ciphers, protocols);
 
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(configuration,
-            orig -> new SslConfiguration(orig.getTrustConfig(), orig.getKeyConfig(), orig.getVerificationMode(), orig.getClientAuth(),
+            orig -> new SslConfiguration(true, orig.getTrustConfig(), orig.getKeyConfig(), orig.getVerificationMode(), orig.getClientAuth(),
                 orig.getCipherSuites(), orig.getSupportedProtocols()),
             orig -> {
                 switch (randomIntBetween(1, 4)) {
                     case 1:
-                        return new SslConfiguration(orig.getTrustConfig(), orig.getKeyConfig(),
+                        return new SslConfiguration(true, orig.getTrustConfig(), orig.getKeyConfig(),
                             randomValueOtherThan(orig.getVerificationMode(), () -> randomFrom(SslVerificationMode.values())),
                             orig.getClientAuth(), orig.getCipherSuites(), orig.getSupportedProtocols());
                     case 2:
-                        return new SslConfiguration(orig.getTrustConfig(), orig.getKeyConfig(), orig.getVerificationMode(),
+                        return new SslConfiguration(true, orig.getTrustConfig(), orig.getKeyConfig(), orig.getVerificationMode(),
                             randomValueOtherThan(orig.getClientAuth(), () -> randomFrom(SslClientAuthenticationMode.values())),
                             orig.getCipherSuites(), orig.getSupportedProtocols());
                     case 3:
-                        return new SslConfiguration(orig.getTrustConfig(), orig.getKeyConfig(),
+                        return new SslConfiguration(true, orig.getTrustConfig(), orig.getKeyConfig(),
                             orig.getVerificationMode(), orig.getClientAuth(), DEFAULT_CIPHERS, orig.getSupportedProtocols());
                     case 4:
                     default:
-                        return new SslConfiguration(orig.getTrustConfig(), orig.getKeyConfig(), orig.getVerificationMode(),
+                        return new SslConfiguration(true, orig.getTrustConfig(), orig.getKeyConfig(), orig.getVerificationMode(),
                             orig.getClientAuth(), orig.getCipherSuites(), Arrays.asList(VALID_PROTOCOLS));
                 }
             });
@@ -103,7 +92,7 @@ public class SslConfigurationTests extends ESTestCase {
     public void testDependentFiles() {
         final SslTrustConfig trustConfig = Mockito.mock(SslTrustConfig.class);
         final SslKeyConfig keyConfig = Mockito.mock(SslKeyConfig.class);
-        final SslConfiguration configuration = new SslConfiguration(trustConfig, keyConfig,
+        final SslConfiguration configuration = new SslConfiguration(true, trustConfig, keyConfig,
             randomFrom(SslVerificationMode.values()), randomFrom(SslClientAuthenticationMode.values()),
             DEFAULT_CIPHERS, SslConfigurationLoader.DEFAULT_PROTOCOLS);
 
@@ -123,7 +112,7 @@ public class SslConfigurationTests extends ESTestCase {
         final SslTrustConfig trustConfig = Mockito.mock(SslTrustConfig.class);
         final SslKeyConfig keyConfig = Mockito.mock(SslKeyConfig.class);
         final String protocol = randomFrom(SslConfigurationLoader.DEFAULT_PROTOCOLS);
-        final SslConfiguration configuration = new SslConfiguration(trustConfig, keyConfig,
+        final SslConfiguration configuration = new SslConfiguration(true, trustConfig, keyConfig,
             randomFrom(SslVerificationMode.values()), randomFrom(SslClientAuthenticationMode.values()),
             DEFAULT_CIPHERS, Collections.singletonList(protocol));
 

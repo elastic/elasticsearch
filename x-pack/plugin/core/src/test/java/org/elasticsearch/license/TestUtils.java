@@ -1,26 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-import org.elasticsearch.Version;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.licensor.LicenseSigner;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.MatcherAssert;
 import org.junit.Assert;
 
@@ -39,12 +40,13 @@ import java.util.concurrent.atomic.AtomicReference;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomInt;
 import static org.apache.lucene.util.LuceneTestCase.createTempFile;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Mockito.mock;
 
 public class TestUtils {
 
@@ -359,24 +361,22 @@ public class TestUtils {
     public static class AssertingLicenseState extends XPackLicenseState {
         public final List<License.OperationMode> modeUpdates = new ArrayList<>();
         public final List<Boolean> activeUpdates = new ArrayList<>();
-        public final List<Version> trialVersionUpdates = new ArrayList<>();
-        public final List<Long> expirationDateUpdates = new ArrayList<>();
+        public final List<String> expiryWarnings = new ArrayList<>();
 
         public AssertingLicenseState() {
-            super(Settings.EMPTY, () -> 0);
+            super(() -> 0);
         }
 
         @Override
-        void update(License.OperationMode mode, boolean active, long expirationDate, Version mostRecentTrialVersion) {
+        protected void update(License.OperationMode mode, boolean active, String expiryWarning) {
             modeUpdates.add(mode);
             activeUpdates.add(active);
-            expirationDateUpdates.add(expirationDate);
-            trialVersionUpdates.add(mostRecentTrialVersion);
+            expiryWarnings.add(expiryWarning);
         }
     }
 
     /**
-     * A license state that makes the {@link #update(License.OperationMode, boolean, long, Version)}
+     * A license state that makes the {@link #update(License.OperationMode, boolean, String)}
      * method public for use in tests.
      */
     public static class UpdatableLicenseState extends XPackLicenseState {
@@ -385,20 +385,24 @@ public class TestUtils {
         }
 
         public UpdatableLicenseState(Settings settings) {
-            super(settings, () -> 0);
+            super(() -> 0);
         }
 
         @Override
-        public void update(License.OperationMode mode, boolean active, long expirationDate, Version mostRecentTrialVersion) {
-            super.update(mode, active, expirationDate, mostRecentTrialVersion);
+        public void update(License.OperationMode mode, boolean active, String expiryWarning) {
+            super.update(mode, active, expiryWarning);
         }
     }
 
     public static XPackLicenseState newTestLicenseState() {
-        return new XPackLicenseState(Settings.EMPTY, () -> 0);
+        return new XPackLicenseState(() -> 0);
     }
 
     public static void putLicense(Metadata.Builder builder, License license) {
         builder.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(license, null));
+    }
+
+    public static MockLicenseState newMockLicenceState() {
+        return mock(MockLicenseState.class);
     }
 }

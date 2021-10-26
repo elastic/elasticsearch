@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.transforms;
 
@@ -11,6 +12,8 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.time.ZoneOffset;
@@ -23,7 +26,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -252,9 +255,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 "        \"detectors\" :[{\"function\":\"count\", \"by_field_name\" : \"domain_split\"}]\n" +
                 "    },\n" +
                 "    \"data_description\" : {\n" +
-                "        \"field_delimiter\":\",\",\n" +
                 "        \"time_field\":\"time\"\n" +
-                "        \n" +
                 "    }\n" +
                 "}");
         client().performRequest(createJobRequest);
@@ -279,7 +280,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
 
         for (int i = 1; i <= 100; i++) {
             ZonedDateTime time = baseTime.plusHours(i);
-            String formattedTime = time.format(DateTimeFormatter.ISO_DATE_TIME);
+            String formattedTime = DateFormatter.forPattern("strict_date_optional_time").format(time);
             if (i % 50 == 0) {
                 // Anomaly has 100 docs, but we don't care about the value
                 for (int j = 0; j < 100; j++) {

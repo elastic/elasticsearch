@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.async;
 
@@ -14,6 +15,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
@@ -42,9 +44,10 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
     public void setup() {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         TransportService transportService = getInstanceFromNode(TransportService.class);
+        BigArrays bigArrays = getInstanceFromNode(BigArrays.class);
         indexService = new AsyncTaskIndexService<>(index, clusterService,
             transportService.getThreadPool().getThreadContext(),
-            client(), "test_origin", AsyncSearchResponse::new, writableRegistry());
+            client(), "test_origin", AsyncSearchResponse::new, writableRegistry(), bigArrays);
     }
 
     @Override
@@ -62,6 +65,16 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
             return List.of(AsyncTaskIndexService.getSystemIndexDescriptor());
         }
+
+        @Override
+        public String getFeatureName() {
+            return this.getClass().getSimpleName();
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return this.getClass().getCanonicalName();
+        }
     }
 
     public void testEnsuredAuthenticatedUserIsSame() throws IOException {
@@ -69,7 +82,7 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
             new Authentication(new User("test", "role"), new Authentication.RealmRef("realm", "file", "node"), null);
         Authentication current = randomBoolean() ? original :
             new Authentication(new User("test", "role"), new Authentication.RealmRef("realm", "file", "node"), null);
-        assertTrue(indexService.ensureAuthenticatedUserIsSame(original, current));
+        assertTrue(original.canAccessResourcesOf(current));
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         original.writeToContext(threadContext);
         assertTrue(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), current));
@@ -83,14 +96,14 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         User user = new User(new User("test", "role"), new User("authenticated", "runas"));
         current = new Authentication(user, new Authentication.RealmRef("realm", "file", "node"),
             new Authentication.RealmRef(randomAlphaOfLengthBetween(1, 16), "file", "node"));
-        assertTrue(indexService.ensureAuthenticatedUserIsSame(original, current));
+        assertTrue(original.canAccessResourcesOf(current));
         assertTrue(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), current));
 
         // both user are run as
         current = new Authentication(user, new Authentication.RealmRef("realm", "file", "node"),
             new Authentication.RealmRef(randomAlphaOfLengthBetween(1, 16), "file", "node"));
         Authentication runAs = current;
-        assertTrue(indexService.ensureAuthenticatedUserIsSame(runAs, current));
+        assertTrue(runAs.canAccessResourcesOf(current));
         threadContext = new ThreadContext(Settings.EMPTY);
         original.writeToContext(threadContext);
         assertTrue(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), current));
@@ -100,24 +113,24 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
             new Authentication(new User("test", "role"), new Authentication.RealmRef("realm", randomAlphaOfLength(5), "node"), null);
         threadContext = new ThreadContext(Settings.EMPTY);
         original.writeToContext(threadContext);
-        assertFalse(indexService.ensureAuthenticatedUserIsSame(original, differentRealmType));
+        assertFalse(original.canAccessResourcesOf(differentRealmType));
         assertFalse(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), differentRealmType));
 
         // wrong user
         Authentication differentUser =
             new Authentication(new User("test2", "role"), new Authentication.RealmRef("realm", "realm", "node"), null);
-        assertFalse(indexService.ensureAuthenticatedUserIsSame(original, differentUser));
+        assertFalse(original.canAccessResourcesOf(differentUser));
 
         // run as different user
         Authentication diffRunAs = new Authentication(new User(new User("test2", "role"), new User("authenticated", "runas")),
             new Authentication.RealmRef("realm", "file", "node1"), new Authentication.RealmRef("realm", "file", "node1"));
-        assertFalse(indexService.ensureAuthenticatedUserIsSame(original, diffRunAs));
+        assertFalse(original.canAccessResourcesOf(diffRunAs));
         assertFalse(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), diffRunAs));
 
         // run as different looked up by type
         Authentication runAsDiffType = new Authentication(user, new Authentication.RealmRef("realm", "file", "node"),
             new Authentication.RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLengthBetween(5, 12), "node"));
-        assertFalse(indexService.ensureAuthenticatedUserIsSame(original, runAsDiffType));
+        assertFalse(original.canAccessResourcesOf(runAsDiffType));
         assertFalse(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), runAsDiffType));
     }
 

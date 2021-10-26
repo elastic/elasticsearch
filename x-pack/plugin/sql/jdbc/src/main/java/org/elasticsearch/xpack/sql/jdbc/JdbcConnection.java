@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
@@ -50,7 +51,8 @@ class JdbcConnection implements Connection, JdbcWrapper {
 
     JdbcConnection(JdbcConfiguration connectionInfo, boolean checkServer) throws SQLException {
         cfg = connectionInfo;
-        client = new JdbcHttpClient(connectionInfo, checkServer);
+        client = new JdbcHttpClient(this, checkServer);
+        catalog = cfg.catalog();
         url = connectionInfo.connectionString();
         userName = connectionInfo.authUser();
     }
@@ -64,13 +66,13 @@ class JdbcConnection implements Connection, JdbcWrapper {
     @Override
     public Statement createStatement() throws SQLException {
         checkOpen();
-        return new JdbcStatement(this, cfg);
+        return new JdbcStatement(this);
     }
 
     @Override
     public PreparedStatement prepareStatement(String sql) throws SQLException {
         checkOpen();
-        return new JdbcPreparedStatement(this, cfg, sql);
+        return new JdbcPreparedStatement(this, sql);
     }
 
     @Override
@@ -87,7 +89,7 @@ class JdbcConnection implements Connection, JdbcWrapper {
     @Override
     public void setAutoCommit(boolean autoCommit) throws SQLException {
         checkOpen();
-        if (!autoCommit) {
+        if (autoCommit == false) {
             new SQLFeatureNotSupportedException("Non auto-commit is not supported");
         }
     }
@@ -118,7 +120,7 @@ class JdbcConnection implements Connection, JdbcWrapper {
 
     @Override
     public void close() throws SQLException {
-        if (!isClosed()) {
+        if (isClosed() == false) {
             closed = true;
             Debug.release(cfg);
         }
@@ -136,7 +138,7 @@ class JdbcConnection implements Connection, JdbcWrapper {
 
     @Override
     public void setReadOnly(boolean readOnly) throws SQLException {
-        if (!readOnly) {
+        if (readOnly == false) {
             throw new SQLFeatureNotSupportedException("Only read-only mode is supported");
         }
     }
@@ -324,7 +326,7 @@ class JdbcConnection implements Connection, JdbcWrapper {
         if (timeout < 0) {
             throw new SQLException("Negative timeout");
         }
-        return !isClosed() && client.ping(TimeUnit.SECONDS.toMillis(timeout));
+        return isClosed() == false && client.ping(TimeUnit.SECONDS.toMillis(timeout));
     }
 
     private void checkOpenClientInfo() throws SQLClientInfoException {
@@ -411,6 +413,10 @@ class JdbcConnection implements Connection, JdbcWrapper {
         if (ResultSet.HOLD_CURSORS_OVER_COMMIT != resultSetHoldability) {
             throw new SQLFeatureNotSupportedException("Holdability can only be HOLD_CURSORS_OVER_COMMIT");
         }
+    }
+
+    JdbcConfiguration config() {
+        return cfg;
     }
 
     String getURL() {

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.rest.action.saml;
@@ -10,12 +11,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -46,7 +47,7 @@ public class RestSamlCompleteLogoutAction extends SamlBaseRestHandler{
         PARSER = new ObjectParser<>("saml_complete_logout", SamlCompleteLogoutRequest::new);
 
     static {
-        PARSER.declareStringOrNull(SamlCompleteLogoutRequest::setQueryString, new ParseField("queryString"));
+        PARSER.declareStringOrNull(SamlCompleteLogoutRequest::setQueryString, new ParseField("query_string", "queryString"));
         PARSER.declareStringOrNull(SamlCompleteLogoutRequest::setContent, new ParseField("content"));
         PARSER.declareStringArray(SamlCompleteLogoutRequest::setValidRequestIds, new ParseField("ids"));
         PARSER.declareString(SamlCompleteLogoutRequest::setRealm, new ParseField("realm"));

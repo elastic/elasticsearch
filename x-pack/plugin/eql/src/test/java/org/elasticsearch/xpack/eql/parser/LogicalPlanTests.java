@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.parser;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.action.RequestDefaults;
 import org.elasticsearch.xpack.eql.plan.logical.Head;
@@ -106,7 +107,7 @@ public class LogicalPlanTests extends ESTestCase {
         assertEquals(UnresolvedAttribute.class, key.getClass());
         assertEquals("pid", ((UnresolvedAttribute) key).name());
     }
-    
+
     public void testSequencePlan() {
         LogicalPlan plan = parser.createStatement(
                 "sequence by pid with maxspan=2s " +
@@ -176,6 +177,16 @@ public class LogicalPlanTests extends ESTestCase {
 
         TimeValue maxSpan = seq.maxSpan();
         assertEquals(new TimeValue(2, TimeUnit.SECONDS), maxSpan);
+    }
+
+    public void testRepeatedQuery() throws Exception {
+        LogicalPlan plan = parser.createStatement("sequence " + " [any where true] with runs=2" + " [any where true]");
+        plan = defaultPipes(plan);
+        assertEquals(Sequence.class, plan.getClass());
+        Sequence seq = (Sequence) plan;
+
+        List<? extends LogicalPlan> queries = seq.queries();
+        assertEquals(3, queries.size());
     }
 
     private LogicalPlan wrapFilter(Expression exp) {

@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.snapshots;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -31,7 +21,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -56,9 +45,13 @@ import java.util.function.Supplier;
 
 public class InternalSnapshotsInfoService implements ClusterStateListener, SnapshotsInfoService {
 
-    public static final Setting<Integer> INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING =
-        Setting.intSetting("cluster.snapshot.info.max_concurrent_fetches", 5, 1,
-            Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<Integer> INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING = Setting.intSetting(
+        "cluster.snapshot.info.max_concurrent_fetches",
+        5,
+        1,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     private static final Logger logger = LogManager.getLogger(InternalSnapshotsInfoService.class);
 
@@ -100,8 +93,8 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
         this.repositoriesService = repositoriesServiceSupplier;
         this.rerouteService = rerouteServiceSupplier;
         this.knownSnapshotShards = ImmutableOpenMap.of();
-        this.unknownSnapshotShards  = new LinkedHashSet<>();
-        this.failedSnapshotShards  = new LinkedHashSet<>();
+        this.unknownSnapshotShards = new LinkedHashSet<>();
+        this.failedSnapshotShards = new LinkedHashSet<>();
         this.queue = new LinkedList<>();
         this.mutex = new Object();
         this.activeFetches = 0;
@@ -119,7 +112,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
 
     @Override
     public SnapshotShardSizeInfo snapshotShardSizes() {
-        synchronized (mutex){
+        synchronized (mutex) {
             final ImmutableOpenMap.Builder<SnapshotShard, Long> snapshotShardSizes = ImmutableOpenMap.builder(knownSnapshotShards);
             if (failedSnapshotShards.isEmpty() == false) {
                 for (SnapshotShard snapshotShard : failedSnapshotShards) {
@@ -228,8 +221,9 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
                 removed = unknownSnapshotShards.remove(snapshotShard);
                 assert removed : "snapshot shard to remove does not exist " + snapshotShardSize;
                 if (isMaster) {
-                    final ImmutableOpenMap.Builder<SnapshotShard, Long> newSnapshotShardSizes =
-                        ImmutableOpenMap.builder(knownSnapshotShards);
+                    final ImmutableOpenMap.Builder<SnapshotShard, Long> newSnapshotShardSizes = ImmutableOpenMap.builder(
+                        knownSnapshotShards
+                    );
                     updated = newSnapshotShardSizes.put(snapshotShard, snapshotShardSize) == null;
                     assert updated : "snapshot shard size already exists for " + snapshotShard;
                     knownSnapshotShards = newSnapshotShardSizes.build();
@@ -325,12 +319,15 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
 
     private static Set<SnapshotShard> listOfSnapshotShards(final ClusterState state) {
         final Set<SnapshotShard> snapshotShards = new HashSet<>();
-        for (ShardRouting shardRouting : state.routingTable().shardsWithState(ShardRoutingState.UNASSIGNED)) {
+        for (ShardRouting shardRouting : state.getRoutingNodes().unassigned()) {
             if (shardRouting.primary() && shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
-                final RecoverySource.SnapshotRecoverySource snapshotRecoverySource =
-                    (RecoverySource.SnapshotRecoverySource) shardRouting.recoverySource();
-                final SnapshotShard snapshotShard = new SnapshotShard(snapshotRecoverySource.snapshot(),
-                    snapshotRecoverySource.index(), shardRouting.shardId());
+                final RecoverySource.SnapshotRecoverySource snapshotRecoverySource = (RecoverySource.SnapshotRecoverySource) shardRouting
+                    .recoverySource();
+                final SnapshotShard snapshotShard = new SnapshotShard(
+                    snapshotRecoverySource.snapshot(),
+                    snapshotRecoverySource.index(),
+                    shardRouting.shardId()
+                );
                 snapshotShards.add(snapshotShard);
             }
         }
@@ -370,9 +367,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
                 return false;
             }
             final SnapshotShard that = (SnapshotShard) o;
-            return shardId.equals(that.shardId)
-                && snapshot.equals(that.snapshot)
-                && index.equals(that.index);
+            return shardId.equals(that.shardId) && snapshot.equals(that.snapshot) && index.equals(that.index);
         }
 
         @Override
@@ -382,11 +377,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
 
         @Override
         public String toString() {
-            return "[" +
-                "snapshot=" + snapshot +
-                ", index=" + index +
-                ", shard=" + shardId +
-                ']';
+            return "[" + "snapshot=" + snapshot + ", index=" + index + ", shard=" + shardId + ']';
         }
     }
 }

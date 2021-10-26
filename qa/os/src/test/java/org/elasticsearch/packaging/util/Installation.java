@@ -1,23 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.packaging.util;
+
+import org.elasticsearch.core.Nullable;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -43,6 +34,8 @@ public class Installation {
     public final Path modules;
     public final Path pidDir;
     public final Path envFile;
+    @Nullable
+    private String elasticPassword; // auto-configured password upon installation
 
     private Installation(
         Shell sh,
@@ -69,6 +62,7 @@ public class Installation {
         this.modules = modules;
         this.pidDir = pidDir;
         this.envFile = envFile;
+        this.elasticPassword = null;
     }
 
     public static Installation ofArchive(Shell sh, Distribution distribution, Path home) {
@@ -147,6 +141,14 @@ public class Installation {
         return config.resolve(configFileName);
     }
 
+    public String getElasticPassword() {
+        return this.elasticPassword;
+    }
+
+    public void setElasticPassword(String password) {
+        this.elasticPassword = password;
+    }
+
     public Executables executables() {
         return new Executables();
     }
@@ -197,8 +199,12 @@ public class Installation {
         public final Executable shardTool = new Executable("elasticsearch-shard");
         public final Executable nodeTool = new Executable("elasticsearch-node");
         public final Executable setupPasswordsTool = new Executable("elasticsearch-setup-passwords");
+        public final Executable resetPasswordTool = new Executable("elasticsearch-reset-password");
+        public final Executable createEnrollmentToken = new Executable("elasticsearch-create-enrollment-token");
+        public final Executable enrollToExistingCluster = new Executable("elasticsearch-enroll-node");
         public final Executable sqlCli = new Executable("elasticsearch-sql-cli");
         public final Executable syskeygenTool = new Executable("elasticsearch-syskeygen");
         public final Executable usersTool = new Executable("elasticsearch-users");
+        public final Executable serviceTokensTool = new Executable("elasticsearch-service-tokens");
     }
 }

@@ -84,7 +84,7 @@ Alternatively, you can set the initial passwords for the built-in users by using
 the *Management > Users* page in {kib} or the
 <<security-api-change-password,change password API>>. These methods are
 more complex. You must supply the `elastic` user and its bootstrap password to
-log into {kib} or run the API. This requirement means that you cannot use the
+log in to {kib} or run the API. This requirement means that you cannot use the
 default bootstrap password that is derived from the `keystore.seed` setting.
 Instead, you must explicitly set a `bootstrap.password` setting in the keystore
 before you start {es}. For example, the following command prompts you to enter a
@@ -96,7 +96,7 @@ bin/elasticsearch-keystore add "bootstrap.password"
 ----------------------------------------------------
 
 You can then start {es} and {kib} and use the `elastic` user and bootstrap
-password to log into {kib} and change the passwords. Alternatively, you can
+password to log in to {kib} and change the passwords. Alternatively, you can
 submit Change Password API requests for each built-in user. These methods are
 better suited for changing your passwords after the initial setup is complete,
 since at that point the bootstrap password is no longer required.
@@ -179,7 +179,7 @@ for these users.
 The `apm_system` user is used internally within APM when monitoring is enabled.
 
 To enable this feature in APM, you need to update the
-{apm-server-ref}/configuring-howto-apm-server.html[APM configuration file] to
+`apm-server.yml` configuration file to
 reference the correct username and password. For example:
 
 [source,yaml]
@@ -188,7 +188,6 @@ xpack.monitoring.elasticsearch.username: apm_system
 xpack.monitoring.elasticsearch.password: apmserverpassword
 ----------------------------------------------------------
 
-See {apm-server-ref}/monitoring.html[Monitoring APM Server].
 
 If you have upgraded from an older version of {es}, then you may not have set a
 password for the `apm_system` user. If this is the case,

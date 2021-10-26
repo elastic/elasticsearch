@@ -128,7 +128,7 @@ class InjectorBuilder {
         stopwatch.resetAndLog("Provider verification");
 
         for (InjectorShell shell : shells) {
-            if (!shell.getElements().isEmpty()) {
+            if (shell.getElements().isEmpty() == false) {
                 throw new AssertionError("Failed to execute " + shell.getElements());
             }
         }

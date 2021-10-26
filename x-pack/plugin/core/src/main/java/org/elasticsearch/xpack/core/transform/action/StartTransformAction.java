@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.action;
@@ -13,8 +14,9 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 
@@ -35,7 +37,8 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
 
         private final String id;
 
-        public Request(String id) {
+        public Request(String id, TimeValue timeout) {
+            super(timeout);
             this.id = ExceptionsHelper.requireNonNull(id, TransformField.ID.getPreferredName());
         }
 
@@ -67,7 +70,8 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
 
         @Override
         public int hashCode() {
-            return Objects.hash(id);
+            // the base class does not implement hashCode, therefore we need to hash timeout ourselves
+            return Objects.hash(timeout(), id);
         }
 
         @Override
@@ -79,7 +83,8 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(id, other.id);
+            // the base class does not implement equals, therefore we need to check timeout ourselves
+            return Objects.equals(id, other.id) && timeout().equals(other.timeout());
         }
     }
 

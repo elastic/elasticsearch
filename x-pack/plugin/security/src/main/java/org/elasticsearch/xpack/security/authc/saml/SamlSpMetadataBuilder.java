@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
@@ -252,7 +253,7 @@ public class SamlSpMetadataBuilder {
             throw new IllegalStateException("NameID format has not been specified");
         }
         final NameIDFormat format = new NameIDFormatBuilder().buildObject();
-        format.setFormat(this.nameIdFormat);
+        format.setURI(this.nameIdFormat);
         return format;
     }
 
@@ -274,7 +275,7 @@ public class SamlSpMetadataBuilder {
         service.setIsDefault(true);
         service.getNames().add(buildServiceName());
         attributeNames.forEach((name, friendlyName) -> {
-            service.getRequestAttributes().add(buildRequestedAttribute(friendlyName, name));
+            service.getRequestedAttributes().add(buildRequestedAttribute(friendlyName, name));
         });
         return service;
     }
@@ -341,7 +342,7 @@ public class SamlSpMetadataBuilder {
         displayName.setValue(this.organization.displayName);
         displayName.setXMLLang(lang);
         final OrganizationURL url = new OrganizationURLBuilder().buildObject();
-        url.setValue(this.organization.url);
+        url.setURI(this.organization.url);
         url.setXMLLang(lang);
 
         final Organization org = new OrganizationBuilder().buildObject();
@@ -353,11 +354,11 @@ public class SamlSpMetadataBuilder {
 
     private ContactPerson buildContact(ContactInfo contact) {
         final GivenName givenName = new GivenNameBuilder().buildObject();
-        givenName.setName(contact.givenName);
+        givenName.setValue(contact.givenName);
         final SurName surName = new SurNameBuilder().buildObject();
-        surName.setName(contact.surName);
+        surName.setValue(contact.surName);
         final EmailAddress email = new EmailAddressBuilder().buildObject();
-        email.setAddress(contact.email);
+        email.setURI(contact.email);
 
         final ContactPerson person = new ContactPersonBuilder().buildObject();
         person.setType(contact.type);

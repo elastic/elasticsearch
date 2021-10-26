@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.transport.filter;
 
@@ -9,7 +10,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.junit.BeforeClass;
 
 import java.net.InetAddress;
@@ -20,6 +20,8 @@ import java.util.Locale;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = TEST, supportsDedicatedMasters = false, numDataNodes = 1)
@@ -40,10 +42,10 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         String randomClientPortRange = randomClientPort + "-" + (randomClientPort+100);
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(super.nodeSettings(nodeOrdinal, otherSettings))
                 .put("xpack.security.transport.filter.deny", "127.0.0.200")
                 .put("transport.profiles.client.port", randomClientPortRange)
                 .build();
@@ -115,10 +117,43 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
             settings = Settings.builder()
                     .put(IPFilter.IP_FILTER_ENABLED_HTTP_SETTING.getKey(), false)
                     .build();
-            // as we permanently switch between persistent and transient settings, just set both here to make sure we overwrite
             assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
             assertConnectionAccepted(".http", "127.0.0.8");
+        }
+    }
+
+    public void testThatInvalidDynamicIpFilterConfigurationIsRejected() {
+        final Settings.Builder initialSettingsBuilder = Settings.builder();
+        if (randomBoolean()) {
+            initialSettingsBuilder.put(IPFilter.IP_FILTER_ENABLED_SETTING.getKey(), randomBoolean());
+        }
+        if (randomBoolean()) {
+            initialSettingsBuilder.put(IPFilter.IP_FILTER_ENABLED_HTTP_SETTING.getKey(), randomBoolean());
+        }
+        final Settings initialSettings = initialSettingsBuilder.build();
+        if (initialSettings.isEmpty() == false) {
+            updateSettings(initialSettings);
+        }
+
+        final String invalidValue = "http://";
+
+        for (final String settingPrefix : new String[] {
+                "xpack.security.transport.filter",
+                "xpack.security.http.filter",
+                "transport.profiles.default.xpack.security.filter",
+                "transport.profiles.anotherprofile.xpack.security.filter"
+        }) {
+            for (final String settingSuffix : new String[]{"allow", "deny"}) {
+                final String settingName = settingPrefix + "." + settingSuffix;
+                final Settings settings = Settings.builder().put(settingName, invalidValue).build();
+                assertThat(
+                        settingName,
+                        expectThrows(
+                                IllegalArgumentException.class,
+                                settingName,
+                                () -> updateSettings(settings)).getMessage(),
+                        allOf(containsString("invalid IP filter"), containsString(invalidValue)));
+            }
         }
     }
 
@@ -153,16 +188,12 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
 
 
     private void updateSettings(Settings settings) {
-        if (randomBoolean()) {
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
-        } else {
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
-        }
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
     }
 
     private void assertConnectionAccepted(String profile, String host) throws UnknownHostException {
         // HTTP is not applied if disabled
-        if (!httpEnabled && IPFilter.HTTP_PROFILE_NAME.equals(profile)) {
+        if (httpEnabled == false && IPFilter.HTTP_PROFILE_NAME.equals(profile)) {
             return;
         }
 
@@ -173,7 +204,7 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
 
     private void assertConnectionRejected(String profile, String host) throws UnknownHostException {
         // HTTP is not applied if disabled
-        if (!httpEnabled && IPFilter.HTTP_PROFILE_NAME.equals(profile)) {
+        if (httpEnabled == false && IPFilter.HTTP_PROFILE_NAME.equals(profile)) {
             return;
         }
 

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -23,6 +24,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDataFrameAnalyticsAction;
@@ -82,14 +84,14 @@ public class TransportUpdateDataFrameAnalyticsAction
         // Obviously if we're updating a job it's impossible that the config index has no mappings at
         // all, but if we rewrite the job config we may add new fields that require the latest mappings
         ElasticsearchMappings.addDocMappingIfMissing(
-            MlConfigIndex.indexName(), MlConfigIndex::mapping, client, state,
+            MlConfigIndex.indexName(), MlConfigIndex::mapping, client, state, request.masterNodeTimeout(),
             ActionListener.wrap(bool -> doUpdate.run(), listener::onFailure));
     }
 
     @Override
     protected void doExecute(Task task, UpdateDataFrameAnalyticsAction.Request request,
                              ActionListener<PutDataFrameAnalyticsAction.Response> listener) {
-        if (licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)) {
+        if (MachineLearningField.ML_API_FEATURE.checkWithoutTracking(licenseState)) {
             super.doExecute(task, request, listener);
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));

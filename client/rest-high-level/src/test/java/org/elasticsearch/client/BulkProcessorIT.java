@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -33,9 +22,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.search.SearchHit;
 import org.hamcrest.Matcher;
 
@@ -50,17 +39,19 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.fieldFromSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasProperty;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -69,7 +60,7 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
     private static BulkProcessor.Builder initBulkProcessorBuilder(BulkProcessor.Listener listener) {
         return BulkProcessor.builder(
                 (request, bulkListener) -> highLevelClient().bulkAsync(request, RequestOptions.DEFAULT,
-                       bulkListener), listener);
+                       bulkListener), listener, "BulkProcessorIT");
     }
 
     public void testThatBulkProcessorCountIsCorrect() throws Exception {
@@ -89,7 +80,7 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
 
             assertThat(listener.beforeCounts.get(), equalTo(1));
             assertThat(listener.afterCounts.get(), equalTo(1));
-            assertThat(listener.bulkFailures.size(), equalTo(0));
+            assertThat(listener.bulkFailures, empty());
             assertResponseItems(listener.bulkItems, numDocs);
             assertMultiGetResponse(highLevelClient().mget(multiGetRequest, RequestOptions.DEFAULT), numDocs);
         }
@@ -115,7 +106,7 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
 
             assertThat(listener.beforeCounts.get(), equalTo(1));
             assertThat(listener.afterCounts.get(), equalTo(1));
-            assertThat(listener.bulkFailures.size(), equalTo(0));
+            assertThat(listener.bulkFailures, empty());
             assertResponseItems(listener.bulkItems, numDocs);
             assertMultiGetResponse(highLevelClient().mget(multiGetRequest, RequestOptions.DEFAULT), numDocs);
         }
@@ -147,16 +138,16 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
 
             assertThat(listener.beforeCounts.get(), equalTo(expectedBulkActions));
             assertThat(listener.afterCounts.get(), equalTo(expectedBulkActions));
-            assertThat(listener.bulkFailures.size(), equalTo(0));
-            assertThat(listener.bulkItems.size(), equalTo(numDocs - numDocs % bulkActions));
+            assertThat(listener.bulkFailures, empty());
+            assertThat(listener.bulkItems, hasSize(numDocs - numDocs % bulkActions));
         }
 
         closeLatch.await();
 
         assertThat(listener.beforeCounts.get(), equalTo(totalExpectedBulkActions));
         assertThat(listener.afterCounts.get(), equalTo(totalExpectedBulkActions));
-        assertThat(listener.bulkFailures.size(), equalTo(0));
-        assertThat(listener.bulkItems.size(), equalTo(numDocs));
+        assertThat(listener.bulkFailures, empty());
+        assertThat(listener.bulkItems, hasSize(numDocs));
 
         Set<String> ids = new HashSet<>();
         for (BulkItemResponse bulkItemResponse : listener.bulkItems) {
@@ -197,7 +188,7 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         for (Throwable bulkFailure : listener.bulkFailures) {
             logger.error("bulk failure", bulkFailure);
         }
-        assertThat(listener.bulkFailures.size(), equalTo(0));
+        assertThat(listener.bulkFailures, empty());
         assertResponseItems(listener.bulkItems, numDocs);
         assertMultiGetResponse(highLevelClient().mget(multiGetRequest, RequestOptions.DEFAULT), numDocs);
     }
@@ -254,8 +245,8 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
 
         assertThat(listener.beforeCounts.get(), equalTo(totalExpectedBulkActions));
         assertThat(listener.afterCounts.get(), equalTo(totalExpectedBulkActions));
-        assertThat(listener.bulkFailures.size(), equalTo(0));
-        assertThat(listener.bulkItems.size(), equalTo(testDocs + testReadOnlyDocs));
+        assertThat(listener.bulkFailures, empty());
+        assertThat(listener.bulkItems, hasSize(testDocs + testReadOnlyDocs));
 
         Set<String> ids = new HashSet<>();
         Set<String> readOnlyIds = new HashSet<>();

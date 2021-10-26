@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.search;
@@ -22,10 +11,9 @@ package org.elasticsearch.action.search;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
@@ -39,9 +27,9 @@ import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.profile.ProfileShardResult;
-import org.elasticsearch.search.profile.SearchProfileShardResults;
-import org.elasticsearch.search.profile.SearchProfileShardResultsTests;
+import org.elasticsearch.search.profile.SearchProfileResults;
+import org.elasticsearch.search.profile.SearchProfileResultsTests;
+import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.test.ESTestCase;
@@ -132,7 +120,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             ShardSearchFailure[] shardSearchFailures = new ShardSearchFailure[numFailures];
             for (int j = 0; j < numFailures; j++) {
                 ShardId shardId = new ShardId(randomFrom(indices), j);
-                SearchShardTarget searchShardTarget = new SearchShardTarget(randomAlphaOfLength(6), shardId, clusterAlias, null);
+                SearchShardTarget searchShardTarget = new SearchShardTarget(randomAlphaOfLength(6), shardId, clusterAlias);
                 ShardSearchFailure failure = new ShardSearchFailure(new IllegalArgumentException(), searchShardTarget);
                 shardSearchFailures[j] = failure;
                 priorityQueue.add(Tuple.tuple(searchShardTarget, failure));
@@ -223,9 +211,9 @@ public class SearchResponseMergerTests extends ESTestCase {
         SearchTimeProvider searchTimeProvider = new SearchTimeProvider(0, 0, () -> 0);
         SearchResponseMerger merger = new SearchResponseMerger(0, 0, SearchContext.TRACK_TOTAL_HITS_ACCURATE,
             searchTimeProvider, emptyReduceContextBuilder());
-        Map<String, ProfileShardResult> expectedProfile = new HashMap<>();
+        Map<String, SearchProfileShardResult> expectedProfile = new HashMap<>();
         for (int i = 0; i < numResponses; i++) {
-            SearchProfileShardResults profile = SearchProfileShardResultsTests.createTestItem();
+            SearchProfileResults profile = SearchProfileResultsTests.createTestItem();
             expectedProfile.putAll(profile.getShardResults());
             SearchHits searchHits = new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN);
             InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits, null, null, profile, false, null, 1);
@@ -263,7 +251,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             ShardId shardId = new ShardId(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLength(10),
                 randomIntBetween(0, Integer.MAX_VALUE));
             String clusterAlias = randomBoolean() ? "" : randomAlphaOfLengthBetween(5, 10);
-            hit.shard(new SearchShardTarget("node", shardId, clusterAlias, OriginalIndices.NONE));
+            hit.shard(new SearchShardTarget("node", shardId, clusterAlias));
             option.setHit(hit);
             options.addOption(option);
             completionSuggestion.addTerm(options);
@@ -311,7 +299,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 Collections.emptyMap());
             SearchHit searchHit = new SearchHit(docId);
             searchHit.shard(new SearchShardTarget("node", new ShardId("index", "uuid", randomIntBetween(0, Integer.MAX_VALUE)),
-                randomBoolean() ? RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY : randomAlphaOfLengthBetween(5, 10), OriginalIndices.NONE));
+                randomBoolean() ? RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY : randomAlphaOfLengthBetween(5, 10)));
             option.setHit(searchHit);
             options.addOption(option);
             completionSuggestion.addTerm(options);
@@ -675,7 +663,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         for (int j = 0; j < numDocs; j++) {
             ShardId shardId = new ShardId(randomFrom(indices), randomIntBetween(0, 10));
             SearchShardTarget shardTarget = new SearchShardTarget(randomAlphaOfLengthBetween(3, 8), shardId,
-                clusterAlias, OriginalIndices.NONE);
+                clusterAlias);
             SearchHit hit = new SearchHit(randomIntBetween(0, Integer.MAX_VALUE));
 
             float score = Float.NaN;

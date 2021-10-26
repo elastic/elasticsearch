@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring;
 
@@ -117,6 +118,8 @@ public class MonitoringServiceTests extends ESTestCase {
 
         // take down threads
         monitoringService.setMonitoringActive(false);
+        assertWarnings("[xpack.monitoring.collection.interval] setting was deprecated in Elasticsearch and will be removed in " +
+            "a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testSkipExecution() throws Exception {
@@ -140,6 +143,12 @@ public class MonitoringServiceTests extends ESTestCase {
         latch.countDown();
 
         assertThat(exporter.getExportsCount(), equalTo(1));
+        assertWarnings(
+            "[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in " +
+                "a future release! See the breaking changes documentation for the next major version.",
+            "[xpack.monitoring.collection.interval] setting was deprecated in Elasticsearch and will be removed in " +
+                "a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     class CountingExporter extends Exporters {

@@ -1,13 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
-import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+
+import java.io.IOException;
 
 /**
  * A reusable Geometry doc value reader for a previous serialized {@link org.elasticsearch.geometry.Geometry} using
@@ -33,20 +36,20 @@ import org.apache.lucene.util.BytesRef;
  * -----------------------------------------
  */
 public class GeometryDocValueReader {
-    private final ByteArrayDataInput input;
+    private final ByteArrayStreamInput input;
     private final Extent extent;
     private int treeOffset;
     private int docValueOffset;
 
     public GeometryDocValueReader() {
         this.extent = new Extent();
-        this.input = new ByteArrayDataInput();
+        this.input = new ByteArrayStreamInput();
     }
 
     /**
      * reset the geometry.
      */
-    public void reset(BytesRef bytesRef) {
+    public void reset(BytesRef bytesRef) throws IOException {
         this.input.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
         docValueOffset = bytesRef.offset;
         treeOffset = 0;
@@ -55,7 +58,7 @@ public class GeometryDocValueReader {
     /**
      * returns the {@link Extent} of this geometry.
      */
-    protected Extent getExtent() {
+    protected Extent getExtent() throws IOException {
         if (treeOffset == 0) {
             getSumCentroidWeight(); // skip CENTROID_HEADER + var-long sum-weight
             Extent.readFromCompressed(input, extent);
@@ -69,7 +72,7 @@ public class GeometryDocValueReader {
     /**
      * returns the encoded X coordinate of the centroid.
      */
-    protected int getCentroidX() {
+    protected int getCentroidX() throws IOException {
         input.setPosition(docValueOffset + 0);
         return input.readInt();
     }
@@ -77,7 +80,7 @@ public class GeometryDocValueReader {
     /**
      * returns the encoded Y coordinate of the centroid.
      */
-    protected int getCentroidY() {
+    protected int getCentroidY() throws IOException {
         input.setPosition(docValueOffset + 4);
         return input.readInt();
     }
@@ -87,7 +90,7 @@ public class GeometryDocValueReader {
         return DimensionalShapeType.readFrom(input);
     }
 
-    protected double getSumCentroidWeight() {
+    protected double getSumCentroidWeight() throws IOException {
         input.setPosition(docValueOffset + 9);
         return Double.longBitsToDouble(input.readVLong());
     }
@@ -95,7 +98,7 @@ public class GeometryDocValueReader {
     /**
      * Visit the triangle tree with the provided visitor
      */
-    protected void visit(TriangleTreeReader.Visitor visitor) {
+    public void visit(TriangleTreeReader.Visitor visitor) throws IOException {
         Extent extent = getExtent();
         int thisMaxX = extent.maxX();
         int thisMinX = extent.minX();
@@ -105,4 +108,5 @@ public class GeometryDocValueReader {
             TriangleTreeReader.visit(input, visitor, thisMaxX, thisMaxY);
         }
     }
+
 }

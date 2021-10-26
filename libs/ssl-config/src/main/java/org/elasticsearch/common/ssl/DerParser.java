@@ -31,36 +31,53 @@ import java.util.Objects;
  * Based on https://github.com/groovenauts/jmeter_oauth_plugin/blob/master/jmeter/src/
  * main/java/org/apache/jmeter/protocol/oauth/sampler/PrivateKeyReader.java
  */
-final class DerParser {
+public final class DerParser {
     // Constructed Flag
     private static final int CONSTRUCTED = 0x20;
 
     // Tag and data types
-    private static final int INTEGER = 0x02;
-    private static final int OCTET_STRING = 0x04;
-    private static final int OBJECT_OID = 0x06;
-    private static final int NUMERIC_STRING = 0x12;
-    private static final int PRINTABLE_STRING = 0x13;
-    private static final int VIDEOTEX_STRING = 0x15;
-    private static final int IA5_STRING = 0x16;
-    private static final int GRAPHIC_STRING = 0x19;
-    private static final int ISO646_STRING = 0x1A;
-    private static final int GENERAL_STRING = 0x1B;
-
-    private static final int UTF8_STRING = 0x0C;
-    private static final int UNIVERSAL_STRING = 0x1C;
-    private static final int BMP_STRING = 0x1E;
-
+    static final class Type {
+        static final int INTEGER = 0x02;
+        static final int OCTET_STRING = 0x04;
+        static final int OBJECT_OID = 0x06;
+        static final int SEQUENCE = 0x10;
+        static final int NUMERIC_STRING = 0x12;
+        static final int PRINTABLE_STRING = 0x13;
+        static final int VIDEOTEX_STRING = 0x15;
+        static final int IA5_STRING = 0x16;
+        static final int GRAPHIC_STRING = 0x19;
+        static final int ISO646_STRING = 0x1A;
+        static final int GENERAL_STRING = 0x1B;
+        static final int UTF8_STRING = 0x0C;
+        static final int UNIVERSAL_STRING = 0x1C;
+        static final int BMP_STRING = 0x1E;
+    }
 
     private InputStream derInputStream;
     private int maxAsnObjectLength;
 
-    DerParser(byte[] bytes) {
+    public DerParser(byte[] bytes) {
         this.derInputStream = new ByteArrayInputStream(bytes);
         this.maxAsnObjectLength = bytes.length;
     }
 
-    Asn1Object readAsn1Object() throws IOException {
+    /**
+     * Read an object and verify its type
+     * @param requiredType The expected type code
+     * @throws IOException if data can not be parsed
+     * @throws IllegalStateException if the parsed object is of the wrong type
+     */
+    public Asn1Object readAsn1Object(int requiredType) throws IOException {
+        final Asn1Object obj = readAsn1Object();
+        if (obj.type != requiredType) {
+            throw new IllegalStateException(
+                "Expected ASN.1 object of type 0x" + Integer.toHexString(requiredType) + " but was 0x" + Integer.toHexString(obj.type)
+            );
+        }
+        return obj;
+    }
+
+    public Asn1Object readAsn1Object() throws IOException {
         int tag = derInputStream.read();
         if (tag == -1) {
             throw new IOException("Invalid DER: stream too short, missing tag");
@@ -133,7 +150,7 @@ final class DerParser {
      *
      * @author zhang
      */
-    static class Asn1Object {
+    public static class Asn1Object {
 
         protected final int type;
         protected final int length;
@@ -194,8 +211,9 @@ final class DerParser {
          * @return A parser for the construct.
          */
         public DerParser getParser() throws IOException {
-            if (!isConstructed())
+            if (isConstructed() == false) {
                 throw new IOException("Invalid DER: can't parse primitive entity"); //$NON-NLS-1$
+            }
 
             return new DerParser(value);
         }
@@ -206,7 +224,7 @@ final class DerParser {
          * @return BigInteger
          */
         public BigInteger getInteger() throws IOException {
-            if (type != DerParser.INTEGER)
+            if (type != Type.INTEGER)
                 throw new IOException("Invalid DER: object is not integer"); //$NON-NLS-1$
 
             return new BigInteger(value);
@@ -217,28 +235,28 @@ final class DerParser {
             String encoding;
 
             switch (type) {
-                case DerParser.OCTET_STRING:
+                case Type.OCTET_STRING:
                     // octet string is basically a byte array
                     return toHexString(value);
-                case DerParser.NUMERIC_STRING:
-                case DerParser.PRINTABLE_STRING:
-                case DerParser.VIDEOTEX_STRING:
-                case DerParser.IA5_STRING:
-                case DerParser.GRAPHIC_STRING:
-                case DerParser.ISO646_STRING:
-                case DerParser.GENERAL_STRING:
+                case Type.NUMERIC_STRING:
+                case Type.PRINTABLE_STRING:
+                case Type.VIDEOTEX_STRING:
+                case Type.IA5_STRING:
+                case Type.GRAPHIC_STRING:
+                case Type.ISO646_STRING:
+                case Type.GENERAL_STRING:
                     encoding = "ISO-8859-1"; //$NON-NLS-1$
                     break;
 
-                case DerParser.BMP_STRING:
+                case Type.BMP_STRING:
                     encoding = "UTF-16BE"; //$NON-NLS-1$
                     break;
 
-                case DerParser.UTF8_STRING:
+                case Type.UTF8_STRING:
                     encoding = "UTF-8"; //$NON-NLS-1$
                     break;
 
-                case DerParser.UNIVERSAL_STRING:
+                case Type.UNIVERSAL_STRING:
                     throw new IOException("Invalid DER: can't handle UCS-4 string"); //$NON-NLS-1$
 
                 default:
@@ -250,7 +268,7 @@ final class DerParser {
 
         public String getOid() throws IOException {
 
-            if (type != DerParser.OBJECT_OID) {
+            if (type != Type.OBJECT_OID) {
                 throw new IOException("Ivalid DER: object is not object OID");
             }
             StringBuilder sb = new StringBuilder(64);

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.params;
 
@@ -73,14 +74,14 @@ public class FlushJobParams {
     }
 
     public long getAdvanceTime() {
-        if (!shouldAdvanceTime()) {
+        if (shouldAdvanceTime() == false) {
             throw new IllegalStateException();
         }
         return advanceTimeSeconds;
     }
 
     public long getSkipTime() {
-        if (!shouldSkipTime()) {
+        if (shouldSkipTime() == false) {
             throw new IllegalStateException();
         }
         return skipTimeSeconds;
@@ -154,10 +155,10 @@ public class FlushJobParams {
         }
 
         private void checkValidFlushArgumentsCombination() {
-            if (!calcInterim) {
+            if (calcInterim == false) {
                 checkFlushParamIsEmpty(TimeRange.START_PARAM, timeRange.getStart());
                 checkFlushParamIsEmpty(TimeRange.END_PARAM, timeRange.getEnd());
-            } else if (!isValidTimeRange(timeRange)) {
+            } else if (isValidTimeRange(timeRange) == false) {
                 String msg = Messages.getMessage(Messages.REST_INVALID_FLUSH_PARAMS_MISSING, "start");
                 throw new IllegalArgumentException(msg);
             }
@@ -186,14 +187,14 @@ public class FlushJobParams {
         }
 
         private void checkFlushParamIsEmpty(String paramName, String paramValue) {
-            if (!paramValue.isEmpty()) {
+            if (paramValue.isEmpty() == false) {
                 String msg = Messages.getMessage(Messages.REST_INVALID_FLUSH_PARAMS_UNEXPECTED, paramName);
                 throw new IllegalArgumentException(msg);
             }
         }
 
         private boolean isValidTimeRange(TimeRange timeRange) {
-            return !timeRange.getStart().isEmpty() || (timeRange.getStart().isEmpty() && timeRange.getEnd().isEmpty());
+            return timeRange.getStart().isEmpty() == false || (timeRange.getStart().isEmpty() && timeRange.getEnd().isEmpty());
         }
     }
 }

@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless.symbol;
 
+import org.elasticsearch.painless.Def;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.ir.IRNode.IRCondition;
@@ -149,6 +139,15 @@ public class IRDecorations {
     }
 
     /**
+     * describes the field name holding a constant value.
+     */
+    public static class IRDConstantFieldName extends IRDecoration<String> {
+        public IRDConstantFieldName(String value) {
+            super(value);
+        }
+    }
+
+    /**
      * describes the type for a declaration
      */
     public static class IRDDeclarationType extends IRDType {
@@ -167,9 +166,9 @@ public class IRDecorations {
     }
 
     /** describes an encoding used to resolve references and lambdas at runtime */
-    public static class IRDDefReferenceEncoding extends IRDecoration<String> {
+    public static class IRDDefReferenceEncoding extends IRDecoration<Def.Encoding> {
 
-        public IRDDefReferenceEncoding(String value) {
+        public IRDDefReferenceEncoding(Def.Encoding value) {
             super(value);
         }
     }
@@ -339,6 +338,14 @@ public class IRDecorations {
         }
     }
 
+    /** describes if a method needs to capture the script "this" */
+    public static class IRCInstanceCapture implements IRCondition {
+
+        private IRCInstanceCapture() {
+
+        }
+    }
+
     /** describes the maximum number of loop iterations possible in a method */
     public static class IRDMaxLoopCounter extends IRDecoration<Integer> {
 
@@ -360,6 +367,19 @@ public class IRDecorations {
 
         public IRDFunction(LocalFunction value) {
             super(value);
+        }
+    }
+
+    /** describes a method for a node on the script class; which method depends on node type */
+    public static class IRDThisMethod extends IRDecoration<PainlessMethod> {
+
+        public IRDThisMethod(PainlessMethod value) {
+            super(value);
+        }
+
+        @Override
+        public String toString() {
+            return PainlessLookupUtility.buildPainlessMethodKey(getValue().javaMethod.getName(), getValue().typeParameters.size());
         }
     }
 
@@ -433,6 +453,11 @@ public class IRDecorations {
         public IRDCaptureNames(List<String> value) {
             super(Collections.unmodifiableList(value));
         }
+    }
+
+    /** describes if the first capture of a method reference requires boxing */
+    public interface IRCCaptureBox extends IRCondition {
+
     }
 
     /** describes the type of value stored in an assignment operation */

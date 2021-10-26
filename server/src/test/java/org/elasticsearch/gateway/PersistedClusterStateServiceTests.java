@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.gateway;
 
@@ -24,11 +13,11 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.mockfile.ExtrasFS;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -51,28 +40,36 @@ import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.gateway.PersistedClusterStateService.Writer;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOError;
 import java.io.IOException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
+import static org.apache.lucene.index.IndexWriter.WRITE_LOCK_NAME;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class PersistedClusterStateServiceTests extends ESTestCase {
 
@@ -90,7 +87,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             assertThat(persistedClusterStateService.loadBestOnDiskState().currentTerm, equalTo(0L));
             try (Writer writer = persistedClusterStateService.createWriter()) {
                 writer.writeFullStateAndCommit(newTerm, ClusterState.EMPTY_STATE);
-                assertThat(persistedClusterStateService.loadBestOnDiskState().currentTerm, equalTo(newTerm));
+                assertThat(persistedClusterStateService.loadBestOnDiskState(false).currentTerm, equalTo(newTerm));
             }
 
             assertThat(persistedClusterStateService.loadBestOnDiskState().currentTerm, equalTo(newTerm));
@@ -228,7 +225,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 () -> 0L).loadBestOnDiskState()).getMessage();
         assertThat(message,
-            allOf(containsString("unexpected node ID in metadata"), containsString(nodeIds[0]), containsString(nodeIds[1])));
+            allOf(containsString("belongs to a node with ID"), containsString(nodeIds[0]), containsString(nodeIds[1])));
         assertTrue("[" + message + "] should match " + Arrays.toString(dataPaths2),
             Arrays.stream(dataPaths2).anyMatch(p -> message.contains(p.toString())));
     }
@@ -324,7 +321,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(dataPaths2)) {
             try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
                 final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService(nodeEnvironment)
-                    .loadBestOnDiskState();
+                    .loadBestOnDiskState(false);
                 final ClusterState clusterState = clusterStateFromMetadata(onDiskState.lastAcceptedVersion, onDiskState.metadata);
                 writeState(writer, onDiskState.currentTerm, ClusterState.builder(clusterState)
                     .metadata(Metadata.builder(clusterState.metadata()).version(2)
@@ -425,9 +422,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 assertFalse(writer.isOpen());
             }
 
-            // check if we can open writer again
+            // noinspection EmptyTryBlock - we are just checking that opening the writer again doesn't throw any exceptions
             try (Writer ignored = persistedClusterStateService.createWriter()) {
-
             }
         }
     }
@@ -473,9 +469,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 assertFalse(writer.isOpen());
             }
 
-            // check if we can open writer again
+            // noinspection EmptyTryBlock - we are just checking that opening the writer again doesn't throw any exceptions
             try (Writer ignored = persistedClusterStateService.createWriter()) {
-
             }
         }
     }
@@ -492,7 +487,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             }
 
             final Path brokenPath = randomFrom(nodeEnvironment.nodeDataPaths());
-            try (Directory directory = new SimpleFSDirectory(brokenPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))) {
+            try (Directory directory = newFSDirectory(brokenPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))) {
                 final IndexWriterConfig indexWriterConfig = new IndexWriterConfig();
                 indexWriterConfig.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
                 try (IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
@@ -523,8 +518,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
 
             final Path brokenPath = randomFrom(nodeEnvironment.nodeDataPaths());
             final Path dupPath = randomValueOtherThan(brokenPath, () -> randomFrom(nodeEnvironment.nodeDataPaths()));
-            try (Directory directory = new SimpleFSDirectory(brokenPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME));
-                 Directory dupDirectory = new SimpleFSDirectory(dupPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))) {
+            try (Directory directory = newFSDirectory(brokenPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME));
+                 Directory dupDirectory = newFSDirectory(dupPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))) {
                 try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
                     indexWriter.addIndexes(dupDirectory);
                     indexWriter.commit();
@@ -568,8 +563,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
 
             final Path brokenPath = randomFrom(nodeEnvironment.nodeDataPaths());
             final Path dupPath = randomValueOtherThan(brokenPath, () -> randomFrom(nodeEnvironment.nodeDataPaths()));
-            try (Directory directory = new SimpleFSDirectory(brokenPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME));
-                 Directory dupDirectory = new SimpleFSDirectory(dupPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))) {
+            try (Directory directory = newFSDirectory(brokenPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME));
+                 Directory dupDirectory = newFSDirectory(dupPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))) {
                 try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
                     indexWriter.deleteDocuments(new Term("type", "global")); // do not duplicate global metadata
                     indexWriter.addIndexes(dupDirectory);
@@ -860,6 +855,91 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         }
     }
 
+    public void testFailsIfCorrupt() throws IOException {
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
+
+            try (Writer writer = persistedClusterStateService.createWriter()) {
+                writer.writeFullStateAndCommit(1, ClusterState.EMPTY_STATE);
+            }
+
+            Path pathToCorrupt = randomFrom(nodeEnvironment.nodeDataPaths());
+            try (DirectoryStream<Path> directoryStream = Files.newDirectoryStream(pathToCorrupt.resolve("_state"))) {
+                CorruptionUtils.corruptFile(random(), randomFrom(StreamSupport
+                    .stream(directoryStream.spliterator(), false)
+                    .filter(p -> {
+                        final String filename = p.getFileName().toString();
+                        return ExtrasFS.isExtra(filename) == false && filename.equals(WRITE_LOCK_NAME) == false;
+                    })
+                    .collect(Collectors.toList())));
+            }
+
+            assertThat(expectThrows(IllegalStateException.class, persistedClusterStateService::loadBestOnDiskState).getMessage(), allOf(
+                    startsWith("the index containing the cluster metadata under the data path ["),
+                    endsWith("] has been changed by an external force after it was last written by Elasticsearch and is now unreadable")));
+        }
+    }
+
+    public void testLimitsFileCount() throws IOException {
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
+
+            try (Writer writer = persistedClusterStateService.createWriter()) {
+
+                ClusterState clusterState = ClusterState.EMPTY_STATE;
+                writer.writeFullStateAndCommit(1, ClusterState.EMPTY_STATE);
+
+                final int indexCount = between(2, usually() ? 20 : 1000);
+
+                final int maxSegmentCount = (indexCount / 100) + 100; // only expect to have two tiers, each with max 100 segments
+                final int filesPerSegment = 3; // .cfe, .cfs, .si
+                final int extraFiles = 2; // segments_*, write.lock
+                final int maxFileCount = (maxSegmentCount * filesPerSegment) + extraFiles;
+
+                logger.info("--> adding [{}] indices one-by-one, verifying file count does not exceed [{}]", indexCount, maxFileCount);
+                for (int i = 0; i < indexCount; i++) {
+                    final ClusterState previousClusterState = clusterState;
+
+                    clusterState = ClusterState.builder(clusterState)
+                        .metadata(Metadata.builder(clusterState.metadata())
+                            .version(i + 2)
+                            .put(IndexMetadata.builder("index-" + i)
+                                .settings(Settings.builder()
+                                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random())))))
+                        .incrementVersion().build();
+
+                    writer.writeIncrementalStateAndCommit(1, previousClusterState, clusterState);
+
+                    for (Path dataPath : nodeEnvironment.nodeDataPaths()) {
+                        try (DirectoryStream<Path> files
+                                 = Files.newDirectoryStream(dataPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))) {
+
+                            int fileCount = 0;
+                            final List<String> fileNames = new ArrayList<>();
+                            for (Path filePath : files) {
+                                final String fileName = filePath.getFileName().toString();
+                                if (ExtrasFS.isExtra(fileName) == false) {
+                                    fileNames.add(fileName);
+                                    fileCount += 1;
+                                }
+                            }
+
+                            if (maxFileCount < fileCount) {
+                                // don't bother preparing the description unless we are failing
+                                fileNames.sort(Comparator.naturalOrder());
+                                fail("after " + indexCount + " indices have " + fileCount + " files vs max of " + maxFileCount + ": " +
+                                    fileNames);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private void assertExpectedLogs(long currentTerm, ClusterState previousState, ClusterState clusterState,
                                     PersistedClusterStateService.Writer writer, MockLogAppender.LoggingExpectation expectation)
         throws IllegalAccessException, IOException {
@@ -905,7 +985,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
     }
 
     private static ClusterState loadPersistedClusterState(PersistedClusterStateService persistedClusterStateService) throws IOException {
-        final PersistedClusterStateService.OnDiskState onDiskState = persistedClusterStateService.loadBestOnDiskState();
+        final PersistedClusterStateService.OnDiskState onDiskState = persistedClusterStateService.loadBestOnDiskState(false);
         return clusterStateFromMetadata(onDiskState.lastAcceptedVersion, onDiskState.metadata);
     }
 

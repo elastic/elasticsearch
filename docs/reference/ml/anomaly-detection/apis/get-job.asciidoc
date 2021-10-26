@@ -22,9 +22,8 @@ Retrieves configuration information for {anomaly-jobs}.
 [[ml-get-job-prereqs]]
 == {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `monitor_ml`,
-`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. See
-<<security-privileges>> and {ml-docs-setup-privileges}.
+Requires the `monitor_ml` cluster privilege. This privilege is included in the
+`machine_learning_user` built-in role.
 
 [[ml-get-job-desc]]
 == {api-description-title}
@@ -60,9 +59,114 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=exclude-generated]
 The API returns an array of {anomaly-job} resources. For the full list of
 properties, see <<ml-put-job-request-body,create {anomaly-jobs} API>>.
 
+//Begin blocked
+`blocked`::
+(object) When present, it explains that a task is executed on the job
+that blocks it from opening.
++
+.Properties of `blocked`
+[%collapsible%open]
+====
+`reason`:::
+(string) The reason the job is blocked. Values may be `delete`, `reset`, `revert`.
+Each value means the corresponding action is being executed.
+
+`task_id`:::
+(string) The task id of the blocking action. You can use the <<tasks>> API to
+monitor progress.
+====
+//End blocked
+
 `create_time`::
 (string) The time the job was created. For example, `1491007356077`. This
 property is informational; you cannot change its value.
+
+`datafeed_config`::
+(object) The {dfeed} configured for the current {anomaly-job}.
++
+.Properties of `datafeed_config`
+[%collapsible%open]
+====
+`datafeed_id`:::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
+
+`aggregations`:::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=aggregations]
+
+`chunking_config`:::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=chunking-config]
++
+.Properties of `chunking_config`
+[%collapsible%open]
+=====
+`mode`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=mode]
+
+`time_span`:::
+(<<time-units,time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=time-span]
+=====
+
+`delayed_data_check_config`:::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config]
++
+.Properties of `delayed_data_check_config`
+[%collapsible%open]
+=====
+`check_window`::
+(<<time-units,time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config-check-window]
+
+`enabled`::
+(Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config-enabled]
+=====
+
+`frequency`:::
+(Optional, <<time-units, time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=frequency]
+
+`indices`:::
+(Required, array)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=indices]
+
+`indices_options`:::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=indices-options]
+
+`job_id`:::
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+
+`max_empty_searches`:::
+(Optional,integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=max-empty-searches]
+
+`query`:::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=query]
+
+`query_delay`:::
+(Optional, <<time-units, time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=query-delay]
+
+`runtime_mappings`:::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=runtime-mappings]
+
+`script_fields`:::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=script-fields]
+
+`scroll_size`:::
+(Optional, unsigned integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=scroll-size]
+====
 
 `finished_time`::
 (string) If the job closed or failed, this is the time the job finished,

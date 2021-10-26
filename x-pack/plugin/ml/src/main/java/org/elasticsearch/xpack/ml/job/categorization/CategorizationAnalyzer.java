@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.categorization;
 
@@ -9,11 +10,11 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,7 +25,7 @@ import java.util.List;
  * Converts messages to lists of tokens that will be fed to the ML categorization algorithm.
  *
  */
-public class CategorizationAnalyzer implements Closeable {
+public class CategorizationAnalyzer implements Releasable {
 
     private final Analyzer analyzer;
     private final boolean closeAnalyzer;
@@ -35,6 +36,16 @@ public class CategorizationAnalyzer implements Closeable {
         Tuple<Analyzer, Boolean> tuple = makeAnalyzer(categorizationAnalyzerConfig, analysisRegistry);
         analyzer = tuple.v1();
         closeAnalyzer = tuple.v2();
+    }
+
+    public CategorizationAnalyzer(Analyzer analyzer, boolean closeAnalyzer) {
+        this.analyzer = analyzer;
+        this.closeAnalyzer = closeAnalyzer;
+    }
+
+    public final TokenStream tokenStream(final String fieldName,
+                                         final String text) {
+        return analyzer.tokenStream(fieldName, text);
     }
 
     /**

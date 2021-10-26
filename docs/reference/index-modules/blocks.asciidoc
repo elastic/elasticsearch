@@ -74,9 +74,9 @@ PUT /my-index-000001/_block/write
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
 +
-To add blocks to all indices, use `_all` or `*`. To disallow the adding
-of blocks to indices with `_all` or wildcard expressions,
-change the `action.destructive_requires_name` cluster setting to `true`.
+By default, you must explicitly name the indices you are adding blocks to.
+To allow the adding of blocks to indices with `_all`, `*`, or other wildcard
+expressions, change the `action.destructive_requires_name` setting to `false`.
 You can update this setting in the `elasticsearch.yml` file
 or using the <<cluster-update-settings,cluster update settings>> API.
 `<block>`::

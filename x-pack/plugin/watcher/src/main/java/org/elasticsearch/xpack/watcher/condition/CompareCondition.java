@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.condition;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentUtils;
-import org.elasticsearch.common.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentUtils;
+import org.elasticsearch.xcontent.ObjectPath;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -76,7 +77,7 @@ public final class CompareCondition extends AbstractCompareCondition {
                             "[{}]", TYPE, watchId, parser.currentName());
                 }
                 token = parser.nextToken();
-                if (!op.supportsStructures() && !token.isValue() && token != XContentParser.Token.VALUE_NULL) {
+                if (op.supportsStructures() == false && token.isValue() == false && token != XContentParser.Token.VALUE_NULL) {
                     throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. compared value for [{}] with " +
                             "operation [{}] must either be a numeric, string, boolean or null value, but found [{}] instead", TYPE,
                             watchId, path, op.name().toLowerCase(Locale.ROOT), token);
@@ -112,7 +113,7 @@ public final class CompareCondition extends AbstractCompareCondition {
 
         CompareCondition condition = (CompareCondition) o;
 
-        if (!Objects.equals(path, condition.path)) return false;
+        if (Objects.equals(path, condition.path) == false) return false;
         if (op != condition.op) return false;
         return Objects.equals(value, condition.value);
     }

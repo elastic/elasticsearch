@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices;
@@ -69,7 +58,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         // see #9500
         final SearchResponse r1 = client.prepareSearch("index").setSize(0).setSearchType(SearchType.QUERY_THEN_FETCH)
                 .addAggregation(dateHistogram("histo").field("f").timeZone(ZoneId.of("+01:00")).minDocCount(0)
-                        .dateHistogramInterval(DateHistogramInterval.MONTH))
+                        .calendarInterval(DateHistogramInterval.MONTH))
                 .get();
         assertSearchResponse(r1);
 
@@ -80,7 +69,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         for (int i = 0; i < 10; ++i) {
             final SearchResponse r2 = client.prepareSearch("index").setSize(0)
                     .setSearchType(SearchType.QUERY_THEN_FETCH).addAggregation(dateHistogram("histo").field("f")
-                            .timeZone(ZoneId.of("+01:00")).minDocCount(0).dateHistogramInterval(DateHistogramInterval.MONTH))
+                            .timeZone(ZoneId.of("+01:00")).minDocCount(0).calendarInterval(DateHistogramInterval.MONTH))
                     .get();
             assertSearchResponse(r2);
             Histogram h1 = r1.getAggregations().get("histo");

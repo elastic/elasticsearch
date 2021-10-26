@@ -3,8 +3,8 @@ services:
   elasticsearch-node:
     image: elasticsearch:test
     environment:
+      - discovery.type=single-node
       - node.name=elasticsearch-node
-      - cluster.initial_master_nodes=elasticsearch-node
       - cluster.name=elasticsearch-node
       - bootstrap.memory_lock=true
       - network.publish_host=127.0.0.1
@@ -15,6 +15,7 @@ services:
       - cluster.routing.allocation.disk.watermark.high=1b
       - cluster.routing.allocation.disk.watermark.flood_stage=1b
       - node.store.allow_mmap=false
+      - ingest.geoip.downloader.enabled=false
       - xpack.license.self_generated.type=trial
       - xpack.security.enabled=true
       - xpack.security.http.ssl.enabled=true
@@ -92,7 +93,7 @@ services:
       - xpack.security.authc.realms.oidc.c2id-jwt.claims.mail=email
       - xpack.security.authc.realms.oidc.c2id-jwt.claims.groups=groups
     volumes:
-      - ./build/logs/node1:/usr/share/elasticsearch/logs
+      - ./testfixtures_shared/logs/node1:/usr/share/elasticsearch/logs
       - ./build/certs/testnode.jks:/usr/share/elasticsearch/config/testnode.jks
       - ./docker-test-entrypoint.sh:/docker-test-entrypoint.sh
       - ./oidc/op-jwks.json:/usr/share/elasticsearch/config/op-jwks.json

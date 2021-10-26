@@ -9,8 +9,6 @@
 
 Retrieves configuration information for {dfanalytics-jobs}.
 
-beta::[]
-
 
 [[ml-get-dfanalytics-request]]
 == {api-request-title}
@@ -27,12 +25,8 @@ beta::[]
 [[ml-get-dfanalytics-prereq]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following
-privileges:
-
-* cluster: `monitor_ml`
-
-For more information, see <<security-privileges>> and {ml-docs-setup-privileges}.
+Requires the `monitor_ml` cluster privilege. This privilege is included in the 
+`machine_learning_user` built-in role.
 
 
 [[ml-get-dfanalytics-desc]]
@@ -128,7 +122,7 @@ to `ml`.
 (string) The unique identifier of the {dfanalytics-job}.
 
 `model_memory_limit`:::
-(string) The `model_memory_limit` that has been set to the {dfanalytics-job}.
+(string) The `model_memory_limit` that has been set for the {dfanalytics-job}.
 
 `source`:::
 (object) The configuration of how the analysis data is sourced. It has an

@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.util;
 
-import org.apache.lucene.store.DataInput;
-import org.apache.lucene.store.DataOutput;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -67,7 +55,7 @@ public class CuckooFilter implements Writeable {
     private static final int MAX_EVICTIONS = 500;
     static final int EMPTY = 0;
 
-    private final PackedInts.Mutable data;
+    private final PackedArray data;
     private final int numBuckets;
     private final int bitsPerEntry;
     private final int fingerprintMask;
@@ -93,7 +81,7 @@ public class CuckooFilter implements Writeable {
             throw new IllegalArgumentException("Attempted to create [" + numBuckets * entriesPerBucket
                 + "] entries which is > Integer.MAX_VALUE");
         }
-        this.data = PackedInts.getMutable(numBuckets * entriesPerBucket, bitsPerEntry, PackedInts.COMPACT);
+        this.data = new PackedArray(numBuckets * entriesPerBucket, bitsPerEntry);
 
         // puts the bits at the right side of the mask, e.g. `0000000000001111` for bitsPerEntry = 4
         this.fingerprintMask = (0x80000000 >> (bitsPerEntry - 1)) >>> (Integer.SIZE - bitsPerEntry);
@@ -117,7 +105,7 @@ public class CuckooFilter implements Writeable {
                 + "] entries which is > Integer.MAX_VALUE");
         }
         // TODO this is probably super slow, but just used for testing atm
-        this.data = PackedInts.getMutable(numBuckets * entriesPerBucket, bitsPerEntry, PackedInts.COMPACT);
+        this.data = new PackedArray(numBuckets * entriesPerBucket, bitsPerEntry);
         for (int i = 0; i < other.data.size(); i++) {
             data.set(i, other.data.get(i));
         }
@@ -132,18 +120,7 @@ public class CuckooFilter implements Writeable {
         this.rng = rng;
 
         this.fingerprintMask = (0x80000000 >> (bitsPerEntry - 1)) >>> (Integer.SIZE - bitsPerEntry);
-
-        data = (PackedInts.Mutable) PackedInts.getReader(new DataInput() {
-            @Override
-            public byte readByte() throws IOException {
-                return in.readByte();
-            }
-
-            @Override
-            public void readBytes(byte[] b, int offset, int len) throws IOException {
-                in.readBytes(b, offset, len);
-            }
-        });
+        this.data = new PackedArray(in);
     }
 
     @Override
@@ -153,18 +130,7 @@ public class CuckooFilter implements Writeable {
         out.writeVInt(entriesPerBucket);
         out.writeVInt(count);
         out.writeVInt(evictedFingerprint);
-
-        data.save(new DataOutput() {
-            @Override
-            public void writeByte(byte b) throws IOException {
-                out.writeByte(b);
-            }
-
-            @Override
-            public void writeBytes(byte[] b, int offset, int length) throws IOException {
-                out.writeBytes(b, offset, length);
-            }
-        });
+        this.data.save(out);
     }
 
     /**
@@ -517,5 +483,202 @@ public class CuckooFilter implements Writeable {
             && Objects.equals(this.entriesPerBucket, that.entriesPerBucket)
             && Objects.equals(this.count, that.count)
             && Objects.equals(this.evictedFingerprint, that.evictedFingerprint);
+    }
+
+    /**
+     * Forked from Lucene's Packed64 class. The main difference is that this version
+     * can be read from / write to Elasticsearch streams.
+     */
+    private static class PackedArray {
+        private static final int BLOCK_SIZE = 64; // 32 = int, 64 = long
+        private static final int BLOCK_BITS = 6; // The #bits representing BLOCK_SIZE
+        private static final int MOD_MASK = BLOCK_SIZE - 1; // x % BLOCK_SIZE
+
+        /**
+         * Values are stores contiguously in the blocks array.
+         */
+        private final long[] blocks;
+        /**
+         * A right-aligned mask of width BitsPerValue used by {@link #get(int)}.
+         */
+        private final long maskRight;
+        /**
+         * Optimization: Saves one lookup in {@link #get(int)}.
+         */
+        private final int bpvMinusBlockSize;
+
+        private final int bitsPerValue;
+        private final int valueCount;
+
+        PackedArray(int valueCount, int bitsPerValue) {
+            this.bitsPerValue = bitsPerValue;
+            this.valueCount = valueCount;
+            final int longCount = PackedInts.Format.PACKED.longCount(PackedInts.VERSION_CURRENT, valueCount, bitsPerValue);
+            this.blocks = new long[longCount];
+            maskRight = ~0L << (BLOCK_SIZE-bitsPerValue) >>> (BLOCK_SIZE-bitsPerValue);
+            bpvMinusBlockSize = bitsPerValue - BLOCK_SIZE;
+        }
+
+        PackedArray(StreamInput in)
+            throws IOException {
+            this.bitsPerValue = in.readVInt();
+            this.valueCount = in.readVInt();
+            this.blocks = in.readLongArray();
+            maskRight = ~0L << (BLOCK_SIZE - bitsPerValue) >>> (BLOCK_SIZE - bitsPerValue);
+            bpvMinusBlockSize = bitsPerValue - BLOCK_SIZE;
+        }
+
+        public void save(StreamOutput out) throws IOException {
+            out.writeVInt(bitsPerValue);
+            out.writeVInt(valueCount);
+            out.writeLongArray(blocks);
+        }
+
+        public int size() {
+            return valueCount;
+        }
+
+        public long get(final int index) {
+            // The abstract index in a bit stream
+            final long majorBitPos = (long)index * bitsPerValue;
+            // The index in the backing long-array
+            final int elementPos = (int)(majorBitPos >>> BLOCK_BITS);
+            // The number of value-bits in the second long
+            final long endBits = (majorBitPos & MOD_MASK) + bpvMinusBlockSize;
+
+            if (endBits <= 0) { // Single block
+                return (blocks[elementPos] >>> -endBits) & maskRight;
+            }
+            // Two blocks
+            return ((blocks[elementPos] << endBits)
+                | (blocks[elementPos+1] >>> (BLOCK_SIZE - endBits)))
+                & maskRight;
+        }
+
+        public int get(int index, long[] arr, int off, int len) {
+            assert len > 0 : "len must be > 0 (got " + len + ")";
+            assert index >= 0 && index < valueCount;
+            len = Math.min(len, valueCount - index);
+            assert off + len <= arr.length;
+
+            final int originalIndex = index;
+            final PackedInts.Decoder decoder = PackedInts.getDecoder(PackedInts.Format.PACKED, PackedInts.VERSION_CURRENT, bitsPerValue);
+            // go to the next block where the value does not span across two blocks
+            final int offsetInBlocks = index % decoder.longValueCount();
+            if (offsetInBlocks != 0) {
+                for (int i = offsetInBlocks; i < decoder.longValueCount() && len > 0; ++i) {
+                    arr[off++] = get(index++);
+                    --len;
+                }
+                if (len == 0) {
+                    return index - originalIndex;
+                }
+            }
+
+            // bulk get
+            assert index % decoder.longValueCount() == 0;
+            int blockIndex = (int) (((long) index * bitsPerValue) >>> BLOCK_BITS);
+            assert (((long)index * bitsPerValue) & MOD_MASK) == 0;
+            final int iterations = len / decoder.longValueCount();
+            decoder.decode(blocks, blockIndex, arr, off, iterations);
+            final int gotValues = iterations * decoder.longValueCount();
+            index += gotValues;
+            len -= gotValues;
+            assert len >= 0;
+
+            if (index > originalIndex) {
+                // stay at the block boundary
+                return index - originalIndex;
+            } else {
+                // no progress so far => already at a block boundary but no full block to get
+                assert index == originalIndex;
+                assert len > 0 : "len must be > 0 (got " + len + ")";
+                assert index >= 0 && index < size();
+                assert off + len <= arr.length;
+
+                final int gets = Math.min(size() - index, len);
+                for (int i = index, o = off, end = index + gets; i < end; ++i, ++o) {
+                    arr[o] = get(i);
+                }
+                return gets;
+            }
+        }
+
+        public void set(final int index, final long value) {
+            // The abstract index in a contiguous bit stream
+            final long majorBitPos = (long)index * bitsPerValue;
+            // The index in the backing long-array
+            final int elementPos = (int)(majorBitPos >>> BLOCK_BITS); // / BLOCK_SIZE
+            // The number of value-bits in the second long
+            final long endBits = (majorBitPos & MOD_MASK) + bpvMinusBlockSize;
+
+            if (endBits <= 0) { // Single block
+                blocks[elementPos] = blocks[elementPos] &  ~(maskRight << -endBits)
+                    | (value << -endBits);
+                return;
+            }
+            // Two blocks
+            blocks[elementPos] = blocks[elementPos] &  ~(maskRight >>> endBits)
+                | (value >>> endBits);
+            blocks[elementPos+1] = blocks[elementPos+1] &  (~0L >>> endBits)
+                | (value << (BLOCK_SIZE - endBits));
+        }
+
+        public int set(int index, long[] arr, int off, int len) {
+            assert len > 0 : "len must be > 0 (got " + len + ")";
+            assert index >= 0 && index < valueCount;
+            len = Math.min(len, valueCount - index);
+            assert off + len <= arr.length;
+
+            final int originalIndex = index;
+            final PackedInts.Encoder encoder = PackedInts.getEncoder(PackedInts.Format.PACKED, PackedInts.VERSION_CURRENT, bitsPerValue);
+
+            // go to the next block where the value does not span across two blocks
+            final int offsetInBlocks = index % encoder.longValueCount();
+            if (offsetInBlocks != 0) {
+                for (int i = offsetInBlocks; i < encoder.longValueCount() && len > 0; ++i) {
+                    set(index++, arr[off++]);
+                    --len;
+                }
+                if (len == 0) {
+                    return index - originalIndex;
+                }
+            }
+
+            // bulk set
+            assert index % encoder.longValueCount() == 0;
+            int blockIndex = (int) (((long) index * bitsPerValue) >>> BLOCK_BITS);
+            assert (((long)index * bitsPerValue) & MOD_MASK) == 0;
+            final int iterations = len / encoder.longValueCount();
+            encoder.encode(arr, off, blocks, blockIndex, iterations);
+            final int setValues = iterations * encoder.longValueCount();
+            index += setValues;
+            len -= setValues;
+            assert len >= 0;
+
+            if (index > originalIndex) {
+                // stay at the block boundary
+                return index - originalIndex;
+            } else {
+                // no progress so far => already at a block boundary but no full block to get
+                assert index == originalIndex;
+                len = Math.min(len, size() - index);
+                assert off + len <= arr.length;
+
+                for (int i = index, o = off, end = index + len; i < end; ++i, ++o) {
+                    set(i, arr[o]);
+                }
+                return len;
+            }
+        }
+
+        public long ramBytesUsed() {
+            return RamUsageEstimator.alignObjectSize(
+                RamUsageEstimator.NUM_BYTES_OBJECT_HEADER
+                + 3 * Integer.BYTES   // bpvMinusBlockSize,valueCount,bitsPerValue
+                + Long.BYTES          // maskRight
+                + RamUsageEstimator.NUM_BYTES_OBJECT_REF) // blocks ref
+                + RamUsageEstimator.sizeOf(blocks);
+        }
     }
 }

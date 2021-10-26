@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.geometry;
 
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.utils.GeographyValidator;
+import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 
@@ -36,15 +26,15 @@ public class GeometryCollectionTests extends BaseGeometryTestCase<GeometryCollec
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
-        WellKnownText wkt = new WellKnownText(true, new GeographyValidator(true));
+        GeometryValidator validator = GeographyValidator.instance(true);
         assertEquals("GEOMETRYCOLLECTION (POINT (20.0 10.0),POINT EMPTY)",
-            wkt.toWKT(new GeometryCollection<Geometry>(Arrays.asList(new Point(20, 10), Point.EMPTY))));
+            WellKnownText.toWKT(new GeometryCollection<Geometry>(Arrays.asList(new Point(20, 10), Point.EMPTY))));
 
         assertEquals(new GeometryCollection<Geometry>(Arrays.asList(new Point(20, 10), Point.EMPTY)),
-            wkt.fromWKT("GEOMETRYCOLLECTION (POINT (20.0 10.0),POINT EMPTY)"));
+            WellKnownText.fromWKT(validator, true, "GEOMETRYCOLLECTION (POINT (20.0 10.0),POINT EMPTY)"));
 
-        assertEquals("GEOMETRYCOLLECTION EMPTY", wkt.toWKT(GeometryCollection.EMPTY));
-        assertEquals(GeometryCollection.EMPTY, wkt.fromWKT("GEOMETRYCOLLECTION EMPTY)"));
+        assertEquals("GEOMETRYCOLLECTION EMPTY", WellKnownText.toWKT(GeometryCollection.EMPTY));
+        assertEquals(GeometryCollection.EMPTY, WellKnownText.fromWKT(validator, true, "GEOMETRYCOLLECTION EMPTY)"));
     }
 
     @SuppressWarnings("ConstantConditions")
@@ -59,10 +49,10 @@ public class GeometryCollectionTests extends BaseGeometryTestCase<GeometryCollec
             Arrays.asList(new Point(20, 10), new Point(20, 10, 30))));
         assertEquals("all elements of the collection should have the same number of dimension", ex.getMessage());
 
-        ex = expectThrows(IllegalArgumentException.class, () -> new StandardValidator(false).validate(
+        ex = expectThrows(IllegalArgumentException.class, () -> StandardValidator.instance(false).validate(
             new GeometryCollection<Geometry>(Collections.singletonList(new Point(20, 10, 30)))));
         assertEquals("found Z value [30.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
 
-        new StandardValidator(true).validate(new GeometryCollection<Geometry>(Collections.singletonList(new Point(20, 10, 30))));
+        StandardValidator.instance(true).validate(new GeometryCollection<Geometry>(Collections.singletonList(new Point(20, 10, 30))));
     }
 }

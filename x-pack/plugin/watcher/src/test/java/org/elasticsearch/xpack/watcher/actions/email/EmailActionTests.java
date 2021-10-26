@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions.email;
 
@@ -13,11 +14,11 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
@@ -62,7 +63,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContextBuilder;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -86,7 +87,7 @@ public class EmailActionTests extends ESTestCase {
 
     @Before
     public void addEmailAttachmentParsers() {
-        Map<String, EmailAttachmentParser> emailAttachmentParsers = new HashMap<>();
+        Map<String, EmailAttachmentParser<? extends EmailAttachmentParser.EmailAttachment>> emailAttachmentParsers = new HashMap<>();
         emailAttachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient,
             new MockTextTemplateEngine()));
         emailAttachmentParsers.put(DataAttachmentParser.TYPE, new DataAttachmentParser());
@@ -133,7 +134,6 @@ public class EmailActionTests extends ESTestCase {
         Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder().put("_key", "_val").map();
 
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
-        JodaCompatibleZonedDateTime jodaJavaNow = new JodaCompatibleZonedDateTime(now.toInstant(), ZoneOffset.UTC);
 
         Wid wid = new Wid("watch1", now);
         WatchExecutionContext ctx = mockExecutionContextBuilder("watch1")
@@ -144,14 +144,14 @@ public class EmailActionTests extends ESTestCase {
                 .buildMock();
 
         Map<String, Object> triggerModel = new HashMap<>();
-        triggerModel.put("triggered_time", jodaJavaNow);
-        triggerModel.put("scheduled_time", jodaJavaNow);
+        triggerModel.put("triggered_time", now);
+        triggerModel.put("scheduled_time", now);
         Map<String, Object> ctxModel = new HashMap<>();
         ctxModel.put("id", ctx.id().value());
         ctxModel.put("watch_id", "watch1");
         ctxModel.put("payload", data);
         ctxModel.put("metadata", metadata);
-        ctxModel.put("execution_time", jodaJavaNow);
+        ctxModel.put("execution_time", now);
         ctxModel.put("trigger", triggerModel);
         ctxModel.put("vars", emptyMap());
         Map<String, Object> expectedModel = singletonMap("ctx", ctxModel);
@@ -212,7 +212,7 @@ public class EmailActionTests extends ESTestCase {
                 .field("from", "from@domain")
                 .field("priority", priority.name());
         if (dataAttachment != null) {
-            builder.field("attach_data", dataAttachment);
+            builder.field("attach_data", (ToXContentObject) dataAttachment);
         } else if (randomBoolean()) {
             dataAttachment = org.elasticsearch.xpack.watcher.notification.email.DataAttachment.DEFAULT;
             builder.field("attach_data", true);
@@ -389,7 +389,7 @@ public class EmailActionTests extends ESTestCase {
         ExecutableEmailAction parsed = new EmailActionFactory(Settings.EMPTY, service, engine, emailAttachmentParser)
                 .parseExecutable(randomAlphaOfLength(4), randomAlphaOfLength(10), parser);
 
-        if (!hideSecrets) {
+        if (hideSecrets == false) {
             assertThat(parsed, equalTo(executable));
         } else {
             assertThat(parsed.action().getAccount(), is(executable.action().getAccount()));
@@ -518,7 +518,7 @@ public class EmailActionTests extends ESTestCase {
                 .thenReturn(new HttpResponse(403));
 
         // setup email attachment parsers
-        Map<String, EmailAttachmentParser> attachmentParsers = new HashMap<>();
+        Map<String, EmailAttachmentParser<? extends EmailAttachmentParser.EmailAttachment>> attachmentParsers = new HashMap<>();
         attachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, engine));
         EmailAttachmentsParser emailAttachmentsParser = new EmailAttachmentsParser(attachmentParsers);
 

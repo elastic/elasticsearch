@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
 import com.unboundid.ldap.sdk.LDAPURL;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
@@ -15,11 +17,11 @@ import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
@@ -44,9 +46,8 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.core.ssl.VerificationMode;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
@@ -62,8 +63,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.URLS_SETTING;
+import static org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
@@ -93,7 +96,7 @@ public class LdapRealmTests extends LdapTestCase {
     private ResourceWatcherService resourceWatcherService;
     private Settings defaultGlobalSettings;
     private SSLService sslService;
-    private XPackLicenseState licenseState;
+    private MockLicenseState licenseState;
 
     @Before
     public void init() throws Exception {
@@ -101,9 +104,8 @@ public class LdapRealmTests extends LdapTestCase {
         resourceWatcherService = new ResourceWatcherService(Settings.EMPTY, threadPool);
         defaultGlobalSettings = Settings.builder().put("path.home", createTempDir()).build();
         sslService = new SSLService(TestEnvironment.newEnvironment(defaultGlobalSettings));
-        licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_REALM)).thenReturn(true);
+        licenseState = mock(MockLicenseState.class);
+        when(licenseState.isAllowed(Security.DELEGATED_AUTHORIZATION_FEATURE)).thenReturn(true);
     }
 
     @After
@@ -126,11 +128,11 @@ public class LdapRealmTests extends LdapTestCase {
                 threadPool);
         ldap.initialize(Collections.singleton(ldap), licenseState);
 
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, new SecureString(PASSWORD)), future);
-        final AuthenticationResult result = future.actionGet();
+        final AuthenticationResult<User> result = future.actionGet();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
-        User user = result.getUser();
+        User user = result.getValue();
         assertThat(user, notNullValue());
         assertThat(user.roles(), arrayContaining("HMS Victory"));
         assertThat(user.metadata(), notNullValue());
@@ -159,11 +161,11 @@ public class LdapRealmTests extends LdapTestCase {
                 new LdapRealm(config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService), threadPool);
         ldap.initialize(Collections.singleton(ldap), licenseState);
 
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, new SecureString(PASSWORD)), future);
-        final AuthenticationResult result = future.actionGet();
+        final AuthenticationResult<User> result = future.actionGet();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
-        User user = result.getUser();
+        User user = result.getValue();
         assertThat(user, notNullValue());
         assertThat("For roles " + Arrays.toString(user.roles()), user.roles(), arrayContaining("HMS Victory"));
         assertThat(user.metadata(), notNullValue());
@@ -188,7 +190,7 @@ public class LdapRealmTests extends LdapTestCase {
                 new LdapRealm(config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService), threadPool);
         ldap.initialize(Collections.singleton(ldap), licenseState);
 
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, new SecureString(PASSWORD)), future);
         assertThat(future.actionGet().getStatus(), is(AuthenticationResult.Status.SUCCESS));
 
@@ -197,7 +199,7 @@ public class LdapRealmTests extends LdapTestCase {
         assertThat(future.actionGet().getStatus(), is(AuthenticationResult.Status.SUCCESS));
 
         //verify one and only one session -> caching is working
-        verify(ldapFactory, times(1)).session(anyString(), any(SecureString.class), any(ActionListener.class));
+        verify(ldapFactory, times(1)).session(anyString(), any(SecureString.class), anyActionListener());
     }
 
     public void testAuthenticateCachingRefresh() throws Exception {
@@ -216,7 +218,7 @@ public class LdapRealmTests extends LdapTestCase {
         LdapRealm ldap = new LdapRealm(config, ldapFactory, roleMapper, threadPool);
         ldap.initialize(Collections.singleton(ldap), licenseState);
 
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, new SecureString(PASSWORD)), future);
         future.actionGet();
         future = new PlainActionFuture<>();
@@ -224,7 +226,7 @@ public class LdapRealmTests extends LdapTestCase {
         future.actionGet();
 
         //verify one and only one session -> caching is working
-        verify(ldapFactory, times(1)).session(anyString(), any(SecureString.class), any(ActionListener.class));
+        verify(ldapFactory, times(1)).session(anyString(), any(SecureString.class), anyActionListener());
 
         roleMapper.notifyRefresh();
 
@@ -233,7 +235,7 @@ public class LdapRealmTests extends LdapTestCase {
         future.actionGet();
 
         //we need to session again
-        verify(ldapFactory, times(2)).session(anyString(), any(SecureString.class), any(ActionListener.class));
+        verify(ldapFactory, times(2)).session(anyString(), any(SecureString.class), anyActionListener());
     }
 
     public void testAuthenticateNoncaching() throws Exception {
@@ -253,7 +255,7 @@ public class LdapRealmTests extends LdapTestCase {
                 new LdapRealm(config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService), threadPool);
         ldap.initialize(Collections.singleton(ldap), licenseState);
 
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, new SecureString(PASSWORD)), future);
         future.actionGet();
         future = new PlainActionFuture<>();
@@ -261,7 +263,7 @@ public class LdapRealmTests extends LdapTestCase {
         future.actionGet();
 
         //verify two and only two binds -> caching is disabled
-        verify(ldapFactory, times(2)).session(anyString(), any(SecureString.class), any(ActionListener.class));
+        verify(ldapFactory, times(2)).session(anyString(), any(SecureString.class), anyActionListener());
     }
 
     public void testDelegatedAuthorization() throws Exception {
@@ -295,9 +297,9 @@ public class LdapRealmTests extends LdapTestCase {
         ldap.initialize(Arrays.asList(ldap, mockLookup), licenseState);
         mockLookup.initialize(Arrays.asList(ldap, mockLookup), licenseState);
 
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, new SecureString(PASSWORD)), future);
-        final AuthenticationResult result1 = future.actionGet();
+        final AuthenticationResult<User> result1 = future.actionGet();
         assertThat(result1.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
         assertThat(result1.getMessage(),
             equalTo("the principal [" + VALID_USERNAME + "] was authenticated, but no user could be found in realms [mock/mock_lookup]"));
@@ -306,9 +308,9 @@ public class LdapRealmTests extends LdapTestCase {
         final User fakeUser = new User(VALID_USERNAME, "fake_role");
         mockLookup.registerUser(fakeUser);
         ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, new SecureString(PASSWORD)), future);
-        final AuthenticationResult result2 = future.actionGet();
+        final AuthenticationResult<User> result2 = future.actionGet();
         assertThat(result2.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
-        assertThat(result2.getUser(), sameInstance(fakeUser));
+        assertThat(result2.getValue(), sameInstance(fakeUser));
     }
 
     public void testLdapRealmSelectsLdapSessionFactory() throws Exception {
@@ -322,7 +324,7 @@ public class LdapRealmTests extends LdapTestCase {
                 .putList(getFullSettingKey(identifier.getName(), LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING), userTemplate)
                 .put(getFullSettingKey(identifier, SearchGroupsResolverSettings.BASE_DN), groupSearchBase)
                 .put(getFullSettingKey(identifier, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
-                .put(getFullSettingKey(identifier, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.CERTIFICATE)
+                .put(getFullSettingKey(identifier, VERIFICATION_MODE_SETTING_REALM), SslVerificationMode.CERTIFICATE)
                 .put(getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0)
                 .build();
         RealmConfig config = getRealmConfig(identifier, settings);
@@ -344,7 +346,7 @@ public class LdapRealmTests extends LdapTestCase {
                 .setSecureSettings(secureSettings(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD, identifier, PASSWORD))
                 .put(getFullSettingKey(identifier, SearchGroupsResolverSettings.BASE_DN), groupSearchBase)
                 .put(getFullSettingKey(identifier, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
-                .put(getFullSettingKey(identifier, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.CERTIFICATE)
+                .put(getFullSettingKey(identifier, VERIFICATION_MODE_SETTING_REALM), SslVerificationMode.CERTIFICATE)
                 .put(getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0)
                 .build();
         final RealmConfig config = getRealmConfig(identifier, settings);
@@ -366,7 +368,7 @@ public class LdapRealmTests extends LdapTestCase {
                 .put(getFullSettingKey(identifier.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), "cn=bar")
                 .put(getFullSettingKey(identifier, SearchGroupsResolverSettings.BASE_DN), "")
                 .put(getFullSettingKey(identifier, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
-                .put(getFullSettingKey(identifier, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.CERTIFICATE)
+                .put(getFullSettingKey(identifier, VERIFICATION_MODE_SETTING_REALM), SslVerificationMode.CERTIFICATE)
                 .put(getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0)
                 .build();
         RealmConfig config = getRealmConfig(identifier, settings);
@@ -386,7 +388,7 @@ public class LdapRealmTests extends LdapTestCase {
                 .putList(getFullSettingKey(identifier, URLS_SETTING), ldapUrls())
                 .put(getFullSettingKey(identifier, SearchGroupsResolverSettings.BASE_DN), "")
                 .put(getFullSettingKey(identifier, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
-                .put(getFullSettingKey(identifier, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.CERTIFICATE)
+                .put(getFullSettingKey(identifier, VERIFICATION_MODE_SETTING_REALM), SslVerificationMode.CERTIFICATE)
                 .put(getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0)
                 .build();
         RealmConfig config = getRealmConfig(identifier, settings);
@@ -414,11 +416,11 @@ public class LdapRealmTests extends LdapTestCase {
                 new DnRoleMapper(config, resourceWatcherService), threadPool);
         ldap.initialize(Collections.singleton(ldap), licenseState);
 
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         ldap.authenticate(new UsernamePasswordToken("Horatio Hornblower", new SecureString(PASSWORD)), future);
-        final AuthenticationResult result = future.actionGet();
+        final AuthenticationResult<User> result = future.actionGet();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
-        User user = result.getUser();
+        User user = result.getValue();
         assertThat(user, notNullValue());
         assertThat(user.roles(), arrayContaining("avenger"));
     }
@@ -442,7 +444,6 @@ public class LdapRealmTests extends LdapTestCase {
         SecurityIndexManager mockSecurityIndex = mock(SecurityIndexManager.class);
         when(mockSecurityIndex.isAvailable()).thenReturn(true);
         when(mockSecurityIndex.isIndexUpToDate()).thenReturn(true);
-        when(mockSecurityIndex.isMappingUpToDate()).thenReturn(true);
 
         Client mockClient = mock(Client.class);
         when(mockClient.threadPool()).thenReturn(threadPool);
@@ -484,11 +485,11 @@ public class LdapRealmTests extends LdapTestCase {
             roleMapper, threadPool);
         ldap.initialize(Collections.singleton(ldap), licenseState);
 
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         ldap.authenticate(new UsernamePasswordToken("Horatio Hornblower", new SecureString(PASSWORD)), future);
-        final AuthenticationResult result = future.actionGet();
+        final AuthenticationResult<User> result = future.actionGet();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
-        User user = result.getUser();
+        User user = result.getValue();
         assertThat(user, notNullValue());
         assertThat(user.roles(), arrayContainingInAnyOrder("_user_hhornblo", "sales_admin"));
     }
@@ -515,11 +516,11 @@ public class LdapRealmTests extends LdapTestCase {
                 threadPool);
         ldap.initialize(Collections.singleton(ldap), licenseState);
 
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, new SecureString(PASSWORD)), future);
-        final AuthenticationResult result = future.actionGet();
+        final AuthenticationResult<User> result = future.actionGet();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.CONTINUE));
-        assertThat(result.getUser(), nullValue());
+        assertThat(result.getValue(), nullValue());
         assertThat(result.getMessage(), is("authenticate failed"));
         assertThat(result.getException(), notNullValue());
         assertThat(result.getException().getMessage(), containsString("UnknownHostException"));
@@ -537,7 +538,7 @@ public class LdapRealmTests extends LdapTestCase {
                 .put(getFullSettingKey(identifier, SearchGroupsResolverSettings.BASE_DN), groupSearchBase)
                 .put(getFullSettingKey(identifier, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
                 .put(getFullSettingKey(identifier.getName(), LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING), "--")
-                .put(getFullSettingKey(identifier, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.CERTIFICATE);
+                .put(getFullSettingKey(identifier, VERIFICATION_MODE_SETTING_REALM), SslVerificationMode.CERTIFICATE);
 
         int order = randomIntBetween(0, 10);
         settings.put(getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), order);

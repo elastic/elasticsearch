@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
@@ -25,8 +26,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CURSOR;
+import static org.elasticsearch.xpack.sql.proto.Protocol.ID_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.IS_PARTIAL_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.IS_RUNNING_NAME;
+import static org.elasticsearch.xpack.sql.proto.SqlVersion.DATE_NANOS_SUPPORT_VERSION;
 import static org.hamcrest.Matchers.hasSize;
 
 public class SqlQueryResponseTests extends AbstractSerializingTestCase<SqlQueryResponse> {
@@ -37,7 +42,8 @@ public class SqlQueryResponseTests extends AbstractSerializingTestCase<SqlQueryR
 
     @Override
     protected SqlQueryResponse createTestInstance() {
-        return createRandomInstance(randomStringCursor(), randomFrom(Mode.values()), randomBoolean());
+        return createRandomInstance(randomStringCursor(), randomFrom(Mode.values()), randomBoolean(),
+            rarely() ? null : randomAlphaOfLength(100), randomBoolean(), randomBoolean());
     }
 
     @Override
@@ -45,14 +51,16 @@ public class SqlQueryResponseTests extends AbstractSerializingTestCase<SqlQueryR
         return SqlQueryResponse::new;
     }
 
-    public static SqlQueryResponse createRandomInstance(String cursor, Mode mode, boolean columnar) {
+    public static SqlQueryResponse createRandomInstance(String cursor, Mode mode, boolean columnar, String asyncExecutionId,
+                                                        boolean isPartial, boolean isRunning) {
         int columnCount = between(1, 10);
 
         List<ColumnInfo> columns = null;
         if (randomBoolean()) {
             columns = new ArrayList<>(columnCount);
             for (int i = 0; i < columnCount; i++) {
-                columns.add(new ColumnInfo(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10), randomInt(25)));
+                columns.add(new ColumnInfo(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
+                    randomBoolean() ? null : randomInt(25)));
             }
         }
 
@@ -66,7 +74,7 @@ public class SqlQueryResponseTests extends AbstractSerializingTestCase<SqlQueryR
                 rowCount = columnCount;
                 columnCount = temp;
             }
-            
+
             rows = new ArrayList<>(rowCount);
             for (int r = 0; r < rowCount; r++) {
                 List<Object> row = new ArrayList<>(rowCount);
@@ -81,7 +89,7 @@ public class SqlQueryResponseTests extends AbstractSerializingTestCase<SqlQueryR
                 rows.add(row);
             }
         }
-        return new SqlQueryResponse(cursor, mode, false, columns, rows);
+        return new SqlQueryResponse(cursor, mode, DATE_NANOS_SUPPORT_VERSION, false, columns, rows, asyncExecutionId, isPartial, isRunning);
     }
 
     public void testToXContent() throws IOException {
@@ -122,12 +130,19 @@ public class SqlQueryResponseTests extends AbstractSerializingTestCase<SqlQueryR
         if (testInstance.cursor().equals("") == false) {
             assertEquals(rootMap.get(CURSOR.getPreferredName()), testInstance.cursor());
         }
+
+        if (Strings.hasText(testInstance.id())) {
+            assertEquals(testInstance.id(), rootMap.get(ID_NAME));
+            assertEquals(testInstance.isPartial(), rootMap.get(IS_PARTIAL_NAME));
+            assertEquals(testInstance.isRunning(), rootMap.get(IS_RUNNING_NAME));
+        }
     }
 
     @Override
     protected SqlQueryResponse doParseInstance(XContentParser parser) {
         org.elasticsearch.xpack.sql.proto.SqlQueryResponse response =
             org.elasticsearch.xpack.sql.proto.SqlQueryResponse.fromXContent(parser);
-        return new SqlQueryResponse(response.cursor(), Mode.JDBC, false, response.columns(), response.rows());
+        return new SqlQueryResponse(response.cursor(), Mode.JDBC, DATE_NANOS_SUPPORT_VERSION, false, response.columns(), response.rows(),
+            response.id(), response.isPartial(), response.isRunning());
     }
 }

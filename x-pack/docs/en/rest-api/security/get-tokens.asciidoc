@@ -21,7 +21,7 @@ Creates a bearer token for access without requiring basic authentication.
 ==== {api-description-title}
 
 The tokens are created by the {es} Token Service, which is automatically enabled
-when you configure TLS on the HTTP interface. See <<tls-http>>. Alternatively,
+when you configure TLS on the HTTP interface. See <<encrypt-http-communication>>. Alternatively,
 you can explicitly enable the `xpack.security.authc.token.enabled` setting. When
 you are running in production mode, a bootstrap check prevents you from enabling
 the token service unless you also enable TLS on the HTTP interface.
@@ -147,8 +147,8 @@ seconds) that the token expires in, and the type:
 --------------------------------------------------
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
 
-The token returned by this API can be used by sending a request with a
-`Authorization` header with a value having the prefix `Bearer ` followed
+The token returned by this API can be used by sending a request with an
+`Authorization` header with a value having the prefix "Bearer " followed
 by the value of the `access_token`.
 
 [source,shell]

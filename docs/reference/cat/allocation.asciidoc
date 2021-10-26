@@ -16,6 +16,12 @@ and their disk space.
 
 `GET /_cat/allocation`
 
+[[cat-allocation-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
 [[cat-allocation-api-path-params]]
 ==== {api-path-parms-title}
 
@@ -40,12 +46,61 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
+[[cat-allocation-api-response-body]]
+==== {api-response-body-title}
+
+`shards`::
+Number of primary and replica shards assigned to the node.
+
+`disk.indices`::
+Disk space used by the node's shards. Does not include disk space for the
+<<index-modules-translog,translog>> or unassigned shards.
++
+IMPORTANT: This metric double-counts disk space for hard-linked files, such as
+those created when <<indices-shrink-index,shrinking>>,
+<<indices-split-index,splitting>>, or <<indices-clone-index,cloning>> an index.
+
+`disk.used`::
++
+--
+Total disk space in use. {es} retrieves this metric from the node's operating
+system (OS). The metric includes disk space for:
+
+- {es}, including the <<index-modules-translog,translog>> and unassigned shards
+- The node's OS
+- Any other applications or files on the node
+
+Unlike `disk.indices`, this metric does not double-count disk space for
+hard-linked files.
+--
+
+`disk.avail`::
+Free disk space available to {es}. {es} retrieves this metric from the node's
+OS. <<disk-allocator,Disk-based shard allocation>> uses this metric to assign
+shards to nodes based on available disk space.
+
+`disk.total`::
+Total disk space for the node, including in-use and available space.
+
+`disk.percent`::
+Total percentage of disk space in use. Calculated as `disk.used` / `disk.total`.
+
+`host`::
+Network host for the node. Set using <<network.host,`network.host`>>.
+
+`ip`::
+IP address and port for the node.
+
+`node`::
+Name for the node. Set using <<node-name,`node.name`>>.
+
+
 [[cat-allocation-api-example]]
 ==== {api-examples-title}
 
 [source,console,id=cat-allocation-example]
 --------------------------------------------------
-GET /_cat/allocation?v
+GET /_cat/allocation?v=true
 --------------------------------------------------
 // TEST[s/^/PUT test\n{"settings": {"number_of_replicas": 0}}\n/]
 

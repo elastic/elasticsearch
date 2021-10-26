@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -11,10 +12,12 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -22,7 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -32,8 +35,10 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -50,6 +55,8 @@ import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import java.util.Optional;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.MIN_SUPPORTED_SNAPSHOT_VERSION;
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.checkAssignmentState;
 
 /*
@@ -85,7 +92,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         this.jobConfigProvider = jobConfigProvider;
         this.memoryTracker = memoryTracker;
         this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
-        this.client = client;
+        this.client = new OriginSettingClient(client, ML_ORIGIN);
     }
 
     @Override
@@ -105,13 +112,13 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         }
 
         OpenJobAction.JobParams jobParams = request.getJobParams();
-        if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)) {
+        if (MachineLearningField.ML_API_FEATURE.check(licenseState)) {
 
             // Clear job finished time once the job is started and respond
             ActionListener<NodeAcknowledgedResponse> clearJobFinishTime = ActionListener.wrap(
                 response -> {
                     if (response.isAcknowledged()) {
-                        clearJobFinishedTime(response, state, jobParams.getJobId(), listener);
+                        clearJobFinishedTime(response, state, jobParams.getJobId(), request.masterNodeTimeout(), listener);
                     } else {
                         listener.onResponse(response);
                     }
@@ -148,9 +155,53 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             );
 
             // Tell the job tracker to refresh the memory requirement for this job and all other jobs that have persistent tasks
-            ActionListener<Boolean> getJobHandler = ActionListener.wrap(
+            ActionListener<Boolean> modelSnapshotValidationListener = ActionListener.wrap(
                 response -> memoryTracker.refreshAnomalyDetectorJobMemoryAndAllOthers(jobParams.getJobId(),
                     memoryRequirementRefreshListener),
+                listener::onFailure
+            );
+
+            // Validate the model snapshot is supported
+            ActionListener<Boolean> getJobHandler = ActionListener.wrap(
+                response -> {
+                    if (jobParams.getJob().getModelSnapshotId() == null) {
+                        modelSnapshotValidationListener.onResponse(true);
+                        return;
+                    }
+                    client.execute(
+                        GetModelSnapshotsAction.INSTANCE,
+                        new GetModelSnapshotsAction.Request(jobParams.getJobId(), jobParams.getJob().getModelSnapshotId()),
+                        ActionListener.wrap(
+                            modelSnapshot -> {
+                                if (modelSnapshot.getPage().results().isEmpty()) {
+                                    modelSnapshotValidationListener.onResponse(true);
+                                    return;
+                                }
+                                assert modelSnapshot.getPage().results().size() == 1;
+                                if (modelSnapshot.getPage().results().get(0).getMinVersion().onOrAfter(MIN_SUPPORTED_SNAPSHOT_VERSION)) {
+                                    modelSnapshotValidationListener.onResponse(true);
+                                    return;
+                                }
+                                listener.onFailure(
+                                    ExceptionsHelper.serverError(
+                                        "[{}] job snapshot [{}] has min version before [{}], " +
+                                            "please revert to a newer model snapshot or reset the job",
+                                        jobParams.getJobId(),
+                                        jobParams.getJob().getModelSnapshotId(),
+                                        MIN_SUPPORTED_SNAPSHOT_VERSION.toString()
+                                    )
+                                );
+                            },
+                            failure -> {
+                                if (ExceptionsHelper.unwrapCause(failure) instanceof ResourceNotFoundException) {
+                                    modelSnapshotValidationListener.onResponse(true);
+                                    return;
+                                }
+                                listener.onFailure(ExceptionsHelper.serverError("Unable to validate model snapshot", failure));
+                            }
+                        )
+                    );
+                },
                 listener::onFailure
             );
 
@@ -201,6 +252,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     private void clearJobFinishedTime(NodeAcknowledgedResponse response,
                                       ClusterState clusterState,
                                       String jobId,
+                                      TimeValue masterNodeTimeout,
                                       ActionListener<NodeAcknowledgedResponse> listener) {
         final JobUpdate update = new JobUpdate.Builder(jobId).setClearFinishTime(true).build();
         ActionListener<Job> clearedTimeListener = ActionListener.wrap(
@@ -224,6 +276,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             MlConfigIndex::mapping,
             client,
             clusterState,
+            masterNodeTimeout,
             mappingsUpdatedListener);
     }
 

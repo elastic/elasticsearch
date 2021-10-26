@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.Source
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
+import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
@@ -510,7 +511,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         assertTrue(transformConfigRewritten.getSettings().getDatesAsEpochMillis());
         assertFalse(transformConfigRewritten.getSettings().getAlignCheckpoints());
 
-        assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
+        assertWarnings(TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
         assertEquals(Version.CURRENT, transformConfigRewritten.getVersion());
     }
 
@@ -583,7 +584,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         assertNotNull(transformConfigRewritten.getSettings().getMaxPageSearchSize());
         assertEquals(555L, transformConfigRewritten.getSettings().getMaxPageSearchSize().longValue());
         assertEquals(Version.CURRENT, transformConfigRewritten.getVersion());
-        assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
+        assertWarnings(TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
     }
 
     public void testRewriteForBWCOfDateNormalization() throws IOException {
@@ -739,7 +740,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         TransformConfig deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, Version.CURRENT);
 
         // check _and_ clear warnings
-        assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
+        assertWarnings(TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
 
         // important: checkForDeprecations does _not_ create new deprecation warnings
         assertThat(
@@ -749,8 +750,8 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                     new DeprecationIssue(
                         Level.WARNING,
                         "Transform [" + id + "] uses deprecated max_page_search_size",
-                        "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html",
-                        "[max_page_search_size] is deprecated inside pivot please use settings instead",
+                        TransformDeprecations.BREAKING_CHANGES_BASE_URL,
+                        TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED,
                         false,
                         null
                     )
@@ -761,7 +762,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, Version.V_7_10_0);
 
         // check _and_ clear warnings
-        assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
+        assertWarnings(TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
 
         // important: checkForDeprecations does _not_ create new deprecation warnings
         assertThat(
@@ -771,8 +772,8 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                     new DeprecationIssue(
                         Level.WARNING,
                         "Transform [" + id + "] uses deprecated max_page_search_size",
-                        "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html",
-                        "[max_page_search_size] is deprecated inside pivot please use settings instead",
+                        TransformDeprecations.BREAKING_CHANGES_BASE_URL,
+                        TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED,
                         false,
                         null
                     )
@@ -783,7 +784,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, Version.V_7_4_0);
 
         // check _and_ clear warnings
-        assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
+        assertWarnings(TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
 
         // important: checkForDeprecations does _not_ create new deprecation warnings
         assertThat(
@@ -793,16 +794,16 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                     new DeprecationIssue(
                         Level.CRITICAL,
                         "Transform [" + id + "] is too old",
-                        "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html",
-                        "The configuration uses an old format, you can use [_update] or [_upgrade] to update",
+                        TransformDeprecations.UPGRADE_TRANSFORM_URL,
+                        TransformDeprecations.ACTION_UPGRADE_TRANSFORMS_API,
                         false,
                         null
                     ),
                     new DeprecationIssue(
                         Level.WARNING,
                         "Transform [" + id + "] uses deprecated max_page_search_size",
-                        "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html",
-                        "[max_page_search_size] is deprecated inside pivot please use settings instead",
+                        TransformDeprecations.BREAKING_CHANGES_BASE_URL,
+                        TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED,
                         false,
                         null
                     )

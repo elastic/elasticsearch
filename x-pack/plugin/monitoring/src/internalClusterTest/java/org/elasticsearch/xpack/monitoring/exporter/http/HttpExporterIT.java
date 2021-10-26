@@ -143,6 +143,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
             .put("xpack.monitoring.exporters._http.ssl.truststore.password", "foobar") // ensure that ssl can be used by settings
             .put("xpack.monitoring.exporters._http.headers.ignored", "value") // ensure that headers can be used by settings
             .put("xpack.monitoring.exporters._http.host", getFormattedAddress(webServer))
+            .put("xpack.monitoring.exporters._http.cluster_alerts.management.enabled", true)
             .putList("xpack.monitoring.exporters._http.cluster_alerts.management.blacklist", clusterAlertBlacklist)
             .put("xpack.monitoring.exporters._http.auth.username", userName);
     }

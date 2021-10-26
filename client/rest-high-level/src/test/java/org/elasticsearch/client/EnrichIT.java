@@ -25,6 +25,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
+@SuppressWarnings("removal")
 public class EnrichIT extends ESRestHighLevelClientTestCase {
 
     public void testCRUD() throws Exception {

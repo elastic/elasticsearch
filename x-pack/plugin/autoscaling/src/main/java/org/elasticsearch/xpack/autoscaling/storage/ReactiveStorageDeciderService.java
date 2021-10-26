@@ -42,6 +42,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
@@ -582,7 +583,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             DataStream dataStream = stream.getDataStream();
             for (int i = 0; i < numberNewIndices; ++i) {
                 final String uuid = UUIDs.randomBase64UUID();
-                dataStream = dataStream.rollover(state.metadata(), uuid, Version.CURRENT);
+                final Tuple<String, Long> dummyRolledDatastream = dataStream.nextWriteIndexAndGeneration(state.metadata(), Version.CURRENT);
+                dataStream = dataStream.rollover(new Index(dummyRolledDatastream.v1(), uuid), dummyRolledDatastream.v2());
 
                 // this unintentionally copies the in-sync allocation ids too. This has the fortunate effect of these indices
                 // not being regarded new by the disk threshold decider, thereby respecting the low watermark threshold even for primaries.

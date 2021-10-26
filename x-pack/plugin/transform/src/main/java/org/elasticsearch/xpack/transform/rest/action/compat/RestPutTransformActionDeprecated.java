@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.transform.rest.action.compat;
 
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
@@ -44,7 +46,9 @@ public class RestPutTransformActionDeprecated extends BaseRestHandler {
         XContentParser parser = restRequest.contentParser();
 
         boolean deferValidation = restRequest.paramAsBoolean(TransformField.DEFER_VALIDATION.getPreferredName(), false);
-        PutTransformAction.Request request = PutTransformAction.Request.fromXContent(parser, id, deferValidation);
+        TimeValue timeout = restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
+
+        PutTransformAction.Request request = PutTransformAction.Request.fromXContent(parser, id, deferValidation, timeout);
 
         return channel -> client.execute(PutTransformActionDeprecated.INSTANCE, request, new RestToXContentListener<>(channel));
     }

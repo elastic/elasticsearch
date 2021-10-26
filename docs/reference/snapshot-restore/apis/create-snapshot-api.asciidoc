@@ -73,11 +73,12 @@ Besides creating a copy of each data stream and index, the snapshot process can 
 
 `<repository>`::
 (Required, string)
-Name of the repository to create a snapshot in.
+Name of the snapshot repository.
 
 `<snapshot>`::
 (Required, string)
-Name of the snapshot to create. This name must be unique in the snapshot repository.
+Name of the snapshot. Supports <<date-math-index-names,date math>>. Must be
+unique within the snapshot repository.
 
 [[create-snapshot-api-query-params]]
 ==== {api-query-parms-title}
@@ -96,50 +97,67 @@ initializes. Defaults to `false`.
 // Set an attribute so we can reuse these params with anchors
 :page-id: create-snapshot-api
 // tag::snapshot-config[]
+`expand_wildcards`::
++
+--
+(Optional, string) Determines how wildcard patterns in the `indices` parameter
+match data streams and indices. Supports comma-separated values, such as
+`closed,hidden`. Defaults to `open,hidden`. Valid values are:
+
+`all`:::
+Match any data stream or index, including <<hidden,hidden>> ones.
+
+`open`:::
+Match open indices and data streams.
+
+`closed`:::
+Match closed indices and data streams.
+
+`hidden`:::
+Match hidden data streams and indices. Must be combined with `open`, `closed`,
+or both.
+
+`none`:::
+Don't expand wildcard patterns.
+--
+
 `ignore_unavailable`::
 (Optional, Boolean)
 If `false`, the snapshot fails if any data stream or index in `indices` is
 missing or closed. If `true`, the snapshot ignores missing or closed data
 streams and indices. Defaults to `false`.
 
-`indices`::
-(Optional, string)
-A comma-separated list of data streams and indices to include in the snapshot.
-<<multi-index,Multi-index syntax>> is supported.
-+
-By default, a snapshot includes all data streams and indices in the cluster. If this
-argument is provided, the snapshot only includes the specified data streams and clusters.
-
 `include_global_state`::
 +
 --
 (Optional, Boolean)
-If `true`, the current global state is included in the snapshot.
-Defaults to `true`.
+If `true`, include the cluster state in the snapshot. Defaults to `true`.
+The cluster state includes:
 
-The global state includes:
-
-* Persistent cluster settings
-* Index templates
-* Legacy index templates
-* Ingest pipelines
-* {ilm-init} lifecycle policies
-* Data stored in system indices, such as Watches and task records (configurable via `feature_states`)
+include::restore-snapshot-api.asciidoc[tag=cluster-state-contents]
 --
+
+`indices`::
+(Optional, string or array of strings)
+Comma-separated list of data streams and indices to include in the snapshot.
+Supports <<multi-index,multi-index syntax>>. Defaults to an empty array (`[]`),
+which includes all data streams and indices, including system indices.
++
+To exclude all data streams and indices, use `-*` or `none`.
 
 [id="{page-id}-feature-states"]
 `feature_states`::
 (Optional, array of strings)
-A list of feature states to be included in this snapshot. A list of features
-available for inclusion in the snapshot and their descriptions be can be
-retrieved using the <<get-features-api,get features API>>.
-Each feature state includes one or more system indices containing data necessary
-for the function of that feature. Providing an empty array will include no feature
-states in the snapshot, regardless of the value of `include_global_state`.
+Feature states to include in the snapshot. To get a list of possible feature
+state values and their descriptions, use the <<get-features-api,get features
+API>>. Each feature state includes one or more system indices.
 +
-By default, all available feature states will be included in the snapshot if
-`include_global_state` is `true`, or no feature states if `include_global_state`
-is `false`.
+If `include_global_state` is `true`, the snapshot includes all feature states by
+default. If `include_global_state` is `false`, the snapshot includes no feature
+states by default.
++
+To exclude all feature states, regardless of the `include_global_state` value,
+specify an empty array (`[]`) or `none`.
 
 `metadata`::
 (Optional, object)

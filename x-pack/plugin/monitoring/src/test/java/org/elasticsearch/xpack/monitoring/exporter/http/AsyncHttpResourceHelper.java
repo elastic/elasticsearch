@@ -50,7 +50,7 @@ class AsyncHttpResourceHelper {
         doAnswer(invocation -> {
             ((ResponseListener)invocation.getArguments()[1]).onSuccess(response);
             return null;
-        }).when(client).performRequestAsync(argThat(request), any(ResponseListener.class));
+        }).when(client).performRequestAsync(argThat(request::matches), any(ResponseListener.class));
     }
 
     static void whenPerformRequestAsyncWith(final RestClient client, final Matcher<Request> request, final List<Response> responses) {
@@ -94,7 +94,7 @@ class AsyncHttpResourceHelper {
             });
         }
 
-        stub.when(client).performRequestAsync(argThat(request), any(ResponseListener.class));
+        stub.when(client).performRequestAsync(argThat(request::matches), any(ResponseListener.class));
     }
 
     static void whenPerformRequestAsyncWith(final RestClient client, final Request request, final Response response) {
@@ -115,7 +115,7 @@ class AsyncHttpResourceHelper {
         doAnswer(invocation -> {
             ((ResponseListener)invocation.getArguments()[1]).onFailure(exception);
             return null;
-        }).when(client).performRequestAsync(argThat(request), any(ResponseListener.class));
+        }).when(client).performRequestAsync(argThat(request::matches), any(ResponseListener.class));
     }
 
     static void whenPerformRequestAsyncWith(final RestClient client, final Request request, final Exception exception) {

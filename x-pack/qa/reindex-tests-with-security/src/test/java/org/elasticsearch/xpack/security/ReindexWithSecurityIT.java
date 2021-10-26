@@ -21,6 +21,7 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.security.SecurityField;
 
 
+@SuppressWarnings("removal")
 public class ReindexWithSecurityIT extends SecurityIntegTestCase {
 
     @Override

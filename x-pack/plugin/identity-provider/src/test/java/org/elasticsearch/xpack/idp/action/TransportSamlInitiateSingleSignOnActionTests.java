@@ -46,7 +46,8 @@ import java.util.HashSet;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.arrayWithSize;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -180,17 +181,15 @@ public class TransportSamlInitiateSingleSignOnActionTests extends IdpSamlTestCas
         final SamlFactory factory = new SamlFactory();
         final UserPrivilegeResolver privilegeResolver = Mockito.mock(UserPrivilegeResolver.class);
         doAnswer(inv -> {
-            final Object[] args = inv.getArguments();
-            assertThat(args, arrayWithSize(2));
-            ActionListener<UserPrivilegeResolver.UserPrivileges> listener
-                = (ActionListener<UserPrivilegeResolver.UserPrivileges>) args[args.length - 1];
+            assertThat(inv.getArguments(), arrayWithSize(2));
+            ActionListener<UserPrivilegeResolver.UserPrivileges> listener = inv.getArgument(1);
             final UserPrivilegeResolver.UserPrivileges privileges = new UserPrivilegeResolver.UserPrivileges(
                 "saml_enduser", true,
                 new HashSet<>(Arrays.asList(generateRandomStringArray(5, 8, false, false))
                 ));
             listener.onResponse(privileges);
             return null;
-        }).when(privilegeResolver).resolve(any(ServiceProviderPrivileges.class), any(ActionListener.class));
+        }).when(privilegeResolver).resolve(nullable(ServiceProviderPrivileges.class), any());
         return new TransportSamlInitiateSingleSignOnAction(transportService, actionFilters, securityContext,
             idp, factory, privilegeResolver);
     }

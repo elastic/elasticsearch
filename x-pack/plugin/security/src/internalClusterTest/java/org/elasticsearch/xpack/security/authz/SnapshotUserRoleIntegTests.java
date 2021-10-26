@@ -33,6 +33,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationException;
 
+@SuppressWarnings("removal")
 public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
 
     private Client client;

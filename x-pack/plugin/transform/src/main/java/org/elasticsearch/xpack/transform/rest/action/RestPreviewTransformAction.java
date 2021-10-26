@@ -9,16 +9,18 @@ package org.elasticsearch.xpack.transform.rest.action;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -52,7 +54,8 @@ public class RestPreviewTransformAction extends BaseRestHandler {
         if (Strings.isNullOrEmpty(transformId) && restRequest.hasContentOrSourceParam() == false) {
             throw ExceptionsHelper.badRequestException(
                 "Please provide a transform [{}] or the config object",
-                TransformField.ID.getPreferredName());
+                TransformField.ID.getPreferredName()
+            );
         }
 
         if (Strings.isNullOrEmpty(transformId) == false && restRequest.hasContentOrSourceParam()) {
@@ -62,9 +65,12 @@ public class RestPreviewTransformAction extends BaseRestHandler {
             );
         }
 
+        TimeValue timeout = restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
+
         SetOnce<PreviewTransformAction.Request> previewRequestHolder = new SetOnce<>();
+
         if (Strings.isNullOrEmpty(transformId)) {
-            previewRequestHolder.set(PreviewTransformAction.Request.fromXContent(restRequest.contentOrSourceParamParser()));
+            previewRequestHolder.set(PreviewTransformAction.Request.fromXContent(restRequest.contentOrSourceParamParser(), timeout));
         }
 
         return channel -> {
@@ -86,7 +92,7 @@ public class RestPreviewTransformAction extends BaseRestHandler {
                             )
                         );
                     } else {
-                        PreviewTransformAction.Request previewRequest = new PreviewTransformAction.Request(transforms.get(0));
+                        PreviewTransformAction.Request previewRequest = new PreviewTransformAction.Request(transforms.get(0), timeout);
                         client.execute(PreviewTransformAction.INSTANCE, previewRequest, listener);
                     }
                 }, listener::onFailure));

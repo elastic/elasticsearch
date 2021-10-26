@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 
 public class MachineLearningInfoTransportAction extends XPackInfoFeatureTransportAction {
 
@@ -36,7 +37,7 @@ public class MachineLearningInfoTransportAction extends XPackInfoFeatureTranspor
 
     @Override
     public boolean available() {
-        return licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING);
+        return MachineLearningField.ML_API_FEATURE.checkWithoutTracking(licenseState);
     }
 
     @Override

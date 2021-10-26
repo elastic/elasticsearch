@@ -312,7 +312,7 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                 builder.startObject();
                 builder.field("model_id", modelId);
                 if (modelSize != null) {
-                    builder.field("model_size", modelSize);
+                    builder.humanReadableField("model_size_bytes", "model_size", modelSize);
                 }
                 if (inferenceThreads != null) {
                     builder.field(StartTrainedModelDeploymentAction.TaskParams.INFERENCE_THREADS.getPreferredName(), inferenceThreads);

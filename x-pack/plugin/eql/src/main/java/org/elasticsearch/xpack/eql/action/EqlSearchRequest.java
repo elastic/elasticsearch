@@ -417,7 +417,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             out.writeBoolean(keepOnCompletion);
         }
 
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) { // TODO: Remove after backport
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeString(resultPosition);
         }
         if (out.getVersion().onOrAfter(Version.V_7_13_0)) {

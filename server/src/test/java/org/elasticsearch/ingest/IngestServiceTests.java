@@ -60,7 +60,6 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.cbor.CborXContent;
-import org.hamcrest.CustomTypeSafeMatcher;
 import org.junit.Before;
 import org.mockito.ArgumentMatcher;
 import org.mockito.invocation.InvocationOnMock;
@@ -88,7 +87,6 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.hamcrest.Matchers.containsString;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -914,19 +912,8 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.executeBulkRequest(bulkRequest.numberOfActions(), bulkRequest.requests(), failureHandler,
             completionHandler, indexReq -> {}, Names.WRITE);
         verify(failureHandler, times(1)).accept(
-            argThat(new CustomTypeSafeMatcher<>("failure handler was not called with the expected arguments") {
-                @Override
-                protected boolean matchesSafely(Integer item) {
-                    return item == 2;
-                }
-
-            }),
-            argThat(new CustomTypeSafeMatcher<IllegalArgumentException>("failure handler was not called with the expected arguments") {
-                @Override
-                protected boolean matchesSafely(IllegalArgumentException iae) {
-                    return "pipeline with id [does_not_exist] does not exist".equals(iae.getMessage());
-                }
-            })
+            argThat(item -> item == 2),
+            argThat(iae -> "pipeline with id [does_not_exist] does not exist".equals(iae.getMessage()))
         );
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
@@ -1207,12 +1194,7 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.executeBulkRequest(numRequest, bulkRequest.requests(), requestItemErrorHandler, completionHandler, indexReq -> {},
             Names.WRITE);
 
-        verify(requestItemErrorHandler, times(numIndexRequests)).accept(anyInt(), argThat(new ArgumentMatcher<Exception>() {
-            @Override
-            public boolean matches(final Object o) {
-                return ((Exception)o).getCause().equals(error);
-            }
-        }));
+        verify(requestItemErrorHandler, times(numIndexRequests)).accept(anyInt(), argThat(e -> e.getCause().equals(error)));
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
 
@@ -1762,6 +1744,120 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(listener.getFailureCount(), equalTo(0L));
     }
 
+    public void testPutPipelineWithVersionedUpdateWithoutExistingPipeline() throws Exception {
+        var pipelineId = randomAlphaOfLength(5);
+        var clusterState = ClusterState.EMPTY_STATE;
+
+        final Integer version = randomInt();
+        var pipelineString = "{\"version\": " + version + ", \"processors\": []}";
+        var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON, version);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IngestService.innerPut(request, clusterState));
+        assertThat(
+            e.getMessage(),
+            equalTo(String.format(
+                Locale.ROOT,
+                "version conflict, required version [%s] for pipeline [%s] but no pipeline was found",
+                version,
+                pipelineId
+            ))
+        );
+    }
+
+    public void testPutPipelineWithVersionedUpdateDoesNotMatchExistingPipeline() {
+        var pipelineId = randomAlphaOfLength(5);
+        final Integer version = randomInt();
+        var pipelineString = "{\"version\": " + version + ", \"processors\": []}";
+        var existingPipeline = new PipelineConfiguration(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
+        var clusterState = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().putCustom(
+                    IngestMetadata.TYPE,
+                    new IngestMetadata(Map.of(pipelineId, existingPipeline))
+                ).build()
+            ).build();
+
+        final Integer requestedVersion = randomValueOtherThan(version, ESTestCase::randomInt);
+        var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON, requestedVersion);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IngestService.innerPut(request, clusterState));
+        assertThat(
+            e.getMessage(),
+            equalTo(String.format(
+                Locale.ROOT,
+                "version conflict, required version [%s] for pipeline [%s] but current version is [%s]",
+                requestedVersion,
+                pipelineId,
+                version
+            ))
+        );
+    }
+
+    public void testPutPipelineWithVersionedUpdateSpecifiesSameVersion() throws Exception {
+        var pipelineId = randomAlphaOfLength(5);
+        final Integer version = randomInt();
+        var pipelineString = "{\"version\": " + version + ", \"processors\": []}";
+        var existingPipeline = new PipelineConfiguration(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
+        var clusterState = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().putCustom(
+                    IngestMetadata.TYPE,
+                    new IngestMetadata(Map.of(pipelineId, existingPipeline))
+                ).build()
+            ).build();
+
+        var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON, version);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IngestService.innerPut(request, clusterState));
+        assertThat(
+            e.getMessage(),
+            equalTo(String.format(
+                Locale.ROOT,
+                "cannot update pipeline [%s] with the same version [%s]",
+                pipelineId,
+                version
+            ))
+        );
+    }
+
+    public void testPutPipelineWithVersionedUpdateSpecifiesValidVersion() throws Exception {
+        var pipelineId = randomAlphaOfLength(5);
+        final Integer existingVersion = randomInt();
+        var pipelineString = "{\"version\": " + existingVersion + ", \"processors\": []}";
+        var existingPipeline = new PipelineConfiguration(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
+        var clusterState = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().putCustom(
+                    IngestMetadata.TYPE,
+                    new IngestMetadata(Map.of(pipelineId, existingPipeline))
+                ).build()
+            ).build();
+
+        final int specifiedVersion = randomValueOtherThan(existingVersion, ESTestCase::randomInt);
+        var updatedPipelineString = "{\"version\": " + specifiedVersion + ", \"processors\": []}";
+        var request = new PutPipelineRequest(pipelineId, new BytesArray(updatedPipelineString), XContentType.JSON, existingVersion);
+        var updatedState = IngestService.innerPut(request, clusterState);
+
+        var updatedConfig = ((IngestMetadata) updatedState.metadata().custom(IngestMetadata.TYPE)).getPipelines().get(pipelineId);
+        assertThat(updatedConfig, notNullValue());
+        assertThat(updatedConfig.getVersion(), equalTo(specifiedVersion));
+    }
+
+    public void testPutPipelineWithVersionedUpdateIncrementsVersion() throws Exception {
+        var pipelineId = randomAlphaOfLength(5);
+        final Integer existingVersion = randomInt();
+        var pipelineString = "{\"version\": " + existingVersion + ", \"processors\": []}";
+        var existingPipeline = new PipelineConfiguration(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
+        var clusterState = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().putCustom(
+                    IngestMetadata.TYPE,
+                    new IngestMetadata(Map.of(pipelineId, existingPipeline))
+                ).build()
+            ).build();
+
+        var updatedPipelineString = "{\"processors\": []}";
+        var request = new PutPipelineRequest(pipelineId, new BytesArray(updatedPipelineString), XContentType.JSON, existingVersion);
+        var updatedState = IngestService.innerPut(request, clusterState);
+
+        var updatedConfig = ((IngestMetadata) updatedState.metadata().custom(IngestMetadata.TYPE)).getPipelines().get(pipelineId);
+        assertThat(updatedConfig, notNullValue());
+        assertThat(updatedConfig.getVersion(), equalTo(existingVersion + 1));
+    }
+
     private static Tuple<String, Object> randomMapEntry() {
         return tuple(randomAlphaOfLength(5), randomObject());
     }
@@ -1827,7 +1923,7 @@ public class IngestServiceTests extends ESTestCase {
         return processor;
     }
 
-    private class IngestDocumentMatcher extends ArgumentMatcher<IngestDocument> {
+    private class IngestDocumentMatcher implements ArgumentMatcher<IngestDocument> {
 
         private final IngestDocument ingestDocument;
 
@@ -1840,13 +1936,9 @@ public class IngestServiceTests extends ESTestCase {
         }
 
         @Override
-        public boolean matches(Object o) {
-            if (o.getClass() == IngestDocument.class) {
-                IngestDocument otherIngestDocument = (IngestDocument) o;
-                //ingest metadata will not be the same (timestamp differs every time)
-                return Objects.equals(ingestDocument.getSourceAndMetadata(), otherIngestDocument.getSourceAndMetadata());
-            }
-            return false;
+        public boolean matches(IngestDocument other) {
+            //ingest metadata will not be the same (timestamp differs every time)
+            return Objects.equals(ingestDocument.getSourceAndMetadata(), other.getSourceAndMetadata());
         }
     }
 

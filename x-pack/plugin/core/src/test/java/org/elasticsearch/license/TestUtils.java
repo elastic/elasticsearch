@@ -14,14 +14,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.licensor.LicenseSigner;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.MatcherAssert;
 import org.junit.Assert;
 
@@ -40,15 +40,13 @@ import java.util.concurrent.atomic.AtomicReference;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomInt;
 import static org.apache.lucene.util.LuceneTestCase.createTempFile;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.junit.Assert.assertThat;
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class TestUtils {
 
@@ -405,12 +403,6 @@ public class TestUtils {
     }
 
     public static MockLicenseState newMockLicenceState() {
-        MockLicenseState mock = mock(MockLicenseState.class);
-        // These are deprecated methods, but we haven't replaced all usage of them yet
-        // By calling the real methods, we force everything through a small number of mockable methods like
-        //  XPackLicenseState.isAllowed(LicensedFeature)
-        when(mock.isAllowed(any(XPackLicenseState.Feature.class))).thenCallRealMethod();
-        when(mock.checkFeature(any(XPackLicenseState.Feature.class))).thenCallRealMethod();
-        return mock;
+        return mock(MockLicenseState.class);
     }
 }

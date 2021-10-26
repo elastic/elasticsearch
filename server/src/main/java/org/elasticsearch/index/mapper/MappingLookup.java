@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.index.IndexSettings;
@@ -228,6 +229,20 @@ public final class MappingLookup {
         return completionFields.contains(field) ? CompletionFieldMapper.postingsFormat() : null;
     }
 
+    /**
+     * Returns the knn vectors format for a particular field
+     * @param field the field to retrieve a knn vectors format for
+     * @return the knn vectors format for the field, or {@code null} if the default format should be used
+     */
+    public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
+        Mapper fieldMapper = fieldMappers.get(field);
+        if (fieldMapper instanceof PerFieldKnnVectorsFormatFieldMapper) {
+            return ((PerFieldKnnVectorsFormatFieldMapper) fieldMapper).getKnnVectorsFormatForField();
+        } else {
+            return null;
+        }
+    }
+
     void checkLimits(IndexSettings settings) {
         checkFieldLimit(settings.getMappingTotalFieldsLimit());
         checkObjectDepthLimit(settings.getMappingDepthLimit());
@@ -314,7 +329,14 @@ public final class MappingLookup {
         return objectMappers.containsKey(field);
     }
 
-    public String getNestedScope(String path) {
+    /**
+     * Given a nested object path, returns the path to its nested parent
+     *
+     * In particular, if a nested field `foo` contains an object field
+     * `bar.baz`, then calling this method with `foo.bar.baz` will return
+     * the path `foo`, skipping over the object-but-not-nested `foo.bar`
+     */
+    public String getNestedParent(String path) {
         for (String parentPath = parentObject(path); parentPath != null; parentPath = parentObject(parentPath)) {
             ObjectMapper objectMapper = objectMappers.get(parentPath);
             if (objectMapper != null && objectMapper.isNested()) {
@@ -450,35 +472,5 @@ public final class MappingLookup {
             }
         }
         return parents;
-    }
-
-    /**
-     * Given a nested object path, returns the path to its nested parent
-     *
-     * In particular, if a nested field `foo` contains an object field
-     * `bar.baz`, then calling this method with `foo.bar.baz` will return
-     * the path `foo`, skipping over the object-but-not-nested `foo.bar`
-     */
-    public String getNestedParent(String path) {
-        ObjectMapper mapper = objectMappers().get(path);
-        if (mapper == null) {
-            return null;
-        }
-        if (path.contains(".") == false) {
-            return null;
-        }
-        do {
-            path = path.substring(0, path.lastIndexOf("."));
-            mapper = objectMappers().get(path);
-            if (mapper == null) {
-                return null;
-            }
-            if (mapper.isNested()) {
-                return path;
-            }
-            if (path.contains(".") == false) {
-                return null;
-            }
-        } while(true);
     }
 }

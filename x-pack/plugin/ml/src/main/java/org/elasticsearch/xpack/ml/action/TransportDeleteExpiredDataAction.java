@@ -209,7 +209,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
             new ExpiredForecastsRemover(client, threadPool, parentTaskId),
             new ExpiredModelSnapshotsRemover(client,
                 new WrappedBatchedJobsIterator(new SearchAfterJobsIterator(client)), threadPool, parentTaskId, jobResultsProvider, auditor),
-            new UnusedStateRemover(client, clusterService, parentTaskId),
+            new UnusedStateRemover(client, parentTaskId),
             new EmptyStateIndexRemover(client, parentTaskId),
             new UnusedStatsRemover(client, parentTaskId),
             new ExpiredAnnotationsRemover(client,
@@ -226,7 +226,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
                 threadPool, parentTaskId,
                 jobResultsProvider,
                 auditor),
-            new UnusedStateRemover(client, clusterService, parentTaskId),
+            new UnusedStateRemover(client, parentTaskId),
             new EmptyStateIndexRemover(client, parentTaskId),
             new UnusedStatsRemover(client, parentTaskId),
             new ExpiredAnnotationsRemover(client, new VolatileCursorIterator<>(jobs), parentTaskId, auditor, threadPool)

@@ -77,7 +77,8 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         Script script,
         Map<String, String> meta
     ) {
-        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta);
+        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
+            script, scriptFactory.isResultDeterministic(), meta);
     }
 
     @Override
@@ -102,7 +103,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
 
     @Override
     public Query existsQuery(SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new StringScriptFieldExistsQuery(script, leafFactory(context), name());
     }
 
@@ -115,7 +116,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         boolean transpositions,
         SearchExecutionContext context
     ) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return StringScriptFieldFuzzyQuery.build(
             script,
             leafFactory(context),
@@ -129,7 +130,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
 
     @Override
     public Query prefixQuery(String value, RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new StringScriptFieldPrefixQuery(script, leafFactory(context), name(), value, caseInsensitive);
     }
 
@@ -143,7 +144,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         DateMathParser parser,
         SearchExecutionContext context
     ) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new StringScriptFieldRangeQuery(
             script,
             leafFactory(context),
@@ -164,7 +165,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         RewriteMethod method,
         SearchExecutionContext context
     ) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         if (matchFlags != 0) {
             throw new IllegalArgumentException("Match flags not yet implemented [" + matchFlags + "]");
         }
@@ -181,7 +182,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
 
     @Override
     public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new StringScriptFieldTermQuery(
             script,
             leafFactory(context),
@@ -193,7 +194,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
 
     @Override
     public Query termQuery(Object value, SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new StringScriptFieldTermQuery(
             script,
             leafFactory(context),
@@ -205,20 +206,20 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
 
     @Override
     public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         Set<String> terms = values.stream().map(v -> BytesRefs.toString(Objects.requireNonNull(v))).collect(toSet());
         return new StringScriptFieldTermsQuery(script, leafFactory(context), name(), terms);
     }
 
     @Override
     public Query wildcardQuery(String value, RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new StringScriptFieldWildcardQuery(script, leafFactory(context), name(), value, caseInsensitive);
     }
 
     @Override
     public Query normalizedWildcardQuery(String value, RewriteMethod method, SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new StringScriptFieldWildcardQuery(script, leafFactory(context), name(), value, false);
     }
 }

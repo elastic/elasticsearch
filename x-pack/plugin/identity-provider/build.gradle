@@ -48,7 +48,6 @@ dependencies {
   runtimeOnly 'com.google.guava:failureaccess:1.0.1'
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
 
-  testImplementation 'org.elasticsearch:securemock:1.2'
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
   testImplementation(testArtifact(project(xpackModule('core'))))
   // So that we can extend LocalStateCompositeXPackPlugin

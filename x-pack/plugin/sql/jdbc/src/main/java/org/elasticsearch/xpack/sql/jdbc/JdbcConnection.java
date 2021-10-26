@@ -51,7 +51,8 @@ class JdbcConnection implements Connection, JdbcWrapper {
 
     JdbcConnection(JdbcConfiguration connectionInfo, boolean checkServer) throws SQLException {
         cfg = connectionInfo;
-        client = new JdbcHttpClient(connectionInfo, checkServer);
+        client = new JdbcHttpClient(this, checkServer);
+        catalog = cfg.catalog();
         url = connectionInfo.connectionString();
         userName = connectionInfo.authUser();
     }
@@ -65,13 +66,13 @@ class JdbcConnection implements Connection, JdbcWrapper {
     @Override
     public Statement createStatement() throws SQLException {
         checkOpen();
-        return new JdbcStatement(this, cfg);
+        return new JdbcStatement(this);
     }
 
     @Override
     public PreparedStatement prepareStatement(String sql) throws SQLException {
         checkOpen();
-        return new JdbcPreparedStatement(this, cfg, sql);
+        return new JdbcPreparedStatement(this, sql);
     }
 
     @Override
@@ -412,6 +413,10 @@ class JdbcConnection implements Connection, JdbcWrapper {
         if (ResultSet.HOLD_CURSORS_OVER_COMMIT != resultSetHoldability) {
             throw new SQLFeatureNotSupportedException("Holdability can only be HOLD_CURSORS_OVER_COMMIT");
         }
+    }
+
+    JdbcConfiguration config() {
+        return cfg;
     }
 
     String getURL() {

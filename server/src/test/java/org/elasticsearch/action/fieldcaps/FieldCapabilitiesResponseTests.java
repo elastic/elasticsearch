@@ -47,7 +47,11 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         return FieldCapabilitiesResponse::new;
     }
 
-    private FieldCapabilitiesIndexResponse createRandomIndexResponse() {
+    public static FieldCapabilitiesIndexResponse createRandomIndexResponse() {
+        return randomIndexResponse(randomAsciiLettersOfLength(10), randomBoolean());
+    }
+
+    public static FieldCapabilitiesIndexResponse randomIndexResponse(String index, boolean canMatch) {
         Map<String, IndexFieldCapabilities> responses = new HashMap<>();
 
         String[] fields = generateRandomStringArray(5, 10, false, true);
@@ -56,10 +60,10 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         for (String field : fields) {
             responses.put(field, randomFieldCaps(field));
         }
-        return new FieldCapabilitiesIndexResponse(randomAsciiLettersOfLength(10), responses, randomBoolean());
+        return new FieldCapabilitiesIndexResponse(index, responses, canMatch);
     }
 
-    private static IndexFieldCapabilities randomFieldCaps(String fieldName) {
+    public static IndexFieldCapabilities randomFieldCaps(String fieldName) {
         Map<String, String> meta;
         switch (randomInt(2)) {
             case 0:

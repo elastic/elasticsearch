@@ -802,7 +802,7 @@ The EQL search API supports <<modules-cross-cluster-search,cross-cluster
 search>>. However, the local and <<remote-clusters,remote clusters>>
 must use the same {es} version.
 
-The following <<cluster-update-settings,update cluster settings>> request
+The following <<cluster-update-settings,cluster update settings>> request
 adds two remote clusters: `cluster_one` and `cluster_two`.
 
 [source,console]

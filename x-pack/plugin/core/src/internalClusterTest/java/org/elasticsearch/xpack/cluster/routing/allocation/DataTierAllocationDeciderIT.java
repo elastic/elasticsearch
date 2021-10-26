@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.cluster.routing.allocation;
 
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
@@ -27,6 +28,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -88,6 +90,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         startWarmOnlyNode();
         startColdOnlyNode();
         ensureGreen();
+        enforceDefaultTierPreference(false);
 
         client().admin().indices().prepareCreate(index)
             .setWaitForActiveShards(0)
@@ -118,6 +121,25 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         // The key should not be put in place since it was overridden
         assertFalse(idxSettings.keySet().contains(DataTier.TIER_PREFERENCE));
         assertThat(idxSettings.get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".box"), equalTo("cold"));
+
+        // index should be yellow
+        logger.info("--> waiting for {} to be yellow", index);
+        ensureYellow(index);
+    }
+
+    public void testRequestSettingOverriddenIfEnforced() {
+        startContentOnlyNode();
+        ensureGreen();
+        enforceDefaultTierPreference(true);
+
+        client().admin().indices().prepareCreate(index)
+            .setWaitForActiveShards(0)
+            .setSettings(Settings.builder()
+                .putNull(DataTier.TIER_PREFERENCE)) // will be overridden to data_content
+            .get();
+
+        Settings idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
+        assertThat(DataTier.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo("data_content"));
 
         // index should be yellow
         logger.info("--> waiting for {} to be yellow", index);
@@ -164,6 +186,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
 
     public void testTemplateOverridesDefaults() {
         startWarmOnlyNode();
+        enforceDefaultTierPreference(false);
 
         Template t = new Template(Settings.builder()
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".box", "warm")
@@ -197,6 +220,28 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
         assertThat(idxSettings.keySet().contains(DataTier.TIER_PREFERENCE), equalTo(false));
 
+        ensureYellow(index);
+    }
+
+    public void testTemplateOverriddenIfEnforced() {
+        startContentOnlyNode();
+        enforceDefaultTierPreference(true);
+
+        Template t = new Template(Settings.builder()
+            .putNull(DataTier.TIER_PREFERENCE)
+            .build(), null, null);
+        ComposableIndexTemplate ct = new ComposableIndexTemplate.Builder()
+            .indexPatterns(Collections.singletonList(index))
+            .template(t).build();
+        client().execute(PutComposableIndexTemplateAction.INSTANCE,
+            new PutComposableIndexTemplateAction.Request("template").indexTemplate(ct)).actionGet();
+
+        client().admin().indices().prepareCreate(index).setWaitForActiveShards(0).get();
+
+        Settings idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
+        assertThat(DataTier.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo("data_content"));
+
+        // index should be yellow
         ensureYellow(index);
     }
 
@@ -330,5 +375,11 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
             .put("node.attr.box", "frozen")
             .build();
         internalCluster().startNode(nodeSettings);
+    }
+
+    public void enforceDefaultTierPreference(boolean enforceDefaultTierPreference) {
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
+        request.transientSettings(Settings.builder().put(DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE, enforceDefaultTierPreference).build());
+        assertAcked(client().admin().cluster().updateSettings(request).actionGet());
     }
 }

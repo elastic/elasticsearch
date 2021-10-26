@@ -369,7 +369,24 @@ public class ExternalEnrollmentTokenGeneratorTests extends ESTestCase {
             "[2001:db8:0:1234:0:567:8:1]:9203"));
         assertThat(filteredAddresses.get(2), equalTo("[2001:db8:0:1234:0:567:8:1]:9203"));
 
+        addresses = Arrays.asList("0.0.0.0:9200", "172.17.0.2:9200");
+        filteredAddresses = getFilteredAddresses(addresses);
+        assertThat(filteredAddresses, hasSize(1));
+        assertThat(filteredAddresses.get(0), equalTo("172.17.0.2:9200"));
+
+        addresses = Arrays.asList("0.0.0.0:9200", "[::1]:9200", "127.0.0.1:9200");
+        filteredAddresses = getFilteredAddresses(addresses);
+        assertThat(filteredAddresses, hasSize(2));
+        assertThat(filteredAddresses.get(0), equalTo("127.0.0.1:9200"));
+        assertThat(filteredAddresses.get(1), equalTo("[::1]:9200"));
+
         addresses = Arrays.asList("[::1]:9200", "127.0.0.1:9200");
+        filteredAddresses = getFilteredAddresses(addresses);
+        assertThat(filteredAddresses, hasSize(2));
+        assertThat(filteredAddresses.get(0), equalTo("127.0.0.1:9200"));
+        assertThat(filteredAddresses.get(1), equalTo("[::1]:9200"));
+
+        addresses = Arrays.asList("[::1]:9200", "127.0.0.1:9200", "[::1]:9200", "127.0.0.1:9200", "[::1]:9200", "127.0.0.1:9200");
         filteredAddresses = getFilteredAddresses(addresses);
         assertThat(filteredAddresses, hasSize(2));
         assertThat(filteredAddresses.get(0), equalTo("127.0.0.1:9200"));

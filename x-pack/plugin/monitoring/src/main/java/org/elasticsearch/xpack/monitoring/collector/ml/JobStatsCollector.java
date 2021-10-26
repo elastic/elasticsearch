@@ -12,8 +12,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.ML_API_FEATURE;
 import static org.elasticsearch.xpack.monitoring.collector.TimeoutUtils.ensureNoTimeouts;
 
 /**
@@ -64,7 +65,7 @@ public class JobStatsCollector extends Collector {
         return isElectedMaster
                 && super.shouldCollect(isElectedMaster)
                 && XPackSettings.MACHINE_LEARNING_ENABLED.get(settings)
-                && licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING);
+                && ML_API_FEATURE.checkWithoutTracking(licenseState);
     }
 
     @Override

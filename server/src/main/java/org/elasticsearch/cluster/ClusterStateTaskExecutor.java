@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 
 import java.util.IdentityHashMap;
@@ -46,7 +47,12 @@ public interface ClusterStateTaskExecutor<T> {
      * This allows groupd task description but the submitting source.
      */
     default String describeTasks(List<T> tasks) {
-        return String.join(", ", tasks.stream().map(t -> (CharSequence)t.toString()).filter(t -> t.length() > 0)::iterator);
+        final StringBuilder output = new StringBuilder();
+        Strings.collectionToDelimitedStringWithLimit(
+            (Iterable<String>) () -> tasks.stream().map(Object::toString).filter(s -> s.isEmpty() == false).iterator(),
+            ", ", "", "", 1024, output
+        );
+        return output.toString();
     }
 
     /**

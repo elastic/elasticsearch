@@ -140,6 +140,11 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
             assertThat(actual.getId(), nullValue());
             assertThat(actual.getExecutingPolicy(), equalTo(expected));
         }
+
+        assertWarnings(
+            "[xpack.monitoring.collection.enrich.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
+                + "in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     private EnrichStatsCollector createCollector(ClusterService clusterService, XPackLicenseState licenseState, Client client) {

@@ -27,6 +27,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@SuppressWarnings("removal")
 public class MockRestHighLevelTests extends ESTestCase {
     private RestHighLevelClient client;
     private static final List<String> WARNINGS = Collections.singletonList("Some Warning");

@@ -18,7 +18,6 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
@@ -163,15 +162,12 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         return (FieldNamesFieldType) super.fieldType();
     }
 
-    @Override
-    public void postParse(DocumentParserContext context) throws IOException {
+    public void addFieldNames(DocumentParserContext context, String field) {
         if (enabled.value() == false) {
             return;
         }
-        for (String field : context.getFieldNames()) {
-            assert noDocValues(field, context) : "Field " + field + " should not have docvalues";
-            context.doc().add(new Field(NAME, field, Defaults.FIELD_TYPE));
-        }
+        assert noDocValues(field, context) : "Field " + field + " should not have docvalues";
+        context.doc().add(new Field(NAME, field, Defaults.FIELD_TYPE));
     }
 
     private static boolean noDocValues(String field, DocumentParserContext context) {

@@ -184,6 +184,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         }
         Set<Setting<?>> result = new HashSet<>(ALWAYS_ENABLED_BUILT_IN_INDEX_SETTINGS);
         result.add(IndexSettings.MODE);
+        result.add(IndexMetadata.INDEX_ROUTING_PATH);
         return Set.copyOf(result);
     }
 

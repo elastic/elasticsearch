@@ -41,6 +41,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -495,7 +497,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 .stream()
                 .map(state.metadata().getIndicesLookup()::get)
                 .map(IndexAbstraction.DataStream.class::cast)
-                .map(ds -> forecast(ds, forecastWindow, now))
+                .map(ds -> forecast(state.metadata(), ds, forecastWindow, now))
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
             if (singleForecasts.isEmpty()) {
@@ -523,15 +525,15 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             );
         }
 
-        private SingleForecast forecast(IndexAbstraction.DataStream stream, long forecastWindow, long now) {
-            List<IndexMetadata> indices = stream.getIndices();
-            if (dataStreamAllocatedToNodes(indices) == false) return null;
+        private SingleForecast forecast(Metadata metadata, IndexAbstraction.DataStream stream, long forecastWindow, long now) {
+            List<Index> indices = stream.getIndices();
+            if (dataStreamAllocatedToNodes(metadata, indices) == false) return null;
             long minCreationDate = Long.MAX_VALUE;
             long totalSize = 0;
             int count = 0;
             while (count < indices.size()) {
                 ++count;
-                IndexMetadata indexMetadata = indices.get(indices.size() - count);
+                IndexMetadata indexMetadata = metadata.index(indices.get(indices.size() - count));
                 long creationDate = indexMetadata.getCreationDate();
                 if (creationDate < 0) {
                     return null;
@@ -574,13 +576,14 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 scaledTotalSize = totalSize;
             }
 
-            IndexMetadata writeIndex = stream.getWriteIndex();
+            IndexMetadata writeIndex = metadata.index(stream.getWriteIndex());
 
             Map<IndexMetadata, Long> newIndices = new HashMap<>();
             DataStream dataStream = stream.getDataStream();
             for (int i = 0; i < numberNewIndices; ++i) {
                 final String uuid = UUIDs.randomBase64UUID();
-                dataStream = dataStream.rollover(state.metadata(), uuid);
+                final Tuple<String, Long> dummyRolledDatastream = dataStream.nextWriteIndexAndGeneration(state.metadata());
+                dataStream = dataStream.rollover(new Index(dummyRolledDatastream.v1(), uuid), dummyRolledDatastream.v2());
 
                 // this unintentionally copies the in-sync allocation ids too. This has the fortunate effect of these indices
                 // not being regarded new by the disk threshold decider, thereby respecting the low watermark threshold even for primaries.
@@ -605,9 +608,9 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
          * @param indices the indices of the data stream, in original order from data stream meta.
          * @return true if the first allocated index is allocated only to the set of nodes.
          */
-        private boolean dataStreamAllocatedToNodes(List<IndexMetadata> indices) {
+        private boolean dataStreamAllocatedToNodes(Metadata metadata, List<Index> indices) {
             for (int i = 0; i < indices.size(); ++i) {
-                IndexMetadata indexMetadata = indices.get(indices.size() - i - 1);
+                IndexMetadata indexMetadata = metadata.index(indices.get(indices.size() - i - 1));
                 Set<Boolean> inNodes = state.getRoutingTable()
                     .allShards(indexMetadata.getIndex().getName())
                     .stream()

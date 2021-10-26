@@ -12,13 +12,14 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -54,7 +55,8 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
 
         private final TransformConfig config;
 
-        public Request(TransformConfig config) {
+        public Request(TransformConfig config, TimeValue timeout) {
+            super(timeout);
             this.config = config;
         }
 
@@ -63,7 +65,7 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
             this.config = new TransformConfig(in);
         }
 
-        public static Request fromXContent(final XContentParser parser) throws IOException {
+        public static Request fromXContent(final XContentParser parser, TimeValue timeout) throws IOException {
             Map<String, Object> content = parser.map();
             // dest.index is not required for _preview, so we just supply our own
             Map<String, String> tempDestination = new HashMap<>();
@@ -86,7 +88,7 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
                         BytesReference.bytes(xContentBuilder).streamInput()
                     )
             ) {
-                return new Request(TransformConfig.fromXContent(newParser, null, false));
+                return new Request(TransformConfig.fromXContent(newParser, null, false), timeout);
             }
         }
 

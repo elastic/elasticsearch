@@ -69,6 +69,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * then uses a rest client to check that the data have been correctly received and
  * indexed in the cluster.
  */
+@SuppressWarnings("removal")
 public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
 
     public class TestRestHighLevelClient extends RestHighLevelClient {

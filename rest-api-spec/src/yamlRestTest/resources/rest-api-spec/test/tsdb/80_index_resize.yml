@@ -10,6 +10,7 @@ setup:
             settings:
               index:
                 mode: time_series
+                routing_path: [metricset, k8s.pod.uid]
                 number_of_shards: 3
                 number_of_replicas: 0
             mappings:

@@ -137,8 +137,15 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         }
 
         @Override
-        void executeBulk(Task task, final BulkRequest bulkRequest, final long startTimeNanos, final ActionListener<BulkResponse> listener,
-                final AtomicArray<BulkItemResponse> responses, Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {
+        void executeBulk(
+            Task task,
+            BulkRequest bulkRequest,
+            long startTimeNanos,
+            ActionListener<BulkResponse> listener,
+            String executorName,
+            AtomicArray<BulkItemResponse> responses,
+            Map<String, IndexNotFoundException> indicesThatCannotBeCreated
+        ) {
             assertTrue(indexCreated);
             isExecuted = true;
         }
@@ -163,7 +170,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         // initialize captors, which must be members to use @Capture because of generics
         threadPool = mock(ThreadPool.class);
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        MockitoAnnotations.initMocks(this);
+        MockitoAnnotations.openMocks(this);
         // setup services that will be called by action
         transportService = mock(TransportService.class);
         clusterService = mock(ClusterService.class);

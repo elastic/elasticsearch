@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeNode;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
-import org.mockito.ArgumentMatcher;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -290,12 +289,7 @@ public class LocalModelTests extends ESTestCase {
         assertThat(result.valueAsString(), is("0"));
         // Should have reset after persistence, so only 2 docs have been seen since last persistence
         assertThat(model.getLatestStatsAndReset().getInferenceCount(), equalTo(2L));
-        verify(modelStatsService, times(1)).queueStats(argThat(new ArgumentMatcher<>() {
-            @Override
-            public boolean matches(Object o) {
-                return ((InferenceStats)o).getInferenceCount() == 99L;
-            }
-        }), anyBoolean());
+        verify(modelStatsService, times(1)).queueStats(argThat(o -> o.getInferenceCount() == 99L), anyBoolean());
     }
 
     public void testMapFieldsIfNecessary() {

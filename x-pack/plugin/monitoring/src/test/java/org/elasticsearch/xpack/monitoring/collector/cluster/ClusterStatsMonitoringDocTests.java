@@ -297,7 +297,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
 
         final OsStats mockOsStats = mock(OsStats.class);
         when(mockNodeStats.getOs()).thenReturn(mockOsStats);
-        when(mockOsStats.getMem()).thenReturn(new OsStats.Mem(100, 79));
+        when(mockOsStats.getMem()).thenReturn(new OsStats.Mem(100, 99, 79));
 
         final ProcessStats mockProcessStats = mock(ProcessStats.class);
         when(mockNodeStats.getProcess()).thenReturn(mockProcessStats);
@@ -517,6 +517,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                 + "        ],"
                 + "        \"mem\": {"
                 + "          \"total_in_bytes\": 100,"
+                + "          \"adjusted_total_in_bytes\": 99,"
                 + "          \"free_in_bytes\": 79,"
                 + "          \"used_in_bytes\": 21,"
                 + "          \"free_percent\": 79,"

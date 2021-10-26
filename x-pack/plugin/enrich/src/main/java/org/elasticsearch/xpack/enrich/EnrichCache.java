@@ -124,7 +124,7 @@ public class EnrichCache {
     private String getEnrichIndexKey(SearchRequest searchRequest) {
         String alias = searchRequest.indices()[0];
         IndexAbstraction ia = metadata.getIndicesLookup().get(alias);
-        return ia.getIndices().get(0).getIndex().getName();
+        return ia.getIndices().get(0).getName();
     }
 
     private static class CacheKey {

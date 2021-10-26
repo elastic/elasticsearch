@@ -166,9 +166,9 @@ public final class RemoteClusterLicenseChecker {
                     return;
                 }
 
-                //License.OperationMode remoteOperationMode = ;
                 if (licenseInfo.getStatus() == LicenseStatus.ACTIVE == false
-                    || isAllowedByOperationMode(License.OperationMode.parse(licenseInfo.getMode()), feature.getMinimumOperationMode()) == false) {
+                    || isAllowedByOperationMode(License.OperationMode.parse(licenseInfo.getMode()),
+                                                feature.getMinimumOperationMode()) == false) {
                     listener.onResponse(LicenseCheck.failure(new RemoteClusterLicenseInfo(clusterAlias.get(), licenseInfo)));
                     return;
                 }

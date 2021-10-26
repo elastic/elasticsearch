@@ -64,29 +64,9 @@ public class FilterPathBasedFilter extends TokenFilter {
         if (filterNodes != null) {
             List<FilterNode> nextFilters = new ArrayList<>();
             for (FilterNode filter : filterNodes) {
-                if (filter.isDoubleWildcard()) {
-                    nextFilters.add(filter);
-                }
-
-                FilterNode termNode = filter.getTermFilter(name);
-                if (termNode != null) {
-                    if (termNode.isEnd()) {
-                        return MATCHING;
-                    } else {
-                        nextFilters.add(termNode);
-                    }
-                }
-
-                for (Map.Entry<String, FilterNode> entry : filter.getWildcardFilters().entrySet()) {
-                    String wildcardPattern = entry.getKey();
-                    FilterNode wildcardNode = entry.getValue();
-                    if (Glob.globMatch(wildcardPattern, name)) {
-                        if (wildcardNode.isEnd()) {
-                            return MATCHING;
-                        } else {
-                            nextFilters.add(wildcardNode);
-                        }
-                    }
+                boolean matches = filter.matches(name, nextFilters);
+                if (matches) {
+                    return MATCHING;
                 }
             }
 

@@ -29,7 +29,6 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.support.filtering.FilterNode;
-import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;

@@ -15,7 +15,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContentParser;
 import org.elasticsearch.xcontent.support.filtering.FilterNode;
-import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
 public class CborXContentParser extends JsonXContentParser {
 

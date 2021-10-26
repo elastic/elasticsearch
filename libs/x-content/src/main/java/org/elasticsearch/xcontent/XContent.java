@@ -9,7 +9,6 @@
 package org.elasticsearch.xcontent;
 
 import org.elasticsearch.xcontent.support.filtering.FilterNode;
-import org.elasticsearch.xcontent.support.filtering.FilterPath;
 import org.elasticsearch.core.RestApiVersion;
 
 import java.io.IOException;

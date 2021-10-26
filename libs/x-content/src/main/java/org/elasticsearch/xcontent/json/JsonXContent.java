@@ -21,7 +21,6 @@ import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.filtering.FilterNode;
-import org.elasticsearch.xcontent.support.filtering.FilterPath;
 import org.elasticsearch.core.RestApiVersion;
 
 import java.io.ByteArrayInputStream;

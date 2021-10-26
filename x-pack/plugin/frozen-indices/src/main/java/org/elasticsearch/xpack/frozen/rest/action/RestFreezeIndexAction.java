@@ -23,17 +23,26 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public final class RestFreezeIndexAction extends BaseRestHandler {
 
-    public static final String DEPRECATION_WARNING = "Frozen indices are deprecated because they provide no benefit given improvements "
+    private static final String FREEZE_REMOVED = "It is no longer possible to freeze indices, but existing frozen indices can still be " +
+        "unfrozen";
+
+    private static final String UNFREEZE_DEPRECATED = "Frozen indices are deprecated because they provide no benefit given improvements "
         + "in heap memory utilization. They will be removed in a future release.";
-    private static final RestApiVersion DEPRECATION_VERSION = RestApiVersion.V_8;
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.builder(POST, "/{index}/_unfreeze").deprecated(DEPRECATION_WARNING, DEPRECATION_VERSION).build());
+        return List.of(
+            Route.builder(POST, "/{index}/_freeze").deprecated(FREEZE_REMOVED, RestApiVersion.V_7).build(),
+            Route.builder(POST, "/{index}/_unfreeze").deprecated(UNFREEZE_DEPRECATED, RestApiVersion.V_8).build()
+        );
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.path().endsWith("/_freeze")) {
+            throw new IllegalArgumentException(FREEZE_REMOVED);
+        }
+
         FreezeRequest freezeRequest = new FreezeRequest(Strings.splitStringByCommaToArray(request.param("index")));
         freezeRequest.timeout(request.paramAsTime("timeout", freezeRequest.timeout()));
         freezeRequest.masterNodeTimeout(request.paramAsTime("master_timeout", freezeRequest.masterNodeTimeout()));

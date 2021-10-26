@@ -43,7 +43,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   /* Set up tasks to unzip and run the old versions of ES before running the integration tests.
    * To avoid testing against too many old versions, always pick first and last version per major
    */
-  for (String versionString : ['5.0.0', '5.6.16', '6.0.0', '6.8.18']) {
+  for (String versionString : ['5.0.0', '5.6.16', '6.0.0', '6.8.20']) {
     Version version = Version.fromString(versionString)
     String packageName = 'org.elasticsearch.distribution.zip'
     String artifact = "${packageName}:elasticsearch:${version}@zip"
@@ -70,11 +70,9 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
 
     String clusterName = versionNoDots
 
-    testClusters {
-      "${clusterName}" {
-        setting 'path.repo', repoLocation
-        setting 'xpack.security.enabled', 'false'
-      }
+    def testClusterProvider = testClusters.register(clusterName) {
+      setting 'path.repo', repoLocation
+      setting 'xpack.security.enabled', 'false'
     }
 
     TaskProvider<AntFixture> fixture = tasks.register("oldES${versionNoDots}Fixture", AntFixture) {
@@ -102,7 +100,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     }
 
     tasks.register("javaRestTest#${versionNoDots}", StandaloneRestIntegTestTask) {
-      useCluster testClusters."${clusterName}"
+      useCluster testClusterProvider
       dependsOn fixture
       doFirst {
         delete(repoLocation)
@@ -114,8 +112,8 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
        * run the integration tests so that we can be sure that the file is
        * ready. */
       nonInputProperties.systemProperty "tests.es.port", "${-> fixture.get().addressAndPort}"
-      nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${clusterName}".allHttpSocketURI.join(",")}")
-      nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${clusterName}".getName()}")
+      nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusterProvider.get().allHttpSocketURI.join(",")}")
+      nonInputProperties.systemProperty('tests.clustername', "${-> testClusterProvider.get().getName()}")
     }
 
     tasks.named("check").configure {

@@ -75,12 +75,50 @@ public class DateFormatTests extends ESTestCase {
     }
 
     public void testParseWeekBasedWithLocale() {
-        String format = randomFrom("YYYY-ww");
+        String format = "YYYY-ww";
         ZoneId timezone = DateUtils.of("Europe/Amsterdam");
         Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.US);
         ZonedDateTime dateTime = javaFunction.apply("2020-33");
         //33rd week of 2020 starts on 9th August 2020 as per US locale
         assertThat(dateTime, equalTo(ZonedDateTime.of(2020,8,9,0,0,0,0,timezone)));
+    }
+
+    public void testNoTimezoneOnPatternAndOverride() {
+        {
+            String format = "yyyy-MM-dd'T'HH:mm";
+            ZoneId timezone = ZoneId.of("UTC");
+            Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.ROOT);
+            // this means that hour will be 01:00 at UTC as timezone was not on a pattern, but provided as an ingest param
+            ZonedDateTime dateTime = javaFunction.apply("2020-01-01T01:00");
+            assertThat(dateTime, equalTo(ZonedDateTime.of(2020, 01, 01, 01, 0, 0, 0, timezone)));
+        }
+        {
+            String format = "yyyy-MM-dd'T'HH:mm";
+            ZoneId timezone = ZoneId.of("-01:00");
+            Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.ROOT);
+            // this means that hour will be 01:00 at -01:00 as timezone was not on a pattern, but provided as an ingest param
+            ZonedDateTime dateTime = javaFunction.apply("2020-01-01T01:00");
+            assertThat(dateTime, equalTo(ZonedDateTime.of(2020, 01, 01, 01, 0, 0, 0, timezone)));
+        }
+    }
+
+    public void testTimezoneOnAPatternAndNonUTCOverride() {
+        String format = "yyyy-MM-dd'T'HH:mm XXX";
+        ZoneId timezone = ZoneId.of("-01:00");
+        Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.ROOT);
+        // this means that hour will be 01:00 at -02:00 as timezone on a pattern. Converted to -01:00 as requested on ingest param
+
+        ZonedDateTime dateTime = javaFunction.apply("2020-01-01T01:00 -02:00");
+        assertThat(dateTime, equalTo(ZonedDateTime.of(2020, 01, 01, 02, 0, 0, 0, timezone)));
+    }
+
+    public void testDefaultHourDefaultedToTimezoneOverride() {
+        String format = "yyyy-MM-dd";
+        ZoneId timezone = ZoneId.of("-01:00");
+        Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.ROOT);
+        // this means that hour will be 00:00 (default) at -01:00 as timezone was not on a pattern, but -01:00 was an ingest param
+        ZonedDateTime dateTime = javaFunction.apply("2020-01-01");
+        assertThat(dateTime, equalTo(ZonedDateTime.of(2020, 01, 01, 0, 0, 0, 0, timezone)));
     }
 
     public void testParseUnixMs() {

@@ -125,15 +125,9 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            if (updated != 0L) {
-                builder.field("updated", updated);
-            }
-            if (noAction != 0L) {
-                builder.field("no_action", noAction);
-            }
-            if (needsUpdate != 0L) {
-                builder.field("needs_update", needsUpdate);
-            }
+            builder.field("updated", updated);
+            builder.field("no_action", noAction);
+            builder.field("needs_update", needsUpdate);
             builder.endObject();
             return builder;
         }

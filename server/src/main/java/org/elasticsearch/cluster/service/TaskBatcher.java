@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.service;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.TimeValue;
@@ -136,29 +137,21 @@ public abstract class TaskBatcher {
         }
     }
 
+    private static final int MAX_TASK_DESCRIPTION_CHARS = 8 * 1024;
+
     private String buildTasksDescription(BatchedTask updateTask,
                                          List<BatchedTask> toExecute,
                                          Map<String, List<BatchedTask>> processTasksBySource) {
         final StringBuilder output = new StringBuilder();
-        int count = 0;
-        int taskCount = 0;
-        for (Map.Entry<String, List<BatchedTask>> entry : processTasksBySource.entrySet()) {
-            String tasks = updateTask.describeTasks(entry.getValue());
-            final String description = tasks.isEmpty() ? entry.getKey() : entry.getKey() + "[" + tasks + "]";
-            if (output.length() > 0) {
-                output.append(", ");
-            }
-            count++;
-            taskCount += entry.getValue().size();
-            output.append(description);
-            // don't render additional task descriptions beyond 8k chars
-            if (output.length() > 8 * 1024) {
-                break;
-            }
-        }
-        final int remaining = processTasksBySource.size() - count;
-        if (remaining > 0) {
-            output.append(", ").append(toExecute.size() - taskCount).append(" additional tasks for ").append(remaining).append(" sources");
+        Strings.collectionToDelimitedStringWithLimit(
+                (Iterable<String>) () -> processTasksBySource.entrySet().stream().map(entry -> {
+                    String tasks = updateTask.describeTasks(entry.getValue());
+                    return tasks.isEmpty() ? entry.getKey() : entry.getKey() + "[" + tasks + "]";
+                }).filter(s -> s.isEmpty() == false).iterator(),
+                ", ", "", "", MAX_TASK_DESCRIPTION_CHARS, output
+        );
+        if (output.length() > MAX_TASK_DESCRIPTION_CHARS) {
+            output.append(" (").append(toExecute.size()).append(" tasks in total)");
         }
         return output.toString();
     }

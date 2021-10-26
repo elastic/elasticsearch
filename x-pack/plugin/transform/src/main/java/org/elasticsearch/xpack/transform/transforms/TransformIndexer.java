@@ -888,10 +888,10 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             }
 
             context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
-            // in case of throttling the indexer might wait for the next search, fast forward, so stop listeners do not wait to long
-            runSearchImmediately();
-            return true;
         }
+        // in case of throttling the indexer might wait for the next search, fast forward, so stop listeners do not wait to long
+        runSearchImmediately();
+        return true;
     }
 
     void stopAndMaybeSaveState() {

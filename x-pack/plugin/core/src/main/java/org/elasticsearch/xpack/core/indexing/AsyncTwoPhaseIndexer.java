@@ -665,20 +665,17 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     private void reQueueThrottledSearch() {
         currentMaxDocsPerSecond = getMaxDocsPerSecond();
 
-        // todo: it does not seem that locking is required
-        synchronized (lock) {
-            ScheduledRunnable runnable = scheduledNextSearch;
-            if (runnable != null) {
-                TimeValue executionDelay = calculateThrottlingDelay(
-                    currentMaxDocsPerSecond,
-                    lastDocCount,
-                    lastSearchStartTimeNanos,
-                    getTimeNanos()
-                );
+        ScheduledRunnable runnable = scheduledNextSearch;
+        if (runnable != null) {
+            TimeValue executionDelay = calculateThrottlingDelay(
+                currentMaxDocsPerSecond,
+                lastDocCount,
+                lastSearchStartTimeNanos,
+                getTimeNanos()
+            );
 
-                logger.trace("[{}] rethrottling job, wait {} until next search", getJobId(), executionDelay);
-                runnable.reschedule(executionDelay);
-            }
+            logger.trace("[{}] rethrottling job, wait {} until next search", getJobId(), executionDelay);
+            runnable.reschedule(executionDelay);
         }
     }
 

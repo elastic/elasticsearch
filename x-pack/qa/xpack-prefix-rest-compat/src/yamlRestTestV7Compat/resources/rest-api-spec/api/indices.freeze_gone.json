@@ -1,0 +1,33 @@
+{
+  "indices.freeze_gone":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/freeze-index-api.html",
+      "description":"It used to be possible to freeze an index, but in 8.0 it isn't anymore, even via rest api compat."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/vnd.elasticsearch+json;compatible-with=7"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/{index}/_freeze",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "index":{
+              "type":"string",
+              "description":"The name of the index to freeze"
+            }
+          },
+          "deprecated":{
+            "version":"7.14.0",
+            "description":"Deprecated in 7.14.0 and removed in 8.0.0"
+          }
+        }
+      ]
+    }
+  }
+}

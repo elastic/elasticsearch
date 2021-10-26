@@ -11,9 +11,6 @@ setup:
 "Bulk indexing of monitoring data":
 
   - do:
-      headers:
-        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
-        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
       xpack-monitoring.bulk:
         system_id:          "kibana"
         system_api_version: "6"

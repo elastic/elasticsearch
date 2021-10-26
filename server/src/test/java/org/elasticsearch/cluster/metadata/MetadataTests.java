@@ -1606,7 +1606,8 @@ public class MetadataTests extends ESTestCase {
             Metadata.Builder builder = Metadata.builder(previous);
             IndexMetadata idx = DataStreamTestHelper.createFirstBackingIndex(dataStreamName).build();
             builder.put(idx, true);
-            DataStream dataStream = new DataStream(dataStreamName, new DataStream.TimestampField("@timestamp"), List.of(idx.getIndex()));
+            DataStream dataStream =
+                new DataStream(dataStreamName, new DataStream.TimestampField("@timestamp"), Collections.singletonList(idx.getIndex()));
             builder.put(dataStream);
             Metadata metadata = builder.build();
             assertThat(previous.getIndicesLookup(), not(sameInstance(metadata.getIndicesLookup())));

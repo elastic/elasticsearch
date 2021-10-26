@@ -259,6 +259,7 @@ Number of shards that were successfully included in the snapshot.
 Number of shards that failed to be included in the snapshot.
 ====
 
+[[get-snapshot-api-response-state]]
 `state`::
 +
 --

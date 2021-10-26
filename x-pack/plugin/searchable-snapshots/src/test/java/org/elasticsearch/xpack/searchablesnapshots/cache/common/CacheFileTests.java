@@ -42,10 +42,11 @@ import java.util.concurrent.Future;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.randomPopulateAndReads;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -411,7 +412,16 @@ public class CacheFileTests extends ESTestCase {
             fill(cacheFile.getChannel(), Math.toIntExact(cacheFile.getLength() - 1L), Math.toIntExact(cacheFile.getLength()));
 
             sizeOnDisk = Natives.allocatedSizeInBytes(file);
-            assertThat("Cache file should be sparse and not fully allocated on disk", sizeOnDisk, not(equalTo(1048576L)));
+            assertThat("Cache file should be sparse and not fully allocated on disk", sizeOnDisk, lessThan(1048576L));
+
+            fill(cacheFile.getChannel(), 0, Math.toIntExact(cacheFile.getLength()));
+
+            sizeOnDisk = Natives.allocatedSizeInBytes(file);
+            assertThat(
+                "Cache file should be fully allocated on disk (maybe more given cluster/block size)",
+                sizeOnDisk,
+                greaterThanOrEqualTo(1048576L)
+            );
         } finally {
             cacheFile.release(listener);
         }

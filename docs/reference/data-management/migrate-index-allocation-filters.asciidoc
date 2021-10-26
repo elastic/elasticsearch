@@ -35,7 +35,7 @@ By allowing the upgrade process to migrate your deployment you can skip
 the manual steps presented below. 
 
 [discrete]
-== Manual method to switch to using node roles for self-managed {es}:
+=== Manually migrating to node roles on self-managed deployments
 
 . <<assign-data-tier, Assign data nodes>> to the appropriate data tier.
 . <<remove-custom-allocation-settings, Remove the attribute-based allocation

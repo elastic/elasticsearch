@@ -48,10 +48,10 @@ public class RestFleetMultiSearchAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return Arrays.asList(
-            new Route(GET, "/_fleet/_msearch"),
-            new Route(POST, "/_fleet/_msearch"),
-            new Route(GET, "/{index}/_fleet/_msearch"),
-            new Route(POST, "/{index}/_fleet/_msearch")
+            new Route(GET, "/_fleet/_fleet_msearch"),
+            new Route(POST, "/_fleet/_fleet_msearch"),
+            new Route(GET, "/{index}/_fleet/_fleet_msearch"),
+            new Route(POST, "/{index}/_fleet/_fleet_msearch")
         );
     }
 

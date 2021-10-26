@@ -42,8 +42,6 @@ public abstract class AbstractSnapshotBasedRecoveryRestTestCase extends ESRestTe
     protected abstract Settings repositorySettings();
 
     public void testRecoveryUsingSnapshots() throws Exception {
-        assert false : " just to test that this test is executed";
-
         final String repositoryType = repositoryType();
         Settings repositorySettings = Settings.builder()
             .put(repositorySettings())

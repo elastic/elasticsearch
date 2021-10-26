@@ -32,6 +32,6 @@ public class SnapshotBasedRecoveriesPlugin extends Plugin implements RecoveryPla
 
     // Overridable for tests
     public boolean isLicenseEnabled() {
-        return SNAPSHOT_BASED_RECOVERIES_FEATURE.checkWithoutTracking(XPackPlugin.getSharedLicenseState());
+        return SNAPSHOT_BASED_RECOVERIES_FEATURE.check(XPackPlugin.getSharedLicenseState());
     }
 }

@@ -21,10 +21,13 @@ control shard allocation for other purposes.
 [discrete]
 === Automatically migrating to node roles on {ess} or {ece}
 If you are using node attributes on {ess} or {ece}, you will be
-prompted to switch to node roles when you upgrade to version 7.10 or
-higher, deploy a warm or cold data tier, or enable
+prompted to switch to node roles when you upgrade to version 7.10 through
+7.13, deploy a warm, cold, or frozen data tier, or enable
 autoscaling.  This action automatically updates your configuration
-and {ilm-init} policies to use node roles.
+and {ilm-init} policies to use node roles. Additionally, upgrading to
+version 7.14 or higher will automatically update {ilm-init} policies
+when there is any new plan change applied to your deployment.
+
 
 If you use custom index templates, check them after the automatic migration completes and remove any <<shard-allocation-filtering,
 attribute-based allocation filters>>.

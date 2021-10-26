@@ -4,7 +4,7 @@
 === Example: Enrich your data by matching a value to a range
 
 A `range` <<enrich-policy,enrich policy>> uses a <<query-dsl-term-query,`term`
-query>> matches a number, date, or IP address in incoming documents to a range
+query>> to match a number, date, or IP address in incoming documents to a range
 of the same type in the enrich index. Matching a range to a range is not
 supported.
 

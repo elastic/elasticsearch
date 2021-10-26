@@ -116,18 +116,19 @@ public class TransportSamlInitiateSingleSignOnAction
                                              ActionListener<UserServiceAuthentication> listener) {
         User user = secondaryAuthentication.getUser();
         secondaryAuthentication.execute(ignore -> {
-                privilegeResolver.resolve(serviceProvider.getPrivileges(), ActionListener.wrap(
-                    userPrivileges -> {
-                        if (userPrivileges.hasAccess == false) {
-                            listener.onResponse(null);
-                        } else {
-                            logger.debug("Resolved [{}] for [{}]", userPrivileges, user);
-                            listener.onResponse(new UserServiceAuthentication(user.principal(), user.fullName(), user.email(),
-                                userPrivileges.roles, serviceProvider));
-                        }
-                    },
-                    listener::onFailure
-                ));
+            ActionListener<UserPrivilegeResolver.UserPrivileges> wrapped = ActionListener.wrap(
+                userPrivileges -> {
+                    if (userPrivileges.hasAccess == false) {
+                        listener.onResponse(null);
+                    } else {
+                        logger.debug("Resolved [{}] for [{}]", userPrivileges, user);
+                        listener.onResponse(new UserServiceAuthentication(user.principal(), user.fullName(), user.email(),
+                            userPrivileges.roles, serviceProvider));
+                    }
+                },
+                listener::onFailure
+            );
+                privilegeResolver.resolve(serviceProvider.getPrivileges(), wrapped);
                 return null;
             }
         );

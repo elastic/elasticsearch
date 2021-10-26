@@ -23,6 +23,8 @@ import java.util.Map;
 // Typed object holding properties for a given query
 public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configuration {
 
+    @Nullable
+    private final String catalog;
     private final int pageSize;
     private final TimeValue requestTimeout;
     private final TimeValue pageTimeout;
@@ -46,7 +48,8 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     @Nullable
     private Map<String, Object> runtimeMappings;
 
-    public SqlConfiguration(ZoneId zi, int pageSize, TimeValue requestTimeout, TimeValue pageTimeout, QueryBuilder filter,
+    public SqlConfiguration(ZoneId zi, @Nullable String catalog, int pageSize, TimeValue requestTimeout, TimeValue pageTimeout,
+                            QueryBuilder filter,
                          Map<String, Object> runtimeMappings,
                          Mode mode, String clientId, SqlVersion version,
                          String username, String clusterName,
@@ -58,6 +61,7 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
 
         super(zi, username, clusterName, x -> Collections.emptySet());
 
+        this.catalog = catalog;
         this.pageSize = pageSize;
         this.requestTimeout = requestTimeout;
         this.pageTimeout = pageTimeout;
@@ -75,15 +79,20 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         this.keepAlive = keepAlive;
     }
 
-    public SqlConfiguration(ZoneId zi, int pageSize, TimeValue requestTimeout, TimeValue pageTimeout, QueryBuilder filter,
+    public SqlConfiguration(ZoneId zi, @Nullable String catalog, int pageSize, TimeValue requestTimeout, TimeValue pageTimeout,
+                            QueryBuilder filter,
                             Map<String, Object> runtimeMappings,
                             Mode mode, String clientId, SqlVersion version,
                             String username, String clusterName,
                             boolean multiValueFieldLeniency,
                             boolean includeFrozen) {
-        this(zi, pageSize, requestTimeout, pageTimeout, filter, runtimeMappings, mode, clientId, version, username, clusterName,
+        this(zi, catalog, pageSize, requestTimeout, pageTimeout, filter, runtimeMappings, mode, clientId, version, username, clusterName,
             multiValueFieldLeniency, includeFrozen, null, null, Protocol.DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT,
             Protocol.DEFAULT_KEEP_ON_COMPLETION, Protocol.DEFAULT_KEEP_ALIVE);
+    }
+
+    public String catalog() {
+        return catalog;
     }
 
     public int pageSize() {

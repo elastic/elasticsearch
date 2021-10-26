@@ -38,8 +38,8 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
-import org.apache.lucene.search.grouping.CollapsingTopDocsCollector;
+import org.elasticsearch.lucene.grouping.SinglePassGroupingCollector;
+import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.action.search.MaxScoreCollector;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
@@ -153,7 +153,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
 
     static class CollapsingTopDocsCollectorContext extends TopDocsCollectorContext {
         private final DocValueFormat[] sortFmt;
-        private final CollapsingTopDocsCollector<?> topDocsCollector;
+        private final SinglePassGroupingCollector<?> topDocsCollector;
         private final Supplier<Float> maxScoreSupplier;
 
         /**
@@ -192,7 +192,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
 
         @Override
         void postProcess(QuerySearchResult result) throws IOException {
-            CollapseTopFieldDocs topDocs = topDocsCollector.getTopDocs();
+            TopFieldGroups topDocs = topDocsCollector.getTopGroups(0);
             result.topDocs(new TopDocsAndMaxScore(topDocs, maxScoreSupplier.get()), sortFmt);
         }
     }

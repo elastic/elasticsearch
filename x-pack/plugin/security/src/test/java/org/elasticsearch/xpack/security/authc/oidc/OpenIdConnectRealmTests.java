@@ -86,19 +86,20 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
 
         final boolean notPopulateMetadata = randomBoolean();
         final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
-        AuthenticationResult result = authenticateWithOidc(principal, roleMapper, notPopulateMetadata, false, authenticatingRealm, null);
+        AuthenticationResult<User> result = authenticateWithOidc(
+            principal, roleMapper, notPopulateMetadata, false, authenticatingRealm, null);
         assertThat(result, notNullValue());
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
-        assertThat(result.getUser().principal(), equalTo(principal));
-        assertThat(result.getUser().email(), equalTo("cbarton@shield.gov"));
-        assertThat(result.getUser().fullName(), equalTo("Clinton Barton"));
-        assertThat(result.getUser().roles(), arrayContainingInAnyOrder("kibana_user", "role1"));
+        assertThat(result.getValue().principal(), equalTo(principal));
+        assertThat(result.getValue().email(), equalTo("cbarton@shield.gov"));
+        assertThat(result.getValue().fullName(), equalTo("Clinton Barton"));
+        assertThat(result.getValue().roles(), arrayContainingInAnyOrder("kibana_user", "role1"));
         if (notPopulateMetadata) {
-            assertThat(result.getUser().metadata(), anEmptyMap());
+            assertThat(result.getValue().metadata(), anEmptyMap());
         } else {
-            assertThat(result.getUser().metadata().get("oidc(iss)"), equalTo("https://op.company.org"));
-            assertThat(result.getUser().metadata().get("oidc(name)"), equalTo("Clinton Barton"));
-            final Object groups = result.getUser().metadata().get("oidc(groups)");
+            assertThat(result.getValue().metadata().get("oidc(iss)"), equalTo("https://op.company.org"));
+            assertThat(result.getValue().metadata().get("oidc(name)"), equalTo("Clinton Barton"));
+            final Object groups = result.getValue().metadata().get("oidc(groups)");
             assertThat(groups, notNullValue());
             assertThat(groups, instanceOf(Collection.class));
             assertThat((Collection<?>) groups, contains("group1", "group2", "groups3"));
@@ -138,21 +139,21 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
             "object", Map.of("key", List.of("value1", "value2")),
             "object_array", List.of(Map.of("key1", List.of("value1", "value2")), Map.of("key2", List.of("value1", "value2")))
         );
-        AuthenticationResult result = authenticateWithOidc(principal, roleMapper, false, false, REALM_NAME, claims);
+        AuthenticationResult<User> result = authenticateWithOidc(principal, roleMapper, false, false, REALM_NAME, claims);
         assertThat(result, notNullValue());
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
-        assertThat(result.getUser().principal(), equalTo(principal));
-        assertThat(result.getUser().email(), equalTo("cbarton@shield.gov"));
-        assertThat(result.getUser().fullName(), equalTo("Clinton Barton"));
-        assertThat(result.getUser().roles(), arrayContainingInAnyOrder("kibana_user", "role1"));
-        assertTrue(result.getUser().metadata().containsKey("oidc(string)"));
-        assertTrue(result.getUser().metadata().containsKey("oidc(number)"));
-        assertTrue(result.getUser().metadata().containsKey("oidc(boolean)"));
-        assertTrue(result.getUser().metadata().containsKey("oidc(string_array)"));
-        assertTrue(result.getUser().metadata().containsKey("oidc(boolean_array)"));
-        assertTrue(result.getUser().metadata().containsKey("oidc(number_array)"));
-        assertFalse(result.getUser().metadata().containsKey("oidc(object_array)"));
-        assertFalse(result.getUser().metadata().containsKey("oidc(object)"));
+        assertThat(result.getValue().principal(), equalTo(principal));
+        assertThat(result.getValue().email(), equalTo("cbarton@shield.gov"));
+        assertThat(result.getValue().fullName(), equalTo("Clinton Barton"));
+        assertThat(result.getValue().roles(), arrayContainingInAnyOrder("kibana_user", "role1"));
+        assertTrue(result.getValue().metadata().containsKey("oidc(string)"));
+        assertTrue(result.getValue().metadata().containsKey("oidc(number)"));
+        assertTrue(result.getValue().metadata().containsKey("oidc(boolean)"));
+        assertTrue(result.getValue().metadata().containsKey("oidc(string_array)"));
+        assertTrue(result.getValue().metadata().containsKey("oidc(boolean_array)"));
+        assertTrue(result.getValue().metadata().containsKey("oidc(number_array)"));
+        assertFalse(result.getValue().metadata().containsKey("oidc(object_array)"));
+        assertFalse(result.getValue().metadata().containsKey("oidc(object)"));
     }
 
     public void testWithAuthorizingRealm() throws Exception {
@@ -166,15 +167,15 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
             return null;
         }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), anyActionListener());
         final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
-        AuthenticationResult result = authenticateWithOidc(principal, roleMapper, randomBoolean(), true, authenticatingRealm, null);
+        AuthenticationResult<User> result = authenticateWithOidc(principal, roleMapper, randomBoolean(), true, authenticatingRealm, null);
         assertThat(result, notNullValue());
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
-        assertThat(result.getUser().principal(), equalTo(principal));
-        assertThat(result.getUser().email(), equalTo("cbarton@shield.gov"));
-        assertThat(result.getUser().fullName(), equalTo("Clinton Barton"));
-        assertThat(result.getUser().roles(), arrayContainingInAnyOrder("lookup_user_role"));
-        assertThat(result.getUser().metadata().entrySet(), Matchers.iterableWithSize(1));
-        assertThat(result.getUser().metadata().get("is_lookup"), Matchers.equalTo(true));
+        assertThat(result.getValue().principal(), equalTo(principal));
+        assertThat(result.getValue().email(), equalTo("cbarton@shield.gov"));
+        assertThat(result.getValue().fullName(), equalTo("Clinton Barton"));
+        assertThat(result.getValue().roles(), arrayContainingInAnyOrder("lookup_user_role"));
+        assertThat(result.getValue().metadata().entrySet(), Matchers.iterableWithSize(1));
+        assertThat(result.getValue().metadata().get("is_lookup"), Matchers.equalTo(true));
         assertNotNull(result.getMetadata().get(CONTEXT_TOKEN_DATA));
         assertThat(result.getMetadata().get(CONTEXT_TOKEN_DATA), instanceOf(Map.class));
         @SuppressWarnings("unchecked")
@@ -184,7 +185,7 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
 
     public void testAuthenticationWithWrongRealm() throws Exception{
         final String principal = randomAlphaOfLength(12);
-        AuthenticationResult result = authenticateWithOidc(principal, mock(UserRoleMapper.class), randomBoolean(), true,
+        AuthenticationResult<User> result = authenticateWithOidc(principal, mock(UserRoleMapper.class), randomBoolean(), true,
             REALM_NAME + randomAlphaOfLength(8), null);
         assertThat(result, notNullValue());
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
@@ -230,9 +231,9 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
             return null;
         }).when(authenticator).authenticate(any(OpenIdConnectToken.class), anyActionListener());
 
-        final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         realm.authenticate(token, future);
-        final AuthenticationResult result = future.actionGet();
+        final AuthenticationResult<User> result = future.actionGet();
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
         assertThat(result.getMessage(), containsString("claims.principal"));
         assertThat(result.getMessage(), containsString("sub"));
@@ -392,7 +393,7 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         assertThat(response.getRealmName(), equalTo(REALM_NAME));
     }
 
-    private AuthenticationResult authenticateWithOidc(String principal, UserRoleMapper roleMapper, boolean notPopulateMetadata,
+    private AuthenticationResult<User> authenticateWithOidc(String principal, UserRoleMapper roleMapper, boolean notPopulateMetadata,
                                                       boolean useAuthorizingRealm, String authenticatingRealm,
                                                       @Nullable Map<String, Object> additionalClaims)
         throws Exception {
@@ -443,7 +444,7 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
             return null;
         }).when(authenticator).authenticate(any(OpenIdConnectToken.class), anyActionListener());
 
-        final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         realm.authenticate(token, future);
         return future.get();
     }

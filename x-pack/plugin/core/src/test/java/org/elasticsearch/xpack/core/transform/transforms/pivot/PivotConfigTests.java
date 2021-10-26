@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
+import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -437,7 +438,7 @@ public class PivotConfigTests extends AbstractSerializingTransformTestCase<Pivot
 
     public void testDeprecation() {
         PivotConfig pivotConfig = randomPivotConfigWithDeprecatedFields();
-        assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
+        assertWarnings(TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
     }
 
     private static String dotJoin(String... fields) {

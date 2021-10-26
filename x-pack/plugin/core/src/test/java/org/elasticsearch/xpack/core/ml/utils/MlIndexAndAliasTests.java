@@ -138,30 +138,6 @@ public class MlIndexAndAliasTests extends ESTestCase {
         verifyNoMoreInteractions(indicesAdminClient, listener);
     }
 
-    public void testInstallIndexTemplateIfRequired_GivenTemplateLegacyTemplateExistsAndMixedCluster() throws UnknownHostException {
-        // TODO: this test can be removed from branches that will never need to talk to 7.13
-        ClusterState clusterState = createClusterState(Version.V_7_13_0, Collections.emptyMap(),
-            Collections.singletonMap(NotificationsIndex.NOTIFICATIONS_INDEX,
-                createLegacyIndexTemplateMetaData(NotificationsIndex.NOTIFICATIONS_INDEX,
-                    Collections.singletonList(NotificationsIndex.NOTIFICATIONS_INDEX))),
-            Collections.emptyMap());
-
-        IndexTemplateConfig legacyNotificationsTemplate = new IndexTemplateConfig(NotificationsIndex.NOTIFICATIONS_INDEX,
-            "/org/elasticsearch/xpack/core/ml/notifications_index_legacy_template.json", Version.CURRENT.id, "xpack.ml.version",
-            Map.of("xpack.ml.version.id", String.valueOf(Version.CURRENT.id),
-                "xpack.ml.notifications.mappings", NotificationsIndex.mapping()));
-        IndexTemplateConfig notificationsTemplate = new IndexTemplateConfig(NotificationsIndex.NOTIFICATIONS_INDEX,
-            "/org/elasticsearch/xpack/core/ml/notifications_index_template.json", Version.CURRENT.id, "xpack.ml.version",
-            Map.of("xpack.ml.version.id", String.valueOf(Version.CURRENT.id),
-                "xpack.ml.notifications.mappings", NotificationsIndex.mapping()));
-
-        // ML didn't use composable templates in 7.13 and the legacy template exists, so nothing needs to be done
-        MlIndexAndAlias.installIndexTemplateIfRequired(clusterState, client, Version.CURRENT, legacyNotificationsTemplate,
-            notificationsTemplate, TimeValue.timeValueMinutes(1), listener);
-        verify(listener).onResponse(true);
-        verifyNoMoreInteractions(client);
-    }
-
     public void testInstallIndexTemplateIfRequired_GivenLegacyTemplateExistsAndModernCluster() throws UnknownHostException {
         ClusterState clusterState = createClusterState(Version.CURRENT, Collections.emptyMap(),
             Collections.singletonMap(NotificationsIndex.NOTIFICATIONS_INDEX,
@@ -169,16 +145,12 @@ public class MlIndexAndAliasTests extends ESTestCase {
                     Collections.singletonList(NotificationsIndex.NOTIFICATIONS_INDEX))),
             Collections.emptyMap());
 
-        IndexTemplateConfig legacyNotificationsTemplate = new IndexTemplateConfig(NotificationsIndex.NOTIFICATIONS_INDEX,
-            "/org/elasticsearch/xpack/core/ml/notifications_index_legacy_template.json", Version.CURRENT.id, "xpack.ml.version",
-            Map.of("xpack.ml.version.id", String.valueOf(Version.CURRENT.id),
-                "xpack.ml.notifications.mappings", NotificationsIndex.mapping()));
         IndexTemplateConfig notificationsTemplate = new IndexTemplateConfig(NotificationsIndex.NOTIFICATIONS_INDEX,
             "/org/elasticsearch/xpack/core/ml/notifications_index_template.json", Version.CURRENT.id, "xpack.ml.version",
             Map.of("xpack.ml.version.id", String.valueOf(Version.CURRENT.id),
                 "xpack.ml.notifications.mappings", NotificationsIndex.mapping()));
 
-        MlIndexAndAlias.installIndexTemplateIfRequired(clusterState, client, Version.CURRENT, legacyNotificationsTemplate,
+        MlIndexAndAlias.installIndexTemplateIfRequired(clusterState, client,
             notificationsTemplate, TimeValue.timeValueMinutes(1), listener);
         InOrder inOrder = inOrder(client, listener);
         inOrder.verify(client).execute(same(PutComposableIndexTemplateAction.INSTANCE), any(), any());
@@ -191,16 +163,12 @@ public class MlIndexAndAliasTests extends ESTestCase {
                 createComposableIndexTemplateMetaData(NotificationsIndex.NOTIFICATIONS_INDEX,
                     Collections.singletonList(NotificationsIndex.NOTIFICATIONS_INDEX))));
 
-        IndexTemplateConfig legacyNotificationsTemplate = new IndexTemplateConfig(NotificationsIndex.NOTIFICATIONS_INDEX,
-            "/org/elasticsearch/xpack/core/ml/notifications_index_legacy_template.json", Version.CURRENT.id, "xpack.ml.version",
-            Map.of("xpack.ml.version.id", String.valueOf(Version.CURRENT.id),
-                "xpack.ml.notifications.mappings", NotificationsIndex.mapping()));
         IndexTemplateConfig notificationsTemplate = new IndexTemplateConfig(NotificationsIndex.NOTIFICATIONS_INDEX,
             "/org/elasticsearch/xpack/core/ml/notifications_index_template.json", Version.CURRENT.id, "xpack.ml.version",
             Map.of("xpack.ml.version.id", String.valueOf(Version.CURRENT.id),
                 "xpack.ml.notifications.mappings", NotificationsIndex.mapping()));
 
-        MlIndexAndAlias.installIndexTemplateIfRequired(clusterState, client, Version.CURRENT, legacyNotificationsTemplate,
+        MlIndexAndAlias.installIndexTemplateIfRequired(clusterState, client,
             notificationsTemplate, TimeValue.timeValueMinutes(1), listener);
         verify(listener).onResponse(true);
         verifyNoMoreInteractions(client);
@@ -209,16 +177,12 @@ public class MlIndexAndAliasTests extends ESTestCase {
     public void testInstallIndexTemplateIfRequired() throws UnknownHostException {
         ClusterState clusterState = createClusterState(Collections.emptyMap());
 
-        IndexTemplateConfig legacyNotificationsTemplate = new IndexTemplateConfig(NotificationsIndex.NOTIFICATIONS_INDEX,
-            "/org/elasticsearch/xpack/core/ml/notifications_index_legacy_template.json", Version.CURRENT.id, "xpack.ml.version",
-            Map.of("xpack.ml.version.id", String.valueOf(Version.CURRENT.id),
-                "xpack.ml.notifications.mappings", NotificationsIndex.mapping()));
         IndexTemplateConfig notificationsTemplate = new IndexTemplateConfig(NotificationsIndex.NOTIFICATIONS_INDEX,
             "/org/elasticsearch/xpack/core/ml/notifications_index_template.json", Version.CURRENT.id, "xpack.ml.version",
             Map.of("xpack.ml.version.id", String.valueOf(Version.CURRENT.id),
                 "xpack.ml.notifications.mappings", NotificationsIndex.mapping()));
 
-        MlIndexAndAlias.installIndexTemplateIfRequired(clusterState, client, Version.CURRENT, legacyNotificationsTemplate,
+        MlIndexAndAlias.installIndexTemplateIfRequired(clusterState, client,
             notificationsTemplate, TimeValue.timeValueMinutes(1), listener);
         InOrder inOrder = inOrder(client, listener);
         inOrder.verify(client).execute(same(PutComposableIndexTemplateAction.INSTANCE), any(), any());

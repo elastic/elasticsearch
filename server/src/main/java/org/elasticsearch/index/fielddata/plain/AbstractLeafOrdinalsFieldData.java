@@ -15,6 +15,8 @@ import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.script.field.DocValuesField;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -34,8 +36,8 @@ public abstract class AbstractLeafOrdinalsFieldData implements LeafOrdinalsField
     }
 
     @Override
-    public final ScriptDocValues<?> getScriptValues() {
-        return scriptFunction.apply(getOrdinalsValues());
+    public final DocValuesField getScriptField(String name) {
+        return new DelegateDocValuesField(scriptFunction.apply(getOrdinalsValues()), name);
     }
 
     @Override

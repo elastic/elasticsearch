@@ -142,7 +142,8 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
             assertThat(actual.getExecutingPolicy(), equalTo(expected));
         }
 
-        assertWarnings(Level.WARN,
+        assertWarnings(
+            Level.WARN,
             "[xpack.monitoring.collection.enrich.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
                 + "in a future release! See the breaking changes documentation for the next major version."
         );

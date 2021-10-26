@@ -46,6 +46,7 @@ public class SearchGroupsResolverInMemoryTests extends LdapTestCase {
     @After
     public void closeConnection() {
         if (connection != null) {
+            logger.info("Closing LDAP connection [{}] (@{})", connection, Integer.toHexString(System.identityHashCode(connection)));
             connection.close();
         }
     }
@@ -147,14 +148,16 @@ public class SearchGroupsResolverInMemoryTests extends LdapTestCase {
     }
 
     private LDAPConnectionPool createConnectionPool(LDAPURL ldapurl) throws LDAPException {
-        return LdapUtils.privilegedConnect(
-            () -> new LDAPConnectionPool(
+        return LdapUtils.privilegedConnect(() -> {
+            final LDAPConnectionPool pool = new LDAPConnectionPool(
                 new SingleServerSet(ldapurl.getHost(), ldapurl.getPort()),
                 new SimpleBindRequest("cn=Horatio Hornblower,ou=people,o=sevenSeas", "pass"),
                 0,
                 20
-            )
-        );
+            );
+            pool.setConnectionPoolName("pool-" + getTestName());
+            return pool;
+        });
     }
 
     private void connect(LDAPConnectionOptions options) throws LDAPException {
@@ -163,7 +166,12 @@ public class SearchGroupsResolverInMemoryTests extends LdapTestCase {
                     + connection.getConnectedAddress() + ')');
         }
         final LDAPURL ldapurl = new LDAPURL(ldapUrls()[0]);
-        this.connection = LdapUtils.privilegedConnect(() -> new LDAPConnection(options, ldapurl.getHost(), ldapurl.getPort()));
+        this.connection = LdapUtils.privilegedConnect(() -> {
+            var c = new LDAPConnection(options, ldapurl.getHost(), ldapurl.getPort());
+            c.setConnectionName("test-connection-" + getTestName());
+            logger.info("Established LDAP connection [{}] (@{})", c, Integer.toHexString(System.identityHashCode(c)));
+            return c;
+        });
     }
 
     private List<String> resolveGroups(Settings settings, String userDn) {

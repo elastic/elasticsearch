@@ -242,10 +242,8 @@ state is the preferred way to restore system indices and system data streams.
 If you restore a snapshot's cluster state, the operation restores all feature
 states in the snapshot by default. Similarly, if you don't restore a snapshot's
 cluster state, the operation doesn't restore any feature states by default. You
-can also restore only specific feature states from a snapshot, regardless of the
-cluster state.
-
-NOTE: You can't restore specific feature states in {kib}.
+can also choose to restore only specific feature states from a snapshot,
+regardless of the cluster state.
 
 To view a snapshot's feature states, use the get snapshot API.
 

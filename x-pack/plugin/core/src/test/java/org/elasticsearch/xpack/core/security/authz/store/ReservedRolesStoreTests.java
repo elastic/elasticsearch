@@ -711,18 +711,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         ).forEach(action -> assertThat(kibanaRole.cluster().check(action, request, authentication), is(true)));
 
         Arrays.asList(
-            "metrics-endpoint.metadata" + randomAlphaOfLengthBetween(3, 8)
-        ).forEach(indexName -> {
-            assertOnlyReadAllowed(kibanaRole, indexName);
-            assertViewIndexMetadata(kibanaRole, indexName);
-
-            final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(PutMappingAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
-        });
-
-        Arrays.asList(
             "metrics-endpoint.metadata_current_default",
             ".metrics-endpoint.metadata_current_default",
             ".metrics-endpoint.metadata_united_default"
@@ -754,8 +742,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
             // Deny deleting documents and modifying the index settings
             assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(false));
         });
     }
 

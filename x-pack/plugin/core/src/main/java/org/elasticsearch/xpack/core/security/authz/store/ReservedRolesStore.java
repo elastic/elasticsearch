@@ -441,7 +441,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .privileges("read").build(),
                 // Fleet package upgrade
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("logs-*", "synthetics-*", "traces-*", "metrics-*")
+                    .indices("logs-*", "synthetics-*", "traces-*",
+                        "/metrics-.*&~(metrics-endpoint\\.metadata_current_default.*)/")
                     .privileges(UpdateSettingsAction.NAME, PutMappingAction.NAME, RolloverAction.NAME)
                     .build(),
                 // For src/dest indices of the Endpoint package that ships a transform

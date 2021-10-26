@@ -38,7 +38,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
 import org.elasticsearch.xpack.core.ClientHelper;

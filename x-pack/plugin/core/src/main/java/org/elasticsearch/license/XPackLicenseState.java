@@ -455,7 +455,7 @@ public class XPackLicenseState {
         return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM);
     }
 
-    private static boolean isAllowedByOperationMode(
+    static boolean isAllowedByOperationMode(
         final OperationMode operationMode, final OperationMode minimumMode) {
         if (OperationMode.TRIAL == operationMode) {
             return true;

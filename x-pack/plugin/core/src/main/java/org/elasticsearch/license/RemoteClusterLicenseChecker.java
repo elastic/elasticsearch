@@ -29,6 +29,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.license.XPackLicenseState.isAllowedByOperationMode;
+
 /**
  * Checks remote clusters for license compatibility with a specified licensed feature.
  */
@@ -164,9 +166,9 @@ public final class RemoteClusterLicenseChecker {
                     return;
                 }
 
-                License.OperationMode remoteOperationMode = License.OperationMode.parse(licenseInfo.getMode());
+                //License.OperationMode remoteOperationMode = ;
                 if (licenseInfo.getStatus() == LicenseStatus.ACTIVE == false
-                    || remoteOperationMode.ordinal() < feature.getMinimumOperationMode().ordinal()) {
+                    || isAllowedByOperationMode(License.OperationMode.parse(licenseInfo.getMode()), feature.getMinimumOperationMode()) == false) {
                     listener.onResponse(LicenseCheck.failure(new RemoteClusterLicenseInfo(clusterAlias.get(), licenseInfo)));
                     return;
                 }
@@ -275,7 +277,8 @@ public final class RemoteClusterLicenseChecker {
         if (remoteClusterLicenseInfo.licenseInfo().getStatus() != LicenseStatus.ACTIVE) {
             error.append(String.format(Locale.ROOT, "the license on cluster [%s] is not active", remoteClusterLicenseInfo.clusterAlias()));
         } else {
-            assert feature.getMinimumOperationMode().ordinal() >= License.OperationMode.parse(remoteClusterLicenseInfo.licenseInfo().getMode()).ordinal() : "license must be incompatible to build error message";
+            assert isAllowedByOperationMode(License.OperationMode.parse(remoteClusterLicenseInfo.licenseInfo().getMode()),
+                feature.getMinimumOperationMode()) : "license must be incompatible to build error message";
             final String message = String.format(
                     Locale.ROOT,
                     "the license mode [%s] on cluster [%s] does not enable [%s]",

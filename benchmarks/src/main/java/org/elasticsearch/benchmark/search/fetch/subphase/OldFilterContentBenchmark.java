@@ -19,7 +19,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.support.filtering.FilterNode;
+import org.elasticsearch.xcontent.support.filtering.FilterPath;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -50,7 +50,7 @@ import java.util.concurrent.TimeUnit;
 public class OldFilterContentBenchmark {
     @Param({ "ben1", "ben2", "ben3" })
     private String type;
-    private FilterNode[] excludesFilters;
+    private FilterPath[] excludesFilters;
     private BytesReference inputSource;
 
     private static final String SOURCE_2 = "{\n"
@@ -227,28 +227,28 @@ public class OldFilterContentBenchmark {
     @Setup
     public void setup() throws IOException {
         BytesReference input;
-        FilterNode[] filterNodes;
+        FilterPath[] filterPaths;
         switch (type) {
             case "ben1":
                 input = new BytesArray(monSource);
                 Map<String, Object> monMap = XContentHelper.convertToMap(new BytesArray(monSource), true, XContentType.JSON).v2();
                 Map<String, Object> newMap = Maps.flatten(monMap, false, true);
                 newMap.remove("cluster_uuid");
-                filterNodes = FilterNode.compile(newMap.keySet());
+                filterPaths = FilterPath.compile(newMap.keySet());
                 break;
             case "ben2":
                 input = new BytesArray(SOURCE_2);
-                filterNodes = FilterNode.compile(dvFields);
+                filterPaths = FilterPath.compile(dvFields);
                 break;
             case "ben3":
                 input = new BytesArray(SOURCE_3);
-                filterNodes = FilterNode.compile(dvFields);
+                filterPaths = FilterPath.compile(dvFields);
                 break;
             default:
                 throw new IllegalArgumentException("Unknown type [" + type + "]");
         }
         inputSource = input;
-        excludesFilters = filterNodes;
+        excludesFilters = filterPaths;
     }
 
     @Benchmark

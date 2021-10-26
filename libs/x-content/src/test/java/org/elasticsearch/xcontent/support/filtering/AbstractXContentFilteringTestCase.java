@@ -52,8 +52,8 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
         if (randomBoolean()) {
             return filterOnBuilder(sample, includes, excludes);
         }
-        FilterNode[] excludesFilter = FilterNode.compile(excludes);
-        if (excludesFilter != null && Arrays.stream(excludesFilter).anyMatch(FilterNode::hasDoubleWildcard)) {
+        FilterPath[] excludesFilter = FilterPath.compile(excludes);
+        if (excludesFilter != null && Arrays.stream(excludesFilter).anyMatch(FilterPath::hasDoubleWildcard)) {
             /*
              * If there are any double wildcard filters the parser based
              * filtering produced weird invalid json. Just field names
@@ -61,7 +61,7 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
              */
             return filterOnBuilder(sample, includes, excludes);
         }
-        FilterNode[] includesFilter = FilterNode.compile(includes);
+        FilterPath[] includesFilter = FilterPath.compile(includes);
         return filterOnParser(sample, includesFilter, excludesFilter);
     }
 
@@ -69,7 +69,7 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
         return sample.apply(XContentBuilder.builder(getXContentType(), includes, excludes));
     }
 
-    private XContentBuilder filterOnParser(Builder sample, FilterNode[] includes, FilterNode[] excludes) throws IOException {
+    private XContentBuilder filterOnParser(Builder sample, FilterPath[] includes, FilterPath[] excludes) throws IOException {
         try (XContentBuilder builtSample = sample.apply(createBuilder())) {
             BytesReference sampleBytes = BytesReference.bytes(builtSample);
             try (

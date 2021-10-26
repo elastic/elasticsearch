@@ -6,69 +6,125 @@
  * Side Public License, v 1.
  */
 
-
 package org.elasticsearch.xcontent.support.filtering;
+
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.elasticsearch.core.Glob;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
-
 public class FilterPath {
+    private static final String WILDCARD = "*";
+    private static final String DOUBLE_WILDCARD = "**";
 
-    public static final FilterPath EMPTY = new FilterPath();
-
-    private final String filter;
-    private final String segment;
-    private final FilterPath next;
-    private final boolean simpleWildcard;
+    private final Map<String, FilterPath> termsChildren;
+    private final Map<String, FilterPath> wildcardChildren;
     private final boolean doubleWildcard;
+    private boolean hasDoubleWildcard;
 
-    protected FilterPath(String filter, String segment, FilterPath next) {
-        this.filter = filter;
-        this.segment = segment;
-        this.next = next;
-        this.simpleWildcard = (segment != null) && (segment.length() == 1) && (segment.charAt(0) == '*');
-        this.doubleWildcard = (segment != null) && (segment.length() == 2) && (segment.charAt(0) == '*') && (segment.charAt(1) == '*');
-    }
-
-    private FilterPath() {
-        this("<empty>", "", null);
-    }
-
-    public FilterPath matchProperty(String name) {
-        if ((next != null) && (simpleWildcard || doubleWildcard || Glob.globMatch(segment, name))) {
-            return next;
-        }
-        return null;
-    }
-
-    public boolean matches() {
-        return next == null;
-    }
-
-    public boolean isDoubleWildcard() {
-        return doubleWildcard;
+    public FilterPath(String field) {
+        this.termsChildren = new HashMap<>();
+        this.wildcardChildren = new HashMap<>();
+        this.doubleWildcard = DOUBLE_WILDCARD.equals(field);
     }
 
     public boolean hasDoubleWildcard() {
-        if (filter == null) {
-            return false;
+        if (hasDoubleWildcard) {
+            return true;
         }
-        return filter.indexOf("**") >= 0;
+
+        for (FilterPath filterPath : wildcardChildren.values()) {
+            if (filterPath.hasDoubleWildcard()) {
+                return true;
+            }
+        }
+
+        for (FilterPath filterPath : termsChildren.values()) {
+            if (filterPath.hasDoubleWildcard()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
-    public boolean isSimpleWildcard() {
-        return simpleWildcard;
+    public void insert(String filter) {
+        int end = filter.length();
+        for (int i = 0; i < end;) {
+            char c = filter.charAt(i);
+            if (c == '.') {
+                String field = filter.substring(0, i).replaceAll("\\\\.", ".");
+                if (field.contains(DOUBLE_WILDCARD)) {
+                    hasDoubleWildcard = true;
+                }
+                FilterPath child;
+                if (field.contains(WILDCARD)) {
+                    child = wildcardChildren.get(field);
+                    if (child == null) {
+                        child = new FilterPath(field);
+                        wildcardChildren.put(field, child);
+                    }
+                } else {
+                    child = termsChildren.get(field);
+                    if (child == null) {
+                        child = new FilterPath(field);
+                        termsChildren.put(field, child);
+                    }
+                }
+                child.insert(filter.substring(i + 1));
+                return;
+            }
+            ++i;
+            if ((c == '\\') && (i < end) && (filter.charAt(i) == '.')) {
+                ++i;
+            }
+        }
+
+        String field = filter.replaceAll("\\\\.", ".");
+        if (field.contains(DOUBLE_WILDCARD)) {
+            hasDoubleWildcard = true;
+        }
+        if (field.contains(WILDCARD)) {
+            wildcardChildren.put(field, new FilterPath(field));
+        } else {
+            termsChildren.put(field, new FilterPath(field));
+        }
     }
 
-    public String getSegment() {
-        return segment;
+    public boolean matches(String name, List<FilterPath> nextFilters) {
+        if (doubleWildcard) {
+            nextFilters.add(this);
+        }
+
+        FilterPath termNode = termsChildren.get(name);
+        if (termNode != null) {
+            if (termNode.isEnd()) {
+                return true;
+            } else {
+                nextFilters.add(termNode);
+            }
+        }
+
+        for (Map.Entry<String, FilterPath> entry : wildcardChildren.entrySet()) {
+            String wildcardPattern = entry.getKey();
+            FilterPath wildcardNode = entry.getValue();
+            if (Glob.globMatch(wildcardPattern, name)) {
+                if (wildcardNode.isEnd()) {
+                    return true;
+                } else {
+                    nextFilters.add(wildcardNode);
+                }
+            }
+        }
+
+        return false;
     }
 
-    public FilterPath getNext() {
-        return next;
+    private boolean isEnd() {
+        return termsChildren.isEmpty() && wildcardChildren.isEmpty();
     }
 
     public static FilterPath[] compile(Set<String> filters) {
@@ -76,38 +132,16 @@ public class FilterPath {
             return null;
         }
 
-        List<FilterPath> paths = new ArrayList<>();
+        FilterPath filterPath = new FilterPath("");
         for (String filter : filters) {
             if (filter != null) {
                 filter = filter.trim();
                 if (filter.length() > 0) {
-                    paths.add(parse(filter, filter));
+                    filterPath.insert(filter);
                 }
             }
         }
-        return paths.toArray(new FilterPath[paths.size()]);
-    }
 
-    private static FilterPath parse(final String filter, final String segment) {
-        int end = segment.length();
-
-        for (int i = 0; i < end; ) {
-            char c = segment.charAt(i);
-
-            if (c == '.') {
-                String current = segment.substring(0, i).replaceAll("\\\\.", ".");
-                return new FilterPath(filter, current, parse(filter, segment.substring(i + 1)));
-            }
-            ++i;
-            if ((c == '\\') && (i < end) && (segment.charAt(i) == '.')) {
-                ++i;
-            }
-        }
-        return new FilterPath(filter, segment.replaceAll("\\\\.", "."), EMPTY);
-    }
-
-    @Override
-    public String toString() {
-        return "FilterPath [filter=" + filter + ", segment=" + segment + "]";
+        return Collections.singletonList(filterPath).toArray(new FilterPath[0]);
     }
 }

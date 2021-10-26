@@ -28,7 +28,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.support.filtering.FilterNode;
+import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -104,7 +104,7 @@ public class XContentHelper {
     }
 
     /**
-     * Exactly the same as {@link XContentHelper#convertToMap(BytesReference, boolean, XContentType, FilterNode[], FilterNode[])} but
+     * Exactly the same as {@link XContentHelper#convertToMap(BytesReference, boolean, XContentType, FilterPath[], FilterPath[])} but
      * none of the fields are filtered
      */
     public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered, XContentType xContentType) {
@@ -124,8 +124,8 @@ public class XContentHelper {
             BytesReference bytes,
             boolean ordered,
             XContentType xContentType,
-            @Nullable FilterNode[] include,
-            @Nullable FilterNode[] exclude
+            @Nullable FilterPath[] include,
+            @Nullable FilterPath[] exclude
     ) throws ElasticsearchParseException {
         try {
             final XContentType contentType;
@@ -175,7 +175,7 @@ public class XContentHelper {
     }
 
     /**
-     * The same as {@link XContentHelper#convertToMap(XContent, byte[], int, int, boolean, FilterNode[], FilterNode[])} but none of the
+     * The same as {@link XContentHelper#convertToMap(XContent, byte[], int, int, boolean, FilterPath[], FilterPath[])} but none of the
      * fields are filtered.
      */
     public static Map<String, Object> convertToMap(XContent xContent, InputStream input, boolean ordered)
@@ -193,8 +193,8 @@ public class XContentHelper {
             XContent xContent,
             InputStream input,
             boolean ordered,
-            @Nullable FilterNode[] include,
-            @Nullable FilterNode[] exclude
+            @Nullable FilterPath[] include,
+            @Nullable FilterPath[] exclude
     ) throws ElasticsearchParseException {
         // It is safe to use EMPTY here because this never uses namedObject
         try (XContentParser parser = xContent.createParser(
@@ -232,8 +232,8 @@ public class XContentHelper {
             int offset,
             int length,
             boolean ordered,
-            @Nullable FilterNode[] include,
-            @Nullable FilterNode[] exclude
+            @Nullable FilterPath[] include,
+            @Nullable FilterPath[] exclude
     ) throws ElasticsearchParseException {
         // It is safe to use EMPTY here because this never uses namedObject
         try (XContentParser parser = xContent.createParser(

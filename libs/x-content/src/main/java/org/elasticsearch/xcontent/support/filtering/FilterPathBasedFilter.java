@@ -10,11 +10,8 @@ package org.elasticsearch.xcontent.support.filtering;
 
 import com.fasterxml.jackson.core.filter.TokenFilter;
 
-import org.elasticsearch.core.Glob;
-
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 public class FilterPathBasedFilter extends TokenFilter {
@@ -41,11 +38,11 @@ public class FilterPathBasedFilter extends TokenFilter {
         }
     };
 
-    private final FilterNode[] filters;
+    private final FilterPath[] filters;
 
     private final boolean inclusive;
 
-    public FilterPathBasedFilter(FilterNode[] filters, boolean inclusive) {
+    public FilterPathBasedFilter(FilterPath[] filters, boolean inclusive) {
         if (filters == null || filters.length == 0) {
             throw new IllegalArgumentException("filters cannot be null or empty");
         }
@@ -54,16 +51,16 @@ public class FilterPathBasedFilter extends TokenFilter {
     }
 
     public FilterPathBasedFilter(Set<String> filters, boolean inclusive) {
-        this(FilterNode.compile(filters), inclusive);
+        this(FilterPath.compile(filters), inclusive);
     }
 
     /**
      * Evaluates if a property name matches one of the given filter paths.
      */
-    private TokenFilter evaluate(String name, FilterNode[] filterNodes) {
-        if (filterNodes != null) {
-            List<FilterNode> nextFilters = new ArrayList<>();
-            for (FilterNode filter : filterNodes) {
+    private TokenFilter evaluate(String name, FilterPath[] filterPaths) {
+        if (filterPaths != null) {
+            List<FilterPath> nextFilters = new ArrayList<>();
+            for (FilterPath filter : filterPaths) {
                 boolean matches = filter.matches(name, nextFilters);
                 if (matches) {
                     return MATCHING;
@@ -71,7 +68,7 @@ public class FilterPathBasedFilter extends TokenFilter {
             }
 
             if (nextFilters.isEmpty() == false) {
-                return new FilterPathBasedFilter(nextFilters.toArray(new FilterNode[nextFilters.size()]), inclusive);
+                return new FilterPathBasedFilter(nextFilters.toArray(new FilterPath[nextFilters.size()]), inclusive);
             }
         }
         return NO_MATCHING;

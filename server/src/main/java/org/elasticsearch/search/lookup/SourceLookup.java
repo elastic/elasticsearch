@@ -20,7 +20,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.xcontent.support.filtering.FilterNode;
+import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -176,7 +176,7 @@ public class SourceLookup implements Map<String, Object> {
         if (source != null) {
             return XContentMapValues.extractRawValues(path, source);
         }
-        FilterNode[] filterPaths = FilterNode.compile(Set.of(path));
+        FilterPath[] filterPaths = FilterPath.compile(Set.of(path));
         if (sourceAsBytes != null) {
             return XContentMapValues.extractRawValues(
                 path,

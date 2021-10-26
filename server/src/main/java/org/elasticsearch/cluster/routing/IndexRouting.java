@@ -18,7 +18,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.support.filtering.FilterNode;
+import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -198,12 +198,12 @@ public abstract class IndexRouting {
 
     private static class ExtractFromSource extends IndexRouting {
         private final String indexName;
-        private final FilterNode[] include;
+        private final FilterPath[] include;
 
         ExtractFromSource(int routingNumShards, int routingFactor, String indexName, List<String> routingPaths) {
             super(routingNumShards, routingFactor);
             this.indexName = indexName;
-            this.include = FilterNode.compile(Set.copyOf(routingPaths));
+            this.include = FilterPath.compile(Set.copyOf(routingPaths));
         }
 
         @Override

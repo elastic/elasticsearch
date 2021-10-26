@@ -18,7 +18,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.support.filtering.FilterNode;
+import org.elasticsearch.xcontent.support.filtering.FilterPath;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -53,7 +53,7 @@ public class FilterContentBenchmark {
     private String fieldCount;
 
     private BytesReference source;
-    private FilterNode[] includesFilters;
+    private FilterPath[] includesFilters;
 
     @Setup
     public void setup() throws IOException {
@@ -83,17 +83,17 @@ public class FilterContentBenchmark {
                     .filter(key -> count.getAndIncrement() % 5 == 0)
                     .limit(10)
                     .collect(Collectors.toSet());
-                includesFilters = FilterNode.compile(filterKeys);
+                includesFilters = FilterPath.compile(filterKeys);
             }
                 break;
             case "half_field": {
                 AtomicInteger count = new AtomicInteger();
                 Set<String> halfKeys = keys.stream().filter(key -> count.getAndIncrement() % 2 == 0).collect(Collectors.toSet());
-                includesFilters = FilterNode.compile(halfKeys);
+                includesFilters = FilterPath.compile(halfKeys);
             }
                 break;
             case "all_field":
-                includesFilters = FilterNode.compile(keys);
+                includesFilters = FilterPath.compile(keys);
                 break;
             default:
                 throw new IllegalArgumentException("Unknown type [" + type + "]");

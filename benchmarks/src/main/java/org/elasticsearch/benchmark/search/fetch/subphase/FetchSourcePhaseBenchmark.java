@@ -13,7 +13,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.support.filtering.FilterNode;
+import org.elasticsearch.xcontent.support.filtering.FilterPath;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -41,8 +41,8 @@ public class FetchSourcePhaseBenchmark {
     private FetchSourceContext fetchContext;
     private Set<String> includesSet;
     private Set<String> excludesSet;
-    private FilterNode[] includesFilters;
-    private FilterNode[] excludesFilters;
+    private FilterPath[] includesFilters;
+    private FilterPath[] excludesFilters;
 
     @Param({ "tiny", "short", "one_4k_field", "one_4m_field" })
     private String source;
@@ -76,8 +76,8 @@ public class FetchSourcePhaseBenchmark {
         );
         includesSet = Set.of(fetchContext.includes());
         excludesSet = Set.of(fetchContext.excludes());
-        includesFilters = FilterNode.compile(Set.of(fetchContext.includes()));
-        excludesFilters = FilterNode.compile(Set.of(fetchContext.excludes()));
+        includesFilters = FilterPath.compile(Set.of(fetchContext.includes()));
+        excludesFilters = FilterPath.compile(Set.of(fetchContext.excludes()));
     }
 
     private BytesReference read300BytesExample() throws IOException {

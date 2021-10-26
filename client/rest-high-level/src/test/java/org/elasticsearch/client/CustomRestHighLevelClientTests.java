@@ -53,6 +53,7 @@ import static org.mockito.Mockito.when;
 /**
  * Test and demonstrates how {@link RestHighLevelClient} can be extended to support custom endpoints.
  */
+@SuppressWarnings("removal")
 public class CustomRestHighLevelClientTests extends ESTestCase {
 
     private static final String ENDPOINT = "/_custom";
@@ -68,13 +69,13 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
 
             doAnswer(inv -> mockPerformRequest((Request) inv.getArguments()[0]))
                     .when(restClient)
-                    .performRequest(argThat(new RequestMatcher("GET", ENDPOINT)));
+                    .performRequest(argThat(new RequestMatcher("GET", ENDPOINT)::matches));
 
             doAnswer(inv -> mockPerformRequestAsync(
                         ((Request) inv.getArguments()[0]),
                         (ResponseListener) inv.getArguments()[1]))
                     .when(restClient)
-                    .performRequestAsync(argThat(new RequestMatcher("GET", ENDPOINT)), any(ResponseListener.class));
+                    .performRequestAsync(argThat(new RequestMatcher("GET", ENDPOINT)::matches), any(ResponseListener.class));
         }
     }
 

@@ -206,7 +206,7 @@ public class Installation {
         public final Executable shardTool = new Executable("elasticsearch-shard");
         public final Executable nodeTool = new Executable("elasticsearch-node");
         public final Executable setupPasswordsTool = new Executable("elasticsearch-setup-passwords");
-        public final Executable resetElasticPasswordTool = new Executable("elasticsearch-reset-elastic-password");
+        public final Executable resetPasswordTool = new Executable("elasticsearch-reset-password");
         public final Executable createEnrollmentToken = new Executable("elasticsearch-create-enrollment-token");
         public final Executable nodeEnrollTool = new Executable("elasticsearch-enroll-node");
         public final Executable sqlCli = new Executable("elasticsearch-sql-cli");

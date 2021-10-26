@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.IndexSettings;
 
 import java.util.List;
@@ -90,8 +91,20 @@ public class DocumentMapper {
             throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
         }
         List<String> routingPaths = settings.getIndexMetadata().getRoutingPaths();
-        if (false == routingPaths.isEmpty()) {
-            mappingLookup.getMapping().getRoot().validateRoutingPath(routingPaths);
+        for (String path : routingPaths) {
+            for (String match : mappingLookup.getMatchingFieldNames(path)) {
+                mappingLookup.getFieldType(match).validateMatchedRoutingPath();
+            }
+            for (String objectName : mappingLookup.objectMappers().keySet()) {
+                if (Regex.simpleMatch(path, objectName)) {
+                    throw new IllegalArgumentException(
+                        "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                            + "and without the [script] parameter. ["
+                            + objectName
+                            + "] was [object]."
+                    );
+                }
+            }
         }
         if (checkLimits) {
             this.mappingLookup.checkLimits(settings);

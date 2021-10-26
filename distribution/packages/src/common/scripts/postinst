@@ -80,19 +80,19 @@ if [ "x$IS_UPGRADE" != "xtrue" ]; then
             echo "The generated password for the elastic built-in superuser is : ${INITIAL_PASSWORD}"
             echo
             echo "If this node should join an existing cluster, you can reconfigure this with"
-            echo "usr/share/bin/elasticsearch-reconfigure-node --enrollment-token <token-here> after getting an"
+            echo "'/usr/share/elasticsearch/bin/elasticsearch-reconfigure-node --enrollment-token <token-here>' after getting an"
             echo "enrollment token from your existing cluster."
             echo
             echo "You can complete the following actions at any time:"
             echo
             echo "Reset the password of the elastic built-in superuser with "
-            echo "'/usr/share/bin/elasticsearch-reset-password -u elastic'."
+            echo "'/usr/share/elasticsearch/bin/elasticsearch-reset-password -u elastic'."
             echo
             echo "Generate an enrollment token for Kibana instances with "
-            echo " 'bin/elasticsearch-create-enrollment-token -s kibana'."
+            echo " '/usr/share/elasticsearch/bin/elasticsearch-create-enrollment-token -s kibana'."
             echo
             echo "Generate an enrollment token for Elasticsearch nodes with "
-            echo "'bin/elasticsearch-create-enrollment-token -s node'."
+            echo "'/usr/share/elasticsearch/bin/elasticsearch-create-enrollment-token -s node'."
             echo
             echo "-------------------------------------------------------------------------------------------------"
         fi
@@ -111,7 +111,7 @@ if [ "x$IS_UPGRADE" != "xtrue" ]; then
             echo "However, authentication and authorization are still enabled."
             echo
             echo "You can reset the password of the elastic built-in superuser with "
-            echo "'/usr/share/bin/elasticsearch-reset-password -u elastic' at any time."
+            echo "'/usr/share/elasticsearch/bin/elasticsearch-reset-password -u elastic' at any time."
             echo "-------------------------------------------------------------------------------------------------"
         fi
     fi

@@ -340,12 +340,12 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(firstRealm.supports(token)).thenReturn(false);
         when(secondRealm.supports(token)).thenReturn(true);
         final User user = new User(randomAlphaOfLength(8));
-        final AuthenticationResult authenticationResult = AuthenticationResult.success(user);
+        final AuthenticationResult<User> authenticationResult = AuthenticationResult.success(user);
         doAnswer(invocationOnMock -> {
             final Object[] arguments = invocationOnMock.getArguments();
             assertThat(arguments[0], is(token));
-            @SuppressWarnings("unchecked") final ActionListener<AuthenticationResult> listener =
-                (ActionListener<AuthenticationResult>) arguments[1];
+            @SuppressWarnings("unchecked") final ActionListener<AuthenticationResult<User>> listener =
+                (ActionListener<AuthenticationResult<User>>) arguments[1];
             listener.onResponse(authenticationResult);
             return null;
         }).when(secondRealm).authenticate(eq(token), anyActionListener());
@@ -2067,7 +2067,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     private void mockAuthenticate(Realm realm, AuthenticationToken token, User user) {
         final boolean separateThread = randomBoolean();
         doAnswer(i -> {
-            ActionListener<AuthenticationResult> listener = (ActionListener<AuthenticationResult>) i.getArguments()[1];
+            ActionListener<AuthenticationResult<User>> listener = (ActionListener<AuthenticationResult<User>>) i.getArguments()[1];
             Runnable run = () -> {
                 if (user == null) {
                     listener.onResponse(AuthenticationResult.notHandled());
@@ -2089,7 +2089,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     private void mockAuthenticate(Realm realm, AuthenticationToken token, Exception e, boolean terminate) {
         doAnswer((i) -> {
-            ActionListener<AuthenticationResult> listener = (ActionListener<AuthenticationResult>) i.getArguments()[1];
+            ActionListener<AuthenticationResult<User>> listener = (ActionListener<AuthenticationResult<User>>) i.getArguments()[1];
             if (terminate) {
                 listener.onResponse(AuthenticationResult.terminate("terminate authc process", e));
             } else {

@@ -30,8 +30,7 @@ If you have created custom index template, then check those templates
 after the automated migration and remove <<shard-allocation-filtering,
 attribute-based allocation filters>> if any are specified.
 
-By allowing the upgrade process to migrate your deployment you can skip
-the manual steps presented below. 
+NOTE: You do not need to take any further action after the automatic migration. The following manual steps are only necessary if you do not allow the automatic migration or have a self-managed deployment.
 
 [discrete]
 === Manually migrating to node roles on self-managed deployments

@@ -30,8 +30,8 @@ import static org.elasticsearch.rest.RestStatus.GONE;
 
 public final class RestFreezeIndexAction extends BaseRestHandler {
 
-    private static final String FREEZE_REMOVED = "It is no longer possible to freeze indices, but existing frozen indices can still be " +
-        "unfrozen";
+    private static final String FREEZE_REMOVED = "It is no longer possible to freeze indices, but existing frozen indices can still be "
+        + "unfrozen";
 
     private static final String UNFREEZE_DEPRECATED = "Frozen indices are deprecated because they provide no benefit given improvements "
         + "in heap memory utilization. They will be removed in a future release.";

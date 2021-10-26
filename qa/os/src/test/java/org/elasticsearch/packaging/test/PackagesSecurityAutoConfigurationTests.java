@@ -107,7 +107,7 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         assertNotNull(installation.getElasticPassword());
         // We cannot run two packaged installations simultaneously here so that we can test that the second node enrolls successfully
         // We trigger with an invalid enrollment token, to verify that we removed the existing auto-configuration
-        Shell.Result result = installation.executables().nodeEnrollTool.run("--enrollment-token thisisinvalid", "y", true);
+        Shell.Result result = installation.executables().nodeReconfigureTool.run("--enrollment-token thisisinvalid", "y", true);
         assertThat(result.exitCode, equalTo(ExitCodes.DATA_ERROR)); // invalid enrollment token
         verifySecurityNotAutoConfigured(installation);
     }

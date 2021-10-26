@@ -77,10 +77,8 @@ TIP: You might need to scroll back a bit in the terminal to view the passwords.
 . Copy the generated passwords and save them in a secure location. The passwords
 are shown only when you start {es} for the first time.
 +
-NOTE: If you need to reset the password for the `elastic` user, run the
-<<reset-elastic-password,`elasticsearch-reset-elastic-password`>> tool. To
-reset the password for the `kibana_system` user, run the
-`elasticsearch-reset-kibana-system-password` tool. Both of these tools are
+NOTE: If you need to reset the password for the `elastic` or the `kibana_system` user, run the
+<<reset-password,`elasticsearch-reset-password`>> tool,
 available in the {es} `/bin` directory.
 
 . Open a new terminal and verify that you can connect to your {es} cluster by

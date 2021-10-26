@@ -12,17 +12,17 @@
 ====
 *Details* +
 In 8.0, we're deprecating the `elasticsearch-setup-passwords` tool. To
-manually reset the password for the `elastic` user, use the
-{ref}/reset-elastic-password.html[`elasticsearch-reset-elastic-password`] tool. To
-change passwords for other users, use either {kib} or the {es}
-{ref}/security-api-change-password.html[change passwords API]. We will remove the 
+manually reset the password for builtin users (including the `elastic` user), use
+the {ref}/reset-password.html[`elasticsearch-reset-password`], the {es}
+{ref}/security-api-change-password.html[change passwords API], or the
+User Management features in {kib}". We will remove the
 `elasticsearch-setup-passwords` tool in a future release.
 
 *Impact* +
 When starting {es} for the first time, passwords are generated automatically for
-the `elastic` and `kibana_system` users. If you run the
-`elasticsearch-setup-passwords` tool after starting {es}, the command will fail
-because the password for the `elastic` user is already configured.
+the `elastic` user. If you run the `elasticsearch-setup-passwords` tool after
+starting {es}, the command will fail  because the password for the `elastic`
+user is already configured.
 ====
 
 .The file and native realms are now enabled unless explicitly disabled.
@@ -38,7 +38,7 @@ Previously, the file and native realms had the following implicit behaviors:
 if any other realm was configured.
 
 * If no other realm was available because realms were either not configured,
-not perrmitted by license, or explicitly disabled, the file and native realms 
+not permitted by license, or explicitly disabled, the file and native realms
 were enabled, even if explicitly disabled.
 
 *Impact* +
@@ -51,7 +51,7 @@ The following configuration example disables the native realm and the file realm
 [source,yaml]
 ----
 xpack.security.authc.realms:
-  
+
   native.realm1.enabled: false
   file.realm2.enabled: false
 
@@ -172,7 +172,7 @@ result in an error on startup.
 ====
 *Details* +
 In SAML, Identity Providers (IdPs) can either be explicitly configured to
-release a `NameID` with a specific format, or configured to attempt to conform 
+release a `NameID` with a specific format, or configured to attempt to conform
 with the requirements of a Service Provider (SP). The SP declares its
 requirements in the `NameIDPolicy` element of a SAML Authentication Request.
 In {es}, the `nameid_format` SAML realm setting controls the `NameIDPolicy`
@@ -189,9 +189,9 @@ IdP. If you want to retain the previous behavior, set `nameid_format` to
 
 *Impact* +
 If you currently don't configure `nameid_format` explicitly, it's possible
-that your IdP will reject authentication requests from {es} because the requests 
+that your IdP will reject authentication requests from {es} because the requests
 do not specify a `NameID` format (and your IdP is configured to expect one).
-This mismatch can result in a broken SAML configuration. If you're unsure whether 
+This mismatch can result in a broken SAML configuration. If you're unsure whether
 your IdP is explicitly configured to use a certain `NameID` format and you want to retain current behavior
 , try setting `nameid_format` to `urn:oasis:names:tc:SAML:2.0:nameid-format:transient` explicitly.
 ====

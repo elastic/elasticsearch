@@ -3,7 +3,10 @@
   - skip:
       version: " - 7.15.99"
       reason:  "using old deprecated hotthreads API call"
+      features: allowed_warnings
   - do:
+      allowed_warnings:
+        - "[/_cluster/nodes/hotthreads] is a deprecated endpoint. Please use [/_nodes/hot_threads] instead."
       nodes.hot_threads:
         type: "cpu"
   - match:
@@ -14,7 +17,10 @@
   - skip:
       version: " - 7.15.99"
       reason:  "using old deprecated hotthreads API call"
+      features: allowed_warnings
   - do:
+      allowed_warnings:
+        - "[/_cluster/nodes/hotthreads] is a deprecated endpoint. Please use [/_nodes/hot_threads] instead."
       nodes.hot_threads:
         type: "cpu"
         sort: "cpu"
@@ -26,7 +32,10 @@
   - skip:
       version: " - 7.15.99"
       reason:  "using old deprecated hotthreads API call"
+      features: allowed_warnings
   - do:
+      allowed_warnings:
+        - "[/_cluster/nodes/hotthreads] is a deprecated endpoint. Please use [/_nodes/hot_threads] instead."
       nodes.hot_threads:
         type: "wait"
   - match:
@@ -37,7 +46,10 @@
   - skip:
       version: " - 7.15.99"
       reason:  "using old deprecated hotthreads API call"
+      features: allowed_warnings
   - do:
+      allowed_warnings:
+        - "[/_cluster/nodes/hotthreads] is a deprecated endpoint. Please use [/_nodes/hot_threads] instead."
       nodes.hot_threads:
         type: "block"
   - match:
@@ -48,7 +60,10 @@
   - skip:
       version: " - 7.15.99"
       reason:  "using old deprecated hotthreads API call"
+      features: allowed_warnings
   - do:
+      allowed_warnings:
+        - "[/_cluster/nodes/hotthreads] is a deprecated endpoint. Please use [/_nodes/hot_threads] instead."
       nodes.hot_threads:
         type: "mem"
   - match:
@@ -59,7 +74,10 @@
   - skip:
       version: " - 7.15.99"
       reason:  "no enum type checking"
+      features: allowed_warnings
   - do:
+      allowed_warnings:
+        - "[/_cluster/nodes/hotthreads] is a deprecated endpoint. Please use [/_nodes/hot_threads] instead."
       catch: bad_request
       nodes.hot_threads:
         type: "gpu"

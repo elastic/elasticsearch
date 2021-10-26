@@ -101,17 +101,16 @@ Matches enrich data to incoming documents based on a
 
 `range`:::
 Matches a field value in incoming documents to a range in the enrich
-index.
+index using a <<query-dsl-term-query,`term` query>>.
 +
-The <<enrich-processor,`enrich` processor>>'s `field` must be a
-<<number,numeric>>, <<date,`date`>>, <<date_nanos,`date_nanos`>>, or <<ip,`ip`>>
-field. The policy's `match_field` must be a <<range,range>> field of the same
-data type. For example, if the processor's `field` is a `date`, the policy's
-`match_field` must be a `date_range` field. Matching a range to a range is not
-supported.
+To match, incoming documents should contain a number, date, or IP address in the
+`field` specified in the <<enrich-processor,`enrich` processor>>. The enrich
+policy's `match_field` should be a <<range,range>> field of the same data type.
+For example, if incoming documents contain a date value in the `field`, the
+policy's `match_field` should be a `date_range` field. Matching a range to a
+range is not supported.
 +
-To match documents, the policy uses a <<query-dsl-term-query,`term` query>>. For
-an example, see <<range-enrich-policy-type>>.
+For an example, see <<range-enrich-policy-type>>.
 --
 +
 .Properties of `<policy-type>`

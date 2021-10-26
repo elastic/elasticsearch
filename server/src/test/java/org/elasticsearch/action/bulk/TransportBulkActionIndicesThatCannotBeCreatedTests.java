@@ -42,7 +42,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static java.util.Collections.emptySet;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 

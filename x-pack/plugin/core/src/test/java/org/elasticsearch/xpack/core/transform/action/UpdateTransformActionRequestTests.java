@@ -57,6 +57,10 @@ public class UpdateTransformActionRequestTests extends AbstractWireSerializingTr
             case 1:
                 String description = update.getDescription() == null ? "" : update.getDescription();
                 description += randomAlphaOfLengthBetween(1, 5);
+                // fix corner case that description gets too long
+                if (description.length() > 1000) {
+                    description = description.substring(description.length() - 1000, description.length());
+                }
                 update = new TransformConfigUpdate(
                     update.getSource(),
                     update.getDestination(),

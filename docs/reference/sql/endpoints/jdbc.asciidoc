@@ -88,19 +88,19 @@ Timezone used by the driver _per connection_ indicated by its `ID`.
 [discrete]
 ===== Network
 
-`connect.timeout` (default 30000ms)::
+`connect.timeout` (default `30000`)::
 Connection timeout (in milliseconds). That is the maximum amount of time waiting to make a connection to the server.
 
-`network.timeout` (default 60000ms)::
+`network.timeout` (default `60000`)::
 Network timeout (in milliseconds). That is the maximum amount of time waiting for the network.
 
-`page.timeout` (default 45000ms)::
+`page.timeout` (default `45000`)::
 Page timeout (in milliseconds). That is the maximum amount of time waiting for a page.
 
-`page.size` (default 1000)::
+`page.size` (default `1000`)::
 Page size (in entries). The number of results returned per page by the server.
 
-`query.timeout` (default 90000ms)::
+`query.timeout` (default `90000`)::
 Query timeout (in milliseconds). That is the maximum amount of time waiting for a query to return.
 
 [[jdbc-cfg-auth]]
@@ -115,7 +115,7 @@ Query timeout (in milliseconds). That is the maximum amount of time waiting for 
 [discrete]
 ==== SSL
 
-`ssl` (default false):: Enable SSL
+`ssl` (default `false`):: Enable SSL
 
 `ssl.keystore.location`:: key store (if used) location
 
@@ -150,7 +150,7 @@ will be - typically the first in natural ascending order) for fields with multip
 [discrete]
 ==== Additional
 
-`validate.properties` (default true):: If disabled, it will ignore any misspellings or unrecognizable properties. When enabled, an exception
+`validate.properties` (default `true`):: If disabled, it will ignore any misspellings or unrecognizable properties. When enabled, an exception
 will be thrown if the provided property cannot be recognized.
 
 

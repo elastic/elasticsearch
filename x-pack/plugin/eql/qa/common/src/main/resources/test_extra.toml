@@ -181,16 +181,31 @@ join_keys = ["512","123"]
 #expected_event_ids  = [18,19,20]
 #join_keys = ["512","123","512"]
 
-#[[queries]]
-#name = "sequenceSameKeyBothOptionalAndNonOptional"
-#query = '''
-#sequence by process.entity_id, process.pid
-#  [process where transID == 2]
-#  [file where transID == 0] with runs=2
-#  until [file where \"sequence\" == 19]
-#'''
-#expected_event_ids  = [12,13,14,
-#                       11,16,17]
-#join_keys = ["null","123",
-#             "null","null"]
+[[queries]]
+name = "sequenceWithOptionalFieldsAndUntil_1"
+query = '''
+sequence by ?process.entity_id, ?process.pid
+  [process where transID == 2]
+  [file where transID == 0] with runs=2
+  until [file where `sequence` == 20]
+'''
+expected_event_ids  = [12,13,14,
+                       11,16,17,
+                       18,19,20]
+join_keys = ["null","123",
+             "null","null",
+             "512","123"]
+             
+[[queries]]
+name = "sequenceWithOptionalFieldsAndUntil_2"
+query = '''
+sequence by ?process.entity_id, ?process.pid
+  [process where transID == 2]
+  [file where transID == 0] with runs=2
+  until [file where `sequence` == 19]
+'''
+expected_event_ids  = [12,13,14,
+                       11,16,17]
+join_keys = ["null","123",
+             "null","null"]
 

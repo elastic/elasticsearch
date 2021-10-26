@@ -133,7 +133,7 @@
  {
   "@timestamp": "10",
   "event_type": "file",
-  "transID": 200,
+  "transID": 0,
   "process.entity_id": 512,
   "process.pid": 123,
   "sequence": 21

@@ -103,11 +103,7 @@ public class EqlSpecLoader {
             }
 
             arr = table.getList("join_keys");
-            if (arr != null) {
-                spec.joinKeys(arr.toArray(new String[0]));
-            } else {
-                spec.joinKeys(new String[0]);
-            }
+            spec.joinKeys(arr != null ? arr.toArray(new String[0]) : new String[0]);
             validateAndAddSpec(testSpecs, spec, uniqueTestNames);
         }
 

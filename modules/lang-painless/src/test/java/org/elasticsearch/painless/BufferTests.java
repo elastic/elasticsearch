@@ -9,6 +9,7 @@
 package org.elasticsearch.painless;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.CharBuffer;
 import java.nio.DoubleBuffer;
 import java.nio.FloatBuffer;
@@ -22,10 +23,18 @@ public class BufferTests extends ScriptTestCase {
 
     public void testByteBufferMethods() {
         ByteBuffer bb = ByteBuffer.wrap(new byte[] {0, 1, 2, 3, 4, 5, 6, 7});
-        Map<String, Object> params = Collections.singletonMap("bb", bb);
+        Map<String, Object> params = Collections.singletonMap("bb", ByteBuffer.wrap(new byte[] {0, 1, 2, 3, 4, 5, 6, 7}));
 
         assertEquals(bb.limit(), exec("def bb = params['bb']; bb.limit()", params, true));
         assertEquals(bb.limit(), exec("ByteBuffer bb = params['bb']; bb.limit()", params, true));
+
+        assertEquals(bb.order(), exec("def bb = params['bb']; bb.order()", params, true));
+        assertEquals(bb.order(), exec("ByteBuffer bb = params['bb']; bb.order()", params, true));
+
+        assertEquals(bb.order(ByteOrder.LITTLE_ENDIAN).order(),
+                exec("def bb = params['bb']; bb.order(ByteOrder.LITTLE_ENDIAN).order()", params, true));
+        assertEquals(bb.order(ByteOrder.LITTLE_ENDIAN).order(),
+                exec("ByteBuffer bb = params['bb']; bb.order(ByteOrder.LITTLE_ENDIAN).order()", params, true));
 
         assertEquals(bb.get(0), exec("def bb = params['bb']; bb.get(0)", params, true));
         assertEquals(bb.get(0), exec("ByteBuffer bb = params['bb']; bb.get(0)", params, true));
@@ -67,6 +76,9 @@ public class BufferTests extends ScriptTestCase {
 
         assertEquals(bb.asShortBuffer(), exec("def bb = params['bb']; bb.asShortBuffer()", params, true));
         assertEquals(bb.asShortBuffer(), exec("ByteBuffer bb = params['bb']; bb.asShortBuffer()", params, true));
+
+        assertEquals(ByteBuffer.wrap(new byte[] {1, 2, 3}), exec("ByteBuffer.wrap(new byte[] {1, 2, 3})"));
+        assertEquals(ByteBuffer.wrap(new byte[] {1, 2, 3}, 1, 2), exec("ByteBuffer.wrap(new byte[] {1, 2, 3}, 1, 2)"));
     }
 
     public void testCharBufferMethods() {

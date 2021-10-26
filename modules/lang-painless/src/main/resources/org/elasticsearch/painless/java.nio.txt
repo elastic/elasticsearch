@@ -6,6 +6,11 @@
 # Side Public License, v 1.
 #
 
+class java.nio.ByteOrder {
+  ByteOrder BIG_ENDIAN
+  ByteOrder LITTLE_ENDIAN
+}
+
 class java.nio.Buffer {
   int limit()
 }
@@ -27,6 +32,10 @@ class java.nio.ByteBuffer {
   int getInt(int)
   long getLong(int)
   short getShort(int)
+  ByteOrder order()
+  ByteBuffer order(ByteOrder)
+  ByteBuffer wrap(byte[])
+  ByteBuffer wrap(byte[], int, int)
 }
 
 class java.nio.CharBuffer {

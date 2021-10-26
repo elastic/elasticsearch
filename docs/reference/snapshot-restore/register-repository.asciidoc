@@ -44,8 +44,8 @@ data between repositories.
 --
 // tag::multi-cluster-repo[]
 If you register the same snapshot repository with multiple clusters, only one
-cluster should have write access to the repository. Other clusters should
-register the repository as read only.
+cluster should have write access to the repository. On other clusters, register
+the repository as read-only.
 
 This prevents multiple clusters from writing to the repository at the same time
 and corrupting the repository’s contents.

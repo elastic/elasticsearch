@@ -488,8 +488,8 @@ the clusters doesn't need to match.
 To restore a snapshot, its repository must be
 <<snapshots-register-repository,registered>> and available to the new cluster.
 If the original cluster still has write access to the repository, register the
-repository as read only. This prevents multiple clusters from writing to
-the repository at the same time and corrupting the repository's contents.
+repository as read-only. This prevents multiple clusters from writing to the
+repository at the same time and corrupting the repository's contents.
 
 Before you start a restore operation, ensure the new cluster has enough capacity
 for any data streams or indices you want to restore. If the new cluster has a

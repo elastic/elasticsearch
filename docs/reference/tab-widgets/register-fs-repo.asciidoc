@@ -53,7 +53,7 @@ relative path, `my_fs_backup_location`, resolves to
 include::{es-repo-dir}/snapshot-restore/register-repository.asciidoc[tag=multi-cluster-repo]
 
 // tag::fs-repo-read-only[]
-To register a file system repository as read only using the create snapshot
+To register a file system repository as read-only using the create snapshot
 repository API, set the `read-only` parameter to true. Alternatively, you can
 register a <<snapshots-read-only-repository,URL repository>> for the file
 system.

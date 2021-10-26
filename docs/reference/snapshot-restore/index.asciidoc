@@ -143,10 +143,10 @@ endif::[]
 [[snapshot-index-compatibility]]
 === Index compatibility
 
-Any data stream or index you restore from a snapshot must also be compatible
-with the current cluster's version. A cluster is only compatible with indices
-created in the previous major version. If you try to restore an index created in
-an incompatible version, the restore attempt will fail.
+A cluster is only compatible with indices created in the previous major version.
+Any data stream or index you restore from a snapshot must be compatible with the
+current cluster's version. If you try to restore an index created in an
+incompatible version, the restore attempt will fail.
 
 A snapshot can contain indices created in a previous major version. For example,
 a snapshot of a 6.x cluster can contain an index created in 5.x. If you try to
@@ -161,8 +161,8 @@ on your current cluster. Reindex from remote is only possible if the index's
 <<mapping-source-field,`_source`>> is enabled.
 
 Reindexing from remote can take significantly longer than restoring a snapshot.
-Before you start, test the reindex from remote process with a subset of data to
-estimate the required time.
+Before you start, test the reindex from remote process with a subset of the data
+to estimate your time requirements.
 
 include::register-repository.asciidoc[]
 include::take-snapshot.asciidoc[]

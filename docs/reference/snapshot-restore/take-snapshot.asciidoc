@@ -178,7 +178,7 @@ You can also manage {slm-init} using the
 the <<slm-api-put-policy,create {slm-init} policy API>>.
 
 The following request creates a policy that backs up the cluster state, all data
-streams, and all indices daily at 1:30AM UTC.
+streams, and all indices daily at 1:30 a.m. UTC.
 
 [source,console]
 ----
@@ -328,9 +328,8 @@ GET _snapshot/_status
 ==== Check {slm-init} history
 
 Use the <<slm-api-get-policy,get {slm-init} policy API>> to check when an
-{slm-init} policy last successfully started the snapshot process. However,
-successfully starting the snapshot process doesn't guarantee the snapshot
-completed.
+{slm-init} policy last successfully started the snapshot process. A successful
+start doesn't guarantee the snapshot completed.
 
 [source,console]
 ----
@@ -369,9 +368,10 @@ snapshot doesn't delete files used by other snapshots.
 [[back-up-config-files]]
 === Back up configuration files
 
-In addition to snapshots, we recommend that you take regular backups of the
-files in each node's `$ES_PATH_CONF` directory using the file backup software of
-your choice. Snapshots don't back up these files.
+If you run {es} on your own hardware, we recommend that you take regular backups
+of the files in each node's `$ES_PATH_CONF` directory using the file backup
+software of your choice in addition to backups. Snapshots don't back up these
+files.
 
 Depending on your setup, some of these configuration files may contain sensitive
 data, such as passwords or keys. If so, consider encrypting your file backups.
@@ -382,11 +382,11 @@ data, such as passwords or keys. If so, consider encrypting your file backups.
 
 By default, a snapshot that includes the cluster state also includes all
 <<feature-state,feature states>>. Similarly, a snapshot that excludes the
-cluster state excludes all feature states by default. However, you can also
-configure a snapshot to only include specific feature states, regardless of the
-cluster state.
+cluster state excludes all feature states by default.
 
-NOTE: You can't back up specific feature states in {kib}.
+You can also configure a snapshot to only include specific feature states,
+regardless of the cluster state. You can't back up specific feature states using
+{kib}.
 
 To get a list of available features, use the <<get-features-api,get features
 API>>.
@@ -583,7 +583,7 @@ PUT _slm/policy/daily-snapshots
 }
 ----
 
-<1> Runs at 23:45:00 UTC every day.
+<1> Runs at 11:45 p.m. UTC every day.
 
 The following policy creates monthly snapshots in the same repository. The
 policy keeps its snapshots for one year.
@@ -607,4 +607,4 @@ PUT _slm/policy/monthly-snapshots
 }
 ----
 
-<1> Runs on the first of the month at 23:56:00 UTC.
+<1> Runs on the first of the month at 11:56 p.m. UTC.

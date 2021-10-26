@@ -34,7 +34,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
 import org.elasticsearch.env.Environment;
@@ -232,7 +231,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     + newFileOwner.getName()
             );
         }
-
+        final X509Certificate transportCaCert;
         final PrivateKey transportKey;
         final X509Certificate transportCert;
         final PrivateKey httpCaKey;
@@ -313,6 +312,10 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             if (Strings.isNullOrEmpty(transportKeyPem)) {
                 missingFields.add("transport_key");
             }
+            final String transportCaCertPem = (String) responseMap.get("transport_ca_cert");
+            if (Strings.isNullOrEmpty(transportCaCertPem)) {
+                missingFields.add("transport_ca_cert");
+            }
             final String transportCertPem = (String) responseMap.get("transport_cert");
             if (Strings.isNullOrEmpty(transportCertPem)) {
                 missingFields.add("transport_cert");
@@ -332,13 +335,11 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                         + missingFields
                 );
             }
-
-            final Tuple<PrivateKey, X509Certificate> httpCa = parseKeyCertFromPem(httpCaKeyPem, httpCaCertPem, terminal);
-            httpCaKey = httpCa.v1();
-            httpCaCert = httpCa.v2();
-            final Tuple<PrivateKey, X509Certificate> transport = parseKeyCertFromPem(transportKeyPem, transportCertPem, terminal);
-            transportKey = transport.v1();
-            transportCert = transport.v2();
+            transportCaCert = parseCertificateFromPem(transportCaCertPem, terminal);
+            httpCaKey = parseKeyFromPem(httpCaKeyPem, terminal);
+            httpCaCert = parseCertificateFromPem(httpCaCertPem, terminal);
+            transportKey = parseKeyFromPem(transportKeyPem, terminal);
+            transportCert = parseCertificateFromPem(transportCertPem, terminal);
         } else {
             // this is the initial node, generate HTTP CA key/certificate and transport layer key/certificate ourselves
             try {
@@ -347,16 +348,17 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 final X500Principal caPrincipal = new X500Principal(AUTO_CONFIG_ALT_DN);
                 final GeneralNames subjectAltNames = getSubjectAltNames();
                 // self-signed CA for transport layer
-                final KeyPair transportCaKeyPair  = CertGenUtils.generateKeyPair(TRANSPORT_CA_KEY_SIZE);
+                final KeyPair transportCaKeyPair = CertGenUtils.generateKeyPair(TRANSPORT_CA_KEY_SIZE);
                 final PrivateKey transportCaKey = transportCaKeyPair.getPrivate();
-                final X509Certificate transportCaCert = CertGenUtils.generateSignedCertificate(
+                transportCaCert = CertGenUtils.generateSignedCertificate(
                     caPrincipal,
                     null,
                     transportCaKeyPair,
                     null,
                     null,
                     true,
-                    TRANSPORT_CA_CERTIFICATE_DAYS, SIGNATURE_ALGORITHM
+                    TRANSPORT_CA_CERTIFICATE_DAYS,
+                    SIGNATURE_ALGORITHM
                 );
                 // transport key/certificate
                 final KeyPair transportKeyPair = CertGenUtils.generateKeyPair(TRANSPORT_KEY_SIZE);
@@ -368,7 +370,8 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     transportCaCert,
                     transportCaKey,
                     false,
-                    TRANSPORT_CERTIFICATE_DAYS, SIGNATURE_ALGORITHM
+                    TRANSPORT_CERTIFICATE_DAYS,
+                    SIGNATURE_ALGORITHM
                 );
                 final KeyPair httpCaKeyPair = CertGenUtils.generateKeyPair(HTTP_CA_KEY_SIZE);
                 httpCaKey = httpCaKeyPair.getPrivate();
@@ -380,7 +383,8 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     null,
                     null,
                     true,
-                    HTTP_CA_CERTIFICATE_DAYS, SIGNATURE_ALGORITHM
+                    HTTP_CA_CERTIFICATE_DAYS,
+                    SIGNATURE_ALGORITHM
                 );
             } catch (Throwable t) {
                 deleteDirectory(instantAutoConfigDir);
@@ -405,7 +409,8 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 httpCaCert,
                 httpCaKey,
                 false,
-                HTTP_CERTIFICATE_DAYS, SIGNATURE_ALGORITHM
+                HTTP_CERTIFICATE_DAYS,
+                SIGNATURE_ALGORITHM
             );
 
             // the HTTP CA PEM file is provided "just in case". The node doesn't use it, but clients (configured manually, outside of the
@@ -469,8 +474,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     transportKeystorePassword.getChars(),
                     new Certificate[] { transportCert }
                 );
-                // the transport keystore is used as a trustore too, hence it must contain a certificate entry
-                transportKeystore.setCertificateEntry(TRANSPORT_AUTOGENERATED_CERT_ALIAS, transportCert);
+                transportKeystore.setCertificateEntry(TRANSPORT_AUTOGENERATED_CERT_ALIAS, transportCaCert);
                 fullyWriteFile(
                     instantAutoConfigDir,
                     TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + ".p12",
@@ -847,10 +851,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         }
     }
 
-    private Tuple<PrivateKey, X509Certificate> parseKeyCertFromPem(String pemFormattedKey, String pemFormattedCert, Terminal terminal)
-        throws UserException {
-        final PrivateKey key;
-        final X509Certificate cert;
+    private X509Certificate parseCertificateFromPem(String pemFormattedCert, Terminal terminal) throws Exception {
         try {
             final List<Certificate> certs = CertParsingUtils.readCertificates(
                 Base64.getDecoder().wrap(new ByteArrayInputStream(pemFormattedCert.getBytes(StandardCharsets.UTF_8)))
@@ -858,21 +859,39 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             if (certs.size() != 1) {
                 throw new IllegalStateException("Enroll node API returned multiple certificates");
             }
-            cert = (X509Certificate) certs.get(0);
-            key = parsePKCS8PemString(pemFormattedKey);
-            return new Tuple<>(key, cert);
+            return (X509Certificate) certs.get(0);
         } catch (Exception e) {
             terminal.errorPrintln(Terminal.Verbosity.VERBOSE, "");
             terminal.errorPrintln(
                 Terminal.Verbosity.VERBOSE,
-                "Failed to parse Private Key and Certificate from the response of the Enroll Node API: " + e.getMessage()
+                "Failed to parse Certificate from the response of the Enroll Node API: " + e.getMessage()
             );
             terminal.errorPrintln(Terminal.Verbosity.VERBOSE, "");
             terminal.errorPrintln(Terminal.Verbosity.VERBOSE, ExceptionsHelper.stackTrace(e));
             terminal.errorPrintln(Terminal.Verbosity.VERBOSE, "");
             throw new UserException(
                 ExitCodes.DATA_ERROR,
-                "Aborting enrolling to cluster. Failed to parse Private Key and Certificate from the response of the Enroll Node API",
+                "Aborting enrolling to cluster. Failed to parse Certificate from the response of the Enroll Node API",
+                e
+            );
+        }
+    }
+
+    private PrivateKey parseKeyFromPem(String pemFormattedKey, Terminal terminal) throws UserException {
+        try {
+            return parsePKCS8PemString(pemFormattedKey);
+        } catch (Exception e) {
+            terminal.errorPrintln(Terminal.Verbosity.VERBOSE, "");
+            terminal.errorPrintln(
+                Terminal.Verbosity.VERBOSE,
+                "Failed to parse Private Key from the response of the Enroll Node API: " + e.getMessage()
+            );
+            terminal.errorPrintln(Terminal.Verbosity.VERBOSE, "");
+            terminal.errorPrintln(Terminal.Verbosity.VERBOSE, ExceptionsHelper.stackTrace(e));
+            terminal.errorPrintln(Terminal.Verbosity.VERBOSE, "");
+            throw new UserException(
+                ExitCodes.DATA_ERROR,
+                "Aborting enrolling to cluster. Failed to parse Private Key from the response of the Enroll Node API",
                 e
             );
         }

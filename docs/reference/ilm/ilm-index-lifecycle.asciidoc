@@ -106,7 +106,6 @@ actions in the order listed.
   - <<ilm-searchable-snapshot, Searchable Snapshot>>
   - <<ilm-allocate,Allocate>>
   - <<ilm-migrate,Migrate>>
-  - <<ilm-freeze,Freeze>>
 * Frozen
   - <<ilm-searchable-snapshot, Searchable Snapshot>>
 * Delete

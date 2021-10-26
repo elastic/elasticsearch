@@ -48,8 +48,12 @@ PUT _ingest/pipeline/my-pipeline-id
 [[put-pipeline-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+`if_version`::
+(Optional, integer) Perform the operation only if the pipeline has this
+version. If specified and the update is successful, the pipeline's
+version is incremented.
 
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [[put-pipeline-api-request-body]]
 ==== {api-request-body-title}
@@ -77,8 +81,8 @@ Processors run sequentially in the order specified.
 (Optional, integer)
 Version number used by external systems to track ingest pipelines.
 +
-This parameter is intended for external systems only. {es} does not use or
-validate pipeline version numbers.
+See the <<put-pipeline-api-query-params,`if_version`>> parameter above for
+how the version attribute is used.
 
 `_meta`::
 (Optional, object)

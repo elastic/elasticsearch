@@ -66,7 +66,7 @@ import static java.util.Arrays.asList;
  * if successful. After the elastic user password is set you have to use the
  * `security` API to manipulate passwords.
  *
- * @deprecated Use {@link ResetBuiltinPasswordTool} for setting the password of the
+ * @deprecated Use {@link ResetPasswordTool} for setting the password of the
  * elastic user and the ChangePassword API for setting the password of the rest of the built-in users when needed.
  */
 @Deprecated
@@ -329,7 +329,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
                     terminal.errorPrintln("   This tool used the keystore at " + KeyStoreWrapper.keystorePath(env.configFile()));
                     terminal.errorPrintln("");
                     terminal.errorPrintln(
-                        "You can use the `elasticsearch-reset-elastic-password` CLI tool to reset the password of the '" + elasticUser
+                        "You can use the `elasticsearch-reset-password` CLI tool to reset the password of the '" + elasticUser
                             + "' user"
                     );
                     terminal.errorPrintln("");

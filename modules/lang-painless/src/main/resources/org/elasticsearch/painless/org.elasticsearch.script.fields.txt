@@ -29,7 +29,4 @@ class org.elasticsearch.script.field.BinaryDocValuesField @dynamic_type {
   List getValues()
   byte[] getValue(byte[])
   byte[] getValue(int, byte[])
-  List getUtf8ToStrings()
-  String getUtf8ToString(String)
-  String getUtf8ToString(int, String)
 }

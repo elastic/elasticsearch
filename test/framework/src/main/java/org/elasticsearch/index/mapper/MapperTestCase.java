@@ -675,7 +675,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 .fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); })
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
                 .load(ctx)
-                .getScriptValues();
+                .getScriptField("test").getScriptDocValues();
 
             fieldData.setNextDocId(0);
 
@@ -686,7 +686,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 })
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
                 .load(reader.getContext())
-                .getScriptValues();
+                .getScriptField("test").getScriptDocValues();
             indexData.setNextDocId(0);
 
             // compare index and search time fielddata
@@ -772,6 +772,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     protected String minimalIsInvalidRoutingPathErrorMessage(Mapper mapper) {
-        return "All fields that match routing_path must be keyword time_series_dimensions but [field] was [" + mapper.typeName() + "]";
+        return "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+            + "and without the [script] parameter. ["
+            + mapper.name()
+            + "] was ["
+            + mapper.typeName()
+            + "].";
     }
 }

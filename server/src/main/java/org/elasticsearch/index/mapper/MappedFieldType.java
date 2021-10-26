@@ -29,6 +29,7 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -484,5 +485,19 @@ public abstract class MappedFieldType {
     public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
         throws IOException {
         return null;
+    }
+
+    /**
+     * Validate that this field can be the target of {@link IndexMetadata#INDEX_ROUTING_PATH}.
+     */
+    public void validateMatchedRoutingPath() {
+        throw new IllegalArgumentException(
+            "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                + "and without the [script] parameter. ["
+                + name()
+                + "] was ["
+                + typeName()
+                + "]."
+        );
     }
 }

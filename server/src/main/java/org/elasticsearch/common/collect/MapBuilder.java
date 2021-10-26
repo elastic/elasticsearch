@@ -75,7 +75,6 @@ public class MapBuilder<K, V> {
      */
     public Map<K, V> immutableMap() {
         // TODO: follow the directions in the Javadoc for this method
-        // Map could be an instance of HashMap with null values. Use Collections.unmodifiableMap() instead of Map.copyOf().
         return Collections.unmodifiableMap(map);
     }
 }

@@ -1667,14 +1667,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             // the default origin is local
             commonFields.put(ORIGIN_TYPE_FIELD_NAME, LOCAL_ORIGIN_FIELD_VALUE);
             if (Lifecycle.State.STARTED.equals(clusterService.lifecycleState())) {
-                ClusterState clusterState;
-                try {
-                    clusterState = this.clusterService.state(); // may throw java.lang.AssertionError during startup
-                } catch (AssertionError e) {
-                    clusterState = null; // asserts "initial cluster state not set yet"
-                    LOGGER.trace("Cluster state not available", e);
-                }
-                if (clusterState != null) {
+                final ClusterState clusterState = this.clusterService.state();
+                if (clusterState == null) {
+                    LOGGER.trace("Cluster state not available");
+                } else {
                     if (EMIT_CLUSTER_NAME_SETTING.get(settings)) {
                         final String clusterName = clusterState.getClusterName().value();
                         if (Strings.hasLength(clusterName)) {
@@ -1689,6 +1685,13 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     }
                 }
             }
+            // Null value triggers LoggingAuditTrailTests.assertMsg to verify a key is absent in an audit log message.
+            commonFields.putIfAbsent(NODE_NAME_FIELD_NAME,    null);
+            commonFields.putIfAbsent(NODE_ID_FIELD_NAME,      null);
+            commonFields.putIfAbsent(HOST_ADDRESS_FIELD_NAME, null);
+            commonFields.putIfAbsent(HOST_NAME_FIELD_NAME,    null);
+            commonFields.putIfAbsent(CLUSTER_NAME_FIELD_NAME, null);
+            commonFields.putIfAbsent(CLUSTER_UUID_FIELD_NAME, null);
             this.commonFields = Collections.unmodifiableMap(commonFields);
         }
 

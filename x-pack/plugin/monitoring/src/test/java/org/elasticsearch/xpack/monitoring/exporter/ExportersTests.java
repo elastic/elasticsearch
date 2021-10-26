@@ -6,12 +6,14 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -117,8 +119,8 @@ public class ExportersTests extends ESTestCase {
         assertThat(e, hasToString(containsString("Failed to parse value [http] for setting [" + prefix + ".type]")));
         assertThat(e.getCause(), instanceOf(SettingsException.class));
         assertThat(e.getCause(), hasToString(containsString("host list for [" + prefix + ".host] is empty")));
-        assertWarnings("[xpack.monitoring.exporters.example.type] setting was deprecated in Elasticsearch and will be removed in a " +
-            "future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(Level.WARN, "[xpack.monitoring.exporters.example.type] setting was deprecated in Elasticsearch and will be " +
+            "removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testIndexNameTimeFormatMustBeValid() {
@@ -132,8 +134,8 @@ public class ExportersTests extends ESTestCase {
         assertThat(e, hasToString(containsString("Invalid format: [" + value + "]: Unknown pattern letter: j")));
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(e.getCause(), hasToString(containsString("Unknown pattern letter: j")));
-        assertWarnings("[xpack.monitoring.exporters.example.index.name.time_format] setting was deprecated in Elasticsearch and will " +
-            "be removed in a future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(Level.WARN, "[xpack.monitoring.exporters.example.index.name.time_format] setting was deprecated in Elasticsearch " +
+            "and will be removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testExporterIndexPattern() {
@@ -186,8 +188,8 @@ public class ExportersTests extends ESTestCase {
         // the only configured exporter is disabled... yet we intentionally don't fallback on the default
         assertThat(internalExporters.size(), is(0));
 
-        assertWarnings("[xpack.monitoring.exporters._name.enabled] setting was deprecated in Elasticsearch and will be removed in a " +
-            "future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(Level.WARN, "[xpack.monitoring.exporters._name.enabled] setting was deprecated in Elasticsearch and will be" +
+            " removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testInitExportersSingleUnknownType() throws Exception {
@@ -272,15 +274,16 @@ public class ExportersTests extends ESTestCase {
         assertEquals(settings.get("xpack.monitoring.exporters._name0.use_ingest"), "true");
         assertEquals(settings.get("xpack.monitoring.exporters._name1.type"), "http");
         assertEquals(settings.get("xpack.monitoring.exporters._name1.use_ingest"), "false");
-        assertWarnings(
-            "[xpack.monitoring.exporters._name1.type] setting was deprecated in Elasticsearch and will be removed in a future release! " +
-                "See the breaking changes documentation for the next major version.",
-            "[xpack.monitoring.exporters._name0.type] setting was deprecated in Elasticsearch and will be removed in a future release! " +
-                "See the breaking changes documentation for the next major version.",
-            "[xpack.monitoring.exporters._name0.use_ingest] setting was deprecated in Elasticsearch and will be removed " +
-                "in a future release! See the breaking changes documentation for the next major version.",
-            "[xpack.monitoring.exporters._name1.use_ingest] setting was deprecated in Elasticsearch and will be removed " +
-                "in a future release! See the breaking changes documentation for the next major version."
+        assertWarnings(true,
+            new DeprecationWarning(Level.WARN, "[xpack.monitoring.exporters._name1.type] setting was deprecated in Elasticsearch and " +
+                "will be removed in a future release! See the breaking changes documentation for the next major version."),
+            new DeprecationWarning(Level.WARN, "[xpack.monitoring.exporters._name0.type] setting was deprecated in Elasticsearch and " +
+                "will be removed in a future release! See the breaking changes documentation for the next major version."),
+            new DeprecationWarning(DeprecationLogger.CRITICAL, "[xpack.monitoring.exporters._name0.use_ingest] setting was deprecated in " +
+                "Elasticsearch " +
+                "and will be removed in a future release! See the breaking changes documentation for the next major version."),
+            new DeprecationWarning(DeprecationLogger.CRITICAL, "[xpack.monitoring.exporters._name1.use_ingest] setting was deprecated in " +
+                "Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version.")
         );
     }
 
@@ -329,8 +332,8 @@ public class ExportersTests extends ESTestCase {
 
         exporters.close();
 
-        assertWarnings("[xpack.monitoring.exporters.explicitly_disabled.enabled] setting was deprecated in Elasticsearch and will be " +
-            "removed in a future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(Level.WARN, "[xpack.monitoring.exporters.explicitly_disabled.enabled] setting was deprecated in Elasticsearch " +
+            "and will be removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     /**

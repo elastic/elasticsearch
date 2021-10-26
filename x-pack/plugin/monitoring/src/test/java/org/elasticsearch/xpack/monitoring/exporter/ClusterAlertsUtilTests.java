@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -109,7 +110,7 @@ public class ClusterAlertsUtilTests extends ESTestCase {
                    equalTo("[xpack.monitoring.exporters._random.cluster_alerts.management.blacklist] contains unrecognized Cluster " +
                            "Alert IDs [" + unknownIdsString + "]"));
 
-        assertWarnings("[xpack.monitoring.exporters._random.cluster_alerts.management.blacklist] setting was deprecated in " +
+        assertWarnings(Level.WARN, "[xpack.monitoring.exporters._random.cluster_alerts.management.blacklist] setting was deprecated in " +
             "Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
@@ -118,8 +119,8 @@ public class ClusterAlertsUtilTests extends ESTestCase {
 
         assertThat(blacklist, equalTo(ClusterAlertsUtil.getClusterAlertsBlacklist(createConfigWithBlacklist("any", blacklist))));
 
-        assertWarnings("[xpack.monitoring.exporters.any.cluster_alerts.management.blacklist] setting was deprecated in Elasticsearch " +
-            "and will be removed in a future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(Level.WARN, "[xpack.monitoring.exporters.any.cluster_alerts.management.blacklist] setting was deprecated " +
+            "in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     private Exporter.Config createConfigWithBlacklist(final String name, final List<String> blacklist) {

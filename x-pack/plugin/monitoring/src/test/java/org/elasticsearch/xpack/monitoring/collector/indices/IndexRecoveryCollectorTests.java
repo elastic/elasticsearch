@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.indices;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
@@ -170,7 +171,8 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
             assertThat(recoveries.shardRecoveryStates().size(), equalTo(nbRecoveries));
         }
 
-        assertWarnings("[xpack.monitoring.collection.index.recovery.timeout] setting was deprecated in Elasticsearch and will be " +
+        assertWarnings(Level.WARN,
+            "[xpack.monitoring.collection.index.recovery.timeout] setting was deprecated in Elasticsearch and will be " +
             "removed in a future release! See the breaking changes documentation for the next major version.",
             "[xpack.monitoring.collection.index.recovery.active_only] setting was deprecated in Elasticsearch and will be removed " +
                 "in a future release! See the breaking changes documentation for the next major version.",
@@ -221,8 +223,8 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
 
         expectThrows(ElasticsearchTimeoutException.class, () -> collector.doCollect(node, interval, clusterState));
 
-        assertWarnings("[xpack.monitoring.collection.index.recovery.timeout] setting was deprecated in Elasticsearch and will be " +
-                "removed in a future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(Level.WARN, "[xpack.monitoring.collection.index.recovery.timeout] setting was deprecated in Elasticsearch " +
+            "and will be removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
 }

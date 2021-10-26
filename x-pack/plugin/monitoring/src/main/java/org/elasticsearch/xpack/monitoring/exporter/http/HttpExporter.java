@@ -299,7 +299,7 @@ public class HttpExporter extends Exporter {
                         Property.Dynamic,
                         Property.NodeScope,
                         Property.Filtered,
-                        Property.Deprecated),
+                        Property.DeprecatedWarning),
                     TYPE_DEPENDENCY);
     /**
      * Secure password for basic auth.

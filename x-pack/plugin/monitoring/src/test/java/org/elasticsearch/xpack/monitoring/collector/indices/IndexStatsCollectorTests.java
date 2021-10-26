@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.indices;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
@@ -171,8 +172,8 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
             }
         }
 
-        assertWarnings("[xpack.monitoring.collection.index.stats.timeout] setting was deprecated in Elasticsearch and will be removed " +
-            "in a future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(Level.WARN, "[xpack.monitoring.collection.index.stats.timeout] setting was deprecated in Elasticsearch and " +
+            "will be removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testDoCollectThrowsTimeoutException() throws Exception {
@@ -207,8 +208,8 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
 
         expectThrows(ElasticsearchTimeoutException.class, () -> collector.doCollect(node, interval, clusterState));
 
-        assertWarnings("[xpack.monitoring.collection.index.stats.timeout] setting was deprecated in Elasticsearch and will be removed " +
-            "in a future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(Level.WARN, "[xpack.monitoring.collection.index.stats.timeout] setting was deprecated in Elasticsearch and will " +
+            "be removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
 }

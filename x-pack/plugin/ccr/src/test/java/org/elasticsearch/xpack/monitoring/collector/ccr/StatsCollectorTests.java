@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.ccr;
 
-import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -151,9 +150,8 @@ public class StatsCollectorTests extends BaseCollectorTestCase {
         assertThat(document.getId(), nullValue());
         assertThat(document.stats(), is(autoFollowStats));
 
-        assertWarning(new DeprecationWarning(Level.WARN, "[xpack.monitoring.collection.ccr.stats.timeout] setting was deprecated in " +
-            "Elasticsearch and will be removed in " +
-            "a future release! See the breaking changes documentation for the next major version."));
+        assertWarnings("[xpack.monitoring.collection.ccr.stats.timeout] setting was deprecated in Elasticsearch and will be removed in " +
+            "a future release! See the breaking changes documentation for the next major version.");
     }
 
     private List<FollowStatsAction.StatsResponse> mockStatuses() {

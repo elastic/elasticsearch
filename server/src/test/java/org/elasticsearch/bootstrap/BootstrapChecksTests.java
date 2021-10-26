@@ -8,12 +8,10 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -440,17 +438,17 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
             containsString("system call filters failed to install; " +
                 "check the logs and fix your configuration or disable system call filters at your own risk"));
         if (useBootstrapSystemCallFilter) {
-            assertWarning(new DeprecationWarning(Level.WARN, "[bootstrap.system_call_filter] setting was deprecated in Elasticsearch " +
+            assertWarnings("[bootstrap.system_call_filter] setting was deprecated in Elasticsearch " +
                 "and will be removed in a future release!" +
-                " See the breaking changes documentation for the next major version."));
+                " See the breaking changes documentation for the next major version.");
         }
 
         isSystemCallFilterInstalled.set(true);
         BootstrapChecks.check(context, true, Collections.singletonList(systemCallFilterEnabledCheck));
         if (useBootstrapSystemCallFilter) {
-            assertWarning(new DeprecationWarning(Level.WARN, "[bootstrap.system_call_filter] setting was deprecated in Elasticsearch " +
+            assertWarnings("[bootstrap.system_call_filter] setting was deprecated in Elasticsearch " +
                 "and will be removed in a future release!" +
-                " See the breaking changes documentation for the next major version."));
+                " See the breaking changes documentation for the next major version.");
         }
 
         BootstrapContext context_1 = createTestContext(Settings.builder().put("bootstrap.system_call_filter", false).build(), null);
@@ -462,14 +460,12 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         };
         isSystemCallFilterInstalled.set(false);
         BootstrapChecks.check(context_1, true, Collections.singletonList(systemCallFilterNotEnabledCheck));
-        assertWarning(new DeprecationWarning(Level.WARN,"[bootstrap.system_call_filter] setting was deprecated in Elasticsearch " +
-            "and will be removed in a future release!" +
-                " See the breaking changes documentation for the next major version."));
+        assertWarnings("[bootstrap.system_call_filter] setting was deprecated in Elasticsearch and will be removed in a future release!" +
+                " See the breaking changes documentation for the next major version.");
         isSystemCallFilterInstalled.set(true);
         BootstrapChecks.check(context_1, true, Collections.singletonList(systemCallFilterNotEnabledCheck));
-        assertWarning(new DeprecationWarning(Level.WARN, "[bootstrap.system_call_filter] setting was deprecated in Elasticsearch " +
-            "and will be removed in a future release!" +
-                " See the breaking changes documentation for the next major version."));
+        assertWarnings("[bootstrap.system_call_filter] setting was deprecated in Elasticsearch and will be removed in a future release!" +
+                " See the breaking changes documentation for the next major version.");
     }
 
     public void testMightForkCheck() throws NodeValidationException {

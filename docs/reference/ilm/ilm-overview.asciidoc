@@ -7,8 +7,8 @@
 <titleabbrev>Overview</titleabbrev>
 ++++
 
-You can create and apply {ilm-cap} ({ilm-init}) policies to automatically manage your indices 
-according to your performance, resiliency, and retention requirements. 
+You can create and apply {ilm-cap} ({ilm-init}) policies to automatically manage your indices
+according to your performance, resiliency, and retention requirements.
 
 Index lifecycle policies can trigger actions such as:
 
@@ -17,7 +17,6 @@ size, number of docs, or age.
 * **Shrink**: Reduces the number of primary shards in an index.
 * **Force merge**: Triggers a <<indices-forcemerge,force merge>> to reduce the
 number of segments in an index's shards.
-* **Freeze**: <<freeze-index-api, Freezes>> an index and makes it read-only.
 * **Delete**: Permanently remove an index, including all of its data and
 metadata.
 
@@ -48,9 +47,9 @@ hardware.
 
 [IMPORTANT]
 ===========================
-To use {ilm-init}, all nodes in a cluster must run the same version. 
-Although it might be possible to create and apply policies in a mixed-version cluster, 
+To use {ilm-init}, all nodes in a cluster must run the same version.
+Although it might be possible to create and apply policies in a mixed-version cluster,
 there is no guarantee they will work as intended.
 Attempting to use a policy that contains actions that aren't
-supported on all nodes in a cluster will cause errors. 
+supported on all nodes in a cluster will cause errors.
 ===========================

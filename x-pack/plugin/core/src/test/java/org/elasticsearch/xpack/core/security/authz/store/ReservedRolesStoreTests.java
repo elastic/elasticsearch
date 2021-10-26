@@ -538,10 +538,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
 
         // Data telemetry reads mappings, metadata and stats of indices
-        Arrays.asList(randomAlphaOfLengthBetween(8, 24), "packetbeat-*",
-            // check system indices other than .security* and .async-search*
-            ".watches", ".triggered-watches", ".tasks", ".enrich"
-        ).forEach((index) -> {
+        Arrays.asList(randomAlphaOfLengthBetween(8, 24), "packetbeat-*").forEach((index) -> {
             logger.info("index name [{}]", index);
             assertThat(kibanaRole.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(mockIndexAbstraction(index)), is(true));
             assertViewIndexMetadata(kibanaRole, index);
@@ -556,6 +553,17 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(index)), is(false));
+        });
+
+        // Data telemetry does not have access to system indices that aren't specified
+        List.of(".watches", ".geoip_databases", ".logstash", ".snapshot-blob-cache").forEach((index) -> {
+            logger.info("index name [{}]", index);
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetMappingsAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(index)), is(false));
         });
 

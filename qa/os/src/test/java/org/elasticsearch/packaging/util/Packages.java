@@ -110,8 +110,8 @@ public class Packages {
 
     private static String captureElasticPasswordFromOutput(Result result) {
         return Arrays.stream(result.stdout.split(System.lineSeparator()))
-            .filter(l -> l.contains("The password of the elastic superuser will be set to:"))
-            .map(l -> l.substring(56, 76))
+            .filter(l -> l.contains("The generated password for the elastic built-in superuser is : "))
+            .map(l -> l.substring(63, 83))
             .findFirst()
             .orElse(null);
     }

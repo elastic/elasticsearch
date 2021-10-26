@@ -27,6 +27,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
@@ -164,8 +165,7 @@ public class MetadataRolloverService {
     private NameResolution resolveDataStreamRolloverNames(Metadata metadata, IndexAbstraction.DataStream dataStream) {
         final DataStream ds = dataStream.getDataStream();
         final IndexMetadata originalWriteIndex = metadata.index(dataStream.getWriteIndex());
-        final DataStream rolledDataStream = ds.rollover(metadata, "uuid");
-        return new NameResolution(originalWriteIndex.getIndex().getName(), null, rolledDataStream.getWriteIndex().getName());
+        return new NameResolution(originalWriteIndex.getIndex().getName(), null, ds.nextWriteIndexAndGeneration(metadata).v1());
     }
 
     private RolloverResult rolloverAlias(ClusterState currentState, IndexAbstraction.Alias alias, String aliasName,
@@ -230,20 +230,22 @@ public class MetadataRolloverService {
 
         final DataStream ds = dataStream.getDataStream();
         final Index originalWriteIndex = dataStream.getWriteIndex();
-        DataStream rolledDataStream = ds.rollover(currentState.metadata(), "uuid");
-        createIndexService.validateIndexName(rolledDataStream.getWriteIndex().getName(), currentState); // fails if the index already exists
+        final Tuple<String, Long> nextIndexAndGeneration = ds.nextWriteIndexAndGeneration(currentState.metadata());
+        final String newWriteIndexName = nextIndexAndGeneration.v1();
+        final long newGeneration = nextIndexAndGeneration.v2();
+        createIndexService.validateIndexName(newWriteIndexName, currentState); // fails if the index already exists
         if (onlyValidate) {
-            return new RolloverResult(rolledDataStream.getWriteIndex().getName(), originalWriteIndex.getName(), currentState);
+            return new RolloverResult(newWriteIndexName, originalWriteIndex.getName(), currentState);
         }
 
         CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest = prepareDataStreamCreateIndexRequest(
             dataStreamName,
-            rolledDataStream.getWriteIndex().getName(),
+            newWriteIndexName,
             createIndexRequest,
             systemDataStreamDescriptor
         );
         ClusterState newState = createIndexService.applyCreateIndexRequest(currentState, createIndexClusterStateRequest, silent,
-            (builder, indexMetadata) -> builder.put(ds.rollover(currentState.metadata(), indexMetadata.getIndexUUID())));
+            (builder, indexMetadata) -> builder.put(ds.rollover(indexMetadata.getIndex(), newGeneration)));
 
         RolloverInfo rolloverInfo = new RolloverInfo(dataStreamName, metConditions, threadPool.absoluteTimeInMillis());
         newState = ClusterState.builder(newState)
@@ -252,7 +254,7 @@ public class MetadataRolloverService {
                     .putRolloverInfo(rolloverInfo)))
             .build();
 
-        return new RolloverResult(rolledDataStream.getWriteIndex().getName(), originalWriteIndex.getName(), newState);
+        return new RolloverResult(newWriteIndexName, originalWriteIndex.getName(), newState);
     }
 
     static String generateRolloverIndexName(String sourceIndexName, IndexNameExpressionResolver indexNameExpressionResolver) {

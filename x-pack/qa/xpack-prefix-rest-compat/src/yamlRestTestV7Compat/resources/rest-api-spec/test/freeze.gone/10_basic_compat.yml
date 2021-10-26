@@ -18,7 +18,7 @@ setup:
       headers:
         Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
         Accept: "application/vnd.elasticsearch+json;compatible-with=7"
-      indices.freeze_gone:
+      indices.freeze:
         index: some-test-index-404
       catch: missing
 
@@ -28,13 +28,13 @@ setup:
       headers:
         Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
         Accept: "application/vnd.elasticsearch+json;compatible-with=7"
-      indices.freeze_gone:
+      indices.freeze:
         index: some-test-index-1
       catch: /It is no longer possible to freeze indices, but existing frozen indices can still be unfrozen/
 
 ---
 "Without compat headers throws 400":
   - do:
-      indices.freeze_gone:
+      indices.freeze:
         index: some-test-index-1
       catch: /no handler found for uri/

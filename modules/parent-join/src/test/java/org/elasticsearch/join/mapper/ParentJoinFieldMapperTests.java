@@ -11,8 +11,6 @@ package org.elasticsearch.join.mapper;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
@@ -24,6 +22,8 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -411,5 +411,26 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
         assertTrue(next.fieldType().isAggregatable());
 
         assertFalse(it.hasNext());
+    }
+
+    public void testAliasToJoinFieldError() throws IOException {
+        MapperParsingException ex = expectThrows(MapperParsingException.class, () -> createMapperService(
+            mapping(
+                b -> b.startObject("join_field")
+                        .field("type", "join")
+                        .startObject("relations")
+                            .field("parent", "child")
+                        .endObject()
+                    .endObject()
+                    .startObject("alias_field")
+                        .field("type", "alias")
+                        .field("path", "join_field")
+                    .endObject()
+            )
+        ));
+        assertEquals(
+            "Invalid [path] value [join_field] for field alias [alias_field]: an alias cannot refer to an internal field.",
+            ex.getMessage()
+        );
     }
 }

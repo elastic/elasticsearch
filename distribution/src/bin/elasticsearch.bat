@@ -40,6 +40,10 @@ FOR /F "usebackq tokens=1* delims= " %%A IN (!params!) DO (
 	)
 
 	IF "!current!" == "--enrollment-token" (
+	    IF "!enrolltocluster!" == "Y" (
+	        ECHO "Multiple --enrollment-token parameters are not allowed"
+	        EXIT /B 1
+	    )
 		SET enrolltocluster=Y
 		SET attemptautoconfig=N
 	)

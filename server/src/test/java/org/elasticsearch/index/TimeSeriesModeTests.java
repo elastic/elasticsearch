@@ -11,8 +11,14 @@ package org.elasticsearch.index;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.StringFieldScript;
+import org.elasticsearch.script.StringFieldScript.LeafFactory;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -122,7 +128,10 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         })));
         assertThat(
             e.getMessage(),
-            equalTo("All fields that match routing_path must be keyword time_series_dimensions but [dim.o] was [object]")
+            equalTo(
+                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                    + "and without the [script] parameter. [dim.o] was [object]."
+            )
         );
     }
 
@@ -140,8 +149,8 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "All fields that match routing_path must be keyword time_series_dimensions but "
-                    + "[dim.non_dim] was not a time_series_dimension"
+                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                    + "and without the [script] parameter. [dim.non_dim] was not [time_series_dimension: true]."
             )
         );
     }
@@ -159,7 +168,49 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         })));
         assertThat(
             e.getMessage(),
-            equalTo("All fields that match routing_path must be keyword time_series_dimensions but [dim.non_kwd] was [integer]")
+            equalTo(
+                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                    + "and without the [script] parameter. [dim.non_kwd] was [integer]."
+            )
+        );
+    }
+
+    public void testRoutingPathMatchesScriptedKeyword() {
+        Settings s = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), randomBoolean() ? "dim.kwd" : "dim.*")
+            .build();
+        Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(s, mapping(b -> {
+            b.startObject("dim.kwd");
+            b.field("type", "keyword");
+            b.field("time_series_dimension", true);
+            b.startObject("script").field("lang", "mock").field("source", "mock").endObject();
+            b.endObject();
+        })));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                    + "and without the [script] parameter. [dim.kwd] has a [script] parameter."
+            )
+        );
+    }
+
+    public void testRoutingPathMatchesRuntimeKeyword() {
+        Settings s = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), randomBoolean() ? "dim.kwd" : "dim.*")
+            .build();
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createMapperService(s, runtimeMapping(b -> b.startObject("dim.kwd").field("type", "keyword").endObject()))
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                    + "and without the [script] parameter. [dim.kwd] was a runtime [keyword]."
+            )
         );
     }
 
@@ -176,5 +227,19 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
             b.startObject("uuid").field("type", "keyword").field("time_series_dimension", true).endObject();
             b.endObject().endObject();
         })); // doesn't throw
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    protected <T> T compileScript(Script script, ScriptContext<T> context) {
+        if (context.equals(StringFieldScript.CONTEXT) && script.getLang().equals("mock")) {
+            return (T) new StringFieldScript.Factory() {
+                @Override
+                public LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup) {
+                    throw new UnsupportedOperationException("error should be thrown before getting here");
+                }
+            };
+        }
+        return super.compileScript(script, context);
     }
 }

@@ -140,7 +140,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
         final SSLService sslService = new TestsSSLService(environment);
         final InternalEnrollmentTokenGenerator generator = new InternalEnrollmentTokenGenerator(environment, sslService, client);
         PlainActionFuture<EnrollmentToken> future = new PlainActionFuture<>();
-        generator.createKibanaEnrollmentToken(future);
+        generator.createKibanaEnrollmentToken(token -> future.onResponse(token));
         EnrollmentToken token = future.actionGet();
         assertThat(token.getApiKey(), equalTo("api-key-id:api-key-secret"));
         assertThat(token.getBoundAddress().size(), equalTo(1));
@@ -160,7 +160,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
         final SSLService sslService = new TestsSSLService(environment);
         final InternalEnrollmentTokenGenerator generator = new InternalEnrollmentTokenGenerator(environment, sslService, client);
         PlainActionFuture<EnrollmentToken> future = new PlainActionFuture<>();
-        generator.createKibanaEnrollmentToken(future);
+        generator.createKibanaEnrollmentToken(token -> future.onResponse(token));
         EnrollmentToken token = future.actionGet();
         assertThat(token, nullValue());
     }
@@ -176,7 +176,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
         final SSLService sslService = new TestsSSLService(environment);
         final InternalEnrollmentTokenGenerator generator = new InternalEnrollmentTokenGenerator(environment, sslService, client);
         PlainActionFuture<EnrollmentToken> future = new PlainActionFuture<>();
-        generator.createKibanaEnrollmentToken(future);
+        generator.createKibanaEnrollmentToken(token -> future.onResponse(token));
         EnrollmentToken token = future.actionGet();
         assertThat(token, nullValue());
     }

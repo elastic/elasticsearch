@@ -113,6 +113,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure{ task ->
   task.skipTest("indices.freeze/20_stats/Translog stats on frozen indices", "#70192 -- the freeze index API is removed from 8.0")
   task.skipTest("indices.freeze/10_basic/Basic", "#70192 -- the freeze index API is removed from 8.0")
   task.skipTest("indices.freeze/10_basic/Test index options", "#70192 -- the freeze index API is removed from 8.0")
+  task.skipTest("indices.freeze/10_basic/Cannot freeze write index for data stream", "#70192 -- the freeze index API is removed from 8.0")
   task.skipTest("ml/categorization_agg/Test categorization aggregation with poor settings", "https://github.com/elastic/elasticsearch/pull/79586")
 
   task.replaceValueInMatch("_type", "_doc")

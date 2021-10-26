@@ -224,8 +224,7 @@ public class PersistedClusterStateService {
     // exposed for tests
     Directory createDirectory(Path path) throws IOException {
         // it is possible to disable the use of MMapDirectory for indices, and it may be surprising to users that have done so if we still
-        // use a MMapDirectory here, which might happen with FSDirectory.open(path). Concurrency is of no concern here so a
-        // NIOFSDirectory is fine:
+        // use a MMapDirectory here, which might happen with FSDirectory.open(path), so we force an NIOFSDirectory to be on the safe side.
         return new NIOFSDirectory(path);
     }
 
@@ -323,7 +322,7 @@ public class PersistedClusterStateService {
     }
 
     /**
-     * Loads the best available on-disk cluster state. Returns {@link OnDiskState#NO_ON_DISK_STATE} if no such state was found.
+     * Loads the available on-disk cluster state. Returns {@link OnDiskState#NO_ON_DISK_STATE} if no such state was found.
      * @param checkClean whether to check the index for corruption before loading, only for tests
      */
     OnDiskState loadBestOnDiskState(boolean checkClean) throws IOException {
@@ -339,32 +338,31 @@ public class PersistedClusterStateService {
             final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
             if (Files.exists(indexPath)) {
                 try (Directory directory = createDirectory(indexPath)) {
-                if (checkClean) {
-                    try (BytesStreamOutput outputStream = new BytesStreamOutput()) {
-                        final boolean isClean;
-                        try (PrintStream printStream = new PrintStream(outputStream, true, StandardCharsets.UTF_8.name());
-                             CheckIndex checkIndex = new CheckIndex(directory)) {
-                            checkIndex.setInfoStream(printStream);
-                            checkIndex.setChecksumsOnly(true);
-                            isClean = checkIndex.checkIndex().clean;
-                        }
-
-                        if (isClean == false) {
-                            if (logger.isErrorEnabled()) {
-                                for (final String line : outputStream.bytes().utf8ToString().split("\\r?\\n")) {
-                                    logger.error("checkIndex: {}", line);
-                                }
+                    if (checkClean) {
+                        try (BytesStreamOutput outputStream = new BytesStreamOutput()) {
+                            final boolean isClean;
+                            try (PrintStream printStream = new PrintStream(outputStream, true, StandardCharsets.UTF_8.name());
+                                 CheckIndex checkIndex = new CheckIndex(directory)) {
+                                checkIndex.setInfoStream(printStream);
+                                checkIndex.setChecksumsOnly(true);
+                                isClean = checkIndex.checkIndex().clean;
                             }
-                            throw new CorruptStateException(
-                                "the index containing the cluster metadata under the data path ["
-                                    + dataPath
-                                    + "] has been changed by an external force after it was last written by Elasticsearch and is "
-                                    + "now unreadable"
-                            );
+
+                            if (isClean == false) {
+                                if (logger.isErrorEnabled()) {
+                                    for (final String line : outputStream.bytes().utf8ToString().split("\\r?\\n")) {
+                                        logger.error("checkIndex: {}", line);
+                                    }
+                                }
+                                throw new CorruptStateException(
+                                    "the index containing the cluster metadata under the data path ["
+                                        + dataPath
+                                        + "] has been changed by an external force after it was last written by Elasticsearch and is "
+                                        + "now unreadable"
+                                );
+                            }
                         }
                     }
-                }
-
 
                     try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
                         final OnDiskState onDiskState = loadOnDiskState(dataPath, directoryReader);
@@ -394,9 +392,9 @@ public class PersistedClusterStateService {
                         if (bestOnDiskState.empty()
                             || acceptedTerm > maxAcceptedTerm
                             || (acceptedTerm == maxAcceptedTerm
-                            && (onDiskState.lastAcceptedVersion > bestOnDiskState.lastAcceptedVersion
-                            || (onDiskState.lastAcceptedVersion == bestOnDiskState.lastAcceptedVersion)
-                            && onDiskState.currentTerm > bestOnDiskState.currentTerm))) {
+                                && (onDiskState.lastAcceptedVersion > bestOnDiskState.lastAcceptedVersion
+                                    || (onDiskState.lastAcceptedVersion == bestOnDiskState.lastAcceptedVersion)
+                                        && onDiskState.currentTerm > bestOnDiskState.currentTerm))) {
                             bestOnDiskState = onDiskState;
                         }
                     }

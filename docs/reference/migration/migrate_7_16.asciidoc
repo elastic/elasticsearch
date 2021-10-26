@@ -240,7 +240,7 @@ the recommended method for collecting and shipping monitoring data to a monitori
 
 *Impact* +
 If you have previously configured legacy collection methods, you should migrate
-to using {metricbeat} collection. Learn more about <<configuring-metricbeat>>.
+to using {metricbeat} collection. Learn more about {ref}/configuring-metricbeat.html[Collecting {es} monitoring data with {metricbeat}].
 
 The following settings are now deprecated:
 

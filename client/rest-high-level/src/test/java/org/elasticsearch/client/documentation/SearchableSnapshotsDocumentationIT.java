@@ -41,6 +41,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.is;
 
+@SuppressWarnings("removal")
 public class SearchableSnapshotsDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testMountSnapshot() throws IOException, InterruptedException {

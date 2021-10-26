@@ -29,15 +29,11 @@ public final class RestFreezeIndexAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(POST, "/{index}/_freeze").deprecated(DEPRECATION_WARNING, DEPRECATION_VERSION).build(),
-            Route.builder(POST, "/{index}/_unfreeze").deprecated(DEPRECATION_WARNING, DEPRECATION_VERSION).build()
-        );
+        return List.of(Route.builder(POST, "/{index}/_unfreeze").deprecated(DEPRECATION_WARNING, DEPRECATION_VERSION).build());
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        boolean freeze = request.path().endsWith("/_freeze");
         FreezeRequest freezeRequest = new FreezeRequest(Strings.splitStringByCommaToArray(request.param("index")));
         freezeRequest.timeout(request.paramAsTime("timeout", freezeRequest.timeout()));
         freezeRequest.masterNodeTimeout(request.paramAsTime("master_timeout", freezeRequest.masterNodeTimeout()));
@@ -46,7 +42,7 @@ public final class RestFreezeIndexAction extends BaseRestHandler {
         if (waitForActiveShards != null) {
             freezeRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
         }
-        freezeRequest.setFreeze(freeze);
+        freezeRequest.setFreeze(false);
         return channel -> client.execute(FreezeIndexAction.INSTANCE, freezeRequest, new RestToXContentListener<>(channel));
     }
 

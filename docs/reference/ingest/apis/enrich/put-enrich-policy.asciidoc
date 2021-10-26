@@ -100,7 +100,7 @@ Matches enrich data to incoming documents based on a
 <<match-enrich-policy-type>>.
 
 `range`:::
-Matches a single field value in incoming documents to a range in the enrich
+Matches a field value in incoming documents to a range in the enrich
 index.
 +
 The <<enrich-processor,`enrich` processor>>'s `field` must be a

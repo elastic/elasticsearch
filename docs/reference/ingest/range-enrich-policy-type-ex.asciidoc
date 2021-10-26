@@ -1,21 +1,16 @@
 [role="xpack"]
 [testenv="basic"]
 [[range-enrich-policy-type]]
-=== Example: Enrich your data based on matching a value against a range
+=== Example: Enrich your data by matching a value to a range
 
-`range` <<enrich-policy,enrich policies>> match enrich data to incoming
-documents based on a singular value that can be expressed as part of a range, such as
-numbers(integers, floats, etc), dates and ip addresses, to a range of the same
-type. See also <<range, range types>>. This policy uses the <<query-dsl-term-query,`term` query>>
-and does not support matching ranges against ranges.
+A `range` <<enrich-policy,enrich policy>> matches a field value in incoming
+documents to a range in the enrich index.
 
 The following example creates a `range` enrich policy that adds a descriptive network name and
-responsible department to incoming documents based on an ip address. It then
-adds the `range` enrich policy to a processor in a ingest pipeline.
+responsible department to incoming documents based on an IP address. It then
+adds the enrich policy to a processor in an ingest pipeline.
 
 Use the <<indices-create-index, create index API>> with the appropriate mappings to create a source index.
-
-The following create index API request creates a source index.
 
 [source,console]
 ----
@@ -52,6 +47,9 @@ Use the create enrich policy API to create an enrich policy with the
 the field from the source indices used to match incoming documents
 * Enrich fields from the source indices you'd like to append to incoming
 documents
+
+Since we plan to enrich documents based on an IP address, the policy's
+`match_field` must be an `ip_range` field.
 
 [source,console]
 ----

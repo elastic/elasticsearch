@@ -324,7 +324,9 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         ValuesSourceRegistry valuesSourceRegistry,
         MapperService mapperService,
         IndexSearcher searcher,
-        Query query
+        Query query,
+        BiFunction<Script, ScriptContext<?>, ?> scriptCompiler,
+        Supplier<SearchLookup> lookupSupplier
     ) {
         return new AggregationContext() {
             private final CircuitBreaker breaker = mock(CircuitBreaker.class);
@@ -378,7 +380,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
             @Override
             public SearchLookup lookup() {
-                throw new UnsupportedOperationException();
+                return lookupSupplier.get();
             }
 
             @Override
@@ -402,8 +404,9 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
+            @SuppressWarnings("unchecked")
             public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
-                throw new UnsupportedOperationException();
+                return (FactoryType) scriptCompiler.apply(script, context);
             }
 
             @Override
@@ -513,7 +516,23 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         List<SourceToParse> docs,
         CheckedConsumer<AggregationContext, IOException> test
     ) throws IOException {
-        withAggregationContext(null, mapperService, docs, null, test);
+        withAggregationContext(
+            mapperService,
+            docs,
+            test,
+            (s, c) -> { throw new UnsupportedOperationException(); },
+            () -> { throw new UnsupportedOperationException(); }
+        );
+    }
+
+    protected final void withAggregationContext(
+        MapperService mapperService,
+        List<SourceToParse> docs,
+        CheckedConsumer<AggregationContext, IOException> test,
+        BiFunction<Script, ScriptContext<?>, ?> scriptCompiler,
+        Supplier<SearchLookup> lookupSupplier
+    ) throws IOException {
+        withAggregationContext(null, mapperService, docs, null, test, scriptCompiler, lookupSupplier);
     }
 
     protected final void withAggregationContext(
@@ -523,6 +542,26 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         Query query,
         CheckedConsumer<AggregationContext, IOException> test
     ) throws IOException {
+        withAggregationContext(
+            valuesSourceRegistry,
+            mapperService,
+            docs,
+            query,
+            test,
+            (s, c) -> { throw new UnsupportedOperationException(); },
+            () -> { throw new UnsupportedOperationException(); }
+        );
+    }
+
+    protected final void withAggregationContext(
+        ValuesSourceRegistry valuesSourceRegistry,
+        MapperService mapperService,
+        List<SourceToParse> docs,
+        Query query,
+        CheckedConsumer<AggregationContext, IOException> test,
+        BiFunction<Script, ScriptContext<?>, ?> scriptCompiler,
+        Supplier<SearchLookup> lookupSupplier
+    ) throws IOException {
         withLuceneIndex(
             mapperService,
             writer -> {
@@ -530,7 +569,9 @@ public abstract class MapperServiceTestCase extends ESTestCase {
                     writer.addDocuments(mapperService.documentMapper().parse(doc).docs());
                 }
             },
-            reader -> test.accept(aggregationContext(valuesSourceRegistry, mapperService, new IndexSearcher(reader), query))
+            reader -> test.accept(
+                aggregationContext(valuesSourceRegistry, mapperService, new IndexSearcher(reader), query, scriptCompiler, lookupSupplier)
+            )
         );
     }
 

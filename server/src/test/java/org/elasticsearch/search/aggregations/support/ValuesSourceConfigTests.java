@@ -14,11 +14,98 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.script.AggregationScript;
+import org.mockito.Mockito;
 
 import java.util.List;
 
 // TODO: This whole set of tests needs to be rethought.
 public class ValuesSourceConfigTests extends MapperServiceTestCase {
+    /**
+     * Attempting to resolve a config with neither a field nor a script specified throws an error
+     */
+    public void testNoFieldNoScript() {
+        expectThrows(
+            IllegalStateException.class,
+            () -> ValuesSourceConfig.resolve(null, null, null, null, null, null, null, CoreValuesSourceType.KEYWORD)
+        );
+    }
+
+    /**
+     * When there's an unmapped field with no script, we should use the user value type hint if available, and fall back to the default
+     * value source type if it's not available.
+     */
+    public void testUnmappedFieldNoScript() throws Exception {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "long")));
+        // No value type hint
+        withAggregationContext(mapperService, List.of(source(b -> b.field("field", 42))), context -> {
+            ValuesSourceConfig config;
+            config = ValuesSourceConfig.resolve(context, null, "UnmappedField", null, null, null, null, CoreValuesSourceType.KEYWORD);
+            assertEquals(CoreValuesSourceType.KEYWORD, config.valueSourceType());
+        });
+
+        // With value type hint
+        withAggregationContext(mapperService, List.of(source(b -> b.field("field", 42))), context -> {
+           ValuesSourceConfig config;
+            config = ValuesSourceConfig.resolve(context, ValueType.IP, "UnmappedField", null, null, null, null, CoreValuesSourceType.KEYWORD);
+            assertEquals(CoreValuesSourceType.IP, config.valueSourceType());
+        });
+    }
+
+    /**
+     * When the field is mapped and there's no script and no hint, use the field type
+     */
+    public void testMappedFieldNoScriptNoHint() throws Exception {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "long")));
+        withAggregationContext(mapperService, List.of(source(b -> b.field("field", 42))), context -> {
+            ValuesSourceConfig config;
+            config = ValuesSourceConfig.resolve(context, null, "field", null, null, null, null, CoreValuesSourceType.KEYWORD);
+            assertEquals(CoreValuesSourceType.NUMERIC, config.valueSourceType());
+        });
+    }
+
+    /**
+     * The value type hint has higher priority than the field type
+     */
+    public void testMappedFieldNoScriptWithHint() throws Exception {
+        // NOCOMMIT: This is the test case that needs to change for 72276
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "long")));
+        withAggregationContext(mapperService, List.of(source(b -> b.field("field", 42))), context -> {
+            ValuesSourceConfig config;
+            config = ValuesSourceConfig.resolve(context, ValueType.IP, "field", null, null, null, null, CoreValuesSourceType.KEYWORD);
+            assertEquals(CoreValuesSourceType.IP, config.valueSourceType());
+        });
+    }
+
+    /**
+     * When there's a script and the user tells us what type it produces, always use that type, regardless of if there's also a field
+     */
+    public void testScriptWithHint() throws Exception {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "long")));
+        AggregationScript.Factory mockFactory = Mockito.mock(AggregationScript.Factory.class);
+        Mockito.when(mockFactory.newFactory(Mockito.any(), Mockito.any())).thenReturn(Mockito.mock(AggregationScript.LeafFactory.class));
+        // With field
+        withAggregationContext(mapperService, List.of(source(b -> b.field("field", 42))), context -> {
+            ValuesSourceConfig config;
+            config = ValuesSourceConfig.resolve(context, ValueType.IP, "field", mockScript("mockscript"), null, null, null, CoreValuesSourceType.KEYWORD);
+            assertEquals(CoreValuesSourceType.IP, config.valueSourceType());
+        }, (s, c) -> mockFactory, () -> null);
+
+        // With unmapped field
+        withAggregationContext(mapperService, List.of(source(b -> b.field("field", 42))), context -> {
+            ValuesSourceConfig config;
+            config = ValuesSourceConfig.resolve(context, ValueType.IP, "unmappedField", mockScript("mockscript"), null, null, null, CoreValuesSourceType.KEYWORD);
+            assertEquals(CoreValuesSourceType.IP, config.valueSourceType());
+        }, (s, c) -> mockFactory, () -> null);
+
+        // Without field
+        withAggregationContext(mapperService, List.of(source(b -> b.field("field", 42))), context -> {
+            ValuesSourceConfig config;
+            config = ValuesSourceConfig.resolve(context, ValueType.IP, null, mockScript("mockscript"), null, null, null, CoreValuesSourceType.KEYWORD);
+            assertEquals(CoreValuesSourceType.IP, config.valueSourceType());
+        }, (s, c) -> mockFactory, () -> null);
+    }
+
     public void testKeyword() throws Exception {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword")));
         withAggregationContext(mapperService, List.of(source(b -> b.field("field", "abc"))), context -> {

@@ -9,6 +9,7 @@
 package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.node.NodeClient;
@@ -60,6 +61,12 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
                 String concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, termVectorsRequest).getName();
                 shardId = clusterService.operationRouting().shardId(clusterState, concreteSingleIndex,
                     termVectorsRequest.id(), termVectorsRequest.routing());
+            } catch (RoutingMissingException e) {
+                responses.set(
+                    i,
+                    new MultiTermVectorsItemResponse(null, new MultiTermVectorsResponse.Failure(e.getIndex().getName(), e.getId(), e))
+                );
+                continue;
             } catch (Exception e) {
                 responses.set(i, new MultiTermVectorsItemResponse(null,
                     new MultiTermVectorsResponse.Failure(termVectorsRequest.index(), termVectorsRequest.id(), e)));

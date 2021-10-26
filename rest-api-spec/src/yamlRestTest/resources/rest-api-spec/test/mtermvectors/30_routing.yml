@@ -5,38 +5,39 @@ routing:
         index:    test_1
         body:
           settings:
-            index:
+           index:
               number_of_shards: 5
-              number_of_routing_shards: 5
               number_of_replicas: 0
 
   - do:
       cluster.health:
-          wait_for_status: green
+        wait_for_status: green
 
   - do:
       index:
-          index:   test_1
-          id:      1
-          routing: "5"
-          body:    { foo: bar }
+        index:   test_1
+        id:      1
+        routing: "5"
+        body:    { foo: bar baz }
 
   - do:
-      mget:
-          index:   test_1
-          stored_fields:  [_routing]
-          body:
-            docs:
-              - { _id: 1 }
-              - { _id: 1, routing: "4" }
-              - { _id: 1, routing: "5" }
+      mtermvectors:
+        index:   test_1
+        fields:  foo
+        body:
+          docs:
+            - { _id: 1 }
+            - { _id: 1, routing: "4" }
+            - { _id: 1, routing: "5" }
 
   - is_false:  docs.0.found
   - is_false:  docs.1.found
   - is_true:   docs.2.found
   - match:   { docs.2._index:   test_1 }
   - match:   { docs.2._id:      "1"    }
-  - match:   { docs.2._routing: "5"    }
+  - match:   { docs.2.term_vectors.foo.terms.bar.term_freq: 1 }
+  - match:   { docs.2.term_vectors.foo.terms.baz.term_freq: 1 }
+
 
 ---
 requires routing:
@@ -57,7 +58,7 @@ requires routing:
         index:   test_1
         id:      1
         routing: "5"
-        body:    { foo: bar }
+        body:    { foo: bar baz }
 
   - do:
       indices.put_alias:
@@ -65,8 +66,8 @@ requires routing:
         name:  alias
 
   - do:
-      mget:
-        stored_fields:  [_routing]
+      mtermvectors:
+        fields:  foo
         body:
           docs:
             - { _id: 1, _index: test_1 }
@@ -82,4 +83,5 @@ requires routing:
   - is_true:   docs.2.found
   - match:   { docs.2._index:   test_1 }
   - match:   { docs.2._id:      "1"    }
-  - match:   { docs.2._routing: "5"    }
+  - match:   { docs.2.term_vectors.foo.terms.bar.term_freq: 1 }
+  - match:   { docs.2.term_vectors.foo.terms.baz.term_freq: 1 }

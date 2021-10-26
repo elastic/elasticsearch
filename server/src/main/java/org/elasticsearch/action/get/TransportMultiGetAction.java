@@ -9,6 +9,7 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.node.NodeClient;
@@ -60,6 +61,9 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
                 shardId = clusterService.operationRouting()
                     .getShards(clusterState, concreteSingleIndex, item.id(), item.routing(), null)
                     .shardId();
+            } catch (RoutingMissingException e) {
+                responses.set(i, newItemFailure(e.getIndex().getName(), e.getId(), e));
+                continue;
             } catch (Exception e) {
                 responses.set(i, newItemFailure(item.index(), item.id(), e));
                 continue;

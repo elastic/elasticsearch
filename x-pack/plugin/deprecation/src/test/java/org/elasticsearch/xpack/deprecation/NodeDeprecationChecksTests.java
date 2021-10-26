@@ -463,7 +463,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
     public void testEnforceDefaultTierPreferenceSetting() {
         Settings settings = Settings.builder()
-            .put(DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING.getKey(), true)
+            .put(DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING.getKey(), randomBoolean())
             .build();
 
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, null));

@@ -12,10 +12,10 @@
 ====
 *Details* +
 In 8.0, we're deprecating the `elasticsearch-setup-passwords` tool. To
-manually reset the password for builtin users (including the `elastic` user), use
-the {ref}/reset-password.html[`elasticsearch-reset-password`], the {es}
+manually reset the password for built-in users (including the `elastic` user), use
+the {ref}/reset-password.html[`elasticsearch-reset-password`] tool, the {es}
 {ref}/security-api-change-password.html[change passwords API], or the
-User Management features in {kib}". We will remove the
+User Management features in {kib}. We will remove the
 `elasticsearch-setup-passwords` tool in a future release.
 
 *Impact* +
@@ -42,7 +42,7 @@ not permitted by license, or explicitly disabled, the file and native realms
 were enabled, even if explicitly disabled.
 
 *Impact* +
-To explicilty disable the file or native realm, set the respective
+To explicitly disable the file or native realm, set the respective
 `file.<realm-name>.enabled` or `native.<realm-name>.enabled` setting to `false`
 under the `xpack.security.authc.realms` namespace in `elasticsearch.yml`.
 
@@ -97,12 +97,12 @@ now rolled-over by disk size limit as well. Moreover, the rolled-over logs
 are also gzip compressed.
 
 *Impact* +
-The names of rolled over audit logfiles (but not the name of the current log)
+The names of rolled over audit log files (but not the name of the current log)
 have changed.
-If you've setup automated tools to consume these files, you must configure them
-to use the new names and to possibly account for gzip archives instead of plaintext.
-The Docker build of Elasticsearch is not affected since it logs on stdout where
-rollover is not performed.
+If you've set up automated tools to consume these files, you must configure them
+to use the new names and to possibly account for `gzip` archives instead of
+plain text. The Docker build of {es} is not affected because it logs on `stdout`,
+where rollover is not performed.
 ====
 
 [[accept-default-password-removed]]
@@ -142,7 +142,7 @@ these settings in `elasticsearch.yml` will result in an error on startup.
 *Details* +
 The `elasticsearch-migrate` tool provided a way to convert file
 realm users and roles into the native realm. It has been deprecated
-since 7.2.0. Users and roles should now be created in the native
+since {es} 7.2.0. Users and roles should now be created in the native
 realm directly.
 
 *Impact* +

@@ -874,7 +874,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             .setSettings(indexSettings)
             .setMapping(builder));
 
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 5; i++) {
             client().prepareIndex("test")
                 .setSource("field1", "value1", "vector", new float[]{i, i, i})
                 .get();
@@ -896,9 +896,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             .prepareSearch("test")
             .setQuery(query)
             .addFetchField("field1")
-            .setSize(5)
+            .setSize(10)
             .get();
-        assertTrue(response.getHits().getTotalHits().value <= 10L);
+        assertEquals(5, response.getHits().getTotalHits().value);
         assertEquals(5, response.getHits().getHits().length);
         for (SearchHit hit : response.getHits().getHits()) {
             assertNotNull(hit.field("field1"));
@@ -910,9 +910,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             .prepareSearch("test")
             .setQuery(query)
             .addFetchField("field2")
-            .setSize(5)
+            .setSize(10)
             .get();
-        assertTrue(response.getHits().getTotalHits().value <= 10L);
+        assertEquals(5, response.getHits().getTotalHits().value);
         assertEquals(5, response.getHits().getHits().length);
         for (SearchHit hit : response.getHits().getHits()) {
             assertNotNull(hit.field("field2"));
@@ -923,9 +923,10 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
             .prepareSearch("test")
             .setQuery(query)
-            .setSize(5)
+            .setSize(10)
             .get();
-        assertTrue(response.getHits().getTotalHits().value > 10L);
+        assertEquals(10, response.getHits().getTotalHits().value);
+        assertEquals(10, response.getHits().getHits().length);
     }
 
     public void testGlobalAggregation() throws Exception {

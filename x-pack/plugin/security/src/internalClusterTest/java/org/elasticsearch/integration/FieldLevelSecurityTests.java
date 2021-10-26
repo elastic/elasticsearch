@@ -380,15 +380,26 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
             .prepareSearch("test")
             .setQuery(query)
+            .addFetchField("vector")
             .get();
         assertHitCount(response, 1);
+        assertNotNull(response.getHits().getAt(0).field("vector"));
 
         // user2 has no access to vector field, so the query should not match with the document:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
             .prepareSearch("test")
             .setQuery(query)
+            .addFetchField("vector")
             .get();
         assertHitCount(response, 0);
+
+        // check user2 cannot see the vector field, even when their search matches the document
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+            .prepareSearch("test")
+            .addFetchField("vector")
+            .get();
+        assertHitCount(response, 1);
+        assertNull(response.getHits().getAt(0).field("vector"));
     }
 
     public void testPercolateQueryWithIndexedDocWithFLS() {

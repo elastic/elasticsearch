@@ -544,10 +544,10 @@ maximum of 24 snapshots. The policy keeps its snapshots for one day.
 
 [source,console]
 ----
-PUT _slm/policy/hourly-snapshot-policy
+PUT _slm/policy/hourly-snapshots
 {
   "name": "<hourly-snapshot-{now/d}>",
-  "schedule": "0 * * * * ?",
+  "schedule": "0 0 * * * ?",
   "repository": "my_repository",
   "config": {
     "indices": "*",
@@ -566,10 +566,10 @@ The policy keeps its snapshots for one month.
 
 [source,console]
 ----
-PUT _slm/policy/daily-snapshot-policy
+PUT _slm/policy/daily-snapshots
 {
   "name": "<daily-snapshot-{now/d}>",
-  "schedule": "45 23 * * * ?",          <1>
+  "schedule": "0 45 23 * * ?",          <1>
   "repository": "my_repository",
   "config": {
     "indices": "*",
@@ -590,10 +590,10 @@ policy keeps its snapshots for one year.
 
 [source,console]
 ----
-PUT _slm/policy/monthly-snapshot-policy
+PUT _slm/policy/monthly-snapshots
 {
   "name": "<monthly-snapshot-{now/d}>",
-  "schedule": "56 23 1 * * ?",            <1>
+  "schedule": "0 56 23 1 * ?",            <1>
   "repository": "my_repository",
   "config": {
     "indices": "*",

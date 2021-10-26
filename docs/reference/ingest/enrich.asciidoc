@@ -218,10 +218,6 @@ Instead, you can:
     to delete the previous enrich policy.
 // end::update-enrich-policy[]
 
-include::geo-match-enrich-policy-type-ex.asciidoc[]
-include::match-enrich-policy-type-ex.asciidoc[]
-include::range-enrich-policy-type-ex.asciidoc[]
-
 [[ingest-enrich-components]]
 ==== Enrich components
 
@@ -272,3 +268,7 @@ How often {es} checks whether unused enrich indices can be deleted. Defaults to
 
 `enrich.max_concurrent_policy_executions`::
 Maximum number of enrich policies to execute concurrently. Defaults to `50`.
+
+include::geo-match-enrich-policy-type-ex.asciidoc[]
+include::match-enrich-policy-type-ex.asciidoc[]
+include::range-enrich-policy-type-ex.asciidoc[]

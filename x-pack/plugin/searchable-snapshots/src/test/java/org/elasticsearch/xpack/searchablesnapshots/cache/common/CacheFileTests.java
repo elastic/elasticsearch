@@ -17,6 +17,7 @@ import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile.EvictionListener;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.FSyncTrackingFileSystemProvider;
@@ -387,6 +388,7 @@ public class CacheFileTests extends ESTestCase {
         }
     }
 
+    @TestLogging(reason = "debug failure", value = "org.elasticsearch.bootstrap:TRACE")
     public void testCacheFileCreatedAsSparseFile() throws Exception {
         assumeTrue("This test uses a native method implemented only for Windows", Constants.WINDOWS);
         final long ONE_MB = 1 << 20;

@@ -53,6 +53,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -421,9 +422,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 assertFalse(writer.isOpen());
             }
 
-            // check if we can open writer again
+            // noinspection EmptyTryBlock - we are just checking that opening the writer again doesn't throw any exceptions
             try (Writer ignored = persistedClusterStateService.createWriter()) {
-
             }
         }
     }
@@ -469,9 +469,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 assertFalse(writer.isOpen());
             }
 
-            // check if we can open writer again
+            // noinspection EmptyTryBlock - we are just checking that opening the writer again doesn't throw any exceptions
             try (Writer ignored = persistedClusterStateService.createWriter()) {
-
             }
         }
     }
@@ -878,6 +877,66 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             assertThat(expectThrows(IllegalStateException.class, persistedClusterStateService::loadBestOnDiskState).getMessage(), allOf(
                     startsWith("the index containing the cluster metadata under the data path ["),
                     endsWith("] has been changed by an external force after it was last written by Elasticsearch and is now unreadable")));
+        }
+    }
+
+    public void testLimitsFileCount() throws IOException {
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
+
+            try (Writer writer = persistedClusterStateService.createWriter()) {
+
+                ClusterState clusterState = ClusterState.EMPTY_STATE;
+                writer.writeFullStateAndCommit(1, ClusterState.EMPTY_STATE);
+
+                final int indexCount = between(2, usually() ? 20 : 1000);
+
+                final int maxSegmentCount = (indexCount / 100) + 100; // only expect to have two tiers, each with max 100 segments
+                final int filesPerSegment = 3; // .cfe, .cfs, .si
+                final int extraFiles = 2; // segments_*, write.lock
+                final int maxFileCount = (maxSegmentCount * filesPerSegment) + extraFiles;
+
+                logger.info("--> adding [{}] indices one-by-one, verifying file count does not exceed [{}]", indexCount, maxFileCount);
+                for (int i = 0; i < indexCount; i++) {
+                    final ClusterState previousClusterState = clusterState;
+
+                    clusterState = ClusterState.builder(clusterState)
+                        .metadata(Metadata.builder(clusterState.metadata())
+                            .version(i + 2)
+                            .put(IndexMetadata.builder("index-" + i)
+                                .settings(Settings.builder()
+                                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random())))))
+                        .incrementVersion().build();
+
+                    writer.writeIncrementalStateAndCommit(1, previousClusterState, clusterState);
+
+                    for (Path dataPath : nodeEnvironment.nodeDataPaths()) {
+                        try (DirectoryStream<Path> files
+                                 = Files.newDirectoryStream(dataPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))) {
+
+                            int fileCount = 0;
+                            final List<String> fileNames = new ArrayList<>();
+                            for (Path filePath : files) {
+                                final String fileName = filePath.getFileName().toString();
+                                if (ExtrasFS.isExtra(fileName) == false) {
+                                    fileNames.add(fileName);
+                                    fileCount += 1;
+                                }
+                            }
+
+                            if (maxFileCount < fileCount) {
+                                // don't bother preparing the description unless we are failing
+                                fileNames.sort(Comparator.naturalOrder());
+                                fail("after " + indexCount + " indices have " + fileCount + " files vs max of " + maxFileCount + ": " +
+                                    fileNames);
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 

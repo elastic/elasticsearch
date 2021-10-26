@@ -32,9 +32,9 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_data_stream_timestamp";
-    private static final String DEFAULT_PATH = "@timestamp";
+    public static final String DEFAULT_PATH = "@timestamp";
 
-    private static final DataStreamTimestampFieldMapper ENABLED_INSTANCE =
+    public static final DataStreamTimestampFieldMapper ENABLED_INSTANCE =
         new DataStreamTimestampFieldMapper(TimestampFieldType.INSTANCE, true);
     private static final DataStreamTimestampFieldMapper DISABLED_INSTANCE =
         new DataStreamTimestampFieldMapper(TimestampFieldType.INSTANCE, false);

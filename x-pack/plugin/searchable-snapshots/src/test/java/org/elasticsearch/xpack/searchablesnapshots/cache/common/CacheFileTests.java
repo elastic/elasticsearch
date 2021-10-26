@@ -8,13 +8,13 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.common;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.bootstrap.Natives;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -53,6 +53,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
+@LuceneTestCase.SuppressFileSystems("DisableFsyncFS") // required by {@link testCacheFileCreatedAsSparseFile()}
 public class CacheFileTests extends ESTestCase {
 
     private static final CacheFile.ModificationListener NOOP = new CacheFile.ModificationListener() {
@@ -65,7 +66,7 @@ public class CacheFileTests extends ESTestCase {
 
     private static final CacheKey CACHE_KEY = new CacheKey("_snap_uuid", "_snap_index", new ShardId("_name", "_uuid", 0), "_filename");
 
-    public void testGetCacheKey() throws Exception {
+    public void testGetCacheKey() {
         final Path file = createTempDir().resolve("file.new");
         final CacheKey cacheKey = new CacheKey(
             UUIDs.randomBase64UUID(random()),
@@ -405,6 +406,7 @@ public class CacheFileTests extends ESTestCase {
         final TestEvictionListener listener = new TestEvictionListener();
         cacheFile.acquire(listener);
         try {
+            final FileChannel fileChannel = cacheFile.getChannel();
             assertTrue(Files.exists(file));
 
             Long sizeOnDisk = Natives.allocatedSizeInBytes(file);
@@ -413,14 +415,14 @@ public class CacheFileTests extends ESTestCase {
             // write 1 byte at the last position in the cache file.
             // For non sparse files, Windows would allocate the full file on disk in order to write a single byte at the end,
             // making the next assertion fails.
-            fill(cacheFile.getChannel(), Math.toIntExact(cacheFile.getLength() - 1L), Math.toIntExact(cacheFile.getLength()));
-            IOUtils.fsync(file, false);
+            fill(fileChannel, Math.toIntExact(cacheFile.getLength() - 1L), Math.toIntExact(cacheFile.getLength()));
+            fileChannel.force(false);
 
             sizeOnDisk = Natives.allocatedSizeInBytes(file);
             assertThat("Cache file should be sparse and not fully allocated on disk", sizeOnDisk, lessThan(ONE_MB));
 
-            fill(cacheFile.getChannel(), 0, Math.toIntExact(cacheFile.getLength()));
-            IOUtils.fsync(file, false);
+            fill(fileChannel, 0, Math.toIntExact(cacheFile.getLength()));
+            fileChannel.force(false);
 
             sizeOnDisk = Natives.allocatedSizeInBytes(file);
             assertThat(

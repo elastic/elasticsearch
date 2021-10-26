@@ -262,7 +262,7 @@ public class PersistedClusterStateService {
                     final String thisNodeId = userData.get(NODE_ID_KEY);
                     assert thisNodeId != null;
                     if (nodeId != null && nodeId.equals(thisNodeId) == false) {
-                        throw new IllegalStateException("unexpected node ID in metadata, found [" + thisNodeId +
+                        throw new CorruptStateException("unexpected node ID in metadata, found [" + thisNodeId +
                             "] in [" + dataPath + "] but expected [" + nodeId + "]");
                     } else if (nodeId == null) {
                         nodeId = thisNodeId;
@@ -342,7 +342,7 @@ public class PersistedClusterStateService {
                                 if (logger.isErrorEnabled()) {
                                     outputStream.bytes().utf8ToString().lines().forEach(l -> logger.error("checkIndex: {}", l));
                                 }
-                                throw new IllegalStateException(
+                                throw new CorruptStateException(
                                     "the index containing the cluster metadata under the data path ["
                                         + dataPath
                                         + "] has been changed by an external force after it was last written by Elasticsearch and is "
@@ -356,7 +356,7 @@ public class PersistedClusterStateService {
                         final OnDiskState onDiskState = loadOnDiskState(dataPath, directoryReader);
 
                         if (nodeId.equals(onDiskState.nodeId) == false) {
-                            throw new IllegalStateException("the index containing the cluster metadata under the data path [" + dataPath +
+                            throw new CorruptStateException("the index containing the cluster metadata under the data path [" + dataPath +
                                 "] belongs to a node with ID [" + onDiskState.nodeId + "] but this node's ID is [" + nodeId + "]");
                         }
 
@@ -365,7 +365,7 @@ public class PersistedClusterStateService {
                                 committedClusterUuid = onDiskState.metadata.clusterUUID();
                                 committedClusterUuidPath = dataPath;
                             } else if (committedClusterUuid.equals(onDiskState.metadata.clusterUUID()) == false) {
-                                throw new IllegalStateException("mismatched cluster UUIDs in metadata, found [" + committedClusterUuid +
+                                throw new CorruptStateException("mismatched cluster UUIDs in metadata, found [" + committedClusterUuid +
                                     "] in [" + committedClusterUuidPath + "] and [" + onDiskState.metadata.clusterUUID() + "] in ["
                                     + dataPath + "]");
                             }
@@ -393,7 +393,7 @@ public class PersistedClusterStateService {
         }
 
         if (bestOnDiskState.currentTerm != maxCurrentTermOnDiskState.currentTerm) {
-            throw new IllegalStateException("inconsistent terms found: best state is from [" + bestOnDiskState.dataPath +
+            throw new CorruptStateException("inconsistent terms found: best state is from [" + bestOnDiskState.dataPath +
                 "] in term [" + bestOnDiskState.currentTerm + "] but there is a stale state in [" + maxCurrentTermOnDiskState.dataPath +
                 "] with greater term [" + maxCurrentTermOnDiskState.currentTerm + "]");
         }
@@ -412,14 +412,14 @@ public class PersistedClusterStateService {
                 .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes.bytes, bytes.offset, bytes.length));
             logger.trace("found global metadata with last-accepted term [{}]", metadata.coordinationMetadata().term());
             if (builderReference.get() != null) {
-                throw new IllegalStateException("duplicate global metadata found in [" + dataPath + "]");
+                throw new CorruptStateException("duplicate global metadata found in [" + dataPath + "]");
             }
             builderReference.set(Metadata.builder(metadata));
         });
 
         final Metadata.Builder builder = builderReference.get();
         if (builder == null) {
-            throw new IllegalStateException("no global metadata found in [" + dataPath + "]");
+            throw new CorruptStateException("no global metadata found in [" + dataPath + "]");
         }
 
         logger.trace("got global metadata, now reading index metadata");
@@ -431,7 +431,7 @@ public class PersistedClusterStateService {
                 .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes.bytes, bytes.offset, bytes.length));
             logger.trace("found index metadata for {}", indexMetadata.getIndex());
             if (indexUUIDs.add(indexMetadata.getIndexUUID()) == false) {
-                throw new IllegalStateException("duplicate metadata found for " + indexMetadata.getIndex() + " in [" + dataPath + "]");
+                throw new CorruptStateException("duplicate metadata found for " + indexMetadata.getIndex() + " in [" + dataPath + "]");
             }
             builder.put(indexMetadata, false);
         });

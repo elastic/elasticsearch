@@ -212,14 +212,14 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
 
         final Path[] combinedPaths = Stream.concat(Arrays.stream(dataPaths1), Arrays.stream(dataPaths2)).toArray(Path[]::new);
 
-        final String failure = expectThrows(IllegalStateException.class, () -> newNodeEnvironment(combinedPaths)).getMessage();
+        final String failure = expectThrows(CorruptStateException.class, () -> newNodeEnvironment(combinedPaths)).getMessage();
         assertThat(failure,
             allOf(containsString("unexpected node ID in metadata"), containsString(nodeIds[0]), containsString(nodeIds[1])));
         assertTrue("[" + failure + "] should match " + Arrays.toString(dataPaths2),
             Arrays.stream(dataPaths2).anyMatch(p -> failure.contains(p.toString())));
 
         // verify that loadBestOnDiskState has same check
-        final String message = expectThrows(IllegalStateException.class,
+        final String message = expectThrows(CorruptStateException.class,
             () -> new PersistedClusterStateService(combinedPaths, nodeIds[0], xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 () -> 0L).loadBestOnDiskState()).getMessage();
@@ -273,7 +273,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         }
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
-            final String message = expectThrows(IllegalStateException.class,
+            final String message = expectThrows(CorruptStateException.class,
                 () -> newPersistedClusterStateService(nodeEnvironment).loadBestOnDiskState()).getMessage();
             assertThat(message,
                 allOf(containsString("mismatched cluster UUIDs in metadata"), containsString(clusterUUID1), containsString(clusterUUID2)));
@@ -331,7 +331,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         }
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
-            final String message = expectThrows(IllegalStateException.class,
+            final String message = expectThrows(CorruptStateException.class,
                 () -> newPersistedClusterStateService(nodeEnvironment).loadBestOnDiskState()).getMessage();
             assertThat(message, allOf(
                     containsString("inconsistent terms found"),
@@ -496,7 +496,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 }
             }
 
-            final String message = expectThrows(IllegalStateException.class,
+            final String message = expectThrows(CorruptStateException.class,
                 () -> newPersistedClusterStateService(nodeEnvironment).loadBestOnDiskState()).getMessage();
             assertThat(message, allOf(containsString("no global metadata found"), containsString(brokenPath.toString())));
         }
@@ -527,7 +527,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 }
             }
 
-            final String message = expectThrows(IllegalStateException.class,
+            final String message = expectThrows(CorruptStateException.class,
                 () -> newPersistedClusterStateService(nodeEnvironment).loadBestOnDiskState()).getMessage();
             assertThat(message, allOf(containsString("duplicate global metadata found"), containsString(brokenPath.toString())));
         }
@@ -573,7 +573,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 }
             }
 
-            final String message = expectThrows(IllegalStateException.class,
+            final String message = expectThrows(CorruptStateException.class,
                 () -> newPersistedClusterStateService(nodeEnvironment).loadBestOnDiskState()).getMessage();
             assertThat(message, allOf(
                 containsString("duplicate metadata found"),
@@ -875,7 +875,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     .collect(Collectors.toList())));
             }
 
-            assertThat(expectThrows(IllegalStateException.class, persistedClusterStateService::loadBestOnDiskState).getMessage(), allOf(
+            assertThat(expectThrows(CorruptStateException.class, persistedClusterStateService::loadBestOnDiskState).getMessage(), allOf(
                     startsWith("the index containing the cluster metadata under the data path ["),
                     endsWith("] has been changed by an external force after it was last written by Elasticsearch and is now unreadable")));
         }

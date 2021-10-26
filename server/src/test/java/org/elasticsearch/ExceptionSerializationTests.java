@@ -62,6 +62,7 @@ import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.indices.recovery.PeerRecoveryNotFound;
 import org.elasticsearch.indices.recovery.RecoverFilesRecoveryException;
 import org.elasticsearch.ingest.IngestProcessorException;
+import org.elasticsearch.repositories.RepositoryConflictException;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
@@ -822,6 +823,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(160, NoSeedNodeLeftException.class);
         ids.put(161, VersionMismatchException.class);
         ids.put(162, ElasticsearchAuthenticationProcessingError.class);
+        ids.put(163, RepositoryConflictException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

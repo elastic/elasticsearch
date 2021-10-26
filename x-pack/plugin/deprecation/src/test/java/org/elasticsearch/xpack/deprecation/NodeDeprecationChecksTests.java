@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
@@ -348,5 +349,114 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 "Remove the following settings from elasticsearch.yml: " +
                     "[xpack.monitoring.exporters.test.index.template.create_legacy_templates]",
                 false, null)));
+    }
+
+
+    public void testScriptContextCacheSetting() {
+        Settings settings = Settings.builder()
+            .put(ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), "use-context")
+            .build();
+
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, null));
+
+        assertThat(
+            issues,
+            hasItem(
+                new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                    ScriptService.USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE,
+                    "https://ela.st/es-deprecation-7-script-context-cache",
+                    "found deprecated script context caches in use, change setting to compilation rate or remove " +
+                        "setting to use the default",
+                    false, null))
+        );
+    }
+
+    public void testScriptContextCompilationsRateLimitSetting() {
+        List<String> contexts = List.of("field", "score");
+        Settings settings = Settings.builder()
+            .put(ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), "use-context")
+            .put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(contexts.get(0)).getKey(), "123/5m")
+            .put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(contexts.get(1)).getKey(), "456/7m")
+            .build();
+
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, null));
+
+        assertThat(
+            issues,
+            hasItem(
+                new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                    "Setting context-specific rate limits"
+                        + " [script.context.field.max_compilations_rate,script.context.score.max_compilations_rate] is deprecated."
+                        + " Use [script.max_compilations_rate] to rate limit the compilation of user scripts."
+                        + " Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
+                    "https://ela.st/es-deprecation-7-script-context-cache",
+                    "[script.context.field.max_compilations_rate,script.context.score.max_compilations_rate] is deprecated and"
+                        + " will be removed in a future release",
+                    false, null)));
+
+        assertWarnings(
+            "[script.context.field.max_compilations_rate] setting was deprecated in Elasticsearch and will be"
+                + " removed in a future release! See the breaking changes documentation for the next major version.",
+            "[script.context.score.max_compilations_rate] setting was deprecated in Elasticsearch and will be removed in a future"
+                + " release! See the breaking changes documentation for the next major version.");
+    }
+
+    public void testScriptContextCacheSizeSetting() {
+        List<String> contexts = List.of("filter", "update");
+        Settings settings = Settings.builder()
+            .put(ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), "use-context")
+            .put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(contexts.get(0)).getKey(), 80)
+            .put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(contexts.get(1)).getKey(), 200)
+            .build();
+
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, null));
+
+        assertThat(
+            issues,
+            hasItem(
+                new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                    "Setting a context-specific cache size"
+                        + " [script.context.filter.cache_max_size,script.context.update.cache_max_size] is deprecated."
+                        + " Use [script.cache.max_size] to configure the size of the general cache for scripts."
+                        + " Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
+                    "https://ela.st/es-deprecation-7-script-context-cache",
+                    "[script.context.filter.cache_max_size,script.context.update.cache_max_size] is deprecated and will be" +
+                        " removed in a future release",
+                    false, null)));
+
+        assertWarnings("[script.context.update.cache_max_size] setting was deprecated in Elasticsearch and will be"
+                + " removed in a future release! See the breaking changes documentation for the next major version.",
+            "[script.context.filter.cache_max_size] setting was deprecated in Elasticsearch and will be removed in a future" +
+                " release! See the breaking changes documentation for the next major version.");
+    }
+
+    public void testScriptContextCacheExpirationSetting() {
+        List<String> contexts = List.of("interval", "moving-function");
+        Settings settings = Settings.builder()
+            .put(ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), "use-context")
+            .put(ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace(contexts.get(0)).getKey(), "100m")
+            .put(ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace(contexts.get(1)).getKey(), "2d")
+            .build();
+
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, null));
+
+        assertThat(
+            issues,
+            hasItem(
+                new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                    "Setting a context-specific cache expiration"
+                        + " [script.context.interval.cache_expire,script.context.moving-function.cache_expire] is deprecated."
+                        + " Use [script.cache.expire] to configure the expiration of the general cache."
+                        + " Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
+                    "https://ela.st/es-deprecation-7-script-context-cache",
+                    "[script.context.interval.cache_expire,script.context.moving-function.cache_expire] is deprecated and will be"
+                        + " removed in a future release",
+                    false, null)));
+
+
+        assertWarnings("[script.context.interval.cache_expire] setting was deprecated in Elasticsearch and will be"
+                + " removed in a future release! See the breaking changes documentation for the next major version.",
+            "[script.context.moving-function.cache_expire] setting was deprecated in Elasticsearch and will be removed in a future" +
+                " release! See the breaking changes documentation for the next major version.");
     }
 }

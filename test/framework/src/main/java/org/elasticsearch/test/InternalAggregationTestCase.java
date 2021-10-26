@@ -9,20 +9,16 @@
 package org.elasticsearch.test;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.xcontent.ContextParser;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -138,6 +134,12 @@ import org.elasticsearch.search.aggregations.pipeline.PercentilesBucketPipelineA
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
+import org.elasticsearch.xcontent.ContextParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -466,10 +468,14 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         final boolean humanReadable = randomBoolean();
 
         final BytesReference originalBytes;
-        if (shuffled) {
-            originalBytes = toShuffledXContent(aggregation, xContentType, params, humanReadable);
-        } else {
-            originalBytes = toXContent(aggregation, xContentType, params, humanReadable);
+        try {
+            if (shuffled) {
+                originalBytes = toShuffledXContent(aggregation, xContentType, params, humanReadable);
+            } else {
+                originalBytes = toXContent(aggregation, xContentType, params, humanReadable);
+            }
+        } catch (IOException e) {
+            throw new IOException("error converting " + aggregation, e);
         }
         BytesReference mutated;
         if (addRandomFields) {
@@ -528,7 +534,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     }
 
     /**
-     * @return a random {@link DocValueFormat} that can be used in aggregations which
+     * A random {@link DocValueFormat} that can be used in aggregations which
      * compute numbers.
      */
     public static DocValueFormat randomNumericDocValueFormat() {
@@ -536,6 +542,22 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         formats.add(() -> DocValueFormat.RAW);
         formats.add(() -> new DocValueFormat.Decimal(randomFrom("###.##", "###,###.##")));
         return randomFrom(formats).get();
+    }
+
+    /**
+     * A random {@link DocValueFormat} that can be used in aggregations which
+     * compute dates.
+     */
+    public static DocValueFormat randomDateDocValueFormat() {
+        DocValueFormat.DateTime format = new DocValueFormat.DateTime(
+            DateFormatter.forPattern(randomDateFormatterPattern()),
+            randomZone(),
+            randomFrom(Resolution.values())
+        );
+        if (randomBoolean()) {
+            return DocValueFormat.enableFormatSortValues(format);
+        }
+        return format;
     }
 
     public static void assertMultiBucketConsumer(Aggregation agg, MultiBucketConsumer bucketConsumer) {

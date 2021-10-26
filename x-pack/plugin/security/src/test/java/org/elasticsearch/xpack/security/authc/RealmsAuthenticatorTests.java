@@ -123,27 +123,27 @@ public class RealmsAuthenticatorTests extends ESTestCase {
 
         when(successfulRealm.supports(authenticationToken)).thenReturn(true);
         doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked") final ActionListener<AuthenticationResult> listener =
-                (ActionListener<AuthenticationResult>) invocationOnMock.getArguments()[1];
+            @SuppressWarnings("unchecked") final ActionListener<AuthenticationResult<User>> listener =
+                (ActionListener<AuthenticationResult<User>>) invocationOnMock.getArguments()[1];
             listener.onResponse(AuthenticationResult.success(user));
             return null;
         }).when(successfulRealm).authenticate(eq(authenticationToken), any());
 
         when(unsuccessfulRealm.supports(authenticationToken)).thenReturn(randomBoolean());
         doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked") final ActionListener<AuthenticationResult> listener =
-                (ActionListener<AuthenticationResult>) invocationOnMock.getArguments()[1];
+            @SuppressWarnings("unchecked") final ActionListener<AuthenticationResult<User>> listener =
+                (ActionListener<AuthenticationResult<User>>) invocationOnMock.getArguments()[1];
             listener.onResponse(AuthenticationResult.unsuccessful("unsuccessful", null));
             return null;
         }).when(unsuccessfulRealm).authenticate(eq(authenticationToken), any());
 
         final Authenticator.Context context = createAuthenticatorContext();
         context.addAuthenticationToken(authenticationToken);
-        final PlainActionFuture<Authenticator.Result> future = new PlainActionFuture<>();
+        final PlainActionFuture<AuthenticationResult<Authentication>> future = new PlainActionFuture<>();
         realmsAuthenticator.authenticate(context, future);
-        final Authenticator.Result result = future.actionGet();
-        assertThat(result.getStatus(), is(Authenticator.Status.SUCCESS));
-        final Authentication authentication = result.getAuthentication();
+        final AuthenticationResult<Authentication> result = future.actionGet();
+        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+        final Authentication authentication = result.getValue();
         assertThat(authentication.getUser(), is(user));
         assertThat(authentication.getAuthenticatedBy(),
             equalTo(new Authentication.RealmRef(successfulRealm.name(), successfulRealm.type(), nodeName)));
@@ -179,7 +179,7 @@ public class RealmsAuthenticatorTests extends ESTestCase {
                 "Authentication failed using realms [realm1/realm1,realm2/reaml2]."
                 + " Realms [realm3/realm3] were skipped because they are not permitted on the current license"
             ));
-            final PlainActionFuture<Authenticator.Result> future = new PlainActionFuture<>();
+            final PlainActionFuture<AuthenticationResult<Authentication>> future = new PlainActionFuture<>();
             realmsAuthenticator.authenticate(context, future);
             assertThat(expectThrows(ElasticsearchSecurityException.class, future::actionGet), is(e));
         } finally {
@@ -229,10 +229,10 @@ public class RealmsAuthenticatorTests extends ESTestCase {
         assertThat(expectThrows(ElasticsearchSecurityException.class, future::actionGet), is(e));
     }
 
-    private void configureRealmAuthResponse(Realm realm, AuthenticationResult authenticationResult) {
+    private void configureRealmAuthResponse(Realm realm, AuthenticationResult<User> authenticationResult) {
         doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked") final ActionListener<AuthenticationResult> listener =
-                (ActionListener<AuthenticationResult>) invocationOnMock.getArguments()[1];
+            @SuppressWarnings("unchecked") final ActionListener<AuthenticationResult<User>> listener =
+                (ActionListener<AuthenticationResult<User>>) invocationOnMock.getArguments()[1];
             listener.onResponse(authenticationResult);
             return null;
         }).when(realm).authenticate(eq(authenticationToken), any());

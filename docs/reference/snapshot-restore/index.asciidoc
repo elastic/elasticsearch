@@ -64,7 +64,7 @@ index lets you more easily search it.
 [[how-snapshots-work]]
 == How snapshots work
 
-Snapshot are automatically deduplicated to save storage space and reduce network
+Snapshots are automatically deduplicated to save storage space and reduce network
 transfer costs. To back up an index, a snapshot makes a copy of the index's
 <<near-real-time,segments>> and stores them in the snapshot repository. Since
 segments are immutable, the snapshot only needs to copy any new segments created

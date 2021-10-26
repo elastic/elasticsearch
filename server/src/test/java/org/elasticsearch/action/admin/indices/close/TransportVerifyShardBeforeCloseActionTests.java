@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.PendingReplicationActions;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
+import org.elasticsearch.action.support.replication.ReplicationOperationTests;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ConcreteShardRequest;
@@ -219,7 +220,8 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         unavailableShards.forEach(shardRoutingTableBuilder::removeShard);
         shardRoutingTable = shardRoutingTableBuilder.build();
 
-        final ReplicationGroup replicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards, 0);
+        final ReplicationGroup replicationGroup =
+            ReplicationOperationTests.replicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards, 0);
         assertThat(replicationGroup.getUnavailableInSyncShards().size(), greaterThan(0));
 
         final PlainActionFuture<PrimaryResult> listener = new PlainActionFuture<>();

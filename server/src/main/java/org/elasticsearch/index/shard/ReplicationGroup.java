@@ -29,14 +29,21 @@ public class ReplicationGroup {
     private final List<ShardRouting> replicationTargets; // derived from the other fields
     private final List<ShardRouting> skippedShards; // derived from the other fields
 
-    public ReplicationGroup(IndexShardRoutingTable routingTable, Set<String> inSyncAllocationIds, Set<String> trackedAllocationIds,
-                            long version) {
+    public ReplicationGroup(
+        IndexShardRoutingTable routingTable,
+        Set<String> inSyncAllocationIds,
+        Set<String> trackedAllocationIds,
+        Set<String> unavailableInSyncShards,
+        long version
+    ) {
         this.routingTable = routingTable;
         this.inSyncAllocationIds = inSyncAllocationIds;
         this.trackedAllocationIds = trackedAllocationIds;
         this.version = version;
 
-        this.unavailableInSyncShards = Sets.difference(inSyncAllocationIds, routingTable.getAllAllocationIds());
+        this.unavailableInSyncShards = unavailableInSyncShards;
+        assert unavailableInSyncShards.equals(Sets.difference(inSyncAllocationIds, routingTable.getAllAllocationIds()))
+            : "incorrect unavailable, in-sync shards set [" + unavailableInSyncShards + "] for [" + routingTable + "]";
         this.replicationTargets = new ArrayList<>();
         this.skippedShards = new ArrayList<>();
         for (final ShardRouting shard : routingTable) {

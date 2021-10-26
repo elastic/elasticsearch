@@ -106,7 +106,7 @@ public class ReplicationOperationTests extends ESTestCase {
         addTrackingInfo(indexShardRoutingTable, primaryShard, trackedShards, untrackedShards);
         trackedShards.addAll(staleAllocationIds);
 
-        final ReplicationGroup replicationGroup = new ReplicationGroup(indexShardRoutingTable, inSyncAllocationIds, trackedShards, 0);
+        final ReplicationGroup replicationGroup = replicationGroup(indexShardRoutingTable, inSyncAllocationIds, trackedShards, 0);
 
         final Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, initialState, trackedShards);
 
@@ -180,7 +180,7 @@ public class ReplicationOperationTests extends ESTestCase {
         addTrackingInfo(indexShardRoutingTable, primaryShard, trackedShards, untrackedShards);
         trackedShards.addAll(staleAllocationIds);
 
-        final ReplicationGroup replicationGroup = new ReplicationGroup(indexShardRoutingTable, inSyncAllocationIds, trackedShards, 0);
+        final ReplicationGroup replicationGroup = replicationGroup(indexShardRoutingTable, inSyncAllocationIds, trackedShards, 0);
 
         final Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, initialState, trackedShards);
 
@@ -276,7 +276,7 @@ public class ReplicationOperationTests extends ESTestCase {
         addTrackingInfo(indexShardRoutingTable, primaryShard, trackedShards, new HashSet<>());
         trackedShards.addAll(staleAllocationIds);
 
-        final ReplicationGroup replicationGroup = new ReplicationGroup(indexShardRoutingTable, inSyncAllocationIds, trackedShards, 0);
+        final ReplicationGroup replicationGroup = replicationGroup(indexShardRoutingTable, inSyncAllocationIds, trackedShards, 0);
 
         final Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, initialState, trackedShards);
 
@@ -352,7 +352,7 @@ public class ReplicationOperationTests extends ESTestCase {
         IndexShardRoutingTable shardRoutingTable = initialState.getRoutingTable().shardRoutingTable(shardId);
         Set<String> trackedShards = new HashSet<>();
         addTrackingInfo(shardRoutingTable, null, trackedShards, new HashSet<>());
-        ReplicationGroup initialReplicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards, 0);
+        ReplicationGroup initialReplicationGroup = replicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards, 0);
 
         final ClusterState stateWithAddedReplicas;
         if (randomBoolean()) {
@@ -367,7 +367,7 @@ public class ReplicationOperationTests extends ESTestCase {
         trackedShards = new HashSet<>();
         addTrackingInfo(shardRoutingTable, null, trackedShards, new HashSet<>());
 
-        ReplicationGroup updatedReplicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards, 0);
+        ReplicationGroup updatedReplicationGroup = replicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards, 0);
 
         final AtomicReference<ReplicationGroup> replicationGroup = new AtomicReference<>(initialReplicationGroup);
         logger.debug("--> using initial replicationGroup:\n{}", replicationGroup.get());
@@ -425,7 +425,7 @@ public class ReplicationOperationTests extends ESTestCase {
         final Set<String> inSyncAllocationIds = state.metadata().index(index).inSyncAllocationIds(0);
         Set<String> trackedShards = new HashSet<>();
         addTrackingInfo(shardRoutingTable, null, trackedShards, new HashSet<>());
-        final ReplicationGroup initialReplicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards, 0);
+        final ReplicationGroup initialReplicationGroup = replicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards, 0);
 
         PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
         final ShardRouting primaryShard = shardRoutingTable.primaryShard();
@@ -461,7 +461,7 @@ public class ReplicationOperationTests extends ESTestCase {
         final Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(0);
         final IndexShardRoutingTable shardRoutingTable = state.routingTable().index(index).shard(shardId.id());
         final Set<String> trackedShards = shardRoutingTable.getAllAllocationIds();
-        final ReplicationGroup initialReplicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards, 0);
+        final ReplicationGroup initialReplicationGroup = replicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards, 0);
 
         final boolean fatal = randomBoolean();
         final AtomicBoolean primaryFailed = new AtomicBoolean();
@@ -799,4 +799,13 @@ public class ReplicationOperationTests extends ESTestCase {
         }
     }
 
+    public static ReplicationGroup replicationGroup(
+        IndexShardRoutingTable routingTable,
+        Set<String> inSyncAllocationIds,
+        Set<String> trackedAllocationIds,
+        long version
+    ) {
+        return new ReplicationGroup(routingTable, inSyncAllocationIds, trackedAllocationIds,
+            Sets.difference(inSyncAllocationIds, routingTable.getAllAllocationIds()), version);
+    }
 }

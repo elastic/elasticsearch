@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.replication.ReplicationOperationTests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -30,7 +31,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.EmptySystemIndices;
@@ -126,7 +126,7 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                     return null;
                 }).when(indexShard).acquirePrimaryOperationPermit(anyActionListener(), anyString(), anyObject(), eq(true));
                 when(indexShard.getReplicationGroup()).thenReturn(
-                    new ReplicationGroup(shardRoutingTable,
+                    ReplicationOperationTests.replicationGroup(shardRoutingTable,
                         clusterService.state().metadata().index(index).inSyncAllocationIds(shardId.id()),
                         shardRoutingTable.getAllAllocationIds(), 0));
 

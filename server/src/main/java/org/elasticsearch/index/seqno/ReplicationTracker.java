@@ -15,7 +15,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.core.SuppressForbidden;
@@ -938,10 +937,27 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         } else {
             newVersion = replicationGroup.getVersion() + 1;
         }
-        return new ReplicationGroup(routingTable,
-            checkpoints.entrySet().stream().filter(e -> e.getValue().inSync).map(Map.Entry::getKey).collect(Collectors.toSet()),
-            checkpoints.entrySet().stream().filter(e -> e.getValue().tracked).map(Map.Entry::getKey).collect(Collectors.toSet()),
-            newVersion);
+        Set<String> inSync = new HashSet<>();
+        Set<String> tracked = new HashSet<>();
+        Set<String> unavailableInSync = null;
+        final Set<String> allAllocationIds = routingTable.getAllAllocationIds();
+        for (Map.Entry<String, CheckpointState> entry : checkpoints.entrySet()) {
+            final String allocationId = entry.getKey();
+            final CheckpointState checkpointState = entry.getValue();
+            if (checkpointState.inSync) {
+                inSync.add(allocationId);
+                if (allAllocationIds.contains(allocationId) == false) {
+                    if (unavailableInSync == null) {
+                        unavailableInSync = new HashSet<>();
+                    }
+                    unavailableInSync.add(allocationId);
+                }
+            }
+            if (checkpointState.tracked) {
+                tracked.add(allocationId);
+            }
+        }
+        return new ReplicationGroup(routingTable, inSync, tracked, unavailableInSync == null ? Set.of() : unavailableInSync, newVersion);
     }
 
     /**
@@ -1077,25 +1093,34 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 "update from master in primary mode contains in-sync ids " + inSyncAllocationIds +
                     " that have no matching entries in " + checkpoints;
             // remove entries which don't exist on master
-            Set<String> initializingAllocationIds = routingTable.getAllInitializingShards().stream()
-                .map(ShardRouting::allocationId).map(AllocationId::getId).collect(Collectors.toSet());
-            boolean removedEntries = checkpoints.keySet().removeIf(
-                aid -> inSyncAllocationIds.contains(aid) == false && initializingAllocationIds.contains(aid) == false);
+            Set<String> initializingAllocationIds;
+            final List<ShardRouting> allInitializingShards = routingTable.getAllInitializingShards();
+            final Set<String> checkpointKeys = checkpoints.keySet();
+            boolean removedEntries;
+            if (allInitializingShards.isEmpty()) {
+                initializingAllocationIds = Set.of();
+                removedEntries = checkpointKeys.retainAll(inSyncAllocationIds);
+            } else {
+                initializingAllocationIds = new HashSet<>(allInitializingShards.size());
+                for (ShardRouting shardRouting : allInitializingShards) {
+                    initializingAllocationIds.add(shardRouting.allocationId().getId());
+                }
+                removedEntries = checkpointKeys.removeIf(
+                    aid -> inSyncAllocationIds.contains(aid) == false && initializingAllocationIds.contains(aid) == false);
+            }
 
             if (primaryMode) {
                 // add new initializingIds that are missing locally. These are fresh shard copies - and not in-sync
                 for (String initializingId : initializingAllocationIds) {
-                    if (checkpoints.containsKey(initializingId) == false) {
-                        final boolean inSync = inSyncAllocationIds.contains(initializingId);
-                        assert inSync == false : "update from master in primary mode has " + initializingId +
-                            " as in-sync but it does not exist locally";
-                        final long localCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
-                        final long globalCheckpoint = localCheckpoint;
-                        checkpoints.put(initializingId, new CheckpointState(localCheckpoint, globalCheckpoint, inSync, inSync));
-                    }
+                    assert checkpoints.containsKey(initializingId) || inSyncAllocationIds.contains(initializingId) == false :
+                        "update from master in primary mode has " + initializingId + " as in-sync but it does not exist locally";
+                    checkpoints.computeIfAbsent(
+                        initializingId,
+                        id -> new CheckpointState(SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_SEQ_NO, false, false)
+                    );
                 }
                 if (removedEntries) {
-                    pendingInSync.removeIf(aId -> checkpoints.containsKey(aId) == false);
+                    pendingInSync.retainAll(checkpointKeys);
                 }
             } else {
                 for (String initializingId : initializingAllocationIds) {

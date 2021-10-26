@@ -7,6 +7,7 @@
   - do:
       allowed_warnings:
         - "[/_cluster/nodes/hotthreads] is a deprecated endpoint. Please use [/_nodes/hot_threads] instead."
+        - "[/_nodes/hotthreads] is a deprecated endpoint. Please use [/_nodes/hot_threads] instead."
       nodes.hot_threads:
         type: "cpu"
   - match:
@@ -21,6 +22,7 @@
   - do:
       allowed_warnings:
         - "[/_cluster/nodes/hotthreads] is a deprecated endpoint. Please use [/_nodes/hot_threads] instead."
+        - "[/_nodes/hotthreads] is a deprecated endpoint. Please use [/_nodes/hot_threads] instead."
       nodes.hot_threads:
         type: "cpu"
         sort: "cpu"
@@ -36,6 +38,7 @@
   - do:
       allowed_warnings:
         - "[/_cluster/nodes/hotthreads] is a deprecated endpoint. Please use [/_nodes/hot_threads] instead."
+        - "[/_nodes/hotthreads] is a deprecated endpoint. Please use [/_nodes/hot_threads] instead."
       nodes.hot_threads:
         type: "wait"
   - match:
@@ -50,6 +53,7 @@
   - do:
       allowed_warnings:
         - "[/_cluster/nodes/hotthreads] is a deprecated endpoint. Please use [/_nodes/hot_threads] instead."
+        - "[/_nodes/hotthreads] is a deprecated endpoint. Please use [/_nodes/hot_threads] instead."
       nodes.hot_threads:
         type: "block"
   - match:
@@ -64,6 +68,7 @@
   - do:
       allowed_warnings:
         - "[/_cluster/nodes/hotthreads] is a deprecated endpoint. Please use [/_nodes/hot_threads] instead."
+        - "[/_nodes/hotthreads] is a deprecated endpoint. Please use [/_nodes/hot_threads] instead."
       nodes.hot_threads:
         type: "mem"
   - match:
@@ -78,6 +83,7 @@
   - do:
       allowed_warnings:
         - "[/_cluster/nodes/hotthreads] is a deprecated endpoint. Please use [/_nodes/hot_threads] instead."
+        - "[/_nodes/hotthreads] is a deprecated endpoint. Please use [/_nodes/hot_threads] instead."
       catch: bad_request
       nodes.hot_threads:
         type: "gpu"

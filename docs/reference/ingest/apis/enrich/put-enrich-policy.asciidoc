@@ -100,9 +100,9 @@ Matches enrich data to incoming documents based on a
 <<match-enrich-policy-type>>.
 
 `range`:::
-Matches a field value in incoming documents to a range in the enrich index based
-on a <<query-dsl-term-query,`term` query>>. For an example, see
-<<range-enrich-policy-type>>.
+Matches a number, date, or IP address in incoming documents to a range in the
+enrich index based on a <<query-dsl-term-query,`term` query>>. For an example,
+see <<range-enrich-policy-type>>.
 --
 +
 .Properties of `<policy-type>`

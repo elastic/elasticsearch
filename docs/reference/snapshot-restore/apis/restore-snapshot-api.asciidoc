@@ -53,8 +53,14 @@ POST /index_4/_close?wait_for_active_shards=0
 [source,console]
 ----
 POST /_snapshot/my_repository/my_snapshot/_restore
+{
+  "indices": "*,-.*",
+  "feature_states": [ "geoip" ]
+}
 ----
 // TEST[s/_restore/_restore?wait_for_completion=true/]
+// TEST[s/",/"/]
+// TEST[s/"feature_states": \[ "geoip" \]//]
 
 [[restore-snapshot-api-request]]
 ==== {api-request-title}

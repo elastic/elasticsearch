@@ -322,8 +322,11 @@ final class JNAKernel32Library {
     native int GetCompressedFileSizeW(WString lpFileName, IntByReference lpFileSizeHigh);
 
     /**
-     * Returns the number of allocated bytes on disk for a given file. This method uses Kernel32 DDL native method
-     * {@link #GetCompressedFileSizeW(WString, IntByReference)} to retrieve the allocated size of the file.
+     * Retrieves the actual number of bytes of disk storage used to store a specified file. If the file is located on a volume that supports
+     * compression and the file is compressed, the value obtained is the compressed size of the specified file. If the file is located on a
+     * volume that supports sparse files and the file is a sparse file, the value obtained is the sparse size of the specified file.
+     *
+     * This method uses Win32 DLL native method {@link #GetCompressedFileSizeW(WString, IntByReference)}.
      *
      * @param path the path to the file
      * @return the number of allocated bytes on disk for the file or {@code null} if the allocated size is invalid
@@ -342,7 +345,7 @@ final class JNAKernel32Library {
 
         final long allocatedSize = (((long) lpFileSizeHigh.getValue()) << 32) | (lpFileSizeLow & 0xffffffffL);
         if (logger.isTraceEnabled()) {
-            logger.trace("native method GetCompressedFileSizeW returned [{}] for file [{}]", allocatedSize, path);
+            logger.trace("executing native method GetCompressedFileSizeW returned [{}] for file [{}]", allocatedSize, path);
         }
         return allocatedSize;
     }

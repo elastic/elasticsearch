@@ -405,10 +405,13 @@ public class CacheFileTests extends ESTestCase {
             Long sizeOnDisk = Natives.allocatedSizeInBytes(file);
             assertThat(sizeOnDisk, equalTo(0L));
 
+            // write 1 byte at the last position in the cache file.
+            // For non sparse files, Windows would allocate the full file on disk in order to write a single byte at the end,
+            // making the next assertion fails.
             fill(cacheFile.getChannel(), Math.toIntExact(cacheFile.getLength() - 1L), Math.toIntExact(cacheFile.getLength()));
 
             sizeOnDisk = Natives.allocatedSizeInBytes(file);
-            assertThat(sizeOnDisk, not(equalTo(1048576L)));
+            assertThat("Cache file should be sparse and not fully allocated on disk", sizeOnDisk, not(equalTo(1048576L)));
         } finally {
             cacheFile.release(listener);
         }

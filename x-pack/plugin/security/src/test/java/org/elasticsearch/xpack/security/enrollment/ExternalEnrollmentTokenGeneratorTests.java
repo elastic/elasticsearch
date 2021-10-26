@@ -44,9 +44,9 @@ import static org.elasticsearch.test.CheckedFunctionUtils.anyCheckedSupplier;
 import static org.elasticsearch.xpack.security.enrollment.ExternalEnrollmentTokenGenerator.getFilteredAddresses;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 

@@ -22,12 +22,13 @@ Requests made to the old `_upgrade` API will return an error.
 [%collapsible]
 ====
 *Details* +
-The freeze index API (`POST /<index>/_freeze`) was deprecated in 7.14 and
-removed in 8.0.
+The freeze index API (`POST /<index>/_freeze`) has been removed.
 https://www.elastic.co/blog/significantly-decrease-your-elasticsearch-heap-memory-usage[Improvements
 in heap memory usage] have eliminated the reason to freeze indices.
-Existing frozen indices can still be unfrozen with the
-<<unfreeze-index-api,unfreeze index API>>.
+You can still unfreeze existing frozen indices using the
+{ref}/unfreeze-index-api.html[unfreeze index API]. For some use cases, the
+frozen tier may be a suitable replacement for frozen indices. See
+{ref}/data-tiers.html[data tiers] for more information.
 
 *Impact* +
 Requests made to the old freeze index API will return an error.

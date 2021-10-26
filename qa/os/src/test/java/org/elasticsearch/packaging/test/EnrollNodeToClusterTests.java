@@ -119,7 +119,6 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
         );
         assertThat(result.stderr, containsString("Multiple --enrollment-token parameters are not allowed"));
         assertThat(result.exitCode, equalTo(1));
-
     }
 
     private String generateMockEnrollmentToken() throws Exception {

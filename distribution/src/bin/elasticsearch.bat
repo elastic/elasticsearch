@@ -42,7 +42,7 @@ FOR /F "usebackq tokens=1* delims= " %%A IN (!params!) DO (
 	IF "!current!" == "--enrollment-token" (
 	    IF "!enrolltocluster!" == "Y" (
 	        ECHO "Multiple --enrollment-token parameters are not allowed" 1>&2
-	        EXIT /B 1
+	        goto exitwithone
 	    )
 		SET enrolltocluster=Y
 		SET attemptautoconfig=N
@@ -162,3 +162,8 @@ ECHO.!KEYSTORE_PASSWORD!| %JAVA% %ES_JAVA_OPTS% -Delasticsearch ^
 endlocal
 endlocal
 exit /b %ERRORLEVEL%
+
+rem this hack is ugly but necessary because we can't exit with /b X from within the argument parsing loop.
+rem exit 1 (without /b) would work for powershell but it will terminate the cmd process when run in cmd
+:exitwithone
+    exit /b 1

@@ -80,8 +80,8 @@ if [ "x$IS_UPGRADE" != "xtrue" ]; then
             echo "The generated password for the elastic built-in superuser is : ${INITIAL_PASSWORD}"
             echo
             echo "If this node should join an existing cluster, you can reconfigure this with"
-            echo "'/usr/share/elasticsearch/bin/elasticsearch-reconfigure-node --enrollment-token <token-here>' after getting an"
-            echo "enrollment token from your existing cluster."
+            echo "'/usr/share/elasticsearch/bin/elasticsearch-reconfigure-node --enrollment-token <token-here>'"
+            echo "after creating an enrollment token on your existing cluster."
             echo
             echo "You can complete the following actions at any time:"
             echo

@@ -122,6 +122,7 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         assertNotNull(installation.getElasticPassword());
         Shell.Result result = installation.executables().nodeReconfigureTool.run("", null, true);
         assertThat(result.exitCode, equalTo(ExitCodes.USAGE)); // missing enrollment token
+        verifySecurityAutoConfigured(installation);
     }
 
     private Predicate<String> successfulAutoConfiguration() {

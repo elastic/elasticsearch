@@ -104,7 +104,7 @@ each, an API request that includes all snapshots will require 100,000 reads (100
 snapshots * 1,000 shards).
 
 Depending on the latency of your storage, such requests can take an extremely
-long time to retrieve results. These requests can also tax machine resources
+long time to return results. These requests can also tax machine resources
 and, when using cloud storage, incur high processing costs.
 ====
 

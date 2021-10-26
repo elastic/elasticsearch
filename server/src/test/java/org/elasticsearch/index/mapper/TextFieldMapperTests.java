@@ -43,7 +43,6 @@ import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.xcontent.ToXContent;
@@ -74,7 +73,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
-import static org.mockito.Mockito.when;
 
 public class TextFieldMapperTests extends MapperTestCase {
 
@@ -840,7 +838,6 @@ public class TextFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
         SearchExecutionContext context = createSearchExecutionContext(ms);
-        when(context.indexVersionCreated()).thenReturn(Version.CURRENT);
         QueryStringQueryParser parser = new QueryStringQueryParser(context, "f");
         Query q = parser.parse("foo:*");
         assertEquals(new ConstantScoreQuery(new NormsFieldExistsQuery("foo.bar")), q);

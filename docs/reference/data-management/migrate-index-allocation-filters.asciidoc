@@ -19,7 +19,7 @@ control shard allocation for other purposes.
 {ess} and {ece} can perform the migration automatically. For self-managed deployements, you need to manually update your configuration, ILM policies, and indices to switch to using node roles. 
 
 [discrete]
-== Automated method for {ess} or {ece}
+=== Automatically migrating to node roles on {ess} or {ece}
 If you are using {ess} or {ece} and are using node attributes you will be
 prompted to switch to node roles when you upgrade to version 7.10 or
 higher, when you deploy a warm or cold data tier, or when you enable

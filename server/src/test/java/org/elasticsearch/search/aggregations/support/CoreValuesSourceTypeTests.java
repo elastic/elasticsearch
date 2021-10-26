@@ -29,8 +29,7 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
         assertThat(CoreValuesSourceType.fromString("keyword"), equalTo(CoreValuesSourceType.KEYWORD));
         assertThat(CoreValuesSourceType.fromString("geopoint"), equalTo(CoreValuesSourceType.GEOPOINT));
         assertThat(CoreValuesSourceType.fromString("range"), equalTo(CoreValuesSourceType.RANGE));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> CoreValuesSourceType.fromString("does_not_exist"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> CoreValuesSourceType.fromString("does_not_exist"));
         assertThat(
             e.getMessage(),
             equalTo("No enum constant org.elasticsearch.search.aggregations.support.CoreValuesSourceType.DOES_NOT_EXIST")
@@ -97,7 +96,6 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
             verify(rounding).prepare(min, max);
         });
     }
-
 
     private MapperService dateMapperService() throws IOException {
         return createMapperService(fieldMapping(b -> b.field("type", "date")));

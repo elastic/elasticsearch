@@ -33,6 +33,7 @@ not be included yet.
 * <<ml-apis,{ml-cap} {anomaly-detect} APIs>>
 * <<ml-df-analytics-apis,{ml-cap} {dfanalytics} APIs>>
 * <<migration-api,Migration APIs>>
+* <<node-lifecycle-api,Node lifecycle API>>
 * <<indices-reload-analyzers,Reload search analyzers API>>
 * <<repositories-metering-apis,Repositories metering APIs>>
 * <<rollup-apis,Rollup APIs>>
@@ -71,6 +72,7 @@ include::{xes-repo-dir}/rest-api/logstash/index.asciidoc[]
 include::{es-repo-dir}/ml/anomaly-detection/apis/index.asciidoc[]
 include::{es-repo-dir}/ml/df-analytics/apis/index.asciidoc[]
 include::{es-repo-dir}/migration/migration.asciidoc[]
+include::{es-repo-dir}/shutdown/apis/shutdown-api.asciidoc[]
 include::{es-repo-dir}/indices/apis/reload-analyzers.asciidoc[]
 include::{es-repo-dir}/repositories-metering-api/repositories-metering-apis.asciidoc[]
 include::{es-repo-dir}/rollup/rollup-apis.asciidoc[]

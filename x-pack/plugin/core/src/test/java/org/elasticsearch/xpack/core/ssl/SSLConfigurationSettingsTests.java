@@ -45,7 +45,7 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
         final Settings settings = Settings.builder()
                 .put("xpack.security.http.ssl.client_authentication", SslClientAuthenticationMode.OPTIONAL.name())
                 .build();
-        assertThat(ssl.clientAuth.get(settings).get(), is(SSLClientAuth.OPTIONAL));
+        assertThat(ssl.clientAuth.get(settings).get(), is(SslClientAuthenticationMode.OPTIONAL));
     }
 
     public void testParseKeystoreAlgorithmWithPrefix() {

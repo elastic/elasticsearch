@@ -100,12 +100,15 @@ public class HiddenIndexIT extends ESIntegTestCase {
         assertThat(mappingsResponse.mappings().size(), is(1));
         MappingMetadata mappingMetadata = mappingsResponse.mappings().get("a_hidden_index");
         assertNotNull(mappingMetadata);
+        @SuppressWarnings("unchecked")
         Map<String, Object> propertiesMap = (Map<String, Object>) mappingMetadata.getSourceAsMap().get("properties");
         assertNotNull(propertiesMap);
         assertThat(propertiesMap.size(), is(2));
+        @SuppressWarnings("unchecked")
         Map<String, Object> barMap = (Map<String, Object>) propertiesMap.get("bar");
         assertNotNull(barMap);
         assertThat(barMap.get("type"), is("text"));
+        @SuppressWarnings("unchecked")
         Map<String, Object> bazMap = (Map<String, Object>) propertiesMap.get("baz");
         assertNotNull(bazMap);
         assertThat(bazMap.get("type"), is("text"));

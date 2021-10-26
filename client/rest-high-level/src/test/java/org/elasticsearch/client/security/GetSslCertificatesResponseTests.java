@@ -9,7 +9,7 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.security.support.CertificateInfo;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 

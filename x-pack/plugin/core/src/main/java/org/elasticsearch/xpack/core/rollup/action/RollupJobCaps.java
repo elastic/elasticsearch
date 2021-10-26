@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.core.rollup.action;
 
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -107,7 +107,7 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
             builder.startObject(FIELDS.getPreferredName());
             {
                 for (Map.Entry<String, RollupFieldCaps> fieldCap : fieldCapLookup.entrySet()) {
-                    builder.array(fieldCap.getKey(), fieldCap.getValue());
+                    builder.xContentList(fieldCap.getKey(), fieldCap.getValue());
                 }
             }
             builder.endObject();

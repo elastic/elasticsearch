@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.analytics.normalize;
 
-
 import java.util.function.DoubleUnaryOperator;
 
 class NormalizePipelineMethods {
@@ -96,7 +95,7 @@ class NormalizePipelineMethods {
 
         Softmax(double[] values) {
             double sumExp = 0.0;
-            for (Double value :  values) {
+            for (Double value : values) {
                 if (value.isNaN() == false) {
                     sumExp += Math.exp(value);
                 }

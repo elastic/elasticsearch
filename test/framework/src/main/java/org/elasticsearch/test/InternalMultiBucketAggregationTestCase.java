@@ -73,7 +73,7 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
                 final int numAggregations = randomIntBetween(1, 3);
                 List<InternalAggregation> aggs = new ArrayList<>();
                 for (int i = 0; i < numAggregations; i++) {
-                    aggs.add(createTestInstance(randomAlphaOfLength(5), emptyMap(), InternalAggregations.EMPTY));
+                    aggs.add(createTestInstanceForXContent(randomAlphaOfLength(5), emptyMap(), InternalAggregations.EMPTY));
                 }
                 return InternalAggregations.from(aggs);
             };
@@ -97,8 +97,17 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
         assertMultiBucketsAggregations(aggregation, parsedAggregation, false);
     }
 
+    @Override
+    public final T createTestInstanceForXContent() {
+        return createTestInstanceForXContent(randomAlphaOfLength(5), createTestMetadata(), createSubAggregations());
+    }
+
+    protected T createTestInstanceForXContent(String name, Map<String, Object> metadata, InternalAggregations subAggs) {
+        return createTestInstance(name, metadata, subAggs);
+    }
+
     public void testIterators() throws IOException {
-        final T aggregation = createTestInstance();
+        final T aggregation = createTestInstanceForXContent();
         assertMultiBucketsAggregations(aggregation, parseAndAssert(aggregation, false, false), true);
     }
 
@@ -191,7 +200,7 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
     }
 
     /**
-     * Build a reuce 
+     * Build a reuce
      */
     protected static void expectReduceUsesTooManyBuckets(InternalAggregation agg, int bucketLimit) {
         InternalAggregation.ReduceContext reduceContext = InternalAggregation.ReduceContext.forFinalReduction(
@@ -208,7 +217,8 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
                     }
                 }
             },
-            PipelineTree.EMPTY
+            PipelineTree.EMPTY,
+            () -> false
         );
         Exception e = expectThrows(IllegalArgumentException.class, () -> agg.reduce(List.of(agg), reduceContext));
         assertThat(e.getMessage(), equalTo("too big!"));

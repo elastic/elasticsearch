@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -60,7 +61,7 @@ public class LdapMetadataResolverTests extends ESTestCase {
                 new Attribute("memberOf", "cn=staff,ou=groups,dc=example,dc=com", "cn=admin,ou=groups,dc=example,dc=com")
         );
         final Map<String, Object> map = resolve(attributes);
-        assertThat(map.size(), equalTo(2));
+        assertThat(map, aMapWithSize(2));
         assertThat(map.get("cn"), equalTo("Clint Barton"));
         assertThat(map.get("uid"), equalTo("hawkeye"));
     }
@@ -72,7 +73,7 @@ public class LdapMetadataResolverTests extends ESTestCase {
                 new Attribute("uid", "hawkeye")
         );
         final Map<String, Object> map = resolve(attributes);
-        assertThat(map.size(), equalTo(2));
+        assertThat(map, aMapWithSize(2));
         assertThat(map.get("cn"), instanceOf(List.class));
         assertThat((List<?>) map.get("cn"), contains("Clint Barton", "hawkeye"));
         assertThat(map.get("uid"), equalTo("hawkeye"));
@@ -82,7 +83,7 @@ public class LdapMetadataResolverTests extends ESTestCase {
         resolver = new LdapMetadataResolver(Arrays.asList("cn", "uid"), true);
         final Collection<Attribute> attributes = Collections.singletonList(new Attribute("uid", "hawkeye"));
         final Map<String, Object> map = resolve(attributes);
-        assertThat(map.size(), equalTo(1));
+        assertThat(map, aMapWithSize(1));
         assertThat(map.get("cn"), nullValue());
         assertThat(map.get("uid"), equalTo("hawkeye"));
     }

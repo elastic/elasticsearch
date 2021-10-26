@@ -2376,7 +2376,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             .system(system)
             .build();
         DataStream dataStream = new DataStream(dataStreamName, new DataStream.TimestampField("@timestamp"),
-            List.of(indexMetadata.getIndex()), 1, null, false, false, system);
+            List.of(indexMetadata.getIndex()), 1, null, false, false, system, false);
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("remote"))
             .metadata(Metadata.builder()
                 .put(indexMetadata, true)

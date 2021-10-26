@@ -26,6 +26,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -34,6 +35,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
 
@@ -282,6 +285,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         action.list(shardId, customDataPath, nodes, new ActionListener<BaseNodesResponse<T>>() {
             @Override
             public void onResponse(BaseNodesResponse<T> response) {
+                assert assertSameNodes(response);
                 processAsyncFetch(response.getNodes(), response.failures(), fetchingRound);
             }
 
@@ -292,6 +296,17 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
                     failures.add(new FailedNodeException(node.getId(), "total failure in fetching", e));
                 }
                 processAsyncFetch(null, failures, fetchingRound);
+            }
+
+            private boolean assertSameNodes(BaseNodesResponse<T> response) {
+                final Map<String, DiscoveryNode> nodesById
+                    = Arrays.stream(nodes).collect(Collectors.toMap(DiscoveryNode::getEphemeralId, Function.identity()));
+                for (T nodeResponse : response.getNodes()) {
+                    final DiscoveryNode responseNode = nodeResponse.getNode();
+                    final DiscoveryNode localNode = nodesById.get(responseNode.getEphemeralId());
+                    assert localNode == responseNode : "not reference equal: " + localNode + " vs " + responseNode;
+                }
+                return true;
             }
         });
     }

@@ -23,7 +23,14 @@ public class Order extends Expression {
     }
 
     public enum NullsPosition {
-        FIRST, LAST;
+        FIRST, LAST,
+        /**
+         * Nulls position has not been specified by the user and an appropriate default will be used.
+         *
+         * The default values are chosen such that it stays compatible with previous behavior. Unfortunately, this results in
+         * inconsistencies across different types of queries (see https://github.com/elastic/elasticsearch/issues/77068).
+         */
+        ANY;
     }
 
     private final Expression child;
@@ -34,7 +41,7 @@ public class Order extends Expression {
         super(source, singletonList(child));
         this.child = child;
         this.direction = direction;
-        this.nulls = nulls == null ? (direction == OrderDirection.DESC ? NullsPosition.FIRST : NullsPosition.LAST) : nulls;
+        this.nulls = nulls == null ? NullsPosition.ANY : nulls;
     }
 
     @Override

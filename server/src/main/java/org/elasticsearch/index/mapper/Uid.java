@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.Numbers;
 
 import java.util.Arrays;
 import java.util.Base64;
@@ -70,16 +71,6 @@ public final class Uid {
         return true;
     }
 
-    static boolean isPositiveNumeric(String id) {
-        for (int i = 0; i < id.length(); ++i) {
-            final char c = id.charAt(i);
-            if (c < '0' || c > '9') {
-                return false;
-            }
-        }
-        return true;
-    }
-
     /** With numeric ids, we just fold two consecutive chars in a single byte
      *  and use 0x0f as an end marker. */
     private static BytesRef encodeNumericId(String id) {
@@ -128,7 +119,7 @@ public final class Uid {
         if (id.isEmpty()) {
             throw new IllegalArgumentException("Ids can't be empty");
         }
-        if (isPositiveNumeric(id)) {
+        if (Numbers.isPositiveNumeric(id)) {
             // common for ids that come from databases with auto-increments
             return encodeNumericId(id);
         } else if (isURLBase64WithoutPadding(id)) {

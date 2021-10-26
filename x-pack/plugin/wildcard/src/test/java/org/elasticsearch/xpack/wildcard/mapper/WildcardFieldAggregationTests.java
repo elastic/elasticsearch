@@ -12,8 +12,8 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.elasticsearch.Version;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
@@ -41,7 +41,7 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
     public void setup() {
         WildcardFieldMapper.Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, Version.CURRENT);
         builder.ignoreAbove(MAX_FIELD_LENGTH);
-        wildcardFieldMapper = builder.build(new ContentPath(0));
+        wildcardFieldMapper = builder.build(MapperBuilderContext.ROOT);
 
         wildcardFieldType = wildcardFieldMapper.fieldType();
     }

@@ -248,8 +248,6 @@ GET /_search
 }
 --------------------------------------------------
 
-deprecated[6.0.0, Use `_key` instead of `_term` to order buckets by their term]
-
 Ordering the buckets by single value metrics sub-aggregation (identified by the aggregation name):
 
 [source,console,id=terms-aggregation-subaggregation-example]

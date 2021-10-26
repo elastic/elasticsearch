@@ -17,13 +17,14 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.CombinedBitSet;
+import org.elasticsearch.lucene.util.CombinedBitSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
+import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -177,6 +178,7 @@ public final class DocumentSubsetReader extends SequentialStoredFieldsLeafReader
         if (numDocs == -1) {
             synchronized (this) {
                 if (numDocs == -1) {
+                    assert Transports.assertNotTransportThread("resolving role query");
                     try {
                         roleQueryBits = bitsetCache.getBitSet(roleQuery, in.getContext());
                         numDocs = getNumDocs(in, roleQuery, roleQueryBits);

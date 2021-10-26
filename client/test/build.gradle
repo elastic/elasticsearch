@@ -15,14 +15,19 @@ sourceCompatibility = JavaVersion.VERSION_1_8
 group = "${group}.client.test"
 
 // rest client sniffer is licenses under Apache 2.0
-ext.projectLicenses.set(['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0'])
-ext.licenseFile = rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+projectLicenses.set(['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0'])
+licenseFile.set(rootProject.file('licenses/APACHE-LICENSE-2.0.txt'))
 
 dependencies {
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   api "junit:junit:${versions.junit}"
   api "org.hamcrest:hamcrest:${versions.hamcrest}"
+
+  // mockito
+  api 'org.mockito:mockito-core:3.12.4'
+  api 'net.bytebuddy:byte-buddy:1.11.13'
+  api 'org.objenesis:objenesis:3.2'
 }
 
 tasks.named('forbiddenApisMain').configure {
@@ -37,6 +42,9 @@ tasks.named('forbiddenApisTest').configure {
   //client does not depend on core, so only jdk signatures should be checked
   replaceSignatureFiles 'jdk-signatures'
 }
+
+// since this client implementation is going away, third party audit is pointless
+tasks.named("thirdPartyAudit").configure { enabled = false }
 
 // JarHell is part of es server, which we don't want to pull in
 // TODO: Not anymore. Now in :libs:elasticsearch-core

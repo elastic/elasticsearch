@@ -43,7 +43,7 @@ class ProviderToInternalFactoryAdapter<T> implements Provider<T> {
             T t = injector.callInContext(new ContextualCallable<T>() {
                 @Override
                 public T call(InternalContext context) throws ErrorsException {
-                    Dependency dependency = context.getDependency();
+                    Dependency<?> dependency = context.getDependency();
                     return internalFactory.get(errors, context, dependency);
                 }
             });

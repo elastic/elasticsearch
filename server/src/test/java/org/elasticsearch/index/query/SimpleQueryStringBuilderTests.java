@@ -11,6 +11,10 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.spans.SpanNearQuery;
+import org.apache.lucene.queries.spans.SpanOrQuery;
+import org.apache.lucene.queries.spans.SpanQuery;
+import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -22,10 +26,6 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.spans.SpanNearQuery;
-import org.apache.lucene.search.spans.SpanOrQuery;
-import org.apache.lucene.search.spans.SpanQuery;
-import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -461,13 +461,19 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             parser.setDefaultOperator(defaultOp);
             Query query = parser.parse("first foo-bar-foobar* last");
             Query expectedQuery = new BooleanQuery.Builder()
-                .add(new BooleanClause(new SynonymQuery(new Term(TEXT_FIELD_NAME, "first"),
-                    new Term(TEXT_FIELD_NAME, "first")), defaultOp))
+                .add(new BooleanClause(new SynonymQuery.Builder(TEXT_FIELD_NAME)
+                    .addTerm(new Term(TEXT_FIELD_NAME, "first"))
+                    .addTerm(new Term(TEXT_FIELD_NAME, "first"))
+                    .build(), defaultOp))
                 .add(new BooleanQuery.Builder()
-                    .add(new BooleanClause(new SynonymQuery(new Term(TEXT_FIELD_NAME, "foo"),
-                        new Term(TEXT_FIELD_NAME, "foo")), defaultOp))
-                    .add(new BooleanClause(new SynonymQuery(new Term(TEXT_FIELD_NAME, "bar"),
-                        new Term(TEXT_FIELD_NAME, "bar")), defaultOp))
+                    .add(new BooleanClause(new SynonymQuery.Builder(TEXT_FIELD_NAME)
+                        .addTerm(new Term(TEXT_FIELD_NAME, "foo"))
+                        .addTerm(new Term(TEXT_FIELD_NAME, "foo"))
+                        .build(), defaultOp))
+                    .add(new BooleanClause(new SynonymQuery.Builder(TEXT_FIELD_NAME)
+                        .addTerm(new Term(TEXT_FIELD_NAME, "bar"))
+                        .addTerm(new Term(TEXT_FIELD_NAME, "bar"))
+                        .build(), defaultOp))
                     .add(new BooleanQuery.Builder()
                         .add(new BooleanClause(new PrefixQuery(new Term(TEXT_FIELD_NAME, "foobar")),
                             BooleanClause.Occur.SHOULD))
@@ -475,8 +481,10 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                             BooleanClause.Occur.SHOULD))
                         .build(), defaultOp)
                     .build(), defaultOp)
-                .add(new BooleanClause(new SynonymQuery(new Term(TEXT_FIELD_NAME, "last"),
-                    new Term(TEXT_FIELD_NAME, "last")), defaultOp))
+                .add(new BooleanClause(new SynonymQuery.Builder(TEXT_FIELD_NAME)
+                    .addTerm(new Term(TEXT_FIELD_NAME, "last"))
+                    .addTerm(new Term(TEXT_FIELD_NAME, "last"))
+                    .build(), defaultOp))
                 .build();
             assertThat(query, equalTo(expectedQuery));
         }

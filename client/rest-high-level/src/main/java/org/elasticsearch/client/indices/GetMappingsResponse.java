@@ -9,8 +9,8 @@
 package org.elasticsearch.client.indices;
 
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.mapper.MapperService;
 

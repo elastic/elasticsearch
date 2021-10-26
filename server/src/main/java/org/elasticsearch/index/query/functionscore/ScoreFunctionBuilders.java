@@ -69,7 +69,7 @@ public class ScoreFunctionBuilders {
     }
 
     public static WeightBuilder weightFactorFunction(float weight) {
-        return (WeightBuilder)(new WeightBuilder().setWeight(weight));
+        return new WeightBuilder().setWeight(weight);
     }
 
     public static FieldValueFactorFunctionBuilder fieldValueFactorFunction(String fieldName) {

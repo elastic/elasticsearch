@@ -116,4 +116,17 @@ index setting].
 Accept the new behaviour, or specify `?wait_for_active_shards=0` to preserve
 the old behaviour if needed.
 ====
+
+.The index stats API's `types` query parameter has been removed.
+[%collapsible]
+====
+*Details* +
+The index stats API's `types` query parameter has been removed. Previously, you
+could combine `types` with the `indexing` query parameter to return indexing
+stats for specific mapping types. Mapping types have been removed in 8.0.
+
+*Impact* +
+Discontinue use of the `types` query parameter. Requests that include the
+parameter will return an error.
+====
 //end::notable-breaking-changes[]

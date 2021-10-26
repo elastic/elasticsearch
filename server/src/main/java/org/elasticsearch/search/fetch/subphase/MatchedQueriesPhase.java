@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 
 public final class MatchedQueriesPhase implements FetchSubPhase {
-
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext context) throws IOException {
         Map<String, Query> namedQueries = new HashMap<>();
@@ -72,5 +71,4 @@ public final class MatchedQueriesPhase implements FetchSubPhase {
             }
         };
     }
-
 }

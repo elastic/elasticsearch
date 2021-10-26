@@ -43,7 +43,7 @@ public class KeyedFilter extends UnaryPlan {
     }
 
     @Override
-    protected KeyedFilter replaceChild(LogicalPlan newChild) {
+    public KeyedFilter replaceChild(LogicalPlan newChild) {
         return new KeyedFilter(source(), newChild, keys, timestamp, tiebreaker);
     }
 

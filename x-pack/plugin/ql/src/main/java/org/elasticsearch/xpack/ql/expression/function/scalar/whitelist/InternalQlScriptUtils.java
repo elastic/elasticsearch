@@ -111,11 +111,11 @@ public class InternalQlScriptUtils {
     }
 
     public static Boolean isNull(Object expression) {
-        return CheckNullOperation.IS_NULL.apply(expression);
+        return CheckNullOperation.IS_NULL.test(expression);
     }
 
     public static Boolean isNotNull(Object expression) {
-        return CheckNullOperation.IS_NOT_NULL.apply(expression);
+        return CheckNullOperation.IS_NOT_NULL.test(expression);
     }
 
     //

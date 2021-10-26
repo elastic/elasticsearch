@@ -39,15 +39,29 @@ For more information, see
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=calendar-id]
 
+[[ml-get-calendar-query-parms]]
+== {api-query-parms-title}
+
+`from`::
+    (Optional, integer) Skips the specified number of calendars. This parameter
+    is supported only when you omit the `<calendar_id>`. Defaults to `0`.
+
+`size`::
+    (Optional, integer) Specifies the maximum number of calendars to obtain.
+    This parameter is supported only when you omit the `<calendar_id>`. Defaults
+    to `100`.
+
 [[ml-get-calendar-request-body]]
 == {api-request-body-title}
 
 `page`.`from`::
-    (Optional, integer) Skips the specified number of calendars. Defaults to `0`.
+    (Optional, integer) Skips the specified number of calendars. This object is 
+    supported only when you omit the `<calendar_id>`. Defaults to `0`.
 
 `page`.`size`::
     (Optional, integer) Specifies the maximum number of calendars to obtain.
-    Defaults to `0`.
+    This object is  supported only when you omit the `<calendar_id>`. Defaults
+    to `100`.
 
 [[ml-get-calendar-results]]
 == {api-response-body-title}

@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -139,9 +141,19 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         // shrink cycle is started
         LongSupplier nowWayBackInThePastSupplier = () -> 1234L;
         clusterService.submitStateUpdateTask("testing-move-to-step-to-manipulate-step-time",
-            new MoveToNextStepUpdateTask(managedIndexMetadata.getIndex(), policy, currentStepKey, currentStepKey,
-                nowWayBackInThePastSupplier, indexLifecycleService.getPolicyRegistry(), state -> {
-            }));
+                new ClusterStateUpdateTask() {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) throws Exception {
+                        return new MoveToNextStepUpdateTask(managedIndexMetadata.getIndex(), policy, currentStepKey, currentStepKey,
+                                nowWayBackInThePastSupplier, indexLifecycleService.getPolicyRegistry(), state -> {
+                        }).execute(currentState);
+                    }
+
+                    @Override
+                    public void onFailure(String source, Exception e) {
+                        throw new AssertionError(e);
+                    }
+                });
 
         String[] secondCycleShrinkIndexName = new String[1];
         assertBusy(() -> {

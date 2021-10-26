@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.ml.inference.deployment;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
@@ -33,10 +33,13 @@ public class PyTorchResultTests extends AbstractSerializingTestCase<PyTorchResul
         } else {
             int rows = randomIntBetween(1, 10);
             int columns = randomIntBetween(1, 10);
-            double [][] arr = new double[rows][columns];
+            int depth = randomIntBetween(1, 10);
+            double [][][] arr = new double[rows][columns][depth];
             for (int i=0; i<rows; i++) {
                 for (int j=0; j<columns; j++) {
-                    arr[i][j] = randomDouble();
+                    for (int k=0; k<depth; k++) {
+                        arr[i][j][k] = randomDouble();
+                    }
                 }
             }
             return new PyTorchResult(id, arr, randomLong(), null);

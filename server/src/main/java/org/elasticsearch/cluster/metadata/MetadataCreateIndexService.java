@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -45,7 +46,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
@@ -66,6 +66,7 @@ import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -128,6 +129,8 @@ public class MetadataCreateIndexService {
     private final boolean forbidPrivateIndexSettings;
     private final Set<IndexSettingProvider> indexSettingProviders = new HashSet<>();
 
+    private volatile boolean enforceDefaultTierPreference;
+
     public MetadataCreateIndexService(
         final Settings settings,
         final ClusterService clusterService,
@@ -153,6 +156,14 @@ public class MetadataCreateIndexService {
         this.systemIndices = systemIndices;
         this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
         this.shardLimitValidator = shardLimitValidator;
+
+        enforceDefaultTierPreference = DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING,
+            this::setEnforceDefaultTierPreference);
+    }
+
+    public void setEnforceDefaultTierPreference(boolean enforceDefaultTierPreference) {
+        this.enforceDefaultTierPreference = enforceDefaultTierPreference;
     }
 
     /**
@@ -204,7 +215,7 @@ public class MetadataCreateIndexService {
             } else if (isHidden) {
                 logger.trace("index [{}] is a hidden index", index);
             } else {
-                deprecationLogger.deprecate(DeprecationCategory.INDICES, "index_name_starts_with_dot",
+                deprecationLogger.critical(DeprecationCategory.INDICES, "index_name_starts_with_dot",
                     "index name [{}] starts with a dot '.', in the next major version, index names " +
                         "starting with a dot are reserved for hidden indices and system indices", index);
             }
@@ -366,7 +377,7 @@ public class MetadataCreateIndexService {
                     request.index(), isHiddenFromRequest);
 
                 if (v1Templates.size() > 1) {
-                    deprecationLogger.deprecate(DeprecationCategory.TEMPLATES, "index_template_multiple_match",
+                    deprecationLogger.critical(DeprecationCategory.TEMPLATES, "index_template_multiple_match",
                         "index [{}] matches multiple legacy templates [{}], composable templates will only match a single template",
                         request.index(), v1Templates.stream().map(IndexTemplateMetadata::name).sorted().collect(Collectors.joining(", ")));
                 }
@@ -481,7 +492,8 @@ public class MetadataCreateIndexService {
 
         final Settings aggregatedIndexSettings =
             aggregateIndexSettings(currentState, request, resolveSettings(templates),
-                null, settings, indexScopedSettings, shardLimitValidator, indexSettingProviders);
+                null, settings, indexScopedSettings, shardLimitValidator, indexSettingProviders,
+                this.enforceDefaultTierPreference);
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
 
@@ -516,7 +528,8 @@ public class MetadataCreateIndexService {
         final Settings aggregatedIndexSettings =
             aggregateIndexSettings(currentState, request,
                 resolveSettings(currentState.metadata(), templateName),
-                null, settings, indexScopedSettings, shardLimitValidator, indexSettingProviders);
+                null, settings, indexScopedSettings, shardLimitValidator, indexSettingProviders,
+                this.enforceDefaultTierPreference);
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
 
@@ -570,14 +583,15 @@ public class MetadataCreateIndexService {
             settings,
             indexScopedSettings,
             shardLimitValidator,
-            indexSettingProviders
+            indexSettingProviders,
+            this.enforceDefaultTierPreference
         );
         final int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         final IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
 
         return applyCreateIndexWithTemporaryService(currentState, request, silent, null, tmpImd, mappings,
             indexService -> resolveAndValidateAliases(request.index(), request.aliases(),
-                MetadataIndexTemplateService.resolveAliases(template, componentTemplates, null), currentState.metadata(),
+                MetadataIndexTemplateService.resolveAliases(template, componentTemplates), currentState.metadata(),
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
                 aliasValidator, xContentRegistry, indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
@@ -634,7 +648,7 @@ public class MetadataCreateIndexService {
         }
 
         final Settings aggregatedIndexSettings = aggregateIndexSettings(currentState, request, Settings.EMPTY,
-            sourceMetadata, settings, indexScopedSettings, shardLimitValidator, indexSettingProviders);
+            sourceMetadata, settings, indexScopedSettings, shardLimitValidator, indexSettingProviders, this.enforceDefaultTierPreference);
         final int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, sourceMetadata);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
 
@@ -696,7 +710,9 @@ public class MetadataCreateIndexService {
     static Settings aggregateIndexSettings(ClusterState currentState, CreateIndexClusterStateUpdateRequest request,
                                            Settings combinedTemplateSettings, @Nullable IndexMetadata sourceMetadata, Settings settings,
                                            IndexScopedSettings indexScopedSettings, ShardLimitValidator shardLimitValidator,
-                                           Set<IndexSettingProvider> indexSettingProviders) {
+                                           Set<IndexSettingProvider> indexSettingProviders, boolean enforceDefaultTierPreference) {
+        final boolean isDataStreamIndex = request.dataStreamName() != null;
+
         // Create builders for the template and request settings. We transform these into builders
         // because we may want settings to be "removed" from these prior to being set on the new
         // index (see more comments below)
@@ -711,7 +727,6 @@ public class MetadataCreateIndexService {
                 .put(request.settings())
                 .build();
 
-            final boolean isDataStreamIndex = request.dataStreamName() != null;
             // Loop through all the explicit index setting providers, adding them to the
             // additionalIndexSettings map
             for (IndexSettingProvider provider : indexSettingProviders) {
@@ -753,6 +768,20 @@ public class MetadataCreateIndexService {
 
         // now, put the request settings, so they override templates
         indexSettingsBuilder.put(requestSettings.build());
+
+        if (sourceMetadata == null) { // not for shrink/split/clone
+            if (enforceDefaultTierPreference) {
+                // regardless of any previous logic, we're going to force there
+                // to be an appropriate non-empty value for the tier preference
+                String currentTierPreference = indexSettingsBuilder.get(DataTier.TIER_PREFERENCE);
+                if (DataTier.parseTierList(currentTierPreference).isEmpty()) {
+                    String newTierPreference = isDataStreamIndex ? DataTier.DATA_HOT : DataTier.DATA_CONTENT;
+                    logger.debug("enforcing default [{}] setting for [{}] creation, replacing [{}] with [{}]",
+                        DataTier.TIER_PREFERENCE, request.index(), currentTierPreference, newTierPreference);
+                    indexSettingsBuilder.put(DataTier.TIER_PREFERENCE, newTierPreference);
+                }
+            }
+        }
 
         if (indexSettingsBuilder.get(IndexMetadata.SETTING_VERSION_CREATED) == null) {
             final DiscoveryNodes nodes = currentState.nodes();
@@ -819,7 +848,9 @@ public class MetadataCreateIndexService {
             // in this case we either have no index to recover from or
             // we have a source index with 1 shard and without an explicit split factor
             // or one that is valid in that case we can split into whatever and auto-generate a new factor.
-            if (IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(indexSettings)) {
+            // (Don't use IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(indexSettings) here, otherwise
+            // we get the default value when `null` has been provided as value)
+            if (indexSettings.get(IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey()) != null) {
                 routingNumShards = IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(indexSettings);
             } else {
                 routingNumShards = calculateNumRoutingShards(numTargetShards, indexVersionCreated);
@@ -1162,7 +1193,7 @@ public class MetadataCreateIndexService {
         IndexAbstraction source = state.metadata().getIndicesLookup().get(sourceIndex);
         assert source != null;
         if (source.getParentDataStream() != null &&
-            source.getParentDataStream().getWriteIndex().getIndex().equals(sourceMetadata.getIndex())) {
+            source.getParentDataStream().getWriteIndex().equals(sourceMetadata.getIndex())) {
             throw new IllegalArgumentException(String.format(Locale.ROOT, "cannot resize the write index [%s] for data stream [%s]",
                 sourceIndex, source.getParentDataStream().getName()));
         }
@@ -1272,16 +1303,19 @@ public class MetadataCreateIndexService {
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexSettings) &&
             (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexSettings)
                 || IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexSettings))) {
-            deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "translog_retention",
-                "Translog retention settings [index.translog.retention.age] "
-                + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
+            deprecationLogger.critical(
+                DeprecationCategory.SETTINGS,
+                "translog_retention",
+                "Translog retention settings [index.translog.retention.age] and [index.translog.retention.size] are deprecated and "
+                    + "effectively ignored. They will be removed in a future version."
+            );
         }
     }
 
     public static void validateStoreTypeSetting(Settings indexSettings) {
         final String storeType = IndexModule.INDEX_STORE_TYPE_SETTING.get(indexSettings);
         if (IndexModule.Type.SIMPLEFS.match(storeType)) {
-            deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "store_type_setting",
+            deprecationLogger.critical(DeprecationCategory.SETTINGS, "store_type_setting",
                 "[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. " +
                     "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type as it offers superior " +
                     "or equivalent performance to [simplefs].");

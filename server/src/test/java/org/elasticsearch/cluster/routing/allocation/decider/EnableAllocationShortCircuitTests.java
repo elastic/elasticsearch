@@ -34,6 +34,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING;
@@ -64,7 +65,7 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
             .nodes(discoveryNodesBuilder).metadata(metadataBuilder).routingTable(routingTableBuilder.build()).build();
 
         while (clusterState.getRoutingNodes().hasUnassignedShards()
-               || clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).isEmpty() == false) {
+               || shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING).isEmpty() == false) {
             clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
         }
 
@@ -98,7 +99,7 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
 
     public void testRebalancingSkippedIfDisabledIncludingOnSpecificIndices() {
         ClusterState clusterState = createClusterStateWithAllShardsAssigned();
-        final IndexMetadata indexMetadata = randomFrom(clusterState.metadata().indices().values().toArray(IndexMetadata.class));
+        final IndexMetadata indexMetadata = randomFrom(clusterState.metadata().indices().values().toArray(IndexMetadata[]::new));
         clusterState = ClusterState.builder(clusterState).metadata(Metadata.builder(clusterState.metadata())
             .put(IndexMetadata.builder(indexMetadata).settings(Settings.builder().put(indexMetadata.getSettings())
                 .put(INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE.name()))).build()).build();
@@ -113,7 +114,7 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
 
     public void testRebalancingAttemptedIfDisabledButOverridenOnSpecificIndices() {
         ClusterState clusterState = createClusterStateWithAllShardsAssigned();
-        final IndexMetadata indexMetadata = randomFrom(clusterState.metadata().indices().values().toArray(IndexMetadata.class));
+        final IndexMetadata indexMetadata = randomFrom(clusterState.metadata().indices().values());
         clusterState = ClusterState.builder(clusterState).metadata(Metadata.builder(clusterState.metadata())
             .put(IndexMetadata.builder(indexMetadata).settings(Settings.builder().put(indexMetadata.getSettings())
                 .put(INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(),

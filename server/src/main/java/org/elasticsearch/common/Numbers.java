@@ -189,4 +189,17 @@ public final class Numbers {
         }
         return (byte) l;
     }
+
+    /**
+     * Checks if the given string can be parsed as a positive integer value.
+     */
+    public static boolean isPositiveNumeric(String string) {
+        for (int i = 0; i < string.length(); ++i) {
+            final char c = string.charAt(i);
+            if (c < '0' || c > '9') {
+                return false;
+            }
+        }
+        return true;
+    }
 }

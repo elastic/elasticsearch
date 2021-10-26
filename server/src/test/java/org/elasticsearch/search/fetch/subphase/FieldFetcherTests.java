@@ -8,30 +8,41 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.common.xcontent.ObjectPath.eval;
+import static org.elasticsearch.xcontent.ObjectPath.eval;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
@@ -194,8 +205,49 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         fields = fetchFields(mapperService, source, "_type");
         assertTrue(fields.isEmpty());
 
+        String docId = randomAlphaOfLength(12);
+        String routing = randomAlphaOfLength(12);
+        long version = randomLongBetween(1, 100);
+        withLuceneIndex(mapperService, iw -> {
+            ParsedDocument parsedDocument = mapperService.documentMapper()
+                .parse(source(docId, b -> b.field("integer_field", "value"), routing));
+            parsedDocument.version().setLongValue(version);
+            iw.addDocument(parsedDocument.rootDoc());
+        }, iw -> {
+            List<FieldAndFormat> fieldList = List.of(
+                new FieldAndFormat("_id", null),
+                new FieldAndFormat("_index", null),
+                new FieldAndFormat("_version", null),
+                new FieldAndFormat("_routing", null),
+                new FieldAndFormat("_ignored", null)
+            );
+            FieldFetcher fieldFetcher = FieldFetcher.create(
+                newSearchExecutionContext(mapperService, (ft, index, sl) -> fieldDataLookup().apply(ft, sl)),
+                fieldList
+            );
+            IndexSearcher searcher = newSearcher(iw);
+            LeafReaderContext readerContext = searcher.getIndexReader().leaves().get(0);
+            fieldFetcher.setNextReader(readerContext);
+
+            SourceLookup sourceLookup = new SourceLookup();
+            sourceLookup.setSegmentAndDocument(readerContext, 0);
+
+            Map<String, DocumentField> fetchedFields = fieldFetcher.fetch(sourceLookup);
+            assertThat(fetchedFields.size(), equalTo(5));
+            assertEquals(docId, fetchedFields.get("_id").getValue());
+            assertEquals(routing, fetchedFields.get("_routing").getValue());
+            assertEquals("test", fetchedFields.get("_index").getValue());
+            assertEquals(version, ((Long) fetchedFields.get("_version").getValue()).longValue());
+            assertEquals("integer_field", fetchedFields.get("_ignored").getValue());
+        });
+
         // several other metadata fields throw exceptions via their value fetchers when trying to get them
-        for (String fieldname : List.of("_id", "_index", "_seq_no", "_routing", "_ignored")) {
+        for (String fieldname : List.of(
+            SeqNoFieldMapper.NAME,
+            SourceFieldMapper.NAME,
+            FieldNamesFieldMapper.NAME,
+            NestedPathFieldMapper.name(Version.CURRENT)
+        )) {
             expectThrows(UnsupportedOperationException.class, () -> fetchFields(mapperService, source, fieldname));
         }
     }
@@ -349,7 +401,8 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .array("field", "really_really_long_value")
             .endObject();
         fields = fetchFields(mapperService, source, "field");
-        assertFalse(fields.containsKey("field"));
+        assertThat(fields.get("field").getValues().size(), equalTo(0));
+        assertThat(fields.get("field").getIgnoredValues().size(), equalTo(1));
     }
 
     public void testFieldAliases() throws IOException {
@@ -827,14 +880,17 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
         // this should not return a field bc. f1 is malformed
         Map<String, DocumentField> fields = fetchFields(mapperService, source, List.of(new FieldAndFormat("*", null, true)));
-        assertThat(fields.size(), equalTo(0));
+        assertThat(fields.get("f1").getValues().size(), equalTo(0));
+        assertThat(fields.get("f1").getIgnoredValues().size(), equalTo(1));
 
         // and this should neither
         fields = fetchFields(mapperService, source, List.of(new FieldAndFormat("*", null, true)));
-        assertThat(fields.size(), equalTo(0));
+        assertThat(fields.get("f1").getValues().size(), equalTo(0));
+        assertThat(fields.get("f1").getIgnoredValues().size(), equalTo(1));
 
         fields = fetchFields(mapperService, source, List.of(new FieldAndFormat("f1", null, true)));
-        assertThat(fields.size(), equalTo(0));
+        assertThat(fields.get("f1").getValues().size(), equalTo(0));
+        assertThat(fields.get("f1").getIgnoredValues().size(), equalTo(1));
 
         // check this also does not overwrite with arrays
         source = XContentFactory.jsonBuilder().startObject()
@@ -842,7 +898,8 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .endObject();
 
         fields = fetchFields(mapperService, source, List.of(new FieldAndFormat("f1", null, true)));
-        assertThat(fields.size(), equalTo(0));
+        assertThat(fields.get("f1").getValues().size(), equalTo(0));
+        assertThat(fields.get("f1").getIgnoredValues().size(), equalTo(1));
     }
 
     public void testUnmappedFieldsWildcard() throws IOException {
@@ -912,10 +969,9 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
         XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("a", "foo").endObject();
 
-        List<FieldAndFormat> fieldAndFormatList = new ArrayList<>();
-        boolean includeUnmapped = true;
-        for (int i = 0; i < 1000; i++) {
-            fieldAndFormatList.add(new FieldAndFormat(randomAlphaOfLength(150) + "*", null, includeUnmapped));
+        List<FieldAndFormat> fieldAndFormatList = new ArrayList<>(8_000);
+        for (int i = 0; i < 8000; i++) {
+            fieldAndFormatList.add(new FieldAndFormat(randomAlphaOfLength(150) + "*", null, true));
         }
         expectThrows(TooComplexToDeterminizeException.class, () -> fetchFields(mapperService, source, fieldAndFormatList));
     }
@@ -947,7 +1003,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .startObject("_doc")
             .startObject("properties")
                 .startObject("field").field("type", "keyword").endObject()
-                .startObject("integer_field").field("type", "integer").endObject()
+                .startObject("integer_field").field("type", "integer").field("ignore_malformed", "true").endObject()
                 .startObject("date_field").field("type", "date").endObject()
                 .startObject("geo_point").field("type", "geo_point").endObject()
                 .startObject("float_range").field("type", "float_range").endObject()
@@ -966,18 +1022,25 @@ public class FieldFetcherTests extends MapperServiceTestCase {
     }
 
     private static SearchExecutionContext newSearchExecutionContext(MapperService mapperService) {
+        return newSearchExecutionContext(mapperService, null);
+    }
+
+    private static SearchExecutionContext newSearchExecutionContext(
+        MapperService mapperService,
+        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup
+    ) {
         Settings settings = Settings.builder().put("index.version.created", Version.CURRENT)
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)
             .put(IndexMetadata.SETTING_INDEX_UUID, "uuid").build();
-        IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("test").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         return new SearchExecutionContext(
             0,
             0,
             indexSettings,
             null,
-            null,
+            indexFieldDataLookup,
             mapperService,
             mapperService.mappingLookup(),
             null,

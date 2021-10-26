@@ -22,6 +22,7 @@ import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -35,6 +36,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
@@ -46,17 +48,17 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -98,6 +100,8 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     static WildcardFieldMapper wildcardFieldType;
     static WildcardFieldMapper wildcardFieldType79;
     static KeywordFieldMapper keywordFieldType;
+    private DirectoryReader rewriteReader;
+    private BaseDirectoryWrapper rewriteDir;
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
@@ -114,14 +118,44 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     public void setUp() throws Exception {
         Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, Version.CURRENT);
         builder.ignoreAbove(MAX_FIELD_LENGTH);
-        wildcardFieldType = builder.build(new ContentPath(0));
+        wildcardFieldType = builder.build(MapperBuilderContext.ROOT);
 
         Builder builder79 = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, Version.V_7_9_0);
-        wildcardFieldType79 = builder79.build(new ContentPath(0));
+        wildcardFieldType79 = builder79.build(MapperBuilderContext.ROOT);
 
         org.elasticsearch.index.mapper.KeywordFieldMapper.Builder kwBuilder = new KeywordFieldMapper.Builder(KEYWORD_FIELD_NAME);
-        keywordFieldType = kwBuilder.build(new ContentPath(0));
+        keywordFieldType = kwBuilder.build(MapperBuilderContext.ROOT);
+        
+        rewriteDir = newDirectory();
+        IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER_7_10);
+        RandomIndexWriter iw = new RandomIndexWriter(random(), rewriteDir, iwc);
+
+        // Create a string that is too large and will not be indexed
+        String docContent = "a";
+        Document doc = new Document();
+        LuceneDocument parseDoc = new LuceneDocument();
+        addFields(parseDoc, doc, docContent);
+        indexDoc(parseDoc, doc, iw);
+
+        iw.forceMerge(1);
+        rewriteReader = iw.getReader();
+        iw.close();
+
         super.setUp();
+    }
+    
+    
+
+    @Override
+    public void tearDown() throws Exception {
+        try {
+            rewriteReader.close();
+            rewriteDir.close();
+        } catch (Exception ignoreCloseFailure) {
+            // allow any superclass tear down logic to continue
+        }
+        // TODO Auto-generated method stub
+        super.tearDown();
     }
 
     public void testTooBigKeywordField() throws IOException {
@@ -131,7 +165,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         // Create a string that is too large and will not be indexed
-        String docContent = randomABString(MAX_FIELD_LENGTH + 1);
+        String docContent = "a" + randomABString(MAX_FIELD_LENGTH);
         Document doc = new Document();
         LuceneDocument parseDoc = new LuceneDocument();
         addFields(parseDoc, doc, docContent);
@@ -276,7 +310,6 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         TopDocs td = searcher.search(q, 10, Sort.RELEVANCE);
         assertThat(td.totalHits.value, equalTo(count));
     }
-
 
     public void testSearchResultsVersusKeywordField() throws IOException {
         Directory dir = newDirectory();
@@ -485,10 +518,10 @@ public class WildcardFieldMapperTests extends MapperTestCase {
 
     public void testRegexAcceleration() throws IOException, ParseException {
         // All these expressions should rewrite to a match all with no verification step required at all
-        String superfastRegexes[]= { ".*",  "...*..", "(foo|bar|.*)", "@"};
+        String superfastRegexes[]= { ".*", "(foo|bar|.*)", "@"};
         for (String regex : superfastRegexes) {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 0, 20000, null, MOCK_CONTEXT);
-            assertTrue(wildcardFieldQuery instanceof DocValuesFieldExistsQuery);
+            assertTrue(regex + "should have been accelerated", wildcardFieldQuery instanceof DocValuesFieldExistsQuery);
         }
         String matchNoDocsRegexes[]= { ""};
         for (String regex : matchNoDocsRegexes) {
@@ -519,11 +552,14 @@ public class WildcardFieldMapperTests extends MapperTestCase {
 
         // All these expressions should rewrite to just the verification query (there's no ngram acceleration)
         // TODO we can possibly improve on some of these
-        String matchAllButVerifyTests[]= { "..", "(a)?","(a|b){0,3}", "((foo)?|(foo|bar)?)", "@&~(abc.+)", "aaa.+&.+bbb"};
+        String matchAllButVerifyTests[]= { "..", "(a)?","(a|b){0,3}", "((foo)?|(foo|bar)?)", "@&~(abc.+)", "aaa.+&.+bbb", "a*",  "...*.."};
         for (String regex : matchAllButVerifyTests) {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 0, 20000, null, MOCK_CONTEXT);
+            BinaryDvConfirmedAutomatonQuery q = (BinaryDvConfirmedAutomatonQuery)wildcardFieldQuery;
+            Query approximationQuery = unwrapAnyBoost(q.getApproximationQuery());
+            approximationQuery = getSimplifiedApproximationQuery(q.getApproximationQuery());
             assertTrue(regex +" was not a pure verify query " +formatQuery(wildcardFieldQuery),
-                wildcardFieldQuery instanceof AutomatonQueryOnBinaryDv);
+                approximationQuery instanceof MatchAllDocsQuery);
         }
 
 
@@ -532,8 +568,8 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         String suboptimalTests[][] = {
             // TODO short wildcards like a* OR b* aren't great so we just drop them.
             // Ideally we would attach to successors to create (acd OR bcd)
-            { "[ab]cd",  "+cc_ +c__"}
-            };
+            { "[ab]cd",  "+(+cc_ +c__) +*:*"}
+        };
         for (String[] test : suboptimalTests) {
             String regex = test[0];
             String expectedAccelerationQueryString = test[1].replaceAll("_", ""+WildcardFieldMapper.TOKEN_START_OR_END_CHAR);
@@ -569,13 +605,13 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             { "foo*bar", "+_eo +eoo +aaq +aq_ +q__" },
             { "foo?bar", "+_eo +eoo +aaq +aq_ +q__" },
             { "?foo*bar?", "+eoo +aaq" },
-            { "*c", "+c__" } };
+            { "*c", "c__" } };
         for (String[] test : tests) {
             String pattern = test[0];
             String expectedAccelerationQueryString = test[1].replaceAll("_", "" + WildcardFieldMapper.TOKEN_START_OR_END_CHAR);
             Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, MOCK_CONTEXT);
             testExpectedAccelerationQuery(pattern, wildcardFieldQuery, expectedAccelerationQueryString);
-            assertTrue(unwrapAnyConstantScore(wildcardFieldQuery) instanceof BooleanQuery);
+            assertTrue(unwrapAnyConstantScore(wildcardFieldQuery) instanceof BinaryDvConfirmedAutomatonQuery);
         }
 
         // TODO All these expressions have no acceleration at all and could be improved
@@ -583,9 +619,10 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         for (String pattern : slowPatterns) {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, MOCK_CONTEXT);
             wildcardFieldQuery = unwrapAnyConstantScore(wildcardFieldQuery);
+            BinaryDvConfirmedAutomatonQuery q = (BinaryDvConfirmedAutomatonQuery) wildcardFieldQuery;
             assertTrue(
                 pattern + " was not as slow as we assumed " + formatQuery(wildcardFieldQuery),
-                wildcardFieldQuery instanceof AutomatonQueryOnBinaryDv
+                q.getApproximationQuery() instanceof MatchAllDocsQuery
             );
         }
 
@@ -599,14 +636,17 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             new Term("field", pattern),
             Integer.MAX_VALUE
         );
-        AutomatonQueryOnBinaryDv csQ = new AutomatonQueryOnBinaryDv("field", pattern, caseSensitiveAutomaton);
-        AutomatonQueryOnBinaryDv ciQ = new AutomatonQueryOnBinaryDv("field", pattern, caseInSensitiveAutomaton);
+        BinaryDvConfirmedAutomatonQuery csQ = new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(),
+            "field", pattern, caseSensitiveAutomaton);
+        BinaryDvConfirmedAutomatonQuery ciQ = new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(),
+            "field", pattern, caseInSensitiveAutomaton);
         assertNotEquals(csQ, ciQ);
         assertNotEquals(csQ.hashCode(), ciQ.hashCode());
 
         // Same query should be equal
         Automaton caseSensitiveAutomaton2 = WildcardQuery.toAutomaton(new Term("field", pattern));
-        AutomatonQueryOnBinaryDv csQ2 = new AutomatonQueryOnBinaryDv("field", pattern, caseSensitiveAutomaton2);
+        BinaryDvConfirmedAutomatonQuery csQ2 = new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(),
+            "field", pattern, caseSensitiveAutomaton2);
         assertEquals(csQ, csQ2);
         assertEquals(csQ.hashCode(), csQ2.hashCode());
     }
@@ -710,7 +750,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         };
         for (FuzzyTest test : tests) {
             Query wildcardFieldQuery = test.getFuzzyQuery();
-            testExpectedAccelerationQuery(test.pattern, wildcardFieldQuery, test.getExpectedApproxQuery());
+            testExpectedAccelerationQuery(test.pattern, wildcardFieldQuery, getSimplifiedApproximationQuery(test.getExpectedApproxQuery()));
         }
     }
 
@@ -761,7 +801,8 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         }
     }
 
-    void testExpectedAccelerationQuery(String regex, Query combinedQuery, String expectedAccelerationQueryString) throws ParseException {
+    void testExpectedAccelerationQuery(String regex, Query combinedQuery, String expectedAccelerationQueryString) throws ParseException,
+        IOException {
 
         QueryParser qsp = new QueryParser(WILDCARD_FIELD_NAME, new KeywordAnalyzer());
         Query expectedAccelerationQuery = qsp.parse(expectedAccelerationQueryString);
@@ -776,25 +817,61 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             return q;
         }
     }
-
-    void testExpectedAccelerationQuery(String regex, Query combinedQuery, Query expectedAccelerationQuery) throws ParseException {
-        BooleanQuery cq = (BooleanQuery) unwrapAnyConstantScore(combinedQuery);
-        assert cq.clauses().size() == 2;
-        Query approximationQuery = null;
-        boolean verifyQueryFound = false;
-        for (BooleanClause booleanClause : cq.clauses()) {
-            Query q = booleanClause.getQuery();
-            if (q instanceof AutomatonQueryOnBinaryDv) {
-                verifyQueryFound = true;
-            } else {
-                approximationQuery = q;
-            }
+    private Query unwrapAnyBoost(Query q) {
+        if (q instanceof BoostQuery) {
+            BoostQuery csq = (BoostQuery) q;
+            return csq.getQuery();
+        } else {
+            return q;
         }
-        assert verifyQueryFound;
+    }    
+    
 
+    void testExpectedAccelerationQuery(String regex, Query combinedQuery, Query expectedAccelerationQuery) throws ParseException,
+        IOException {
+        BinaryDvConfirmedAutomatonQuery cq = (BinaryDvConfirmedAutomatonQuery) unwrapAnyConstantScore(combinedQuery);
+        Query approximationQuery = cq.getApproximationQuery();
+        approximationQuery = getSimplifiedApproximationQuery(approximationQuery);
         String message = "regex: "+ regex +"\nactual query: " + formatQuery(approximationQuery) +
             "\nexpected query: " + formatQuery(expectedAccelerationQuery) + "\n";
         assertEquals(message, expectedAccelerationQuery, approximationQuery);
+    }
+
+    // For comparison purposes rewrite and unwrap various superfluous parts to get to raw logic
+    protected Query getSimplifiedApproximationQuery(Query approximationQuery) throws IOException {
+        int numRewrites = 0;
+        int maxNumRewrites = 100;
+        for (; numRewrites < maxNumRewrites; numRewrites++) {
+            Query newApprox = approximationQuery.rewrite(rewriteReader);
+            if (newApprox == approximationQuery) {
+                break;
+            }
+            approximationQuery = newApprox;
+            
+        }
+        assertTrue(numRewrites < maxNumRewrites);
+        approximationQuery = rewriteFiltersToMustsForComparisonPurposes(approximationQuery);
+        return approximationQuery;
+    }
+
+    private Query rewriteFiltersToMustsForComparisonPurposes(Query q) {
+        q = unwrapAnyBoost(q);
+        q = unwrapAnyConstantScore(q);
+        if (q instanceof BooleanQuery) {
+            BooleanQuery.Builder result = new BooleanQuery.Builder();
+            BooleanQuery bq = (BooleanQuery)q;
+            for (BooleanClause cq : bq.clauses()){
+                Query rewritten = rewriteFiltersToMustsForComparisonPurposes(cq.getQuery());
+                if(cq.getOccur() == Occur.FILTER) {
+                    result.add(rewritten, Occur.MUST);
+                } else {
+                    result.add(rewritten, cq.getOccur());
+                }
+            }
+            return result.build();
+        }
+
+        return q;
     }
 
     private String getRandomFuzzyPattern(HashSet<String> values, int edits, int prefixLength) {

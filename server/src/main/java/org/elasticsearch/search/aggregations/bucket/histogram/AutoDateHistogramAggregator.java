@@ -12,10 +12,10 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -66,26 +66,8 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         Map<String, Object> metadata
     ) throws IOException {
         return cardinality == CardinalityUpperBound.ONE
-            ? new FromSingle(
-                name,
-                factories,
-                targetBuckets,
-                roundingInfos,
-                valuesSourceConfig,
-                context,
-                parent,
-                metadata
-            )
-            : new FromMany(
-                name,
-                factories,
-                targetBuckets,
-                roundingInfos,
-                valuesSourceConfig,
-                context,
-                parent,
-                metadata
-            );
+            ? new FromSingle(name, factories, targetBuckets, roundingInfos, valuesSourceConfig, context, parent, metadata)
+            : new FromMany(name, factories, targetBuckets, roundingInfos, valuesSourceConfig, context, parent, metadata);
     }
 
     private final ValuesSource.Numeric valuesSource;
@@ -242,16 +224,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             Aggregator parent,
             Map<String, Object> metadata
         ) throws IOException {
-            super(
-                name,
-                factories,
-                targetBuckets,
-                roundingInfos,
-                valuesSourceConfig,
-                context,
-                parent,
-                metadata
-            );
+            super(name, factories, targetBuckets, roundingInfos, valuesSourceConfig, context, parent, metadata);
 
             preparedRounding = prepareRounding(0);
             bucketOrds = new LongKeyedBucketOrds.FromSingle(bigArrays());
@@ -446,16 +419,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             Aggregator parent,
             Map<String, Object> metadata
         ) throws IOException {
-            super(
-                name,
-                factories,
-                targetBuckets,
-                roundingInfos,
-                valuesSourceConfig,
-                context,
-                parent,
-                metadata
-            );
+            super(name, factories, targetBuckets, roundingInfos, valuesSourceConfig, context, parent, metadata);
             assert roundingInfos.length < 127 : "Rounding must fit in a signed byte";
             roundingIndices = bigArrays().newByteArray(1, true);
             mins = bigArrays().newLongArray(1, false);

@@ -14,3 +14,6 @@
 
 # Format more snapshot / restore relate projects
 559c4e6ef4f9173bbb59043bacd0ac36c7281040
+
+# Format aggregations and related code (server and x-pack)
+d71544976608bdb53fa4d29521fb328e1033ee2f

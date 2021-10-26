@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.Map;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -17,13 +14,17 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.monitoring.Monitoring;
 
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -83,7 +84,7 @@ public class ClusterAlertHttpResource extends PublishableHttpResource {
     @Override
     protected void doCheck(final RestClient client, final ActionListener<Boolean> listener) {
         // if we should be adding, then we need to check for existence
-        if (isWatchDefined() && licenseState.checkFeature(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)) {
+        if (isWatchDefined() && Monitoring.MONITORING_CLUSTER_ALERTS_FEATURE.check(licenseState)) {
             final CheckedFunction<Response, Boolean, IOException> watchChecker =
                     (response) -> shouldReplaceClusterAlert(response, XContentType.JSON.xContent(), LAST_UPDATED_VERSION);
 

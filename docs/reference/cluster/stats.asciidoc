@@ -916,6 +916,18 @@ Total amount of physical memory across all selected nodes.
 (integer)
 Total amount, in bytes, of physical memory across all selected nodes.
 
+`adjusted_total`::
+(<<byte-units,byte value>>)
+Total amount of memory across all selected nodes, but using the value specified
+using the `es.total_memory_bytes` system property instead of measured total
+memory for those nodes where that system property was set.
+
+`adjusted_total_in_bytes`::
+(integer)
+Total amount, in bytes, of memory across all selected nodes, but using the
+value specified using the `es.total_memory_bytes` system property instead
+of measured total memory for those nodes where that system property was set.
+
 `free`::
 (<<byte-units, byte units>>)
 Amount of free physical memory across all selected nodes.
@@ -1399,6 +1411,8 @@ The API returns the following response:
          "mem" : {
             "total" : "16gb",
             "total_in_bytes" : 17179869184,
+            "adjusted_total" : "16gb",
+            "adjusted_total_in_bytes" : 17179869184,
             "free" : "78.1mb",
             "free_in_bytes" : 81960960,
             "used" : "15.9gb",

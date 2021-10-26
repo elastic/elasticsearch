@@ -20,7 +20,6 @@ import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.testing.Test;
 import org.gradle.plugins.ide.eclipse.model.EclipseModel;
-
 import org.gradle.plugins.ide.idea.model.IdeaModel;
 
 import java.util.ArrayList;

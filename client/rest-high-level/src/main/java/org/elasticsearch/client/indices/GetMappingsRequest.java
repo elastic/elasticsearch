@@ -17,7 +17,7 @@ public class GetMappingsRequest extends TimedRequest {
     private boolean local = false;
     private boolean includeDefaults = false;
     private String[] indices = Strings.EMPTY_ARRAY;
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
+    private IndicesOptions indicesOptions;
 
     /**
      * Indicates whether the receiving node should operate based on local index information or

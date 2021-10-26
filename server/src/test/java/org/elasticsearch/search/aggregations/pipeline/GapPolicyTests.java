@@ -34,8 +34,7 @@ public class GapPolicyTests extends AbstractWriteableEnumTestCase {
         assertThat(BucketHelpers.GapPolicy.parse("skip", null), equalTo(BucketHelpers.GapPolicy.SKIP));
         assertThat(BucketHelpers.GapPolicy.parse("keep_values", null), equalTo(BucketHelpers.GapPolicy.KEEP_VALUES));
         ParsingException e = expectThrows(ParsingException.class, () -> BucketHelpers.GapPolicy.parse("does_not_exist", null));
-        assertThat(e.getMessage(),
-            equalTo("Invalid gap policy: [does_not_exist], accepted values: [insert_zeros, skip, keep_values]"));
+        assertThat(e.getMessage(), equalTo("Invalid gap policy: [does_not_exist], accepted values: [insert_zeros, skip, keep_values]"));
     }
 
     @Override

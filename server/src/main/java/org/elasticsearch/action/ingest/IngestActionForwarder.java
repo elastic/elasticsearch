@@ -36,6 +36,7 @@ public final class IngestActionForwarder implements ClusterStateApplier {
         ingestNodes = new DiscoveryNode[0];
     }
 
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public void forwardIngestRequest(ActionType<?> action, ActionRequest request, ActionListener<?> listener) {
         transportService.sendRequest(randomIngestNode(), action.name(), request,
             new ActionListenerResponseHandler(listener, action.getResponseReader()));
@@ -52,6 +53,6 @@ public final class IngestActionForwarder implements ClusterStateApplier {
 
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
-        ingestNodes = event.state().getNodes().getIngestNodes().values().toArray(DiscoveryNode.class);
+        ingestNodes = event.state().getNodes().getIngestNodes().values().toArray(DiscoveryNode[]::new);
     }
 }

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gateway;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -23,10 +22,10 @@ import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.ShardStoreInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata;
@@ -103,7 +102,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                             "existing allocation of replica to [" + currentNode + "] cancelled, can perform a noop recovery on ["+
                                 nodeWithHighestMatch + "]",
                             null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), false,
-                            UnassignedInfo.AllocationStatus.NO_ATTEMPT, failedNodeIds);
+                            UnassignedInfo.AllocationStatus.NO_ATTEMPT, failedNodeIds, null);
                         // don't cancel shard in the loop as it will cause a ConcurrentModificationException
                         shardCancellationActions.add(() -> routingNodes.failShard(logger, shard, unassignedInfo,
                             metadata.getIndexSafe(shard.index()), allocation.changes()));
@@ -189,7 +188,8 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         } else if (matchingNodes.getNodeWithHighestMatch() != null) {
             RoutingNode nodeWithHighestMatch = allocation.routingNodes().node(matchingNodes.getNodeWithHighestMatch().getId());
             // we only check on THROTTLE since we checked before on NO
-            Decision decision = allocation.deciders().canAllocate(unassignedShard, nodeWithHighestMatch, allocation);
+            Decision decision = allocation.deciders().canAllocateReplicaWhenThereIsRetentionLease(unassignedShard,
+                nodeWithHighestMatch, allocation);
             if (decision.type() == Decision.Type.THROTTLE) {
                 logger.debug("[{}][{}]: throttling allocation [{}] to [{}] in order to reuse its unallocated persistent store",
                     unassignedShard.index(), unassignedShard.id(), unassignedShard, nodeWithHighestMatch.node());
@@ -213,7 +213,11 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                 Metadata metadata = allocation.metadata();
                 IndexMetadata indexMetadata = metadata.index(unassignedShard.index());
                 totalDelayMillis = INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexMetadata.getSettings()).getMillis();
-                long remainingDelayNanos = unassignedInfo.getRemainingDelay(System.nanoTime(), indexMetadata.getSettings());
+                long remainingDelayNanos = unassignedInfo.getRemainingDelay(
+                    System.nanoTime(),
+                    indexMetadata.getSettings(),
+                    metadata.nodeShutdowns()
+                );
                 remainingDelayMillis = TimeValue.timeValueNanos(remainingDelayNanos).millis();
             }
             return AllocateUnassignedDecision.delayed(remainingDelayMillis, totalDelayMillis, nodeDecisions);
@@ -235,14 +239,14 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         Decision madeDecision = Decision.NO;
         final boolean explain = allocation.debugDecision();
         Map<String, NodeAllocationResult> nodeDecisions = explain ? new HashMap<>() : null;
-        for (ObjectCursor<DiscoveryNode> cursor : allocation.nodes().getDataNodes().values()) {
-            RoutingNode node = allocation.routingNodes().node(cursor.value.getId());
+        for (DiscoveryNode discoveryNode : allocation.nodes().getDataNodes().values()) {
+            RoutingNode node = allocation.routingNodes().node(discoveryNode.getId());
             if (node == null) {
                 continue;
             }
             // if we can't allocate it on a node, ignore it, for example, this handles
             // cases for only allocating a replica after a primary
-            Decision decision = allocation.deciders().canAllocate(shard, node, allocation);
+            Decision decision = allocation.deciders().canAllocateReplicaWhenThereIsRetentionLease(shard, node, allocation);
             if (decision.type() == Decision.Type.YES && madeDecision.type() != Decision.Type.YES) {
                 if (explain) {
                     madeDecision = decision;
@@ -314,10 +318,17 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                 continue;
             }
 
-            // check if we can allocate on that node...
-            // we only check for NO, since if this node is THROTTLING and it has enough "same data"
-            // then we will try and assign it next time
-            Decision decision = allocation.deciders().canAllocate(shard, node, allocation);
+            // Check whether we have existing data for the replica
+            final long retainingSeqNoForReplica = primaryStore.getPeerRecoveryRetentionLeaseRetainingSeqNo(discoNode);
+            final Decision decision;
+            if (retainingSeqNoForReplica == -1) {
+                // There is no existing replica data on the node
+                decision = allocation.deciders().canAllocate(shard, node, allocation);
+            } else {
+                // There is existing replica data on the node
+                decision = allocation.deciders().canAllocateReplicaWhenThereIsRetentionLease(shard, node, allocation);
+            }
+
             MatchingNode matchingNode = null;
             if (explain) {
                 matchingNode = computeMatchingNode(primaryNode, primaryStore, discoNode, storeFilesMetadata);
@@ -325,6 +336,8 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                 nodeDecisions.put(node.nodeId(), new NodeAllocationResult(discoNode, shardStoreInfo, decision));
             }
 
+            // we only check for NO, since if this node is THROTTLING and it has enough "same data"
+            // then we will try and assign it next time
             if (decision.type() == Decision.Type.NO) {
                 continue;
             }

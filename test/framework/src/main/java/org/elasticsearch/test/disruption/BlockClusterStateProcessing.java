@@ -8,6 +8,7 @@
 package org.elasticsearch.test.disruption;
 
 import org.apache.logging.log4j.core.util.Throwables;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.TimeValue;
@@ -41,7 +42,9 @@ public class BlockClusterStateProcessing extends SingleNodeDisruption {
         boolean success = disruptionLatch.compareAndSet(null, new CountDownLatch(1));
         assert success : "startDisrupting called without waiting on stopDisrupting to complete";
         final CountDownLatch started = new CountDownLatch(1);
-        clusterService.getClusterApplierService().runOnApplierThread("service_disruption_block",
+        clusterService.getClusterApplierService().runOnApplierThread(
+            "service_disruption_block",
+            Priority.IMMEDIATE,
             currentState -> {
                 started.countDown();
                 CountDownLatch latch = disruptionLatch.get();
@@ -52,8 +55,17 @@ public class BlockClusterStateProcessing extends SingleNodeDisruption {
                         Throwables.rethrow(e);
                     }
                 }
-            }, (source, e) -> logger.error("unexpected error during disruption", e),
-            Priority.IMMEDIATE);
+            },
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error("unexpected error during disruption", e);
+                }
+            });
         try {
             started.await();
         } catch (InterruptedException e) {

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.client.security.support.expressiondsl;
 
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.ToXContentObject;
 
 /**
  * Implementations of this interface represent an expression used for user role mapping

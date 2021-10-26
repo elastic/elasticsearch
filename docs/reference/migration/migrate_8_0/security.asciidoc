@@ -6,6 +6,59 @@
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
+[[deprecate-elasticsearch-setup-passwords]]
+.The `elasticsearch-setup-passwords` tool is deprecated.
+[%collapsible]
+====
+*Details* +
+In 8.0, we're deprecating the `elasticsearch-setup-passwords` tool. To
+manually reset the password for built-in users (including the `elastic` user), use
+the {ref}/reset-password.html[`elasticsearch-reset-password`] tool, the {es}
+{ref}/security-api-change-password.html[change passwords API], or the
+User Management features in {kib}. We will remove the
+`elasticsearch-setup-passwords` tool in a future release.
+
+*Impact* +
+When starting {es} for the first time, passwords are generated automatically for
+the `elastic` user. If you run the `elasticsearch-setup-passwords` tool after
+starting {es}, the command will fail  because the password for the `elastic`
+user is already configured.
+====
+
+.The file and native realms are now enabled unless explicitly disabled.
+[%collapsible]
+====
+*Details* +
+The file and native realms are now enabled unless explicitly disabled. If
+explicitly disabled, the file and native realms remain disabled at all times.
+
+Previously, the file and native realms had the following implicit behaviors:
+
+* If the file and native realms were not configured, they were implicitly disabled
+if any other realm was configured.
+
+* If no other realm was available because realms were either not configured,
+not permitted by license, or explicitly disabled, the file and native realms
+were enabled, even if explicitly disabled.
+
+*Impact* +
+To explicitly disable the file or native realm, set the respective
+`file.<realm-name>.enabled` or `native.<realm-name>.enabled` setting to `false`
+under the `xpack.security.authc.realms` namespace in `elasticsearch.yml`.
+
+The following configuration example disables the native realm and the file realm.
+
+[source,yaml]
+----
+xpack.security.authc.realms:
+
+  native.realm1.enabled: false
+  file.realm2.enabled: false
+
+  ...
+----
+====
+
 .The realm `order` setting is now required.
 [%collapsible]
 ====
@@ -44,12 +97,12 @@ now rolled-over by disk size limit as well. Moreover, the rolled-over logs
 are also gzip compressed.
 
 *Impact* +
-The names of rolled over audit logfiles (but not the name of the current log)
+The names of rolled over audit log files (but not the name of the current log)
 have changed.
-If you've setup automated tools to consume these files, you must configure them
-to use the new names and to possibly account for gzip archives instead of plaintext.
-The Docker build of Elasticsearch is not affected since it logs on stdout where
-rollover is not performed.
+If you've set up automated tools to consume these files, you must configure them
+to use the new names and to possibly account for `gzip` archives instead of
+plain text. The Docker build of {es} is not affected because it logs on `stdout`,
+where rollover is not performed.
 ====
 
 [[accept-default-password-removed]]
@@ -89,7 +142,7 @@ these settings in `elasticsearch.yml` will result in an error on startup.
 *Details* +
 The `elasticsearch-migrate` tool provided a way to convert file
 realm users and roles into the native realm. It has been deprecated
-since 7.2.0. Users and roles should now be created in the native
+since {es} 7.2.0. Users and roles should now be created in the native
 realm directly.
 
 *Impact* +
@@ -110,6 +163,37 @@ the HTTP transport. Transport profiles using this setting should be removed.
 Discontinue use of the `transport.profiles.*.xpack.security.type` setting.
 Specifying this setting in a transport profile in `elasticsearch.yml` will
 result in an error on startup.
+====
+
+[discrete]
+[[saml-realm-nameid-changes]]
+.The `nameid_format` SAML realm setting no longer has a default value.
+[%collapsible]
+====
+*Details* +
+In SAML, Identity Providers (IdPs) can either be explicitly configured to
+release a `NameID` with a specific format, or configured to attempt to conform
+with the requirements of a Service Provider (SP). The SP declares its
+requirements in the `NameIDPolicy` element of a SAML Authentication Request.
+In {es}, the `nameid_format` SAML realm setting controls the `NameIDPolicy`
+value.
+
+Previously, the default value for `nameid_format` was
+`urn:oasis:names:tc:SAML:2.0:nameid-format:transient`. This setting created
+authentication requests that required the IdP to release `NameID` with a
+`transient` format.
+
+The default value has been removed, which means that {es} will create SAML Authentication Requests by default that don't put this requirement on the
+IdP. If you want to retain the previous behavior, set `nameid_format` to
+`urn:oasis:names:tc:SAML:2.0:nameid-format:transient`.
+
+*Impact* +
+If you currently don't configure `nameid_format` explicitly, it's possible
+that your IdP will reject authentication requests from {es} because the requests
+do not specify a `NameID` format (and your IdP is configured to expect one).
+This mismatch can result in a broken SAML configuration. If you're unsure whether
+your IdP is explicitly configured to use a certain `NameID` format and you want to retain current behavior
+, try setting `nameid_format` to `urn:oasis:names:tc:SAML:2.0:nameid-format:transient` explicitly.
 ====
 
 [discrete]
@@ -233,6 +317,32 @@ on startup.
 ====
 
 [discrete]
+[[ssl-misc-changes]]
+===== Other SSL/TLS changes
+
+.PKCS#11 keystores and trustores cannot be configured in `elasticsearch.yml`
+[%collapsible]
+====
+*Details* +
+The settings `*.ssl.keystore.type` and `*.ssl.truststore.type` no longer accept "PKCS11" as a valid type.
+This applies to all SSL settings in Elasticsearch, including
+
+- `xpack.security.http.keystore.type`
+- `xpack.security.transport.keystore.type`
+- `xpack.security.http.truststore.type`
+- `xpack.security.transport.truststore.type`
+
+As well as SSL settings for security realms, watcher and monitoring.
+
+Use of a PKCS#11 keystore or truststore as the JRE's default store is not affected.
+
+*Impact* +
+If you have a PKCS#11 keystore configured within your `elasticsearch.yml` file, you must remove that
+configuration and switch to a supported keystore type, or configure your PKCS#11 keystore as the
+JRE default store.
+====
+
+[discrete]
 [[builtin-users-changes]]
 ===== Changes to built-in users
 
@@ -281,4 +391,35 @@ renamed to better reflect its intended use.
 Assign users with the `kibana_user` role to the `kibana_admin` role.
 Discontinue use of the `kibana_user` role.
 ====
+
 // end::notable-breaking-changes[]
+
+// These are non-notable changes
+
+[discrete]
+// This change is not notable because it should not have any impact on upgrades
+// However we document it here out of an abundance of caution
+[[fips-default-hash-changed]]
+===== Changes to FIPS 140 mode
+.When FIPS mode is enabled the default password hash is now PBKDF2_STRETCH
+[%collapsible]
+====
+*Details* +
+If `xpack.security.fips_mode.enabled` is true (see <<fips-140-compliance>>),
+the value of `xpack.security.authc.password_hashing.algorithm` now defaults to
+`pbkdf2_stretch`.
+
+In earlier versions this setting would always default to `bcrypt` and a runtime
+check would prevent a node from starting unless the value was explicitly set to
+a "pbkdf2" variant.
+
+There is no change for clusters that do not enable FIPS 140 mode.
+
+*Impact* +
+This change should not have any impact on upgraded nodes.
+Any node with an explicitly configured value for the password hashing algorithm
+will continue to use that configured value.
+Any node that did not have an explicitly configured password hashing algorithm in
+{es} 6.x or {es} 7.x would have failed to start.
+====
+

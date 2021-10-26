@@ -6,17 +6,10 @@
  */
 package org.elasticsearch.xpack.analytics.rate;
 
-import java.io.IOException;
-import java.util.Map;
-import java.util.Objects;
-
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -29,8 +22,17 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 
-public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource, RateAggregationBuilder> {
+import java.io.IOException;
+import java.util.Map;
+import java.util.Objects;
+
+public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.SingleMetricAggregationBuilder<
+    ValuesSource,
+    RateAggregationBuilder> {
     public static final String NAME = "rate";
     public static final ParseField UNIT_FIELD = new ParseField("unit");
     public static final ParseField MODE_FIELD = new ParseField("mode");
@@ -119,20 +121,29 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.LeafO
 
     @Override
     protected RateAggregatorFactory innerBuild(
-            AggregationContext context,
-            ValuesSourceConfig config,
-            AggregatorFactory parent,
-            AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+        AggregationContext context,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
         if (field() == null && script() == null) {
             if (rateMode != null) {
                 throw new IllegalArgumentException("The mode parameter is only supported with field or script");
             }
         }
 
-        RateAggregatorSupplier aggregatorSupplier =
-            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
-        return new RateAggregatorFactory(name, config, rateUnit, rateMode, context, parent,
-                                         subFactoriesBuilder, metadata, aggregatorSupplier);
+        RateAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+        return new RateAggregatorFactory(
+            name,
+            config,
+            rateUnit,
+            rateMode,
+            context,
+            parent,
+            subFactoriesBuilder,
+            metadata,
+            aggregatorSupplier
+        );
     }
 
     @Override

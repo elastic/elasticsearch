@@ -30,8 +30,8 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
@@ -225,7 +225,8 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
 
     private ClusterHealthResponse getResponse(final ClusterHealthRequest request, ClusterState clusterState,
                                               final int waitFor, TimeoutState timeoutState) {
-        ClusterHealthResponse response = clusterHealth(request, clusterState, clusterService.getMasterService().numberOfPendingTasks(),
+        ClusterHealthResponse response = clusterHealth(request, clusterState,
+            clusterService.getMasterService().numberOfPendingTasks(),
             allocationService.getNumberOfInFlightFetches(), clusterService.getMasterService().getMaxTaskWaitTime());
         int readyCounter = prepareResponse(request, response, clusterState, indexNameExpressionResolver);
         boolean valid = (readyCounter == waitFor);
@@ -324,8 +325,8 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
     }
 
 
-    private ClusterHealthResponse clusterHealth(ClusterHealthRequest request, ClusterState clusterState, int numberOfPendingTasks,
-                                                int numberOfInFlightFetch, TimeValue pendingTaskTimeInQueue) {
+    private ClusterHealthResponse clusterHealth(ClusterHealthRequest request, ClusterState clusterState,
+                                                int numberOfPendingTasks, int numberOfInFlightFetch, TimeValue pendingTaskTimeInQueue) {
         if (logger.isTraceEnabled()) {
             logger.trace("Calculating health based on state version [{}]", clusterState.version());
         }
@@ -337,12 +338,13 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
             // one of the specified indices is not there - treat it as RED.
             ClusterHealthResponse response = new ClusterHealthResponse(clusterState.getClusterName().value(), Strings.EMPTY_ARRAY,
                 clusterState, numberOfPendingTasks, numberOfInFlightFetch, UnassignedInfo.getNumberOfDelayedUnassigned(clusterState),
-                pendingTaskTimeInQueue);
+                pendingTaskTimeInQueue, request.doesReturn200ForClusterHealthTimeout());
             response.setStatus(ClusterHealthStatus.RED);
             return response;
         }
 
-        return new ClusterHealthResponse(clusterState.getClusterName().value(), concreteIndices, clusterState, numberOfPendingTasks,
-                numberOfInFlightFetch, UnassignedInfo.getNumberOfDelayedUnassigned(clusterState), pendingTaskTimeInQueue);
+        return new ClusterHealthResponse(clusterState.getClusterName().value(), concreteIndices, clusterState,
+            numberOfPendingTasks, numberOfInFlightFetch, UnassignedInfo.getNumberOfDelayedUnassigned(clusterState), pendingTaskTimeInQueue,
+            request.doesReturn200ForClusterHealthTimeout());
     }
 }

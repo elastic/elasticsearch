@@ -283,6 +283,36 @@ memory or some of the containers will fail to start. You can tell that you
 are short of memory if containers are exiting quickly after starting with
 code 137 (128 + 9, where 9 means SIGKILL).
 
+== Debugging tests
+
+If you would like to debug your tests themselves, simply pass the `--debug-jvm`
+flag to the testing task and connect a debugger on the default port of `5005`.
+
+---------------------------------------------------------------------------
+./gradlew :server:test --debug-jvm
+---------------------------------------------------------------------------
+
+For REST tests, if you'd like to debug the Elasticsearch server itself, and
+not your test code, use the `--debug-server-jvm` flag and use the
+"Debug Elasticsearch" run configuration in IntelliJ to listen on the default
+port of `5007`.
+
+---------------------------------------------------------------------------
+./gradlew :rest-api-spec:yamlRestTest --debug-server-jvm
+---------------------------------------------------------------------------
+
+NOTE: In the case of test clusters using multiple nodes, multiple debuggers
+will need to be attached on incrementing ports. For example, for a 3 node
+cluster ports `5007`, `5008`, and `5009` will attempt to attach to a listening
+debugger.
+
+You can also use a combination of both flags to debug both tests and server.
+This is only applicable to Java REST tests.
+
+---------------------------------------------------------------------------
+./gradlew :modules:kibana:javaRestTest --debug-jvm --debug-server-jvm
+---------------------------------------------------------------------------
+
 == Testing the REST layer
 
 The REST layer is tested through specific tests that are executed against
@@ -324,7 +354,7 @@ A specific test case can be run with the following command:
 ---------------------------------------------------------------------------
 ./gradlew ':rest-api-spec:yamlRestTest' \
   --tests "org.elasticsearch.test.rest.ClientYamlTestSuiteIT" \
-  -Dtests.method="test {p0=cat.segments/10_basic/Help}"
+  -Dtests.method="test {yaml=cat.segments/10_basic/Help}"
 ---------------------------------------------------------------------------
 
 The YAML REST tests support all the options provided by the randomized runner, plus the following:

@@ -71,7 +71,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         if(request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("types")){
-            deprecationLogger.compatibleApiWarning("indices_stats_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.compatibleCritical("indices_stats_types", TYPES_DEPRECATION_MESSAGE);
             request.param("types");
         }
 

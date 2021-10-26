@@ -8,3 +8,4 @@ The migration APIs simplify upgrading {xpack} indices from one version to anothe
 * <<migration-api-deprecation>>
 
 include::apis/deprecation.asciidoc[]
+include::apis/feature_upgrade.asciidoc[]

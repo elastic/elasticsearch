@@ -281,7 +281,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         assertThat(counts.get(B_1), equalTo(2));
         assertThat(counts.containsKey(noZoneNode), equalTo(false));
         client().admin().cluster().prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put("cluster.routing.allocation.awareness.attributes", "").build()).get();
+            .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.awareness.attributes", "").build()).get();
 
         health = client().admin().cluster().prepareHealth()
             .setIndices("test")

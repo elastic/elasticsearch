@@ -66,7 +66,7 @@ public class ResourceWatcherServiceTests extends ESTestCase {
         };
 
         // checking default freq
-        WatcherHandle handle = service.add(watcher);
+        WatcherHandle<ResourceWatcher> handle = service.add(watcher);
         assertThat(handle, notNullValue());
         assertThat(handle.frequency(), equalTo(ResourceWatcherService.Frequency.MEDIUM));
         assertThat(service.lowMonitor.watchers.size(), is(0));

@@ -14,8 +14,9 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
@@ -69,7 +70,7 @@ public class AutoCreateDataStreamIT extends ESRestTestCase {
     private void configureAutoCreateIndex(boolean value) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder()
             .startObject()
-            .startObject("transient")
+            .startObject("persistent")
             .field(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), value)
             .endObject()
             .endObject();
@@ -101,7 +102,9 @@ public class AutoCreateDataStreamIT extends ESRestTestCase {
 
     private Response indexDocument() throws IOException {
         final Request indexDocumentRequest = new Request("POST", "recipe_kr/_doc");
-        indexDocumentRequest.setJsonEntity("{ \"@timestamp\": \"" + Instant.now() + "\", \"name\": \"Kimchi\" }");
+        final Instant now = Instant.now();
+        final String time = DateFormatter.forPattern("strict_date_optional_time").format(now);
+        indexDocumentRequest.setJsonEntity("{ \"@timestamp\": \"" + time + "\", \"name\": \"Kimchi\" }");
         return client().performRequest(indexDocumentRequest);
     }
 }

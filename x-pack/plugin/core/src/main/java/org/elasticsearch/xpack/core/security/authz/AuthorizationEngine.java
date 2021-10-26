@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -247,11 +248,19 @@ public interface AuthorizationEngine {
         private final Authentication authentication;
         private final TransportRequest request;
         private final String action;
+        @Nullable
+        private final AuthorizationContext originatingAuthorizationContext;
 
-        public RequestInfo(Authentication authentication, TransportRequest request, String action) {
-            this.authentication = authentication;
-            this.request = request;
-            this.action = action;
+        public RequestInfo(
+            Authentication authentication,
+            TransportRequest request,
+            String action,
+            AuthorizationContext originatingContext
+        ) {
+            this.authentication = Objects.requireNonNull(authentication);
+            this.request = Objects.requireNonNull(request);
+            this.action = Objects.requireNonNull(action);
+            this.originatingAuthorizationContext = originatingContext;
         }
 
         public String getAction() {
@@ -264,6 +273,27 @@ public interface AuthorizationEngine {
 
         public TransportRequest getRequest() {
             return request;
+        }
+
+        @Nullable
+        public AuthorizationContext getOriginatingAuthorizationContext() {
+            return originatingAuthorizationContext;
+        }
+
+        @Override
+        public String toString() {
+            return getClass().getSimpleName()
+                + '{'
+                + "authentication=["
+                + authentication
+                + "], request=["
+                + request
+                + "], action=["
+                + action
+                + ']'
+                + ", parent=["
+                + originatingAuthorizationContext
+                + "]}";
         }
     }
 
@@ -347,6 +377,31 @@ public interface AuthorizationEngine {
                 return null;
             }
             return "on indices [" + Strings.collectionToCommaDelimitedString(deniedIndices) + "]";
+        }
+
+        public IndicesAccessControl getIndicesAccessControl() {
+            return indicesAccessControl;
+        }
+    }
+
+
+    final class AuthorizationContext {
+        private final String action;
+        private final AuthorizationInfo authorizationInfo;
+        private final IndicesAccessControl indicesAccessControl;
+
+        public AuthorizationContext(String action, AuthorizationInfo authorizationInfo, IndicesAccessControl accessControl) {
+            this.action = action;
+            this.authorizationInfo = authorizationInfo;
+            this.indicesAccessControl = accessControl;
+        }
+
+        public String getAction() {
+            return action;
+        }
+
+        public AuthorizationInfo getAuthorizationInfo() {
+            return authorizationInfo;
         }
 
         public IndicesAccessControl getIndicesAccessControl() {

@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,11 +43,33 @@ public class RemoteConnectionManager implements ConnectionManager {
         });
     }
 
+    /**
+     * Remote cluster connections have a different lifecycle from intra-cluster connections. Use {@link #connectToRemoteClusterNode}
+     * instead of this method.
+     */
     @Override
-    public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                              ConnectionManager.ConnectionValidator connectionValidator,
-                              ActionListener<Void> listener) throws ConnectTransportException {
-        delegate.connectToNode(node, connectionProfile, connectionValidator, listener);
+    public final void connectToNode(
+        DiscoveryNode node,
+        ConnectionProfile connectionProfile,
+        ConnectionValidator connectionValidator,
+        ActionListener<Releasable> listener
+    ) throws ConnectTransportException {
+        // it's a mistake to call this expecting a useful Releasable back, we never release remote cluster connections today.
+        assert false : "use connectToRemoteClusterNode instead";
+        listener.onFailure(new UnsupportedOperationException("use connectToRemoteClusterNode instead"));
+    }
+
+    public void connectToRemoteClusterNode(
+        DiscoveryNode node,
+        ConnectionValidator connectionValidator,
+        ActionListener<Void> listener
+    ) throws ConnectTransportException {
+        delegate.connectToNode(node, null, connectionValidator, listener.map(connectionReleasable -> {
+            // We drop the connectionReleasable here but it's not really a leak: we never close individual connections to a remote cluster
+            // ourselves - instead we close the whole connection manager if the remote cluster is removed, which bypasses any refcounting
+            // and just closes the underlying channels.
+            return null;
+        }));
     }
 
     @Override
@@ -170,12 +193,17 @@ public class RemoteConnectionManager implements ConnectionManager {
 
         @Override
         public void close() {
-            assert false: "proxy connections must not be closed";
+            assert false : "proxy connections must not be closed";
         }
 
         @Override
         public void addCloseListener(ActionListener<Void> listener) {
             connection.addCloseListener(listener);
+        }
+
+        @Override
+        public void addRemovedListener(ActionListener<Void> listener) {
+            connection.addRemovedListener(listener);
         }
 
         @Override
@@ -195,6 +223,30 @@ public class RemoteConnectionManager implements ConnectionManager {
 
         Transport.Connection getConnection() {
             return connection;
+        }
+
+        @Override
+        public void incRef() {
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return true;
+        }
+
+        @Override
+        public boolean decRef() {
+            assert false : "proxy connections must not be released";
+            return false;
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return true;
+        }
+
+        @Override
+        public void onRemoved() {
         }
     }
 }

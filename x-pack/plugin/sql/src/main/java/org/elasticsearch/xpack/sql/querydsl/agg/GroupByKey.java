@@ -10,6 +10,7 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSou
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.querydsl.container.Sort.Direction;
+import org.elasticsearch.xpack.ql.querydsl.container.Sort.Missing;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Objects;
@@ -26,11 +27,13 @@ import static org.elasticsearch.xpack.sql.type.SqlDataTypes.TIME;
 public abstract class GroupByKey extends Agg {
 
     protected final Direction direction;
+    private final Missing missing;
 
-    protected GroupByKey(String id, AggSource source, Direction direction) {
+    protected GroupByKey(String id, AggSource source, Direction direction, Missing missing) {
         super(id, source);
         // ASC is the default order of CompositeValueSource
         this.direction = direction == null ? Direction.ASC : direction;
+        this.missing = missing == null ? Missing.ANY : missing;
     }
 
     public ScriptTemplate script() {
@@ -64,16 +67,22 @@ public abstract class GroupByKey extends Agg {
         else {
             builder.field(source().fieldName());
         }
-        return builder.order(direction.asOrder())
-               .missingBucket(true);
+        builder.order(direction.asOrder())
+            .missingBucket(true);
+
+        if (missing.aggregationOrder() != null) {
+            builder.missingOrder(missing.aggregationOrder());
+        }
+
+        return builder;
     }
 
     protected abstract CompositeValuesSourceBuilder<?> createSourceBuilder();
 
-    protected abstract GroupByKey copy(String id, AggSource source, Direction direction);
+    protected abstract GroupByKey copy(String id, AggSource source, Direction direction, Missing missing);
 
-    public GroupByKey with(Direction direction) {
-        return this.direction == direction ? this : copy(id(), source(), direction);
+    public GroupByKey with(Direction direction, Missing missing) {
+        return this.direction == direction && this.missing == missing ? this : copy(id(), source(), direction, missing);
     }
 
     @Override

@@ -7,17 +7,17 @@
  */
 package org.elasticsearch.client.graph;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * A vertex in a graph response represents a single term (a field and value pair)
@@ -162,25 +162,31 @@ public class Vertex implements ToXContentFragment {
         this.weight = weight;
     }
 
+    // @formatter:off
     /**
      * If the {@link GraphExploreRequest#useSignificance(boolean)} is true (the default)
      * this statistic is available.
      * @return the number of documents in the index that contain this term (see bg_count in
- * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-significantterms-aggregation.html">
-     * the significant_terms aggregation</a>)
+     * <a
+     * href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-significantterms-aggregation.html"
+     * >the significant_terms aggregation</a>)
      */
+    // @formatter:on
     public long getBg() {
         return bg;
     }
 
+    // @formatter:off
     /**
      * If the {@link GraphExploreRequest#useSignificance(boolean)} is true (the default)
      * this statistic is available.
      * Together with {@link #getBg()} these numbers are used to derive the significance of a term.
      * @return the number of documents in the sample of best matching documents that contain this term (see fg_count in
- * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-significantterms-aggregation.html">
-     * the significant_terms aggregation</a>)
+     * <a
+     * href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-significantterms-aggregation.html"
+     * >the significant_terms aggregation</a>)
      */
+    // @formatter:on
     public long getFg() {
         return fg;
     }

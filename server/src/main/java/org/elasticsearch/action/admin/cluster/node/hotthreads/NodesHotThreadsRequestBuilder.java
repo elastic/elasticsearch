@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.cluster.node.hotthreads;
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.monitor.jvm.HotThreads;
 
 public class NodesHotThreadsRequestBuilder
         extends NodesOperationRequestBuilder<NodesHotThreadsRequest, NodesHotThreadsResponse, NodesHotThreadsRequestBuilder> {
@@ -29,8 +30,13 @@ public class NodesHotThreadsRequestBuilder
         return this;
     }
 
-    public NodesHotThreadsRequestBuilder setType(String type) {
+    public NodesHotThreadsRequestBuilder setType(HotThreads.ReportType type) {
         request.type(type);
+        return this;
+    }
+
+    public NodesHotThreadsRequestBuilder setSortOrder(HotThreads.SortOrder sortOrder) {
+        request.sortOrder(sortOrder);
         return this;
     }
 

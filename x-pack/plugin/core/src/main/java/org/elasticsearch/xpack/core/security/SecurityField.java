@@ -7,6 +7,8 @@
 package org.elasticsearch.xpack.core.security;
 
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.util.Optional;
@@ -18,7 +20,22 @@ public final class SecurityField {
     public static final Setting<Optional<String>> USER_SETTING =
             new Setting<>(setting("user"), (String) null, Optional::ofNullable, Setting.Property.NodeScope);
 
-    private SecurityField() {}
+    // Document and Field Level Security are Platinum+
+    private static final String DLS_FLS_FEATURE_FAMILY  = "security-dls-fls";
+    public static final LicensedFeature.Momentary DOCUMENT_LEVEL_SECURITY_FEATURE =
+        LicensedFeature.momentaryLenient(DLS_FLS_FEATURE_FAMILY, "dls", License.OperationMode.PLATINUM);
+    public static final LicensedFeature.Momentary FIELD_LEVEL_SECURITY_FEATURE =
+        LicensedFeature.momentaryLenient(DLS_FLS_FEATURE_FAMILY, "fls", License.OperationMode.PLATINUM);
+
+
+    private SecurityField() {
+        // Assert that DLS and FLS have identical license requirement so that license check can be simplified to just
+        // use DLS. But they are handled separately when it comes to usage tracking.
+        assert DOCUMENT_LEVEL_SECURITY_FEATURE.getMinimumOperationMode() == FIELD_LEVEL_SECURITY_FEATURE.getMinimumOperationMode()
+            : "dls and fls must have the same license requirement";
+        assert DOCUMENT_LEVEL_SECURITY_FEATURE.isNeedsActive() == FIELD_LEVEL_SECURITY_FEATURE.isNeedsActive()
+            : "dls and fls must have the same license requirement";
+    }
 
     public static String setting(String setting) {
         assert setting != null && setting.startsWith(".") == false;

@@ -8,6 +8,7 @@
 package org.elasticsearch.gradle.internal.precommit;
 
 import de.thetaphi.forbiddenapis.cli.CliMain;
+
 import org.apache.commons.io.output.NullOutputStream;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;

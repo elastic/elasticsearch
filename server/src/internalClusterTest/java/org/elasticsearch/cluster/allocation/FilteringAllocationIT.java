@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.AutoExpandReplicas;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
@@ -64,7 +65,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
         logger.info("--> decommission the second node");
         client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", node_1))
+                .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", node_1))
                 .execute().actionGet();
         ensureGreen("test");
 
@@ -105,7 +106,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         logger.info("--> filter out the second node");
         if (randomBoolean()) {
             client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", node_1))
+                .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", node_1))
                 .execute().actionGet();
         } else {
             client().admin().indices().prepareUpdateSettings("test")
@@ -167,7 +168,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
         if (numShardsOnNode1 > ThrottlingAllocationDecider.DEFAULT_CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES) {
             client().admin().cluster().prepareUpdateSettings()
-            .setTransientSettings(Settings.builder()
+            .setPersistentSettings(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", numShardsOnNode1)).execute().actionGet();
             // make sure we can recover all the nodes at once otherwise we might run into a state where
             // one of the shards has not yet started relocating but we already fired up the request to wait for 0 relocating shards.
@@ -205,7 +206,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         Setting<String> filterSetting = randomFrom(FilterAllocationDecider.CLUSTER_ROUTING_REQUIRE_GROUP_SETTING,
             FilterAllocationDecider.CLUSTER_ROUTING_INCLUDE_GROUP_SETTING, FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().cluster().prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(filterSetting.getKey() + ipKey, "192.168.1.1."))
+            .setPersistentSettings(Settings.builder().put(filterSetting.getKey() + ipKey, "192.168.1.1."))
             .execute().actionGet());
         assertEquals("invalid IP address [192.168.1.1.] for [" + filterSetting.getKey() + ipKey + "]", e.getMessage());
     }
@@ -236,7 +237,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
         ClusterState state = client().admin().cluster().prepareState().get().getState();
 
-        for (ShardRouting shard : state.getRoutingTable().shardsWithState(ShardRoutingState.STARTED)) {
+        for (ShardRouting shard : RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED)) {
             String node = state.getRoutingNodes().node(shard.currentNodeId()).node().getName();
             logger.info("--> shard on {} - {}", node, shard);
             assertTrue("shard on " + node + " but should only be on the include node list: " +
@@ -258,7 +259,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         // The transient settings still exist in the state
         assertThat(state.metadata().transientSettings(), equalTo(exclude));
 
-        for (ShardRouting shard : state.getRoutingTable().shardsWithState(ShardRoutingState.STARTED)) {
+        for (ShardRouting shard : RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED)) {
             String node = state.getRoutingNodes().node(shard.currentNodeId()).node().getName();
             logger.info("--> shard on {} - {}", node, shard);
             assertTrue("shard on " + node + " but should only be on the include node list: " +

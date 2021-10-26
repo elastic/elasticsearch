@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.action.util;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 public class PageParamsTests extends AbstractSerializingTestCase<PageParams> {

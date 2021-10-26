@@ -10,10 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.core.MemoizedSupplier;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
@@ -23,6 +21,8 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 
 /**
  * Base class for interceptors that disables features when field level security is configured for indices a request
@@ -45,9 +45,9 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
                           ActionListener<Void> listener) {
         if (requestInfo.getRequest() instanceof IndicesRequest && false == TransportActionProxy.isProxyAction(requestInfo.getAction())) {
             IndicesRequest indicesRequest = (IndicesRequest) requestInfo.getRequest();
-            // TODO: should we check is DLS/FLS feature allowed here as part of shouldIntercept
-            if (supports(indicesRequest) && licenseState.isSecurityEnabled()) {
-                var licenseChecker = new MemoizedSupplier<>(() -> licenseState.checkFeature(Feature.SECURITY_DLS_FLS));
+            // TODO: should we check is DLS/FLS feature allowed here
+            if (supports(indicesRequest)) {
+                final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
                 final IndicesAccessControl indicesAccessControl
                     = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
                 final Map<String, IndicesAccessControl.IndexAccessControl> accessControlByIndex = new HashMap<>();
@@ -56,7 +56,7 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
                     if (indexAccessControl != null) {
                         final boolean flsEnabled = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
                         final boolean dlsEnabled = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
-                        if ((flsEnabled || dlsEnabled) && licenseChecker.get()) {
+                        if ((flsEnabled || dlsEnabled) && isDlsLicensed) {
                             logger.trace("intercepted request for index [{}] with field level access controls [{}] " +
                                 "document level access controls [{}]. disabling conflicting features",
                                 index, flsEnabled, dlsEnabled);

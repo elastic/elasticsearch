@@ -11,9 +11,9 @@ package org.elasticsearch.client;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -28,6 +28,7 @@ import static org.mockito.Mockito.mock;
  * This test works against a {@link RestHighLevelClient} subclass that simulates how custom response sections returned by
  * Elasticsearch plugins can be parsed using the high level client.
  */
+@SuppressWarnings("removal")
 public class RestHighLevelClientExtTests extends ESTestCase {
 
     private RestHighLevelClient restHighLevelClient;

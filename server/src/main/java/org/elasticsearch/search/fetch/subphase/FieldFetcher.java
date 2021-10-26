@@ -92,7 +92,17 @@ public class FieldFetcher {
                 }
                 // only add concrete fields if they are not beneath a known nested field
                 if (nestedParentPath == null) {
-                    ValueFetcher valueFetcher = ft.valueFetcher(context, fieldAndFormat.format);
+                    ValueFetcher valueFetcher;
+                    try {
+                        valueFetcher = ft.valueFetcher(context, fieldAndFormat.format);
+                    } catch (IllegalArgumentException e) {
+                        StringBuilder error = new StringBuilder("error fetching [").append(field).append(']');
+                        if (isWildcardPattern) {
+                            error.append(" which matched [").append(fieldAndFormat.field).append(']');
+                        }
+                        error.append(": ").append(e.getMessage());
+                        throw new IllegalArgumentException(error.toString(), e);
+                    }
                     fieldContexts.put(field, new FieldContext(field, valueFetcher));
                 }
             }
@@ -157,9 +167,10 @@ public class FieldFetcher {
             String field = context.fieldName;
 
             ValueFetcher valueFetcher = context.valueFetcher;
-            List<Object> parsedValues = valueFetcher.fetchValues(sourceLookup);
-            if (parsedValues.isEmpty() == false) {
-                documentFields.put(field, new DocumentField(field, parsedValues));
+            List<Object> ignoredValues = new ArrayList<>();
+            List<Object> parsedValues = valueFetcher.fetchValues(sourceLookup, ignoredValues);
+            if (parsedValues.isEmpty() == false || ignoredValues.isEmpty() == false) {
+                documentFields.put(field, new DocumentField(field, parsedValues, ignoredValues));
             }
         }
         collectUnmapped(documentFields, sourceLookup.source(), "", 0);

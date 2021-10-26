@@ -69,7 +69,7 @@ public class SequenceMatcher {
     // Set of completed sequences - separate to avoid polluting the other stages
     // It is a set since matches are ordered at insertion time based on the ordinal of the first entry
     private final Set<Sequence> completed;
-    private final long maxSpanInMillis;
+    private final long maxSpanInNanos;
 
     private final boolean descending;
 
@@ -91,7 +91,7 @@ public class SequenceMatcher {
         this.keyToSequences = new KeyToSequences(completionStage);
         this.completed = new TreeSet<>();
 
-        this.maxSpanInMillis = maxSpan.millis();
+        this.maxSpanInNanos = maxSpan.nanos();
 
         this.limit = limit;
         this.circuitBreaker = circuitBreaker;
@@ -183,7 +183,7 @@ public class SequenceMatcher {
         //
 
         // maxspan
-        if (maxSpanInMillis > 0 && (ordinal.timestamp() - sequence.startOrdinal().timestamp() > maxSpanInMillis)) {
+        if (maxSpanInNanos > 0 && ordinal.timestamp().delta(sequence.startOrdinal().timestamp()) > maxSpanInNanos) {
             stats.rejectionMaxspan++;
             return;
         }

@@ -1,0 +1,13 @@
+BIND9_TIMESTAMP %{MONTHDAY}[-]%{MONTH}[-]%{YEAR} %{TIME}
+
+BIND9_DNSTYPE (?:A|AAAA|CAA|CDNSKEY|CDS|CERT|CNAME|CSYNC|DLV|DNAME|DNSKEY|DS|HINFO|LOC|MX|NAPTR|NS|NSEC|NSEC3|OPENPGPKEY|PTR|RRSIG|RP|SIG|SMIMEA|SOA|SRV|TSIG|TXT|URI)
+BIND9_CATEGORY (?:queries)
+
+# dns.question.class is static - only 'IN' is supported by Bind9
+# bind.log.question.name is expected to be a 'duplicate' (same as the dns.question.name capture)
+BIND9_QUERYLOGBASE client(:? @0x(?:[0-9A-Fa-f]+))? %{IP:client.ip}#%{POSINT:client.port:int} \(%{GREEDYDATA:bind.log.question.name}\): query: %{GREEDYDATA:dns.question.name} (?<dns.question.class>IN) %{BIND9_DNSTYPE:dns.question.type}(:? %{DATA:bind.log.question.flags})? \(%{IP:server.ip}\)
+
+# for query-logging category and severity are always fixed as "queries: info: "
+BIND9_QUERYLOG %{BIND9_TIMESTAMP:timestamp} %{BIND9_CATEGORY:bing.log.category}: %{LOGLEVEL:log.level}: %{BIND9_QUERYLOGBASE}
+
+BIND9 %{BIND9_QUERYLOG}

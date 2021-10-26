@@ -44,8 +44,6 @@ import org.elasticsearch.client.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -53,10 +51,12 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
-import org.joda.time.Instant;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -64,7 +64,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -74,6 +74,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
+@SuppressWarnings("removal")
 public class TransformIT extends ESRestHighLevelClientTestCase {
 
     private List<String> transformsToClean = new ArrayList<>();
@@ -142,12 +143,12 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
     @After
     public void cleanUpTransformsAndLogAudits() throws Exception {
         for (String transformId : transformsToClean) {
-            highLevelClient().transform()
+            adminHighLevelClient().transform()
                 .stopTransform(new StopTransformRequest(transformId, Boolean.TRUE, null, false), RequestOptions.DEFAULT);
         }
 
         for (String transformId : transformsToClean) {
-            highLevelClient().transform().deleteTransform(new DeleteTransformRequest(transformId), RequestOptions.DEFAULT);
+            adminHighLevelClient().transform().deleteTransform(new DeleteTransformRequest(transformId), RequestOptions.DEFAULT);
         }
 
         transformsToClean = new ArrayList<>();
@@ -177,7 +178,7 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
         createIndex(sourceIndex);
 
         String id = "test-crud";
-        TransformConfig transform = validDataFrameTransformConfig(id, sourceIndex, "pivot-dest");
+        TransformConfig transform = validTransformConfig(id, sourceIndex, "pivot-dest");
 
         TransformClient client = highLevelClient().transform();
         AcknowledgedResponse ack = execute(new PutTransformRequest(transform), client::putTransform, client::putTransformAsync);
@@ -199,7 +200,7 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
         createIndex(sourceIndex);
 
         String id = "test-update";
-        TransformConfig transform = validDataFrameTransformConfigBuilder(id, sourceIndex, "pivot-dest").setSyncConfig(
+        TransformConfig transform = validTransformConfigBuilder(id, sourceIndex, "pivot-dest").setSyncConfig(
             TimeSyncConfig.builder().setField("timestamp").setDelay(TimeValue.timeValueSeconds(60)).build()
         ).build();
 
@@ -227,7 +228,7 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
         String sourceIndex = "missing-source-index";
 
         String id = "test-with-defer";
-        TransformConfig transform = validDataFrameTransformConfig(id, sourceIndex, "pivot-dest");
+        TransformConfig transform = validTransformConfig(id, sourceIndex, "pivot-dest");
         TransformClient client = highLevelClient().transform();
         PutTransformRequest request = new PutTransformRequest(transform);
         request.setDeferValidation(true);
@@ -243,7 +244,7 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
         createIndex(sourceIndex);
 
         String id = "test-get";
-        TransformConfig transform = validDataFrameTransformConfig(id, sourceIndex, "pivot-dest");
+        TransformConfig transform = validTransformConfig(id, sourceIndex, "pivot-dest");
 
         TransformClient client = highLevelClient().transform();
         putTransform(transform);
@@ -261,10 +262,10 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
 
         TransformClient client = highLevelClient().transform();
 
-        TransformConfig transform = validDataFrameTransformConfig("test-get-all-1", sourceIndex, "pivot-dest-1");
+        TransformConfig transform = validTransformConfig("test-get-all-1", sourceIndex, "pivot-dest-1");
         putTransform(transform);
 
-        transform = validDataFrameTransformConfig("test-get-all-2", sourceIndex, "pivot-dest-2");
+        transform = validTransformConfig("test-get-all-2", sourceIndex, "pivot-dest-2");
         putTransform(transform);
 
         GetTransformRequest getRequest = new GetTransformRequest("_all");
@@ -299,7 +300,7 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
         createIndex(sourceIndex);
 
         String id = "test-stop-start";
-        TransformConfig transform = validDataFrameTransformConfig(id, sourceIndex, "pivot-dest");
+        TransformConfig transform = validTransformConfig(id, sourceIndex, "pivot-dest");
 
         TransformClient client = highLevelClient().transform();
         putTransform(transform);
@@ -336,13 +337,12 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
         assertThat(taskState, is(TransformStats.State.STOPPED));
     }
 
-    @SuppressWarnings("unchecked")
     public void testPreview() throws IOException {
         String sourceIndex = "transform-source";
         createIndex(sourceIndex);
         indexData(sourceIndex);
 
-        TransformConfig transform = validDataFrameTransformConfig("test-preview", sourceIndex, null);
+        TransformConfig transform = validTransformConfig("test-preview", sourceIndex, null);
 
         TransformClient client = highLevelClient().transform();
         PreviewTransformResponse preview = execute(
@@ -350,7 +350,29 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
             client::previewTransform,
             client::previewTransformAsync
         );
+        assertExpectedPreview(preview);
+    }
 
+    public void testPreviewById() throws IOException {
+        String sourceIndex = "transform-source";
+        createIndex(sourceIndex);
+        indexData(sourceIndex);
+
+        String transformId = "test-preview-by-id";
+        TransformConfig transform = validTransformConfig(transformId, sourceIndex, "pivot-dest");
+        putTransform(transform);
+
+        TransformClient client = highLevelClient().transform();
+        PreviewTransformResponse preview = execute(
+            new PreviewTransformRequest(transformId),
+            client::previewTransform,
+            client::previewTransformAsync
+        );
+        assertExpectedPreview(preview);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void assertExpectedPreview(PreviewTransformResponse preview) {
         List<Map<String, Object>> docs = preview.getDocs();
         assertThat(docs, hasSize(2));
         Optional<Map<String, Object>> theresa = docs.stream().filter(doc -> "theresa".equals(doc.get("reviewer"))).findFirst();
@@ -368,11 +390,11 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
         assertThat(fields.get("avg_rating"), equalTo(Map.of("type", "double")));
     }
 
-    private TransformConfig validDataFrameTransformConfig(String id, String source, String destination) {
-        return validDataFrameTransformConfigBuilder(id, source, destination).build();
+    private TransformConfig validTransformConfig(String id, String source, String destination) {
+        return validTransformConfigBuilder(id, source, destination).build();
     }
 
-    private TransformConfig.Builder validDataFrameTransformConfigBuilder(String id, String source, String destination) {
+    private TransformConfig.Builder validTransformConfigBuilder(String id, String source, String destination) {
         GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer", TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
         aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));

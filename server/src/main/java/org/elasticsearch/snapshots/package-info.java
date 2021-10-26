@@ -98,8 +98,8 @@
  * <ol>
  *     <li>First, {@link org.elasticsearch.snapshots.SnapshotsService#cloneSnapshot} is invoked which will place a placeholder entry into
  *     {@code SnapshotsInProgress} that does not yet contain any shard clone assignments. Note that unlike in the case of snapshot
- *     creation, the shard level clone tasks in {@link org.elasticsearch.cluster.SnapshotsInProgress.Entry#clones} are not created in the
- *     initial cluster state update as is done for shard snapshot assignments in
+ *     creation, the shard level clone tasks in {@link org.elasticsearch.cluster.SnapshotsInProgress.Entry#shardsByRepoShardId()} are not
+ *     created in the initial cluster state update as is done for shard snapshot assignments in
  *     {@link org.elasticsearch.cluster.SnapshotsInProgress.Entry#shards}. This is due to the fact that shard snapshot assignments are
  *     computed purely from information in the current cluster state while shard clone assignments require information to be read from the
  *     repository, which is too slow of a process to be done inside a cluster state update. Loading this information ahead of creating a

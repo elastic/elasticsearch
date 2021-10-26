@@ -1,5 +1,6 @@
 package org.elasticsearch.painless;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
@@ -36,6 +37,8 @@ public class FeatureTestObject {
     public static int staticNumberArgument(int injected, int userArgument) {
         return injected * userArgument;
     }
+
+    public static final List<String> STRINGS = Collections.singletonList("test_string");
 
     private int x;
     private int y;

@@ -81,7 +81,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         assertTrue(client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(
+            .setPersistentSettings(
                 Settings.builder()
                     .put(MachineLearning.MAX_LAZY_ML_NODES.getKey(), maxNumberOfLazyNodes))
             .get()
@@ -144,7 +144,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         boolean expectMemoryLimitBeforeCountLimit = maxJobsPerNodeDueToMemoryLimit < maxNumberOfJobsPerNode;
         for (int i = 1; i <= (clusterWideMaxNumberOfJobs + 1); i++) {
             if (i == 2 && testDynamicChange) {
-                ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = new ClusterUpdateSettingsRequest().transientSettings(
+                ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = new ClusterUpdateSettingsRequest().persistentSettings(
                         Settings.builder().put(MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfJobsPerNode).build());
                 client().execute(ClusterUpdateSettingsAction.INSTANCE, clusterUpdateSettingsRequest).actionGet();
             }
@@ -176,8 +176,8 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
                             (expectedJobsAlreadyOpenOnNode * memoryFootprintPerJob) + "], estimated memory required for this job [" +
                             memoryFootprintPerJob + "].]"));
                 } else {
-                    assertTrue(detailedMessage, detailedMessage.endsWith("node is full. Number of opened jobs [" +
-                        maxNumberOfJobsPerNode + "], xpack.ml.max_open_jobs [" + maxNumberOfJobsPerNode + "].]"));
+                    assertTrue(detailedMessage, detailedMessage.endsWith("node is full. Number of opened jobs and allocated native " +
+                        "inference processes [" + maxNumberOfJobsPerNode + "], xpack.ml.max_open_jobs [" + maxNumberOfJobsPerNode + "].]"));
                 }
                 logger.info("good news everybody --> reached maximum number of allowed opened jobs, after trying to open the {}th job", i);
 

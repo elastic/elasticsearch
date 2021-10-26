@@ -10,7 +10,7 @@ package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Optional;

@@ -33,7 +33,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -276,10 +276,10 @@ public class RelocationIT extends ESIntegTestCase {
         logger.info("--> creating test index ...");
         prepareCreate(
                 "test",
+                // set refresh_interval because we want to control refreshes
                 Settings.builder()
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", numberOfReplicas)
-                        // we want to control refreshes
                         .put("index.refresh_interval", -1)
                ).get();
 
@@ -406,7 +406,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> stopping replica assignment");
         assertAcked(client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder()
+                .setPersistentSettings(Settings.builder()
                         .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")));
 
         logger.info("--> wait for all replica shards to be removed, on all nodes");
@@ -424,17 +424,18 @@ public class RelocationIT extends ESIntegTestCase {
         logger.info("--> verifying no temporary recoveries are left");
         for (String node : internalCluster().getNodeNames()) {
             NodeEnvironment nodeEnvironment = internalCluster().getInstance(NodeEnvironment.class, node);
-            final Path shardLoc = nodeEnvironment.availableShardPath(new ShardId(indexName, "_na_", 0));
-            if (Files.exists(shardLoc)) {
-                assertBusy(() -> {
-                    try {
-                        forEachFileRecursively(shardLoc,
-                            (file, attrs) -> assertThat("found a temporary recovery file: " + file, file.getFileName().toString(),
-                                not(startsWith("recovery."))));
-                    } catch (IOException e) {
-                        throw new AssertionError("failed to walk file tree starting at [" + shardLoc + "]", e);
-                    }
-                });
+            for (final Path shardLoc : nodeEnvironment.availableShardPaths(new ShardId(indexName, "_na_", 0))) {
+                if (Files.exists(shardLoc)) {
+                    assertBusy(() -> {
+                        try {
+                            forEachFileRecursively(shardLoc,
+                                (file, attrs) -> assertThat("found a temporary recovery file: " + file, file.getFileName().toString(),
+                                    not(startsWith("recovery."))));
+                        } catch (IOException e) {
+                            throw new AssertionError("failed to walk file tree starting at [" + shardLoc + "]", e);
+                        }
+                    });
+                }
             }
         }
     }
@@ -562,10 +563,10 @@ public class RelocationIT extends ESIntegTestCase {
         final String node1 = internalCluster().startNode();
 
         logger.info("--> creating test index ...");
-        prepareCreate("test", Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put("index.refresh_interval", -1) // we want to control refreshes
+        prepareCreate(
+            "test",
+            // we want to control refreshes
+            Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).put("index.refresh_interval", -1)
         ).get();
 
         logger.info("--> index 10 docs");

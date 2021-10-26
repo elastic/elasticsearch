@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.settings.put;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -17,10 +18,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -31,7 +32,6 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * Request for an update index settings action
@@ -39,9 +39,11 @@ import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsRequest>
         implements IndicesRequest.Replaceable, ToXContentObject {
 
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, true);
+
     private String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
-    private Settings settings = EMPTY_SETTINGS;
+    private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
+    private Settings settings = Settings.EMPTY;
     private boolean preserveExisting = false;
     private String origin = "";
 
@@ -203,10 +205,23 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
             @SuppressWarnings("unchecked")
             Map<String, Object> innerBodySettingsMap = (Map<String, Object>) innerBodySettings;
             settings.putAll(innerBodySettingsMap);
+            checkMixedRequest(bodySettings);
         } else {
             settings.putAll(bodySettings);
         }
         return this.settings(settings);
+    }
+
+    /**
+     * Checks if the request is a "mixed request". A mixed request contains both a
+     * "settings" map and "other" properties. Detection of a mixed request
+     * will result in a parse exception being thrown.
+     */
+    private static void checkMixedRequest(Map<String, Object> bodySettings) {
+        assert bodySettings.containsKey("settings");
+        if (bodySettings.size() > 1) {
+            throw new ElasticsearchParseException("mix of settings map and top-level properties");
+        }
     }
 
     @Override

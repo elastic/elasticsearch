@@ -14,15 +14,20 @@ import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.CompositeFieldScript;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -33,6 +38,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
@@ -612,7 +618,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         for (int i = 0; i < nameParts.length - 1; ++i) {
             path.add(nameParts[i]);
         }
-        return new ObjectMapper.Builder(nameParts[nameParts.length - 1]).enabled(true).build(path);
+        return new ObjectMapper.Builder(nameParts[nameParts.length - 1]).enabled(true).build(MapperBuilderContext.forPath(path));
     }
 
     public void testEmptyMappingUpdate() throws Exception {
@@ -1957,9 +1963,44 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(doc.dynamicMappingsUpdate());
     }
 
+    public void testDynamicFalseMatchesRoutingPath() throws IOException {
+        DocumentMapper mapper = createMapperService(
+            Settings.builder()
+                .put(getIndexSettings())
+                .put(IndexSettings.MODE.getKey(), "time_series")
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim.*")
+                .build(),
+            mapping(b -> {
+                b.startObject("dim");
+                b.field("type", "object");
+                b.field("dynamic", false);
+                b.endObject();
+            })
+        ).documentMapper();
+
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
+            b.startObject("dim");
+            b.field("foo", "bar");
+            b.endObject();
+        })));
+        assertThat(
+            e.getMessage(),
+            equalTo("All fields matching [routing_path] must be mapped but [dim.foo] was declared as [dynamic: false]")
+        );
+
+        e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
+            b.startObject("dim");
+            b.startObject("foo").field("bar", "baz").endObject();
+            b.endObject();
+        })));
+        assertThat(
+            e.getMessage(),
+            equalTo("All fields matching [routing_path] must be mapped but [dim.foo] was declared as [dynamic: false]")
+        );
+    }
+
     /**
      * Mapper plugin providing a mock metadata field mapper implementation that supports setting its value
-     * as well as a mock runtime field parser.
      */
     private static final class DocumentParserTestsPlugin extends Plugin implements MapperPlugin {
         /**
@@ -2001,11 +2042,21 @@ public class DocumentParserTests extends MapperServiceTestCase {
                 "test-composite",
                 new RuntimeField.Parser(n -> new RuntimeField.Builder(n) {
                     @Override
-                    protected RuntimeField createRuntimeField(MappingParserContext parserContext) {
+                    protected RuntimeField createRuntimeField(MappingParserContext parserContext)
+                    {
                         return new TestRuntimeField(n, List.of(
                             new KeywordFieldMapper.KeywordFieldType(n + ".foo"),
                             new KeywordFieldMapper.KeywordFieldType(n + ".bar")
                         ));
+                    }
+
+                    @Override
+                    protected RuntimeField createChildRuntimeField(
+                        MappingParserContext parserContext,
+                        String parentName,
+                        Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+                    ) {
+                        throw new UnsupportedOperationException();
                     }
                 })
             );

@@ -56,7 +56,7 @@ public class RestWatcherStatsAction extends BaseRestHandler {
         }
 
         if (metrics.contains("pending_watches")) {
-            deprecationLogger.deprecate(DeprecationCategory.API, "pending_watches",
+            deprecationLogger.critical(DeprecationCategory.API, "pending_watches",
                 "The pending_watches parameter is deprecated, use queued_watches instead");
         }
 

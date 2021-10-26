@@ -33,9 +33,8 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
-import org.elasticsearch.mock.orig.Mockito;
+import org.elasticsearch.license.MockLicenseState;
+import org.mockito.Mockito;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -52,6 +51,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationToken;
@@ -71,6 +71,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
@@ -89,7 +90,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
     private ClusterService clusterService;
     private AtomicReference<IndexRequest> idxReqReference;
     private AuthenticationService authenticationService;
-    private XPackLicenseState license;
+    private MockLicenseState license;
     private SecurityContext securityContext;
 
     @Before
@@ -124,7 +125,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             listener.onResponse(response);
             return Void.TYPE;
         }).when(client).multiGet(any(MultiGetRequest.class), anyActionListener());
-        when(client.prepareIndex(any(String.class)))
+        when(client.prepareIndex(nullable(String.class)))
             .thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
         when(client.prepareUpdate(any(String.class), any(String.class)))
             .thenReturn(new UpdateRequestBuilder(client, UpdateAction.INSTANCE));
@@ -177,9 +178,8 @@ public class TransportCreateTokenActionTests extends ESTestCase {
 
         this.clusterService = ClusterServiceUtils.createClusterService(threadPool);
 
-        this.license = mock(XPackLicenseState.class);
-        when(license.isSecurityEnabled()).thenReturn(true);
-        when(license.checkFeature(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
+        this.license = mock(MockLicenseState.class);
+        when(license.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);
     }
 
     @After

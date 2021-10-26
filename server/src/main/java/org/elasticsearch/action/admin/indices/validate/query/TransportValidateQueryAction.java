@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParsingException;
@@ -118,7 +119,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
     }
 
     @Override
-    protected GroupShardsIterator shards(ClusterState clusterState, ValidateQueryRequest request, String[] concreteIndices) {
+    protected GroupShardsIterator<ShardIterator> shards(ClusterState clusterState, ValidateQueryRequest request, String[] concreteIndices) {
         final String routing;
         if (request.allShards()) {
             routing = null;
@@ -190,7 +191,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         try {
             ParsedQuery parsedQuery = searchContext.getSearchExecutionContext().toQuery(request.query());
             searchContext.parsedQuery(parsedQuery);
-            searchContext.preProcess(request.rewrite());
+            searchContext.preProcess();
             valid = true;
             explanation = explain(searchContext, request.rewrite());
         } catch (QueryShardException|ParsingException e) {
@@ -207,7 +208,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
     }
 
     private String explain(SearchContext context, boolean rewritten) {
-        Query query = context.query();
+        Query query = rewritten ? context.rewrittenQuery() : context.query();
         if (rewritten && query instanceof MatchNoDocsQuery) {
             return context.parsedQuery().query().toString();
         } else {

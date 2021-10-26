@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 public class GetIndexResponseTests extends AbstractWireSerializingTestCase<GetIndexResponse> {
 
@@ -32,6 +33,8 @@ public class GetIndexResponseTests extends AbstractWireSerializingTestCase<GetIn
     protected Writeable.Reader<GetIndexResponse> instanceReader() {
         return GetIndexResponse::new;
     }
+
+
 
     @Override
     protected GetIndexResponse createTestInstance() {
@@ -43,13 +46,15 @@ public class GetIndexResponseTests extends AbstractWireSerializingTestCase<GetIn
         ImmutableOpenMap.Builder<String, String> dataStreams = ImmutableOpenMap.builder();
         IndexScopedSettings indexScopedSettings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS;
         boolean includeDefaults = randomBoolean();
-        for (String index: indices) {
+        for (String index : indices) {
             mappings.put(index, GetMappingsResponseTests.createMappingsForIndex());
 
             List<AliasMetadata> aliasMetadataList = new ArrayList<>();
             int aliasesNum = randomIntBetween(0, 3);
-            for (int i=0; i<aliasesNum; i++) {
-                aliasMetadataList.add(GetAliasesResponseTests.createAliasMetadata());
+            for (int i = 0; i < aliasesNum; i++) {
+                aliasMetadataList.add(GetAliasesResponseTests.createAliasMetadata(
+                    s -> aliasMetadataList.stream().map(AliasMetadata::alias).collect(Collectors.toList()).contains(s))
+                );
             }
             CollectionUtil.timSort(aliasMetadataList, Comparator.comparing(AliasMetadata::alias));
             aliases.put(index, Collections.unmodifiableList(aliasMetadataList));

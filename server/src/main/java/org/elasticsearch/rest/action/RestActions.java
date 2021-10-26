@@ -14,14 +14,14 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContent.Params;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -163,6 +163,7 @@ public class RestActions {
      * @return Never {@code null}.
      * @throws IOException if building the response causes an issue
      */
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public static <NodesResponse extends BaseNodesResponse & ToXContent> BytesRestResponse nodesResponse(final XContentBuilder builder,
                                                                                                          final Params params,
                                                                                                          final NodesResponse response)
@@ -214,7 +215,7 @@ public class RestActions {
      * });
      * </code>
      */
-    public static class NodesResponseRestListener<NodesResponse extends BaseNodesResponse & ToXContent>
+    public static class NodesResponseRestListener<NodesResponse extends BaseNodesResponse<?> & ToXContent>
         extends RestBuilderListener<NodesResponse> {
 
         public NodesResponseRestListener(RestChannel channel) {

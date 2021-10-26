@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.MediaType;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.MediaType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -95,7 +95,7 @@ public class SqlMediaTypeParserTests extends ESTestCase {
 
     protected SqlQueryRequest createTestInstance(boolean binaryCommunication, Mode mode, boolean columnar) {
         return new SqlQueryRequest(randomAlphaOfLength(10), Collections.emptyList(), null, null,
-            randomZone(), between(1, Integer.MAX_VALUE), TimeValue.parseTimeValue(randomTimeValue(), null, "test"),
+            randomZone(), randomAlphaOfLength(9), between(1, Integer.MAX_VALUE), TimeValue.parseTimeValue(randomTimeValue(), null, "test"),
             TimeValue.parseTimeValue(randomTimeValue(), null, "test"), columnar, randomAlphaOfLength(10),
             new RequestInfo(mode, randomFrom(randomFrom(CLIENT_IDS), randomAlphaOfLengthBetween(10, 20))),
             randomBoolean(), randomBoolean(), TimeValue.parseTimeValue(randomTimeValue(), null, "test"),

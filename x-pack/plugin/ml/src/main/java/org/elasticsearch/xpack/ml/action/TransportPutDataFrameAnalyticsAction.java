@@ -22,8 +22,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
@@ -69,6 +69,7 @@ public class TransportPutDataFrameAnalyticsAction
     private final Client client;
     private final DataFrameAnalyticsAuditor auditor;
     private final SourceDestValidator sourceDestValidator;
+    private final Settings settings;
 
     private volatile ByteSizeValue maxModelMemoryLimit;
 
@@ -86,6 +87,7 @@ public class TransportPutDataFrameAnalyticsAction
             new SecurityContext(settings, threadPool.getThreadContext()) : null;
         this.client = client;
         this.auditor = Objects.requireNonNull(auditor);
+        this.settings = settings;
 
         maxModelMemoryLimit = MachineLearningField.MAX_MODEL_MEMORY_LIMIT.get(settings);
         clusterService.getClusterSettings()
@@ -133,7 +135,7 @@ public class TransportPutDataFrameAnalyticsAction
                 .setVersion(Version.CURRENT)
                 .build();
 
-        if (licenseState.isSecurityEnabled()) {
+        if (XPackSettings.SECURITY_ENABLED.get(settings)) {
             useSecondaryAuthIfAvailable(securityContext, () -> {
                 final String username = securityContext.getUser().principal();
                 RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
@@ -228,7 +230,7 @@ public class TransportPutDataFrameAnalyticsAction
     @Override
     protected void doExecute(Task task, PutDataFrameAnalyticsAction.Request request,
                              ActionListener<PutDataFrameAnalyticsAction.Response> listener) {
-        if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)) {
+        if (MachineLearningField.ML_API_FEATURE.check(licenseState)) {
             super.doExecute(task, request, listener);
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));

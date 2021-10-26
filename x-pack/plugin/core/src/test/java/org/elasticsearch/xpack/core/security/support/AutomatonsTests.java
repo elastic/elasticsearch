@@ -20,7 +20,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
-import static org.apache.lucene.util.automaton.Operations.DEFAULT_MAX_DETERMINIZED_STATES;
+import static org.apache.lucene.util.automaton.Operations.DEFAULT_DETERMINIZE_WORK_LIMIT;
 import static org.elasticsearch.xpack.core.security.support.Automatons.pattern;
 import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
 import static org.elasticsearch.xpack.core.security.support.Automatons.predicate;
@@ -112,12 +112,12 @@ public class AutomatonsTests extends ESTestCase {
     }
 
     private void assertMatch(Automaton automaton, String text) {
-        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton, DEFAULT_MAX_DETERMINIZED_STATES);
+        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton, DEFAULT_DETERMINIZE_WORK_LIMIT);
         assertTrue(runAutomaton.run(text));
     }
 
     private void assertMismatch(Automaton automaton, String text) {
-        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton, DEFAULT_MAX_DETERMINIZED_STATES);
+        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton, DEFAULT_DETERMINIZE_WORK_LIMIT);
         assertFalse(runAutomaton.run(text));
     }
 
@@ -153,12 +153,12 @@ public class AutomatonsTests extends ESTestCase {
             Automatons.updateConfiguration(settings);
             assertEquals(10000, Automatons.getMaxDeterminizedStates());
 
-            final List<String> names = new ArrayList<>(1024);
-            for (int i = 0; i < 1024; i++) {
-                names.add(randomAlphaOfLength(48));
+            final List<String> names = new ArrayList<>(4096);
+            for (int i = 0; i < 4096; i++) {
+                names.add(randomAlphaOfLength(64));
             }
             TooComplexToDeterminizeException e = expectThrows(TooComplexToDeterminizeException.class, () -> Automatons.patterns(names));
-            assertThat(e.getMaxDeterminizedStates(), equalTo(10000));
+            assertThat(e.getDeterminizeWorkLimit(), equalTo(10000));
         } finally {
             Automatons.updateConfiguration(Settings.EMPTY);
             assertEquals(100000, Automatons.getMaxDeterminizedStates());

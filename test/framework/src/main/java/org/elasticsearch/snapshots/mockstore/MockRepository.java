@@ -31,7 +31,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.RepositoryPlugin;
@@ -135,6 +135,8 @@ public class MockRepository extends FsRepository {
 
     private volatile boolean blockOnWriteShardLevelMeta;
 
+    private volatile boolean blockAndFailOnWriteShardLevelMeta;
+
     private volatile boolean blockOnReadIndexMeta;
 
     private final AtomicBoolean blockOnceOnReadSnapshotInfo = new AtomicBoolean(false);
@@ -224,6 +226,7 @@ public class MockRepository extends FsRepository {
         blockedIndexId = null;
         blockOnDeleteIndexN = false;
         blockOnWriteShardLevelMeta = false;
+        blockAndFailOnWriteShardLevelMeta = false;
         blockOnReadIndexMeta = false;
         blockOnceOnReadSnapshotInfo.set(false);
         blockAndFailOnReadSnapFile = false;
@@ -268,7 +271,13 @@ public class MockRepository extends FsRepository {
     }
 
     public void setBlockOnWriteShardLevelMeta() {
+        assert blockAndFailOnWriteShardLevelMeta == false : "Either fail or wait after blocking on shard level metadata, not both";
         blockOnWriteShardLevelMeta = true;
+    }
+
+    public void setBlockAndFailOnWriteShardLevelMeta() {
+        assert blockOnWriteShardLevelMeta == false : "Either fail or wait after blocking on shard level metadata, not both";
+        blockAndFailOnWriteShardLevelMeta = true;
     }
 
     public void setBlockOnReadIndexMeta() {
@@ -310,8 +319,8 @@ public class MockRepository extends FsRepository {
         boolean wasBlocked = false;
         try {
             while (blockAndFailOnDataFiles || blockOnDataFiles || blockOnAnyFiles || blockAndFailOnWriteIndexFile || blockOnWriteIndexFile
-                    || blockAndFailOnWriteSnapFile || blockOnDeleteIndexN || blockOnWriteShardLevelMeta || blockOnReadIndexMeta
-                    || blockAndFailOnReadSnapFile || blockAndFailOnReadIndexFile || blockedIndexId != null) {
+                    || blockAndFailOnWriteSnapFile || blockOnDeleteIndexN || blockOnWriteShardLevelMeta || blockAndFailOnWriteShardLevelMeta
+                    || blockOnReadIndexMeta || blockAndFailOnReadSnapFile || blockAndFailOnReadIndexFile || blockedIndexId != null) {
                 blocked = true;
                 this.wait();
                 wasBlocked = true;
@@ -555,9 +564,12 @@ public class MockRepository extends FsRepository {
 
             private void beforeWrite(String blobName) throws IOException {
                 maybeIOExceptionOrBlock(blobName);
-                if (blockOnWriteShardLevelMeta && blobName.startsWith(BlobStoreRepository.SNAPSHOT_PREFIX)
-                        && path().equals(basePath()) == false) {
-                    blockExecutionAndMaybeWait(blobName);
+                if (blobName.startsWith(BlobStoreRepository.SNAPSHOT_PREFIX) && path().equals(basePath()) == false) {
+                    if (blockOnWriteShardLevelMeta) {
+                        blockExecutionAndMaybeWait(blobName);
+                    } else if (blockAndFailOnWriteShardLevelMeta) {
+                        blockExecutionAndFail(blobName);
+                    }
                 }
             }
 

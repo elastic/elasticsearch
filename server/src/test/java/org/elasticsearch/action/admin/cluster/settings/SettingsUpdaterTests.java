@@ -29,6 +29,7 @@ import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
@@ -603,7 +604,8 @@ public class SettingsUpdaterTests extends ESTestCase {
         Exception exception = expectThrows(IllegalArgumentException.class, () ->
             updater.updateSettings(finalCluster, Settings.builder().put(SETTING_FOO_HIGH.getKey(), 2).build(), Settings.EMPTY, logger));
 
-        assertThat(exception.getMessage(), equalTo("[high]=2 is lower than [low]=5"));
+        assertThat(exception.getMessage(),
+            either(equalTo("[high]=2 is lower than [low]=5")).or(equalTo("[low]=5 is higher than [high]=2")));
     }
 
 }

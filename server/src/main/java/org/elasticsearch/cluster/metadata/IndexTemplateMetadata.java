@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
@@ -21,12 +21,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
@@ -213,8 +213,8 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
             cursor.value.writeTo(out);
         }
         out.writeVInt(aliases.size());
-        for (ObjectCursor<AliasMetadata> cursor : aliases.values()) {
-            cursor.value.writeTo(out);
+        for (AliasMetadata aliasMetadata : aliases.values()) {
+            aliasMetadata.writeTo(out);
         }
         out.writeOptionalVInt(version);
     }
@@ -245,7 +245,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
 
         private List<String> indexPatterns;
 
-        private Settings settings = Settings.Builder.EMPTY_SETTINGS;
+        private Settings settings = Settings.EMPTY;
 
         private final ImmutableOpenMap.Builder<String, CompressedXContent> mappings;
 
@@ -377,7 +377,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
             if (indexTemplateMetadata.version() != null) {
                 builder.field("version", indexTemplateMetadata.version());
             }
-            builder.field("index_patterns", indexTemplateMetadata.patterns());
+            builder.stringListField("index_patterns", indexTemplateMetadata.patterns());
 
             builder.startObject("settings");
             indexTemplateMetadata.settings().toXContent(builder, params);
@@ -402,8 +402,8 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
             }
 
             builder.startObject("aliases");
-            for (ObjectCursor<AliasMetadata> cursor : indexTemplateMetadata.aliases().values()) {
-                AliasMetadata.Builder.toXContent(cursor.value, builder, params);
+            for (AliasMetadata aliasMetadata : indexTemplateMetadata.aliases().values()) {
+                AliasMetadata.Builder.toXContent(aliasMetadata, builder, params);
             }
             builder.endObject();
         }

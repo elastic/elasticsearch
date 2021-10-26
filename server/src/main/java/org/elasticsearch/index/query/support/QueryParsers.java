@@ -10,8 +10,8 @@ package org.elasticsearch.index.query.support;
 
 import org.apache.lucene.search.MultiTermQuery;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.DeprecationHandler;
 
 public final class QueryParsers {
 

@@ -147,4 +147,26 @@ public class RateLimitingFilterTests extends ESTestCase {
         // Third time, it is allowed again
         assertThat(filter.filter(message), equalTo(Result.ACCEPT));
     }
+
+    public void testMessagesXOpaqueIsIgnoredWhenDisabled() {
+        RateLimitingFilter filter = new RateLimitingFilter();
+        filter.setUseXOpaqueId(false);
+        filter.start();
+
+        // Should NOT be rate-limited because it's not in the cache
+        Message message = DeprecatedMessage.of(DeprecationCategory.OTHER, "key 0", "opaque-id 0", "msg 0");
+        assertThat(filter.filter(message), equalTo(Result.ACCEPT));
+
+        // Should  be rate-limited because it was just added to the cache
+        message = DeprecatedMessage.of(DeprecationCategory.OTHER, "key 0", "opaque-id 0", "msg 0");
+        assertThat(filter.filter(message), equalTo(Result.DENY));
+
+        // Should be rate-limited because X-Opaque-Id is not used
+        message = DeprecatedMessage.of(DeprecationCategory.OTHER, "key 0", "opaque-id 1", "msg 0");
+        assertThat(filter.filter(message), equalTo(Result.DENY));
+
+        // Should NOT be rate-limited because "key 1" it not in the cache
+        message = DeprecatedMessage.of(DeprecationCategory.OTHER, "key 1", "opaque-id 1", "msg 0");
+        assertThat(filter.filter(message), equalTo(Result.ACCEPT));
+    }
 }

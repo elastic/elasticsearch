@@ -47,7 +47,11 @@ public class LagDetectorTests extends ESTestCase {
             followerLagTimeout = CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING.get(Settings.EMPTY);
         }
 
-        lagDetector = new LagDetector(settingsBuilder.build(), deterministicTaskQueue.getThreadPool(), failedNodes::add, () -> localNode);
+        lagDetector = new LagDetector(
+            settingsBuilder.build(),
+            deterministicTaskQueue.getThreadPool(),
+            (discoveryNode, appliedVersion, expectedVersion) -> failedNodes.add(discoveryNode),
+            () -> localNode);
 
         localNode = CoordinationStateTests.createNode("local");
         node1 = CoordinationStateTests.createNode("node1");

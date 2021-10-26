@@ -44,6 +44,7 @@ import org.elasticsearch.client.security.PutPrivilegesRequest;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutRoleRequest;
 import org.elasticsearch.client.security.PutUserRequest;
+import org.elasticsearch.client.security.QueryApiKeyRequest;
 import org.elasticsearch.client.security.SetUserEnabledRequest;
 import org.elasticsearch.common.Strings;
 
@@ -343,6 +344,12 @@ final class SecurityRequestConverters {
     static Request invalidateApiKey(final InvalidateApiKeyRequest invalidateApiKeyRequest) throws IOException {
         final Request request = new Request(HttpDelete.METHOD_NAME, "/_security/api_key");
         request.setEntity(createEntity(invalidateApiKeyRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request queryApiKey(final QueryApiKeyRequest queryApiKeyRequest) throws IOException {
+        final Request request = new Request(HttpGet.METHOD_NAME, "/_security/_query/api_key");
+        request.setEntity(createEntity(queryApiKeyRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 

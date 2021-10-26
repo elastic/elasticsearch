@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.security.authz.support;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;

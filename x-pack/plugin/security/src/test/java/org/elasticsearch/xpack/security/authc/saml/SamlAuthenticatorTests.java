@@ -17,7 +17,6 @@ import org.elasticsearch.common.util.NamedFormatter;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.hamcrest.Matchers;
-import org.joda.time.DateTime;
 import org.junit.Before;
 import org.opensaml.core.xml.schema.XSString;
 import org.opensaml.core.xml.schema.impl.XSStringBuilder;
@@ -143,7 +142,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         response.setDestination(SP_ACS_URL);
         response.setID(randomId());
         response.setInResponseTo(requestId);
-        response.setIssueInstant(new DateTime(now.toEpochMilli()));
+        response.setIssueInstant(now);
         final Issuer responseIssuer = SamlUtils.buildObject(Issuer.class, Issuer.DEFAULT_ELEMENT_NAME);
         responseIssuer.setValue(IDP_ENTITY_ID);
         response.setIssuer(responseIssuer);
@@ -675,7 +674,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         AudienceRestriction audienceRestriction = SamlUtils.buildObject(AudienceRestriction.class,
             AudienceRestriction.DEFAULT_ELEMENT_NAME);
         Audience falseAudience = SamlUtils.buildObject(Audience.class, Audience.DEFAULT_ELEMENT_NAME);
-        falseAudience.setAudienceURI(audience);
+        falseAudience.setURI(audience);
         audienceRestriction.getAudiences().add(falseAudience);
         response.getAssertions().get(0).getConditions().getAudienceRestrictions().clear();
         response.getAssertions().get(0).getConditions().getAudienceRestrictions().add(audienceRestriction);
@@ -696,9 +695,9 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         AudienceRestriction invalidAudienceRestriction = SamlUtils.buildObject(AudienceRestriction.class,
             AudienceRestriction.DEFAULT_ELEMENT_NAME);
         Audience similarAudience = SamlUtils.buildObject(Audience.class, Audience.DEFAULT_ELEMENT_NAME);
-        similarAudience.setAudienceURI(similarAudienceString);
+        similarAudience.setURI(similarAudienceString);
         Audience wrongAudience = SamlUtils.buildObject(Audience.class, Audience.DEFAULT_ELEMENT_NAME);
-        wrongAudience.setAudienceURI(wrongAudienceString);
+        wrongAudience.setURI(wrongAudienceString);
         invalidAudienceRestriction.getAudiences().add(similarAudience);
         invalidAudienceRestriction.getAudiences().add(wrongAudience);
         response.getAssertions().get(0).getConditions().getAudienceRestrictions().clear();
@@ -1255,7 +1254,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         response.setDestination(SP_ACS_URL);
         response.setID(randomId());
         response.setInResponseTo(requestId);
-        response.setIssueInstant(new DateTime(now.toEpochMilli()));
+        response.setIssueInstant(now);
         final Issuer responseIssuer = SamlUtils.buildObject(Issuer.class, Issuer.DEFAULT_ELEMENT_NAME);
         responseIssuer.setValue(IDP_ENTITY_ID);
         response.setIssuer(responseIssuer);
@@ -1293,7 +1292,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         response.setDestination(SP_ACS_URL);
         response.setID(randomId());
         response.setInResponseTo(requestId);
-        response.setIssueInstant(new DateTime(now.toEpochMilli()));
+        response.setIssueInstant(now);
         final Issuer responseIssuer = SamlUtils.buildObject(Issuer.class, Issuer.DEFAULT_ELEMENT_NAME);
         responseIssuer.setValue(IDP_ENTITY_ID);
         response.setIssuer(responseIssuer);
@@ -1304,14 +1303,14 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         response.setStatus(status);
         final Assertion assertion = SamlUtils.buildObject(Assertion.class, Assertion.DEFAULT_ELEMENT_NAME);
         assertion.setID(sessionindex);
-        assertion.setIssueInstant(new DateTime(now.toEpochMilli()));
+        assertion.setIssueInstant(now);
         final Issuer assertionIssuer = SamlUtils.buildObject(Issuer.class, Issuer.DEFAULT_ELEMENT_NAME);
         assertionIssuer.setValue(IDP_ENTITY_ID);
         assertion.setIssuer(assertionIssuer);
         AudienceRestriction audienceRestriction = SamlUtils.buildObject(AudienceRestriction.class,
             AudienceRestriction.DEFAULT_ELEMENT_NAME);
         Audience audience = SamlUtils.buildObject(Audience.class, Audience.DEFAULT_ELEMENT_NAME);
-        audience.setAudienceURI(SP_ENTITY_ID);
+        audience.setURI(SP_ENTITY_ID);
         audienceRestriction.getAudiences().add(audience);
         Conditions conditions = SamlUtils.buildObject(Conditions.class, Conditions.DEFAULT_ELEMENT_NAME);
         conditions.getAudienceRestrictions().add(audienceRestriction);
@@ -1326,7 +1325,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             SubjectConfirmation.DEFAULT_ELEMENT_NAME);
         final SubjectConfirmationData subjectConfirmationData = SamlUtils.buildObject(SubjectConfirmationData.class,
             SubjectConfirmationData.DEFAULT_ELEMENT_NAME);
-        subjectConfirmationData.setNotOnOrAfter(new DateTime(subjectConfirmationValidUntil.toEpochMilli()));
+        subjectConfirmationData.setNotOnOrAfter(subjectConfirmationValidUntil);
         subjectConfirmationData.setRecipient(SP_ACS_URL);
         subjectConfirmationData.setInResponseTo(requestId);
         subjectConfirmation.setSubjectConfirmationData(subjectConfirmationData);
@@ -1336,14 +1335,14 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         assertion.setSubject(subject);
         final AuthnContextClassRef authnContextClassRef = SamlUtils.buildObject(AuthnContextClassRef.class,
             AuthnContextClassRef.DEFAULT_ELEMENT_NAME);
-        authnContextClassRef.setAuthnContextClassRef(PASSWORD_AUTHN_CTX);
+        authnContextClassRef.setURI(PASSWORD_AUTHN_CTX);
         final AuthnContext authnContext = SamlUtils.buildObject(AuthnContext.class, AuthnContext.DEFAULT_ELEMENT_NAME);
         authnContext.setAuthnContextClassRef(authnContextClassRef);
         final AuthnStatement authnStatement = new AuthnStatementBuilder().buildObject();
         authnStatement.setAuthnContext(authnContext);
-        authnStatement.setAuthnInstant(new DateTime(now.toEpochMilli()));
+        authnStatement.setAuthnInstant(now);
         authnStatement.setSessionIndex(sessionindex);
-        authnStatement.setSessionNotOnOrAfter(new DateTime(sessionValidUntil.toEpochMilli()));
+        authnStatement.setSessionNotOnOrAfter(sessionValidUntil);
         assertion.getAuthnStatements().add(authnStatement);
         final AttributeStatement attributeStatement = SamlUtils.buildObject(AttributeStatement.class,
             AttributeStatement.DEFAULT_ELEMENT_NAME);

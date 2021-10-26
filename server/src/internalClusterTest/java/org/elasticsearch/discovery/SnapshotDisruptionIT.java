@@ -20,7 +20,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotException;
@@ -69,7 +69,8 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         createRandomIndex(idxName);
 
-        createRepository("test-repo", "fs");
+        final String repoName = "test-repo";
+        createRepository(repoName, "fs");
 
         final String masterNode1 = internalCluster().getMasterName();
 
@@ -82,12 +83,12 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
                 SnapshotsInProgress snapshots = event.state().custom(SnapshotsInProgress.TYPE);
-                if (snapshots != null && snapshots.entries().size() > 0) {
-                    final SnapshotsInProgress.Entry snapshotEntry = snapshots.entries().get(0);
+                if (snapshots != null && snapshots.isEmpty() == false) {
+                    final SnapshotsInProgress.Entry snapshotEntry = snapshots.forRepo(repoName).get(0);
                     if (snapshotEntry.state() == SnapshotsInProgress.State.SUCCESS) {
                         final RepositoriesMetadata repoMeta =
                             event.state().metadata().custom(RepositoriesMetadata.TYPE);
-                        final RepositoryMetadata metadata = repoMeta.repository("test-repo");
+                        final RepositoryMetadata metadata = repoMeta.repository(repoName);
                         if (metadata.pendingGeneration() > snapshotEntry.repositoryStateId()) {
                             logger.info("--> starting disruption");
                             networkDisruption.startDisrupting();

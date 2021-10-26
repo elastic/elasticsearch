@@ -117,9 +117,7 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
             settings = Settings.builder()
                     .put(IPFilter.IP_FILTER_ENABLED_HTTP_SETTING.getKey(), false)
                     .build();
-            // as we permanently switch between persistent and transient settings, just set both here to make sure we overwrite
             assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
             assertConnectionAccepted(".http", "127.0.0.8");
         }
     }
@@ -190,11 +188,7 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
 
 
     private void updateSettings(Settings settings) {
-        if (randomBoolean()) {
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
-        } else {
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
-        }
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
     }
 
     private void assertConnectionAccepted(String profile, String host) throws UnknownHostException {

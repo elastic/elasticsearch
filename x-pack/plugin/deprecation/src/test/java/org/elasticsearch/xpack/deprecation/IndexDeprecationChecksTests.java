@@ -12,7 +12,9 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.frozen.FrozenEngine;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.List;
 
@@ -33,7 +35,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "Index created before 7.0",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
                 "breaking-changes-8.0.html",
-            "This index was created using version: " + createdWith, null);
+            "This index was created using version: " + createdWith, false, null);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
         assertEquals(singletonList(expected), issues);
     }
@@ -49,7 +51,8 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 "translog retention settings are ignored",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-translog.html",
                 "translog retention settings [index.translog.retention.size] and [index.translog.retention.age] are ignored " +
-                    "because translog is no longer used in peer recoveries with soft-deletes enabled (default in 7.0 or later)", null)
+                    "because translog is no longer used in peer recoveries with soft-deletes enabled (default in 7.0 or later)",
+                false, null)
         ));
     }
 
@@ -77,7 +80,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 "setting [index.data_path] is deprecated and will be removed in a future version",
                 expectedUrl,
                 "Found index data path configured. Discontinue use of this setting.",
-                null)));
+                false, null)));
     }
 
     public void testSimpleFSSetting() {
@@ -91,7 +94,23 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 "https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-store.html",
                 "[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. " +
                     "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type " +
-                    "as it offers superior or equivalent performance to [simplefs].", null)
+                    "as it offers superior or equivalent performance to [simplefs].", false, null)
+        ));
+    }
+
+    public void testFrozenIndex() {
+        Settings.Builder settings = settings(Version.CURRENT);
+        settings.put(FrozenEngine.INDEX_FROZEN.getKey(), true);
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
+        assertThat(issues, contains(
+            new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "index [test] is a frozen index. The frozen indices feature is deprecated and will be removed in a future version",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/frozen-indices.html",
+                "Frozen indices no longer offer any advantages. Consider cold or frozen tiers in place of frozen indices.",
+                false,
+                null
+            )
         ));
     }
 }

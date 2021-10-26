@@ -200,8 +200,8 @@ public class RestIndicesAction extends AbstractCatAction {
             public void onResponse(final Collection<ActionResponse> responses) {
                 try {
                     GetSettingsResponse settingsResponse = extractResponse(responses, GetSettingsResponse.class);
-                    Map<String, Settings> indicesSettings = StreamSupport.stream(settingsResponse.getIndexToSettings().spliterator(), false)
-                        .collect(Collectors.toMap(cursor -> cursor.key, cursor -> cursor.value));
+                    Map<String, Settings> indicesSettings = settingsResponse.getIndexToSettings().stream()
+                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
                     ClusterStateResponse stateResponse = extractResponse(responses, ClusterStateResponse.class);
                     Map<String, IndexMetadata> indicesStates =

@@ -73,81 +73,106 @@ Besides creating a copy of each data stream and index, the snapshot process can 
 
 `<repository>`::
 (Required, string)
-Name of the repository to create a snapshot in.
+Name of the snapshot repository.
 
 `<snapshot>`::
 (Required, string)
-Name of the snapshot to create. This name must be unique in the snapshot repository.
+Name of the snapshot. Supports <<api-date-math-index-names,date math>>. Must be
+unique within the snapshot repository.
+
+[[create-snapshot-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+`wait_for_completion`::
+(Optional, Boolean) If `true`, the request returns a response when the snapshot
+is complete. If `false`, the request returns a response when the snapshot
+initializes. Defaults to `false`.
 
 [role="child_attributes"]
 [[create-snapshot-api-request-body]]
 ==== {api-request-body-title}
 
+// Set an attribute so we can reuse these params with anchors
+:page-id: create-snapshot-api
+// tag::snapshot-config[]
+`expand_wildcards`::
++
+--
+(Optional, string) Determines how wildcard patterns in the `indices` parameter
+match data streams and indices. Supports comma-separated values, such as
+`open,hidden`. Defaults to `all`. Valid values are:
+
+`all`:::
+Match any data stream or index, including <<hidden,hidden>> ones.
+
+`open`:::
+Match open indices and data streams.
+
+`closed`:::
+Match closed indices and data streams.
+
+`hidden`:::
+Match hidden data streams and indices. Must be combined with `open`, `closed`,
+or both.
+
+`none`:::
+Don't expand wildcard patterns.
+--
+
 `ignore_unavailable`::
 (Optional, Boolean)
-If `false`, the request returns an error for any data stream or index that is missing or closed. Defaults to `false`.
-+
-If `true`, the request ignores data streams and indices in `indices` that are missing or closed.
-
-`indices`::
-(Optional, string)
-A comma-separated list of data streams and indices to include in the snapshot.
-<<multi-index,Multi-index syntax>> is supported.
-+
-By default, a snapshot includes all data streams and indices in the cluster. If this
-argument is provided, the snapshot only includes the specified data streams and clusters.
+If `false`, the snapshot fails if any data stream or index in `indices` is
+missing or closed. If `true`, the snapshot ignores missing or closed data
+streams and indices. Defaults to `false`.
 
 `include_global_state`::
 +
 --
 (Optional, Boolean)
-If `true`, the current global state is included in the snapshot.
-Defaults to `true`.
+If `true`, include the cluster state in the snapshot. Defaults to `true`.
+The cluster state includes:
 
-The global state includes:
-
-* Persistent cluster settings
-* Index templates
-* Legacy index templates
-* Ingest pipelines
-* {ilm-init} lifecycle policies
-* Data stored in system indices, such as Watches and task records (configurable via `feature_states`)
+include::restore-snapshot-api.asciidoc[tag=cluster-state-contents]
 --
-+
-IMPORTANT: By default, the entire snapshot will fail if one or more indices included in the snapshot do not have all primary shards available. You can change this behavior by setting <<create-snapshot-api-partial,`partial`>> to `true`.
 
-[[create-snapshot-api-feature-states]]
+`indices`::
+(Optional, string or array of strings)
+Comma-separated list of data streams and indices to include in the snapshot.
+Supports <<api-multi-index,multi-index syntax>>. Defaults to an empty array
+(`[]`), which includes all data streams and indices, including system indices.
++
+To exclude all data streams and indices, use `-*` or `none`.
+
+[id="{page-id}-feature-states"]
 `feature_states`::
 (Optional, array of strings)
-A list of feature states to be included in this snapshot. A list of features
-available for inclusion in the snapshot and their descriptions be can be
-retrieved using the <<get-features-api,get features API>>.
-Each feature state includes one or more system indices containing data necessary
-for the function of that feature. Providing an empty array will include no feature
-states in the snapshot, regardless of the value of `include_global_state`.
+Feature states to include in the snapshot. To get a list of possible feature
+state values and their descriptions, use the <<get-features-api,get features
+API>>. Each feature state includes one or more system indices.
 +
-By default, all available feature states will be included in the snapshot if
-`include_global_state` is `true`, or no feature states if `include_global_state`
-is `false`.
-
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+If `include_global_state` is `true`, the snapshot includes all feature states by
+default. If `include_global_state` is `false`, the snapshot includes no feature
+states by default.
++
+To exclude all feature states, regardless of the `include_global_state` value,
+specify an empty array (`[]`) or `none`.
 
 `metadata`::
-(Optional, string)
+(Optional, object)
 Attaches arbitrary metadata to the snapshot, such as a record of who took the snapshot, why it was taken, or any other useful data. Metadata must be less than 1024 bytes.
 
-[[create-snapshot-api-partial]]
+[id="{page-id}-partial"]
 `partial`::
 (Optional, Boolean)
 If `false`, the entire snapshot will fail if one or more indices included in the snapshot do not have all primary shards available. Defaults to `false`.
 +
 If `true`, allows taking a partial snapshot of indices with unavailable shards.
+// end::snapshot-config[]
 
-`wait_for_completion`::
-(Optional, Boolean)
-If `true`, the request returns a response when the snapshot is complete.
-If `false`, the request returns a response when the snapshot initializes.
-Defaults to `false`.
+// Unset the attribute
+:!page-id:
 
 [[create-snapshot-api-example]]
 ==== {api-examples-title}

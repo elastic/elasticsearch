@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.rest.datafeeds;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -23,14 +24,17 @@ import java.util.Set;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
+import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
 public class RestGetDatafeedsAction extends BaseRestHandler {
 
      @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}"),
-            new Route(GET, BASE_PATH + "datafeeds")
+            Route.builder(GET, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}")
+                .replaces(GET, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}", RestApiVersion.V_7).build(),
+            Route.builder(GET, BASE_PATH + "datafeeds")
+                .replaces(GET, PRE_V7_BASE_PATH + "datafeeds", RestApiVersion.V_7).build()
         );
     }
 

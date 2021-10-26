@@ -22,6 +22,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -35,9 +36,11 @@ import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.Snapshot;
@@ -50,7 +53,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
@@ -164,35 +166,36 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
             // snapshot the shard
             final Repository repository = createRepository();
             final Snapshot snapshot = new Snapshot(repository.getMetadata().name(), new SnapshotId(randomAlphaOfLength(10), "_uuid"));
-            final String shardGen = snapshotShard(shard, snapshot, repository);
+            final ShardGeneration shardGen = snapshotShard(shard, snapshot, repository);
             assertNotNull(shardGen);
             final Snapshot snapshotWithSameName = new Snapshot(
                 repository.getMetadata().name(),
                 new SnapshotId(snapshot.getSnapshotId().getName(), "_uuid2")
             );
             final ShardGenerations shardGenerations = ShardGenerations.builder().put(indexId, 0, shardGen).build();
-            PlainActionFuture.<RepositoryData, Exception>get(
+            PlainActionFuture.<Tuple<RepositoryData, SnapshotInfo>, Exception>get(
                 f -> repository.finalizeSnapshot(
-                    shardGenerations,
-                    RepositoryData.EMPTY_REPO_GEN,
-                    Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(),
-                    new SnapshotInfo(
-                        snapshot,
-                        shardGenerations.indices().stream().map(IndexId::getName).collect(Collectors.toList()),
-                        Collections.emptyList(),
-                        Collections.emptyList(),
-                        null,
-                        1L,
-                        6,
-                        Collections.emptyList(),
-                        true,
-                        Collections.emptyMap(),
-                        0L,
-                        Collections.emptyMap()
-                    ),
-                    Version.CURRENT,
-                    Function.identity(),
-                    f
+                    new FinalizeSnapshotContext(
+                        shardGenerations,
+                        RepositoryData.EMPTY_REPO_GEN,
+                        Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(),
+                        new SnapshotInfo(
+                            snapshot,
+                            shardGenerations.indices().stream().map(IndexId::getName).collect(Collectors.toList()),
+                            Collections.emptyList(),
+                            Collections.emptyList(),
+                            null,
+                            1L,
+                            6,
+                            Collections.emptyList(),
+                            true,
+                            Collections.emptyMap(),
+                            0L,
+                            Collections.emptyMap()
+                        ),
+                        Version.CURRENT,
+                        f
+                    )
                 )
             );
             IndexShardSnapshotFailedException isfe = expectThrows(

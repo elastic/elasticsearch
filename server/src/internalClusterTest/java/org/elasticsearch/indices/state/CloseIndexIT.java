@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -379,8 +378,8 @@ public class CloseIndexIT extends ESIntegTestCase {
     public void testRecoverExistingReplica() throws Exception {
         final String indexName = "test-recover-existing-replica";
         internalCluster().ensureAtLeastNumDataNodes(2);
-        List<String> dataNodes = randomSubsetOf(2, Sets.newHashSet(
-            clusterService().state().nodes().getDataNodes().valuesIt()).stream().map(DiscoveryNode::getName).collect(Collectors.toSet()));
+        List<String> dataNodes = randomSubsetOf(2, clusterService().state().nodes().getDataNodes().values()
+            .stream().map(DiscoveryNode::getName).collect(Collectors.toSet()));
         createIndex(indexName, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)

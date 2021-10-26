@@ -11,10 +11,13 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.ClusterNode;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
@@ -23,26 +26,32 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterStateUpdateStats;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -73,11 +82,13 @@ import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
@@ -779,6 +790,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.stabilise(defaultMillis(PUBLISH_TIMEOUT_SETTING));
             assertTrue("expected eventual ack from " + leader, ackCollector.hasAckedSuccessfully(leader));
             assertFalse("expected no ack from " + follower0, ackCollector.hasAcked(follower0));
+
+            follower0.setClusterStateApplyResponse(ClusterStateApplyResponse.SUCCEED);
         }
     }
 
@@ -943,6 +956,20 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final long finalValue = randomLong();
             final Map<ClusterNode, PublishClusterStateStats> prePublishStats = cluster.clusterNodes.stream().collect(
                 Collectors.toMap(Function.identity(), cn -> cn.coordinator.stats().getPublishStats()));
+
+            if (cluster.clusterNodes.size() > 1) {
+                // at least one node must have published at least one full cluster state when other nodes joined
+                final Optional<PublishClusterStateStats> optionalStats = prePublishStats
+                    .values()
+                    .stream()
+                    .filter(stats -> stats.getClusterStateSerializationStats().getFullStateCount() > 0)
+                    .findAny();
+                assertTrue(optionalStats.isPresent());
+                final ClusterStateSerializationStats serializationStats = optionalStats.get().getClusterStateSerializationStats();
+                assertThat(serializationStats.toString(), serializationStats.getTotalUncompressedFullStateBytes(), greaterThan(0L));
+                assertThat(serializationStats.toString(), serializationStats.getTotalCompressedFullStateBytes(), greaterThan(4L));
+            }
+
             logger.info("--> submitting value [{}] to [{}]", finalValue, leader);
             leader.submitValue(finalValue);
             cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
@@ -957,7 +984,270 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     postPublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount());
                 assertEquals(cn.toString(), prePublishStats.get(cn).getIncompatibleClusterStateDiffReceivedCount(),
                     postPublishStats.get(cn).getIncompatibleClusterStateDiffReceivedCount());
+
+                if (cn != leader) {
+                    assertEquals(cn.toString(),
+                        Strings.toString(prePublishStats.get(cn).getClusterStateSerializationStats()),
+                        Strings.toString(postPublishStats.get(cn).getClusterStateSerializationStats()));
+                }
             }
+
+            final ClusterStateSerializationStats serializationStats0 = prePublishStats.get(leader).getClusterStateSerializationStats();
+            final ClusterStateSerializationStats serializationStats1 = postPublishStats.get(leader).getClusterStateSerializationStats();
+
+            assertThat(serializationStats1.getDiffCount(), equalTo(serializationStats0.getDiffCount() + 1));
+            assertThat(
+                serializationStats1.getTotalUncompressedDiffBytes(),
+                greaterThan(serializationStats0.getDiffCount()));
+            assertThat(
+                serializationStats1.getTotalCompressedDiffBytes(),
+                greaterThan(serializationStats0.getDiffCount() + 4 /* compressed data starts with 4 byte header */));
+
+            assertThat(serializationStats1.getFullStateCount(), equalTo(serializationStats0.getFullStateCount()));
+            assertThat(
+                serializationStats1.getTotalUncompressedFullStateBytes(),
+                equalTo(serializationStats0.getTotalUncompressedFullStateBytes()));
+            assertThat(
+                serializationStats1.getTotalCompressedFullStateBytes(),
+                equalTo(serializationStats0.getTotalCompressedFullStateBytes()));
+        }
+    }
+
+    private static class TimeAdvancer {
+
+        public static final int MAX_ADVANCE_MILLIS = 2000;
+
+        private final DeterministicTaskQueue deterministicTaskQueue;
+        private long elapsedTime;
+
+        TimeAdvancer(DeterministicTaskQueue deterministicTaskQueue) {
+            this.deterministicTaskQueue = deterministicTaskQueue;
+        }
+
+        void advanceTime() {
+            final long startTime = deterministicTaskQueue.getCurrentTimeMillis();
+            deterministicTaskQueue.scheduleAt(startTime + between(1000, MAX_ADVANCE_MILLIS), new Runnable() {
+                @Override
+                public void run() {
+                }
+
+                @Override
+                public String toString() {
+                    return "no-op task to advance time";
+                }
+            });
+            deterministicTaskQueue.advanceTime();
+            elapsedTime += deterministicTaskQueue.getCurrentTimeMillis() - startTime;
+        }
+
+        long getElapsedTime() {
+            return elapsedTime;
+        }
+    }
+
+    public void testMasterStatsOnNoOpUpdate() {
+        try (Cluster cluster = new Cluster(randomIntBetween(1, 5), false, Settings.EMPTY)) {
+            cluster.runRandomly();
+            cluster.stabilise();
+
+            for (ClusterNode clusterNode : cluster.getAllNodesExcept()) {
+                assertThat(
+                    clusterNode.coordinator.stats().getClusterStateUpdateStats() != null,
+                    equalTo(clusterNode.getLocalNode().isMasterNode()));
+            }
+
+            final ClusterNode leader = cluster.getAnyLeader();
+            final ClusterStateUpdateStats stats0 = leader.coordinator.stats().getClusterStateUpdateStats();
+
+            final TimeAdvancer computeAdvancer = new TimeAdvancer(cluster.deterministicTaskQueue);
+            final TimeAdvancer notifyAdvancer = new TimeAdvancer(cluster.deterministicTaskQueue);
+            leader.submitUpdateTask("unchanged", cs -> {
+                computeAdvancer.advanceTime();
+                return cs;
+            }, new ClusterStateTaskListener() {
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    notifyAdvancer.advanceTime();
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    assert false : e;
+                }
+            });
+
+            cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY + TimeAdvancer.MAX_ADVANCE_MILLIS * 2);
+
+            final ClusterStateUpdateStats stats1 = leader.coordinator.stats().getClusterStateUpdateStats();
+
+            final String description = Strings.toString(stats1) + " vs " + Strings.toString(stats0);
+            assertThat(description, stats1.getUnchangedTaskCount() - stats0.getUnchangedTaskCount(), greaterThanOrEqualTo(1L));
+            assertThat(
+                description,
+                stats1.getUnchangedComputationElapsedMillis() - stats0.getUnchangedComputationElapsedMillis(),
+                greaterThanOrEqualTo(computeAdvancer.getElapsedTime()));
+            assertThat(
+                description,
+                stats1.getUnchangedNotificationElapsedMillis() - stats0.getUnchangedNotificationElapsedMillis(),
+                greaterThanOrEqualTo(notifyAdvancer.getElapsedTime()));
+        }
+    }
+
+    public void testMasterStatsOnSuccessfulUpdate() {
+
+        final String customName = "delayed";
+
+        class DelayedCustom extends AbstractNamedDiffable<ClusterState.Custom> implements ClusterState.Custom {
+            @Nullable
+            private final TimeAdvancer timeAdvancer;
+
+            DelayedCustom(TimeAdvancer timeAdvancer) {
+                super();
+                this.timeAdvancer = timeAdvancer;
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                builder.startObject();
+                builder.endObject();
+                return builder;
+            }
+
+            @Override
+            public String getWriteableName() {
+                return customName;
+            }
+
+            @Override
+            public Version getMinimalSupportedVersion() {
+                return Version.CURRENT;
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                if (timeAdvancer != null) {
+                    timeAdvancer.advanceTime();
+                }
+            }
+        }
+
+        try (Cluster cluster = new Cluster(randomIntBetween(1, 5)) {
+            @Override
+            protected List<NamedWriteableRegistry.Entry> extraNamedWriteables() {
+                return List.of(new NamedWriteableRegistry.Entry(ClusterState.Custom.class, customName, in -> new DelayedCustom(null)));
+            }
+        }) {
+            cluster.runRandomly();
+            cluster.stabilise();
+
+            final ClusterNode leader = cluster.getAnyLeader();
+            final ClusterStateUpdateStats stats0 = leader.coordinator.stats().getClusterStateUpdateStats();
+
+            final TimeAdvancer computeAdvancer = new TimeAdvancer(cluster.deterministicTaskQueue);
+            final TimeAdvancer notifyAdvancer = new TimeAdvancer(cluster.deterministicTaskQueue);
+            final TimeAdvancer contextAdvancer = new TimeAdvancer(cluster.deterministicTaskQueue);
+            leader.submitUpdateTask("update", cs -> {
+                computeAdvancer.advanceTime();
+                return ClusterState.builder(cs)
+                    .putCustom(customName, new DelayedCustom(contextAdvancer))
+                    .build();
+            }, new ClusterStateTaskListener() {
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    notifyAdvancer.advanceTime();
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    assert false : e;
+                }
+            });
+
+            cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY + TimeAdvancer.MAX_ADVANCE_MILLIS * 3);
+
+            final ClusterStateUpdateStats stats1 = leader.coordinator.stats().getClusterStateUpdateStats();
+
+            final String description = Strings.toString(stats1) + " vs " + Strings.toString(stats0);
+            assertThat(description, stats1.getPublicationSuccessCount() - stats0.getPublicationSuccessCount(), greaterThanOrEqualTo(1L));
+            assertThat(
+                description,
+                stats1.getSuccessfulComputationElapsedMillis() - stats0.getSuccessfulComputationElapsedMillis(),
+                greaterThanOrEqualTo(computeAdvancer.getElapsedTime()));
+            assertThat(
+                description,
+                stats1.getSuccessfulNotificationElapsedMillis() - stats0.getSuccessfulNotificationElapsedMillis(),
+                greaterThanOrEqualTo(notifyAdvancer.getElapsedTime()));
+            assertThat(
+                description,
+                stats1.getSuccessfulPublicationElapsedMillis() - stats0.getSuccessfulPublicationElapsedMillis(),
+                greaterThanOrEqualTo(notifyAdvancer.getElapsedTime()));
+            assertThat(
+                description,
+                stats1.getSuccessfulContextConstructionElapsedMillis() - stats0.getSuccessfulContextConstructionElapsedMillis(),
+                greaterThanOrEqualTo(contextAdvancer.getElapsedTime()));
+
+            // this is atomic up to some scheduling delay
+            assertThat(
+                description,
+                stats1.getSuccessfulMasterApplyElapsedMillis() - stats0.getSuccessfulMasterApplyElapsedMillis(),
+                lessThanOrEqualTo(DEFAULT_DELAY_VARIABILITY));
+        }
+    }
+
+    public void testMasterStatsOnFailedUpdate() {
+        try (Cluster cluster = new Cluster(randomIntBetween(3, 5))) {
+            cluster.runRandomly();
+            cluster.stabilise();
+
+            final ClusterNode leader = cluster.getAnyLeader();
+            final ClusterStateUpdateStats stats0 = leader.coordinator.stats().getClusterStateUpdateStats();
+
+            final TimeAdvancer computeAdvancer = new TimeAdvancer(cluster.deterministicTaskQueue);
+            final TimeAdvancer notifyAdvancer = new TimeAdvancer(cluster.deterministicTaskQueue);
+            leader.submitUpdateTask("update", cs -> {
+                computeAdvancer.advanceTime();
+                return ClusterState.builder(cs).build();
+            }, new ClusterStateTaskListener() {
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    fail("shouldn't have processed cluster state");
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    notifyAdvancer.advanceTime();
+                }
+            });
+
+            leader.blackhole();
+            cluster.stabilise(DEFAULT_STABILISATION_TIME + TimeAdvancer.MAX_ADVANCE_MILLIS * 2);
+
+            final ClusterStateUpdateStats stats1 = leader.coordinator.stats().getClusterStateUpdateStats();
+
+            final String description = Strings.toString(stats1) + " vs " + Strings.toString(stats0);
+            assertThat(description, stats1.getPublicationFailureCount() - stats0.getPublicationFailureCount(), greaterThanOrEqualTo(1L));
+            assertThat(
+                description,
+                stats1.getFailedComputationElapsedMillis() - stats0.getFailedComputationElapsedMillis(),
+                greaterThanOrEqualTo(computeAdvancer.getElapsedTime()));
+            assertThat(
+                description,
+                stats1.getFailedNotificationElapsedMillis() - stats0.getFailedNotificationElapsedMillis(),
+                greaterThanOrEqualTo(notifyAdvancer.getElapsedTime()));
+            assertThat(
+                description,
+                stats1.getFailedPublicationElapsedMillis() - stats0.getFailedPublicationElapsedMillis(),
+                greaterThanOrEqualTo(notifyAdvancer.getElapsedTime()));
+
+            // this action is atomic, no simulated time can elapse
+            assertThat(description, stats0.getFailedContextConstructionElapsedMillis(), equalTo(0L));
+            assertThat(description, stats1.getFailedContextConstructionElapsedMillis(), equalTo(0L));
+
+            // no state should have been applied
+            assertThat(
+                description,
+                stats1.getFailedMasterApplyElapsedMillis() - stats0.getFailedMasterApplyElapsedMillis(),
+                equalTo(0L));
         }
     }
 
@@ -1106,6 +1396,53 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    public void testNodeCannotJoinIfJoinPingValidationFailsOnMaster() throws IllegalAccessException {
+        try (Cluster cluster = new Cluster(randomIntBetween(1, 3))) {
+            cluster.runRandomly();
+            cluster.stabilise();
+
+            cluster.getAnyLeader().addActionBlock(JoinHelper.JOIN_PING_ACTION_NAME);
+
+            // check that if node ping join validation fails on master, the nodes can't join
+            List<ClusterNode> addedNodes = cluster.addNodes(randomIntBetween(1, 2));
+            final long previousClusterStateVersion = cluster.getAnyLeader().getLastAppliedClusterState().version();
+
+            MockLogAppender mockAppender = new MockLogAppender();
+            mockAppender.start();
+            Logger joinLogger = LogManager.getLogger(JoinHelper.class);
+            Logger coordinatorLogger = LogManager.getLogger(Coordinator.class);
+            Loggers.addAppender(joinLogger, mockAppender);
+            Loggers.addAppender(coordinatorLogger, mockAppender);
+            try {
+                mockAppender.addExpectation(
+                    new MockLogAppender.SeenEventExpectation(
+                        "failed to join",
+                        JoinHelper.class.getCanonicalName(),
+                        Level.INFO,
+                        "*failed to join*"));
+                mockAppender.addExpectation(
+                    new MockLogAppender.SeenEventExpectation(
+                        "failed to ping",
+                        Coordinator.class.getCanonicalName(),
+                        Level.WARN,
+                        "*failed to ping joining node*"));
+                cluster.runFor(10000, "failing joins");
+                mockAppender.assertAllExpectationsMatched();
+            } finally {
+                Loggers.removeAppender(coordinatorLogger, mockAppender);
+                Loggers.removeAppender(joinLogger, mockAppender);
+                mockAppender.stop();
+            }
+
+            assertTrue(addedNodes.stream().allMatch(ClusterNode::isCandidate));
+            final long newClusterStateVersion = cluster.getAnyLeader().getLastAppliedClusterState().version();
+            assertEquals(previousClusterStateVersion, newClusterStateVersion);
+
+            cluster.getAnyLeader().clearActionBlocks();
+            cluster.stabilise();
+        }
+    }
+
     public void testNodeCannotJoinIfJoinValidationFailsOnJoiningNode() {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 3))) {
             cluster.runRandomly();
@@ -1143,6 +1480,12 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.bootstrapIfNecessary();
             cluster.runFor(10000, "failing join validation");
             assertTrue(cluster.clusterNodes.stream().allMatch(cn -> cn.getLastAppliedClusterState().version() == 0));
+
+            for (ClusterNode clusterNode : cluster.clusterNodes) {
+                clusterNode.extraJoinValidators.clear();
+            }
+
+            cluster.stabilise();
         }
     }
 
@@ -1305,20 +1648,31 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final long delayVariabilityMillis = randomLongBetween(DEFAULT_DELAY_VARIABILITY, TimeValue.timeValueMinutes(10).millis());
             if (randomBoolean()) {
                 cluster.runRandomly(true, false, delayVariabilityMillis);
-            } else {
-                cluster.deterministicTaskQueue.setExecutionDelayVariabilityMillis(delayVariabilityMillis);
             }
 
+            cluster.deterministicTaskQueue.setExecutionDelayVariabilityMillis(delayVariabilityMillis);
+
             final ClusterNode clusterNode = cluster.getAnyNode();
+
+            final long clusterStateUpdateDelay = 7 * delayVariabilityMillis; // see definition of DEFAULT_CLUSTER_STATE_UPDATE_DELAY
 
             // cf. DEFAULT_STABILISATION_TIME, but stabilisation is quicker when there's a single node - there's no meaningful fault
             // detection and ongoing publications do not time out
             cluster.runFor(ELECTION_INITIAL_TIMEOUT_SETTING.get(Settings.EMPTY).millis() + delayVariabilityMillis
-                + 4 * delayVariabilityMillis // two round trips for pre-voting and voting
-                + 7 * delayVariabilityMillis, // see definition of DEFAULT_CLUSTER_STATE_UPDATE_DELAY
-                "stabilising");
+                // two round trips for pre-voting and voting
+                + 4 * delayVariabilityMillis
+                // and then the election update
+                + clusterStateUpdateDelay, "stabilising");
 
             assertThat(cluster.getAnyLeader(), sameInstance(clusterNode));
+
+            final int pendingTaskCount = clusterNode.getPendingTaskCount();
+            cluster.runFor((pendingTaskCount + 1) * clusterStateUpdateDelay, "draining task queue");
+
+            assertFalse(clusterNode.coordinator.publicationInProgress());
+            assertThat(clusterNode.coordinator.getLastAcceptedState().version(),
+                equalTo(clusterNode.getLastAppliedClusterState().version()));
+            cluster.deterministicTaskQueue.setExecutionDelayVariabilityMillis(DEFAULT_DELAY_VARIABILITY);
         }
     }
 
@@ -1459,9 +1813,14 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     mockLogAppender.stop();
                 }
             }
+
+            for (ClusterNode clusterNode : cluster.clusterNodes) {
+                clusterNode.heal();
+            }
         }
     }
 
+    @TestLogging(reason="testing debug logging of LagDetector", value="org.elasticsearch.cluster.coordination.LagDetector:DEBUG")
     public void testLogsMessagesIfPublicationDelayed() throws IllegalAccessException {
         try (Cluster cluster = new Cluster(between(3, 5))) {
             cluster.runRandomly();
@@ -1489,6 +1848,18 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     "node [" + brokenNode + "] is lagging at cluster state version [*], " +
                         "although publication of cluster state version [*] completed [*] ago"));
 
+                if (Constants.WINDOWS == false) {
+                    // log messages containing control characters are hidden from the log assertions framework, and this includes the
+                    // `\r` that Windows uses in its line endings, so we only see this message on systems with `\n` line endings:
+                    mockLogAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                        "hot threads from lagging node",
+                        LagDetector.class.getCanonicalName(),
+                        Level.DEBUG,
+                        "hot threads from node [" +
+                            brokenNode.getLocalNode().descriptionWithoutAttributes() +
+                            "] lagging at version [*] despite commit of cluster state version [*]:\nHot threads at*"));
+                }
+
                 // drop the publication messages to one node, but then restore connectivity so it remains in the cluster and does not fail
                 // health checks
                 brokenNode.blackhole();
@@ -1507,7 +1878,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     });
                 cluster.getAnyLeader().submitValue(randomLong());
                 cluster.runFor(defaultMillis(PUBLISH_TIMEOUT_SETTING) + 2 * DEFAULT_DELAY_VARIABILITY
-                        + defaultMillis(LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING) + DEFAULT_DELAY_VARIABILITY,
+                        + defaultMillis(LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING) + DEFAULT_DELAY_VARIABILITY
+                        + 2 * DEFAULT_DELAY_VARIABILITY,
                     "waiting for messages to be emitted");
 
                 mockLogAppender.assertAllExpectationsMatched();

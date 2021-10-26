@@ -9,7 +9,7 @@
 package org.elasticsearch.client.ml.inference;
 
 import org.elasticsearch.client.ml.inference.trainedmodel.IndexLocation;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
@@ -17,7 +17,7 @@ import java.io.IOException;
 public class IndexLocationTests extends AbstractXContentTestCase<IndexLocation> {
 
     static IndexLocation randomInstance() {
-        return new IndexLocation(randomAlphaOfLength(7), randomAlphaOfLength(7));
+        return new IndexLocation(randomAlphaOfLength(7));
     }
 
     @Override

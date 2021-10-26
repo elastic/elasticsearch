@@ -78,14 +78,23 @@ public class TransportPutFollowActionTests extends ESTestCase {
             .mapToObj(value -> DataStream.getDefaultBackingIndexName(name, value))
             .map(value -> new Index(value, "uuid"))
             .collect(Collectors.toList());
-        return new DataStream(name, new TimestampField("@timestamp"), backingIndices, backingIndices.size(), Map.of(), false, replicate);
+        return new DataStream(
+            name,
+            new TimestampField("@timestamp"),
+            backingIndices,
+            backingIndices.size(),
+            Map.of(),
+            false,
+            replicate,
+            false
+        );
     }
 
     static DataStream generateDataSteam(String name, int generation, boolean replicate, String... backingIndexNames) {
         List<Index> backingIndices = Arrays.stream(backingIndexNames)
             .map(value -> new Index(value, "uuid"))
             .collect(Collectors.toList());
-        return new DataStream(name, new TimestampField("@timestamp"), backingIndices, generation, Map.of(), false, replicate);
+        return new DataStream(name, new TimestampField("@timestamp"), backingIndices, generation, Map.of(), false, replicate, false);
     }
 
 }

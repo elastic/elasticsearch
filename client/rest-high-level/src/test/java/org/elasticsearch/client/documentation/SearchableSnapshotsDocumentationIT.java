@@ -29,7 +29,7 @@ import org.elasticsearch.client.searchable_snapshots.CachesStatsResponse.NodeCac
 import org.elasticsearch.client.searchable_snapshots.MountSnapshotRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.RestoreInfo;
@@ -41,6 +41,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.is;
 
+@SuppressWarnings("removal")
 public class SearchableSnapshotsDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testMountSnapshot() throws IOException, InterruptedException {

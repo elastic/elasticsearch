@@ -39,13 +39,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.CheckedRunnable;
@@ -170,6 +170,10 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     private static RestClient adminClient;
     private static Boolean hasXPack;
+    private static Boolean hasIlm;
+    private static Boolean hasRollups;
+    private static Boolean hasCcr;
+    private static Boolean hasShutdown;
     private static TreeSet<Version> nodeVersions;
 
     @Before
@@ -178,6 +182,10 @@ public abstract class ESRestTestCase extends ESTestCase {
             assert adminClient == null;
             assert clusterHosts == null;
             assert hasXPack == null;
+            assert hasIlm == null;
+            assert hasRollups == null;
+            assert hasCcr == null;
+            assert hasShutdown == null;
             assert nodeVersions == null;
             String cluster = getTestRestCluster();
             String[] stringUrls = cluster.split(",");
@@ -197,6 +205,10 @@ public abstract class ESRestTestCase extends ESTestCase {
             adminClient = buildClient(restAdminSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
 
             hasXPack = false;
+            hasIlm = false;
+            hasRollups = false;
+            hasCcr = false;
+            hasShutdown = false;
             nodeVersions = new TreeSet<>();
             Map<?, ?> response = entityAsMap(adminClient.performRequest(new Request("GET", "_nodes/plugins")));
             Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
@@ -205,8 +217,21 @@ public abstract class ESRestTestCase extends ESTestCase {
                 nodeVersions.add(Version.fromString(nodeInfo.get("version").toString()));
                 for (Object module: (List<?>) nodeInfo.get("modules")) {
                     Map<?, ?> moduleInfo = (Map<?, ?>) module;
-                    if (moduleInfo.get("name").toString().startsWith("x-pack-")) {
+                    final String moduleName = moduleInfo.get("name").toString();
+                    if (moduleName.startsWith("x-pack")) {
                         hasXPack = true;
+                    }
+                    if (moduleName.equals("x-pack-ilm")) {
+                        hasIlm = true;
+                    }
+                    if (moduleName.equals("x-pack-rollup")) {
+                        hasRollups = true;
+                    }
+                    if (moduleName.equals("x-pack-ccr")) {
+                        hasCcr = true;
+                    }
+                    if (moduleName.equals("x-pack-shutdown")) {
+                        hasShutdown = true;
                     }
                 }
             }
@@ -215,6 +240,10 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert adminClient != null;
         assert clusterHosts != null;
         assert hasXPack != null;
+        assert hasIlm != null;
+        assert hasRollups != null;
+        assert hasCcr != null;
+        assert hasShutdown != null;
         assert nodeVersions != null;
     }
 
@@ -354,6 +383,10 @@ public abstract class ESRestTestCase extends ESTestCase {
             client = null;
             adminClient = null;
             hasXPack = null;
+            hasRollups = null;
+            hasCcr = null;
+            hasShutdown = null;
+            hasIlm = null;
             nodeVersions = null;
         }
     }
@@ -559,7 +592,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         // Cleanup rollup before deleting indices.  A rollup job might have bulks in-flight,
         // so we need to fully shut them down first otherwise a job might stall waiting
         // for a bulk to finish against a non-existing index (and then fail tests)
-        if (hasXPack && false == preserveRollupJobsUponCompletion()) {
+        if (hasRollups && false == preserveRollupJobsUponCompletion()) {
             wipeRollupJobs();
             waitForPendingRollupTasks();
         }
@@ -711,11 +744,11 @@ public abstract class ESRestTestCase extends ESTestCase {
             wipeClusterSettings();
         }
 
-        if (hasXPack && false == preserveILMPoliciesUponCompletion()) {
+        if (hasIlm && false == preserveILMPoliciesUponCompletion()) {
             deleteAllILMPolicies(preserveILMPolicyIds());
         }
 
-        if (hasXPack && false == preserveAutoFollowPatternsUponCompletion()) {
+        if (hasCcr && false == preserveAutoFollowPatternsUponCompletion()) {
             deleteAllAutoFollowPatterns();
         }
 
@@ -728,22 +761,20 @@ public abstract class ESRestTestCase extends ESTestCase {
      * If any nodes are registered for shutdown, removes their metadata.
      */
     @SuppressWarnings("unchecked")
-    private static void deleteAllNodeShutdownMetadata() throws IOException {
-        Request getShutdownStatus = new Request("GET", "_nodes/shutdown");
-        Map<String, Object> statusResponse = responseAsMap(adminClient().performRequest(getShutdownStatus));
-        if (statusResponse.containsKey("_nodes") && statusResponse.containsKey("cluster_name")) {
-            // If the response contains these two keys, the feature flag isn't enabled on this cluster, so skip out now.
-            // We can't check the system property directly because it only gets set for the cluster under test's JVM, not for the test
-            // runner's JVM.
+    protected void deleteAllNodeShutdownMetadata() throws IOException {
+        if (hasShutdown == false || minimumNodeVersion().before(Version.V_7_15_0)) {
+            // Node shutdown APIs are only present in xpack
             return;
         }
-            List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
-            List<String> nodeIds = nodesArray.stream()
-                .map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id"))
-                .collect(Collectors.toUnmodifiableList());
-            for (String nodeId : nodeIds) {
-                Request deleteRequest = new Request("DELETE", "_nodes/" + nodeId + "/shutdown");
-                assertOK(adminClient().performRequest(deleteRequest));
+        Request getShutdownStatus = new Request("GET", "_nodes/shutdown");
+        Map<String, Object> statusResponse = responseAsMap(adminClient().performRequest(getShutdownStatus));
+        List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
+        List<String> nodeIds = nodesArray.stream()
+            .map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id"))
+            .collect(Collectors.toUnmodifiableList());
+        for (String nodeId : nodeIds) {
+            Request deleteRequest = new Request("DELETE", "_nodes/" + nodeId + "/shutdown");
+            assertOK(adminClient().performRequest(deleteRequest));
         }
     }
 
@@ -889,6 +920,18 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         if (mustClear) {
             Request request = new Request("PUT", "/_cluster/settings");
+
+            request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
+                if (warnings.isEmpty()) {
+                    return false;
+                } else if (warnings.size() > 1) {
+                    return true;
+                } else {
+                    return warnings.get(0).startsWith("[transient settings removal]") == false &&
+                        warnings.get(0).contains("xpack.monitoring") == false;
+                }
+            }));
+
             request.setJsonEntity(Strings.toString(clearCommand));
             adminClient().performRequest(request);
         }
@@ -1704,9 +1747,11 @@ public abstract class ESRestTestCase extends ESTestCase {
     static final Pattern CREATE_INDEX_MULTIPLE_MATCHING_TEMPLATES = Pattern.compile("^index \\[(.+)\\] matches multiple legacy " +
         "templates \\[(.+)\\], composable templates will only match a single template$");
 
-    static final Pattern PUT_TEMPLATE_MULTIPLE_MATCHING_TEMPLATES = Pattern.compile("^index template \\[(.+)\\] has index patterns " +
-        "\\[(.+)\\] matching patterns from existing older templates \\[(.+)\\] with patterns \\((.+)\\); this template \\[(.+)\\] will " +
-        "take precedence during new index creation$");
+    static final Pattern PUT_TEMPLATE_MULTIPLE_MATCHING_TEMPLATES = Pattern.compile(
+        "^index template \\[(.+)\\] has index patterns "
+            + "\\[(.+)\\] matching patterns from existing older templates \\[(.+)\\] with patterns \\((.+)\\); this "
+            + "template \\[(.+)\\] will take precedence during new index creation$"
+    );
 
     protected static void useIgnoreMultipleMatchingTemplatesWarningsHandler(Request request) throws IOException {
         RequestOptions.Builder options = request.getOptions().toBuilder();

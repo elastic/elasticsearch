@@ -9,7 +9,7 @@ package org.elasticsearch.client.ml.datafeed;
 
 import org.elasticsearch.client.ml.NodeAttributes;
 import org.elasticsearch.client.ml.NodeAttributesTests;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.execution.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -41,11 +42,11 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-import static org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder.SWITCH_TO_FIELDS_API_VERSION;
 
 public final class RuntimeUtils {
 
     static final Logger QUERY_LOG = LogManager.getLogger(QueryClient.class);
+    public static final Version SWITCH_TO_MULTI_VALUE_FIELDS_VERSION = Version.V_7_15_0;
 
     private RuntimeUtils() {}
 
@@ -148,7 +149,7 @@ public final class RuntimeUtils {
     public static SearchRequest prepareRequest(SearchSourceBuilder source,
                                                boolean includeFrozen,
                                                String... indices) {
-        SearchRequest searchRequest = new SearchRequest(SWITCH_TO_FIELDS_API_VERSION);
+        SearchRequest searchRequest = new SearchRequest(SWITCH_TO_MULTI_VALUE_FIELDS_VERSION);
         searchRequest.indices(indices);
         searchRequest.source(source);
         searchRequest.allowPartialSearchResults(false);

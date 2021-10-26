@@ -95,13 +95,13 @@ public class JavaVersion implements Comparable<JavaVersion> {
         return 0;
     }
 
-    private int comparePrePart(String prePart, String otherPrePart) {
-        if (prePart.matches("\\d+")) {
-            return otherPrePart.matches("\\d+") ?
-                (new BigInteger(prePart)).compareTo(new BigInteger(otherPrePart)) : -1;
+    private int comparePrePart(String leftPrePart, String rightPrePart) {
+        if (leftPrePart.matches("\\d+")) {
+            return rightPrePart.matches("\\d+") ?
+                (new BigInteger(leftPrePart)).compareTo(new BigInteger(rightPrePart)) : -1;
         } else {
-            return otherPrePart.matches("\\d+") ?
-                1 : prePart.compareTo(otherPrePart);
+            return rightPrePart.matches("\\d+") ?
+                1 : leftPrePart.compareTo(rightPrePart);
         }
     }
 

@@ -4,7 +4,7 @@
 <titleabbrev>Get alias</titleabbrev>
 ++++
 
-Retrieves information for one or more <<alias,aliases>>.
+Retrieves information for one or more <<aliases,aliases>>.
 
 [source,console]
 ----

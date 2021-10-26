@@ -147,8 +147,7 @@ Discontinue use of the removed settings. Specifying these settings in
 [%collapsible]
 ====
 *Details* +
-The following settings were deprecated in {es} 7.8.0 and have been removed in
-{es} 8.0.0:
+The following cluster settings have been removed:
 
 * `gateway.expected_nodes`
 * `gateway.expected_master_nodes`
@@ -298,5 +297,22 @@ allocation can be disabled by setting
 
 *Impact* +
 Discontinue use of the deprecated setting.
+====
+
+[[auto-import-dangling-indices-removed]]
+.The `gateway.auto_import_dangling_indices` setting has been removed.
+[%collapsible]
+====
+*Details* +
+The `gateway.auto_import_dangling_indices` cluster setting has been removed.
+Previously, you could use this setting to automatically import
+{ref}/modules-gateway.html#dangling-indices[dangling indices]. However,
+automatically importing dangling indices is unsafe. Use the
+{ref}/indices.html#dangling-indices-api[dangling indices APIs] to manage and
+import dangling indices instead.
+
+*Impact* +
+Discontinue use of the removed setting. Specifying the setting in
+`elasticsearch.yml` will result in an error on startup.
 ====
 //end::notable-breaking-changes[]

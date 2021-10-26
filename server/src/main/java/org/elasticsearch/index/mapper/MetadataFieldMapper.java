@@ -9,7 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 
@@ -118,7 +118,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         }
 
         @Override
-        public final MetadataFieldMapper build(ContentPath path) {
+        public final MetadataFieldMapper build(MapperBuilderContext context) {
             return build();
         }
 

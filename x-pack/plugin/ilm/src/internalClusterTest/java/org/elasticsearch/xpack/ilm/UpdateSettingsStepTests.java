@@ -18,7 +18,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
@@ -133,7 +133,7 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
 
         step.performAction(indexMetadata, state, observer, new ActionListener<>() {
             @Override
-            public void onResponse(Boolean complete) {
+            public void onResponse(Void complete) {
                 latch.countDown();
                 fail("expected the test to fail when updating the setting to an invalid value");
             }
@@ -150,9 +150,8 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
 
                 step.performAction(indexMetadata, state, observer, new ActionListener<>() {
                     @Override
-                    public void onResponse(Boolean complete) {
+                    public void onResponse(Void complete) {
                         latch.countDown();
-                        assertThat(complete, is(true));
                     }
 
                     @Override

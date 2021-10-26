@@ -25,14 +25,15 @@ import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemReader;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.security.cli.HttpCertificateCommand.FileType;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -61,7 +62,6 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.Signature;
 import java.security.cert.Certificate;
-import java.security.cert.CertificateException;
 import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;
 import java.security.interfaces.RSAKey;
@@ -141,7 +141,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         terminal.addTextInput(randomBoolean() ? "n" : ""); // don't change advanced settings
 
-        final String password = randomPassword();
+        final String password = randomPassword(false);
         terminal.addSecretInput(password);
         if ("".equals(password) == false) {
             terminal.addSecretInput(password);
@@ -268,10 +268,13 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         terminal.addTextInput(randomBoolean() ? "n" : ""); // don't change advanced settings
 
-        final String password = randomPassword();
+        final String password = randomPassword(randomBoolean());
         terminal.addSecretInput(password);
         if ("".equals(password) == false) {
             terminal.addSecretInput(password);
+            if (password.length() > 50) {
+                terminal.addTextInput("y"); // Accept OpenSSL issue
+            }
         } // confirm
 
         terminal.addTextInput(outFile.toString());
@@ -279,6 +282,12 @@ public class HttpCertificateCommandTests extends ESTestCase {
         final Environment env = newEnvironment();
         final OptionSet options = command.getParser().parse(new String[0]);
         command.execute(terminal, options, env);
+
+        if (password.length() > 50) {
+            assertThat(terminal.getOutput(), containsString("OpenSSL"));
+        } else {
+            assertThat(terminal.getOutput(), not(containsString("OpenSSL")));
+        }
 
         Path zipRoot = getZipRoot(outFile);
 
@@ -301,7 +310,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
         assertThat(getRSAKeySize(certAndKey.v1().getPublicKey()), is(HttpCertificateCommand.DEFAULT_CERT_KEY_SIZE));
         assertThat(getRSAKeySize(certAndKey.v2()), is(HttpCertificateCommand.DEFAULT_CERT_KEY_SIZE));
 
-        final X509Certificate caCert = readPemCertificate(caCertPath);
+        final X509Certificate caCert = CertParsingUtils.readX509Certificate(caCertPath);
         verifyChain(certAndKey.v1(), caCert);
 
         // Verify the README
@@ -365,10 +374,22 @@ public class HttpCertificateCommandTests extends ESTestCase {
             caKeySize = HttpCertificateCommand.DEFAULT_CA_KEY_SIZE;
         }
 
-        final String caPassword = randomPassword();
+        final String caPassword = randomPassword(randomBoolean());
+        boolean expectLongPasswordWarning = caPassword.length() > 50;
+        // randomly enter a long password here, and then say "no" on the warning prompt
+        if (randomBoolean()) {
+            String longPassword = randomAlphaOfLengthBetween(60, 120);
+            terminal.addSecretInput(longPassword);
+            terminal.addSecretInput(longPassword);
+            terminal.addTextInput("n"); // Change our mind
+            expectLongPasswordWarning = true;
+        }
         terminal.addSecretInput(caPassword);
         if ("".equals(caPassword) == false) {
             terminal.addSecretInput(caPassword);
+            if (caPassword.length() > 50) {
+                terminal.addTextInput("y"); // Acknowledge possible OpenSSL issue
+            }
         } // confirm
 
         final int certYears = randomIntBetween(1, 8);
@@ -398,7 +419,13 @@ public class HttpCertificateCommandTests extends ESTestCase {
         terminal.addTextInput("n"); // no more certs
 
 
-        final String password = randomPassword();
+        final String password = randomPassword(false);
+        // randomly enter an incorrect password here which will fail the "enter twice" check and prompt to try again
+        if (randomBoolean()) {
+            String wrongPassword = randomAlphaOfLengthBetween(8, 20);
+            terminal.addSecretInput(wrongPassword);
+            terminal.addSecretInput("__" + wrongPassword);
+        }
         terminal.addSecretInput(password);
         if ("".equals(password) == false) {
             terminal.addSecretInput(password);
@@ -409,6 +436,12 @@ public class HttpCertificateCommandTests extends ESTestCase {
         final Environment env = newEnvironment();
         final OptionSet options = command.getParser().parse(new String[0]);
         command.execute(terminal, options, env);
+
+        if (expectLongPasswordWarning) {
+            assertThat(terminal.getOutput(), containsString("OpenSSL"));
+        } else {
+            assertThat(terminal.getOutput(), not(containsString("OpenSSL")));
+        }
 
         Path zipRoot = getZipRoot(outFile);
 
@@ -619,12 +652,12 @@ public class HttpCertificateCommandTests extends ESTestCase {
         return hostNames;
     }
 
-    private String randomPassword() {
+    private String randomPassword(boolean longPassword) {
         // We want to assert that this password doesn't end up in any output files, so we need to make sure we
         // don't randomly generate a real word.
         return randomFrom(
             "",
-            randomAlphaOfLength(4) + randomFrom('~', '*', '%', '$', '|') + randomAlphaOfLength(4)
+            randomAlphaOfLengthBetween(4, 8) + randomFrom('~', '*', '%', '$', '|') + randomAlphaOfLength(longPassword ? 100 : 4)
         );
     }
 
@@ -767,14 +800,6 @@ public class HttpCertificateCommandTests extends ESTestCase {
         return new Tuple<>((X509Certificate) cert, (PrivateKey) key);
     }
 
-    private X509Certificate readPemCertificate(Path caCertPath) throws CertificateException, IOException {
-        final Certificate[] certificates = CertParsingUtils.readCertificates(List.of(caCertPath));
-        assertThat(certificates, arrayWithSize(1));
-        final Certificate cert = certificates[0];
-        assertThat(cert, instanceOf(X509Certificate.class));
-        return (X509Certificate) cert;
-    }
-
     private <T> T readPemObject(Path path, String expectedType,
                                 CheckedFunction<? super byte[], T, IOException> factory) throws IOException {
         assertThat(path, isRegularFile());
@@ -789,7 +814,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
         KeyStore ks = KeyStore.getInstance(type);
         ks.load(null);
         if (randomBoolean()) {
-            final X509Certificate cert = readPemCertificate(getDataPath("ca.crt"));
+            final X509Certificate cert = CertParsingUtils.readX509Certificate(getDataPath("ca.crt"));
             ks.setCertificateEntry(randomAlphaOfLength(4), cert);
         }
         try (OutputStream out = Files.newOutputStream(path)) {

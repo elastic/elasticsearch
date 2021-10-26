@@ -26,14 +26,16 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
     private final MedianAbsoluteDeviationAggregatorSupplier aggregatorSupplier;
     private final double compression;
 
-    MedianAbsoluteDeviationAggregatorFactory(String name,
-                                             ValuesSourceConfig config,
-                                             AggregationContext context,
-                                             AggregatorFactory parent,
-                                             AggregatorFactories.Builder subFactoriesBuilder,
-                                             Map<String, Object> metadata,
-                                             double compression,
-                                             MedianAbsoluteDeviationAggregatorSupplier aggregatorSupplier) throws IOException {
+    MedianAbsoluteDeviationAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata,
+        double compression,
+        MedianAbsoluteDeviationAggregatorSupplier aggregatorSupplier
+    ) throws IOException {
 
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.aggregatorSupplier = aggregatorSupplier;
@@ -45,29 +47,18 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
             MedianAbsoluteDeviationAggregationBuilder.REGISTRY_KEY,
             CoreValuesSourceType.NUMERIC,
             MedianAbsoluteDeviationAggregator::new,
-                true);
-    }
-
-    @Override
-    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new MedianAbsoluteDeviationAggregator(
-            name,
-            null,
-            config.format(),
-            context,
-            parent,
-            metadata,
-            compression
+            true
         );
     }
 
     @Override
-    protected Aggregator doCreateInternal(
-        Aggregator parent,
-        CardinalityUpperBound cardinality,
-        Map<String, Object> metadata
-    ) throws IOException {
-        return aggregatorSupplier
-            .build(name, config.getValuesSource(), config.format(), context, parent, metadata, compression);
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new MedianAbsoluteDeviationAggregator(name, null, config.format(), context, parent, metadata, compression);
+    }
+
+    @Override
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
+        return aggregatorSupplier.build(name, config.getValuesSource(), config.format(), context, parent, metadata, compression);
     }
 }

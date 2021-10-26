@@ -18,9 +18,11 @@ import org.elasticsearch.common.ssl.SslConfigurationLoader;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.common.ssl.SslVerificationMode;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 
 import java.nio.file.Path;
+import java.security.KeyStore;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -105,7 +107,7 @@ public class SslSettingsLoader extends SslConfigurationLoader {
         if (trustRestrictions == null) {
             return trustConfig;
         }
-        throw new IllegalArgumentException("SSL trust_restrictions are not currently supported");
+        return new RestrictedTrustConfig(trustRestrictions, trustConfig);
     }
 
     public SslConfiguration load(Environment env) {
@@ -113,7 +115,17 @@ public class SslSettingsLoader extends SslConfigurationLoader {
     }
 
     public static SslConfiguration load(Settings settings, String prefix, Environment env) {
+        return load(settings, prefix, env, null);
+    }
+
+    public static SslConfiguration load(
+        Settings settings,
+        String prefix,
+        Environment env,
+        @Nullable Function<KeyStore, KeyStore> keyStoreFilter
+    ) {
         final SslSettingsLoader settingsLoader = new SslSettingsLoader(settings, prefix, true);
+        settingsLoader.setKeyStoreFilter(keyStoreFilter);
         return settingsLoader.load(env);
     }
 

@@ -11,21 +11,20 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
-import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplier;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -37,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.settings.Setting.Property;
 import static org.elasticsearch.common.settings.Setting.positiveTimeSetting;
@@ -70,8 +70,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
     // Crucially there are no blocking calls under this mutex: it is not held while connecting or disconnecting.
     private final Object mutex = new Object();
 
-    // contains an entry for every node in the latest cluster state, as well as for nodes from which we are in the process of
-    // disconnecting
+    // contains an entry for every node in the latest cluster state
     private final Map<DiscoveryNode, ConnectionTarget> targetsByNode = new HashMap<>();
 
     private final TimeValue reconnectInterval;
@@ -86,7 +85,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
     /**
      * Connect to all the given nodes, but do not disconnect from any extra nodes. Calls the completion handler on completion of all
-     * connection attempts to _new_ nodes, but not on attempts to re-establish connections to nodes that are already known.
+     * connection attempts to _new_ nodes, without waiting for any attempts to re-establish connections to nodes that were already known.
      */
     public void connectToNodes(DiscoveryNodes discoveryNodes, Runnable onCompletion) {
 
@@ -102,22 +101,20 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         synchronized (mutex) {
             for (final DiscoveryNode discoveryNode : discoveryNodes) {
                 ConnectionTarget connectionTarget = targetsByNode.get(discoveryNode);
-                final boolean isNewNode;
-                if (connectionTarget == null) {
-                    // new node, set up target and listener
+                final boolean isNewNode = connectionTarget == null;
+                if (isNewNode) {
                     connectionTarget = new ConnectionTarget(discoveryNode);
                     targetsByNode.put(discoveryNode, connectionTarget);
-                    isNewNode = true;
-                } else {
-                    // existing node, but maybe we're disconnecting from it, in which case it was recently removed from the cluster
-                    // state and has now been re-added so we should wait for the re-connection
-                    isNewNode = connectionTarget.isPendingDisconnection();
                 }
 
                 if (isNewNode) {
-                    runnables.add(connectionTarget.connect(listener));
+                    logger.debug("connecting to {}", discoveryNode);
+                    runnables.add(connectionTarget.connect(ActionListener.runAfter(
+                        listener,
+                        () -> logger.debug("connected to {}", discoveryNode))));
                 } else {
                     // known node, try and ensure it's connected but do not wait
+                    logger.trace("checking connection to existing node [{}]", discoveryNode);
                     runnables.add(connectionTarget.connect(null));
                     runnables.add(() -> listener.onResponse(null));
                 }
@@ -139,33 +136,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             }
 
             for (final DiscoveryNode discoveryNode : nodesToDisconnect) {
-                runnables.add(targetsByNode.get(discoveryNode).disconnect());
-            }
-        }
-        runnables.forEach(Runnable::run);
-    }
-
-    void ensureConnections(Runnable onCompletion) {
-        // Called by tests after some disruption has concluded. It is possible that one or more targets are currently CONNECTING and have
-        // been since the disruption was active, and that the connection attempt was thwarted by a concurrent disruption to the connection.
-        // If so, we cannot simply add our listener to the queue because it will be notified when this CONNECTING activity completes even
-        // though it was disrupted. We must therefore wait for all the current activity to finish and then go through and reconnect to
-        // any missing nodes.
-        awaitPendingActivity(() -> connectDisconnectedTargets(onCompletion));
-    }
-
-    private void awaitPendingActivity(Runnable onCompletion) {
-        final List<Runnable> runnables = new ArrayList<>();
-        synchronized (mutex) {
-            final Collection<ConnectionTarget> connectionTargets = targetsByNode.values();
-            if (connectionTargets.isEmpty()) {
-                runnables.add(onCompletion);
-            } else {
-                final GroupedActionListener<Void> listener = new GroupedActionListener<>(
-                    ActionListener.wrap(onCompletion), connectionTargets.size());
-                for (final ConnectionTarget connectionTarget : connectionTargets) {
-                    runnables.add(connectionTarget.awaitCurrentActivity(listener));
-                }
+                runnables.add(targetsByNode.remove(discoveryNode)::disconnect);
             }
         }
         runnables.forEach(Runnable::run);
@@ -173,21 +144,20 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
     /**
      * Makes a single attempt to reconnect to any nodes which are disconnected but should be connected. Does not attempt to reconnect any
-     * nodes which are in the process of disconnecting. The onCompletion handler is called after all ongoing connection/disconnection
-     * attempts have completed.
+     * nodes which are in the process of disconnecting. The onCompletion handler is called after all connection attempts have completed.
      */
-    private void connectDisconnectedTargets(Runnable onCompletion) {
+    void ensureConnections(Runnable onCompletion) {
         final List<Runnable> runnables = new ArrayList<>();
         synchronized (mutex) {
             final Collection<ConnectionTarget> connectionTargets = targetsByNode.values();
             if (connectionTargets.isEmpty()) {
                 runnables.add(onCompletion);
             } else {
-                logger.trace("connectDisconnectedTargets: {}", targetsByNode);
+                logger.trace("ensureConnections: {}", targetsByNode);
                 final GroupedActionListener<Void> listener = new GroupedActionListener<>(
                     ActionListener.wrap(onCompletion), connectionTargets.size());
                 for (final ConnectionTarget connectionTarget : connectionTargets) {
-                    runnables.add(connectionTarget.ensureConnected(listener));
+                    runnables.add(connectionTarget.connect(listener));
                 }
             }
         }
@@ -197,7 +167,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
     class ConnectionChecker extends AbstractRunnable {
         protected void doRun() {
             if (connectionChecker == this) {
-                connectDisconnectedTargets(this::scheduleNextCheck);
+                ensureConnections(this::scheduleNextCheck);
             }
         }
 
@@ -243,231 +213,75 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         });
     }
 
-    private enum ActivityType {
-        IDLE,
-        CONNECTING,
-        DISCONNECTING
-    }
-
-    /**
-     * {@link ConnectionTarget} ensures that we are never concurrently connecting to and disconnecting from a node, and that we eventually
-     * either connect to or disconnect from it according to whether {@link ConnectionTarget#connect(ActionListener)} or
-     * {@link ConnectionTarget#disconnect()} was called last.
-     * <p>
-     * Each {@link ConnectionTarget} is in one of these states:
-     * <p>
-     * - idle                       ({@link ConnectionTarget#future} has no listeners)
-     * - awaiting connection        ({@link ConnectionTarget#future} may contain listeners awaiting a connection)
-     * - awaiting disconnection     ({@link ConnectionTarget#future} may contain listeners awaiting a disconnection)
-     * <p>
-     * It will be awaiting connection (respectively disconnection) after calling {@code connect()} (respectively {@code disconnect()}). It
-     * will eventually become idle if these methods are not called infinitely often.
-     * <p>
-     * These methods return a {@link Runnable} which starts the connection/disconnection process iff it was idle before the method was
-     * called, and which notifies any failed listeners if the {@code ConnectionTarget} went from {@code CONNECTING} to {@code DISCONNECTING}
-     * or vice versa. The connection/disconnection process continues until all listeners have been removed, at which point it becomes idle
-     * again.
-     * <p>
-     * Additionally if the last step of the process was a disconnection then this target is removed from the current set of targets. Thus
-     * if this {@link ConnectionTarget} is idle and in the current set of targets then it should be connected.
-     * <p>
-     * All of the {@code listeners} are awaiting the completion of the same activity, which is either a connection or a disconnection.  If
-     * we are currently connecting and then {@link ConnectionTarget#disconnect()} is called then all connection listeners are
-     * removed from the list so they can be notified of failure; once the connecting process has finished a disconnection will be started.
-     * Similarly if we are currently disconnecting and then {@link ConnectionTarget#connect(ActionListener)} is called then all
-     * disconnection listeners are immediately removed for failure notification and a connection is started once the disconnection is
-     * complete.
-     */
     private class ConnectionTarget {
         private final DiscoveryNode discoveryNode;
 
-        private ListenableActionFuture<Void> future = new ListenableActionFuture<>();
-        private ActivityType activityType = ActivityType.IDLE; // indicates what any listeners are awaiting
-
         private final AtomicInteger consecutiveFailureCount = new AtomicInteger();
-
-        private final Runnable connectActivity = new AbstractRunnable() {
-
-            final AbstractRunnable abstractRunnable = this;
-
-            @Override
-            protected void doRun() {
-                assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
-                if (transportService.nodeConnected(discoveryNode)) {
-                    // transportService.connectToNode is a no-op if already connected, but we don't want any DEBUG logging in this case
-                    // since we run this for every node on every cluster state update.
-                    logger.trace("still connected to {}", discoveryNode);
-                    onConnected();
-                } else {
-                    logger.debug("connecting to {}", discoveryNode);
-                    transportService.connectToNode(discoveryNode, new ActionListener<Void>() {
-                        @Override
-                        public void onResponse(Void aVoid) {
-                            assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
-                            logger.debug("connected to {}", discoveryNode);
-                            onConnected();
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            abstractRunnable.onFailure(e);
-                        }
-                    });
-                }
-            }
-
-            private void onConnected() {
-                consecutiveFailureCount.set(0);
-                onCompletion(ActivityType.CONNECTING, null, disconnectActivity);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
-                final int currentFailureCount = consecutiveFailureCount.incrementAndGet();
-                // only warn every 6th failure
-                final Level level = currentFailureCount % 6 == 1 ? Level.WARN : Level.DEBUG;
-                logger.log(level, new ParameterizedMessage("failed to connect to {} (tried [{}] times)",
-                    discoveryNode, currentFailureCount), e);
-                onCompletion(ActivityType.CONNECTING, e, disconnectActivity);
-            }
-
-            @Override
-            public String toString() {
-                return "connect to " + discoveryNode;
-            }
-        };
-
-        private final Runnable disconnectActivity = new AbstractRunnable() {
-            @Override
-            protected void doRun() {
-                assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
-                transportService.disconnectFromNode(discoveryNode);
-                consecutiveFailureCount.set(0);
-                logger.debug("disconnected from {}", discoveryNode);
-                onCompletion(ActivityType.DISCONNECTING, null, connectActivity);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
-                consecutiveFailureCount.incrementAndGet();
-                // we may not have disconnected, but will not retry, so this connection might have leaked
-                logger.warn(new ParameterizedMessage("failed to disconnect from {}, possible connection leak", discoveryNode), e);
-                assert false : "failed to disconnect from " + discoveryNode + ", possible connection leak\n" + e;
-                onCompletion(ActivityType.DISCONNECTING, e, connectActivity);
-            }
-        };
+        private final AtomicReference<Releasable> connectionRef = new AtomicReference<>();
 
         ConnectionTarget(DiscoveryNode discoveryNode) {
             this.discoveryNode = discoveryNode;
         }
 
-        Runnable connect(@Nullable ActionListener<Void> listener) {
-            return addListenerAndStartActivity(listener, ActivityType.CONNECTING, connectActivity,
-                "disconnection cancelled by reconnection");
+        private void setConnectionRef(Releasable connectionReleasable) {
+            Releasables.close(connectionRef.getAndSet(connectionReleasable));
         }
 
-        Runnable disconnect() {
-            return addListenerAndStartActivity(null, ActivityType.DISCONNECTING, disconnectActivity,
-                "connection cancelled by disconnection");
-        }
+        Runnable connect(ActionListener<Void> listener) {
+            return () -> {
+                final boolean alreadyConnected = transportService.nodeConnected(discoveryNode);
 
-        Runnable ensureConnected(@Nullable ActionListener<Void> listener) {
-            assert Thread.holdsLock(mutex) : "mutex not held";
-
-            if (activityType == ActivityType.IDLE) {
-                if (transportService.nodeConnected(discoveryNode)) {
-                    return () -> listener.onResponse(null);
+                if (alreadyConnected) {
+                    logger.trace("refreshing connection to {}", discoveryNode);
                 } else {
-                    // target is disconnected, and we are currently idle, so start a connection process.
-                    activityType = ActivityType.CONNECTING;
-                    addListener(listener);
-                    return connectActivity;
+                    logger.debug("connecting to {}", discoveryNode);
                 }
-            } else {
-                addListener(listener);
-                return () -> {
-                };
-            }
-        }
 
-        Runnable awaitCurrentActivity(ActionListener<Void> listener) {
-            assert Thread.holdsLock(mutex) : "mutex not held";
+                // It's possible that connectionRef is a reference to an older connection that closed out from under us, but that something
+                // else has opened a fresh connection to the node. Therefore we always call connectToNode() and update connectionRef.
+                transportService.connectToNode(discoveryNode, new ActionListener<>() {
+                    @Override
+                    public void onResponse(Releasable connectionReleasable) {
+                        if (alreadyConnected) {
+                            logger.trace("refreshed connection to {}", discoveryNode);
+                        } else {
+                            logger.debug("connected to {}", discoveryNode);
+                        }
+                        consecutiveFailureCount.set(0);
+                        setConnectionRef(connectionReleasable);
 
-            if (activityType == ActivityType.IDLE) {
-                return () -> listener.onResponse(null);
-            } else {
-                addListener(listener);
-                return () -> {
-                };
-            }
-        }
-
-        private void addListener(@Nullable ActionListener<Void> listener) {
-            assert Thread.holdsLock(mutex) : "mutex not held";
-            assert activityType != ActivityType.IDLE;
-            if (listener != null) {
-                future.addListener(listener);
-            }
-        }
-
-        private ListenableActionFuture<Void> getAndClearFuture() {
-            assert Thread.holdsLock(mutex) : "mutex not held";
-            final ListenableActionFuture<Void> drainedFuture = future;
-            future = new ListenableActionFuture<>();
-            return drainedFuture;
-        }
-
-        private Runnable addListenerAndStartActivity(@Nullable ActionListener<Void> listener, ActivityType newActivityType,
-                                                     Runnable activity, String cancellationMessage) {
-            assert Thread.holdsLock(mutex) : "mutex not held";
-            assert newActivityType.equals(ActivityType.IDLE) == false;
-
-            if (activityType == ActivityType.IDLE) {
-                activityType = newActivityType;
-                addListener(listener);
-                return activity;
-            }
-
-            if (activityType == newActivityType) {
-                addListener(listener);
-                return () -> {
-                };
-            }
-
-            activityType = newActivityType;
-            final ListenableActionFuture<Void> oldFuture = getAndClearFuture();
-            addListener(listener);
-            return () -> oldFuture.onFailure(new ElasticsearchException(cancellationMessage));
-        }
-
-        private void onCompletion(ActivityType completedActivityType, @Nullable Exception e, Runnable oppositeActivity) {
-            assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
-
-            final Runnable cleanup;
-            synchronized (mutex) {
-                assert activityType != ActivityType.IDLE;
-                if (activityType == completedActivityType) {
-                    final ListenableActionFuture<Void> oldFuture = getAndClearFuture();
-                    activityType = ActivityType.IDLE;
-
-                    cleanup = e == null ? () -> oldFuture.onResponse(null) : () -> oldFuture.onFailure(e);
-
-                    if (completedActivityType.equals(ActivityType.DISCONNECTING)) {
-                        final ConnectionTarget removedTarget = targetsByNode.remove(discoveryNode);
-                        assert removedTarget == this : removedTarget + " vs " + this;
+                        final boolean isActive;
+                        synchronized (mutex) {
+                            isActive = targetsByNode.get(discoveryNode) == ConnectionTarget.this;
+                        }
+                        if (isActive == false) {
+                            logger.debug("connected to stale {} - releasing stale connection", discoveryNode);
+                            setConnectionRef(null);
+                        }
+                        if (listener != null) {
+                            listener.onResponse(null);
+                        }
                     }
-                } else {
-                    cleanup = oppositeActivity;
-                }
-            }
-            cleanup.run();
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        final int currentFailureCount = consecutiveFailureCount.incrementAndGet();
+                        // only warn every 6th failure
+                        final Level level = currentFailureCount % 6 == 1 ? Level.WARN : Level.DEBUG;
+                        logger.log(level, new ParameterizedMessage("failed to connect to {} (tried [{}] times)",
+                            discoveryNode, currentFailureCount), e);
+                        setConnectionRef(null);
+                        if (listener != null) {
+                            listener.onFailure(e);
+                        }
+                    }
+                });
+            };
         }
 
-        boolean isPendingDisconnection() {
-            assert Thread.holdsLock(mutex) : "mutex not held";
-            return activityType == ActivityType.DISCONNECTING;
+        void disconnect() {
+            setConnectionRef(null);
+            logger.debug("disconnected from {}", discoveryNode);
         }
 
         @Override
@@ -475,7 +289,6 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             synchronized (mutex) {
                 return "ConnectionTarget{" +
                     "discoveryNode=" + discoveryNode +
-                    ", activityType=" + activityType +
                     '}';
             }
         }

@@ -13,8 +13,8 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
@@ -86,24 +86,25 @@ public class ObjectMapper extends Mapper implements Cloneable {
             return this;
         }
 
-        protected final Map<String, Mapper> buildMappers(ContentPath contentPath) {
-            contentPath.add(name);
+        protected final Map<String, Mapper> buildMappers(boolean root, MapperBuilderContext context) {
+            if (root == false) {
+                context = context.createChildContext(name);
+            }
             Map<String, Mapper> mappers = new HashMap<>();
             for (Mapper.Builder builder : mappersBuilders) {
-                Mapper mapper = builder.build(contentPath);
+                Mapper mapper = builder.build(context);
                 Mapper existing = mappers.get(mapper.simpleName());
                 if (existing != null) {
                     mapper = existing.merge(mapper);
                 }
                 mappers.put(mapper.simpleName(), mapper);
             }
-            contentPath.remove();
             return mappers;
         }
 
         @Override
-        public ObjectMapper build(ContentPath contentPath) {
-            return new ObjectMapper(name, contentPath.pathAsText(name), enabled, dynamic, buildMappers(contentPath));
+        public ObjectMapper build(MapperBuilderContext context) {
+            return new ObjectMapper(name, context.buildFullName(name), enabled, dynamic, buildMappers(false, context));
         }
     }
 
@@ -154,7 +155,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 }
                 return true;
             } else if (fieldName.equals("include_in_all")) {
-                deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "include_in_all",
+                deprecationLogger.critical(DeprecationCategory.MAPPINGS, "include_in_all",
                     "[include_in_all] is deprecated, the _all field have been removed in this version");
                 return true;
             }

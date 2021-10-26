@@ -19,9 +19,9 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -35,13 +35,11 @@ import org.elasticsearch.search.lookup.FieldLookup;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -50,6 +48,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -59,7 +58,7 @@ import static java.util.Collections.singleton;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.client.Requests.refreshRequest;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -85,27 +84,28 @@ public class SearchFieldsIT extends ESIntegTestCase {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
 
             scripts.put("doc['num1'].value", vars -> {
-                Map<?, ?> doc = (Map) vars.get("doc");
+                Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
                 ScriptDocValues.Doubles num1 = (ScriptDocValues.Doubles) doc.get("num1");
                 return num1.getValue();
             });
 
             scripts.put("doc['num1'].value * factor", vars -> {
-                Map<?, ?> doc = (Map) vars.get("doc");
+                Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
                 ScriptDocValues.Doubles num1 = (ScriptDocValues.Doubles) doc.get("num1");
+                @SuppressWarnings("unchecked")
                 Map<String, Object> params = (Map<String, Object>) vars.get("params");
                 Double factor = (Double) params.get("factor");
                 return num1.getValue() * factor;
             });
 
             scripts.put("doc['date'].date.millis", vars -> {
-                Map<?, ?> doc = (Map) vars.get("doc");
+                Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
                 ScriptDocValues.Dates dates = (ScriptDocValues.Dates) doc.get("date");
                 return dates.getValue().toInstant().toEpochMilli();
             });
 
             scripts.put("doc['date'].date.nanos", vars -> {
-                Map<?, ?> doc = (Map) vars.get("doc");
+                Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
                 ScriptDocValues.Dates dates = (ScriptDocValues.Dates) doc.get("date");
                 return DateUtils.toLong(dates.getValue().toInstant());
             });
@@ -135,19 +135,19 @@ public class SearchFieldsIT extends ESIntegTestCase {
         }
 
         static Object fieldsScript(Map<String, Object> vars, String fieldName) {
-            Map<?, ?> fields = (Map) vars.get("_fields");
+            Map<?, ?> fields = (Map<?, ?>) vars.get("_fields");
             FieldLookup fieldLookup = (FieldLookup) fields.get(fieldName);
             return fieldLookup.getValue();
         }
 
-        @SuppressWarnings("unchecked")
         static Object sourceScript(Map<String, Object> vars, String path) {
-            Map<String, Object> source = (Map) vars.get("_source");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> source = (Map<String, Object>) vars.get("_source");
             return XContentMapValues.extractValue(path, source);
         }
 
         static Object docScript(Map<String, Object> vars, String fieldName) {
-            Map<?, ?> doc = (Map) vars.get("doc");
+            Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
             ScriptDocValues<?> values = (ScriptDocValues<?>) doc.get(fieldName);
             return values;
         }
@@ -920,10 +920,10 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setMapping(mapping));
         ensureGreen("test");
 
-        DateTime date = new DateTime(1990, 12, 29, 0, 0, DateTimeZone.UTC);
-        org.joda.time.format.DateTimeFormatter formatter = DateTimeFormat.forPattern("yyyy-MM-dd");
+        ZonedDateTime date = ZonedDateTime.of(1990, 12, 29, 0, 0, 0, 0, ZoneOffset.UTC);
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("uuuu-MM-dd", Locale.ROOT);
 
-        indexDoc("test", "1", "text_field", "foo", "date_field", formatter.print(date));
+        indexDoc("test", "1", "text_field", "foo", "date_field", formatter.format(date));
         refresh("test");
 
         SearchRequestBuilder builder = client().prepareSearch().setQuery(matchAllQuery())
@@ -983,10 +983,10 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setMapping(mapping));
         ensureGreen("test");
 
-        DateTime date = new DateTime(1990, 12, 29, 0, 0, DateTimeZone.UTC);
-        org.joda.time.format.DateTimeFormatter formatter = DateTimeFormat.forPattern("yyyy-MM-dd");
+        ZonedDateTime date = ZonedDateTime.of(1990, 12, 29, 0, 0, 0, 0, ZoneOffset.UTC);
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("uuuu-MM-dd", Locale.ROOT);
 
-        indexDoc("test", "1", "text_field", "foo", "date_field", formatter.print(date));
+        indexDoc("test", "1", "text_field", "foo", "date_field", formatter.format(date));
         refresh("test");
 
         SearchRequestBuilder builder = client().prepareSearch().setQuery(matchAllQuery())
@@ -1119,9 +1119,10 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertSearchResponse(response);
         assertHitCount(response, 1);
 
-        Map<String, DocumentField> fields = response.getHits().getAt(0).getFields();
+        Map<String, DocumentField> fields = response.getHits().getAt(0).getMetadataFields();
 
         assertThat(fields.get("field1"), nullValue());
         assertThat(fields.get("_routing").getValue().toString(), equalTo("1"));
+        assertThat(response.getHits().getAt(0).getDocumentFields().size(), equalTo(0));
     }
 }

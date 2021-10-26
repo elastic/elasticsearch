@@ -9,6 +9,7 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.license.DeleteLicenseRequest;
 import org.elasticsearch.client.license.GetBasicStatusResponse;
@@ -23,8 +24,9 @@ import org.elasticsearch.client.license.StartBasicResponse;
 import org.elasticsearch.client.license.StartTrialRequest;
 import org.elasticsearch.client.license.StartTrialResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.After;
 import org.junit.BeforeClass;
 
@@ -32,7 +34,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -40,6 +42,7 @@ import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.stringContainsInOrder;
 
 public class LicenseIT extends ESRestHighLevelClientTestCase {
 
@@ -89,6 +92,40 @@ public class LicenseIT extends ESRestHighLevelClientTestCase {
             assertThat(response.getAcknowledgeHeader(), nullValue());
             assertThat(response.getAcknowledgeMessages(), nullValue());
         }
+    }
+
+    public void testPutInvalidTrialLicense() throws Exception {
+        assumeTrue("Trial license is only valid when tested against snapshot/test builds",
+            Build.CURRENT.isSnapshot());
+
+        // use a hard-coded trial license for 20 yrs to be able to roll back from another licenses
+        final String signature = "xx"; // Truncated, so it is expected to fail validation
+        final String licenseDefinition = Strings.toString(jsonBuilder()
+            .startObject()
+            .field("licenses", List.of(
+                Map.of(
+                    "uid", "96fc37c6-6fc9-43e2-a40d-73143850cd72",
+                    "type", "trial",
+                    // 2018-10-16 07:02:48 UTC
+                    "issue_date_in_millis", "1539673368158",
+                    // 2038-10-11 07:02:48 UTC, 20 yrs later
+                    "expiry_date_in_millis", "2170393368158",
+                    "max_nodes", "5",
+                    "issued_to", "client_rest-high-level_integTestCluster",
+                    "issuer", "elasticsearch",
+                    "start_date_in_millis", "-1",
+                    "signature", signature)))
+            .endObject());
+
+        final PutLicenseRequest request = new PutLicenseRequest();
+        request.setAcknowledge(true);
+        request.setLicenseDefinition(licenseDefinition);
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> highLevelClient().license().putLicense(request, RequestOptions.DEFAULT)
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), stringContainsInOrder("malformed signature for license"));
     }
 
     public static void putTrialLicense() throws IOException {

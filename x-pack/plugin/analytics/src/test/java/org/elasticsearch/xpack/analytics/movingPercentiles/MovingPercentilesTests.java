@@ -31,10 +31,13 @@ public class MovingPercentilesTests extends BasePipelineAggregationTestCase<Movi
         return singletonList(new SearchPlugin() {
             @Override
             public List<PipelineAggregationSpec> getPipelineAggregations() {
-                return singletonList(new PipelineAggregationSpec(
+                return singletonList(
+                    new PipelineAggregationSpec(
                         MovingPercentilesPipelineAggregationBuilder.NAME,
                         MovingPercentilesPipelineAggregationBuilder::new,
-                        MovingPercentilesPipelineAggregationBuilder.PARSER));
+                        MovingPercentilesPipelineAggregationBuilder.PARSER
+                    )
+                );
             }
         });
     }
@@ -43,18 +46,23 @@ public class MovingPercentilesTests extends BasePipelineAggregationTestCase<Movi
     protected MovingPercentilesPipelineAggregationBuilder createTestAggregatorFactory() {
         String name = randomAlphaOfLengthBetween(3, 20);
         String bucketsPath = randomAlphaOfLengthBetween(3, 20);
-        MovingPercentilesPipelineAggregationBuilder builder =
-                new MovingPercentilesPipelineAggregationBuilder(name, bucketsPath, TestUtil.nextInt(random(), 1, 10));
+        MovingPercentilesPipelineAggregationBuilder builder = new MovingPercentilesPipelineAggregationBuilder(
+            name,
+            bucketsPath,
+            TestUtil.nextInt(random(), 1, 10)
+        );
         if (randomBoolean()) {
             builder.setShift(randomIntBetween(0, 10));
         }
         return builder;
     }
 
-
     public void testParentValidations() throws IOException {
-        MovingPercentilesPipelineAggregationBuilder builder =
-                new MovingPercentilesPipelineAggregationBuilder("name", randomAlphaOfLength(5), TestUtil.nextInt(random(), 1, 10));
+        MovingPercentilesPipelineAggregationBuilder builder = new MovingPercentilesPipelineAggregationBuilder(
+            "name",
+            randomAlphaOfLength(5),
+            TestUtil.nextInt(random(), 1, 10)
+        );
 
         assertThat(validate(new HistogramAggregationBuilder("name"), builder), nullValue());
         assertThat(validate(new DateHistogramAggregationBuilder("name"), builder), nullValue());
@@ -63,12 +71,20 @@ public class MovingPercentilesTests extends BasePipelineAggregationTestCase<Movi
         // Mocked "test" agg, should fail validation
         AggregationBuilder stubParent = mock(AggregationBuilder.class);
         when(stubParent.getName()).thenReturn("name");
-        assertThat(validate(stubParent, builder), equalTo(
+        assertThat(
+            validate(stubParent, builder),
+            equalTo(
                 "Validation Failed: 1: moving_percentiles aggregation [name] must have a histogram, "
-                + "date_histogram or auto_date_histogram as parent;"));
+                    + "date_histogram or auto_date_histogram as parent;"
+            )
+        );
 
-        assertThat(validate(emptyList(), builder), equalTo(
+        assertThat(
+            validate(emptyList(), builder),
+            equalTo(
                 "Validation Failed: 1: moving_percentiles aggregation [name] must have a histogram, "
-                + "date_histogram or auto_date_histogram as parent but doesn't have a parent;"));
+                    + "date_histogram or auto_date_histogram as parent but doesn't have a parent;"
+            )
+        );
     }
 }

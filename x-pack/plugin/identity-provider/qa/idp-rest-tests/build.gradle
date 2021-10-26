@@ -1,13 +1,14 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
-apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   //TODO: update javaRestTests to not rely on any code that it is testing
   javaRestTestImplementation project(path: xpackModule('identity-provider'))
+  javaRestTestImplementation project(":client:rest-high-level")
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
 
   setting 'xpack.license.self_generated.type', 'trial'

@@ -9,7 +9,7 @@
 package org.elasticsearch.client.ml.calendars;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;

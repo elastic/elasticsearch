@@ -8,7 +8,7 @@
 package org.elasticsearch.client.textstructure;
 
 import org.elasticsearch.client.textstructure.structurefinder.TextStructureTests;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;

@@ -11,7 +11,6 @@ package org.elasticsearch.action.admin.indices.alias.get;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
-import org.elasticsearch.cluster.metadata.DataStreamMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,8 +33,7 @@ public class GetAliasesResponse extends ActionResponse {
     public GetAliasesResponse(StreamInput in) throws IOException {
         super(in);
         aliases = in.readImmutableMap(StreamInput::readString, i -> i.readList(AliasMetadata::new));
-        dataStreamAliases = in.getVersion().onOrAfter(DataStreamMetadata.DATA_STREAM_ALIAS_VERSION) ?
-            in.readMap(StreamInput::readString, in1 -> in1.readList(DataStreamAlias::new)) : Map.of();
+        dataStreamAliases = in.readMap(StreamInput::readString, in1 -> in1.readList(DataStreamAlias::new));
     }
 
     public ImmutableOpenMap<String, List<AliasMetadata>> getAliases() {
@@ -49,9 +47,7 @@ public class GetAliasesResponse extends ActionResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(aliases, StreamOutput::writeString, StreamOutput::writeList);
-        if (out.getVersion().onOrAfter(DataStreamMetadata.DATA_STREAM_ALIAS_VERSION)) {
-            out.writeMap(dataStreamAliases, StreamOutput::writeString, StreamOutput::writeList);
-        }
+        out.writeMap(dataStreamAliases, StreamOutput::writeString, StreamOutput::writeList);
     }
 
     @Override

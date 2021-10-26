@@ -28,8 +28,8 @@ import org.elasticsearch.client.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -44,12 +44,13 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.oneOf;
 
+@SuppressWarnings("removal")
 public class TransformIT extends TransformIntegTestCase {
 
     private static final int NUM_USERS = 28;
@@ -70,7 +71,7 @@ public class TransformIT extends TransformIntegTestCase {
     public void setClusterSettings() throws IOException {
         Request settingsRequest = new Request("PUT", "/_cluster/settings");
         settingsRequest.setJsonEntity(
-            "{\"transient\": {"
+            "{\"persistent\": {"
                 + "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"debug\","
                 + "\"logger.org.elasticsearch.xpack.transform\": \"debug\"}}"
         );
@@ -136,6 +137,7 @@ public class TransformIT extends TransformIntegTestCase {
             createTransformConfigBuilder(transformId, "reviews-by-user-business-day", QueryBuilders.matchAllQuery(), indexName)
                 .setPivotConfig(createPivotConfig(groups, aggs))
                 .setSyncConfig(TimeSyncConfig.builder().setField("timestamp").setDelay(TimeValue.timeValueSeconds(1)).build())
+                .setSettings(SettingsConfig.builder().setAlignCheckpoints(false).build())
                 .build();
 
         assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
@@ -311,7 +313,8 @@ public class TransformIT extends TransformIntegTestCase {
 
         TransformStats stateAndStats = getTransformStats(config.getId()).getTransformsStats().get(0);
         assertThat(stateAndStats.getState(), equalTo(TransformStats.State.STOPPED));
-        assertThat(stateAndStats.getIndexerStats().getDocumentsIndexed(), greaterThan(1000L));
+        // Despite indexing new documents into the source index, the number of documents in the destination index stays the same.
+        assertThat(stateAndStats.getIndexerStats().getDocumentsIndexed(), equalTo(1000L));
 
         assertTrue(stopTransform(transformId).isAcknowledged());
         deleteTransform(config.getId());
@@ -337,7 +340,7 @@ public class TransformIT extends TransformIntegTestCase {
                 .setPivotConfig(createPivotConfig(groups, aggs))
                 .setSyncConfig(TimeSyncConfig.builder().setField("timestamp").setDelay(TimeValue.timeValueSeconds(1)).build())
                 // set requests per second and page size low enough to fail the test if update does not succeed,
-                .setSettings(SettingsConfig.builder().setRequestsPerSecond(1F).setMaxPageSearchSize(10).build())
+                .setSettings(SettingsConfig.builder().setRequestsPerSecond(1F).setMaxPageSearchSize(10).setAlignCheckpoints(false).build())
                 .build();
 
         assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());

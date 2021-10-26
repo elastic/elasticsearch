@@ -224,7 +224,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     private synchronized void updateSkipUnavailable(String clusterAlias, Boolean skipUnavailable) {
         RemoteClusterConnection remote = this.remoteClusters.get(clusterAlias);
         if (remote != null) {
-            remote.updateSkipUnavailable(skipUnavailable);
+            remote.setSkipUnavailable(skipUnavailable);
         }
     }
 
@@ -344,9 +344,8 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             throw new IllegalArgumentException(
                 "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role");
         }
-        Map<String, RemoteClusterConnection> remoteClusters = this.remoteClusters;
         for (String cluster : clusters) {
-            if (remoteClusters.containsKey(cluster) == false) {
+            if (this.remoteClusters.containsKey(cluster) == false) {
                 listener.onFailure(new NoSuchRemoteClusterException(cluster));
                 return;
             }
@@ -356,7 +355,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         CountDown countDown = new CountDown(clusters.size());
         Function<String, DiscoveryNode> nullFunction = s -> null;
         for (final String cluster : clusters) {
-            RemoteClusterConnection connection = remoteClusters.get(cluster);
+            RemoteClusterConnection connection = this.remoteClusters.get(cluster);
             connection.collectNodes(new ActionListener<Function<String, DiscoveryNode>>() {
                 @Override
                 public void onResponse(Function<String, DiscoveryNode> nodeLookup) {

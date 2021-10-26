@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.eql.execution.search.HitReference;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import org.elasticsearch.xpack.eql.execution.search.QueryClient;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
+import org.elasticsearch.xpack.eql.execution.search.Timestamp;
 import org.elasticsearch.xpack.eql.execution.search.extractor.ImplicitTiebreakerHitExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import java.io.IOException;
@@ -120,7 +121,8 @@ public class CircuitBreakerTests extends ESTestCase {
     public void testCircuitBreakerSequnceMatcher() {
         List<Tuple<KeyAndOrdinal, HitReference>> hits = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
-            hits.add(new Tuple<>(new KeyAndOrdinal(new SequenceKey(i), new Ordinal(i, o -> 1, 0)), new HitReference("index", i + "")));
+            hits.add(new Tuple<>(new KeyAndOrdinal(new SequenceKey(i), new Ordinal(Timestamp.of(String.valueOf(i)), o -> 1, 0)),
+                new HitReference("index", i + "")));
         }
 
         // Break on first iteration
@@ -185,8 +187,8 @@ public class CircuitBreakerTests extends ESTestCase {
         }
 
         @Override
-        public Long extract(SearchHit hit) {
-            return (long) hit.docId();
+        public Timestamp extract(SearchHit hit) {
+            return Timestamp.of(String.valueOf(hit.docId()));
         }
     }
 }

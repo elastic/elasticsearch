@@ -260,8 +260,8 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
 
         Metadata metadata = metadataBuilder.build();
 
-        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-            routingTableBuilder.addAsNew(cursor.value);
+        for (IndexMetadata indexMetadata : metadata.indices().values()) {
+            routingTableBuilder.addAsNew(indexMetadata);
         }
 
         RoutingTable initialRoutingTable = routingTableBuilder.build();

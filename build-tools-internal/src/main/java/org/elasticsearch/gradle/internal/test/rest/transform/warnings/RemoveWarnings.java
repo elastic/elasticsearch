@@ -39,6 +39,7 @@ public class RemoveWarnings implements RestTestTransformByParentObject {
     public RemoveWarnings(Set<String> warnings) {
         this.warnings = warnings;
     }
+
     /**
      * @param warnings The allowed warnings to inject
      * @param testName The testName to inject

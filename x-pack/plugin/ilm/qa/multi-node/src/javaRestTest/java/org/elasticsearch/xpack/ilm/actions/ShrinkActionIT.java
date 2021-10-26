@@ -12,25 +12,25 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
+import org.elasticsearch.xpack.core.ilm.CheckTargetShardsCountStep;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.MigrateAction;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SetSingleNodeAllocateStep;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
-import org.elasticsearch.xpack.core.ilm.ShrinkStep;
+import org.elasticsearch.xpack.core.ilm.Step;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -39,9 +39,8 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
@@ -209,7 +208,7 @@ public class ShrinkActionIT extends ESRestTestCase {
         createIndexWithSettings(client(), index, alias, Settings.builder()
             .put(SETTING_NUMBER_OF_SHARDS, numShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .putNull(DataTierAllocationDecider.INDEX_ROUTING_PREFER));
+            .putNull(DataTier.TIER_PREFERENCE));
 
         ensureGreen(index);
 
@@ -272,6 +271,7 @@ public class ShrinkActionIT extends ESRestTestCase {
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("warm").getKey())));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78460")
     public void testAutomaticRetryFailedShrinkAction() throws Exception {
         int numShards = 4;
         int divisor = randomFrom(2, 4);
@@ -280,10 +280,8 @@ public class ShrinkActionIT extends ESRestTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
         createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(numShards + randomIntBetween(1, numShards), null));
         updatePolicy(client(), index, policy);
-        assertBusy(() -> {
-            String failedStep = getFailedStepForIndex(index);
-            assertThat(failedStep, equalTo(ShrinkStep.NAME));
-        }, 60, TimeUnit.SECONDS);
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index),
+            equalTo(new Step.StepKey("warm", ShrinkAction.NAME, CheckTargetShardsCountStep.NAME))), 60, TimeUnit.SECONDS);
 
         // update policy to be correct
         createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(expectedFinalShards, null));
@@ -303,50 +301,32 @@ public class ShrinkActionIT extends ESRestTestCase {
         expectThrows(ResponseException.class, () -> indexDocument(client(), index));
     }
 
-    public void testShrinkStepMovesForwardIfShrunkIndexIsCreatedBetweenRetries() throws Exception {
+    /*
+     * This test verifies that we can still shrink an index even if the total number of shards in the index is greater than
+     * index.routing.allocation.total_shards_per_node.
+     */
+    public void testTotalShardsPerNodeTooLow() throws Exception {
         int numShards = 4;
-        int expectedFinalShards = 1;
+        int divisor = randomFrom(2, 4);
+        int expectedFinalShards = numShards / divisor;
         createIndexWithSettings(client(), index, alias, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numShards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
-        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(numShards + randomIntBetween(1, numShards), null));
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), numShards - 2));
+        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(expectedFinalShards, null));
         updatePolicy(client(), index, policy);
-        assertBusy(() -> {
-            String failedStep = getFailedStepForIndex(index);
-            assertThat(failedStep, equalTo(ShrinkStep.NAME));
-        }, 60, TimeUnit.SECONDS);
 
-        String shrinkIndexName = waitAndGetShrinkIndexName(client(), index);
-        Request shrinkIndexRequest = new Request("POST", index + "/_shrink/" + shrinkIndexName);
-        shrinkIndexRequest.setEntity(new StringEntity(
-            "{\"settings\": {\n" +
-                "      \"" + SETTING_NUMBER_OF_SHARDS + "\": 1,\n" +
-                "      \"" + SETTING_NUMBER_OF_REPLICAS + "\": 0,\n" +
-                "      \"" + LifecycleSettings.LIFECYCLE_NAME + "\": \"" + policy + "\",\n" +
-                "      \"" + IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id" + "\": null\n" +
-                "   \n}\n" +
-                "\n}", ContentType.APPLICATION_JSON));
-        client().performRequest(shrinkIndexRequest);
-
-        // assert manually shrunk index is picked up and policy completes successfully
-        assertBusy(() -> assertTrue(indexExists(shrinkIndexName)), 30, TimeUnit.SECONDS);
-        assertBusy(() -> assertTrue(aliasExists(shrinkIndexName, index)));
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), shrinkIndexName), equalTo(PhaseCompleteStep.finalStep("warm").getKey())));
+        String shrunkenIndexName = waitAndGetShrinkIndexName(client(), index);
+        assertBusy(() -> assertTrue(indexExists(shrunkenIndexName)), 60, TimeUnit.SECONDS);
+        assertBusy(() -> assertTrue(aliasExists(shrunkenIndexName, index)));
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), shrunkenIndexName),
+            equalTo(PhaseCompleteStep.finalStep("warm").getKey())));
         assertBusy(() -> {
-            Map<String, Object> settings = getOnlyIndexSettings(client(), shrinkIndexName);
+            Map<String, Object> settings = getOnlyIndexSettings(client(), shrunkenIndexName);
             assertThat(settings.get(SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(expectedFinalShards)));
             assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
             assertThat(settings.get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id"), nullValue());
+            assertNull(settings.get(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()));
         });
         expectThrows(ResponseException.class, () -> indexDocument(client(), index));
-    }
-
-    @Nullable
-    private String getFailedStepForIndex(String indexName) throws IOException {
-        Map<String, Object> indexResponse = explainIndex(client(), indexName);
-        if (indexResponse == null) {
-            return null;
-        }
-
-        return (String) indexResponse.get("failed_step");
     }
 }

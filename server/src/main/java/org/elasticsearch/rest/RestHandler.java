@@ -10,10 +10,10 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.common.xcontent.MediaType;
-import org.elasticsearch.common.xcontent.MediaTypeRegistry;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.MediaType;
+import org.elasticsearch.xcontent.MediaTypeRegistry;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest.Method;
 
 import java.util.Collections;

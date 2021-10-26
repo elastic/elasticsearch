@@ -10,7 +10,6 @@ package org.elasticsearch.common.lucene.search.function;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FilterScorer;
@@ -34,7 +33,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * A query that allows for a pluggable boost function / filter. If it matches
@@ -246,11 +244,6 @@ public class FunctionScoreQuery extends Query {
             this.subQueryWeight = subQueryWeight;
             this.filterWeights = filterWeights;
             this.needsScores = needsScores;
-        }
-
-        @Override
-        public void extractTerms(Set<Term> terms) {
-            subQueryWeight.extractTerms(terms);
         }
 
         private FunctionFactorScorer functionScorer(LeafReaderContext context) throws IOException {

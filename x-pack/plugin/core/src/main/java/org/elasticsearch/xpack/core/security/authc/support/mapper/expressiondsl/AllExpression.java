@@ -12,7 +12,7 @@ import java.util.List;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 /**
  * An expression that evaluates to <code>true</code> if-and-only-if all its children

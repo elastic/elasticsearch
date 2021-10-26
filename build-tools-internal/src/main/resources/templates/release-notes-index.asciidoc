@@ -6,7 +6,7 @@
 
 This section summarizes the changes in each release.
 
-<% existingVersions.each { print "* <<release-notes-${ it }>>\n" } %>
+<% versions.each { print "* <<release-notes-${ it }>>\n" } %>
 --
 
-<% existingIncludes.each { print "include::release-notes/${ it }.asciidoc[]\n" } %>
+<% includeVersions.each { print "include::release-notes/${ it }.asciidoc[]\n" } %>

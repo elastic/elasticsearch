@@ -42,12 +42,11 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Matchers.argThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
@@ -622,7 +621,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             latch.countDown();
             return null;
-        }).when(mockLogger).warn(argThat(any(String.class)), argThat(any(RuntimeException.class)));
+        }).when(mockLogger).warn(any(String.class), any(RuntimeException.class));
         final GlobalCheckpointListeners globalCheckpointListeners =
                 new GlobalCheckpointListeners(shardId, scheduler, mockLogger);
         final TimeValue timeout = TimeValue.timeValueMillis(randomIntBetween(1, 50));

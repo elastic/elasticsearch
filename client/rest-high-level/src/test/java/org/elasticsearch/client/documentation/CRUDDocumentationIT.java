@@ -56,10 +56,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -95,6 +95,7 @@ import static org.hamcrest.Matchers.not;
  * Documentation for CRUD APIs in the high level java client.
  * Code wrapped in {@code tag} and {@code end} tags is included in the docs.
  */
+@SuppressWarnings("removal")
 public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
     @SuppressWarnings("unused")
@@ -1047,9 +1048,10 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             request.setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN); // <1>
             // end::update-by-query-request-indicesOptions
 
+            RequestOptions requestOptions = IGNORE_THROTTLED_WARNING;
             // tag::update-by-query-execute
             BulkByScrollResponse bulkResponse =
-                    client.updateByQuery(request, RequestOptions.DEFAULT);
+                    client.updateByQuery(request, requestOptions);
             // end::update-by-query-execute
             assertSame(0, bulkResponse.getSearchFailures().size());
             assertSame(0, bulkResponse.getBulkFailures().size());
@@ -1159,9 +1161,10 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             request.setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN); // <1>
             // end::delete-by-query-request-indicesOptions
 
+            RequestOptions requestOptions = IGNORE_THROTTLED_WARNING;
             // tag::delete-by-query-execute
             BulkByScrollResponse bulkResponse =
-                    client.deleteByQuery(request, RequestOptions.DEFAULT);
+                    client.deleteByQuery(request, requestOptions);
             // end::delete-by-query-execute
             assertSame(0, bulkResponse.getSearchFailures().size());
             assertSame(0, bulkResponse.getBulkFailures().size());

@@ -30,7 +30,7 @@ public class AggregationTestScriptsPlugin extends MockScriptPlugin {
     // List values = doc['values'];
     // double[] res = new double[values.size()];
     // for (int i = 0; i < res.length; i++) {
-    //      res[i] = values.get(i) - dec;
+    // res[i] = values.get(i) - dec;
     // };
     // return res;
     public static final Script DECREMENT_ALL_VALUES = new Script(ScriptType.INLINE, NAME, "decrement all values", singletonMap("dec", 1));
@@ -57,32 +57,32 @@ public class AggregationTestScriptsPlugin extends MockScriptPlugin {
         });
 
         scripts.put("doc['value'].value", vars -> {
-            Map<?,?> doc = (Map<?,?>) vars.get("doc");
+            Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
             return doc.get("value");
         });
 
         scripts.put("doc['value'].value - dec", vars -> {
             int dec = (int) vars.get("dec");
-            Map<?,?> doc = (Map<?,?>) vars.get("doc");
+            Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
             ScriptDocValues.Longs value = (ScriptDocValues.Longs) doc.get("value");
             return value.getValue() - dec;
         });
 
         scripts.put("doc['value'].value + inc", vars -> {
             int inc = (int) vars.get("inc");
-            Map<?,?> doc = (Map<?,?>) vars.get("doc");
+            Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
             ScriptDocValues.Longs value = (ScriptDocValues.Longs) doc.get("value");
             return value.getValue() + inc;
         });
 
         scripts.put("doc['values']", vars -> {
-            Map<?, ?> doc = (Map<?,?>) vars.get("doc");
+            Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
             return doc.get("values");
         });
 
         scripts.put(DECREMENT_ALL_VALUES.getIdOrCode(), vars -> {
             int dec = (int) vars.get("dec");
-            Map<?, ?> doc = (Map<?,?>) vars.get("doc");
+            Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
             ScriptDocValues.Longs values = (ScriptDocValues.Longs) doc.get("values");
 
             double[] res = new double[values.size()];
@@ -95,13 +95,13 @@ public class AggregationTestScriptsPlugin extends MockScriptPlugin {
         scripts.put("[ doc['value'].value, doc['value'].value - dec ]", vars -> {
             Long a = ((ScriptDocValues.Longs) scripts.get("doc['value'].value").apply(vars)).getValue();
             Long b = (Long) scripts.get("doc['value'].value - dec").apply(vars);
-            return new Long[]{a, b};
+            return new Long[] { a, b };
         });
 
         scripts.put("[ doc['value'].value, doc['value'].value + inc ]", vars -> {
             Long a = ((ScriptDocValues.Longs) scripts.get("doc['value'].value").apply(vars)).getValue();
             Long b = (Long) scripts.get("doc['value'].value + inc").apply(vars);
-            return new Long[]{a, b};
+            return new Long[] { a, b };
         });
 
         return scripts;

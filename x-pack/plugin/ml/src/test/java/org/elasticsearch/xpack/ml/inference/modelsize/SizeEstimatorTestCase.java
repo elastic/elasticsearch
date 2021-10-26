@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.inference.modelsize;
 
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import static org.hamcrest.Matchers.is;

@@ -25,14 +25,14 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
     @After
     public void afterTest() {
         Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), (String)null).build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
     }
 
     public void testDeleteIndexIsRejected() throws Exception {
         Settings settings = Settings.builder()
                 .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true)
                 .build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
 
         createIndex("index1", "1index");
 
@@ -50,7 +50,7 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
             Settings settings = Settings.builder()
                     .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false)
                     .build();
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
         }
 
         createIndex("index1", "1index");
@@ -68,7 +68,7 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
         Settings settings = Settings.builder()
                 .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true)
                 .build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
 
         createIndex("index1", "1index");
 
@@ -86,7 +86,7 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
             Settings settings = Settings.builder()
                     .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false)
                     .build();
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
         }
 
         createIndex("index1", "1index");
@@ -107,7 +107,7 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
         Settings settings = Settings.builder()
                 .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true)
                 .build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
 
         createIndex("index1", "1index");
         assertAcked(client().admin().indices().prepareClose("1index", "index1").get());
@@ -124,7 +124,7 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
             Settings settings = Settings.builder()
                     .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false)
                     .build();
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
         }
 
         createIndex("index1", "1index");
@@ -146,7 +146,7 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
         Settings settings = Settings.builder()
             .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true)
             .build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
 
         createIndex("index1", "1index");
 
@@ -166,7 +166,7 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
             Settings settings = Settings.builder()
                 .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false)
                 .build();
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
         }
 
         createIndex("index1", "1index");

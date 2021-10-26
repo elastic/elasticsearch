@@ -17,6 +17,7 @@ import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.opensaml.saml.saml2.metadata.IDPSSODescriptor;
 
 import java.time.Clock;
+
 /**
  * Generates a SAML {@link AuthnRequest} from a simplified set of parameters.
  */
@@ -49,7 +50,7 @@ class SamlAuthnRequestBuilder extends SamlMessageBuilder {
 
         final AuthnRequest request = SamlUtils.buildObject(AuthnRequest.class, AuthnRequest.DEFAULT_ELEMENT_NAME);
         request.setID(buildId());
-        request.setIssueInstant(now());
+        request.setIssueInstant(clock.instant());
         request.setDestination(destination);
         request.setProtocolBinding(spBinding);
         request.setAssertionConsumerServiceURL(serviceProvider.getAscUrl());
@@ -70,7 +71,7 @@ class SamlAuthnRequestBuilder extends SamlMessageBuilder {
         for (String authnCtxClass : super.serviceProvider.getReqAuthnCtxClassRef()) {
             AuthnContextClassRef authnContextClassRef = SamlUtils.buildObject(AuthnContextClassRef.class, AuthnContextClassRef
                 .DEFAULT_ELEMENT_NAME);
-            authnContextClassRef.setAuthnContextClassRef(authnCtxClass);
+            authnContextClassRef.setURI(authnCtxClass);
             requestedAuthnContext.getAuthnContextClassRefs().add(authnContextClassRef);
         }
         // We handle only EXACT comparison

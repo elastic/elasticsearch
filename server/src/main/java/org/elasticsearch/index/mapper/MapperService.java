@@ -18,11 +18,11 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -271,16 +271,22 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return mergeAndApplyMappings(type, mappingSource, reason);
     }
 
-    private synchronized DocumentMapper mergeAndApplyMappings(String mappingType, CompressedXContent mappingSource, MergeReason reason) {
-        Mapping incomingMapping = parseMapping(mappingType, mappingSource);
-        Mapping mapping = mergeMappings(this.mapper, incomingMapping, reason);
-        DocumentMapper newMapper = newDocumentMapper(mapping, reason);
-        if (reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
+    private DocumentMapper mergeAndApplyMappings(String mappingType, CompressedXContent mappingSource, MergeReason reason) {
+        final DocumentMapper currentMapper = this.mapper;
+        if (currentMapper != null && currentMapper.mappingSource().equals(mappingSource)) {
+            return currentMapper;
+        }
+        synchronized (this) {
+            Mapping incomingMapping = parseMapping(mappingType, mappingSource);
+            Mapping mapping = mergeMappings(this.mapper, incomingMapping, reason);
+            DocumentMapper newMapper = newDocumentMapper(mapping, reason);
+            if (reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
+                return newMapper;
+            }
+            this.mapper = newMapper;
+            assert assertSerialization(newMapper);
             return newMapper;
         }
-        this.mapper = newMapper;
-        assert assertSerialization(newMapper);
-        return newMapper;
     }
 
     private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason) {

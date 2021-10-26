@@ -83,7 +83,7 @@ public final class TrackingResultProcessor implements Processor {
                     processorResultList.add(new SimulateProcessorResult(actualProcessor.getType(), actualProcessor.getTag(),
                         actualProcessor.getDescription(), conditionalWithResult));
                     Pipeline verbosePipeline = new Pipeline(pipeline.getId(), pipeline.getDescription(), pipeline.getVersion(),
-                        verbosePipelineProcessor);
+                        pipeline.getMetadata(), verbosePipelineProcessor);
                     ingestDocument.executePipeline(verbosePipeline, handler);
                 }
             });

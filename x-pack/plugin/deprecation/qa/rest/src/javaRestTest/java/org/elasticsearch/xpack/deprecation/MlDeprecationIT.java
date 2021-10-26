@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.WarningsHandler;
@@ -21,11 +23,13 @@ import org.elasticsearch.client.ml.job.config.DataDescription;
 import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
@@ -34,6 +38,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
+@SuppressWarnings("removal")
 public class MlDeprecationIT extends ESRestTestCase {
 
     private static final RequestOptions REQUEST_OPTIONS = RequestOptions.DEFAULT.toBuilder()
@@ -44,6 +49,12 @@ public class MlDeprecationIT extends ESRestTestCase {
         HLRC(RestClient restClient) {
             super(restClient, RestClient::close, new ArrayList<>());
         }
+    }
+
+    @After
+    public void resetFeatures() throws IOException {
+        Response response = adminClient().performRequest(new Request("POST", "/_features/_reset"));
+        assertOK(response);
     }
 
     @Override
@@ -97,7 +108,6 @@ public class MlDeprecationIT extends ESRestTestCase {
             containsString("model snapshot [1] for job [deprecation_check_job] needs to be deleted or upgraded")
         );
         assertThat(response.getMlSettingsIssues().get(0).getMeta(), equalTo(Map.of("job_id", jobId, "snapshot_id", "1")));
-        hlrc.close();
     }
 
 }

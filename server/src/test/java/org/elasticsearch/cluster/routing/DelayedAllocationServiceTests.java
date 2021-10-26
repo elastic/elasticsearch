@@ -98,7 +98,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(nodes).build();
         clusterState = allocationService.disassociateDeadNodes(clusterState, true, "reroute");
         ClusterState newState = clusterState;
-        List<ShardRouting> unassignedShards = newState.getRoutingTable().shardsWithState(ShardRoutingState.UNASSIGNED);
+        List<ShardRouting> unassignedShards = RoutingNodesHelper.shardsWithState(newState.getRoutingNodes(), ShardRoutingState.UNASSIGNED);
         if (nodeAvailableForAllocation) {
             assertThat(unassignedShards.size(), equalTo(0));
         } else {
@@ -223,7 +223,8 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
         // start replicas
         clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
-        assertThat("all shards should be started", clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(4));
+        assertThat("all shards should be started", RoutingNodesHelper.shardsWithState(clusterState.getRoutingNodes(), STARTED).size(),
+            equalTo(4));
 
         // find replica of short_delay
         ShardRouting shortDelayReplica = null;

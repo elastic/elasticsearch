@@ -24,7 +24,7 @@ public class PomValidationPrecommitPlugin extends PrecommitPlugin {
     public TaskProvider<? extends Task> createTask(Project project) {
         TaskProvider<Task> validatePom = project.getTasks().register("validatePom");
         PublishingExtension publishing = project.getExtensions().getByType(PublishingExtension.class);
-        publishing.getPublications().all(publication -> {
+        publishing.getPublications().configureEach(publication -> {
             String publicationName = GUtils.capitalize(publication.getName());
             TaskProvider<PomValidationTask> validateTask = project.getTasks()
                 .register("validate" + publicationName + "Pom", PomValidationTask.class);

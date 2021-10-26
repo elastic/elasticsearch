@@ -226,8 +226,13 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public Map<String, BlobMetadata> listBlobsByPrefix(@Nullable final String prefix) throws IOException {
-        FileStatus[] files = store.execute(fileContext -> fileContext.util().listStatus(path,
-            path -> prefix == null || path.getName().startsWith(prefix)));
+        FileStatus[] files;
+        try {
+            files = store.execute(fileContext -> fileContext.util().listStatus(path,
+                path -> prefix == null || path.getName().startsWith(prefix)));
+        } catch (FileNotFoundException e) {
+            files = new FileStatus[0];
+        }
         Map<String, BlobMetadata> map = new LinkedHashMap<>();
         for (FileStatus file : files) {
             if (file.isFile()) {

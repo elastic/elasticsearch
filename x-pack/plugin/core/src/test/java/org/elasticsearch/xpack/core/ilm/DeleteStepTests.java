@@ -67,7 +67,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
         assertFalse(createRandomInstance().indexSurvives());
     }
 
-    public void testDeleted() {
+    public void testDeleted() throws Exception {
         IndexMetadata indexMetadata = getIndexMetadata();
 
         Mockito.doAnswer(invocation -> {
@@ -85,7 +85,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
             Metadata.builder().put(indexMetadata, true).build()
         ).build();
-        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, clusterState, null, f)));
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -111,28 +111,44 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
             Metadata.builder().put(indexMetadata, true).build()
         ).build();
-        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Boolean, Exception>get(
+        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Void, Exception>get(
             f -> step.performAction(indexMetadata, clusterState, null, f))));
     }
 
     public void testPerformActionThrowsExceptionIfIndexIsTheDataStreamWriteIndex() {
-        String dataStreamName = randomAlphaOfLength(10);
-        String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         String policyName = "test-ilm-policy";
-        IndexMetadata sourceIndexMetadata =
-            IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        String dataStreamName = randomAlphaOfLength(10);
+
+        IndexMetadata index1;
+        {
+            String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+            index1 = IndexMetadata.builder(indexName)
+                .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                .numberOfShards(randomIntBetween(1, 5))
+                .numberOfReplicas(randomIntBetween(0, 5))
+                .build();
+        }
+        IndexMetadata sourceIndexMetadata;
+        {
+
+            String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
+            sourceIndexMetadata = IndexMetadata.builder(indexName)
+                .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                .numberOfShards(randomIntBetween(1, 5))
+                .numberOfReplicas(randomIntBetween(0, 5))
+                .build();
+        }
 
         DataStream dataStream =
-            new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(sourceIndexMetadata.getIndex()));
+            new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(index1.getIndex(), sourceIndexMetadata.getIndex()));
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
-            Metadata.builder().put(sourceIndexMetadata, true).put(dataStream).build()
+            Metadata.builder().put(index1, false).put(sourceIndexMetadata, false).put(dataStream).build()
         ).build();
 
         IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
             () -> createRandomInstance().performDuringNoSnapshot(sourceIndexMetadata, clusterState, new ActionListener<>() {
                 @Override
-                public void onResponse(Boolean complete) {
+                public void onResponse(Void complete) {
                     fail("unexpected listener callback");
                 }
 
@@ -141,9 +157,17 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
                     fail("unexpected listener callback");
                 }
             }));
-        assertThat(illegalStateException.getMessage(),
-            is("index [" + indexName + "] is the write index for data stream [" + dataStreamName + "]. stopping execution of lifecycle" +
-                " [test-ilm-policy] as a data stream's write index cannot be deleted. manually rolling over the index will resume the " +
-                "execution of the policy as the index will not be the data stream's write index anymore"));
+        assertThat(
+            illegalStateException.getMessage(),
+            is(
+                "index ["
+                    + sourceIndexMetadata.getIndex().getName()
+                    + "] is the write index for data stream ["
+                    + dataStreamName
+                    + "]. stopping execution of lifecycle [test-ilm-policy] as a data stream's write index cannot be deleted. "
+                    + "manually rolling over the index will resume the execution of the policy as the index will not be the "
+                    + "data stream's write index anymore"
+            )
+        );
     }
 }

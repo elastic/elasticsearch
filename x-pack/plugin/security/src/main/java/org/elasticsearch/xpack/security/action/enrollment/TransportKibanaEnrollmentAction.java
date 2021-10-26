@@ -16,28 +16,24 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.ssl.SslKeyConfig;
+import org.elasticsearch.common.ssl.StoreKeyConfig;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentRequest;
 import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentResponse;
-import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
-import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
-import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequestBuilder;
-import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.ssl.KeyConfig;
+import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.core.ssl.StoreKeyConfig;
 
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 
-import java.security.SecureRandom;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Base64;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -46,26 +42,25 @@ public class TransportKibanaEnrollmentAction extends HandledTransportAction<Kiba
 
     private static final Logger logger = LogManager.getLogger(TransportKibanaEnrollmentAction.class);
 
-    private final Environment environment;
     private final Client client;
     private final SSLService sslService;
 
-    @Inject public TransportKibanaEnrollmentAction(
+    @Inject
+    public TransportKibanaEnrollmentAction(
         TransportService transportService,
         Client client,
         SSLService sslService,
-        Environment environment,
-        ActionFilters actionFilters) {
+        ActionFilters actionFilters
+    ) {
         super(KibanaEnrollmentAction.NAME, transportService, actionFilters, KibanaEnrollmentRequest::new);
-        this.environment = environment;
-        // Should we use a specific origin for this ? Are we satisfied with the auditability of the change password request as-is ?
         this.client = new OriginSettingClient(client, SECURITY_ORIGIN);
         this.sslService = sslService;
     }
 
-    @Override protected void doExecute(Task task, KibanaEnrollmentRequest request, ActionListener<KibanaEnrollmentResponse> listener) {
+    @Override
+    protected void doExecute(Task task, KibanaEnrollmentRequest request, ActionListener<KibanaEnrollmentResponse> listener) {
 
-        final KeyConfig keyConfig = sslService.getHttpTransportSSLConfiguration().keyConfig();
+        final SslKeyConfig keyConfig = sslService.getHttpTransportSSLConfiguration().getKeyConfig();
         if (keyConfig instanceof StoreKeyConfig == false) {
             listener.onFailure(new ElasticsearchException(
                 "Unable to enroll kibana instance. Elasticsearch node HTTP layer SSL configuration is not configured with a keystore"));
@@ -73,7 +68,7 @@ public class TransportKibanaEnrollmentAction extends HandledTransportAction<Kiba
         }
         List<X509Certificate> caCertificates;
         try {
-            caCertificates = ((StoreKeyConfig) keyConfig).getPrivateKeyEntries(environment)
+            caCertificates = ((StoreKeyConfig) keyConfig).getKeys()
                 .stream()
                 .map(Tuple::v2)
                 .filter(x509Certificate -> x509Certificate.getBasicConstraints() != -1)
@@ -91,35 +86,27 @@ public class TransportKibanaEnrollmentAction extends HandledTransportAction<Kiba
         } else {
             String httpCa;
             try {
-                httpCa = Base64.getUrlEncoder().encodeToString(caCertificates.get(0).getEncoded());
+                httpCa = Base64.getEncoder().encodeToString(caCertificates.get(0).getEncoded());
             } catch (CertificateEncodingException cee) {
                 listener.onFailure(new ElasticsearchException(
                     "Unable to enroll kibana instance. Elasticsearch node HTTP layer SSL configuration uses a malformed CA certificate",
                     cee));
                 return;
             }
-            final char[] password = generateKibanaSystemPassword();
-            final ChangePasswordRequest changePasswordRequest =
-                new ChangePasswordRequestBuilder(client).username("kibana_system")
-                    .password(password.clone(), Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(environment.settings())))
-                    .request();
-            client.execute(ChangePasswordAction.INSTANCE, changePasswordRequest, ActionListener.wrap(response -> {
-                logger.debug("Successfully set the password for user [kibana_system] during kibana enrollment");
-                listener.onResponse(new KibanaEnrollmentResponse(new SecureString(password), httpCa));
-            }, e -> listener.onFailure(new ElasticsearchException("Failed to set the password for user [kibana_system]", e))));
+            final CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
+                new CreateServiceAccountTokenRequest("elastic", "kibana", getTokenName());
+            client.execute(CreateServiceAccountTokenAction.INSTANCE, createServiceAccountTokenRequest, ActionListener.wrap(response -> {
+                logger.debug("Successfully created token [{}] for the [elastic/kibana] service account during kibana enrollment",
+                    response.getName());
+                listener.onResponse(new KibanaEnrollmentResponse(response.getName(), response.getValue(), httpCa));
+            }, e -> listener.onFailure(
+                new ElasticsearchException("Failed to create token for the [elastic/kibana] service account", e))));
         }
-
     }
 
-    private char[] generateKibanaSystemPassword() {
-        final char[] passwordChars = ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789~!@#$%^&*-_=+?").toCharArray();
-        final SecureRandom secureRandom = new SecureRandom();
-        int passwordLength = 14;
-        char[] characters = new char[passwordLength];
-        for (int i = 0; i < passwordLength; ++i) {
-            characters[i] = passwordChars[secureRandom.nextInt(passwordChars.length)];
-        }
-        return characters;
+    protected static String getTokenName(){
+        final ZonedDateTime enrollTime = ZonedDateTime.now(ZoneOffset.UTC);
+        final String prefix = "enroll-process-token-";
+        return prefix + enrollTime.toInstant().toEpochMilli();
     }
-
 }

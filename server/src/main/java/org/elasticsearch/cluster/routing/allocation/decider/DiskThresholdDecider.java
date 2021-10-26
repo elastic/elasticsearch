@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
@@ -36,7 +35,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
-import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING;
@@ -114,13 +112,14 @@ public class DiskThresholdDecider extends AllocationDecider {
         // no longer initializing because their recovery failed or was cancelled.
 
         // Where reserved space is unavailable (e.g. stats are out-of-sync) compute a conservative estimate for initialising shards
-        final List<ShardRouting> initializingShards = node.shardsWithState(ShardRoutingState.INITIALIZING);
-        initializingShards.removeIf(shardRouting -> reservedSpace.containsShardId(shardRouting.shardId()));
-        for (ShardRouting routing : initializingShards) {
+        for (ShardRouting routing : node.shardsWithState(ShardRoutingState.INITIALIZING)) {
             if (routing.relocatingNodeId() == null) {
                 // in practice the only initializing-but-not-relocating shards with a nonzero expected shard size will be ones created
                 // by a resize (shrink/split/clone) operation which we expect to happen using hard links, so they shouldn't be taking
                 // any additional space and can be ignored here
+                continue;
+            }
+            if (reservedSpace.containsShardId(routing.shardId())) {
                 continue;
             }
 
@@ -162,7 +161,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             return decision;
         }
 
-        if (SETTING_IGNORE_DISK_WATERMARKS.get(allocation.metadata().index(shardRouting.index()).getSettings())) {
+        if (allocation.metadata().index(shardRouting.index()).ignoreDiskWatermarks()) {
             return YES_DISK_WATERMARKS_IGNORED;
         }
 
@@ -318,6 +317,33 @@ public class DiskThresholdDecider extends AllocationDecider {
                 new ByteSizeValue(freeBytesAfterShard));
     }
 
+    @Override
+    public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        ImmutableOpenMap<String, DiskUsage> usages = allocation.clusterInfo().getNodeMostAvailableDiskUsages();
+        final Decision decision = earlyTerminate(allocation, usages);
+        if (decision != null) {
+            return decision;
+        }
+
+        if (allocation.metadata().index(shardRouting.index()).ignoreDiskWatermarks()) {
+            return YES_DISK_WATERMARKS_IGNORED;
+        }
+
+        final DiskUsageWithRelocations usage = getDiskUsage(node, allocation, usages, false);
+        final long shardSize = getExpectedShardSize(shardRouting, 0L,
+            allocation.clusterInfo(), allocation.snapshotShardSizeInfo(), allocation.metadata(), allocation.routingTable());
+        assert shardSize >= 0 : shardSize;
+        final long freeBytesAfterShard = usage.getFreeBytes() - shardSize;
+        if (freeBytesAfterShard < 0) {
+            return Decision.single(Decision.Type.NO, NAME,
+                "unable to force allocate shard to [%s] during replacement, " +
+                    "as allocating to this node would cause disk usage to exceed 100%% ([%s] bytes above available disk space)",
+                node.nodeId(), -freeBytesAfterShard);
+        } else {
+            return super.canForceAllocateDuringReplace(shardRouting, node, allocation);
+        }
+    }
+
     private static final Decision YES_NOT_MOST_UTILIZED_DISK = Decision.single(Decision.Type.YES, NAME,
             "this shard is not allocated on the most utilized disk and can remain");
 
@@ -333,7 +359,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             return decision;
         }
 
-        if (SETTING_IGNORE_DISK_WATERMARKS.get(allocation.metadata().index(shardRouting.index()).getSettings())) {
+        if (allocation.metadata().index(shardRouting.index()).ignoreDiskWatermarks()) {
             return YES_DISK_WATERMARKS_IGNORED;
         }
 
@@ -421,9 +447,9 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
         long totalBytes = 0;
         long freeBytes = 0;
-        for (ObjectCursor<DiskUsage> du : usages.values()) {
-            totalBytes += du.value.getTotalBytes();
-            freeBytes += du.value.getFreeBytes();
+        for (DiskUsage du : usages.values()) {
+            totalBytes += du.getTotalBytes();
+            freeBytes += du.getFreeBytes();
         }
         return new DiskUsage(node.nodeId(), node.node().getName(), "_na_", totalBytes / usages.size(), freeBytes / usages.size());
     }

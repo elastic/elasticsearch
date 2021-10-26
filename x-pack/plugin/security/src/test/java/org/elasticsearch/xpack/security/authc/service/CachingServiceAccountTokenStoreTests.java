@@ -16,7 +16,6 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.support.ValidationTests;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
@@ -25,7 +24,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -71,11 +69,6 @@ public class CachingServiceAccountTokenStoreTests extends ESTestCase {
             void doAuthenticate(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener) {
                 doAuthenticateInvoked.set(true);
                 listener.onResponse(new StoreAuthenticationResult(validSecret.equals(token.getSecret()), getTokenSource()));
-            }
-
-            @Override
-            public void findTokensFor(ServiceAccountId accountId, ActionListener<Collection<TokenInfo>> listener) {
-                listener.onFailure(new UnsupportedOperationException());
             }
 
             @Override
@@ -171,11 +164,6 @@ public class CachingServiceAccountTokenStoreTests extends ESTestCase {
             }
 
             @Override
-            public void findTokensFor(ServiceAccountId accountId, ActionListener<Collection<TokenInfo>> listener) {
-                listener.onFailure(new UnsupportedOperationException());
-            }
-
-            @Override
             TokenSource getTokenSource() {
                 return tokenSource;
             }
@@ -194,11 +182,6 @@ public class CachingServiceAccountTokenStoreTests extends ESTestCase {
             @Override
             void doAuthenticate(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener) {
                 listener.onResponse(new StoreAuthenticationResult(true, getTokenSource()));
-            }
-
-            @Override
-            public void findTokensFor(ServiceAccountId accountId, ActionListener<Collection<TokenInfo>> listener) {
-                listener.onFailure(new UnsupportedOperationException());
             }
 
             @Override

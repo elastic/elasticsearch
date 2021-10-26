@@ -9,7 +9,7 @@
 package org.elasticsearch.client.transform;
 
 import org.elasticsearch.client.transform.transforms.TransformConfig;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Objects;
 

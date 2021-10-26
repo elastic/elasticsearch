@@ -13,7 +13,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -111,8 +111,11 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
             assertThat(response.isValid(), equalTo(true));
             assertThat(response.getQueryExplanation().size(), equalTo(1));
             assertThat(response.getQueryExplanation().get(0).getExplanation(),
-                equalTo("(MatchNoDocsQuery(\"failed [bar] query, caused by number_format_exception:[For input string: \"foo\"]\") " +
-                    "| foo:foo | baz:foo)"));
+                containsString("MatchNoDocsQuery(\"failed [bar] query, caused by number_format_exception:[For input string: \"foo\"]\")"));
+            assertThat(response.getQueryExplanation().get(0).getExplanation(),
+                containsString("foo:foo"));
+            assertThat(response.getQueryExplanation().get(0).getExplanation(),
+                containsString("baz:foo"));
             assertThat(response.getQueryExplanation().get(0).getError(), nullValue());
         }
     }

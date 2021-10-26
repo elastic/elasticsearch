@@ -13,6 +13,8 @@ import org.apache.lucene.analysis.en.PorterStemFilterFactory;
 import org.apache.lucene.analysis.miscellaneous.LimitTokenCountFilterFactory;
 import org.apache.lucene.analysis.reverse.ReverseStringFilterFactory;
 import org.apache.lucene.analysis.snowball.SnowballPorterFilterFactory;
+import org.apache.lucene.analysis.te.TeluguNormalizationFilterFactory;
+import org.apache.lucene.analysis.te.TeluguStemFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
 
 import java.util.List;
@@ -84,6 +86,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("latvianstem", StemmerTokenFilterFactory.class);
         filters.put("norwegianlightstem", StemmerTokenFilterFactory.class);
         filters.put("norwegianminimalstem", StemmerTokenFilterFactory.class);
+        filters.put("norwegiannormalization", Void.class);
         filters.put("portuguesestem", StemmerTokenFilterFactory.class);
         filters.put("portugueselightstem", StemmerTokenFilterFactory.class);
         filters.put("portugueseminimalstem", StemmerTokenFilterFactory.class);
@@ -91,7 +94,10 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("soranistem", StemmerTokenFilterFactory.class);
         filters.put("spanishlightstem", StemmerTokenFilterFactory.class);
         filters.put("swedishlightstem", StemmerTokenFilterFactory.class);
+        filters.put("swedishminimalstem", Void.class);
         filters.put("stemmeroverride", StemmerOverrideTokenFilterFactory.class);
+        filters.put("telugunormalization", TeluguNormalizationFilterFactory.class);
+        filters.put("telugustem", TeluguStemFilterFactory.class);
         filters.put("kstem", KStemTokenFilterFactory.class);
         filters.put("synonym", SynonymTokenFilterFactory.class);
         filters.put("synonymgraph", SynonymGraphTokenFilterFactory.class);
@@ -212,7 +218,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         tokenizers.put("keyword", null);
         tokenizers.put("lowercase", Void.class);
         tokenizers.put("classic", null);
-        tokenizers.put("uax_url_email", org.apache.lucene.analysis.standard.UAX29URLEmailTokenizerFactory.class);
+        tokenizers.put("uax_url_email", org.apache.lucene.analysis.email.UAX29URLEmailTokenizerFactory.class);
         tokenizers.put("path_hierarchy", null);
         tokenizers.put("letter", null);
         tokenizers.put("whitespace", null);

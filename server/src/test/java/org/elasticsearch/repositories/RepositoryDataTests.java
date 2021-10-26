@@ -12,14 +12,14 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -92,14 +92,14 @@ public class RepositoryDataTests extends ESTestCase {
             IndexId indexId = new IndexId(randomAlphaOfLength(7), UUIDs.randomBase64UUID());
             newIndices.add(indexId);
             indices.add(indexId);
-            builder.put(indexId, 0, UUIDs.randomBase64UUID(random()));
+            builder.put(indexId, 0, ShardGeneration.newGeneration(random()));
         }
         int numOld = randomIntBetween(1, indexIdMap.size());
         List<String> indexNames = new ArrayList<>(indexIdMap.keySet());
         for (int i = 0; i < numOld; i++) {
             final IndexId indexId = indexIdMap.get(indexNames.get(i));
             indices.add(indexId);
-            builder.put(indexId, 0, UUIDs.randomBase64UUID(random()));
+            builder.put(indexId, 0, ShardGeneration.newGeneration(random()));
         }
         final ShardGenerations shardGenerations = builder.build();
         final Map<IndexId, String> indexLookup = shardGenerations.indices()
@@ -111,7 +111,8 @@ public class RepositoryDataTests extends ESTestCase {
                 randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED),
                 randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
                 randomNonNegativeLong(),
-                randomNonNegativeLong()
+                randomNonNegativeLong(),
+                randomAlphaOfLength(10)
             ),
             shardGenerations,
             indexLookup,
@@ -142,7 +143,8 @@ public class RepositoryDataTests extends ESTestCase {
                     randomFrom(SnapshotState.values()),
                     randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
                     randomNonNegativeLong(),
-                    randomNonNegativeLong()
+                    randomNonNegativeLong(),
+                    randomAlphaOfLength(10)
                 )
             );
         }
@@ -209,7 +211,8 @@ public class RepositoryDataTests extends ESTestCase {
                 state,
                 randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
                 randomNonNegativeLong(),
-                randomNonNegativeLong()
+                randomNonNegativeLong(),
+                randomAlphaOfLength(10)
             ),
             ShardGenerations.EMPTY,
             Collections.emptyMap(),
@@ -241,7 +244,8 @@ public class RepositoryDataTests extends ESTestCase {
                     parsedRepositoryData.getSnapshotState(snapshotId),
                     parsedRepositoryData.getVersion(snapshotId),
                     parsedRepositoryData.getSnapshotDetails(snapshotId).getStartTimeMillis(),
-                    parsedRepositoryData.getSnapshotDetails(snapshotId).getEndTimeMillis()
+                    parsedRepositoryData.getSnapshotDetails(snapshotId).getEndTimeMillis(),
+                    randomAlphaOfLength(10)
                 )
             );
         }
@@ -259,7 +263,7 @@ public class RepositoryDataTests extends ESTestCase {
             indexSnapshots.put(indexId, snapshotsIds);
             final int shardCount = randomIntBetween(1, 10);
             for (int i = 0; i < shardCount; ++i) {
-                shardGenBuilder.put(indexId, i, UUIDs.randomBase64UUID(random()));
+                shardGenBuilder.put(indexId, i, ShardGeneration.newGeneration(random()));
             }
         }
         assertNotNull(corruptedIndexId);
@@ -363,7 +367,7 @@ public class RepositoryDataTests extends ESTestCase {
             .filter(index -> repositoryData.getSnapshots(index).contains(otherSnapshotId))
             .collect(Collectors.toSet());
         for (IndexId indexId : indicesInOther) {
-            builder.put(indexId, 0, UUIDs.randomBase64UUID(random()));
+            builder.put(indexId, 0, ShardGeneration.newGeneration(random()));
         }
         final Map<IndexId, String> newIndices = new HashMap<>();
         final Map<String, String> newIdentifiers = new HashMap<>();
@@ -378,7 +382,7 @@ public class RepositoryDataTests extends ESTestCase {
             final String identifier = randomAlphaOfLength(20);
             newIndices.put(indexId, identifier);
             newIdentifiers.put(identifier, UUIDs.randomBase64UUID(random()));
-            builder.put(indexId, 0, UUIDs.randomBase64UUID(random()));
+            builder.put(indexId, 0, ShardGeneration.newGeneration(random()));
         }
         final ShardGenerations shardGenerations = builder.build();
         final Map<IndexId, String> indexLookup = new HashMap<>(repositoryData.indexMetaDataGenerations().lookup.get(otherSnapshotId));
@@ -389,7 +393,8 @@ public class RepositoryDataTests extends ESTestCase {
             SnapshotState.SUCCESS,
             Version.CURRENT,
             randomNonNegativeLong(),
-            randomNonNegativeLong()
+            randomNonNegativeLong(),
+            randomAlphaOfLength(10)
         );
         final RepositoryData newRepoData = repositoryData.addSnapshot(newSnapshot, details, shardGenerations, indexLookup, newIdentifiers);
         assertEquals(
@@ -439,8 +444,8 @@ public class RepositoryDataTests extends ESTestCase {
             for (IndexId someIndex : someIndices) {
                 final int shardCount = randomIntBetween(1, 10);
                 for (int j = 0; j < shardCount; ++j) {
-                    final String uuid = randomBoolean() ? null : UUIDs.randomBase64UUID(random());
-                    builder.put(someIndex, j, uuid);
+                    final ShardGeneration shardGeneration = randomBoolean() ? null : ShardGeneration.newGeneration(random());
+                    builder.put(someIndex, j, shardGeneration);
                 }
             }
             final Map<IndexId, String> indexLookup = someIndices.stream()
@@ -451,7 +456,8 @@ public class RepositoryDataTests extends ESTestCase {
                     randomFrom(SnapshotState.values()),
                     randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
                     randomNonNegativeLong(),
-                    randomNonNegativeLong()
+                    randomNonNegativeLong(),
+                    randomAlphaOfLength(10)
                 ),
                 builder.build(),
                 indexLookup,

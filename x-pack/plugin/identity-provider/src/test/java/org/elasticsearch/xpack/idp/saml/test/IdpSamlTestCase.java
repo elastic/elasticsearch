@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.idp.saml.test;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.FileMatchers;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
@@ -41,8 +41,8 @@ import java.io.UncheckedIOException;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.security.GeneralSecurityException;
 import java.security.PrivateKey;
-import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -56,6 +56,7 @@ import javax.xml.transform.TransformerException;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport.getUnmarshallerFactory;
 
 public abstract class IdpSamlTestCase extends ESTestCase {
@@ -98,7 +99,7 @@ public abstract class IdpSamlTestCase extends ESTestCase {
 
             listener.onResponse(sp);
             return null;
-        }).when(idp).resolveServiceProvider(Mockito.eq(entityId), Mockito.anyString(), Mockito.anyBoolean(),
+        }).when(idp).resolveServiceProvider(Mockito.eq(entityId), nullable(String.class), Mockito.anyBoolean(),
             Mockito.any(ActionListener.class));
     }
 
@@ -117,7 +118,7 @@ public abstract class IdpSamlTestCase extends ESTestCase {
         }).when(resolverMock).resolve(Mockito.eq(entityId), Mockito.any(ActionListener.class));
     }
 
-    protected List<X509Credential> readCredentials() throws CertificateException, IOException {
+    protected List<X509Credential> readCredentials() throws GeneralSecurityException, IOException {
         List<X509Credential> list = new ArrayList<>(2);
         list.add(readCredentials("RSA", 1024));
         list.add(readCredentials("RSA", 2048));
@@ -125,7 +126,7 @@ public abstract class IdpSamlTestCase extends ESTestCase {
         return list;
     }
 
-    protected X509Credential readCredentials(String type, int size) throws CertificateException, IOException {
+    protected X509Credential readCredentials(String type, int size) throws GeneralSecurityException, IOException {
         Path certPath = getDataPath("/keypair/keypair_" + type + "_" + size + ".crt");
         Path keyPath = getDataPath("/keypair/keypair_" + type + "_" + size + ".key");
         assertThat(certPath, FileMatchers.isRegularFile());

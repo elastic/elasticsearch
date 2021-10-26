@@ -11,6 +11,7 @@ package org.elasticsearch.ingest.geoip.stats;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -57,7 +58,7 @@ public class GeoIpDownloaderStatsTransportAction extends TransportNodesAction<Re
     }
 
     @Override
-    protected NodeResponse newNodeResponse(StreamInput in) throws IOException {
+    protected NodeResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
         return new NodeResponse(in);
     }
 
@@ -65,6 +66,7 @@ public class GeoIpDownloaderStatsTransportAction extends TransportNodesAction<Re
     protected NodeResponse nodeOperation(NodeRequest request, Task task) {
         GeoIpDownloader geoIpTask = geoIpDownloaderTaskExecutor.getCurrentTask();
         GeoIpDownloaderStats stats = geoIpTask == null || geoIpTask.getStatus() == null ? null : geoIpTask.getStatus();
-        return new NodeResponse(transportService.getLocalNode(), stats, registry.getAvailableDatabases(), registry.getFilesInTemp());
+        return new NodeResponse(transportService.getLocalNode(), stats, registry.getAvailableDatabases(), registry.getFilesInTemp(),
+            registry.getConfigDatabases());
     }
 }

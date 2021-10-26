@@ -36,7 +36,7 @@
       }
     },
     "body":{
-      "description":"The input text to be evaluated.",
+      "description":"The docs to apply inference on",
       "required":true
     }
   }

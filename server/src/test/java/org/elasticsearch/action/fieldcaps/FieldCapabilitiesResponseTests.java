@@ -11,9 +11,10 @@ package org.elasticsearch.action.fieldcaps;
 import org.elasticsearch.ElasticsearchExceptionTests;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.hamcrest.Matchers;
 
@@ -46,7 +47,11 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         return FieldCapabilitiesResponse::new;
     }
 
-    private FieldCapabilitiesIndexResponse createRandomIndexResponse() {
+    public static FieldCapabilitiesIndexResponse createRandomIndexResponse() {
+        return randomIndexResponse(randomAsciiLettersOfLength(10), randomBoolean());
+    }
+
+    public static FieldCapabilitiesIndexResponse randomIndexResponse(String index, boolean canMatch) {
         Map<String, IndexFieldCapabilities> responses = new HashMap<>();
 
         String[] fields = generateRandomStringArray(5, 10, false, true);
@@ -55,10 +60,10 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         for (String field : fields) {
             responses.put(field, randomFieldCaps(field));
         }
-        return new FieldCapabilitiesIndexResponse(randomAsciiLettersOfLength(10), responses, randomBoolean());
+        return new FieldCapabilitiesIndexResponse(index, responses, canMatch);
     }
 
-    private static IndexFieldCapabilities randomFieldCaps(String fieldName) {
+    public static IndexFieldCapabilities randomFieldCaps(String fieldName) {
         Map<String, String> meta;
         switch (randomInt(2)) {
             case 0:
@@ -73,7 +78,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         }
 
         return new IndexFieldCapabilities(fieldName, randomAlphaOfLengthBetween(5, 20),
-            randomBoolean(), randomBoolean(), randomBoolean(), meta);
+            randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomFrom(TimeSeriesParams.MetricType.values()), meta);
     }
 
     @Override

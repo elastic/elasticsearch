@@ -36,6 +36,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 
 /**
@@ -143,7 +144,7 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
         clusterState = strategy.reroute(clusterState, "reroute");
         int numRelocations = 0;
         while (true) {
-            List<ShardRouting> initializing = clusterState.routingTable().shardsWithState(INITIALIZING);
+            List<ShardRouting> initializing = shardsWithState(clusterState.getRoutingNodes(), INITIALIZING);
             if (initializing.isEmpty()) {
                 break;
             }

@@ -76,10 +76,10 @@ public class DeprecationRestHandlerTests extends ESTestCase {
             // log, then forward
             if (compatibleVersionWarning) {
                 inOrder.verify(deprecationLogger)
-                    .compatibleApiWarning("deprecated_route_GET_/some/path", deprecationMessage);
+                    .compatibleCritical("deprecated_route_GET_/some/path", deprecationMessage);
             } else {
                 inOrder.verify(deprecationLogger)
-                    .deprecate(DeprecationCategory.API, "deprecated_route_GET_/some/path", deprecationMessage);
+                    .critical(DeprecationCategory.API, "deprecated_route_GET_/some/path", deprecationMessage);
             }
 
             inOrder.verify(handler).handleRequest(request, channel, client);

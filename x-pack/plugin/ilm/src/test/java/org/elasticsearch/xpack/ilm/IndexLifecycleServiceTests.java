@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.core.ilm.ShrinkStep;
 import org.elasticsearch.xpack.core.ilm.ShrunkShardsAllocatedStep;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
-import org.hamcrest.Description;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentMatcher;
@@ -304,7 +303,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             ranPolicy.set(true);
             throw new AssertionError("invalid invocation");
-        }).when(clusterService).submitStateUpdateTask(anyString(), any(ExecuteStepsUpdateTask.class));
+        }).when(clusterService).submitStateUpdateTask(anyString(), any(), eq(IndexLifecycleRunner.ILM_TASK_CONFIG), any(), any());
 
         doAnswer(invocationOnMock -> {
             OperationModeUpdateTask task = (OperationModeUpdateTask) invocationOnMock.getArguments()[1];
@@ -345,18 +344,9 @@ public class IndexLifecycleServiceTests extends ESTestCase {
                 Priority actualPriority = null;
 
                 @Override
-                public boolean matches(Object argument) {
-                    if (argument instanceof OperationModeUpdateTask == false) {
-                        return false;
-                    }
-                    actualPriority = ((OperationModeUpdateTask) argument).priority();
+                public boolean matches(OperationModeUpdateTask other) {
+                    actualPriority = other.priority();
                     return actualPriority == expectedPriority;
-                }
-
-                @Override
-                public void describeTo(Description description) {
-                    description.appendText("the cluster state update task priority must be "+ expectedPriority+" but got: ")
-                        .appendText(actualPriority.name());
                 }
             })
         );
@@ -580,6 +570,11 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "shutdown_node"),
             equalTo(Collections.emptySet()));
 
+        final SingleNodeShutdownMetadata.Type type = randomFrom(
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            SingleNodeShutdownMetadata.Type.REPLACE
+        );
+        final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
         state = ClusterState.builder(state)
             .metadata(Metadata.builder(state.metadata())
                 .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(Collections.singletonMap("shutdown_node",
@@ -587,7 +582,8 @@ public class IndexLifecycleServiceTests extends ESTestCase {
                         .setNodeId("shutdown_node")
                         .setReason("shut down for test")
                         .setStartedAtMillis(randomNonNegativeLong())
-                        .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+                        .setType(type)
+                        .setTargetNodeName(targetNodeName)
                         .build())))
                 .build())
             .build();

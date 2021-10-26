@@ -53,12 +53,6 @@ import java.util.Set;
  *   <li>{@link java.util.Map}</li>
  *   <li>{@link java.util.Set}</li>
  *   <li>{@link java.util.UUID}</li>
- *   <li>{@link org.joda.time.DateTime}</li>
- *   <li>{@link org.joda.time.DateTimeUtils}</li>
- *   <li>{@link org.joda.time.DateTimeZone}</li>
- *   <li>{@link org.joda.time.Instant}</li>
- *   <li>{@link org.joda.time.ReadableDateTime}</li>
- *   <li>{@link org.joda.time.ReadableInstant}</li>
  * </ul>
  */
 public final class ClassPermission extends BasicPermission {
@@ -87,14 +81,7 @@ public final class ClassPermission extends BasicPermission {
             java.util.List.class.getName(),
             java.util.Map.class.getName(),
             Set.class.getName(),
-            java.util.UUID.class.getName(),
-            // joda-time
-            org.joda.time.DateTime.class.getName(),
-            org.joda.time.DateTimeUtils.class.getName(),
-            org.joda.time.DateTimeZone.class.getName(),
-            org.joda.time.Instant.class.getName(),
-            org.joda.time.ReadableDateTime.class.getName(),
-            org.joda.time.ReadableInstant.class.getName());
+            java.util.UUID.class.getName());
 
     /**
      * Creates a new ClassPermission object.

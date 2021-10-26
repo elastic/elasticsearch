@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -77,7 +78,7 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
         assertThat(mapping.getName(), equalTo("anarchy"));
         assertThat(mapping.getRoles(), iterableWithSize(1));
         assertThat(mapping.getRoles(), contains("superuser"));
-        assertThat(mapping.getMetadata().size(), equalTo(1));
+        assertThat(mapping.getMetadata(), aMapWithSize(1));
         assertThat(mapping.getMetadata().get("dumb"), equalTo(true));
     }
 

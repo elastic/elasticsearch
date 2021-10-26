@@ -11,17 +11,17 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -46,9 +46,10 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
 
     public static long MIN_KEEP_ALIVE = TimeValue.timeValueMinutes(1).millis();
     public static TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(true, true, true, false);
 
     private String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(true, true, true, false);
+    private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
     private QueryBuilder filter = null;
     private String timestampField = FIELD_TIMESTAMP;
@@ -57,6 +58,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     private int size = RequestDefaults.SIZE;
     private int fetchSize = RequestDefaults.FETCH_SIZE;
     private String query;
+    private boolean ccsMinimizeRoundtrips = RequestDefaults.CCS_MINIMIZE_ROUNDTRIPS;
     private String resultPosition = "tail";
     private List<FieldAndFormat> fetchFields;
     private Map<String, Object> runtimeMappings = emptyMap();
@@ -110,6 +112,9 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         size = in.readVInt();
         fetchSize = in.readVInt();
         query = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
+            this.ccsMinimizeRoundtrips = in.readBoolean();
+        }
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO: Remove after backport
             this.waitForCompletionTimeout = in.readOptionalTimeValue();
             this.keepAlive = in.readOptionalTimeValue();
@@ -348,6 +353,15 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         return this;
     }
 
+    public EqlSearchRequest ccsMinimizeRoundtrips(boolean ccsMinimizeRoundtrips) {
+        this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
+        return this;
+    }
+
+    public boolean ccsMinimizeRoundtrips() {
+        return ccsMinimizeRoundtrips;
+    }
+
     public String resultPosition() {
         return resultPosition;
     }
@@ -394,13 +408,16 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         out.writeVInt(size);
         out.writeVInt(fetchSize);
         out.writeString(query);
+        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
+            out.writeBoolean(ccsMinimizeRoundtrips);
+        }
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO: Remove after backport
             out.writeOptionalTimeValue(waitForCompletionTimeout);
             out.writeOptionalTimeValue(keepAlive);
             out.writeBoolean(keepOnCompletion);
         }
 
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) { // TODO: Remove after backport
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeString(resultPosition);
         }
         if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
@@ -430,6 +447,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
                 Objects.equals(tiebreakerField, that.tiebreakerField) &&
                 Objects.equals(eventCategoryField, that.eventCategoryField) &&
                 Objects.equals(query, that.query) &&
+                Objects.equals(ccsMinimizeRoundtrips, that.ccsMinimizeRoundtrips) &&
                 Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout) &&
                 Objects.equals(keepAlive, that.keepAlive) &&
                 Objects.equals(resultPosition, that.resultPosition) &&
@@ -450,6 +468,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             tiebreakerField,
             eventCategoryField,
             query,
+            ccsMinimizeRoundtrips,
             waitForCompletionTimeout,
             keepAlive,
             resultPosition,

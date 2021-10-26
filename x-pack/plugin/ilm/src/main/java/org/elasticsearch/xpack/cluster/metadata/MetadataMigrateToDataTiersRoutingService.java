@@ -15,13 +15,13 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.core.DataTier;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
@@ -42,15 +42,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
-import java.util.Spliterators;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING;
-import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_PREFER;
+import static org.elasticsearch.cluster.routing.allocation.DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE;
+import static org.elasticsearch.cluster.routing.allocation.DataTier.TIER_PREFERENCE;
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPED;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.updateIndicesForPolicy;
@@ -129,6 +128,18 @@ public final class MetadataMigrateToDataTiersRoutingService {
         }
 
         Metadata.Builder mb = Metadata.builder(currentState.metadata());
+
+        // set ENFORCE_DEFAULT_TIER_PREFERENCE to true (in the persistent settings)
+        mb.persistentSettings(Settings.builder()
+            .put(mb.persistentSettings())
+            .put(ENFORCE_DEFAULT_TIER_PREFERENCE, true)
+            .build());
+
+        // and remove it from the transient settings, just in case it was there
+        Settings.Builder transientSettingsBuilder = Settings.builder().put(mb.transientSettings());
+        transientSettingsBuilder.remove(ENFORCE_DEFAULT_TIER_PREFERENCE);
+        mb.transientSettings(transientSettingsBuilder.build());
+
         String removedIndexTemplateName = null;
         if (Strings.hasText(indexTemplateToDelete)) {
             if (currentState.metadata().getTemplates().containsKey(indexTemplateToDelete)) {
@@ -236,7 +247,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
                                                                          XPackLicenseState licenseState) {
         String policyName = oldPolicy.getName();
         final List<IndexMetadata> managedIndices =
-            StreamSupport.stream(Spliterators.spliteratorUnknownSize(currentState.metadata().indices().valuesIt(), 0), false)
+            currentState.metadata().indices().values().stream()
                 .filter(meta -> policyName.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(meta.getSettings())))
                 .collect(Collectors.toList());
 
@@ -323,7 +334,8 @@ public final class MetadataMigrateToDataTiersRoutingService {
                 if (allocateAction.getNumberOfReplicas() != null) {
                     // keep the number of replicas configuration
                     AllocateAction updatedAllocateAction =
-                        new AllocateAction(allocateAction.getNumberOfReplicas(), null, null, null);
+                        new AllocateAction(allocateAction.getNumberOfReplicas(), allocateAction.getTotalShardsPerNode(),
+                            null, null, null);
                     actionMap.put(allocateAction.getWriteableName(), updatedAllocateAction);
                     logger.debug("ILM policy [{}], phase [{}]: updated the allocate action to [{}]", lifecyclePolicy.getName(),
                         phase.getName(), allocateAction);
@@ -377,20 +389,34 @@ public final class MetadataMigrateToDataTiersRoutingService {
         for (ObjectObjectCursor<String, IndexMetadata> index : currentState.metadata().indices()) {
             IndexMetadata indexMetadata = index.value;
             Settings currentSettings = indexMetadata.getSettings();
+
+            boolean removeNodeAttrIndexRoutingSettings = true;
+
+            // migrate using the `require` setting
             Settings newSettings = maybeMigrateRoutingSettingToTierPreference(nodeAttrIndexRequireRoutingSetting, indexMetadata);
+
             if (newSettings.equals(currentSettings)) {
-                // migrating based on the `require` setting was not successful so let's check if the index used the `include` routing
+                // migrating based on the `require` setting was not successful, so let's check if the index used the `include` routing
                 // setting to configure the allocations and try to migrate it
                 newSettings = maybeMigrateRoutingSettingToTierPreference(nodeAttrIndexIncludeRoutingSetting, indexMetadata);
             }
+            if (newSettings.equals(currentSettings)) {
+                removeNodeAttrIndexRoutingSettings = false;
+                // migrating based on the `include` setting was not successful,
+                // so, last stop, we just inject a tier preference regardless of anything else
+                newSettings = migrateToDefaultTierPreference(currentState, indexMetadata);
+            }
 
             if (newSettings.equals(currentSettings) == false) {
-                // we converted either the require or the include routing setting to tier preference
-                // so let's clear all the routing settings for the given attribute
                 Settings.Builder finalSettings = Settings.builder().put(newSettings);
-                finalSettings.remove(nodeAttrIndexExcludeRoutingSetting);
-                finalSettings.remove(nodeAttrIndexRequireRoutingSetting);
-                finalSettings.remove(nodeAttrIndexIncludeRoutingSetting);
+
+                if (removeNodeAttrIndexRoutingSettings) {
+                    // we converted either the `require` or the `include` routing setting to tier preference
+                    // so let's clear all the routing settings for the given attribute
+                    finalSettings.remove(nodeAttrIndexExcludeRoutingSetting);
+                    finalSettings.remove(nodeAttrIndexRequireRoutingSetting);
+                    finalSettings.remove(nodeAttrIndexIncludeRoutingSetting);
+                }
 
                 mb.put(IndexMetadata.builder(indexMetadata)
                     .settings(finalSettings)
@@ -414,10 +440,12 @@ public final class MetadataMigrateToDataTiersRoutingService {
         if (currentIndexSettings.keySet().contains(attributeBasedRoutingSettingName) == false) {
             return currentIndexSettings;
         }
-        // look at the value, get the correct tiers config and update the settings and index metadata
+
         Settings.Builder newSettingsBuilder = Settings.builder().put(currentIndexSettings);
         String indexName = indexMetadata.getIndex().getName();
-        if (currentIndexSettings.keySet().contains(INDEX_ROUTING_PREFER)) {
+
+        // look at the value, get the correct tiers config and update the settings
+        if (currentIndexSettings.keySet().contains(TIER_PREFERENCE)) {
             newSettingsBuilder.remove(attributeBasedRoutingSettingName);
             logger.debug("index [{}]: removed setting [{}]", indexName, attributeBasedRoutingSettingName);
         } else {
@@ -425,11 +453,11 @@ public final class MetadataMigrateToDataTiersRoutingService {
             String attributeValue = currentIndexSettings.get(attributeBasedRoutingSettingName);
             String convertedTierPreference = convertAttributeValueToTierPreference(attributeValue);
             if (convertedTierPreference != null) {
-                newSettingsBuilder.put(INDEX_ROUTING_PREFER, convertedTierPreference);
+                newSettingsBuilder.put(TIER_PREFERENCE, convertedTierPreference);
                 newSettingsBuilder.remove(attributeBasedRoutingSettingName);
                 logger.debug("index [{}]: removed setting [{}]", indexName, attributeBasedRoutingSettingName);
                 logger.debug("index [{}]: configured setting [{}] to [{}]", indexName,
-                    INDEX_ROUTING_PREFER, convertedTierPreference);
+                    TIER_PREFERENCE, convertedTierPreference);
             } else {
                 // log warning and do *not* remove setting, return the settings unchanged
                 logger.warn("index [{}]: could not convert attribute based setting [{}] value of [{}] to a tier preference " +
@@ -438,6 +466,23 @@ public final class MetadataMigrateToDataTiersRoutingService {
                 return currentIndexSettings;
             }
         }
+        return newSettingsBuilder.build();
+    }
+
+    private static Settings migrateToDefaultTierPreference(ClusterState currentState, IndexMetadata indexMetadata) {
+        Settings currentIndexSettings = indexMetadata.getSettings();
+        List<String> tierPreference = DataTier.parseTierList(currentIndexSettings.get(DataTier.TIER_PREFERENCE));
+        if (tierPreference.isEmpty() == false) {
+            return currentIndexSettings;
+        }
+
+        Settings.Builder newSettingsBuilder = Settings.builder().put(currentIndexSettings);
+        String indexName = indexMetadata.getIndex().getName();
+
+        boolean isDataStream = currentState.metadata().findDataStreams(indexName).isEmpty() == false;
+        String convertedTierPreference = isDataStream ? DataTier.DATA_HOT : DataTier.DATA_CONTENT;
+        newSettingsBuilder.put(TIER_PREFERENCE, convertedTierPreference);
+        logger.debug("index [{}]: configured setting [{}] to [{}]", indexName, TIER_PREFERENCE, convertedTierPreference);
         return newSettingsBuilder.build();
     }
 

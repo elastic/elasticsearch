@@ -17,6 +17,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -48,7 +49,7 @@ public final class HighlightUtils {
         }
         ValueFetcher fetcher = fieldType.valueFetcher(searchContext, null);
         fetcher.setNextReader(hitContext.readerContext());
-        return fetcher.fetchValues(hitContext.sourceLookup());
+        return fetcher.fetchValues(hitContext.sourceLookup(), new ArrayList<Object>());
     }
 
     public static class Encoders {

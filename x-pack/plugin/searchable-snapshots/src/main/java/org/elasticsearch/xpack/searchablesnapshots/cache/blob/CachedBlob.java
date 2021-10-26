@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.blob;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -31,6 +31,7 @@ public class CachedBlob implements ToXContent {
     public static final CachedBlob CACHE_MISS = new CachedBlob(null, null, null, "CACHE_MISS", null, BytesArray.EMPTY, 0L, 0L);
 
     private static final String TYPE = "blob";
+    public static final String CREATION_TIME_FIELD = "creation_time";
 
     private final Instant creationTime;
     private final Version version;
@@ -80,7 +81,7 @@ public class CachedBlob implements ToXContent {
         builder.startObject();
         {
             builder.field("type", TYPE);
-            builder.field("creation_time", creationTime.toEpochMilli());
+            builder.field(CREATION_TIME_FIELD, creationTime.toEpochMilli());
             builder.field("version", version.id);
             builder.field("repository", repository);
             builder.startObject("blob");
@@ -101,10 +102,6 @@ public class CachedBlob implements ToXContent {
         return builder.endObject();
     }
 
-    public String generatedId() {
-        return generateId(repository, name, path, from);
-    }
-
     public long from() {
         return from;
     }
@@ -121,13 +118,17 @@ public class CachedBlob implements ToXContent {
         return bytes;
     }
 
-    public static String generateId(String repository, String name, String path, long offset) {
-        return String.join("/", repository, path, name, "@" + offset);
+    public Version version() {
+        return version;
+    }
+
+    public Instant creationTime() {
+        return creationTime;
     }
 
     @SuppressWarnings("unchecked")
     public static CachedBlob fromSource(final Map<String, Object> source) {
-        final Long creationTimeEpochMillis = (Long) source.get("creation_time");
+        final Long creationTimeEpochMillis = (Long) source.get(CREATION_TIME_FIELD);
         if (creationTimeEpochMillis == null) {
             throw new IllegalStateException("cached blob document does not have the [creation_time] field");
         }

@@ -251,7 +251,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         String key3 = randomAlphaOfLength(10);
 
         Pipeline pipeline = new Pipeline(
-            pipelineId, null, null, new CompoundProcessor(
+            pipelineId, null, null, null, new CompoundProcessor(
             new TestProcessor(ingestDocument -> {ingestDocument.setFieldValue(key1, randomInt()); }),
             new TestProcessor(ingestDocument -> {ingestDocument.setFieldValue(key2, randomInt()); }),
             new TestProcessor(ingestDocument -> { ingestDocument.setFieldValue(key3, randomInt()); }))
@@ -313,7 +313,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         );
 
         Pipeline pipeline1 = new Pipeline(
-            pipelineId1, null, null, new CompoundProcessor(
+            pipelineId1, null, null, null, new CompoundProcessor(
             new TestProcessor(ingestDocument -> {ingestDocument.setFieldValue(key1, randomInt()); }),
             new ConditionalProcessor(
                 randomAlphaOfLength(10),
@@ -325,7 +325,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         );
 
         Pipeline pipeline2 = new Pipeline(
-            pipelineId2, null, null, new CompoundProcessor(
+            pipelineId2, null, null, null, new CompoundProcessor(
                 new TestProcessor(ingestDocument -> { ingestDocument.setFieldValue(key2, randomInt()); })));
 
         when(ingestService.getPipeline(pipelineId1)).thenReturn(pipeline1);
@@ -393,7 +393,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         );
 
         Pipeline pipeline1 = new Pipeline(
-            pipelineId1, null, null, new CompoundProcessor(
+            pipelineId1, null, null, null, new CompoundProcessor(
             new TestProcessor(ingestDocument -> {ingestDocument.setFieldValue(key1, randomInt()); }),
             new ConditionalProcessor(
                 randomAlphaOfLength(10),
@@ -405,7 +405,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         );
 
         Pipeline pipeline2 = new Pipeline(
-            pipelineId2, null, null, new CompoundProcessor(
+            pipelineId2, null, null, null, new CompoundProcessor(
             new TestProcessor(ingestDocument -> { ingestDocument.setFieldValue(key2, randomInt()); })));
 
         when(ingestService.getPipeline(pipelineId1)).thenReturn(pipeline1);
@@ -456,7 +456,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         String key3 = randomAlphaOfLength(10);
 
         Pipeline pipeline = new Pipeline(
-            pipelineId, null, null, new CompoundProcessor(
+            pipelineId, null, null, null, new CompoundProcessor(
             new TestProcessor(ingestDocument -> { ingestDocument.setFieldValue(key1, randomInt()); }),
             new CompoundProcessor(
                 false,
@@ -512,7 +512,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         IllegalStateException exception = new IllegalStateException("Not a pipeline cycle error");
 
         Pipeline pipeline = new Pipeline(
-            pipelineId, null, null, new CompoundProcessor(
+            pipelineId, null, null, null, new CompoundProcessor(
             new TestProcessor(ingestDocument -> ingestDocument.setFieldValue(key1, randomInt())),
             new TestProcessor(ingestDocument -> { throw exception; }))
         );
@@ -551,10 +551,10 @@ public class TrackingResultProcessorTests extends ESTestCase {
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
 
         Pipeline pipeline1 = new Pipeline(
-            pipelineId1, null, null, new CompoundProcessor(factory.create(Collections.emptyMap(), null, null, pipelineConfig2)));
+            pipelineId1, null, null, null, new CompoundProcessor(factory.create(Collections.emptyMap(), null, null, pipelineConfig2)));
 
         Pipeline pipeline2 = new Pipeline(
-            pipelineId2, null, null, new CompoundProcessor(factory.create(Collections.emptyMap(), null, null, pipelineConfig1)));
+            pipelineId2, null, null, null, new CompoundProcessor(factory.create(Collections.emptyMap(), null, null, pipelineConfig1)));
 
         when(ingestService.getPipeline(pipelineId1)).thenReturn(pipeline1);
         when(ingestService.getPipeline(pipelineId2)).thenReturn(pipeline2);
@@ -581,7 +581,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         String key1 = randomAlphaOfLength(10);
         PipelineProcessor pipelineProcessor = factory.create(Collections.emptyMap(), null, null, pipelineConfig);
         Pipeline pipeline = new Pipeline(
-            pipelineId, null, null, new CompoundProcessor(
+            pipelineId, null, null, null, new CompoundProcessor(
             new TestProcessor(ingestDocument -> { ingestDocument.setFieldValue(key1, randomInt()); }))
         );
         when(ingestService.getPipeline(pipelineId)).thenReturn(pipeline);

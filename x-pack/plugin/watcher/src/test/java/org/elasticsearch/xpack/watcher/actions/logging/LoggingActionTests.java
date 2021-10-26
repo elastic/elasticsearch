@@ -9,9 +9,8 @@ package org.elasticsearch.xpack.watcher.actions.logging;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.SuppressLoggerChecks;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
@@ -30,7 +29,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -57,19 +56,18 @@ public class LoggingActionTests extends ESTestCase {
 
     public void testExecute() throws Exception {
         final ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
-        JodaCompatibleZonedDateTime jodaJavaNow = new JodaCompatibleZonedDateTime(now.toInstant(), ZoneOffset.UTC);
 
         WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContextBuilder("_watch_id")
                 .time("_watch_id", now)
                 .buildMock();
 
         Map<String, Object> triggerModel = new HashMap<>();
-        triggerModel.put("scheduled_time", jodaJavaNow);
-        triggerModel.put("triggered_time", jodaJavaNow);
+        triggerModel.put("scheduled_time", now);
+        triggerModel.put("triggered_time", now);
         Map<String, Object> ctxModel = new HashMap<>();
         ctxModel.put("id", ctx.id().value());
         ctxModel.put("watch_id", "_watch_id");
-        ctxModel.put("execution_time", jodaJavaNow);
+        ctxModel.put("execution_time", now);
         ctxModel.put("payload", emptyMap());
         ctxModel.put("metadata", emptyMap());
         ctxModel.put("vars", emptyMap());

@@ -20,9 +20,9 @@ import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -280,7 +280,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
             MappedFieldType mappedFieldType = fieldResolver.apply(fieldName);
             if (mappedFieldType == null) {
                 if (indexVersionCreated.before(Version.V_7_0_0)) {
-                    deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "geo_context_mapping",
+                    deprecationLogger.critical(DeprecationCategory.MAPPINGS, "geo_context_mapping",
                         "field [{}] referenced in context [{}] is not defined in the mapping", fieldName, name);
                 } else {
                     throw new ElasticsearchParseException(
@@ -288,7 +288,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
                 }
             } else if (GeoPointFieldMapper.CONTENT_TYPE.equals(mappedFieldType.typeName()) == false) {
                 if (indexVersionCreated.before(Version.V_7_0_0)) {
-                    deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "geo_context_mapping",
+                    deprecationLogger.critical(DeprecationCategory.MAPPINGS, "geo_context_mapping",
                         "field [{}] referenced in context [{}] must be mapped to geo_point, found [{}]",
                         fieldName, name, mappedFieldType.typeName());
                 } else {

@@ -8,15 +8,12 @@ package org.elasticsearch.xpack.ml.job.retention;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.results.Result;
 
 import java.util.Iterator;
 import java.util.Objects;
-import java.util.function.Supplier;
+import java.util.function.BooleanSupplier;
 
 /**
  * Removes job data that expired with respect to their retention period.
@@ -44,14 +41,14 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
     @Override
     public void remove(float requestsPerSecond,
                        ActionListener<Boolean> listener,
-                       Supplier<Boolean> isTimedOutSupplier) {
+                       BooleanSupplier isTimedOutSupplier) {
         removeData(jobIterator, requestsPerSecond, listener, isTimedOutSupplier);
     }
 
     private void removeData(Iterator<Job> jobIterator,
                             float requestsPerSecond,
                             ActionListener<Boolean> listener,
-                            Supplier<Boolean> isTimedOutSupplier) {
+                            BooleanSupplier isTimedOutSupplier) {
         if (jobIterator.hasNext() == false) {
             listener.onResponse(true);
             return;
@@ -63,7 +60,7 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
             return;
         }
 
-        if (isTimedOutSupplier.get()) {
+        if (isTimedOutSupplier.getAsBoolean()) {
             listener.onResponse(false);
             return;
         }
@@ -103,12 +100,6 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
         long cutoffEpochMs,
         ActionListener<Boolean> listener
     );
-
-    static BoolQueryBuilder createQuery(String jobId, long cutoffEpochMs) {
-        return QueryBuilders.boolQuery()
-                .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
-                .filter(QueryBuilders.rangeQuery(Result.TIMESTAMP.getPreferredName()).lt(cutoffEpochMs).format("epoch_millis"));
-    }
 
     /**
      * The latest time that cutoffs are measured from is not wall clock time,

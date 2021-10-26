@@ -269,7 +269,7 @@ public class Tile2DVisitorTests extends ESTestCase {
         });
     }
 
-    static void assertRelation(GeoRelation expectedRelation, GeometryDocValueReader reader, Extent extent) {
+    static void assertRelation(GeoRelation expectedRelation, GeometryDocValueReader reader, Extent extent) throws IOException {
         Tile2DVisitor tile2DVisitor = new Tile2DVisitor();
         tile2DVisitor.reset(extent.minX(), extent.minY(), extent.maxX(), extent.maxY());
         reader.visit(tile2DVisitor);

@@ -28,7 +28,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
@@ -44,6 +44,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedRunningStateAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
@@ -155,7 +156,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     protected void masterOperation(Task task, StartDatafeedAction.Request request, ClusterState state,
                                    ActionListener<NodeAcknowledgedResponse> listener) {
         StartDatafeedAction.DatafeedParams params = request.getParams();
-        if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING) == false) {
+        if (MachineLearningField.ML_API_FEATURE.check(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
         }
@@ -596,16 +597,19 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             }
         }
 
-        public Optional<GetDatafeedRunningStateAction.Response.RunningState> getRunningState() {
+        public GetDatafeedRunningStateAction.Response.RunningState getRunningState() {
             synchronized (this) {
                 if (datafeedRunner == null) {
-                    return Optional.empty();
+                    // In this case we don't know for sure if lookback has completed.  It may be that the
+                    // datafeed has just moved nodes, but with so little delay that there's no lookback to
+                    // do on the new node.  However, there _might_ be some catching up required, so it's
+                    // reasonable to say real-time running hasn't started yet.  The state will quickly
+                    // change once the datafeed runner gets going and determines where the datafeed is up
+                    // to.
+                    return new GetDatafeedRunningStateAction.Response.RunningState(endTime == null,false);
                 }
             }
-            return Optional.of(new GetDatafeedRunningStateAction.Response.RunningState(
-                this.endTime == null,
-                datafeedRunner.finishedLookBack(this)
-            ));
+            return new GetDatafeedRunningStateAction.Response.RunningState(endTime == null, datafeedRunner.finishedLookBack(this));
         }
     }
 

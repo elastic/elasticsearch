@@ -59,19 +59,19 @@ public final class TextStructureUtils {
             "(?:%{WKT_POINT}|%{WKT_LINESTRING}|%{WKT_MULTIPOINT}|%{WKT_POLYGON}|%{WKT_MULTILINESTRING}|%{WKT_MULTIPOLYGON}|%{WKT_BBOX})"
         );
         patterns.put("WKT_GEOMETRYCOLLECTION", "GEOMETRYCOLLECTION \\(%{WKT_ANY}(?:, %{WKT_ANY})\\)");
-        patterns.putAll(Grok.BUILTIN_PATTERNS);
+        patterns.putAll(Grok.getBuiltinPatterns(false));
         EXTENDED_PATTERNS = Collections.unmodifiableMap(patterns);
     }
 
     private static final int NUM_TOP_HITS = 10;
     // NUMBER Grok pattern doesn't support scientific notation, so we extend it
     private static final Grok NUMBER_GROK = new Grok(
-        Grok.BUILTIN_PATTERNS,
+        Grok.getBuiltinPatterns(false),
         "^%{NUMBER}(?:[eE][+-]?[0-3]?[0-9]{1,2})?$",
         TimeoutChecker.watchdog,
         logger::warn
     );
-    private static final Grok IP_GROK = new Grok(Grok.BUILTIN_PATTERNS, "^%{IP}$", TimeoutChecker.watchdog, logger::warn);
+    private static final Grok IP_GROK = new Grok(Grok.getBuiltinPatterns(false), "^%{IP}$", TimeoutChecker.watchdog, logger::warn);
     private static final Grok GEO_POINT_WKT = new Grok(EXTENDED_PATTERNS, "^%{WKT_POINT}$", TimeoutChecker.watchdog, logger::warn);
     private static final Grok GEO_WKT = new Grok(
         EXTENDED_PATTERNS,

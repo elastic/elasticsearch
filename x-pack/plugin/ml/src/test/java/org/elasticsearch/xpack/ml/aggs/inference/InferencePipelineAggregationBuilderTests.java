@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.ml.aggs.inference;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUp
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdateTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ResultsFieldUpdate;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.aggs.inference.InferencePipelineAggregationBuilder;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 
 import java.util.Collections;
@@ -44,7 +43,7 @@ public class InferencePipelineAggregationBuilderTests extends BasePipelineAggreg
 
     @Override
     protected List<SearchPlugin> plugins() {
-        return Collections.singletonList(new MachineLearning(Settings.EMPTY, null));
+        return Collections.singletonList(new MachineLearning(Settings.EMPTY));
     }
 
     @Override
@@ -65,7 +64,7 @@ public class InferencePipelineAggregationBuilderTests extends BasePipelineAggreg
 
         InferencePipelineAggregationBuilder builder =
             new InferencePipelineAggregationBuilder(NAME, new SetOnce<>(mock(ModelLoadingService.class)),
-                mock(XPackLicenseState.class), bucketPaths);
+                mock(XPackLicenseState.class), Settings.EMPTY, bucketPaths);
         builder.setModelId(randomAlphaOfLength(6));
 
         if (randomBoolean()) {

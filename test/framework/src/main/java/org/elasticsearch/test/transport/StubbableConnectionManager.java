@@ -10,6 +10,7 @@ package org.elasticsearch.test.transport;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.ConnectionManager;
@@ -86,7 +87,7 @@ public class StubbableConnectionManager implements ConnectionManager {
 
     @Override
     public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                              ConnectionValidator connectionValidator, ActionListener<Void> listener)
+                              ConnectionValidator connectionValidator, ActionListener<Releasable> listener)
         throws ConnectTransportException {
         delegate.connectToNode(node, connectionProfile, connectionValidator, listener);
     }

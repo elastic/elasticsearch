@@ -27,6 +27,7 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(xpackModule('ilm'))
   testImplementation project(xpackModule('data-streams'))
+  testImplementation project(':modules:lang-mustache')
 
   // watcher deps
   api 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:20191001.1'
@@ -40,6 +41,8 @@ dependencies {
   testImplementation 'org.subethamail:subethasmtp:3.1.7'
   // needed for subethasmtp, has @GuardedBy annotation
   testImplementation 'com.google.code.findbugs:jsr305:3.0.2'
+
+  internalClusterTestImplementation project(":modules:analysis-common")
 }
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter

@@ -27,6 +27,8 @@ public interface TransportDecompressor extends Releasable {
 
     ReleasableBytesReference pollDecompressedPage(boolean isEOS);
 
+    Compression.Scheme getScheme();
+
     @Override
     void close();
 

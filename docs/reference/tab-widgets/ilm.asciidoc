@@ -13,6 +13,20 @@ Index Lifecycle Policies**. Click the policy you'd like to edit.
 
 You can also use the <<ilm-put-lifecycle,update lifecycle policy API>>.
 
+////
+[source,console]
+--------------------------------------------------
+PUT /_snapshot/found-snapshots
+{
+ "type": "fs",
+  "settings": {
+    "location": "my_backup_location"
+  }
+}
+--------------------------------------------------
+// TESTSETUP
+////
+
 [source,console]
 ----
 PUT _ilm/policy/logs

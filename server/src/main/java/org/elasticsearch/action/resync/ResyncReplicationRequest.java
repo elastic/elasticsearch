@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -20,7 +21,8 @@ import java.util.Objects;
 /**
  * Represents a batch of operations sent from the primary to its replicas during the primary-replica resync.
  */
-public final class ResyncReplicationRequest extends ReplicatedWriteRequest<ResyncReplicationRequest> {
+public final class ResyncReplicationRequest extends ReplicatedWriteRequest<ResyncReplicationRequest>
+    implements RawIndexingDataTransportRequest {
 
     private final long trimAboveSeqNo;
     private final Translog.Operation[] operations;

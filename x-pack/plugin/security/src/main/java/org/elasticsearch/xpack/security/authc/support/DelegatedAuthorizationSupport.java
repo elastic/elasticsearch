@@ -10,18 +10,18 @@ package org.elasticsearch.xpack.security.authc.support;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.Security;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -76,13 +76,13 @@ public class DelegatedAuthorizationSupport {
     /**
      * Attempts to find the user specified by {@code username} in one of the delegated realms.
      * The realms are searched in the order specified during construction.
-     * Returns a {@link AuthenticationResult#success(User) successful result} if a {@link User}
+     * Returns a {@link AuthenticationResult#success(Object) successful result} if a {@link User}
      * was found, otherwise returns an
      * {@link AuthenticationResult#unsuccessful(String, Exception) unsuccessful result}
      * with a meaningful diagnostic message.
      */
-    public void resolve(String username, ActionListener<AuthenticationResult> resultListener) {
-        boolean authzOk = licenseState.isSecurityEnabled() && licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_REALM);
+    public void resolve(String username, ActionListener<AuthenticationResult<User>> resultListener) {
+        boolean authzOk = Security.DELEGATED_AUTHORIZATION_FEATURE.check(licenseState);
         if (authzOk == false) {
             resultListener.onResponse(AuthenticationResult.unsuccessful(
                 DelegatedAuthorizationSettings.AUTHZ_REALMS_SUFFIX + " are not permitted",

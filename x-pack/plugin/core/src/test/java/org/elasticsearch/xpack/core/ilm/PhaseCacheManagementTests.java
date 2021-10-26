@@ -14,8 +14,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
@@ -31,6 +31,7 @@ import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.readStepKeys
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.refreshPhaseDefinition;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.updateIndicesForPolicy;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
@@ -188,6 +189,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
     }
 
     public void testReadStepKeys() {
+        assertNull(readStepKeys(REGISTRY, client, null, "phase", null));
         assertNull(readStepKeys(REGISTRY, client, "{}", "phase", null));
         assertNull(readStepKeys(REGISTRY, client, "aoeu", "phase", null));
         assertNull(readStepKeys(REGISTRY, client, "", "phase", null));
@@ -227,7 +229,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
                 "        \"version\" : 1,\n" +
                 "        \"modified_date_in_millis\" : 1578521007076\n" +
                 "      }", "phase", null),
-            contains(new Step.StepKey("phase", "rollover", WaitForRolloverReadyStep.NAME),
+            containsInAnyOrder(new Step.StepKey("phase", "rollover", WaitForRolloverReadyStep.NAME),
                 new Step.StepKey("phase", "rollover", RolloverStep.NAME),
                 new Step.StepKey("phase", "rollover", WaitForActiveShardsStep.NAME),
                 new Step.StepKey("phase", "rollover", UpdateRolloverLifecycleDateStep.NAME),
@@ -236,7 +238,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
 
         Map<String, LifecycleAction> actions = new HashMap<>();
         actions.put("forcemerge", new ForceMergeAction(5, null));
-        actions.put("allocate", new AllocateAction(1, null, null, null));
+        actions.put("allocate", new AllocateAction(1, 20, null, null, null));
         PhaseExecutionInfo pei = new PhaseExecutionInfo("policy", new Phase("wonky", TimeValue.ZERO, actions), 1, 1);
         String phaseDef = Strings.toString(pei);
         logger.info("--> phaseDef: {}", phaseDef);

@@ -11,7 +11,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -88,7 +87,7 @@ public class RestChangePasswordAction extends SecurityBaseRestHandler implements
             });
     }
 
-    private static final Set<String> FILTERED_FIELDS = Collections.singleton("password");
+    private static final Set<String> FILTERED_FIELDS = Set.of("password", "password_hash");
 
     @Override
     public Set<String> getFilteredFields() {

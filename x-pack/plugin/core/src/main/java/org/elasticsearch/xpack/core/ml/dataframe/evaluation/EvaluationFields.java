@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.core.Tuple;
 
 import java.util.Arrays;

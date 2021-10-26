@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.watcher.transform;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.transform.chain.ChainTransform;
 import org.elasticsearch.xpack.core.watcher.transform.chain.ChainTransformFactory;
 

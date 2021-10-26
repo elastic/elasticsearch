@@ -64,7 +64,6 @@ public class ValuesSourceRegistry {
             this.usageServiceBuilder = new AggregationUsageService.Builder();
         }
 
-
         /**
          * Register a ValuesSource to Aggregator mapping. This method registers mappings that only apply to a
          * single {@link ValuesSourceType}
@@ -80,7 +79,8 @@ public class ValuesSourceRegistry {
             RegistryKey<T> registryKey,
             ValuesSourceType valuesSourceType,
             T aggregatorSupplier,
-            boolean registerUsage) {
+            boolean registerUsage
+        ) {
             if (aggregatorRegistry.containsKey(registryKey) == false) {
                 aggregatorRegistry.put(registryKey, new ArrayList<>());
             }
@@ -105,7 +105,8 @@ public class ValuesSourceRegistry {
             RegistryKey<T> registryKey,
             List<ValuesSourceType> valuesSourceTypes,
             T aggregatorSupplier,
-            boolean registerUsage) {
+            boolean registerUsage
+        ) {
             for (ValuesSourceType valuesSourceType : valuesSourceTypes) {
                 register(registryKey, valuesSourceType, aggregatorSupplier, registerUsage);
             }
@@ -131,13 +132,13 @@ public class ValuesSourceRegistry {
          Make an immutable copy of our input map. Since this is write once, read many, we'll spend a bit of extra time to shape this
          into a Map.of(), which is more read optimized than just using a hash map.
          */
-        @SuppressWarnings({"rawtypes", "unchecked"})
+        @SuppressWarnings({ "rawtypes", "unchecked" })
         Map.Entry<RegistryKey<?>, Map<ValuesSourceType, ?>>[] copiedEntries = new Map.Entry[mutableMap.size()];
         int i = 0;
         for (Map.Entry<RegistryKey<?>, List<Map.Entry<ValuesSourceType, ?>>> entry : mutableMap.entrySet()) {
             RegistryKey<?> topKey = entry.getKey();
             List<Map.Entry<ValuesSourceType, ?>> values = entry.getValue();
-            @SuppressWarnings({"rawtypes", "unchecked"})
+            @SuppressWarnings({ "rawtypes", "unchecked" })
             Map.Entry<RegistryKey<?>, Map<ValuesSourceType, ?>> newEntry = Map.entry(
                 topKey,
                 Map.ofEntries(values.toArray(new Map.Entry[0]))

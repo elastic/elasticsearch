@@ -16,10 +16,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -70,6 +70,7 @@ public class GetFieldMappingsResponseTests extends AbstractWireSerializingTestCa
             response.toXContent(builder, params);
 
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+                @SuppressWarnings("unchecked")
                 Map<String, Map<String, Map<String, Object>>> index =
                     (Map<String, Map<String, Map<String, Object>>>) parser.map().get("index");
                 assertThat(index.get("mappings"), hasKey(MapperService.SINGLE_MAPPING_NAME));
@@ -82,6 +83,7 @@ public class GetFieldMappingsResponseTests extends AbstractWireSerializingTestCa
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+                @SuppressWarnings("unchecked")
                 Map<String, Map<String, Object>> index = (Map<String, Map<String, Object>>) parser.map().get("index");
                 assertThat(index.get("mappings"), hasKey("field"));
             }
@@ -92,6 +94,7 @@ public class GetFieldMappingsResponseTests extends AbstractWireSerializingTestCa
             response.toXContent(builder, params);
 
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+                @SuppressWarnings("unchecked")
                 Map<String, Map<String, Object>> index = (Map<String, Map<String, Object>>) parser.map().get("index");
                 assertThat(index.get("mappings"), hasKey("field"));
             }
@@ -101,6 +104,7 @@ public class GetFieldMappingsResponseTests extends AbstractWireSerializingTestCa
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+                @SuppressWarnings("unchecked")
                 Map<String, Map<String, Object>> index = (Map<String, Map<String, Object>>) parser.map().get("index");
                 assertThat(index.get("mappings"), hasKey("field"));
             }

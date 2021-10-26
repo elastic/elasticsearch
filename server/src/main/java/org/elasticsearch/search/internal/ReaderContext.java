@@ -66,12 +66,7 @@ public class ReaderContext implements Releasable {
         this.singleSession = singleSession;
         this.keepAlive = new AtomicLong(keepAliveInMillis);
         this.lastAccessTime = new AtomicLong(nowInMillis());
-        this.refCounted = new AbstractRefCounted("reader_context") {
-            @Override
-            protected void closeInternal() {
-                doClose();
-            }
-        };
+        this.refCounted = AbstractRefCounted.of(this::doClose);
     }
 
     public void validate(TransportRequest request) {

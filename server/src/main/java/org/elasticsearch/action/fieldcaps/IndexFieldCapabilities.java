@@ -8,9 +8,12 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.StringLiteralDeduplicator;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 
 import java.io.IOException;
 import java.util.Map;
@@ -21,11 +24,15 @@ import java.util.Objects;
  */
 public class IndexFieldCapabilities implements Writeable {
 
+    private static final StringLiteralDeduplicator typeStringDeduplicator = new StringLiteralDeduplicator();
+
     private final String name;
     private final String type;
     private final boolean isMetadatafield;
     private final boolean isSearchable;
     private final boolean isAggregatable;
+    private final boolean isDimension;
+    private final TimeSeriesParams.MetricType metricType;
     private final Map<String, String> meta;
 
     /**
@@ -38,6 +45,8 @@ public class IndexFieldCapabilities implements Writeable {
     IndexFieldCapabilities(String name, String type,
                            boolean isMetadatafield,
                            boolean isSearchable, boolean isAggregatable,
+                           boolean isDimension,
+                           TimeSeriesParams.MetricType metricType,
                            Map<String, String> meta) {
 
         this.name = name;
@@ -45,15 +54,24 @@ public class IndexFieldCapabilities implements Writeable {
         this.isMetadatafield = isMetadatafield;
         this.isSearchable = isSearchable;
         this.isAggregatable = isAggregatable;
+        this.isDimension = isDimension;
+        this.metricType = metricType;
         this.meta = meta;
     }
 
     IndexFieldCapabilities(StreamInput in) throws IOException {
         this.name = in.readString();
-        this.type = in.readString();
+        this.type = typeStringDeduplicator.deduplicate(in.readString());
         this.isMetadatafield = in.readBoolean();
         this.isSearchable = in.readBoolean();
         this.isAggregatable = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            this.isDimension = in.readBoolean();
+            this.metricType = in.readOptionalEnum(TimeSeriesParams.MetricType.class);
+        } else {
+            this.isDimension = false;
+            this.metricType = null;
+        }
         this.meta = in.readMap(StreamInput::readString, StreamInput::readString);
     }
 
@@ -64,6 +82,10 @@ public class IndexFieldCapabilities implements Writeable {
         out.writeBoolean(isMetadatafield);
         out.writeBoolean(isSearchable);
         out.writeBoolean(isAggregatable);
+        if  (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeBoolean(isDimension);
+            out.writeOptionalEnum(metricType);
+        }
         out.writeMap(meta, StreamOutput::writeString, StreamOutput::writeString);
     }
 
@@ -87,6 +109,14 @@ public class IndexFieldCapabilities implements Writeable {
         return isSearchable;
     }
 
+    public boolean isDimension() {
+        return isDimension;
+    }
+
+    public TimeSeriesParams.MetricType getMetricType() {
+        return metricType;
+    }
+
     public Map<String, String> meta() {
         return meta;
     }
@@ -99,6 +129,8 @@ public class IndexFieldCapabilities implements Writeable {
         return isMetadatafield == that.isMetadatafield &&
             isSearchable == that.isSearchable &&
             isAggregatable == that.isAggregatable &&
+            isDimension == that.isDimension &&
+            Objects.equals(metricType, that.metricType) &&
             Objects.equals(name, that.name) &&
             Objects.equals(type, that.type) &&
             Objects.equals(meta, that.meta);
@@ -106,6 +138,6 @@ public class IndexFieldCapabilities implements Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, type, isMetadatafield, isSearchable, isAggregatable, meta);
+        return Objects.hash(name, type, isMetadatafield, isSearchable, isAggregatable, isDimension, metricType, meta);
     }
 }

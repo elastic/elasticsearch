@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
-import com.carrotsearch.hppc.predicates.ObjectPredicate;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -51,7 +49,6 @@ import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -700,9 +697,9 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                 AutoFollowMetadata currentAutoFollowMetadata = currentState.metadata().custom(AutoFollowMetadata.TYPE);
                 Map<String, List<String>> autoFollowPatternNameToFollowedIndexUUIDs =
                     new HashMap<>(currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs());
-                Set<String> remoteIndexUUIDS = new HashSet<>();
-                remoteMetadata.getIndices().values()
-                    .forEach((ObjectPredicate<IndexMetadata>) value -> remoteIndexUUIDS.add(value.getIndexUUID()));
+                Set<String> remoteIndexUUIDS = remoteMetadata.getIndices().values().stream()
+                    .map(IndexMetadata::getIndexUUID)
+                    .collect(Collectors.toSet());
 
                 boolean requiresCSUpdate = false;
                 for (String autoFollowPatternName : autoFollowPatternNames) {

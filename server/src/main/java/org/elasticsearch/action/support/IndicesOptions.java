@@ -8,15 +8,17 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
@@ -102,6 +104,10 @@ public class IndicesOptions implements ToXContentFragment {
 
         public static final EnumSet<Option> NONE = EnumSet.noneOf(Option.class);
     }
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(IndicesOptions.class);
+    private static final String IGNORE_THROTTLED_DEPRECATION_MESSAGE = "[ignore_throttled] parameter is deprecated " +
+        "because frozen indices have been deprecated. Consider cold or frozen tiers in place of frozen indices.";
 
     public static final IndicesOptions STRICT_EXPAND_OPEN =
         new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES), EnumSet.of(WildcardStates.OPEN));
@@ -299,6 +305,10 @@ public class IndicesOptions implements ToXContentFragment {
     }
 
     public static IndicesOptions fromRequest(RestRequest request, IndicesOptions defaultSettings) {
+        if (request.hasParam("ignore_throttled")) {
+            DEPRECATION_LOGGER.warn(DeprecationCategory.API, "ignore_throttled_param", IGNORE_THROTTLED_DEPRECATION_MESSAGE);
+        }
+
         return fromParameters(
                 request.param("expand_wildcards"),
                 request.param("ignore_unavailable"),
@@ -363,7 +373,7 @@ public class IndicesOptions implements ToXContentFragment {
 
     private static final ParseField EXPAND_WILDCARDS_FIELD = new ParseField("expand_wildcards");
     private static final ParseField IGNORE_UNAVAILABLE_FIELD = new ParseField("ignore_unavailable");
-    private static final ParseField IGNORE_THROTTLED_FIELD = new ParseField("ignore_throttled");
+    private static final ParseField IGNORE_THROTTLED_FIELD = new ParseField("ignore_throttled").withAllDeprecated();
     private static final ParseField ALLOW_NO_INDICES_FIELD = new ParseField("allow_no_indices");
 
     public static IndicesOptions fromXContent(XContentParser parser) throws IOException {

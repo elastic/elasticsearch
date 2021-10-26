@@ -28,7 +28,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Collections;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -40,7 +39,7 @@ public class IndexSortSettingsTests extends ESTestCase {
     }
 
     public void testNoIndexSort() {
-        IndexSettings indexSettings = indexSettings(EMPTY_SETTINGS);
+        IndexSettings indexSettings = indexSettings(Settings.EMPTY);
         assertFalse(indexSettings.getIndexSortConfig().hasIndexSort());
     }
 
@@ -141,7 +140,7 @@ public class IndexSortSettingsTests extends ESTestCase {
         assertTrue(config.hasIndexSort());
         IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
         NoneCircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
-        final IndexFieldDataService indexFieldDataService = new IndexFieldDataService(indexSettings, cache, circuitBreakerService, null);
+        final IndexFieldDataService indexFieldDataService = new IndexFieldDataService(indexSettings, cache, circuitBreakerService);
         MappedFieldType fieldType = new MappedFieldType("field", false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
             @Override
             public String typeName() {
@@ -182,7 +181,7 @@ public class IndexSortSettingsTests extends ESTestCase {
         assertTrue(config.hasIndexSort());
         IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
         NoneCircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
-        final IndexFieldDataService indexFieldDataService = new IndexFieldDataService(indexSettings, cache, circuitBreakerService, null);
+        final IndexFieldDataService indexFieldDataService = new IndexFieldDataService(indexSettings, cache, circuitBreakerService);
         MappedFieldType mft = new KeywordFieldMapper.KeywordFieldType("aliased");
         Exception e = expectThrows(IllegalArgumentException.class, () -> config.buildIndexSort(
             field -> mft,
@@ -199,7 +198,7 @@ public class IndexSortSettingsTests extends ESTestCase {
         assertTrue(config.hasIndexSort());
         IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
         NoneCircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
-        final IndexFieldDataService indexFieldDataService = new IndexFieldDataService(indexSettings, cache, circuitBreakerService, null);
+        final IndexFieldDataService indexFieldDataService = new IndexFieldDataService(indexSettings, cache, circuitBreakerService);
         MappedFieldType mft = new KeywordFieldMapper.KeywordFieldType("aliased");
         config.buildIndexSort(
             field -> mft,

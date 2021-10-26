@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -367,11 +367,11 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         internalRefreshListener.add(listener);
         return new EngineConfig(config.getShardId(), config.getThreadPool(),
             config.getIndexSettings(), config.getWarmer(), config.getStore(), config.getMergePolicy(), config.getAnalyzer(),
-            config.getSimilarity(), new CodecService(null, logger), config.getEventListener(), config.getQueryCache(),
+            config.getSimilarity(), new CodecService(null), config.getEventListener(), config.getQueryCache(),
             config.getQueryCachingPolicy(), config.getTranslogConfig(), config.getFlushMergesAfter(),
             config.getExternalRefreshListener(), internalRefreshListener, config.getIndexSort(),
             config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
-            config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier());
+            config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier(), config.getLeafSorter());
     }
 
     ThreadPoolStats.Stats getRefreshThreadPoolStats() {

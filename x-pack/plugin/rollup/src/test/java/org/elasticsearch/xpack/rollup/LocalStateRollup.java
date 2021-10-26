@@ -18,4 +18,3 @@ public class LocalStateRollup extends LocalStateCompositeXPackPlugin {
         plugins.add(new Rollup(settings));
     }
 }
-

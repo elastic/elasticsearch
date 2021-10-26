@@ -33,7 +33,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TaskTransportChannel;
@@ -78,10 +77,10 @@ public class TaskManager implements ClusterStateApplier {
     private final List<String> taskHeaders;
     private final ThreadPool threadPool;
 
-    private final ConcurrentMapLong<Task> tasks = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
+    private final Map<Long, Task> tasks = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
-    private final ConcurrentMapLong<CancellableTaskHolder> cancellableTasks = ConcurrentCollections
-        .newConcurrentMapLongWithAggressiveConcurrency();
+    private final CancellableTasksTracker<CancellableTaskHolder> cancellableTasks
+        = new CancellableTasksTracker<>(new CancellableTaskHolder[0]);
 
     private final AtomicLong taskIdGenerator = new AtomicLong();
 
@@ -186,8 +185,7 @@ public class TaskManager implements ClusterStateApplier {
     private void registerCancellableTask(Task task) {
         CancellableTask cancellableTask = (CancellableTask) task;
         CancellableTaskHolder holder = new CancellableTaskHolder(cancellableTask);
-        CancellableTaskHolder oldHolder = cancellableTasks.put(task.getId(), holder);
-        assert oldHolder == null;
+        cancellableTasks.put(task, holder);
         // Check if this task was banned before we start it. The empty check is used to avoid
         // computing the hash code of the parent taskId as most of the time bannedParents is empty.
         if (task.getParentTaskId().isSet() && bannedParents.isEmpty() == false) {
@@ -227,15 +225,18 @@ public class TaskManager implements ClusterStateApplier {
     public Task unregister(Task task) {
         logger.trace("unregister task for id: {}", task.getId());
         if (task instanceof CancellableTask) {
-            CancellableTaskHolder holder = cancellableTasks.remove(task.getId());
+            CancellableTaskHolder holder = cancellableTasks.remove(task);
             if (holder != null) {
                 holder.finish();
+                assert holder.task == task;
                 return holder.getTask();
             } else {
                 return null;
             }
         } else {
-            return tasks.remove(task.getId());
+            final Task removedTask = tasks.remove(task.getId());
+            assert removedTask == null || removedTask == task;
+            return removedTask;
         }
     }
 
@@ -390,10 +391,7 @@ public class TaskManager implements ClusterStateApplier {
                 ban.registerChannel(DIRECT_CHANNEL_TRACKER);
             }
         }
-        return cancellableTasks.values().stream()
-            .filter(t -> t.hasParent(parentTaskId))
-            .map(t -> t.task)
-            .collect(Collectors.toUnmodifiableList());
+        return cancellableTasks.getByParent(parentTaskId).map(t -> t.task).collect(Collectors.toUnmodifiableList());
     }
 
     /**
@@ -409,6 +407,11 @@ public class TaskManager implements ClusterStateApplier {
     // for testing
     public Set<TaskId> getBannedTaskIds() {
         return Collections.unmodifiableSet(bannedParents.keySet());
+    }
+
+    // for testing
+    public boolean assertCancellableTaskConsistency() {
+        return cancellableTasks.assertConsistent();
     }
 
     private class Ban {
@@ -624,7 +627,7 @@ public class TaskManager implements ClusterStateApplier {
      * @return a releasable that should be called when this pending task is completed
      */
     public Releasable startTrackingCancellableChannelTask(TcpChannel channel, CancellableTask task) {
-        assert cancellableTasks.containsKey(task.getId()) : "task [" + task.getId() + "] is not registered yet";
+        assert cancellableTasks.get(task.getId()) != null : "task [" + task.getId() + "] is not registered yet";
         final ChannelPendingTaskTracker tracker = startTrackingChannel(channel, trackerChannel -> trackerChannel.addTask(task));
         return () -> tracker.removeTask(task);
     }

@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.querydsl.query.NestedQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
+import org.elasticsearch.xpack.ql.util.Check;
 import org.elasticsearch.xpack.ql.util.ReflectionUtils;
 
 public abstract class ExpressionTranslator<E extends Expression> {
@@ -32,5 +33,10 @@ public abstract class ExpressionTranslator<E extends Expression> {
             }
         }
         return query;
+    }
+
+    public static FieldAttribute checkIsFieldAttribute(Expression e) {
+        Check.isTrue(e instanceof FieldAttribute, "Expected a FieldAttribute but received [{}]", e);
+        return (FieldAttribute) e;
     }
 }

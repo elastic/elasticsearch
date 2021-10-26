@@ -95,6 +95,17 @@
       lines up with the directory structure. -->
     <module name="PackageDeclaration" />
 
+    <!-- Checks that a local variable or a parameter does not shadow a field that is defined in the same class. -->
+    <!-- Disabled until existing violations are fixed -->
+    <!--
+    <module name="HiddenField">
+        <property name="ignoreConstructorParameter" value="true" />
+        <property name="ignoreSetter" value="true" />
+        <property name="setterCanReturnItsClass" value="true"/>
+        <property name="ignoreFormat" value="^(threadPool)$"/>
+    </module>
+    -->
+
     <!-- We don't use Java's builtin serialization and we suppress all warning
       about it. The flip side of that coin is that we shouldn't _try_ to use
       it. We can't outright ban it with ForbiddenApis because it complain about

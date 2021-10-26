@@ -27,9 +27,10 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
     public void testConcurrentOperationsTryingToCreateSecurityIndexAndAlias() throws Exception {
         assertSecurityIndexActive();
         final int processors = Runtime.getRuntime().availableProcessors();
-        final int numThreads = scaledRandomIntBetween((processors + 1) / 2, 4 * processors);
-        final int maxNumRequests = 100 / numThreads; // bound to a maximum of 100 requests
+        final int numThreads = Math.min(50, scaledRandomIntBetween((processors + 1) / 2, 4 * processors));  // up to 50 threads
+        final int maxNumRequests = 50 / numThreads; // bound to a maximum of 50 requests
         final int numRequests = scaledRandomIntBetween(Math.min(4, maxNumRequests), maxNumRequests);
+        logger.info("creating users with [{}] threads, each sending [{}] requests", numThreads, numRequests);
 
         final List<ActionFuture<PutUserResponse>> futures = new CopyOnWriteArrayList<>();
         final List<Exception> exceptions = new CopyOnWriteArrayList<>();
@@ -71,7 +72,10 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
         assertThat(exceptions, Matchers.empty());
         assertEquals(futures.size(), numRequests * numThreads);
         for (ActionFuture<PutUserResponse> future : futures) {
-            assertTrue(future.actionGet().created());
+            // In rare cases, the user could be updated instead of created. For the purpose of
+            // this test, either created or updated is sufficient to prove that the security
+            // index is created. So we don't need to assert the value.
+            future.actionGet().created();
         }
     }
 

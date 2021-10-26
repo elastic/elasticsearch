@@ -29,9 +29,12 @@ import org.elasticsearch.transport.TransportStats;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+
+import static junit.framework.TestCase.assertTrue;
 
 public class StubbableTransport implements Transport {
 
@@ -94,9 +97,22 @@ public class StubbableTransport implements Transport {
 
     void clearOutboundBehaviors() {
         this.defaultSendRequest = null;
-        sendBehaviors.clear();
+        final Iterator<SendRequestBehavior> sendBehaviorIterator = sendBehaviors.values().iterator();
+        while (sendBehaviorIterator.hasNext()) {
+            final SendRequestBehavior behavior = sendBehaviorIterator.next();
+            sendBehaviorIterator.remove();
+            behavior.clearCallback();
+        }
+        assertTrue(sendBehaviors.isEmpty());
+
         this.defaultConnectBehavior = null;
-        connectBehaviors.clear();
+        final Iterator<OpenConnectionBehavior> connectBehaviorIterator = connectBehaviors.values().iterator();
+        while (connectBehaviorIterator.hasNext()) {
+            final OpenConnectionBehavior behavior = connectBehaviorIterator.next();
+            connectBehaviorIterator.remove();
+            behavior.clearCallback();
+        }
+        assertTrue(connectBehaviors.isEmpty());
     }
 
     void clearOutboundBehaviors(TransportAddress transportAddress) {
@@ -229,6 +245,10 @@ public class StubbableTransport implements Transport {
             connection.addCloseListener(listener);
         }
 
+        @Override
+        public void addRemovedListener(ActionListener<Void> listener) {
+            connection.addRemovedListener(listener);
+        }
 
         @Override
         public boolean isClosed() {
@@ -250,6 +270,11 @@ public class StubbableTransport implements Transport {
             connection.close();
         }
 
+        @Override
+        public void onRemoved() {
+            connection.onRemoved();
+        }
+
         public Transport.Connection getConnection() {
             return connection;
         }
@@ -257,6 +282,26 @@ public class StubbableTransport implements Transport {
         @Override
         public String toString() {
             return "WrappedConnection[" + connection + "]";
+        }
+
+        @Override
+        public void incRef() {
+            connection.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return connection.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return connection.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return connection.hasReferences();
         }
     }
 

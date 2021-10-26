@@ -24,6 +24,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESTestCase;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -32,7 +33,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.mock.orig.Mockito.when;
+import static org.mockito.Mockito.when;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.Mockito.mock;
 
@@ -151,9 +152,9 @@ public class RestCatRecoveryActionTests extends ESTestCase {
             final List<Object> expectedValues = Arrays.asList(
                     "index",
                     i,
-                    XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().startTime()),
+                    XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(state.getTimer().startTime())),
                     state.getTimer().startTime(),
-                    XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().stopTime()),
+                    XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(state.getTimer().stopTime())),
                     state.getTimer().stopTime(),
                     new TimeValue(state.getTimer().time()),
                     state.getRecoverySource().getType().name().toLowerCase(Locale.ROOT),

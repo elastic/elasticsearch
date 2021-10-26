@@ -11,9 +11,9 @@ package org.elasticsearch.index.mapper.annotatedtext;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -29,7 +29,7 @@ public class AnnotatedTextFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
         MappedFieldType fieldType = new AnnotatedTextFieldMapper.Builder("field", createDefaultIndexAnalyzers())
-            .build(new ContentPath())
+            .build(MapperBuilderContext.ROOT)
             .fieldType();
 
         assertEquals(List.of("value"), fetchSourceValue(fieldType, "value"));

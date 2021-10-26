@@ -17,8 +17,8 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -70,7 +70,7 @@ public class RestGetMappingAction extends BaseRestHandler {
         if (request.getRestApiVersion() == RestApiVersion.V_7) {
             if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
                 request.param(INCLUDE_TYPE_NAME_PARAMETER);
-                deprecationLogger.compatibleApiWarning("get_mapping_with_types", INCLUDE_TYPE_DEPRECATION_MSG);
+                deprecationLogger.compatibleCritical("get_mapping_with_types", INCLUDE_TYPE_DEPRECATION_MSG);
             }
             final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
             if (request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY) == false && types.length > 0) {
@@ -78,7 +78,7 @@ public class RestGetMappingAction extends BaseRestHandler {
                     " include_type_name is set to true.");
             }
             if (request.method().equals(HEAD)) {
-                deprecationLogger.compatibleApiWarning("get_mapping_types_removal",
+                deprecationLogger.compatibleCritical("get_mapping_types_removal",
                     "Type exists requests are deprecated, as types have been deprecated.");
             }
         }

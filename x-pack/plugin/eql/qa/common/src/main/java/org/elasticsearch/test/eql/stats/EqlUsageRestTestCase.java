@@ -13,7 +13,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.test.eql.DataLoader;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.Before;
@@ -30,6 +30,7 @@ import java.util.Set;
 /**
  * Tests a random number of queries that increase various (most of the times, one query will "touch" multiple metrics values) metrics.
  */
+@SuppressWarnings("removal")
 public abstract class EqlUsageRestTestCase extends ESRestTestCase {
 
     private RestHighLevelClient highLevelClient;

@@ -19,8 +19,8 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -68,7 +68,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                                 .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), Long.MAX_VALUE)
                 ).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(
             Settings.builder().put(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(5)))
             .get();
 
@@ -96,7 +96,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
             assertConcreteMappingsOnAll("test", fieldName);
         }
 
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(
             Settings.builder().putNull(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey())).get();
     }
 
@@ -231,7 +231,9 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                         assertThat(response.isAcknowledged(), equalTo(true));
                         GetMappingsResponse getMappingResponse = client2.admin().indices().prepareGetMappings(indexName).get();
                         MappingMetadata mappings = getMappingResponse.getMappings().get(indexName);
-                        assertThat(((Map<String, Object>) mappings.getSourceAsMap().get("properties")).keySet(),
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> properties = (Map<String, Object>) mappings.getSourceAsMap().get("properties");
+                        assertThat(properties.keySet(),
                             Matchers.hasItem(fieldName));
                     }
                 } catch (Exception e) {
@@ -310,6 +312,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         assertTrue(mappingSource.containsKey("properties"));
 
         for (String fieldName : fieldNames) {
+            @SuppressWarnings("unchecked")
             Map<String, Object> mappingProperties = (Map<String, Object>) mappingSource.get("properties");
             if (fieldName.indexOf('.') != -1) {
                 fieldName = fieldName.replace(".", ".properties.");

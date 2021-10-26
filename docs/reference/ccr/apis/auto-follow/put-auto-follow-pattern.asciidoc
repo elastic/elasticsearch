@@ -73,7 +73,7 @@ the new patterns.
 ==== {api-request-body-title}
 
 `remote_cluster`::
-  (Required, string) The <<modules-remote-clusters,remote cluster>> containing
+  (Required, string) The <<remote-clusters,remote cluster>> containing
   the leader indices to match against.
 
 `leader_index_patterns`::

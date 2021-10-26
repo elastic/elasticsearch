@@ -10,7 +10,6 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
@@ -47,8 +46,9 @@ public abstract class TransportSingleItemBulkWriteAction<
             assert bulkItemResponses.getItems().length == 1 : "expected only one item in bulk request";
             BulkItemResponse bulkItemResponse = bulkItemResponses.getItems()[0];
             if (bulkItemResponse.isFailed() == false) {
-                final DocWriteResponse response = bulkItemResponse.getResponse();
-                listener.onResponse((Response) response);
+                @SuppressWarnings("unchecked")
+                final Response response = (Response) bulkItemResponse.getResponse();
+                listener.onResponse(response);
             } else {
                 listener.onFailure(bulkItemResponse.getFailure().getCause());
             }

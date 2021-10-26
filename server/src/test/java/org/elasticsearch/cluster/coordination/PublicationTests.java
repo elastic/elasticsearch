@@ -15,12 +15,11 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigu
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
@@ -69,7 +68,11 @@ public class PublicationTests extends ESTestCase {
 
         final CoordinationState coordinationState;
 
-        public MockPublication publish(ClusterState clusterState, Discovery.AckListener ackListener, Set<DiscoveryNode> faultyNodes) {
+        public MockPublication publish(
+            ClusterState clusterState,
+            ClusterStatePublisher.AckListener ackListener,
+            Set<DiscoveryNode> faultyNodes
+        ) {
             PublishRequest publishRequest = coordinationState.handleClientValue(clusterState);
             MockPublication currentPublication = new MockPublication(publishRequest, ackListener, () -> 0L) {
                 @Override
@@ -102,7 +105,7 @@ public class PublicationTests extends ESTestCase {
         Map<DiscoveryNode, Join> joins = new HashMap<>();
         Set<DiscoveryNode> missingJoins = new HashSet<>();
 
-        MockPublication(PublishRequest publishRequest, Discovery.AckListener ackListener, LongSupplier currentTimeSupplier) {
+        MockPublication(PublishRequest publishRequest, ClusterStatePublisher.AckListener ackListener, LongSupplier currentTimeSupplier) {
             super(publishRequest, ackListener, currentTimeSupplier);
             this.publishRequest = publishRequest;
         }
@@ -473,7 +476,7 @@ public class PublicationTests extends ESTestCase {
             });
     }
 
-    public static class AssertingAckListener implements Discovery.AckListener {
+    public static class AssertingAckListener implements ClusterStatePublisher.AckListener {
         private final List<Tuple<DiscoveryNode, Throwable>> errors = new CopyOnWriteArrayList<>();
         private final Set<DiscoveryNode> successfulAcks = Collections.synchronizedSet(new HashSet<>());
         private final CountDownLatch countDown;

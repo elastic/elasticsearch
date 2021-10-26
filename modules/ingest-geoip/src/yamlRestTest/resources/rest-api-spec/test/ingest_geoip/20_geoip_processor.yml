@@ -21,22 +21,22 @@
         index: test
         id: 1
         pipeline: "my_pipeline"
-        body: {field1: "128.101.101.101"}
+        body: {field1: "89.160.20.128"}
 
   - do:
       get:
         index: test
         id: 1
-  - match: { _source.field1: "128.101.101.101" }
+  - match: { _source.field1: "89.160.20.128" }
   - length: { _source.geoip: 7 }
-  - match: { _source.geoip.city_name: "Minneapolis" }
-  - match: { _source.geoip.country_iso_code: "US" }
-  - match: { _source.geoip.location.lon: -93.2548 }
-  - match: { _source.geoip.location.lat: 44.9399 }
-  - match: { _source.geoip.region_iso_code: "US-MN" }
-  - match: { _source.geoip.country_name: "United States" }
-  - match: { _source.geoip.region_name: "Minnesota" }
-  - match: { _source.geoip.continent_name: "North America" }
+  - match: { _source.geoip.city_name: "Linköping" }
+  - match: { _source.geoip.country_iso_code: "SE" }
+  - match: { _source.geoip.location.lon: 15.6167 }
+  - match: { _source.geoip.location.lat: 58.4167 }
+  - match: { _source.geoip.region_iso_code: "SE-E" }
+  - match: { _source.geoip.country_name: "Sweden" }
+  - match: { _source.geoip.region_name: "Östergötland County" }
+  - match: { _source.geoip.continent_name: "Europe" }
 
 ---
 "Test geoip processor with list":
@@ -62,23 +62,23 @@
         index: test
         id: 1
         pipeline: "my_pipeline"
-        body: {field1: ["128.101.101.101", "127.0.0.1"]}
+        body: {field1: ["89.160.20.128", "127.0.0.1"]}
 
   - do:
       get:
         index: test
         id: 1
-  - match: { _source.field1: ["128.101.101.101", "127.0.0.1"] }
+  - match: { _source.field1: ["89.160.20.128", "127.0.0.1"] }
   - length: { _source.geoip: 2 }
   - length: { _source.geoip.0: 7 }
-  - match: { _source.geoip.0.city_name: "Minneapolis" }
-  - match: { _source.geoip.0.country_iso_code: "US" }
-  - match: { _source.geoip.0.location.lon: -93.2548 }
-  - match: { _source.geoip.0.location.lat: 44.9399 }
-  - match: { _source.geoip.0.region_iso_code: "US-MN" }
-  - match: { _source.geoip.0.country_name: "United States" }
-  - match: { _source.geoip.0.region_name: "Minnesota" }
-  - match: { _source.geoip.0.continent_name: "North America" }
+  - match: { _source.geoip.0.city_name: "Linköping" }
+  - match: { _source.geoip.0.country_iso_code: "SE" }
+  - match: { _source.geoip.0.location.lon: 15.6167 }
+  - match: { _source.geoip.0.location.lat: 58.4167 }
+  - match: { _source.geoip.0.region_iso_code: "SE-E" }
+  - match: { _source.geoip.0.country_name: "Sweden" }
+  - match: { _source.geoip.0.region_name: "Östergötland County" }
+  - match: { _source.geoip.0.continent_name: "Europe" }
   - match: { _source.geoip.1: null }
 
 ---
@@ -104,22 +104,22 @@
         index: test
         id: 1
         pipeline: "my_pipeline"
-        body: {field1: ["127.0.0.1", "128.101.101.101", "128.101.101.101"]}
+        body: {field1: ["127.0.0.1", "89.160.20.128", "89.160.20.128"]}
 
   - do:
       get:
         index: test
         id: 1
-  - match: { _source.field1: ["127.0.0.1", "128.101.101.101", "128.101.101.101"] }
+  - match: { _source.field1: ["127.0.0.1", "89.160.20.128", "89.160.20.128"] }
   - length: { _source.geoip: 7 }
-  - match: { _source.geoip.city_name: "Minneapolis" }
-  - match: { _source.geoip.country_iso_code: "US" }
-  - match: { _source.geoip.location.lon: -93.2548 }
-  - match: { _source.geoip.location.lat: 44.9399 }
-  - match: { _source.geoip.region_iso_code: "US-MN" }
-  - match: { _source.geoip.country_name: "United States" }
-  - match: { _source.geoip.region_name: "Minnesota" }
-  - match: { _source.geoip.continent_name: "North America" }
+  - match: { _source.geoip.city_name: "Linköping" }
+  - match: { _source.geoip.country_iso_code: "SE" }
+  - match: { _source.geoip.location.lon: 15.6167 }
+  - match: { _source.geoip.location.lat: 58.4167 }
+  - match: { _source.geoip.region_iso_code: "SE-E" }
+  - match: { _source.geoip.country_name: "Sweden" }
+  - match: { _source.geoip.region_name: "Östergötland County" }
+  - match: { _source.geoip.continent_name: "Europe" }
 
 ---
 "Test geoip processor with fields":
@@ -149,24 +149,24 @@
         index: test
         id: 1
         pipeline: "my_pipeline"
-        body: {field1: "128.101.101.101"}
+        body: {field1: "89.160.20.128"}
 
   - do:
       get:
         index: test
         id: 1
-  - match: { _source.field1: "128.101.101.101" }
+  - match: { _source.field1: "89.160.20.128" }
   - length: { _source.geoip: 9 }
-  - match: { _source.geoip.city_name: "Minneapolis" }
-  - match: { _source.geoip.country_iso_code: "US" }
-  - match: { _source.geoip.ip: "128.101.101.101" }
-  - match: { _source.geoip.location.lon: -93.2548 }
-  - match: { _source.geoip.location.lat: 44.9399 }
-  - match: { _source.geoip.timezone: "America/Chicago" }
-  - match: { _source.geoip.country_name: "United States" }
-  - match: { _source.geoip.region_iso_code: "US-MN" }
-  - match: { _source.geoip.region_name: "Minnesota" }
-  - match: { _source.geoip.continent_name: "North America" }
+  - match: { _source.geoip.city_name: "Linköping" }
+  - match: { _source.geoip.country_iso_code: "SE" }
+  - match: { _source.geoip.ip: "89.160.20.128" }
+  - match: { _source.geoip.location.lon: 15.6167 }
+  - match: { _source.geoip.location.lat: 58.4167 }
+  - match: { _source.geoip.timezone: "Europe/Stockholm" }
+  - match: { _source.geoip.country_name: "Sweden" }
+  - match: { _source.geoip.region_iso_code: "SE-E" }
+  - match: { _source.geoip.region_name: "Östergötland County" }
+  - match: { _source.geoip.continent_name: "Europe" }
 
 ---
 "Test geoip processor with different database file - GeoLite2-Country":
@@ -192,17 +192,17 @@
         index: test
         id: 1
         pipeline: "my_pipeline"
-        body: {field1: "128.101.101.101"}
+        body: {field1: "89.160.20.128"}
 
   - do:
       get:
         index: test
         id: 1
-  - match: { _source.field1: "128.101.101.101" }
+  - match: { _source.field1: "89.160.20.128" }
   - length: { _source.geoip: 3 }
-  - match: { _source.geoip.country_iso_code: "US" }
-  - match: { _source.geoip.country_name: "United States" }
-  - match: { _source.geoip.continent_name: "North America" }
+  - match: { _source.geoip.country_iso_code: "SE" }
+  - match: { _source.geoip.country_name: "Sweden" }
+  - match: { _source.geoip.continent_name: "Europe" }
 
 ---
 "Test geoip processor with geopoint mapping (both missing and including location)":
@@ -256,22 +256,22 @@
         index: test
         id: 2
         pipeline: "my_pipeline"
-        body: { field1: "128.101.101.101" }
+        body: { field1: "89.160.20.128" }
 
   - do:
       get:
         index: test
         id: 2
-  - match: { _source.field1: "128.101.101.101" }
+  - match: { _source.field1: "89.160.20.128" }
   - length: { _source.geoip: 7 }
-  - match: { _source.geoip.city_name: "Minneapolis" }
-  - match: { _source.geoip.country_iso_code: "US" }
-  - match: { _source.geoip.location.lon: -93.2548 }
-  - match: { _source.geoip.location.lat: 44.9399 }
-  - match: { _source.geoip.region_iso_code: "US-MN" }
-  - match: { _source.geoip.country_name: "United States" }
-  - match: { _source.geoip.region_name: "Minnesota" }
-  - match: { _source.geoip.continent_name: "North America" }
+  - match: { _source.geoip.city_name: "Linköping" }
+  - match: { _source.geoip.country_iso_code: "SE" }
+  - match: { _source.geoip.location.lon: 15.6167 }
+  - match: { _source.geoip.location.lat: 58.4167 }
+  - match: { _source.geoip.region_iso_code: "SE-E" }
+  - match: { _source.geoip.country_name: "Sweden" }
+  - match: { _source.geoip.region_name: "Östergötland County" }
+  - match: { _source.geoip.continent_name: "Europe" }
 
 ---
 "Test geoip processor with different database file - GeoLite2-ASN":
@@ -297,15 +297,15 @@
         index: test
         id: 1
         pipeline: "my_pipeline"
-        body: {field1: "82.171.64.0"}
+        body: {field1: "89.160.20.128"}
 
   - do:
       get:
         index: test
         id: 1
-  - match: { _source.field1: "82.171.64.0" }
+  - match: { _source.field1: "89.160.20.128" }
   - length: { _source.geoip: 4 }
-  - match: { _source.geoip.ip: "82.171.64.0" }
-  - match: { _source.geoip.asn: 1136 }
-  - match: { _source.geoip.organization_name: "KPN B.V." }
-  - match: { _source.geoip.network: "82.168.0.0/14" }
+  - match: { _source.geoip.ip: "89.160.20.128" }
+  - match: { _source.geoip.asn: 29518 }
+  - match: { _source.geoip.organization_name: "Bredband2 AB" }
+  - match: { _source.geoip.network: "89.160.0.0/17" }

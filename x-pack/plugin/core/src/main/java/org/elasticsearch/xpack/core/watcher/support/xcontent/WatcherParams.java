@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.watcher.support.xcontent;
 
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 
 import java.util.HashMap;

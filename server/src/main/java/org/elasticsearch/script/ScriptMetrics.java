@@ -27,11 +27,18 @@ public class ScriptMetrics {
         compilationLimitTriggered.inc();
     }
 
+    public ScriptStats stats() {
+        return new ScriptStats(compilationsMetric.count(), cacheEvictionsMetric.count(), compilationLimitTriggered.count());
+    }
+
     public ScriptContextStats stats(String context) {
         return new ScriptContextStats(
             context,
             compilationsMetric.count(),
             cacheEvictionsMetric.count(),
-            compilationLimitTriggered.count()
+            compilationLimitTriggered.count(),
+            new ScriptContextStats.TimeSeries(),
+            new ScriptContextStats.TimeSeries()
         );
-    }}
+    }
+}

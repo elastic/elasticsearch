@@ -15,6 +15,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
+import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
+import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -153,6 +155,17 @@ public class StashTests extends ESTestCase {
 
         Map<String, Object> actual = stash.replaceStashedValues(map);
         assertEquals(expected, actual);
+        assertThat(actual, not(sameInstance(map)));
+    }
+
+    public void testEscapeExtendedKey() throws IOException {
+        Stash stash = new Stash();
+
+        Map<String, Object> map = new HashMap<>();
+        map.put("key", singletonMap("a", "foo\\${bar}"));
+
+        Map<String, Object> actual = stash.replaceStashedValues(map);
+        assertMap(actual, matchesMap().entry("key", matchesMap().entry("a", "foo${bar}")));
         assertThat(actual, not(sameInstance(map)));
     }
 }

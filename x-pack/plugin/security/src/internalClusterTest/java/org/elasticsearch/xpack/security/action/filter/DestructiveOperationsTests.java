@@ -18,13 +18,13 @@ public class DestructiveOperationsTests extends SecurityIntegTestCase {
     @After
     public void afterTest() {
         Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), (String)null).build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
     }
 
     public void testDeleteIndexDestructiveOperationsRequireName() {
         createIndex("index1");
         Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true).build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
         {
             IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class,
                     () -> client().admin().indices().prepareDelete("*").get());
@@ -58,7 +58,7 @@ public class DestructiveOperationsTests extends SecurityIntegTestCase {
     public void testDestructiveOperationsDefaultBehaviour() {
         if (randomBoolean()) {
             Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false).build();
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
         }
         createIndex("index1", "index2");
 
@@ -85,7 +85,7 @@ public class DestructiveOperationsTests extends SecurityIntegTestCase {
 
     public void testOpenCloseIndexDestructiveOperationsRequireName() {
         Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true).build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
         {
             IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class,
                     () -> client().admin().indices().prepareClose("*").get());

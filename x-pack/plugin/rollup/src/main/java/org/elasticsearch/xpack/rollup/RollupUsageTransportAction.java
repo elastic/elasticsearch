@@ -24,16 +24,31 @@ import org.elasticsearch.xpack.core.rollup.RollupFeatureSetUsage;
 public class RollupUsageTransportAction extends XPackUsageFeatureTransportAction {
 
     @Inject
-    public RollupUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(XPackUsageFeatureAction.ROLLUP.name(), transportService, clusterService,
-            threadPool, actionFilters, indexNameExpressionResolver);
+    public RollupUsageTransportAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            XPackUsageFeatureAction.ROLLUP.name(),
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            indexNameExpressionResolver
+        );
     }
 
     @Override
-    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
-                                   ActionListener<XPackUsageFeatureResponse> listener) {
-        // TODO expose the currently running rollup tasks on this node?  Unclear the best way to do that
+    protected void masterOperation(
+        Task task,
+        XPackUsageRequest request,
+        ClusterState state,
+        ActionListener<XPackUsageFeatureResponse> listener
+    ) {
+        // TODO expose the currently running rollup tasks on this node? Unclear the best way to do that
         RollupFeatureSetUsage usage = new RollupFeatureSetUsage();
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }

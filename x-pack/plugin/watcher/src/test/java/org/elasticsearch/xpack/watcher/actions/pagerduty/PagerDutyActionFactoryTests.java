@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.watcher.actions.pagerduty;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyAccount;
@@ -18,7 +18,7 @@ import org.junit.Before;
 
 import java.util.HashSet;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.triggerPagerDutyAction;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;

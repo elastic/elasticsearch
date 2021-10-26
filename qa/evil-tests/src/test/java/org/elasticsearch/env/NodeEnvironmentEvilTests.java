@@ -8,6 +8,7 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.PosixPermissionsResetter;
 import org.junit.BeforeClass;
@@ -31,13 +32,14 @@ public class NodeEnvironmentEvilTests extends ESTestCase {
 
     public void testMissingWritePermission() throws IOException {
         assumeTrue("posix filesystem", isPosix);
-        Path path = createTempDir();
+        final String[] tempPaths = tmpPaths();
+        Path path = PathUtils.get(randomFrom(tempPaths));
         try (PosixPermissionsResetter attr = new PosixPermissionsResetter(path)) {
             attr.setPermissions(new HashSet<>(Arrays.asList(PosixFilePermission.OTHERS_READ, PosixFilePermission.GROUP_READ,
                 PosixFilePermission.OWNER_READ)));
             Settings build = Settings.builder()
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-                    .put(Environment.PATH_DATA_SETTING.getKey(), path).build();
+                    .putList(Environment.PATH_DATA_SETTING.getKey(), tempPaths).build();
             IllegalStateException exception = expectThrows(IllegalStateException.class, () -> {
                 new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
             });
@@ -48,7 +50,8 @@ public class NodeEnvironmentEvilTests extends ESTestCase {
 
     public void testMissingWritePermissionOnIndex() throws IOException {
         assumeTrue("posix filesystem", isPosix);
-        Path path = createTempDir();
+        final String[] tempPaths = tmpPaths();
+        Path path = PathUtils.get(randomFrom(tempPaths));
         Path fooIndex = path.resolve(NodeEnvironment.INDICES_FOLDER)
             .resolve("foo");
         Files.createDirectories(fooIndex);
@@ -57,7 +60,7 @@ public class NodeEnvironmentEvilTests extends ESTestCase {
                 PosixFilePermission.OWNER_READ)));
             Settings build = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-                .put(Environment.PATH_DATA_SETTING.getKey(), path).build();
+                .putList(Environment.PATH_DATA_SETTING.getKey(), tempPaths).build();
             IOException ioException = expectThrows(IOException.class, () -> {
                 new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
             });
@@ -67,7 +70,8 @@ public class NodeEnvironmentEvilTests extends ESTestCase {
 
     public void testMissingWritePermissionOnShard() throws IOException {
         assumeTrue("posix filesystem", isPosix);
-        Path path = createTempDir();
+        final String[] tempPaths = tmpPaths();
+        Path path = PathUtils.get(randomFrom(tempPaths));
         Path fooIndex = path.resolve(NodeEnvironment.INDICES_FOLDER)
             .resolve("foo");
         Path fooShard = fooIndex.resolve("0");
@@ -81,7 +85,7 @@ public class NodeEnvironmentEvilTests extends ESTestCase {
                 PosixFilePermission.OWNER_READ)));
             Settings build = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-                .put(Environment.PATH_DATA_SETTING.getKey(), path).build();
+                .putList(Environment.PATH_DATA_SETTING.getKey(), tempPaths).build();
             IOException ioException = expectThrows(IOException.class, () -> {
                 new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
             });

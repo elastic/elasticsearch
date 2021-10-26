@@ -13,8 +13,22 @@
     "url":{
       "paths":[
         {
+          "path":"/_transform/{transform_id}/_preview",
+          "methods":[
+            "GET",
+            "POST"
+          ],
+          "parts":{
+            "transform_id":{
+              "type":"string",
+              "description":"The id of the transform to preview."
+            }
+          }
+        },
+        {
           "path":"/_transform/_preview",
           "methods":[
+            "GET",
             "POST"
           ]
         }
@@ -22,7 +36,7 @@
     },
     "body":{
       "description":"The definition for the transform to preview",
-      "required":true
+      "required":false
     }
   }
 }

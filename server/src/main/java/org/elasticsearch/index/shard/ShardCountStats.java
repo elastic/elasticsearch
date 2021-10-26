@@ -12,8 +12,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
@@ -56,7 +56,7 @@ public class ShardCountStats implements Writeable, ToXContentFragment {
     }
 
     static final class Fields {
-        static final String SHARDS = "shards";
+        static final String SHARDS = "shard_stats";
         static final String TOTAL_COUNT = "total_count";
     }
 

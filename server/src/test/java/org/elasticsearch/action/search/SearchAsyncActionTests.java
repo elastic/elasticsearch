@@ -710,7 +710,10 @@ public class SearchAsyncActionTests extends ESTestCase {
 
         @Override
         public void addCloseListener(ActionListener<Void> listener) {
+        }
 
+        @Override
+        public void addRemovedListener(ActionListener<Void> listener) {
         }
 
         @Override
@@ -721,6 +724,31 @@ public class SearchAsyncActionTests extends ESTestCase {
         @Override
         public void close() {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void onRemoved() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void incRef() {
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return true;
+        }
+
+        @Override
+        public boolean decRef() {
+            assert false : "shouldn't release a mock connection";
+            return false;
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return true;
         }
     }
 }

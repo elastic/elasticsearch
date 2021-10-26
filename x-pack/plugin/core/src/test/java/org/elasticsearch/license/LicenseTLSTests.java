@@ -19,7 +19,6 @@ import java.net.InetAddress;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -34,7 +33,7 @@ public class LicenseTLSTests extends AbstractLicenseServiceTestCase {
         request.acknowledge(true);
         request.license(newLicense);
         Settings settings = Settings.builder().put("xpack.security.enabled", true).build();
-        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
+        XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
         inetAddress = InetAddress.getLoopbackAddress();
 
         setInitialState(null, licenseState, settings);
@@ -49,44 +48,7 @@ public class LicenseTLSTests extends AbstractLicenseServiceTestCase {
                 .put("discovery.type", "single-node")
                 .build();
         licenseService.stop();
-        licenseState = new XPackLicenseState(settings, () -> 0);
-        setInitialState(null, licenseState, settings);
-        licenseService.start();
-        licenseService.registerLicense(request, responseFuture);
-        verify(clusterService, times(2)).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
-    }
-
-    public void testApplyLicenseInProdMode() throws Exception {
-        final String licenseType = randomFrom("GOLD", "PLATINUM");
-        License newLicense = TestUtils.generateSignedLicense(licenseType, TimeValue.timeValueHours(24L));
-        PutLicenseRequest request = new PutLicenseRequest();
-        request.acknowledge(true);
-        request.license(newLicense);
-        Settings settings = Settings.builder().put("xpack.security.enabled", true).build();
-        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
-        inetAddress = TransportAddress.META_ADDRESS;
-
-        setInitialState(null, licenseState, settings);
-        licenseService.start();
-        PlainActionFuture<PutLicenseResponse> responseFuture = new PlainActionFuture<>();
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> licenseService.registerLicense(request, responseFuture));
-        assertThat(e.getMessage(),
-                containsString("Cannot install a [" + licenseType + "] license unless TLS is configured or security is disabled"));
-
-        settings = Settings.builder().put("xpack.security.enabled", false).build();
-        licenseService.stop();
-        licenseState = new XPackLicenseState(settings, () -> 0);
-        setInitialState(null, licenseState, settings);
-        licenseService.start();
-        licenseService.registerLicense(request, responseFuture);
-        verify(clusterService).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
-
-        settings = Settings.builder()
-                .put("xpack.security.enabled", true)
-                .put("xpack.security.transport.ssl.enabled", true)
-                .build();
-        licenseService.stop();
-        licenseState = new XPackLicenseState(settings, () -> 0);
+        licenseState = new XPackLicenseState(() -> 0);
         setInitialState(null, licenseState, settings);
         licenseService.start();
         licenseService.registerLicense(request, responseFuture);

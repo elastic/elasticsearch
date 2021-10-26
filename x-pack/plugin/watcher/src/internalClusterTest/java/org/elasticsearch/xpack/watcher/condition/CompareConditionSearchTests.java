@@ -7,10 +7,9 @@
 package org.elasticsearch.xpack.watcher.condition;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -78,7 +77,7 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
                 Clock.systemUTC());
         SearchHit hit = new SearchHit(0, "1", null, null);
         hit.score(1f);
-        hit.shard(new SearchShardTarget("a", new ShardId("a", "indexUUID", 0), null, OriginalIndices.NONE));
+        hit.shard(new SearchShardTarget("a", new ShardId("a", "indexUUID", 0), null));
 
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(
                 new SearchHits(new SearchHit[]{hit}, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1f),

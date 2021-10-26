@@ -13,12 +13,13 @@ import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent.MapParams;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent.MapParams;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
@@ -309,7 +310,7 @@ public class IndicesOptionsTests extends ESTestCase {
         BytesReference xContentBytes = toXContentBytes(indicesOptions, type);
         IndicesOptions fromXContentOptions;
         try (XContentParser parser = type.xContent().createParser(
-            NamedXContentRegistry.EMPTY, null, xContentBytes.streamInput())) {
+            NamedXContentRegistry.EMPTY, DeprecationHandler.IGNORE_DEPRECATIONS, xContentBytes.streamInput())) {
             fromXContentOptions = IndicesOptions.fromXContent(parser);
         }
 

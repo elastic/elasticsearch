@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
@@ -1411,6 +1412,18 @@ public class OptimizerRulesTests extends ESTestCase {
         PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule((Or) Predicates.combineOr(asList(eq, range, neq, gt)));
         assertEquals(TRUE, exp);
+    }
+
+    // a == 1 AND a == 2 -> nop for date/time fields
+    public void testPropagateEquals_ignoreDateTimeFields() {
+        FieldAttribute fa = getFieldAttribute("a", DataTypes.DATETIME);
+        Equals eq1 = equalsOf(fa, ONE);
+        Equals eq2 = equalsOf(fa, TWO);
+        And and = new And(EMPTY, eq1, eq2);
+
+        PropagateEquals rule = new PropagateEquals();
+        Expression exp = rule.rule(and);
+        assertEquals(and, exp);
     }
 
     //

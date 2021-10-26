@@ -33,6 +33,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.Set;
 import java.util.zip.Deflater;
@@ -40,7 +41,6 @@ import java.util.zip.DeflaterOutputStream;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.joda.time.DateTime.now;
 import static org.mockito.Mockito.when;
 import static org.opensaml.saml.common.xml.SAMLConstants.SAML2_REDIRECT_BINDING_URI;
 import static org.opensaml.saml.saml2.core.NameIDType.PERSISTENT;
@@ -252,7 +252,7 @@ public class SamlAuthnRequestValidatorTests extends IdpSamlTestCase {
         final AuthnRequest authnRequest = samlFactory.buildObject(AuthnRequest.class, AuthnRequest.DEFAULT_ELEMENT_NAME);
         authnRequest.setID(samlFactory.secureIdentifier());
         authnRequest.setIssuer(issuer);
-        authnRequest.setIssueInstant(now());
+        authnRequest.setIssueInstant(Instant.now());
         authnRequest.setAssertionConsumerServiceURL(acs.toString());
         authnRequest.setDestination(destination.toString());
         authnRequest.setNameIDPolicy(nameIDPolicy);

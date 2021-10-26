@@ -10,9 +10,9 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
+import org.elasticsearch.xcontent.ToXContentObject;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -94,7 +94,7 @@ public abstract class BucketOrder implements ToXContentObject, Writeable {
      * @throws AggregationExecutionException when the ordering is invalid
      *         for this {@linkplain Aggregator}.
      */
-    public final void validate(Aggregator aggregator) throws AggregationExecutionException{
+    public final void validate(Aggregator aggregator) throws AggregationExecutionException {
         /*
          * Building partiallyBuiltBucketComparator and throwing it away is enough
          * to validate this order because doing so checks all of the appropriate

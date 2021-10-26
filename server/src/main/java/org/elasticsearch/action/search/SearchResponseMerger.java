@@ -14,7 +14,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
+import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
@@ -27,8 +27,8 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.profile.ProfileShardResult;
-import org.elasticsearch.search.profile.SearchProfileShardResults;
+import org.elasticsearch.search.profile.SearchProfileResults;
+import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 
@@ -111,7 +111,7 @@ final class SearchResponseMerger {
         //the current reduce phase counts as one
         int numReducePhases = 1;
         List<ShardSearchFailure> failures = new ArrayList<>();
-        Map<String, ProfileShardResult> profileResults = new HashMap<>();
+        Map<String, SearchProfileShardResult> profileResults = new HashMap<>();
         List<InternalAggregations> aggs = new ArrayList<>();
         Map<ShardIdAndClusterAlias, Integer> shards = new TreeMap<>();
         List<TopDocs> topDocsList = new ArrayList<>(searchResponses.size());
@@ -187,7 +187,7 @@ final class SearchResponseMerger {
         Suggest suggest = groupedSuggestions.isEmpty() ? null : new Suggest(Suggest.reduce(groupedSuggestions));
         InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(aggs, aggReduceContextBuilder.forFinalReduction());
         ShardSearchFailure[] shardFailures = failures.toArray(ShardSearchFailure.EMPTY_ARRAY);
-        SearchProfileShardResults profileShardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
+        SearchProfileResults profileShardResults = profileResults.isEmpty() ? null : new SearchProfileResults(profileResults);
         //make failures ordering consistent between ordinary search and CCS by looking at the shard they come from
         Arrays.sort(shardFailures, FAILURES_COMPARATOR);
         InternalSearchResponse response = new InternalSearchResponse(mergedSearchHits, reducedAggs, suggest, profileShardResults,
@@ -253,7 +253,7 @@ final class SearchResponseMerger {
         if (searchHits.getSortFields() != null) {
             if (searchHits.getCollapseField() != null) {
                 assert searchHits.getCollapseValues() != null;
-                topDocs = new CollapseTopFieldDocs(searchHits.getCollapseField(), totalHits, scoreDocs,
+                topDocs = new TopFieldGroups(searchHits.getCollapseField(), totalHits, scoreDocs,
                     searchHits.getSortFields(), searchHits.getCollapseValues());
             } else {
                 topDocs = new TopFieldDocs(totalHits, scoreDocs, searchHits.getSortFields());
@@ -338,18 +338,18 @@ final class SearchResponseMerger {
             }
         }
         SortField[] sortFields = null;
-        String collapseField = null;
-        Object[] collapseValues = null;
+        String groupField = null;
+        Object[] groupValues = null;
         if (topDocs instanceof TopFieldDocs) {
             sortFields = ((TopFieldDocs)topDocs).fields;
-            if (topDocs instanceof CollapseTopFieldDocs) {
-                CollapseTopFieldDocs collapseTopFieldDocs = (CollapseTopFieldDocs)topDocs;
-                collapseField = collapseTopFieldDocs.field;
-                collapseValues = collapseTopFieldDocs.collapseValues;
+            if (topDocs instanceof TopFieldGroups) {
+                TopFieldGroups topFieldGroups = (TopFieldGroups)topDocs;
+                groupField = topFieldGroups.field;
+                groupValues = topFieldGroups.groupValues;
             }
         }
         return new SearchHits(searchHits, topDocsStats.getTotalHits(), topDocsStats.getMaxScore(),
-            sortFields, collapseField, collapseValues);
+            sortFields, groupField, groupValues);
     }
 
     private static final class FieldDocAndSearchHit extends FieldDoc {

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction.Response;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
@@ -20,7 +20,7 @@ public class PutTrainedModelActionResponseTests extends AbstractWireSerializingT
     @Override
     protected Response createTestInstance() {
         String modelId = randomAlphaOfLength(10);
-        return new Response(TrainedModelConfigTests.createTestInstance(modelId)
+        return new Response(TrainedModelConfigTests.createTestInstance(modelId, randomBoolean())
             .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder())
             .build());
     }

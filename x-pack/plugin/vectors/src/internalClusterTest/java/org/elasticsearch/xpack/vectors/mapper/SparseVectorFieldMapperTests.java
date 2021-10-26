@@ -13,12 +13,12 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -26,7 +26,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.vectors.Vectors;
+import org.elasticsearch.xpack.vectors.DenseVectorPlugin;
 
 import java.util.Collection;
 
@@ -36,7 +36,7 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(Vectors.class, LocalStateCompositeXPackPlugin.class);
+        return pluginList(DenseVectorPlugin.class, LocalStateCompositeXPackPlugin.class);
     }
 
     // this allows to set indexVersion as it is a private setting
@@ -47,7 +47,7 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testValueFetcherIsNotSupported() {
         SparseVectorFieldMapper.Builder builder = new SparseVectorFieldMapper.Builder("field");
-        MappedFieldType fieldMapper = builder.build(new ContentPath()).fieldType();
+        MappedFieldType fieldMapper = builder.build(MapperBuilderContext.ROOT).fieldType();
         UnsupportedOperationException exc = expectThrows(UnsupportedOperationException.class,
             () -> fieldMapper.valueFetcher(null, null));
         assertEquals(SparseVectorFieldMapper.ERROR_MESSAGE_7X, exc.getMessage());

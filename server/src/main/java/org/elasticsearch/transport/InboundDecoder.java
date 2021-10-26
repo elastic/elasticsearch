@@ -83,6 +83,7 @@ public class InboundDecoder implements Releasable {
                     return 0;
                 } else {
                     this.decompressor = decompressor;
+                    fragmentConsumer.accept(this.decompressor.getScheme());
                 }
             }
             int remainingToConsume = totalNetworkSize - bytesConsumed;

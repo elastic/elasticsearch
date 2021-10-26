@@ -32,7 +32,7 @@ public class Filter extends UnaryPlan {
     }
 
     @Override
-    protected Filter replaceChild(LogicalPlan newChild) {
+    public Filter replaceChild(LogicalPlan newChild) {
         return new Filter(source(), newChild, condition);
     }
 

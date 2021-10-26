@@ -9,7 +9,8 @@
 package org.elasticsearch.client.indices;
 
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -53,7 +54,7 @@ public class GetComposableIndexTemplatesResponseTests extends ESTestCase {
             builder.startObject();
             builder.field("name", e.getKey());
             builder.field("index_template");
-            e.getValue().toXContent(builder, null);
+            e.getValue().toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
         }
         builder.endArray();

@@ -15,6 +15,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -90,9 +91,13 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         NodesHotThreadsRequest nodesHotThreadsRequest = new NodesHotThreadsRequest(nodesIds);
         nodesHotThreadsRequest.threads(request.paramAsInt("threads", nodesHotThreadsRequest.threads()));
-        nodesHotThreadsRequest.ignoreIdleThreads(request.paramAsBoolean("ignore_idle_threads", nodesHotThreadsRequest.ignoreIdleThreads()));
-        nodesHotThreadsRequest.type(request.param("type", nodesHotThreadsRequest.type()));
-        nodesHotThreadsRequest.interval(TimeValue.parseTimeValue(request.param("interval"), nodesHotThreadsRequest.interval(), "interval"));
+        nodesHotThreadsRequest.ignoreIdleThreads(
+            request.paramAsBoolean("ignore_idle_threads", nodesHotThreadsRequest.ignoreIdleThreads()));
+        nodesHotThreadsRequest.type(HotThreads.ReportType.of(request.param("type", nodesHotThreadsRequest.type().getTypeValue())));
+        nodesHotThreadsRequest.sortOrder(
+            HotThreads.SortOrder.of(request.param("sort", nodesHotThreadsRequest.sortOrder().getOrderValue())));
+        nodesHotThreadsRequest.interval(
+            TimeValue.parseTimeValue(request.param("interval"), nodesHotThreadsRequest.interval(), "interval"));
         nodesHotThreadsRequest.snapshots(request.paramAsInt("snapshots", nodesHotThreadsRequest.snapshots()));
         nodesHotThreadsRequest.timeout(request.param("timeout"));
         return channel -> client.admin().cluster().nodesHotThreads(

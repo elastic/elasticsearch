@@ -23,6 +23,8 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.VectorValues;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 
@@ -92,7 +94,8 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
 
     @Override
     public CacheHelper getReaderCacheHelper() {
-        throw new UnsupportedOperationException();
+        // this reader is used for fast operations that don't require caching
+        return null;
     }
 
     // except of a couple of selected methods everything else will
@@ -214,6 +217,16 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
         }
 
         @Override
+        public VectorValues getVectorValues(String field) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public FieldInfos getFieldInfos() {
             return fieldInfos;
         }
@@ -238,7 +251,7 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        public Fields getTermVectors(int docID) {
+        public Fields getTermVectors(int docId) {
             throw new UnsupportedOperationException();
         }
 

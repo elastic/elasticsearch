@@ -20,12 +20,14 @@ import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.gradle.plugins.ide.eclipse.model.AccessRule
 import org.gradle.util.DistributionLocator
 import org.gradle.util.GradleVersion
+import org.elasticsearch.gradle.util.GradleUtils
+
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
 import org.gradle.plugins.ide.eclipse.model.ProjectDependency
 import org.elasticsearch.gradle.internal.InternalPluginBuildPlugin
 import org.elasticsearch.gradle.internal.ResolveAllDependencies
 import java.nio.file.Files
-import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING
 
 plugins {
   id 'lifecycle-base'
@@ -38,20 +40,12 @@ plugins {
   id 'elasticsearch.runtime-jdk-provision'
   id 'elasticsearch.ide'
   id 'elasticsearch.forbidden-dependencies'
-  id 'elasticsearch.formatting'
   id 'elasticsearch.local-distribution'
   id 'elasticsearch.fips'
   id 'elasticsearch.internal-testclusters'
   id 'elasticsearch.run'
   id 'elasticsearch.release-tools'
-  id "com.diffplug.spotless" version "5.12.5" apply false
-}
-
-String licenseCommit
-if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
-  licenseCommit = BuildParams.gitRevision ?: "master" // leniency for non git builds
-} else {
-  licenseCommit = "v${version}"
+  id 'elasticsearch.versions'
 }
 
 /**
@@ -82,13 +76,6 @@ tasks.register("updateCIBwcVersions") {
       yml << "  - \"$it\"\n"
     }
   }
-}
-
-//TODO port buildMetaData to use provider api
-String buildMetadataValue = providers.environmentVariable('BUILD_METADATA').forUseAtConfigurationTime().orElse("").get()
-Map<String, String> buildMetadataMap = buildMetadataValue.tokenize(';').collectEntries {
-  def (String key, String value) = it.split('=')
-  return [key, value]
 }
 
 tasks.register("verifyVersions") {
@@ -129,12 +116,6 @@ tasks.register("verifyVersions") {
         throw new GradleException("No branch choice exists for development branch ${unreleasedVersion.branch} in .backportrc.json.")
       }
     }
-    BwcVersions.UnreleasedVersionInfo nextMinor = unreleased.find { it.branch.endsWith("x") }
-    String versionMapping = backportConfig.get("branchLabelMapping").fields().find { it.value.textValue() == nextMinor.branch }.key
-    if (versionMapping != "^v${nextMinor.version}\$") {
-      throw new GradleException("Backport label mapping for branch ${nextMinor.branch} is '${versionMapping}' but should be " +
-        "'^v${nextMinor.version}\$'. Update .backportrc.json.")
-    }
   }
 }
 
@@ -172,19 +153,14 @@ if (project.gradle.startParameter.taskNames.find { it.startsWith("checkPart") } 
   bwc_tests_enabled = false
 }
 
-allprojects {
-  // common maven publishing configuration
-  group = 'org.elasticsearch'
-  version = VersionProperties.elasticsearch
-  description = "Elasticsearch subproject ${project.path}"
+subprojects {
+  apply plugin: 'elasticsearch.base'
+}
 
+allprojects {
   // We disable this plugin for now till we shaked out the issues we see
   // e.g. see https://github.com/elastic/elasticsearch/issues/72169
   // apply plugin:'elasticsearch.internal-test-rerun'
-  plugins.withType(BuildPlugin).whenPluginAdded {
-    project.licenseFile = project.rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
-    project.noticeFile = project.rootProject.file('NOTICE.txt')
-  }
 
   plugins.withType(InternalPluginBuildPlugin).whenPluginAdded {
     project.dependencies {
@@ -196,12 +172,10 @@ allprojects {
   // injecting groovy property variables into all projects
   project.ext {
     // for ide hacks...
-    isEclipse = System.getProperty("eclipse.launcher") != null ||   // Detects gradle launched from Eclipse's IDE
-            System.getProperty("eclipse.application") != null ||    // Detects gradle launched from the Eclipse compiler server
+    isEclipse = providers.systemProperty("eclipse.launcher").forUseAtConfigurationTime().isPresent() ||   // Detects gradle launched from Eclipse's IDE
+            providers.systemProperty("eclipse.application").forUseAtConfigurationTime().isPresent() ||    // Detects gradle launched from the Eclipse compiler server
             gradle.startParameter.taskNames.contains('eclipse') ||  // Detects gradle launched from the command line to do eclipse stuff
             gradle.startParameter.taskNames.contains('cleanEclipse')
-
-    buildMetadata = buildMetadataMap
   }
 
   ext.bwc_tests_enabled = bwc_tests_enabled
@@ -356,6 +330,7 @@ allprojects {
     }
   }
 
+  apply plugin: 'elasticsearch.formatting'
 }
 
 
@@ -435,4 +410,23 @@ tasks.named("eclipse").configure {
   dependsOn gradle.includedBuild('build-conventions').task(':eclipse')
   dependsOn gradle.includedBuild('build-tools').task(':eclipse')
   dependsOn gradle.includedBuild('build-tools-internal').task(':eclipse')
+}
+
+tasks.register("buildReleaseArtifacts").configure {
+  group = 'build'
+  description = 'Builds all artifacts required for release manager'
+
+  dependsOn allprojects.findAll {
+    it.path.startsWith(':distribution:docker') == false
+      && it.path.startsWith(':ml-cpp') == false
+      && it.path.startsWith(':distribution:bwc') == false
+  }
+    .collect { GradleUtils.findByName(it.tasks, 'assemble') }
+    .findAll { it != null }
+}
+
+tasks.named("spotlessApply").configure {
+  dependsOn gradle.includedBuild('build-tools').task(':spotlessApply')
+  dependsOn gradle.includedBuild('build-tools').task(':reaper:spotlessApply')
+  dependsOn gradle.includedBuild('build-tools-internal').task(':spotlessApply')
 }

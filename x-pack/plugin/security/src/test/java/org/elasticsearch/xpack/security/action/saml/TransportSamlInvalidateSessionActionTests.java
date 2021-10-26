@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.security.action.saml;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -35,20 +35,16 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.tasks.Task;
@@ -57,6 +53,9 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionRequest;
@@ -69,6 +68,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.saml.SamlLogoutRequestHandler;
@@ -98,6 +98,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
@@ -208,9 +209,8 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         when(securityIndex.aliasName()).thenReturn(".security");
         when(securityIndex.freeze()).thenReturn(securityIndex);
 
-        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
+        final MockLicenseState licenseState = mock(MockLicenseState.class);
+        when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);;
 
         final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         final SecurityContext securityContext = new SecurityContext(settings, threadContext);
@@ -273,7 +273,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         storeToken(userTokenId2, refreshToken2, logoutRequest.getNameId(), logoutRequest.getSession());
         storeToken(new SamlNameId(NameID.PERSISTENT, randomAlphaOfLength(16), null, null, null), logoutRequest.getSession());
 
-        assertThat(indexRequests.size(), equalTo(4));
+        assertThat(indexRequests, hasSize(4));
 
         final AtomicInteger counter = new AtomicInteger();
         final SearchHit[] searchHits = indexRequests.stream()
@@ -304,7 +304,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
 
         // 1 to find the tokens for the realm
         // 2 more to find the UserTokens from the 2 matching refresh tokens
-        assertThat(searchRequests.size(), equalTo(3));
+        assertThat(searchRequests, hasSize(3));
 
         assertThat(searchRequests.get(0).source().query(), instanceOf(BoolQueryBuilder.class));
         final List<QueryBuilder> filter0 = ((BoolQueryBuilder) searchRequests.get(0).source().query()).filter();
@@ -337,7 +337,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         assertThat(tokenToInvalidate1.getAuthentication(), equalTo(new Authentication(new User("bob"),
             new RealmRef("native", NativeRealmSettings.TYPE, "node01"), null)));
 
-        assertThat(bulkRequests.size(), equalTo(4)); // 4 updates (refresh-token + access-token)
+        assertThat(bulkRequests, hasSize(4)); // 4 updates (refresh-token + access-token)
         // Invalidate refresh token 1
         assertThat(bulkRequests.get(0).requests().get(0), instanceOf(UpdateRequest.class));
         assertThat(bulkRequests.get(0).requests().get(0).id(), equalTo("token_" + TokenService.hashTokenString(userTokenId1)));

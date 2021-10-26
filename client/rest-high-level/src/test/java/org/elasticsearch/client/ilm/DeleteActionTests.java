@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.client.ilm;
 
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 public class DeleteActionTests extends AbstractXContentTestCase<DeleteAction> {

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.client.transform.transforms;
 
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.ToXContentObject;
 
 public interface RetentionPolicyConfig extends ToXContentObject {
 

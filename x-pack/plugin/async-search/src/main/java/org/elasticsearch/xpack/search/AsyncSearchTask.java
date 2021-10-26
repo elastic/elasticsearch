@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
@@ -79,7 +80,8 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
      * @param taskHeaders The filtered request headers for the task.
      * @param searchId The {@link AsyncExecutionId} of the task.
      * @param threadPool The threadPool to schedule runnable.
-     * @param aggReduceContextSupplier A supplier to create final reduce contexts.
+     * @param aggReduceContextSupplierFactory A factory that creates as supplier to create final reduce contexts, we need a factory in
+     *                                        order to inject the task itself to the reduce context.
      */
     AsyncSearchTask(long id,
                     String type,
@@ -92,14 +94,14 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                     AsyncExecutionId searchId,
                     Client client,
                     ThreadPool threadPool,
-                    Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier) {
+                    Function<Supplier<Boolean>, Supplier<InternalAggregation.ReduceContext>> aggReduceContextSupplierFactory) {
         super(id, type, action, () -> "async_search{" + descriptionSupplier.get() + "}", parentTaskId, taskHeaders);
         this.expirationTimeMillis = getStartTime() + keepAlive.getMillis();
         this.originHeaders = originHeaders;
         this.searchId = searchId;
         this.client = client;
         this.threadPool = threadPool;
-        this.aggReduceContextSupplier = aggReduceContextSupplier;
+        this.aggReduceContextSupplier = aggReduceContextSupplierFactory.apply(this::isCancelled);
         this.progressListener = new Listener();
         setProgressListener(progressListener);
     }

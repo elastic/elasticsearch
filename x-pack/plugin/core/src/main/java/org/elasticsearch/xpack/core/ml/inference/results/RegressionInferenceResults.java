@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 
@@ -102,6 +102,11 @@ public class RegressionInferenceResults extends SingleValueInferenceResults {
     @Override
     public Object predictedValue() {
         return super.value();
+    }
+
+    @Override
+    public String getResultsField() {
+        return resultsField;
     }
 
     @Override

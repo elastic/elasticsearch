@@ -35,19 +35,19 @@ public class CleanupSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     @Override
-    void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, ActionListener<Boolean> listener) {
+    void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, ActionListener<Void> listener) {
         final String indexName = indexMetadata.getIndex().getName();
 
         LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
         final String repositoryName = lifecycleState.getSnapshotRepository();
         // if the snapshot information is missing from the ILM execution state there is nothing to delete so we move on
         if (Strings.hasText(repositoryName) == false) {
-            listener.onResponse(true);
+            listener.onResponse(null);
             return;
         }
         final String snapshotName = lifecycleState.getSnapshotName();
         if (Strings.hasText(snapshotName) == false) {
-            listener.onResponse(true);
+            listener.onResponse(null);
             return;
         }
         getClient().admin().cluster().prepareDeleteSnapshot(repositoryName, snapshotName).setMasterNodeTimeout(TimeValue.MAX_VALUE)
@@ -60,14 +60,14 @@ public class CleanupSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
                     throw new ElasticsearchException("cleanup snapshot step request for repository [" + repositoryName + "] and snapshot " +
                         "[" + snapshotName + "] policy [" + policyName + "] and index [" + indexName + "] failed to be acknowledged");
                 }
-                listener.onResponse(true);
+                listener.onResponse(null);
             }
 
             @Override
             public void onFailure(Exception e) {
                 if (e instanceof SnapshotMissingException) {
                     // during the happy flow we generate a snapshot name and that snapshot doesn't exist in the repository
-                    listener.onResponse(true);
+                    listener.onResponse(null);
                 } else {
                     if (e instanceof RepositoryMissingException) {
                         String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);

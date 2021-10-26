@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
@@ -139,31 +140,31 @@ public class RoutingTableTests extends ESAllocationTestCase {
     }
 
     public void testShardsWithState() {
-        assertThat(clusterState.routingTable().shardsWithState(ShardRoutingState.UNASSIGNED).size(), is(this.totalNumberOfShards));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.UNASSIGNED).size(), is(this.totalNumberOfShards));
 
         initPrimaries();
-        assertThat(clusterState.routingTable().shardsWithState(ShardRoutingState.UNASSIGNED).size(),
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.UNASSIGNED).size(),
             is(this.totalNumberOfShards - 2 * this.numberOfShards));
-        assertThat(clusterState.routingTable().shardsWithState(ShardRoutingState.INITIALIZING).size(), is(2 * this.numberOfShards));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING).size(), is(2 * this.numberOfShards));
 
         startInitializingShards(TEST_INDEX_1);
-        assertThat(clusterState.routingTable().shardsWithState(ShardRoutingState.STARTED).size(), is(this.numberOfShards));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), is(this.numberOfShards));
         int initializingExpected = this.numberOfShards + this.numberOfShards * this.numberOfReplicas;
-        assertThat(clusterState.routingTable().shardsWithState(ShardRoutingState.INITIALIZING).size(), is(initializingExpected));
-        assertThat(clusterState.routingTable().shardsWithState(ShardRoutingState.UNASSIGNED).size(),
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING).size(), is(initializingExpected));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.UNASSIGNED).size(),
             is(this.totalNumberOfShards - initializingExpected - this.numberOfShards));
 
         startInitializingShards(TEST_INDEX_2);
-        assertThat(clusterState.routingTable().shardsWithState(ShardRoutingState.STARTED).size(), is(2 * this.numberOfShards));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), is(2 * this.numberOfShards));
         initializingExpected = 2 * this.numberOfShards * this.numberOfReplicas;
-        assertThat(clusterState.routingTable().shardsWithState(ShardRoutingState.INITIALIZING).size(), is(initializingExpected));
-        assertThat(clusterState.routingTable().shardsWithState(ShardRoutingState.UNASSIGNED).size(),
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING).size(), is(initializingExpected));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.UNASSIGNED).size(),
             is(this.totalNumberOfShards - initializingExpected - 2 * this.numberOfShards));
 
         // now start all replicas too
         startInitializingShards(TEST_INDEX_1);
         startInitializingShards(TEST_INDEX_2);
-        assertThat(clusterState.routingTable().shardsWithState(ShardRoutingState.STARTED).size(), is(this.totalNumberOfShards));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), is(this.totalNumberOfShards));
     }
 
     public void testActivePrimaryShardsGrouped() {

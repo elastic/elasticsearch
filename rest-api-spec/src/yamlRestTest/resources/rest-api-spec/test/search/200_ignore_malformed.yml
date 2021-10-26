@@ -88,3 +88,20 @@ setup:
 
   - length:   { hits.hits: 1  }
   - is_true:  hits.hits.0._ignored
+
+
+---
+"ignored_field_values is returned by default":
+  - skip:
+      version: " - 7.99.99"
+      reason: ignored_field_values was added in 8.0
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { query: { ids: { "values": [ "3" ] } },"_source":false, "fields":["my*"]}
+
+  - length:   { hits.hits: 1  }
+  - length:   { hits.hits.0._ignored: 2}
+  - length:   { hits.hits.0.ignored_field_values.my_date: 1}
+  - length:   { hits.hits.0.ignored_field_values.my_ip: 1}

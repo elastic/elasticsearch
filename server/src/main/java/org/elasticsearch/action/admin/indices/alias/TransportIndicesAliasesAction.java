@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.alias;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -159,7 +158,7 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
                 if (indexAbstraction.getParentDataStream() != null) {
                     throw new IllegalArgumentException("The provided expressions [" + String.join(",", action.indices())
                         + "] match a backing index belonging to data stream [" + indexAbstraction.getParentDataStream().getName()
-                        + "]. Data streams and their backing indices don't support aliases.");
+                        + "]. Data stream backing indices don't support aliases.");
                 }
             }
             final Optional<Exception> maybeException = requestValidators.validateRequest(request, state, concreteIndices);
@@ -212,8 +211,8 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
             String[] indexAsArray = {concreteIndex};
             ImmutableOpenMap<String, List<AliasMetadata>> aliasMetadata = metadata.findAliases(action, indexAsArray);
             List<String> finalAliases = new ArrayList<>();
-            for (ObjectCursor<List<AliasMetadata>> curAliases : aliasMetadata.values()) {
-                for (AliasMetadata aliasMeta: curAliases.value) {
+            for (List<AliasMetadata> aliases : aliasMetadata.values()) {
+                for (AliasMetadata aliasMeta : aliases) {
                     finalAliases.add(aliasMeta.alias());
                 }
             }

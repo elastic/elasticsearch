@@ -18,7 +18,7 @@ Returns defaults and limits used by machine learning.
 [[get-ml-info-prereqs]]
 == {api-prereq-title}
 
-Requires the `monitor_ml` cluster privilege. This privilege is included in the 
+Requires the `monitor_ml` cluster privilege. This privilege is included in the
 `machine_learning_user` built-in role.
 
 [[get-ml-info-desc]]
@@ -50,7 +50,7 @@ This is a possible response:
     "anomaly_detectors" : {
       "categorization_analyzer" : {
         "char_filter" : [
-          "first_non_blank_line"
+          "first_line_with_letters"
         ],
         "tokenizer" : "ml_standard",
         "filter" : [

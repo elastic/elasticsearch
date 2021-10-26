@@ -102,8 +102,10 @@ public class FsHealthServiceTests extends ESTestCase {
             fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
             fsHealthService.new FsHealthMonitor().run();
             assertEquals(UNHEALTHY, fsHealthService.getHealth().getStatus());
-            Path path = env.nodeDataPath();
-            assertTrue(fsHealthService.getHealth().getInfo().contains(path.toString()));
+            for (Path path : env.nodeDataPaths()) {
+                assertTrue(fsHealthService.getHealth().getInfo().contains(path.toString()));
+            }
+            assertEquals(env.nodeDataPaths().length, disruptFileSystemProvider.getInjectedPathCount());
         } finally {
             disruptFileSystemProvider.injectIOException.set(false);
             PathUtilsForTesting.teardown();
@@ -132,17 +134,19 @@ public class FsHealthServiceTests extends ESTestCase {
         try (NodeEnvironment env = newNodeEnvironment()) {
             FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
             int counter = 0;
-            Path path = env.nodeDataPath();
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "test" + ++counter,
-                    FsHealthService.class.getCanonicalName(),
-                    Level.WARN,
-                    "health check of [" + path + "] took [*ms] which is above the warn threshold*"));
+            for(Path path : env.nodeDataPaths()){
+                mockAppender.addExpectation(
+                    new MockLogAppender.SeenEventExpectation(
+                        "test" + ++counter,
+                        FsHealthService.class.getCanonicalName(),
+                        Level.WARN,
+                        "health check of [" + path + "] took [*ms] which is above the warn threshold*"));
+            }
 
             //disrupt file system
             disruptFileSystemProvider.injectIOException.set(true);
             fsHealthService.new FsHealthMonitor().run();
+            assertEquals(env.nodeDataPaths().length, disruptFileSystemProvider.getInjectedPathCount());
             assertBusy(mockAppender::assertAllExpectationsMatched);
         } finally {
             Loggers.removeAppender(logger, mockAppender);
@@ -161,7 +165,7 @@ public class FsHealthServiceTests extends ESTestCase {
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         TestThreadPool testThreadPool = new TestThreadPool(getClass().getName(), settings);
         try (NodeEnvironment env = newNodeEnvironment()) {
-            Path[] paths = new Path[] { env.nodeDataPath() };
+            Path[] paths = env.nodeDataPaths();
             FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
             fsHealthService.new FsHealthMonitor().run();
             assertEquals(HEALTHY, fsHealthService.getHealth().getStatus());
@@ -192,7 +196,7 @@ public class FsHealthServiceTests extends ESTestCase {
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         TestThreadPool testThreadPool = new TestThreadPool(getClass().getName(), settings);
         try (NodeEnvironment env = newNodeEnvironment()) {
-            Path[] paths = new Path[] { env.nodeDataPath() };
+            Path[] paths = env.nodeDataPaths();
             FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
             fsHealthService.new FsHealthMonitor().run();
             assertEquals(HEALTHY, fsHealthService.getHealth().getStatus());

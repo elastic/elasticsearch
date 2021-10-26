@@ -60,6 +60,7 @@ import java.util.List;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.shuffle;
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
@@ -193,7 +194,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
 
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
             .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(routingTable).build();
-        assertThat(routingTable.shardsWithState(UNASSIGNED).size(), equalTo(routingTable.allShards().size()));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).size(), equalTo(routingTable.allShards().size()));
         List<DiscoveryNode> nodes = new ArrayList<>();
         int nodeIdx = 0;
         int iters = scaledRandomIntBetween(10, 100);
@@ -410,7 +411,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
     private void assertRecoveryNodeVersions(RoutingNodes routingNodes) {
         logger.trace("RoutingNodes: {}", routingNodes);
 
-        List<ShardRouting> mutableShardRoutings = routingNodes.shardsWithState(ShardRoutingState.RELOCATING);
+        List<ShardRouting> mutableShardRoutings = shardsWithState(routingNodes, ShardRoutingState.RELOCATING);
         for (ShardRouting r : mutableShardRoutings) {
             if (r.primary()) {
                 String toId = r.relocatingNodeId();
@@ -431,7 +432,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             }
         }
 
-        mutableShardRoutings = routingNodes.shardsWithState(ShardRoutingState.INITIALIZING);
+        mutableShardRoutings = shardsWithState(routingNodes, ShardRoutingState.INITIALIZING);
         for (ShardRouting r : mutableShardRoutings) {
             if (r.primary() == false) {
                 ShardRouting primary = routingNodes.activePrimary(r.shardId());

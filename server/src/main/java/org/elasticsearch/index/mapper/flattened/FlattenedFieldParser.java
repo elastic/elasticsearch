@@ -13,7 +13,7 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -176,5 +176,5 @@ class FlattenedFieldParser {
         }
         int valueStart = keyedValue.offset + length + 1;
         return new BytesRef(keyedValue.bytes, valueStart, keyedValue.length - valueStart );
-    }    
+    }
 }

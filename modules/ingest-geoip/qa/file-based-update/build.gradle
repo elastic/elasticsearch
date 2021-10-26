@@ -9,7 +9,7 @@
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'resource.reload.interval.high', '100ms'
   setting 'xpack.security.enabled', 'true'
@@ -18,7 +18,7 @@ testClusters.all {
 
 tasks.named("integTest").configure {
   systemProperty 'tests.security.manager', 'false' // Allows the test the add databases to config directory.
-  nonInputProperties.systemProperty 'tests.config.dir', "${-> testClusters.integTest.singleNode().getConfigDir()}"
+  nonInputProperties.systemProperty 'tests.config.dir', testClusters.named("integTest").map(c -> c.singleNode().getConfigDir())
 }
 
 tasks.named("forbiddenPatterns").configure {

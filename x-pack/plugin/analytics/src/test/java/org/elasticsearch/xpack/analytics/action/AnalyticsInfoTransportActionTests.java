@@ -58,12 +58,17 @@ public class AnalyticsInfoTransportActionTests extends ESTestCase {
     }
 
     public void testAvailable() throws Exception {
-        AnalyticsInfoTransportAction featureSet = new AnalyticsInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class));
+        AnalyticsInfoTransportAction featureSet = new AnalyticsInfoTransportAction(mock(TransportService.class), mock(ActionFilters.class));
         assertThat(featureSet.available(), is(true));
         Client client = mockClient();
-        AnalyticsUsageTransportAction usageAction = new AnalyticsUsageTransportAction(mock(TransportService.class), clusterService, null,
-            mock(ActionFilters.class), null, client);
+        AnalyticsUsageTransportAction usageAction = new AnalyticsUsageTransportAction(
+            mock(TransportService.class),
+            clusterService,
+            null,
+            mock(ActionFilters.class),
+            null,
+            client
+        );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(task, null, clusterState, future);
         XPackFeatureSet.Usage usage = future.get().getUsage();
@@ -78,13 +83,18 @@ public class AnalyticsInfoTransportActionTests extends ESTestCase {
     }
 
     public void testEnabled() throws Exception {
-        AnalyticsInfoTransportAction featureSet = new AnalyticsInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class));
+        AnalyticsInfoTransportAction featureSet = new AnalyticsInfoTransportAction(mock(TransportService.class), mock(ActionFilters.class));
         assertThat(featureSet.enabled(), is(true));
         assertTrue(featureSet.enabled());
         Client client = mockClient();
-        AnalyticsUsageTransportAction usageAction = new AnalyticsUsageTransportAction(mock(TransportService.class),
-            clusterService, null, mock(ActionFilters.class), null, client);
+        AnalyticsUsageTransportAction usageAction = new AnalyticsUsageTransportAction(
+            mock(TransportService.class),
+            clusterService,
+            null,
+            mock(ActionFilters.class),
+            null,
+            client
+        );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(task, null, clusterState, future);
         XPackFeatureSet.Usage usage = future.get().getUsage();
@@ -102,8 +112,8 @@ public class AnalyticsInfoTransportActionTests extends ESTestCase {
         Client client = mock(Client.class);
         doAnswer((Answer<Void>) invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<AnalyticsStatsAction.Response> listener =
-                (ActionListener<AnalyticsStatsAction.Response>) invocation.getArguments()[2];
+            ActionListener<AnalyticsStatsAction.Response> listener = (ActionListener<AnalyticsStatsAction.Response>) invocation
+                .getArguments()[2];
             listener.onResponse(new AnalyticsStatsAction.Response(clusterName, Collections.emptyList(), Collections.emptyList()));
             return null;
         }).when(client).execute(eq(AnalyticsStatsAction.INSTANCE), any(), any());

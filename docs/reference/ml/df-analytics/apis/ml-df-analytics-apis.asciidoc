@@ -19,11 +19,14 @@ You can use the following APIs to perform {ml} {dfanalytics} activities:
 You can use the following APIs to perform {infer} operations:
 
 * <<put-trained-models>>
+* <<put-trained-model-definition-part>>
+* <<put-trained-model-vocabulary>>
 * <<put-trained-models-aliases>>
 * <<delete-trained-models>>
 * <<delete-trained-models-aliases>>
 * <<get-trained-models>>
 * <<get-trained-models-stats>>
+* <<get-trained-model-deployment-stats>>
 
 You can deploy a trained model to make predictions in an ingest pipeline or in
 an aggregation. Refer to the following documentation to learn more:

@@ -14,18 +14,18 @@ public interface ClusterStateTaskListener {
     /**
      * A callback for when task execution fails.
      *
-     * Implementations of this callback should not throw exceptions: an exception thrown here is logged by the master service at {@code
-     * ERROR} level and otherwise ignored. If log-and-ignore is the right behaviour then implementations should do so themselves, typically
-     * using a more specific logger and at a less dramatic log level.
+     * Implementations of this callback must not throw exceptions: an exception thrown here is logged by the master service at {@code ERROR}
+     * level and otherwise ignored, except in tests where it raises an {@link AssertionError}. If log-and-ignore is the right behaviour then
+     * implementations must do so themselves, typically using a more specific logger and at a less dramatic log level.
      */
     void onFailure(String source, Exception e);
 
     /**
      * A callback for when the task was rejected because the processing node is no longer the elected master.
      *
-     * Implementations of this callback should not throw exceptions: an exception thrown here is logged by the master service at {@code
-     * ERROR} level and otherwise ignored. If log-and-ignore is the right behaviour then implementations should do so themselves, typically
-     * using a more specific logger and at a less dramatic log level.
+     * Implementations of this callback must not throw exceptions: an exception thrown here is logged by the master service at {@code ERROR}
+     * level and otherwise ignored, except in tests where it raises an {@link AssertionError}. If log-and-ignore is the right behaviour then
+     * implementations must do so themselves, typically using a more specific logger and at a less dramatic log level.
      */
     default void onNoLongerMaster(String source) {
         onFailure(source, new NotMasterException("no longer master. source: [" + source + "]"));
@@ -35,9 +35,9 @@ public interface ClusterStateTaskListener {
      * Called when the result of the {@link ClusterStateTaskExecutor#execute(ClusterState, List)} have been processed
      * properly by all listeners.
      *
-     * Implementations of this callback should not throw exceptions: an exception thrown here is logged by the master service at {@code
-     * ERROR} level and otherwise ignored. If log-and-ignore is the right behaviour then implementations should do so themselves, typically
-     * using a more specific logger and at a less dramatic log level.
+     * Implementations of this callback must not throw exceptions: an exception thrown here is logged by the master service at {@code ERROR}
+     * level and otherwise ignored, except in tests where it raises an {@link AssertionError}. If log-and-ignore is the right behaviour then
+     * implementations must do so themselves, typically using a more specific logger and at a less dramatic log level.
      */
     default void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
     }

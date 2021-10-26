@@ -23,10 +23,7 @@ public class RestPutRollupJobAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(PUT, "/_rollup/job/{id}")
-                .replaces(PUT, "/_xpack/rollup/job/{id}", RestApiVersion.V_7).build()
-        );
+        return List.of(Route.builder(PUT, "/_rollup/job/{id}").replaces(PUT, "/_xpack/rollup/job/{id}", RestApiVersion.V_7).build());
     }
 
     @Override

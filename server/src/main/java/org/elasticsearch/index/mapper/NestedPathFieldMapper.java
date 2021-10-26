@@ -23,7 +23,11 @@ import java.util.Collections;
 public class NestedPathFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME_PRE_V8 = "_type";
+
     public static final String NAME = "_nested_path";
+
+    private static final NestedPathFieldMapper INSTANCE = new NestedPathFieldMapper(NAME);
+    private static final NestedPathFieldMapper INSTANCE_PRE_V8 = new NestedPathFieldMapper(NAME_PRE_V8);
 
     public static String name(Version version) {
         if (version.before(Version.V_8_0_0)) {
@@ -53,12 +57,13 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> new NestedPathFieldMapper(c.indexVersionCreated()));
+    public static final TypeParser PARSER =
+        new FixedTypeParser(c -> c.indexVersionCreated().before(Version.V_8_0_0) ? INSTANCE_PRE_V8 : INSTANCE);
 
     public static final class NestedPathFieldType extends StringFieldType {
 
-        private NestedPathFieldType(Version version) {
-            super(NestedPathFieldMapper.name(version), true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+        private NestedPathFieldType(String name) {
+            super(name, true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -77,8 +82,8 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private NestedPathFieldMapper(Version version) {
-        super(new NestedPathFieldType(version));
+    private NestedPathFieldMapper(String name) {
+        super(new NestedPathFieldType(name));
     }
 
     @Override

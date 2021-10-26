@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.license.LicenseUtils;
@@ -29,9 +30,11 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAliasAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
@@ -86,7 +89,7 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
-        final boolean mlSupported = licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING);
+        final boolean mlSupported = MachineLearningField.ML_API_FEATURE.check(licenseState);
         final Predicate<TrainedModelConfig> isLicensed = (model) -> mlSupported || licenseState.isAllowedByLicense(model.getLicenseLevel());
         final String oldModelId = ModelAliasMetadata.fromState(state).getModelId(request.getModelAlias());
 
@@ -134,6 +137,10 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
                     listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
                     return;
                 }
+                if (newModel.getModelType() == TrainedModelType.PYTORCH) {
+                    listener.onFailure(ExceptionsHelper.badRequestException("model_alias is not supported on pytorch models"));
+                    return;
+                }
                 // if old model is null, none of these validations matter
                 // we should still allow reassignment even if the old model was some how deleted and the alias still refers to it
                 if (oldModel != null) {
@@ -166,7 +173,7 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
                             oldModelId);
                         auditor.warning(oldModelId, warning);
                         logger.warn("[{}] {}", oldModelId, warning);
-                        HeaderWarning.addWarning(warning);
+                        HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning);
                     }
                 }
                 clusterService.submitStateUpdateTask("update-model-alias", new AckedClusterStateUpdateTask(request, listener) {

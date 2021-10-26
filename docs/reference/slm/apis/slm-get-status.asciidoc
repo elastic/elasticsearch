@@ -20,7 +20,7 @@ Retrieves the status of {slm} ({slm-init}).
 
 Returns the status of the {slm-init} plugin. 
 The `operation_mode` field in the response shows one of three states: 
-`STARTED`, `STOPPING`, or `STOPPED`. 
+`RUNNING`, `STOPPING`, or `STOPPED`. 
 You halt and restart the {slm-init} plugin with the
 <<slm-api-stop, stop>> and <<slm-api-start, start>>  APIs.
 

@@ -15,8 +15,6 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.indices.IndicesQueryCache;
-import org.elasticsearch.license.LicenseStateListener;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
@@ -25,73 +23,38 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Opts out of the query cache if field level security is active for the current request, and it is unsafe to cache. Note that the method
- * {@link #listenForLicenseStateChanges()} must be invoked after construction of the query cache and before any other public methods are
- * invoked on this query cache.
+ * Opts out of the query cache if field level security is active for the current request, and it is unsafe to cache.
  */
-public final class OptOutQueryCache extends AbstractIndexComponent implements LicenseStateListener, QueryCache {
+public final class OptOutQueryCache extends AbstractIndexComponent implements QueryCache {
 
     private final IndicesQueryCache indicesQueryCache;
     private final ThreadContext context;
     private final String indexName;
-    private final XPackLicenseState licenseState;
-    private volatile boolean licenseStateListenerRegistered;
 
     public OptOutQueryCache(
             final IndexSettings indexSettings,
             final IndicesQueryCache indicesQueryCache,
-            final ThreadContext context,
-            final XPackLicenseState licenseState) {
+            final ThreadContext context) {
         super(indexSettings);
         this.indicesQueryCache = indicesQueryCache;
         this.context = Objects.requireNonNull(context, "threadContext must not be null");
         this.indexName = indexSettings.getIndex().getName();
-        this.licenseState = Objects.requireNonNull(licenseState, "licenseState");
-    }
-
-    /**
-     * Register this query cache to listen for license state changes. This must be done after construction of this query cache before any
-     * other public methods are invoked on this query cache.
-     */
-    public void listenForLicenseStateChanges() {
-        /*
-         * Registering this as a listener can not be done in the constructor because otherwise it would be unsafe publication of this. That
-         * is, it would expose this to another thread before the constructor had finished. Therefore, we have a dedicated method to register
-         * the listener that is invoked after the constructor has returned.
-         */
-        assert licenseStateListenerRegistered == false;
-        licenseState.addListener(this);
-        licenseStateListenerRegistered = true;
     }
 
     @Override
     public void close() throws ElasticsearchException {
-        assert licenseStateListenerRegistered;
-        licenseState.removeListener(this);
         clear("close");
     }
 
-    @Override
-    public void licenseStateChanged() {
-        assert licenseStateListenerRegistered;
-        clear("license state changed");
-    }
 
     @Override
     public void clear(final String reason) {
-        assert licenseStateListenerRegistered;
         logger.debug("full cache clear, reason [{}]", reason);
         indicesQueryCache.clearIndex(index().getName());
     }
 
     @Override
     public Weight doCache(Weight weight, QueryCachingPolicy policy) {
-        assert licenseStateListenerRegistered;
-        if (licenseState.isSecurityEnabled() == false) {
-            logger.debug("not opting out of the query cache; authorization is not allowed");
-            return indicesQueryCache.doCache(weight, policy);
-        }
-
         IndicesAccessControl indicesAccessControl = context.getTransient(
                 AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
         if (indicesAccessControl == null) {

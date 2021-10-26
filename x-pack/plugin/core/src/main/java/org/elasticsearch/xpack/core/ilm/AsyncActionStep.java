@@ -33,5 +33,5 @@ public abstract class AsyncActionStep extends Step {
     }
 
     public abstract void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState,
-                                       ClusterStateObserver observer, ActionListener<Boolean> listener);
+                                       ClusterStateObserver observer, ActionListener<Void> listener);
 }

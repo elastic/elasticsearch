@@ -9,22 +9,22 @@ package org.elasticsearch.xpack.core.security.action;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * API key information
@@ -108,19 +108,27 @@ public final class ApiKey implements ToXContentObject, Writeable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject()
-        .field("id", id)
-        .field("name", name)
-        .field("creation", creation.toEpochMilli());
+        builder.startObject();
+        innerToXContent(builder, params);
+        return builder.endObject();
+    }
+
+    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
+        builder
+            .field("id", id)
+            .field("name", name)
+            .field("creation", creation.toEpochMilli());
         if (expiration != null) {
             builder.field("expiration", expiration.toEpochMilli());
         }
-        builder.field("invalidated", invalidated)
-        .field("username", username)
-        .field("realm", realm)
-        .field("metadata", (metadata == null ? Map.of() : metadata));
-        return builder.endObject();
+        builder
+            .field("invalidated", invalidated)
+            .field("username", username)
+            .field("realm", realm)
+            .field("metadata", (metadata == null ? Map.of() : metadata));
+        return builder;
     }
+
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {

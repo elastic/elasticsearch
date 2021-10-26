@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.monitoring.exporter;
 
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;

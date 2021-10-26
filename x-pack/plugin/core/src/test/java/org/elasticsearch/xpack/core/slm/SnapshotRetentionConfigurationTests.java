@@ -14,6 +14,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -284,7 +285,7 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
 
     private SnapshotInfo makeInfo(long startTime) {
         final Map<String, Object> meta = new HashMap<>();
-        meta.put(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD, REPO);
+        meta.put(SnapshotsService.POLICY_ID_METADATA_FIELD, REPO);
         final int totalShards = between(1,20);
         SnapshotInfo snapInfo = new SnapshotInfo(
             new Snapshot(REPO, new SnapshotId("snap-" + randomAlphaOfLength(3), "uuid")),
@@ -314,7 +315,7 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
 
     private SnapshotInfo makeFailureInfo(long startTime) {
         final Map<String, Object> meta = new HashMap<>();
-        meta.put(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD, REPO);
+        meta.put(SnapshotsService.POLICY_ID_METADATA_FIELD, REPO);
         final int totalShards = between(1,20);
         final List<SnapshotShardFailure> failures = new ArrayList<>();
         final int failureCount = between(1,totalShards);
@@ -342,7 +343,7 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
 
     private SnapshotInfo makePartialInfo(long startTime) {
         final Map<String, Object> meta = new HashMap<>();
-        meta.put(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD, REPO);
+        meta.put(SnapshotsService.POLICY_ID_METADATA_FIELD, REPO);
         final int totalShards = between(2,20);
         final List<SnapshotShardFailure> failures = new ArrayList<>();
         final int failureCount = between(1,totalShards - 1);

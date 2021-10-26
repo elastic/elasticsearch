@@ -18,6 +18,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.script.DocReader;
+import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.ExplainableScoreScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
@@ -43,7 +45,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.client.Requests.searchRequest;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
@@ -79,8 +81,8 @@ public class ExplainableScriptIT extends ESIntegTestCase {
                         }
 
                         @Override
-                        public ScoreScript newInstance(LeafReaderContext ctx) throws IOException {
-                            return new MyScript(params1, lookup, ctx);
+                        public ScoreScript newInstance(DocReader docReader) throws IOException {
+                            return new MyScript(params1, lookup, ((DocValuesDocReader) docReader).getLeafReaderContext());
                         }
                     };
                     return context.factoryClazz.cast(factory);
@@ -97,7 +99,7 @@ public class ExplainableScriptIT extends ESIntegTestCase {
     static class MyScript extends ScoreScript implements ExplainableScoreScript {
 
         MyScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
-            super(params, lookup, leafContext);
+            super(params, null, new DocValuesDocReader(lookup, leafContext));
         }
 
         @Override

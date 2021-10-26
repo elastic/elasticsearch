@@ -22,7 +22,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.proto.Mode;
@@ -163,6 +163,7 @@ public class HttpClientRequestTests extends ESTestCase {
         SqlQueryRequest request = new SqlQueryRequest(query,
                 null,
                 ZoneId.of("Z"),
+                randomAlphaOfLength(10),
                 randomIntBetween(1, 100),
                 TimeValue.timeValueMillis(randomNonNegativeLong()),
                 TimeValue.timeValueMillis(randomNonNegativeLong()),

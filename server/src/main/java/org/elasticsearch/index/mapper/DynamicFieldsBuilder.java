@@ -12,7 +12,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
 import org.elasticsearch.script.ScriptCompiler;
@@ -125,7 +125,9 @@ final class DynamicFieldsBuilder {
      */
     Mapper createDynamicObjectMapper(DocumentParserContext context, String name) {
         Mapper mapper = createObjectMapperFromTemplate(context, name);
-        return mapper != null ? mapper : new ObjectMapper.Builder(name).enabled(true).build(context.path());
+        return mapper != null
+            ? mapper
+            : new ObjectMapper.Builder(name).enabled(true).build(MapperBuilderContext.forPath(context.path()));
     }
 
     /**
@@ -133,7 +135,7 @@ final class DynamicFieldsBuilder {
      */
     Mapper createObjectMapperFromTemplate(DocumentParserContext context, String name) {
         Mapper.Builder templateBuilder = findTemplateBuilderForObject(context, name);
-        return templateBuilder == null ? null : templateBuilder.build(context.path());
+        return templateBuilder == null ? null : templateBuilder.build(MapperBuilderContext.forPath(context.path()));
     }
 
     /**
@@ -196,8 +198,8 @@ final class DynamicFieldsBuilder {
             if (parser == null) {
                 throw new MapperParsingException("failed to find type parsed [" + mappingType + "] for [" + fullName + "]");
             }
-            RuntimeField runtimeField = parser.parse(fullName, mapping, parserContext);
-            Runtime.createDynamicField(runtimeField, context);
+            RuntimeField.Builder builder = parser.parse(fullName, mapping, parserContext);
+            Runtime.createDynamicField(builder.createRuntimeField(parserContext), context);
         } else {
             Mapper.Builder builder = parseDynamicTemplateMapping(name, mappingType, mapping, dateFormatter, context);
             CONCRETE.createDynamicField(builder, context);
@@ -254,7 +256,7 @@ final class DynamicFieldsBuilder {
         }
 
         void createDynamicField(Mapper.Builder builder, DocumentParserContext context) throws IOException {
-            Mapper mapper = builder.build(context.path());
+            Mapper mapper = builder.build(MapperBuilderContext.forPath(context.path()));
             context.addDynamicMapper(mapper);
             parseField.accept(context, mapper);
         }
@@ -298,7 +300,8 @@ final class DynamicFieldsBuilder {
             Settings settings = context.indexSettings().getSettings();
             boolean ignoreMalformed = FieldMapper.IGNORE_MALFORMED_SETTING.get(settings);
             createDynamicField(new DateFieldMapper.Builder(name, DateFieldMapper.Resolution.MILLISECONDS,
-                dateTimeFormatter, ScriptCompiler.NONE, ignoreMalformed, context.indexSettings().getIndexVersionCreated()), context);
+                dateTimeFormatter, ScriptCompiler.NONE, ignoreMalformed, context.indexSettings().getIndexVersionCreated(),
+                context.indexSettings().getIndex().getName()), context);
         }
 
         void newDynamicBinaryField(DocumentParserContext context, String name) throws IOException {

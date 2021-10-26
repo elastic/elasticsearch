@@ -11,8 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -23,23 +21,17 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.ingest.geoip.IngestGeoIpPlugin.DEFAULT_DATABASE_FILENAMES;
-
 /**
- * Keeps track of the databases locally available to a node:
- * 1) Default databases shipped with the default distribution via ingest-geoip module
- * 2) User provided databases from the ES_HOME/config/ingest-geoip directory. This directory is monitored
- *    and files updates are picked up and may cause databases being loaded or removed at runtime.
+ * Keeps track of user provided databases in the ES_HOME/config/ingest-geoip directory.
+ * This directory is monitored and files updates are picked up and may cause databases being loaded or removed at runtime.
  */
 final class LocalDatabases implements Closeable {
 
@@ -48,28 +40,16 @@ final class LocalDatabases implements Closeable {
     private final GeoIpCache cache;
     private final Path geoipConfigDir;
 
-    private final Map<String, DatabaseReaderLazyLoader> defaultDatabases;
     private final ConcurrentMap<String, DatabaseReaderLazyLoader> configDatabases;
 
     LocalDatabases(Environment environment, GeoIpCache cache) {
-        this(
-            // In GeoIpProcessorNonIngestNodeTests, ingest-geoip is loaded on the classpath.
-            // This means that the plugin is never unbundled into a directory where the database files would live.
-            // Therefore, we have to copy these database files ourselves. To do this, we need the ability to specify where
-            // those database files would go. We do this by adding a plugin that registers ingest.geoip.database_path as an
-            // actual setting. Otherwise, in production code, this setting is not registered and the database path is not configurable.
-            environment.settings().get("ingest.geoip.database_path") != null ?
-                getGeoipConfigDirectory(environment) :
-                environment.modulesFile().resolve("ingest-geoip"),
-            environment.configFile().resolve("ingest-geoip"),
-            cache);
+        this(environment.configFile().resolve("ingest-geoip"), cache);
     }
 
-    LocalDatabases(Path geoipModuleDir, Path geoipConfigDir, GeoIpCache cache) {
+    LocalDatabases(Path geoipConfigDir, GeoIpCache cache) {
         this.cache = cache;
         this.geoipConfigDir = geoipConfigDir;
         this.configDatabases = new ConcurrentHashMap<>();
-        this.defaultDatabases = initDefaultDatabases(geoipModuleDir);
     }
 
     void initialize(ResourceWatcherService resourceWatcher) throws IOException {
@@ -79,22 +59,11 @@ final class LocalDatabases implements Closeable {
         watcher.addListener(new GeoipDirectoryListener());
         resourceWatcher.add(watcher, ResourceWatcherService.Frequency.HIGH);
 
-        LOGGER.info("initialized default databases [{}], config databases [{}] and watching [{}] for changes",
-            defaultDatabases.keySet(), configDatabases.keySet(), geoipConfigDir);
+        LOGGER.info("initialized config databases [{}] and watching [{}] for changes", configDatabases.keySet(), geoipConfigDir);
     }
 
-    DatabaseReaderLazyLoader getDatabase(String name, boolean fallbackUsingDefaultDatabases) {
-        return configDatabases.getOrDefault(name, fallbackUsingDefaultDatabases ? defaultDatabases.get(name) : null);
-    }
-
-    List<DatabaseReaderLazyLoader> getAllDatabases() {
-        List<DatabaseReaderLazyLoader> all = new ArrayList<>(defaultDatabases.values());
-        all.addAll(configDatabases.values());
-        return all;
-    }
-
-    Map<String, DatabaseReaderLazyLoader> getDefaultDatabases() {
-        return defaultDatabases;
+    DatabaseReaderLazyLoader getDatabase(String name) {
+        return configDatabases.get(name);
     }
 
     Map<String, DatabaseReaderLazyLoader> getConfigDatabases() {
@@ -122,20 +91,6 @@ final class LocalDatabases implements Closeable {
         }
     }
 
-    Map<String, DatabaseReaderLazyLoader> initDefaultDatabases(Path geoipModuleDir) {
-        Map<String, DatabaseReaderLazyLoader> databases = new HashMap<>(DEFAULT_DATABASE_FILENAMES.length);
-
-        for (String filename : DEFAULT_DATABASE_FILENAMES) {
-            Path source = geoipModuleDir.resolve(filename);
-            assert Files.exists(source);
-            String databaseFileName = source.getFileName().toString();
-            DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(cache, source, null);
-            databases.put(databaseFileName, loader);
-        }
-
-        return Collections.unmodifiableMap(databases);
-    }
-
     Map<String, DatabaseReaderLazyLoader> initConfigDatabases(Path geoipConfigDir) throws IOException {
         Map<String, DatabaseReaderLazyLoader> databases = new HashMap<>();
 
@@ -161,17 +116,9 @@ final class LocalDatabases implements Closeable {
 
     @Override
     public void close() throws IOException {
-        for (DatabaseReaderLazyLoader lazyLoader : defaultDatabases.values()) {
-            lazyLoader.close();
-        }
         for (DatabaseReaderLazyLoader lazyLoader : configDatabases.values()) {
             lazyLoader.close();
         }
-    }
-
-    @SuppressForbidden(reason = "PathUtils#get")
-    private static Path getGeoipConfigDirectory(Environment environment) {
-        return PathUtils.get(environment.settings().get("ingest.geoip.database_path"));
     }
 
     private class GeoipDirectoryListener implements FileChangesListener {

@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.idp.saml.sp;
 
 import org.elasticsearch.xpack.idp.privileges.ServiceProviderPrivileges;
-import org.joda.time.ReadableDuration;
 import org.opensaml.security.x509.BasicX509Credential;
 import org.opensaml.security.x509.X509Credential;
 
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.time.Duration;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -48,8 +48,7 @@ public final class SamlServiceProviderFactory {
             nameIdFormat = defaults.nameIdFormat;
         }
 
-        final ReadableDuration authnExpiry = Optional.ofNullable(document.getAuthenticationExpiry())
-            .orElse(defaults.authenticationExpiry);
+        final Duration authnExpiry = Optional.ofNullable(document.getAuthenticationExpiry()).orElse(defaults.authenticationExpiry);
 
         final boolean signAuthnRequests = document.signMessages.contains(SamlServiceProviderDocument.SIGN_AUTHN);
         final boolean signLogoutRequests = document.signMessages.contains(SamlServiceProviderDocument.SIGN_LOGOUT);

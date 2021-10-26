@@ -10,10 +10,18 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.action.ActionListener;
 
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 
+/**
+ * Test utilities for working with {@link ActionListener}s.
+ */
 public abstract class ActionListenerUtils {
 
+    /**
+     * Returns a Mockito matcher for any argument that is an {@link ActionListener}.
+     * @param <T> the action listener type that the caller expects. Do not specify this, it will be inferred
+     * @return an action listener matcher
+     */
     @SuppressWarnings("unchecked")
     public static <T> ActionListener<T> anyActionListener() {
         return any(ActionListener.class);

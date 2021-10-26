@@ -41,7 +41,7 @@ class SamlLogoutResponseBuilder extends SamlMessageBuilder {
 
         final LogoutResponse res = SamlUtils.buildObject(LogoutResponse.class, LogoutResponse.DEFAULT_ELEMENT_NAME);
         res.setID(buildId());
-        res.setIssueInstant(now());
+        res.setIssueInstant(clock.instant());
         res.setDestination(destination);
         res.setIssuer(buildIssuer());
         res.setInResponseTo(inResponseTo);

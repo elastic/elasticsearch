@@ -118,12 +118,12 @@ final class TransportHandshaker {
         @Override
         public void handleResponse(HandshakeResponse response) {
             if (isDone.compareAndSet(false, true)) {
-                Version version = response.responseVersion;
-                if (currentVersion.isCompatible(version) == false) {
-                    listener.onFailure(new IllegalStateException("Received message from unsupported version: [" + version
+                Version responseVersion = response.responseVersion;
+                if (currentVersion.isCompatible(responseVersion) == false) {
+                    listener.onFailure(new IllegalStateException("Received message from unsupported version: [" + responseVersion
                         + "] minimal compatible version is: [" + currentVersion.minimumCompatibilityVersion() + "]"));
                 } else {
-                    listener.onResponse(version);
+                    listener.onResponse(responseVersion);
                 }
             }
         }

@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.OperationRouting;
@@ -92,7 +93,6 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.TaskManager;
@@ -131,6 +131,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
@@ -234,6 +235,8 @@ public final class InternalTestCluster extends TestCluster {
 
     private final boolean forbidPrivateIndexSettings;
 
+    private final int numDataPaths;
+
     /**
      * All nodes started by the cluster will have their name set to nodePrefix followed by a positive number
      */
@@ -271,7 +274,8 @@ public final class InternalTestCluster extends TestCluster {
                 nodePrefix,
                 mockPlugins,
                 clientWrapper,
-                true);
+                true,
+                false);
     }
 
     public InternalTestCluster(
@@ -287,7 +291,8 @@ public final class InternalTestCluster extends TestCluster {
             final String nodePrefix,
             final Collection<Class<? extends Plugin>> mockPlugins,
             final Function<Client, Client> clientWrapper,
-            final boolean forbidPrivateIndexSettings) {
+            final boolean forbidPrivateIndexSettings,
+            final boolean forceSingleDataPath) {
         super(clusterSeed);
         this.autoManageMasterNodes = autoManageMasterNodes;
         this.clientWrapper = clientWrapper;
@@ -349,6 +354,8 @@ public final class InternalTestCluster extends TestCluster {
             numSharedDedicatedMasterNodes, numSharedDataNodes, numSharedCoordOnlyNodes,
             autoManageMasterNodes ? "auto-managed" : "manual");
         this.nodeConfigurationSource = nodeConfigurationSource;
+        // use 1 data path if we are forced to, or 80% of the time that we are not, otherwise use between 2 and 4 data paths
+        numDataPaths = forceSingleDataPath || random.nextDouble() < 0.8 ? 1 : RandomNumbers.randomIntBetween(random, 2, 4);
         Builder builder = Settings.builder();
         builder.put(Environment.PATH_HOME_SETTING.getKey(), baseDir);
         builder.put(Environment.PATH_REPO_SETTING.getKey(), baseDir.resolve("repos"));
@@ -513,16 +520,16 @@ public final class InternalTestCluster extends TestCluster {
             builder.put(TransportSettings.PING_SCHEDULE.getKey(), RandomNumbers.randomIntBetween(random, 100, 2000) + "ms");
         }
 
+
         if (random.nextBoolean()) {
-            String ctx = randomFrom(random, ScriptModule.CORE_CONTEXTS.keySet());
-            builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(ctx).getKey(),
+            builder.put(ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING.getKey(),
                         RandomNumbers.randomIntBetween(random, 0, 2000));
         }
         if (random.nextBoolean()) {
-            String ctx = randomFrom(random, ScriptModule.CORE_CONTEXTS.keySet());
-            builder.put(ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace(ctx).getKey(),
+            builder.put(ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.getKey(),
                         timeValueMillis(RandomNumbers.randomIntBetween(random, 750, 10000000)).getStringRep());
         }
+
         if (random.nextBoolean()) {
             int initialMillisBound = RandomNumbers.randomIntBetween(random,10, 100);
             builder.put(TransportReplicationAction.REPLICATION_INITIAL_RETRY_BACKOFF_BOUND.getKey(), timeValueMillis(initialMillisBound));
@@ -639,7 +646,14 @@ public final class InternalTestCluster extends TestCluster {
         final Settings.Builder updatedSettings = Settings.builder();
 
         updatedSettings.put(Environment.PATH_HOME_SETTING.getKey(), baseDir);
-        updatedSettings.put(Environment.PATH_DATA_SETTING.getKey(), baseDir.resolve(name));
+
+        if (numDataPaths > 1) {
+            updatedSettings.putList(Environment.PATH_DATA_SETTING.getKey(), IntStream.range(0, numDataPaths).mapToObj(i ->
+                baseDir.resolve(name).resolve("d" + i).toString()).collect(Collectors.toList()));
+        } else {
+            updatedSettings.put(Environment.PATH_DATA_SETTING.getKey(), baseDir.resolve(name));
+        }
+
         updatedSettings.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), baseDir.resolve(name + "-shared"));
 
         // allow overriding the above
@@ -932,9 +946,9 @@ public final class InternalTestCluster extends TestCluster {
             if (callback.clearData(name)) {
                 NodeEnvironment nodeEnv = node.getNodeEnvironment();
                 if (nodeEnv.hasNodeFile()) {
-                    final Path location = nodeEnv.nodeDataPath();
-                    logger.debug("removing node data path: [{}]", location);
-                    IOUtils.rm(location);
+                    final Path[] locations = nodeEnv.nodeDataPaths();
+                    logger.debug("removing node data paths: [{}]", Arrays.toString(locations));
+                    IOUtils.rm(locations);
                 }
             }
         }
@@ -985,7 +999,7 @@ public final class InternalTestCluster extends TestCluster {
             assert Thread.holdsLock(InternalTestCluster.this);
             NodeEnvironment nodeEnv = node.getNodeEnvironment();
             if (nodeEnv.hasNodeFile()) {
-                dataDirToClean.addAll(Arrays.asList(nodeEnv.nodeDataPath()));
+                dataDirToClean.addAll(Arrays.asList(nodeEnv.nodeDataPaths()));
             }
         }
 
@@ -993,7 +1007,7 @@ public final class InternalTestCluster extends TestCluster {
             assert Thread.holdsLock(InternalTestCluster.this);
             NodeEnvironment nodeEnv = node.getNodeEnvironment();
             if (nodeEnv.hasNodeFile()) {
-                dataDirToClean.removeAll(Arrays.asList(nodeEnv.nodeDataPath()));
+                dataDirToClean.removeAll(Arrays.asList(nodeEnv.nodeDataPaths()));
             }
         }
     }
@@ -1118,6 +1132,16 @@ public final class InternalTestCluster extends TestCluster {
         }
         logger.trace("validating cluster formed, expecting {}", expectedNodes);
 
+        try {
+            // use waiting via the cluster service first to save on some busy-waiting and sleeping before entering the busy assert below
+            ClusterServiceUtils.awaitClusterState(
+                logger,
+                state -> state.nodes().getMasterNodeId() != null && state.nodes().getSize() == expectedNodes.size(),
+                getInstance(ClusterService.class)
+            );
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
         try {
             assertBusy(() -> {
                 final List<ClusterState> states = nodes.values().stream()
@@ -2162,13 +2186,11 @@ public final class InternalTestCluster extends TestCluster {
             if (indexService != null) {
                 assertThat(indexService.getIndexSettings().getSettings().getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, -1),
                         greaterThan(shard));
-                OperationRouting operationRouting = clusterService.operationRouting();
+                ClusterState clusterState = clusterService.state();
+                IndexRouting indexRouting = IndexRouting.fromIndexMetadata(clusterState.metadata().getIndexSafe(index));
                 while (true) {
                     String routing = RandomStrings.randomAsciiLettersOfLength(random, 10);
-                    final int targetShard = operationRouting
-                            .indexShards(clusterService.state(), index.getName(), null, routing)
-                            .shardId().getId();
-                    if (shard == targetShard) {
+                    if (shard == indexRouting.indexShard(null, routing, null, null)) {
                         return routing;
                     }
                 }

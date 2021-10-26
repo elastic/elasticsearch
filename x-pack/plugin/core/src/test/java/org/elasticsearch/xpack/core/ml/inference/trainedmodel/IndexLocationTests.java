@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
@@ -18,7 +18,7 @@ public class IndexLocationTests extends AbstractSerializingTestCase<IndexLocatio
     private final boolean lenient = randomBoolean();
 
     public static IndexLocation randomInstance() {
-        return new IndexLocation(randomAlphaOfLength(7), randomAlphaOfLength(7));
+        return new IndexLocation(randomAlphaOfLength(7));
     }
 
     @Override

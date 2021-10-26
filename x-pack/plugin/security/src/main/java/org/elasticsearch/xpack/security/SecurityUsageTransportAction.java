@@ -80,7 +80,7 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
         Map<String, Object> anonymousUsage = singletonMap("enabled", AnonymousUser.isAnonymousEnabled(settings));
         Map<String, Object> fips140Usage = fips140Usage(settings);
         Map<String, Object> operatorPrivilegesUsage = Map.of(
-            "available", licenseState.isAllowed(XPackLicenseState.Feature.OPERATOR_PRIVILEGES),
+            "available", Security.OPERATOR_PRIVILEGES_FEATURE.checkWithoutTracking(licenseState),
             "enabled", OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED.get(settings)
         );
 
@@ -88,7 +88,7 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
         final AtomicReference<Map<String, Object>> roleMappingUsageRef = new AtomicReference<>();
         final AtomicReference<Map<String, Object>> realmsUsageRef = new AtomicReference<>();
 
-        final boolean enabled = licenseState.isSecurityEnabled();
+        final boolean enabled = XPackSettings.SECURITY_ENABLED.get(settings);
         final CountDown countDown = new CountDown(3);
         final Runnable doCountDown = () -> {
             if (countDown.countDown()) {
@@ -139,8 +139,6 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
     static Map<String, Object> sslUsage(Settings settings) {
         // If security has been explicitly disabled in the settings, then SSL is also explicitly disabled, and we don't want to report
         //  these http/transport settings as they would be misleading (they could report `true` even though they were ignored)
-        // But, if security has not been explicitly configured, but has defaulted to off due to the current license type,
-        // then these SSL settings are still respected (that is SSL might be enabled, while the rest of security is disabled).
         if (XPackSettings.SECURITY_ENABLED.get(settings)) {
             Map<String, Object> map = new HashMap<>(2);
             map.put("http", singletonMap("enabled", HTTP_SSL_ENABLED.get(settings)));

@@ -22,7 +22,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -209,11 +209,17 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                 DiscoveryNode node = new DiscoveryNode(id, resolved, attributes, DiscoveryNodeRole.roles(),
                     Version.CURRENT.minimumCompatibilityVersion());
 
-                connectionManager.connectToNode(node, null, clusterNameValidator, compositeListener.delegateResponse((l, e) -> {
-                    logger.debug(new ParameterizedMessage("failed to open remote connection [remote cluster: {}, address: {}]",
-                            clusterAlias, resolved), e);
-                    l.onFailure(e);
-                }));
+                connectionManager.connectToRemoteClusterNode(
+                    node,
+                    clusterNameValidator,
+                    compositeListener.delegateResponse((l, e) -> {
+                        logger.debug(new ParameterizedMessage(
+                                "failed to open remote connection [remote cluster: {}, address: {}]",
+                                clusterAlias,
+                                resolved),
+                            e);
+                        l.onFailure(e);
+                    }));
             }
         } else {
             int openConnections = connectionManager.size();

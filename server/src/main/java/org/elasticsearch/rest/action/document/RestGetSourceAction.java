@@ -15,7 +15,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -64,7 +64,7 @@ public class RestGetSourceAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
             request.param("type"); // consume and ignore the type
-            deprecationLogger.compatibleApiWarning("get_source_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.compatibleCritical("get_source_with_types", TYPES_DEPRECATION_MESSAGE);
         }
 
         final GetRequest getRequest = new GetRequest(request.param("index"), request.param("id"));

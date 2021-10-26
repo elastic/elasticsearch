@@ -27,6 +27,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
@@ -53,26 +54,24 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.InstantiatingObjectParser;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParserHelper;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentLocation;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.license.LicenseUtils;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -85,9 +84,12 @@ import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -127,8 +129,8 @@ import java.util.stream.Collectors;
 import javax.crypto.SecretKeyFactory;
 
 import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -179,9 +181,20 @@ public class ApiKeyService {
     public static final Setting<TimeValue> DOC_CACHE_TTL_SETTING = Setting.timeSetting("xpack.security.authc.api_key.doc_cache.ttl",
         TimeValue.timeValueMinutes(5), TimeValue.timeValueMinutes(0), TimeValue.timeValueMinutes(15), Property.NodeScope);
 
+    // This following fixed role descriptor is for fleet-server BWC on and before 7.14.
+    // It is fixed and must NOT be updated when the fleet-server service account updates.
+    private static final BytesArray FLEET_SERVER_ROLE_DESCRIPTOR_BYTES_V_7_14 = new BytesArray(
+        "{\"elastic/fleet-server\":{\"cluster\":[\"monitor\",\"manage_own_api_key\"]," +
+            "\"indices\":[{\"names\":[\"logs-*\",\"metrics-*\",\"traces-*\",\"synthetics-*\"," +
+            "\".logs-endpoint.diagnostic.collection-*\"]," +
+            "\"privileges\":[\"write\",\"create_index\",\"auto_configure\"],\"allow_restricted_indices\":false}," +
+            "{\"names\":[\".fleet-*\"],\"privileges\":[\"read\",\"write\",\"monitor\",\"create_index\",\"auto_configure\"]," +
+            "\"allow_restricted_indices\":false}],\"applications\":[],\"run_as\":[],\"metadata\":{}," +
+            "\"transient_metadata\":{\"enabled\":true}}}"
+    );
+
     private final Clock clock;
     private final Client client;
-    private final XPackLicenseState licenseState;
     private final SecurityIndexManager securityIndex;
     private final ClusterService clusterService;
     private final Hasher hasher;
@@ -202,11 +215,10 @@ public class ApiKeyService {
     private final AtomicLong lastEvictionCheckedAt = new AtomicLong(0);
     private final LongAdder evictionCounter = new LongAdder();
 
-    public ApiKeyService(Settings settings, Clock clock, Client client, XPackLicenseState licenseState, SecurityIndexManager securityIndex,
+    public ApiKeyService(Settings settings, Clock clock, Client client, SecurityIndexManager securityIndex,
                          ClusterService clusterService, CacheInvalidatorRegistry cacheInvalidatorRegistry, ThreadPool threadPool) {
         this.clock = clock;
         this.client = client;
-        this.licenseState = licenseState;
         this.securityIndex = securityIndex;
         this.clusterService = clusterService;
         this.enabled = XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.get(settings);
@@ -365,51 +377,35 @@ public class ApiKeyService {
         return builder;
     }
 
-    /**
-     * Checks for the presence of a {@code Authorization} header with a value that starts with
-     * {@code ApiKey }. If found this will attempt to authenticate the key.
-     */
-    void authenticateWithApiKeyIfPresent(ThreadContext ctx, ActionListener<AuthenticationResult> listener) {
-        if (isEnabled()) {
-            final ApiKeyCredentials credentials;
-            try {
-                credentials = getCredentialsFromHeader(ctx);
-            } catch (IllegalArgumentException iae) {
-                listener.onResponse(AuthenticationResult.unsuccessful(iae.getMessage(), iae));
-                return;
-            }
-
-            if (credentials != null) {
-                loadApiKeyAndValidateCredentials(ctx, credentials, ActionListener.wrap(
-                    response -> {
-                        credentials.close();
-                        listener.onResponse(response);
-                    },
-                    e -> {
-                        credentials.close();
-                        listener.onFailure(e);
-                    }
-                ));
-            } else {
-                listener.onResponse(AuthenticationResult.notHandled());
-            }
-        } else {
+    void tryAuthenticate(ThreadContext ctx, ApiKeyCredentials credentials, ActionListener<AuthenticationResult<User>> listener) {
+        if (false == isEnabled()) {
             listener.onResponse(AuthenticationResult.notHandled());
         }
+        assert credentials != null : "api key credentials must not be null";
+        loadApiKeyAndValidateCredentials(ctx, credentials, ActionListener.wrap(
+            response -> {
+                credentials.close();
+                listener.onResponse(response);
+            },
+            e -> {
+                credentials.close();
+                listener.onFailure(e);
+            }
+        ));
     }
 
-    public Authentication createApiKeyAuthentication(AuthenticationResult authResult, String nodeName) {
+    public Authentication createApiKeyAuthentication(AuthenticationResult<User> authResult, String nodeName) {
         if (false == authResult.isAuthenticated()) {
             throw new IllegalArgumentException("API Key authn result must be successful");
         }
-        final User user = authResult.getUser();
+        final User user = authResult.getValue();
         final RealmRef authenticatedBy = new RealmRef(ApiKeyService.API_KEY_REALM_NAME, ApiKeyService.API_KEY_REALM_TYPE, nodeName);
         return new Authentication(user, authenticatedBy, null, Version.CURRENT, Authentication.AuthenticationType.API_KEY,
                 authResult.getMetadata());
     }
 
     void loadApiKeyAndValidateCredentials(ThreadContext ctx, ApiKeyCredentials credentials,
-                                          ActionListener<AuthenticationResult> listener) {
+                                          ActionListener<AuthenticationResult<User>> listener) {
         final String docId = credentials.getId();
 
         Consumer<ApiKeyDoc> validator = apiKeyDoc ->
@@ -510,9 +506,15 @@ public class ApiKeyService {
             .onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES) : "This method only applies to authentication objects created on or after v7.9.0";
 
         final Map<String, Object> metadata = authentication.getMetadata();
-        return new Tuple<>(
-            (String) metadata.get(API_KEY_ID_KEY),
-            (BytesReference) metadata.get(limitedBy ? API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY : API_KEY_ROLE_DESCRIPTORS_KEY));
+        final BytesReference bytesReference =
+            (BytesReference) metadata.get(limitedBy ? API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY : API_KEY_ROLE_DESCRIPTORS_KEY);
+        if (limitedBy && bytesReference.length() == 2 && "{}".equals(bytesReference.utf8ToString())) {
+            if (ServiceAccountSettings.REALM_NAME.equals(metadata.get(API_KEY_CREATOR_REALM_NAME))
+                && "elastic/fleet-server".equals(authentication.getUser().principal())) {
+                return new Tuple<>((String) metadata.get(API_KEY_ID_KEY), FLEET_SERVER_ROLE_DESCRIPTOR_BYTES_V_7_14);
+            }
+        }
+        return new Tuple<>((String) metadata.get(API_KEY_ID_KEY), bytesReference);
     }
 
     public static class ApiKeyRoleDescriptors {
@@ -594,7 +596,7 @@ public class ApiKeyService {
      * @param listener the listener to notify after verification
      */
     void validateApiKeyCredentials(String docId, ApiKeyDoc apiKeyDoc, ApiKeyCredentials credentials, Clock clock,
-                                   ActionListener<AuthenticationResult> listener) {
+                                   ActionListener<AuthenticationResult<User>> listener) {
         if ("api_key".equals(apiKeyDoc.docType) == false) {
             listener.onResponse(
                 AuthenticationResult.unsuccessful("document [" + docId + "] is [" + apiKeyDoc.docType + "] not an api key", null));
@@ -692,7 +694,7 @@ public class ApiKeyService {
 
     // package-private for testing
     void validateApiKeyExpiration(ApiKeyDoc apiKeyDoc, ApiKeyCredentials credentials, Clock clock,
-                                  ActionListener<AuthenticationResult> listener) {
+                                  ActionListener<AuthenticationResult<User>> listener) {
         if (apiKeyDoc.expirationTime == -1 || Instant.ofEpochMilli(apiKeyDoc.expirationTime).isAfter(clock.instant())) {
             final String principal = Objects.requireNonNull((String) apiKeyDoc.creator.get("principal"));
             final String fullName = (String) apiKeyDoc.creator.get("full_name");
@@ -720,11 +722,13 @@ public class ApiKeyService {
      * Gets the API Key from the <code>Authorization</code> header if the header begins with
      * <code>ApiKey </code>
      */
-    static ApiKeyCredentials getCredentialsFromHeader(ThreadContext threadContext) {
-        String header = threadContext.getHeader("Authorization");
-        if (Strings.hasText(header) && header.regionMatches(true, 0, "ApiKey ", 0, "ApiKey ".length())
-            && header.length() > "ApiKey ".length()) {
-            final byte[] decodedApiKeyCredBytes = Base64.getDecoder().decode(header.substring("ApiKey ".length()));
+    ApiKeyCredentials getCredentialsFromHeader(ThreadContext threadContext) {
+        if (false == isEnabled()) {
+            return null;
+        }
+        final SecureString apiKeyString = Authenticator.extractCredentialFromAuthorizationHeader(threadContext, "ApiKey");
+        if (apiKeyString != null) {
+            final byte[] decodedApiKeyCredBytes = Base64.getDecoder().decode(CharArrays.toUtf8Bytes(apiKeyString.getChars()));
             char[] apiKeyCredChars = null;
             try {
                 apiKeyCredChars = CharArrays.utf8BytesToChars(decodedApiKeyCredBytes);
@@ -787,20 +791,17 @@ public class ApiKeyService {
     }
 
     private boolean isEnabled() {
-        return enabled && licenseState.isSecurityEnabled();
+        return enabled;
     }
 
     public void ensureEnabled() {
-        if (licenseState.isSecurityEnabled() == false) {
-            throw LicenseUtils.newComplianceException("security is not enabled");
-        }
         if (enabled == false) {
             throw new FeatureNotEnabledException(Feature.API_KEY_SERVICE, "api keys are not enabled");
         }
     }
 
     // public class for testing
-    public static final class ApiKeyCredentials implements Closeable {
+    public static final class ApiKeyCredentials implements AuthenticationToken, Closeable {
         private final String id;
         private final SecureString key;
 
@@ -821,6 +822,21 @@ public class ApiKeyService {
         public void close() {
             key.close();
         }
+
+        @Override
+        public String principal() {
+            return id;
+        }
+
+        @Override
+        public Object credentials() {
+            return key;
+        }
+
+        @Override
+        public void clearCredentials() {
+            close();
+        }
     }
 
     private static class ApiKeyLoggingDeprecationHandler implements DeprecationHandler {
@@ -836,21 +852,21 @@ public class ApiKeyService {
         @Override
         public void logRenamedField(String parserName, Supplier<XContentLocation> location, String oldName, String currentName) {
             String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-            deprecationLogger.deprecate(DeprecationCategory.API, "api_key_field",
+            deprecationLogger.critical(DeprecationCategory.API, "api_key_field",
                 "{}Deprecated field [{}] used in api key [{}], expected [{}] instead", prefix, oldName, apiKeyId, currentName);
         }
 
         @Override
         public void logReplacedField(String parserName, Supplier<XContentLocation> location, String oldName, String replacedName) {
             String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-            deprecationLogger.deprecate(DeprecationCategory.API, "api_key_field",
+            deprecationLogger.critical(DeprecationCategory.API, "api_key_field",
                 "{}Deprecated field [{}] used in api key [{}], replaced by [{}]", prefix, oldName, apiKeyId, replacedName);
         }
 
         @Override
         public void logRemovedField(String parserName, Supplier<XContentLocation> location, String removedName) {
             String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-            deprecationLogger.deprecate(DeprecationCategory.API, "api_key_field",
+            deprecationLogger.critical(DeprecationCategory.API, "api_key_field",
                 "{}Deprecated field [{}] used in api key [{}], which is unused and will be removed entirely",
                 prefix, removedName, apiKeyId);
         }
@@ -899,7 +915,7 @@ public class ApiKeyService {
         }
         if (filterOutExpiredKeys) {
             final BoolQueryBuilder expiredQuery = QueryBuilders.boolQuery();
-            expiredQuery.should(QueryBuilders.rangeQuery("expiration_time").lte(Instant.now().toEpochMilli()));
+            expiredQuery.should(QueryBuilders.rangeQuery("expiration_time").gt(Instant.now().toEpochMilli()));
             expiredQuery.should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("expiration_time")));
             boolQuery.filter(expiredQuery);
         }
@@ -914,23 +930,7 @@ public class ApiKeyService {
                     .request();
             securityIndex.checkIndexVersionThenExecute(listener::onFailure,
                     () -> ScrollHelper.fetchAllByEntity(client, request, new ContextPreservingActionListener<>(supplier, listener),
-                            (SearchHit hit) -> {
-                                Map<String, Object> source = hit.getSourceAsMap();
-                                String name = (String) source.get("name");
-                                String id = hit.getId();
-                                Long creation = (Long) source.get("creation_time");
-                                Long expiration = (Long) source.get("expiration_time");
-                                Boolean invalidated = (Boolean) source.get("api_key_invalidated");
-                                @SuppressWarnings("unchecked")
-                                String username = (String) ((Map<String, Object>) source.get("creator")).get("principal");
-                                @SuppressWarnings("unchecked")
-                                String realm = (String) ((Map<String, Object>) source.get("creator")).get("realm");
-                                @SuppressWarnings("unchecked")
-                                Map<String, Object> metadata = (Map<String, Object>) source.get("metadata_flattened");
-                                return new ApiKey(name, id, Instant.ofEpochMilli(creation),
-                                    (expiration != null) ? Instant.ofEpochMilli(expiration) : null,
-                                    invalidated, username, realm, metadata);
-                            }));
+                        ApiKeyService::convertSearchHitToApiKeyInfo));
         }
     }
 
@@ -1128,6 +1128,66 @@ public class ApiKeyService {
                     listener.onResponse(new GetApiKeyResponse(apiKeyInfos));
                 }
             }, listener::onFailure));
+    }
+
+    public void queryApiKeys(SearchRequest searchRequest, ActionListener<QueryApiKeyResponse> listener) {
+        ensureEnabled();
+
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
+        if (frozenSecurityIndex.indexExists() == false) {
+            logger.debug("security index does not exist");
+            listener.onResponse(QueryApiKeyResponse.emptyResponse());
+        } else if (frozenSecurityIndex.isAvailable() == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else {
+            securityIndex.checkIndexVersionThenExecute(listener::onFailure,
+                () -> executeAsyncWithOrigin(client,
+                    SECURITY_ORIGIN,
+                    SearchAction.INSTANCE,
+                    searchRequest,
+                    ActionListener.wrap(searchResponse -> {
+                        final long total = searchResponse.getHits().getTotalHits().value;
+                        if (total == 0) {
+                            logger.debug("No api keys found for query [{}]", searchRequest.source().query());
+                            listener.onResponse(QueryApiKeyResponse.emptyResponse());
+                            return;
+                        }
+                        final List<QueryApiKeyResponse.Item> apiKeyItem = Arrays.stream(searchResponse.getHits().getHits())
+                            .map(ApiKeyService::convertSearchHitToQueryItem)
+                            .collect(Collectors.toUnmodifiableList());
+                        listener.onResponse(new QueryApiKeyResponse(total, apiKeyItem));
+                    }, listener::onFailure)));
+        }
+    }
+
+    private static QueryApiKeyResponse.Item convertSearchHitToQueryItem(SearchHit hit) {
+        return new QueryApiKeyResponse.Item(convertSearchHitToApiKeyInfo(hit), hit.getSortValues());
+    }
+
+    private static ApiKey convertSearchHitToApiKeyInfo(SearchHit hit) {
+        Map<String, Object> source = hit.getSourceAsMap();
+        String name = (String) source.get("name");
+        String id = hit.getId();
+        Long creation = (Long) source.get("creation_time");
+        Long expiration = (Long) source.get("expiration_time");
+        Boolean invalidated = (Boolean) source.get("api_key_invalidated");
+        @SuppressWarnings("unchecked")
+        String username = (String) ((Map<String, Object>) source.get("creator")).get("principal");
+        @SuppressWarnings("unchecked")
+        String realm = (String) ((Map<String, Object>) source.get("creator")).get("realm");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> metadata = (Map<String, Object>) source.get("metadata_flattened");
+
+        return new ApiKey(
+            name,
+            id,
+            Instant.ofEpochMilli(creation),
+            (expiration != null) ? Instant.ofEpochMilli(expiration) : null,
+            invalidated,
+            username,
+            realm,
+            metadata
+        );
     }
 
     private RemovalListener<String, ListenableFuture<CachedApiKeyHashResult>> getAuthCacheRemovalListener(int maximumWeight) {

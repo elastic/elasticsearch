@@ -49,6 +49,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FieldDoc;
@@ -67,24 +68,23 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
+import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -101,7 +101,7 @@ import java.util.List;
 import java.util.Map;
 
 public class Lucene {
-    public static final String LATEST_CODEC = "Lucene87";
+    public static final String LATEST_CODEC = "Lucene90";
 
     public static final String SOFT_DELETES_FIELD = "__soft_deletes";
 
@@ -197,7 +197,7 @@ public class Lucene {
                  * since checksums don's match anymore. that's why we prune the name here directly.
                  * We also want the caller to know if we were not able to remove a segments_N file.
                  */
-                if (file.startsWith(IndexFileNames.SEGMENTS) || file.equals(IndexFileNames.OLD_SEGMENTS_GEN)) {
+                if (file.startsWith(IndexFileNames.SEGMENTS)) {
                     foundSegmentFiles++;
                     if (file.equals(si.getSegmentsFileName()) == false) {
                         directory.deleteFile(file); // remove all segment_N files except of the one we wanna keep
@@ -235,7 +235,7 @@ public class Lucene {
     public static void cleanLuceneIndex(Directory directory) throws IOException {
         try (Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
             for (final String file : directory.listAll()) {
-                if (file.startsWith(IndexFileNames.SEGMENTS) || file.equals(IndexFileNames.OLD_SEGMENTS_GEN)) {
+                if (file.startsWith(IndexFileNames.SEGMENTS)) {
                     directory.deleteFile(file); // remove all segment_N files
                 }
             }
@@ -331,7 +331,7 @@ public class Lucene {
                 fieldDocs[i] = readFieldDoc(in);
                 collapseValues[i] = readSortValue(in);
             }
-            return new TopDocsAndMaxScore(new CollapseTopFieldDocs(field, totalHits, fieldDocs, fields, collapseValues), maxScore);
+            return new TopDocsAndMaxScore(new TopFieldGroups(field, totalHits, fieldDocs, fields, collapseValues), maxScore);
         } else {
             throw new IllegalStateException("Unknown type " + type);
         }
@@ -411,21 +411,21 @@ public class Lucene {
     }
 
     public static void writeTopDocs(StreamOutput out, TopDocsAndMaxScore topDocs) throws IOException {
-        if (topDocs.topDocs instanceof CollapseTopFieldDocs) {
+        if (topDocs.topDocs instanceof TopFieldGroups) {
             out.writeByte((byte) 2);
-            CollapseTopFieldDocs collapseDocs = (CollapseTopFieldDocs) topDocs.topDocs;
+            TopFieldGroups topFieldGroups = (TopFieldGroups) topDocs.topDocs;
 
             writeTotalHits(out, topDocs.topDocs.totalHits);
             out.writeFloat(topDocs.maxScore);
 
-            out.writeString(collapseDocs.field);
-            out.writeArray(Lucene::writeSortField, collapseDocs.fields);
+            out.writeString(topFieldGroups.field);
+            out.writeArray(Lucene::writeSortField, topFieldGroups.fields);
 
             out.writeVInt(topDocs.topDocs.scoreDocs.length);
             for (int i = 0; i < topDocs.topDocs.scoreDocs.length; i++) {
-                ScoreDoc doc = collapseDocs.scoreDocs[i];
+                ScoreDoc doc = topFieldGroups.scoreDocs[i];
                 writeFieldDoc(out, (FieldDoc) doc);
-                writeSortValue(out, collapseDocs.collapseValues[i]);
+                writeSortValue(out, topFieldGroups.groupValues[i]);
             }
         } else if (topDocs.topDocs instanceof TopFieldDocs) {
             out.writeByte((byte) 1);
@@ -1024,6 +1024,16 @@ public class Lucene {
                 return null;
             }
 
+            @Override
+            public VectorValues getVectorValues(String field) throws IOException {
+                return null;
+            }
+
+            @Override
+            public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs) throws IOException {
+                return null;
+            }
+
             public FieldInfos getFieldInfos() {
                 return new FieldInfos(new FieldInfo[0]);
             }
@@ -1039,7 +1049,8 @@ public class Lucene {
             public void checkIntegrity() {
             }
 
-            public Fields getTermVectors(int docID) {
+            @Override
+            public Fields getTermVectors(int docID) throws IOException {
                 return null;
             }
 
@@ -1074,7 +1085,7 @@ public class Lucene {
     /**
      * Prepares a new {@link IndexWriterConfig} that does not do any merges, by setting both the merge policy and the merge scheduler.
      * Setting just the merge policy means that constructing the index writer will create a {@link ConcurrentMergeScheduler} by default,
-     * which is quite heavyweight and in particular it can unnecessarily block on {@link IOUtils#spins}.
+     * which is quite heavyweight.
      */
     @SuppressForbidden(reason = "NoMergePolicy#INSTANCE is safe to use since we also set NoMergeScheduler#INSTANCE")
     public static IndexWriterConfig indexWriterConfigWithNoMerging(Analyzer analyzer) {

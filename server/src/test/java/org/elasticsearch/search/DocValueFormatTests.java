@@ -22,6 +22,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -344,5 +345,46 @@ public class DocValueFormatTests extends ESTestCase {
             millis,
             tokyo.parseLong(tokyo.format(millis), false, () -> { throw new UnsupportedOperationException("don't use now"); })
         );
+    }
+
+    /**
+     * This is a regression test for https://github.com/elastic/elasticsearch/issues/76415
+     */
+    public void testParseOffset() {
+        DocValueFormat.DateTime parsesZone = new DocValueFormat.DateTime(
+            DateFormatter.forPattern("uuuu-MM-dd'T'HH:mm:ss.SSSSSSSSSZZZZZ"),
+            ZoneOffset.UTC,
+            Resolution.MILLISECONDS
+        );
+        long expected = 1628719200000L;
+        ZonedDateTime sample = ZonedDateTime.of(2021, 8, 12, 0, 0, 0, 0, ZoneId.ofOffset("", ZoneOffset.ofHours(2)));
+        assertEquals("GUARD: wrong initial millis", expected, sample.toEpochSecond() * 1000);
+        long actualMillis = parsesZone.parseLong(
+            "2021-08-12T00:00:00.000000000+02:00",
+            false,
+            () -> { throw new UnsupportedOperationException("don't use now"); }
+        );
+        assertEquals(expected, actualMillis);
+    }
+
+    /**
+     * Make sure fixing 76415 doesn't break parsing zone strings
+     */
+    public void testParseZone() {
+        DocValueFormat.DateTime parsesZone = new DocValueFormat.DateTime(
+            DateFormatter.forPattern("uuuu-MM-dd'T'HH:mm:ss.SSSSSSSSSVV"),
+            ZoneOffset.UTC,
+            Resolution.MILLISECONDS
+        );
+        long expected = 1628719200000L;
+        ZonedDateTime sample = ZonedDateTime.of(2021, 8, 12, 0, 0, 0, 0, ZoneId.ofOffset("", ZoneOffset.ofHours(2)));
+        assertEquals("GUARD: wrong initial millis", expected, sample.toEpochSecond() * 1000);
+        //assertEquals("GUARD: wrong initial string", "2021-08-12T00:00:00.000000000+02:00", parsesZone.format(expected));
+        long actualMillis = parsesZone.parseLong(
+            "2021-08-12T00:00:00.000000000CET",
+            false,
+            () -> { throw new UnsupportedOperationException("don't use now"); }
+        );
+        assertEquals(expected, actualMillis);
     }
 }

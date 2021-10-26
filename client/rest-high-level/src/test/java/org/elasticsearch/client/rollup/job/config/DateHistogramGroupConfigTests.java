@@ -8,7 +8,7 @@
 package org.elasticsearch.client.rollup.job.config;
 
 import org.elasticsearch.client.ValidationException;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
@@ -80,7 +80,7 @@ public class DateHistogramGroupConfigTests extends AbstractXContentTestCase<Date
     static DateHistogramGroupConfig randomDateHistogramGroupConfig() {
         final String field = randomAlphaOfLength(randomIntBetween(3, 10));
         final DateHistogramInterval delay = randomBoolean() ? new DateHistogramInterval(randomPositiveTimeValue()) : null;
-        final String timezone = randomBoolean() ? randomDateTimeZone().toString() : null;
+        final String timezone = randomBoolean() ? randomZone().toString() : null;
         int i = randomIntBetween(0,2);
         final DateHistogramInterval interval;
         switch (i) {

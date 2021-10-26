@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.ObjectLookupContainer;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -21,6 +22,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -34,16 +36,19 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.Index;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 /**
@@ -54,6 +59,12 @@ import java.util.stream.StreamSupport;
 public class DiskThresholdMonitor {
 
     private static final Logger logger = LogManager.getLogger(DiskThresholdMonitor.class);
+
+    private static final Settings READ_ONLY_ALLOW_DELETE_SETTINGS = Settings.builder()
+        .put(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE, Boolean.TRUE.toString()).build();
+
+    private static final Settings NOT_READ_ONLY_ALLOW_DELETE_SETTINGS =
+        Settings.builder().putNull(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE).build();
 
     private final DiskThresholdSettings diskThresholdSettings;
     private final Client client;
@@ -294,11 +305,29 @@ public class DiskThresholdMonitor {
             logger.trace("no reroute required");
             listener.onResponse(null);
         }
-        final Set<String> indicesToAutoRelease = StreamSupport.stream(state.routingTable().indicesRouting()
-            .spliterator(), false)
-            .map(c -> c.key)
+
+        // Generate a map of node name to ID so we can use it to look up node replacement targets
+        final Map<String, String> nodeNameToId = StreamSupport.stream(state.getRoutingNodes().spliterator(), false)
+            .collect(Collectors.toMap(rn -> rn.node().getName(), RoutingNode::nodeId, (s1, s2) -> s2));
+
+        // Calculate both the source node id and the target node id of a "replace" type shutdown
+        final Set<String> nodesIdsPartOfReplacement = state.metadata().nodeShutdowns().values().stream()
+            .filter(meta -> meta.getType() == SingleNodeShutdownMetadata.Type.REPLACE)
+            .flatMap(meta -> Stream.of(meta.getNodeId(), nodeNameToId.get(meta.getTargetNodeName())))
+            .collect(Collectors.toSet());
+
+        // Generate a set of all the indices that exist on either the target or source of a node replacement
+        final Set<String> indicesOnReplaceSourceOrTarget = nodesIdsPartOfReplacement.stream()
+            .flatMap(nodeId -> state.getRoutingNodes().node(nodeId).copyShards().stream()
+                .map(ShardRouting::index)
+                .map(Index::getName))
+            .collect(Collectors.toSet());
+
+        final Set<String> indicesToAutoRelease = state.routingTable().indicesRouting().keySet().stream()
             .filter(index -> indicesNotToAutoRelease.contains(index) == false)
             .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
+            // Do not auto release indices that are on either the source or the target of a node replacement
+            .filter(index -> indicesOnReplaceSourceOrTarget.contains(index) == false)
             .collect(Collectors.toSet());
 
         if (indicesToAutoRelease.isEmpty() == false) {
@@ -351,9 +380,7 @@ public class DiskThresholdMonitor {
             setLastRunTimeMillis();
             listener.onFailure(e);
         });
-        Settings readOnlySettings = readOnly ? Settings.builder()
-            .put(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE, Boolean.TRUE.toString()).build() :
-            Settings.builder().putNull(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE).build();
+        Settings readOnlySettings = readOnly ? READ_ONLY_ALLOW_DELETE_SETTINGS : NOT_READ_ONLY_ALLOW_DELETE_SETTINGS;
         client.admin().indices().prepareUpdateSettings(indicesToUpdate.toArray(Strings.EMPTY_ARRAY))
             .setSettings(readOnlySettings)
             .execute(wrappedListener.map(r -> null));

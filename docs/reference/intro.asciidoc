@@ -238,12 +238,12 @@ testing with your own data and queries].
 [[disaster-ccr]]
 ==== In case of disaster
 
-For performance reasons, the nodes within a cluster need to be on the same
-network. Balancing shards in a cluster across nodes in different data centers
-simply takes too long. But high-availability architectures demand that you avoid
-putting all of your eggs in one basket. In the event of a major outage in one
-location, servers in another location need to be able to take over. Seamlessly.
-The answer? {ccr-cap} (CCR).
+A cluster's nodes need good, reliable connections to each other. To provide
+better connections, you typically co-locate the nodes in the same data center or
+nearby data centers. However, to maintain high availability, you
+also need to avoid any single point of failure. In the event of a major outage
+in one location, servers in another location need to be able to take over. The
+answer? {ccr-cap} (CCR).
 
 CCR provides a way to automatically synchronize indices from your primary cluster
 to a secondary remote cluster that can serve as a hot backup. If the primary

@@ -22,8 +22,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class StatsBucketTests extends AbstractBucketMetricsTestCase<StatsBucketPipelineAggregationBuilder> {
 
     @Override
-    protected StatsBucketPipelineAggregationBuilder doCreateTestAggregatorFactory(String name,
-            String bucketsPath) {
+    protected StatsBucketPipelineAggregationBuilder doCreateTestAggregatorFactory(String name, String bucketsPath) {
         return new StatsBucketPipelineAggregationBuilder(name, bucketsPath);
     }
 
@@ -35,15 +34,26 @@ public class StatsBucketTests extends AbstractBucketMetricsTestCase<StatsBucketP
         aggBuilders.add(multiBucketAgg);
 
         // First try to point to a non-existent agg
-        assertThat(validate(aggBuilders, new StatsBucketPipelineAggregationBuilder("name", "invalid_agg>metric")), equalTo(
-                "Validation Failed: 1: " + PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
-                + " aggregation does not exist for aggregation [name]: invalid_agg>metric;"));
+        assertThat(
+            validate(aggBuilders, new StatsBucketPipelineAggregationBuilder("name", "invalid_agg>metric")),
+            equalTo(
+                "Validation Failed: 1: "
+                    + PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
+                    + " aggregation does not exist for aggregation [name]: invalid_agg>metric;"
+            )
+        );
 
         // Now try to point to a single bucket agg
-        assertThat(validate(aggBuilders, new StatsBucketPipelineAggregationBuilder("name", "global>metric")), equalTo(
-                "Validation Failed: 1: The first aggregation in " + PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
-                + " must be a multi-bucket aggregation for aggregation [name] found :" + GlobalAggregationBuilder.class.getName()
-                + " for buckets path: global>metric;"));
+        assertThat(
+            validate(aggBuilders, new StatsBucketPipelineAggregationBuilder("name", "global>metric")),
+            equalTo(
+                "Validation Failed: 1: The first aggregation in "
+                    + PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
+                    + " must be a multi-bucket aggregation for aggregation [name] found :"
+                    + GlobalAggregationBuilder.class.getName()
+                    + " for buckets path: global>metric;"
+            )
+        );
 
         // Now try to point to a valid multi-bucket agg
         assertThat(validate(aggBuilders, new StatsBucketPipelineAggregationBuilder("name", "terms>metric")), nullValue());

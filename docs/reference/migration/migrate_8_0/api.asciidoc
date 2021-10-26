@@ -78,4 +78,27 @@ and will be removed in a future major version.
 *Impact* +
 Use {ref}/ml-apis.html#ml-api-datafeed-endpoint[{dfeeds}] instead.
 ====
+
+.The `job_id` property of the Update {dfeeds} API has been removed.
+[%collapsible]
+====
+*Details* +
+The ability to update a `job_id` in a {dfeed} was deprecated in 7.3.0. and is
+removed in 8.0.
+
+*Impact* +
+It is not possible to move {dfeeds} between {anomaly-jobs}.
+====
+
+.Create repository and delete repository API's return `409` status code when a repository is in use instead of `500`.
+[%collapsible]
+====
+*Details* +
+The {ref}/put-snapshot-repo-api.html[Create or update snapshot repository API] and
+{ref}/delete-snapshot-repo-api.html[Delete snapshot repository API] return `409`
+status code when the request is attempting to modify an existing repository that's in use instead of status code `500`.
+
+*Impact* +
+Update client code that handles creation and deletion of repositories to reflect this change.
+====
 // end::notable-breaking-changes[]

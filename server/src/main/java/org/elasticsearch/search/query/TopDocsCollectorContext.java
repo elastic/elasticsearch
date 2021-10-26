@@ -16,6 +16,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Collector;
@@ -37,16 +38,15 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
-import org.apache.lucene.search.grouping.CollapsingTopDocsCollector;
-import org.apache.lucene.search.spans.SpanQuery;
+import org.elasticsearch.lucene.grouping.SinglePassGroupingCollector;
+import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.action.search.MaxScoreCollector;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.util.CachedSupplier;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.collapse.CollapseContext;
@@ -113,7 +113,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             } else {
                 TotalHitCountCollector hitCountCollector = new TotalHitCountCollector();
                 // implicit total hit counts are valid only when there is no filter collector in the chain
-                int hitCount =  hasFilterCollector ? -1 : shortcutTotalHitCount(reader, query);
+                int hitCount = hasFilterCollector ? -1 : shortcutTotalHitCount(reader, query);
                 if (hitCount == -1) {
                     if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
                         this.collector = hitCountCollector;
@@ -153,7 +153,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
 
     static class CollapsingTopDocsCollectorContext extends TopDocsCollectorContext {
         private final DocValueFormat[] sortFmt;
-        private final CollapsingTopDocsCollector<?> topDocsCollector;
+        private final SinglePassGroupingCollector<?> topDocsCollector;
         private final Supplier<Float> maxScoreSupplier;
 
         /**
@@ -192,7 +192,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
 
         @Override
         void postProcess(QuerySearchResult result) throws IOException {
-            CollapseTopFieldDocs topDocs = topDocsCollector.getTopDocs();
+            TopFieldGroups topDocs = topDocsCollector.getTopGroups(0);
             result.topDocs(new TopDocsAndMaxScore(topDocs, maxScoreSupplier.get()), sortFmt);
         }
     }
@@ -417,7 +417,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
     static TopDocsCollectorContext createTopDocsCollectorContext(SearchContext searchContext,
                                                                  boolean hasFilterCollector) throws IOException {
         final IndexReader reader = searchContext.searcher().getIndexReader();
-        final Query query = searchContext.query();
+        final Query query = searchContext.rewrittenQuery();
         // top collectors don't like a size of 0
         final int totalNumDocs = Math.max(1, reader.numDocs());
         if (searchContext.size() == 0) {

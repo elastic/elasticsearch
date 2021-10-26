@@ -11,12 +11,12 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.ssl.KeyStoreUtil;
+import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslConfigurationKeys;
+import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 
-import javax.net.ssl.TrustManagerFactory;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import javax.net.ssl.TrustManagerFactory;
 
 /**
  * Bridges SSLConfiguration into the {@link Settings} framework, using {@link Setting} objects.
@@ -42,8 +43,8 @@ public class SSLConfigurationSettings {
     final Setting<Optional<String>> truststoreType;
     final Setting<Optional<String>> trustRestrictionsPath;
     final Setting<List<String>> caPaths;
-    final Setting<Optional<SSLClientAuth>> clientAuth;
-    final Setting<Optional<VerificationMode>> verificationMode;
+    final Setting<Optional<SslClientAuthenticationMode>> clientAuth;
+    final Setting<Optional<SslVerificationMode>> verificationMode;
 
     // public for PKI realm
     private final Setting<SecureString> legacyTruststorePassword;
@@ -181,31 +182,31 @@ public class SSLConfigurationSettings {
     );
     public static final Function<String, Setting.AffixSetting<List<String>>> CAPATH_SETTING_REALM = CERT_AUTH_PATH::realm;
 
-    private static final Function<String, Setting<Optional<SSLClientAuth>>> CLIENT_AUTH_SETTING_TEMPLATE =
+    private static final Function<String, Setting<Optional<SslClientAuthenticationMode>>> CLIENT_AUTH_SETTING_TEMPLATE =
         key -> new Setting<>(
             key,
             (String) null,
-            s -> s == null ? Optional.empty() : Optional.of(SSLClientAuth.parse(s)),
+            s -> s == null ? Optional.empty() : Optional.of(SslClientAuthenticationMode.parse(s)),
             Property.NodeScope,
             Property.Filtered
         );
-    private static final SslSetting<Optional<SSLClientAuth>> CLIENT_AUTH_SETTING = SslSetting.setting(
+    private static final SslSetting<Optional<SslClientAuthenticationMode>> CLIENT_AUTH_SETTING = SslSetting.setting(
         SslConfigurationKeys.CLIENT_AUTH,
         CLIENT_AUTH_SETTING_TEMPLATE
     );
 
-    private static final Function<String, Setting<Optional<VerificationMode>>> VERIFICATION_MODE_SETTING_TEMPLATE = key -> new Setting<>(
+    private static final Function<String, Setting<Optional<SslVerificationMode>>> VERIFICATION_MODE_SETTING_TEMPLATE = key -> new Setting<>(
         key,
         (String) null,
-        s -> s == null ? Optional.empty() : Optional.of(VerificationMode.parse(s)),
+        s -> s == null ? Optional.empty() : Optional.of(SslVerificationMode.parse(s)),
         Property.NodeScope,
         Property.Filtered
     );
-    private static final SslSetting<Optional<VerificationMode>> VERIFICATION_MODE = SslSetting.setting(
+    private static final SslSetting<Optional<SslVerificationMode>> VERIFICATION_MODE = SslSetting.setting(
         SslConfigurationKeys.VERIFICATION_MODE,
         VERIFICATION_MODE_SETTING_TEMPLATE
     );
-    public static final Function<String, Setting.AffixSetting<Optional<VerificationMode>>> VERIFICATION_MODE_SETTING_REALM =
+    public static final Function<String, Setting.AffixSetting<Optional<SslVerificationMode>>> VERIFICATION_MODE_SETTING_REALM =
         VERIFICATION_MODE::realm;
 
     /**
@@ -255,10 +256,6 @@ public class SSLConfigurationSettings {
 
         this.enabledSettings = Collections.unmodifiableList(enabled);
         this.disabledSettings = Collections.unmodifiableList(disabled);
-    }
-
-    public static String getKeyStoreType(Setting<Optional<String>> setting, Settings settings, String path) {
-        return setting.get(settings).orElseGet(() -> KeyStoreUtil.inferKeyStoreType(path));
     }
 
     public List<Setting<?>> getEnabledSettings() {

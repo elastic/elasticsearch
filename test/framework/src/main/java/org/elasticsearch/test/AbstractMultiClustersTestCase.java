@@ -57,6 +57,10 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         return Collections.emptyList();
     }
 
+    protected Settings nodeSettings() {
+        return Settings.EMPTY;
+    }
+
     protected final Client client() {
         return client(LOCAL_CLUSTER);
     }
@@ -92,8 +96,8 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
             final List<Class<? extends Plugin>> mockPlugins =
                 List.of(MockHttpTransport.TestPlugin.class, MockTransportService.TestPlugin.class, MockNioTransportPlugin.class);
             final Collection<Class<? extends Plugin>> nodePlugins = nodePlugins(clusterAlias);
-            final Settings nodeSettings = Settings.EMPTY;
-            final NodeConfigurationSource nodeConfigurationSource = nodeConfigurationSource(nodeSettings, nodePlugins);
+
+            final NodeConfigurationSource nodeConfigurationSource = nodeConfigurationSource(nodeSettings(), nodePlugins);
             final InternalTestCluster cluster = new InternalTestCluster(randomLong(), createTempDir(), true, true, numberOfNodes,
                 numberOfNodes, clusterName, nodeConfigurationSource, 0, clusterName + "-", mockPlugins, Function.identity());
             cluster.beforeTest(random());
@@ -107,7 +111,7 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
     public List<String> filteredWarnings() {
         return Stream.concat(super.filteredWarnings().stream(),
             List.of("Configuring multiple [path.data] paths is deprecated. Use RAID or other system level features for utilizing " +
-            "multiple disks. This feature will be removed in 8.0.").stream()).collect(Collectors.toList());
+            "multiple disks. This feature will be removed in a future release.").stream()).collect(Collectors.toList());
     }
 
     @After
@@ -130,6 +134,8 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         for (String clusterAlias : clusterAliases) {
             if (clusterAlias.equals(LOCAL_CLUSTER) == false) {
                 settings.putNull("cluster.remote." + clusterAlias + ".seeds");
+                settings.putNull("cluster.remote." + clusterAlias + ".mode");
+                settings.putNull("cluster.remote." + clusterAlias + ".proxy_address");
             }
         }
         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();

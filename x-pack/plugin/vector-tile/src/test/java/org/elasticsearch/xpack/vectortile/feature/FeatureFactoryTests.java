@@ -20,16 +20,26 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.utils.StandardValidator;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.zip.GZIPInputStream;
+
+import static org.hamcrest.Matchers.iterableWithSize;
 
 public class FeatureFactoryTests extends ESTestCase {
 
@@ -150,5 +160,93 @@ public class FeatureFactoryTests extends ESTestCase {
 
     private GeometryCollection<Geometry> buildGeometryCollection(Rectangle r) {
         return new GeometryCollection<>(List.of(buildPolygon(r), buildLine(r)));
+    }
+
+    public void testStackOverflowError() throws IOException, ParseException {
+        // The provided polygon contains 49K points and we have observed that for some tiles and some extent values,
+        // it makes the library we are using to compute features to fail with a StackOverFlowError. This test just makes
+        // sure the fix in place avoids that error.
+        final InputStream is = new GZIPInputStream(getClass().getResourceAsStream("polygon.wkt.gz"));
+        final BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
+        final Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(true), true, reader.readLine());
+        for (int i = 0; i < 10; i++) {
+            final int z = randomIntBetween(0, 4);
+            final int x = randomIntBetween(0, (1 << z) - 1);
+            final int y = randomIntBetween(0, (1 << z) - 1);
+            final int extent = randomIntBetween(128, 8012);
+            final FeatureFactory builder = new FeatureFactory(z, x, y, extent);
+            try {
+                builder.getFeatures(geometry);
+            } catch (StackOverflowError error) {
+                fail("stackoverflow error thrown at " + z + "/" + x + "/" + y + "@" + extent);
+            }
+        }
+    }
+
+    public void testTileInsidePolygon() throws Exception {
+        final int z = randomIntBetween(0, 4);
+        final int x = randomIntBetween(0, (1 << z) - 1);
+        final int y = randomIntBetween(0, (1 << z) - 1);
+        final int extent = randomIntBetween(128, 8012);
+        final FeatureFactory builder = new FeatureFactory(z, x, y, extent);
+        final Rectangle rectangle = GeoTileUtils.toBoundingBox(x, y, z);
+        final double minX = Math.max(-180, rectangle.getMinX() - 1);
+        final double maxX = Math.min(180, rectangle.getMaxX() + 1);
+        final double minY = Math.max(-GeoTileUtils.LATITUDE_MASK, rectangle.getMinY() - 1);
+        final double maxY = Math.min(GeoTileUtils.LATITUDE_MASK, rectangle.getMaxY() + 1);
+        Polygon bigPolygon = new Polygon(
+            new LinearRing(new double[] { minX, maxX, maxX, minX, minX }, new double[] { minY, minY, maxY, maxY, minY })
+        );
+        final List<byte[]> bytes = builder.getFeatures(bigPolygon);
+        assertThat(bytes, Matchers.iterableWithSize(1));
+        final VectorTile.Tile.Feature feature = VectorTile.Tile.Feature.parseFrom(bytes.get(0));
+        assertThat(feature.getType(), Matchers.equalTo(VectorTile.Tile.GeomType.POLYGON));
+    }
+
+    public void testManyIntersectingGeometries() {
+        final int z = randomIntBetween(2, 6);
+        final int x = randomIntBetween(0, (1 << z) - 1);
+        final int y = randomIntBetween(0, (1 << z) - 1);
+        final int extent = randomIntBetween(128, 8012);
+        final FeatureFactory builder = new FeatureFactory(z, x, y, extent);
+        // within geometries
+        assertThat(builder.getFeatures(GeoTileUtils.toBoundingBox(2 * x, 2 * y, z + 1)), iterableWithSize(1));
+        assertThat(builder.getFeatures(GeoTileUtils.toBoundingBox(2 * x + 1, 2 * y, z + 1)), iterableWithSize(1));
+        assertThat(builder.getFeatures(GeoTileUtils.toBoundingBox(2 * x, 2 * y + 1, z + 1)), iterableWithSize(1));
+        assertThat(builder.getFeatures(GeoTileUtils.toBoundingBox(2 * x + 1, 2 * y + 1, z + 1)), iterableWithSize(1));
+        // intersecting geometries
+        assertThat(builder.getFeatures(expandByHalf(GeoTileUtils.toBoundingBox(2 * x, 2 * y, z + 1))), iterableWithSize(1));
+        assertThat(builder.getFeatures(expandByHalf(GeoTileUtils.toBoundingBox(2 * x + 1, 2 * y, z + 1))), iterableWithSize(1));
+        assertThat(builder.getFeatures(expandByHalf(GeoTileUtils.toBoundingBox(2 * x, 2 * y + 1, z + 1))), iterableWithSize(1));
+        assertThat(builder.getFeatures(expandByHalf(GeoTileUtils.toBoundingBox(2 * x + 1, 2 * y + 1, z + 1))), iterableWithSize(1));
+        // contain geometries
+        assertThat(builder.getFeatures(GeoTileUtils.toBoundingBox(x / 4, y / 4, z - 2)), iterableWithSize(1));
+        assertThat(builder.getFeatures(GeoTileUtils.toBoundingBox(x / 4, y / 4, z - 2)), iterableWithSize(1));
+    }
+
+    private Rectangle expandByHalf(Rectangle rectangle) {
+        double halfWidth = (rectangle.getMaxX() - rectangle.getMinX()) / 2;
+        double halfHeight = (rectangle.getMaxY() - rectangle.getMinY()) / 2;
+        double minX = Math.max(-180, rectangle.getMinX() - halfWidth);
+        double maxX = Math.min(180, rectangle.getMaxX() + halfWidth);
+        double minY = Math.max(-GeoTileUtils.LATITUDE_MASK, rectangle.getMinY() - halfHeight);
+        double maxY = Math.min(GeoTileUtils.LATITUDE_MASK, rectangle.getMaxY() + halfHeight);
+        return new Rectangle(minX, maxX, maxY, minY);
+    }
+
+    public void testAntarctica() throws IOException, ParseException {
+        assertParsing(new GZIPInputStream(getClass().getResourceAsStream("Antarctica.wkt.gz")));
+    }
+
+    public void testFrance() throws IOException, ParseException {
+        assertParsing(new GZIPInputStream(getClass().getResourceAsStream("France.wkt.gz")));
+    }
+
+    private void assertParsing(InputStream is) throws IOException, ParseException {
+        // make sure we can parse big polygons
+        final BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
+        final Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(true), true, reader.readLine());
+        final FeatureFactory builder = new FeatureFactory(0, 0, 0, 4096);
+        assertThat(builder.getFeatures(geometry), iterableWithSize(1));
     }
 }

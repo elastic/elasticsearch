@@ -30,7 +30,6 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
@@ -38,11 +37,11 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -222,16 +221,8 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public void finalizeSnapshot(
-            ShardGenerations shardGenerations,
-            long repositoryStateId,
-            Metadata clusterMetadata,
-            SnapshotInfo snapshotInfo,
-            Version repositoryMetaVersion,
-            Function<ClusterState, ClusterState> stateTransformer,
-            ActionListener<RepositoryData> listener
-        ) {
-            listener.onResponse(null);
+        public void finalizeSnapshot(FinalizeSnapshotContext finalizeSnapshotContext) {
+            finalizeSnapshotContext.onResponse(null);
         }
 
         @Override
@@ -311,11 +302,14 @@ public class RepositoriesServiceTests extends ESTestCase {
             SnapshotId source,
             SnapshotId target,
             RepositoryShardId shardId,
-            String shardGeneration,
+            ShardGeneration shardGeneration,
             ActionListener<ShardSnapshotResult> listener
         ) {
 
         }
+
+        @Override
+        public void awaitIdle() {}
 
         @Override
         public Lifecycle.State lifecycleState() {

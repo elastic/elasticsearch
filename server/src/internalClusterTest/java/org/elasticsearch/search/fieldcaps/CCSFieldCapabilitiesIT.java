@@ -102,9 +102,7 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
             .filter(f -> Arrays.asList(f.getIndices()).contains("remote_cluster:" + remoteErrorIndex))
             .findFirst().get();
         ex = failure.getException();
-        assertEquals(RemoteTransportException.class, ex.getClass());
-        cause = ExceptionsHelper.unwrapCause(ex);
-        assertEquals(IllegalArgumentException.class, cause.getClass());
-        assertEquals("I throw because I choose to.", cause.getMessage());
+        assertEquals(IllegalArgumentException.class, ex.getClass());
+        assertEquals("I throw because I choose to.", ex.getMessage());
     }
 }

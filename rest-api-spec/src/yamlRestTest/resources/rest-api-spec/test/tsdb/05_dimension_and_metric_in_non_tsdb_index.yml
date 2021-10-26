@@ -1,0 +1,49 @@
+add time series mappings:
+  - skip:
+      version: " - 7.15.99"
+      reason: introduced in 7.16.0
+
+  - do:
+      indices.create:
+          index: tsdb_index
+          body:
+            settings:
+              index:
+                number_of_replicas: 0
+                number_of_shards: 2
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                metricset:
+                  type: keyword
+                  time_series_dimension: true
+                k8s:
+                  properties:
+                    pod:
+                      properties:
+                        availability_zone:
+                          type: short
+                          time_series_dimension: true
+                        uid:
+                          type: keyword
+                          time_series_dimension: true
+                        name:
+                          type: keyword
+                        ip:
+                          type: ip
+                          time_series_dimension: true
+                        network:
+                          properties:
+                            tx:
+                              type: long
+                              time_series_metric: counter
+                            rx:
+                              type: integer
+                              time_series_metric: gauge
+                            packets_dropped:
+                              type: long
+                              time_series_metric: gauge
+                            latency:
+                              type: double
+                              time_series_metric: gauge

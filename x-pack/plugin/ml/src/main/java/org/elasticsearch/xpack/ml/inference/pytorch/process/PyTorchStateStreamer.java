@@ -12,7 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.ml.inference.persistence.ChunkedTrainedModelRestorer;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 
@@ -40,7 +40,7 @@ public class PyTorchStateStreamer {
     private final ExecutorService executorService;
     private final NamedXContentRegistry xContentRegistry;
     private volatile boolean isCancelled;
-    private boolean modelSizeWritten = false;
+    private int modelSize = -1;
 
     public PyTorchStateStreamer(Client client, ExecutorService executorService, NamedXContentRegistry xContentRegistry) {
         this.client = new OriginSettingClient(Objects.requireNonNull(client), ML_ORIGIN);
@@ -68,8 +68,14 @@ public class PyTorchStateStreamer {
         ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(modelId, client, executorService, xContentRegistry);
         restorer.setSearchIndex(index);
         restorer.setSearchSize(1);
-        restorer.restoreModelDefinition(doc -> writeChunk(doc, restoreStream), listener::onResponse, listener::onFailure);
-        logger.debug("model [{}] state restored in [{}] documents from index [{}]", modelId, restorer.getNumDocsWritten(), index);
+        restorer.restoreModelDefinition(
+            doc -> writeChunk(doc, restoreStream),
+            success -> {
+                logger.debug("model [{}] state restored in [{}] documents from index [{}]", modelId, restorer.getNumDocsWritten(), index);
+                listener.onResponse(success);
+            },
+            listener::onFailure
+        );
     }
 
     private boolean writeChunk(TrainedModelDefinitionDoc doc, OutputStream outputStream) throws IOException {
@@ -77,9 +83,8 @@ public class PyTorchStateStreamer {
             return false;
         }
 
-        if (modelSizeWritten == false) {
-            writeModelSize(doc.getModelId(), doc.getTotalDefinitionLength(), outputStream);
-            modelSizeWritten = true;
+        if (modelSize == -1) {
+            modelSize = writeModelSize(doc.getModelId(), doc.getTotalDefinitionLength(), outputStream);
         }
 
         // The array backing the BytesReference may be bigger than what is
@@ -88,7 +93,7 @@ public class PyTorchStateStreamer {
         return true;
     }
 
-    private void writeModelSize(String modelId, Long modelSizeBytes, OutputStream outputStream) throws IOException {
+    private int writeModelSize(String modelId, Long modelSizeBytes, OutputStream outputStream) throws IOException {
         if (modelSizeBytes == null) {
             String message = String.format(Locale.ROOT,
                 "The definition doc for model [%s] has a null value for field [%s]",
@@ -121,5 +126,7 @@ public class PyTorchStateStreamer {
         ByteBuffer lengthBuffer = ByteBuffer.allocate(4);
         lengthBuffer.putInt(modelSizeBytes.intValue());
         outputStream.write(lengthBuffer.array());
+
+        return modelSizeBytes.intValue();
     }
 }

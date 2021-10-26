@@ -7,7 +7,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
@@ -96,6 +96,6 @@ if (BuildParams.inFipsJvm) {
   tasks.named("jarHell").configure { enabled = false }
   tasks.named("test").configure { enabled = false }
   tasks.named("yamlRestTest").configure { enabled = false };
-  tasks.named("yamlRestCompatTest").configure { enabled = false };
+  tasks.named("yamlRestTestV7CompatTest").configure { enabled = false };
   tasks.named("testingConventions").configure { enabled = false };
 }

@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.transform.checkpoint.RemoteClusterResolver.Resolv
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;
@@ -44,26 +45,29 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
-public class DefaultCheckpointProvider implements CheckpointProvider {
+class DefaultCheckpointProvider implements CheckpointProvider {
 
     // threshold when to audit concrete index names, above this threshold we only report the number of changes
     private static final int AUDIT_CONCRETED_SOURCE_INDEX_CHANGES = 10;
 
     private static final Logger logger = LogManager.getLogger(DefaultCheckpointProvider.class);
 
+    protected final Clock clock;
     protected final Client client;
     protected final RemoteClusterResolver remoteClusterResolver;
     protected final TransformConfigManager transformConfigManager;
     protected final TransformAuditor transformAuditor;
     protected final TransformConfig transformConfig;
 
-    public DefaultCheckpointProvider(
+    DefaultCheckpointProvider(
+        final Clock clock,
         final Client client,
         final RemoteClusterResolver remoteClusterResolver,
         final TransformConfigManager transformConfigManager,
         final TransformAuditor transformAuditor,
         final TransformConfig transformConfig
     ) {
+        this.clock = clock;
         this.client = client;
         this.remoteClusterResolver = remoteClusterResolver;
         this.transformConfigManager = transformConfigManager;
@@ -78,19 +82,23 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
 
     @Override
     public void createNextCheckpoint(final TransformCheckpoint lastCheckpoint, final ActionListener<TransformCheckpoint> listener) {
-        final long timestamp = System.currentTimeMillis();
+        final long timestamp = clock.millis();
         final long checkpoint = TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? 1 : lastCheckpoint.getCheckpoint() + 1;
 
-        getIndexCheckpoints(ActionListener.wrap(checkpointsByIndex -> {
-            reportSourceIndexChanges(
-                TransformCheckpoint.isNullOrEmpty(lastCheckpoint)
-                    ? Collections.emptySet()
-                    : lastCheckpoint.getIndicesCheckpoints().keySet(),
-                checkpointsByIndex.keySet()
-            );
+        getIndexCheckpoints(
+            ActionListener.wrap(
+                checkpointsByIndex -> {
+                    reportSourceIndexChanges(
+                        TransformCheckpoint.isNullOrEmpty(lastCheckpoint)
+                            ? Collections.emptySet()
+                            : lastCheckpoint.getIndicesCheckpoints().keySet(),
+                        checkpointsByIndex.keySet()
+                    );
 
-            listener.onResponse(new TransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, 0L));
-        }, listener::onFailure));
+                    listener.onResponse(new TransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, 0L));
+                },
+                listener::onFailure)
+        );
     }
 
     protected void getIndexCheckpoints(ActionListener<Map<String, long[]>> listener) {
@@ -257,7 +265,7 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
             .setNextCheckpointPosition(nextCheckpointPosition)
             .setNextCheckpointProgress(nextCheckpointProgress);
 
-        long timestamp = System.currentTimeMillis();
+        long timestamp = clock.millis();
 
         getIndexCheckpoints(ActionListener.wrap(checkpointsByIndex -> {
             TransformCheckpoint sourceCheckpoint = new TransformCheckpoint(transformConfig.getId(), timestamp, -1L, checkpointsByIndex, 0L);
@@ -280,7 +288,7 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
 
         checkpointingInfoBuilder.setNextCheckpointPosition(nextCheckpointPosition).setNextCheckpointProgress(nextCheckpointProgress);
         checkpointingInfoBuilder.setLastCheckpoint(TransformCheckpoint.EMPTY);
-        long timestamp = System.currentTimeMillis();
+        long timestamp = clock.millis();
 
         // <3> got the source checkpoint, notify the user
         ActionListener<Map<String, long[]>> checkpointsByIndexListener = ActionListener.wrap(checkpointsByIndex -> {

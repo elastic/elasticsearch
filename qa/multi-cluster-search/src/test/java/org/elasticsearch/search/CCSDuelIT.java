@@ -34,7 +34,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -77,6 +76,7 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -97,10 +97,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static java.util.stream.Collectors.toList;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 /**
  * This test class executes twice, first against the remote cluster, and then against another cluster that has the remote cluster
@@ -111,6 +115,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * such parameter, hence we want to verify that results are the same in both scenarios.
  */
 @TimeoutSuite(millis = 5 * TimeUnits.MINUTE) // to account for slow as hell VMs
+@SuppressWarnings("removal")
 public class CCSDuelIT extends ESRestTestCase {
 
     private static final String INDEX_NAME = "ccs_duel_index";
@@ -405,6 +410,10 @@ public class CCSDuelIT extends ESRestTestCase {
         duelSearch(searchRequest, response -> {
             assertHits(response);
             assertFalse(response.getProfileResults().isEmpty());
+            assertThat(
+                response.getProfileResults().values().stream().filter(sr -> sr.getFetchPhase() != null).collect(toList()),
+                not(empty())
+            );
         });
     }
 
@@ -431,7 +440,6 @@ public class CCSDuelIT extends ESRestTestCase {
         assumeMultiClusterSetup();
         SearchRequest searchRequest = initSearchRequest();
         // set to a value greater than the number of shards to avoid differences due to the skipping of shards
-        searchRequest.setPreFilterShardSize(128);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         boolean onlyRemote = randomBoolean();
         sourceBuilder.query(new TermQueryBuilder("_index", onlyRemote ? REMOTE_INDEX_NAME : INDEX_NAME));
@@ -717,7 +725,11 @@ public class CCSDuelIT extends ESRestTestCase {
     private static SearchRequest initSearchRequest() {
         List<String> indices = Arrays.asList(INDEX_NAME, "my_remote_cluster:" + INDEX_NAME);
         Collections.shuffle(indices, random());
-        return new SearchRequest(indices.toArray(new String[0]));
+        final SearchRequest request = new SearchRequest(indices.toArray(new String[0]));
+        if (randomBoolean()) {
+            request.setPreFilterShardSize(between(1, 20));
+        }
+        return request;
     }
 
     private static void duelSearch(SearchRequest searchRequest, Consumer<SearchResponse> responseChecker) throws Exception {
@@ -759,6 +771,7 @@ public class CCSDuelIT extends ESRestTestCase {
                 message.compareMaps(minimizeRoundtripsResponseMap, fanOutResponseMap);
                 throw new AssertionError("Didn't match expected value:\n" + message);
             }
+            assertThat(minimizeRoundtripsSearchResponse.getSkippedShards(), lessThanOrEqualTo(fanOutSearchResponse.getSkippedShards()));
         }
     }
 
@@ -813,7 +826,19 @@ public class CCSDuelIT extends ESRestTestCase {
             List<Map<String, Object>> shards = (List <Map<String, Object>>)profile.get("shards");
             for (Map<String, Object> shard : shards) {
                 replaceProfileTime(shard);
+                /*
+                 * The way we try to reduce round trips is by fetching all
+                 * of the results we could possibly need from the remote
+                 * cluster and then merging *those* together locally. This
+                 * will end up fetching more documents total. So we can't
+                 * really compare the fetch profiles here.
+                 */
+                shard.remove("fetch");
             }
+        }
+        Map<String, Object> shards = (Map<String, Object>)responseMap.get("_shards");
+        if (shards != null) {
+            shards.remove("skipped");
         }
         return responseMap;
     }

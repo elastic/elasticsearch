@@ -24,7 +24,6 @@ public class AmazonS3Reference extends AbstractRefCounted implements Releasable 
     private final AmazonS3 client;
 
     AmazonS3Reference(AmazonS3 client) {
-        super("AWS_S3_CLIENT");
         this.client = client;
     }
 

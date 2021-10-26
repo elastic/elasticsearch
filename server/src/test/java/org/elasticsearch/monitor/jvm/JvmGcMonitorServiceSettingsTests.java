@@ -80,9 +80,8 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
         Settings.Builder builder = Settings.builder();
 
         // drop a random setting or two
-        for (@SuppressWarnings("unchecked") AbstractMap.SimpleEntry<String, String> entry : randomSubsetOf(randomIntBetween(1, 2),
-            entries.toArray(new AbstractMap.SimpleEntry[0]))) {
-                builder.put(entry.getKey(), entry.getValue());
+        for (AbstractMap.SimpleEntry<String, String> entry : randomSubsetOf(randomIntBetween(1, 2), entries)) {
+            builder.put(entry.getKey(), entry.getValue());
         }
 
         // we should get an exception that a setting is missing

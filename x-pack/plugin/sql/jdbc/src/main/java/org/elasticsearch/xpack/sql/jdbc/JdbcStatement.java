@@ -30,10 +30,10 @@ class JdbcStatement implements Statement, JdbcWrapper {
     protected JdbcResultSet rs;
     final RequestMeta requestMeta;
 
-    JdbcStatement(JdbcConnection jdbcConnection, JdbcConfiguration info) {
+    JdbcStatement(JdbcConnection jdbcConnection) {
         this.con = jdbcConnection;
-        this.cfg = info;
-        this.requestMeta = new RequestMeta(info.pageSize(), info.pageTimeout(), info.queryTimeout());
+        this.cfg = con.config();
+        this.requestMeta = new RequestMeta(cfg.pageSize(), cfg.pageTimeout(), cfg.queryTimeout());
     }
 
     @Override

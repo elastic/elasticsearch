@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -44,7 +43,7 @@ public class GraphUsageTransportAction extends XPackUsageFeatureTransportAction 
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                    ActionListener<XPackUsageFeatureResponse> listener) {
         GraphFeatureSetUsage usage =
-            new GraphFeatureSetUsage(licenseState.isAllowed(Feature.GRAPH), XPackSettings.GRAPH_ENABLED.get(settings));
+            new GraphFeatureSetUsage(Graph.GRAPH_FEATURE.checkWithoutTracking(licenseState), XPackSettings.GRAPH_ENABLED.get(settings));
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }
 }

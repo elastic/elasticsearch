@@ -9,6 +9,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -32,6 +33,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.LongSupplier;
@@ -70,6 +72,7 @@ public final class EngineConfig {
     private final CircuitBreakerService circuitBreakerService;
     private final LongSupplier globalCheckpointSupplier;
     private final Supplier<RetentionLeases> retentionLeasesSupplier;
+    private final Comparator<LeafReader> leafSorter;
 
     /**
      * A supplier of the outstanding retention leases. This is used during merged operations to determine which operations that have been
@@ -131,7 +134,8 @@ public final class EngineConfig {
             LongSupplier globalCheckpointSupplier,
             Supplier<RetentionLeases> retentionLeasesSupplier,
             LongSupplier primaryTermSupplier,
-            IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier) {
+            IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
+            Comparator<LeafReader> leafSorter) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;
@@ -169,6 +173,7 @@ public final class EngineConfig {
         this.retentionLeasesSupplier = Objects.requireNonNull(retentionLeasesSupplier);
         this.primaryTermSupplier = primaryTermSupplier;
         this.snapshotCommitSupplier = snapshotCommitSupplier;
+        this.leafSorter = leafSorter;
     }
 
     /**
@@ -352,5 +357,13 @@ public final class EngineConfig {
 
     public IndexStorePlugin.SnapshotCommitSupplier getSnapshotCommitSupplier() {
         return snapshotCommitSupplier;
+    }
+
+    /**
+     * Returns how segments should be sorted for reading or @null if no sorting should be applied.
+     */
+    @Nullable
+    public Comparator<LeafReader> getLeafSorter() {
+        return leafSorter;
     }
 }

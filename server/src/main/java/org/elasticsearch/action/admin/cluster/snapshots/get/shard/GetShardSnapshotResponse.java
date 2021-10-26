@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.get.shard;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.ShardSnapshotInfo;
 
@@ -20,38 +21,34 @@ import java.util.Map;
 import java.util.Optional;
 
 public class GetShardSnapshotResponse extends ActionResponse {
-    public static GetShardSnapshotResponse EMPTY = new GetShardSnapshotResponse(Collections.emptyMap(), Collections.emptyMap());
+    public static GetShardSnapshotResponse EMPTY = new GetShardSnapshotResponse(null, Collections.emptyMap());
 
-    private final Map<String, ShardSnapshotInfo> repositoryShardSnapshots;
+    private final ShardSnapshotInfo latestShardSnapshot;
     private final Map<String, RepositoryException> repositoryFailures;
 
-    GetShardSnapshotResponse(Map<String, ShardSnapshotInfo> repositoryShardSnapshots, Map<String, RepositoryException> repositoryFailures) {
-        this.repositoryShardSnapshots = repositoryShardSnapshots;
+    GetShardSnapshotResponse(@Nullable ShardSnapshotInfo latestShardSnapshot, Map<String, RepositoryException> repositoryFailures) {
+        this.latestShardSnapshot = latestShardSnapshot;
         this.repositoryFailures = repositoryFailures;
     }
 
     GetShardSnapshotResponse(StreamInput in) throws IOException {
         super(in);
-        this.repositoryShardSnapshots = in.readMap(StreamInput::readString, ShardSnapshotInfo::new);
+        this.latestShardSnapshot = in.readOptionalWriteable(ShardSnapshotInfo::new);
         this.repositoryFailures = in.readMap(StreamInput::readString, RepositoryException::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(repositoryShardSnapshots, StreamOutput::writeString, (o, info) -> info.writeTo(o));
+        out.writeOptionalWriteable(latestShardSnapshot);
         out.writeMap(repositoryFailures, StreamOutput::writeString, (o, err) -> err.writeTo(o));
-    }
-
-    public Optional<ShardSnapshotInfo> getIndexShardSnapshotInfoForRepository(String repositoryName) {
-        return Optional.ofNullable(repositoryShardSnapshots.get(repositoryName));
     }
 
     public Optional<RepositoryException> getFailureForRepository(String repository) {
         return Optional.ofNullable(repositoryFailures.get(repository));
     }
 
-    public Map<String, ShardSnapshotInfo> getRepositoryShardSnapshots() {
-        return repositoryShardSnapshots;
+    public Optional<ShardSnapshotInfo> getLatestShardSnapshot() {
+        return Optional.ofNullable(latestShardSnapshot);
     }
 
     public Map<String, RepositoryException> getRepositoryFailures() {

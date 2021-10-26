@@ -10,7 +10,7 @@ package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.AbstractRequestTestCase;
 import org.elasticsearch.client.ValidationException;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.InputStream;

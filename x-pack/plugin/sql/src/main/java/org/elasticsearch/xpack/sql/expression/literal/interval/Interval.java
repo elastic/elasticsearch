@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.sql.expression.literal.interval;
 
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ql.expression.function.scalar.IntervalScripting;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantNamedWriteable;
 import org.elasticsearch.xpack.ql.type.DataType;

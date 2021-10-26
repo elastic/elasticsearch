@@ -5,42 +5,61 @@
 beta::[]
 
 {kib} {alert-features} include support for {ml} rules, which run scheduled 
-checks on an {anomaly-job} or a group of jobs to detect anomalies with certain 
-conditions. If an anomaly meets the conditions, an alert is created and the 
-associated action is triggered. For example, you can create a rule to check an 
-{anomaly-job} every fifteen minutes for critical anomalies and to notify you in 
-an email. To learn more about {kib} {alert-features}, refer to 
+checks for anomalies in one or more {anomaly-jobs} or check the 
+health of the job with certain conditions. If the conditions of the rule are met, an 
+alert is created and the associated action is triggered. For example, you can 
+create a rule to check an {anomaly-job} every fifteen minutes for critical 
+anomalies and to notify you in an email. To learn more about {kib} 
+{alert-features}, refer to 
 {kibana-ref}/alerting-getting-started.html#alerting-getting-started[Alerting].
 
+The following {ml} rules are available:
 
-[[creating-anomaly-alert-rules]]
+{anomaly-detect-cap} alert:: 
+  Checks if the {anomaly-job} results contain anomalies that match the rule 
+  conditions.
+
+{anomaly-jobs-cap} health:: 
+  Monitors job health and alerts if an operational issue occurred that may 
+  prevent the job from detecting anomalies.
+
+TIP: If you have created rules for specific {anomaly-jobs} and you want to 
+monitor whether these jobs work as expected, {anomaly-jobs} health rules are 
+ideal for this purpose.
+
+
+[[creating-ml-rules]]
 == Creating a rule
 
 You can create {ml} rules in the {anomaly-job} wizard after you start the job, 
-from the job list, or under **{stack-manage-app} > {alerts-ui}**. On the *Create 
-rule* window, select *{anomaly-detect-cap} alert* under the {ml} section, then 
-give a name to the rule and optionally provide tags.
+from the job list, or under **{stack-manage-app} > {alerts-ui}**.
 
-Specify the time interval for the rule to check detected anomalies. It is 
-recommended to select an interval that is close to the bucket span of the 
-associated job. You can also select a notification option by using the _Notify_ 
-selector. An alert remains active as long as anomalies are found for a 
-particular {anomaly-job} during the check interval. When there is no anomaly 
-found in the next interval, the `Recovered` action group is invoked and the 
-status of the alert changes to `OK`. For more details, refer to the 
-documentation of 
+On the *Create rule* window, give a name to the rule and optionally provide 
+tags. Specify the time interval for the rule to check detected anomalies or job 
+health changes. It is recommended to select an interval that is close to the 
+bucket span of the job. You can also select a notification option with the 
+_Notify_ selector. An alert remains active as long as the configured conditions 
+are met during the check interval. When there is no matching condition in the 
+next interval, the `Recovered` action group is invoked and the status of the 
+alert changes to `OK`. For more details, refer to the documentation of 
 {kibana-ref}/create-and-manage-rules.html#defining-rules-general-details[general rule details].
-  
-[role="screenshot"]
-image::images/ml-anomaly-alert-type.jpg["Creating a rule for an anomaly detection alert"]
-  
-Select the {anomaly-job} or the group of {anomaly-jobs} that is checked against 
-the rule. If you assign additional jobs to the group, the new jobs are 
-automatically checked the next time the conditions are checked.
 
-You can select the result type of the {anomaly-job} that is checked against the 
-rule. In particular, you can create rules based on bucket, record, or influencer 
-results.
+Select the rule type you want to create under the {ml} section and continue to 
+configure it depending on whether it is an 
+<<creating-anomaly-alert-rules, {anomaly-detect} alert>> or an 
+<<creating-anomaly-jobs-health-rules, {anomaly-job} health>> rule.
+
+[role="screenshot"]
+image::images/ml-rule.jpg["Creating a new machine learning rule"]
+
+
+[[creating-anomaly-alert-rules]]
+=== {anomaly-detect-cap} alert
+
+Select the job that the rule applies to.
+
+You must select a type of {ml} result. In particular, you can create rules based 
+on bucket, record, or influencer results.
 
 [role="screenshot"]
 image::images/ml-anomaly-alert-severity.jpg["Selecting result type, severity, and test interval"]
@@ -72,14 +91,61 @@ the sample results by providing a valid interval for your data. The generated
 preview contains the number of potentially created alerts during the relative 
 time range you defined.
 
+As the last step in the rule creation process, 
+<<defining-actions, define the actions>> that occur when the conditions
+are met.
+
+
+[[creating-anomaly-jobs-health-rules]]
+=== {anomaly-jobs-cap} health
+
+Select the job or group that
+the rule applies to. If you assign more jobs to the group, they are
+included the next time the rule conditions are checked.
+
+You can also use a special character (`*`) to apply the rule to all your jobs. 
+Jobs created after the rule are automatically included. You can exclude jobs 
+that are not critically important by using the _Exclude_ field.
+
+Enable the health check types that you want to apply. All checks are enabled by 
+default. At least one check needs to be enabled to create the rule. The 
+following health checks are available:
+
+_Datafeed is not started_:: 
+  Notifies if the corresponding {dfeed} of the job is not started but the job is 
+  in an opened state. The notification message recommends the necessary 
+  actions to solve the error.
+_Model memory limit reached_:: 
+  Notifies if the model memory status of the job reaches the soft or hard model 
+  memory limit. Optimize your job by following 
+  <<detector-configuration, these guidelines>> or consider 
+  <<set-model-memory-limit, amending the model memory limit>>. 
+_Data delay has occurred_:: 
+  Notifies when the job missed some data. You can define the threshold for the 
+  amount of missing documents you get alerted on by setting 
+  _Number of documents_. You can control the lookback interval for checking 
+  delayed data with _Time interval_. Refer to the 
+  <<ml-delayed-data-detection>> page to see what to do about delayed data.
+_Errors in job messages_:: 
+  Notifies when the job messages contain error messages. Review the 
+  notification; it contains the error messages, the corresponding job IDs and 
+  recommendations on how to fix the issue. This check looks for job errors 
+  that occur after the rule is created; it does not look at historic behavior.
+
+[role="screenshot"]
+image::images/ml-health-check-config.jpg["Selecting health checkers"]
+
+As the last step in the rule creation process, 
+<<defining-actions, define the actions>> that occur when the conditions
+are met.
+  
 
 [[defining-actions]]
 == Defining actions
 
-As a next step, connect your rule to actions that use supported built-in 
-integrations by selecting a connector type. Connectors are {kib} services or 
-third-party integrations that perform an action when the rule conditions are 
-met.
+Connect your rule to actions that use supported built-in integrations by 
+selecting a connector type. Connectors are {kib} services or third-party 
+integrations that perform an action when the rule conditions are met.
 
 [role="screenshot"]
 image::images/ml-anomaly-alert-actions.jpg["Selecting connector type"]
@@ -88,7 +154,10 @@ For example, you can choose _Slack_ as a connector type and configure it to send
 a message to a channel you selected. You can also create an index connector that 
 writes the JSON object you configure to a specific index. It's also possible to 
 customize the notification messages. A list of variables is available to include 
-in the message, like job ID, anomaly score, time, or top influencers.
+in the message, like job ID, anomaly score, time, top influencers, {dfeed} ID, 
+memory status and so on based on the selected rule type. Refer to 
+<<action-variables>> to see the full list of available variables by rule type.
+
 
 [role="screenshot"]
 image::images/ml-anomaly-alert-messages.jpg["Customizing your message"]
@@ -101,3 +170,205 @@ The name of an alert is always the same as the job ID of the associated
 {anomaly-job} that triggered it. You can mute the notifications for a particular 
 {anomaly-job} on the page of the rule that lists the individual alerts. You can 
 open it via *{alerts-ui}* by selecting the rule name.
+
+
+[[action-variables]]
+== Action variables
+
+You can add different variables to your action. The following variables are 
+specific to the {ml} rule types.
+
+
+[[anomaly-alert-action-variables]]
+=== {anomaly-detect-cap} alert action variables
+
+Every {anomaly-detect} alert has the following action variables:
+
+`context`.`anomalyExplorerUrl`::
+URL to open in the Anomaly Explorer.
+
+`context`.`isInterim`::
+Indicates if top hits contain interim results.
+
+`context`.`jobIds`::
+List of job IDs that triggered the alert.
+
+`context`.`message`::
+A preconstructed message for the alert.
+
+`context`.`score`::
+Anomaly score at the time of the notification action.
+
+`context`.`timestamp`::
+The bucket timestamp of the anomaly.
+
+`context`.`timestampIso8601`::
+The bucket timestamp of the anomaly in ISO8601 format.
+
+`context`.`topInfluencers`::
+The list of top influencers.
++
+.Properties of `context.topInfluencers`
+[%collapsible%open]
+====
+`influencer_field_name`::: 
+The field name of the influencer.
+
+`influencer_field_value`::: 
+The entity that influenced, contributed to, or was to blame for the anomaly.
+
+`score`:::
+The influencer score. A normalized score between 0-100 which shows the 
+influencer's overall contribution to the anomalies.
+====
+
+`context`.`topRecords`::
+The list of top records.
++
+.Properties of `context.topRecords`
+[%collapsible%open]
+====
+`by_field_value`::: 
+The value of the by field.
+
+`field_name`::: 
+Certain functions require a field to operate on, for example, `sum()`. For those 
+functions, this value is the name of the field to be analyzed.
+
+`function`::: 
+The function in which the anomaly occurs, as specified in the detector 
+configuration. For example, `max`.
+
+`over_field_name`::: 
+The field used to split the data.
+
+`partition_field_value`::: 
+The field used to segment the analysis.
+
+`score`:::
+A normalized score between 0-100, which is based on the probability of the 
+anomalousness of this record.
+====
+
+[[anomaly-jobs-health-action-variables]]
+=== {anomaly-jobs-cap} health action variables
+
+Every health check has two main variables: `context.message` and 
+`context.results`. The properties of `context.results` may vary based on the 
+type of check. You can find the possible properties for all the checks below.
+
+==== _Datafeed is not started_ 
+
+`context.message`::
+A preconstructed message for the alert.
+
+`context.results`::
+Contains the following properties:
++
+.Properties of `context.results`
+[%collapsible%open]
+====
+`datafeed_id`:::
+The {dfeed} identifier.
+
+`datafeed_state`:::
+The state of the {dfeed}. It can be `starting`, `started`, 
+`stopping`, `stopped`.
+
+`job_id`:::
+The job identifier.
+
+`job_state`:::
+The state of the job. It can be `opening`, `opened`, `closing`, 
+`closed`, or `failed`.
+====
+
+==== _Model memory limit reached_
+
+`context.message`::
+A preconstructed message for the rule.
+
+`context.results`::
+Contains the following properties:
++
+.Properties of `context.results` 
+[%collapsible%open]
+====
+`job_id`:::
+The job identifier.
+
+`memory_status`:::
+The status of the mathematical model. It can have one of the following values:
+
+* `soft_limit`: The model used more than 60% of the configured memory limit and 
+  older unused models will be pruned to free up space. In categorization jobs no 
+  further category examples will be stored.
+* `hard_limit`: The model used more space than the configured memory limit. As a 
+  result, not all incoming data was processed.
+
+`model_bytes`:::
+The number of bytes of memory used by the models.
+
+`model_bytes_exceeded`:::
+The number of bytes over the high limit for memory usage at the last allocation 
+failure.
+
+`model_bytes_memory_limit`:::
+The upper limit for model memory usage.
+
+`log_time`:::
+The timestamp of the model size statistics according to server time. Time 
+formatting is based on the {kib} settings.
+
+`peak_model_bytes`:::
+The peak number of bytes of memory ever used by the model.
+====
+
+==== _Data delay has occured_
+
+`context.message`::
+A preconstructed message for the rule.
+
+`context.results`::
+Contains the following properties:
++
+.Properties of `context.results`
+[%collapsible%open]
+====
+`annotation`:::
+The annotation corresponding to the data delay in the job.
+
+`end_timestamp`:::
+Timestamp of the latest finalized buckets with missing documents. Time 
+formatting is based on the {kib} settings.
+
+`job_id`:::
+The job identifier.
+
+`missed_docs_count`:::
+The number of missed documents.
+====
+
+==== _Error in job messages_
+
+`context.message`::
+A preconstructed message for the rule.
+
+`context.results`::
+Contains the following properties:
++
+.Properties of `context.results`
+[%collapsible%open]
+====
+`timestamp`:::
+Timestamp of the latest finalized buckets with missing documents.
+
+`job_id`:::
+The job identifier.
+
+`message`:::
+The error message.
+
+`node_name`:::
+The name of the node that runs the job.
+====

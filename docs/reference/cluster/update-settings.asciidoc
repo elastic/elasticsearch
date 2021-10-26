@@ -49,7 +49,7 @@ PUT /_cluster/settings
 An example of a transient update:
 
 NOTE: Transient settings are deprecated and will be removed in a future release.
-Prefer using persistent cluster settings instead.
+Use persistent cluster settings instead.
 
 [source,console]
 --------------------------------------------------

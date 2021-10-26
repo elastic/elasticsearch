@@ -14,6 +14,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -388,11 +389,12 @@ public class CacheFileTests extends ESTestCase {
 
     public void testCacheFileCreatedAsSparseFile() throws Exception {
         assumeTrue("This test uses a native method implemented only for Windows", Constants.WINDOWS);
+        final long ONE_MB = 1 << 20;
 
         final Path file = createTempDir().resolve(UUIDs.randomBase64UUID(random()));
         final CacheFile cacheFile = new CacheFile(
             new CacheKey("_snap_uuid", "_snap_name", new ShardId("_name", "_uid", 0), "_filename"),
-            1048576L,
+            ONE_MB,
             file,
             NOOP
         );
@@ -410,17 +412,19 @@ public class CacheFileTests extends ESTestCase {
             // For non sparse files, Windows would allocate the full file on disk in order to write a single byte at the end,
             // making the next assertion fails.
             fill(cacheFile.getChannel(), Math.toIntExact(cacheFile.getLength() - 1L), Math.toIntExact(cacheFile.getLength()));
+            IOUtils.fsync(file, false);
 
             sizeOnDisk = Natives.allocatedSizeInBytes(file);
-            assertThat("Cache file should be sparse and not fully allocated on disk", sizeOnDisk, lessThan(1048576L));
+            assertThat("Cache file should be sparse and not fully allocated on disk", sizeOnDisk, lessThan(ONE_MB));
 
             fill(cacheFile.getChannel(), 0, Math.toIntExact(cacheFile.getLength()));
+            IOUtils.fsync(file, false);
 
             sizeOnDisk = Natives.allocatedSizeInBytes(file);
             assertThat(
                 "Cache file should be fully allocated on disk (maybe more given cluster/block size)",
                 sizeOnDisk,
-                greaterThanOrEqualTo(1048576L)
+                greaterThanOrEqualTo(ONE_MB)
             );
         } finally {
             cacheFile.release(listener);

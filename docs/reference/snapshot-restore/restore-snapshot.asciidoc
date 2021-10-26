@@ -10,6 +10,7 @@ In this guide, you'll learn how to:
 
 * Get a list of available snapshots
 * Restore an index or data stream from a snapshot
+* Restore a feature state
 * Restore an entire cluster
 * Monitor the restore operation
 * Cancel an ongoing restore
@@ -35,7 +36,7 @@ When restoring data from a snapshot, keep the following in mind:
 * If you restore a data stream, you also restore its backing indices.
 
 * You can only restore an existing index if it's <<indices-close,closed>> and
-the index in the snapshot has the same number of primary shards. 
+the index in the snapshot has the same number of primary shards.
 
 * You can't restore an existing open index. This includes
 backing indices for a data stream.
@@ -81,14 +82,20 @@ GET _snapshot/my_repository/*?verbose=false
 You can restore a snapshot using {kib}'s *Snapshot and Restore* feature or the
 <<restore-snapshot-api,restore snapshot API>>.
 
-In most cases, you only need to restore a specific index or data stream from a
-snapshot. However, you can't restore an existing open index.
+By default, a restore request attempts to restore all indices and data streams
+in a snapshot, including <<system-indices,system indices and system data
+streams>>. In most cases, you only need to restore a specific index or data
+stream from a snapshot. However, you can't restore an existing open index.
 
-To avoid conflicts with existing indices and data streams, use one of the
-following methods:
+If you're restoring data to a pre-existing cluster, use one of the
+following methods to avoid conflicts with existing indices and data streams:
 
 * <<delete-restore>>
 * <<rename-on-restore>>
+
+Some {es} features automatically create system indices on cluster startup. To
+avoid conflicts with these system indices when restoring data to a new cluster,
+see <<restore-exclude-system-indices>>.
 
 [discrete]
 [[delete-restore]]
@@ -117,18 +124,12 @@ DELETE _data_stream/logs-my_app-default
 ----
 // TEST[setup:setup-snapshots]
 
-By default, a restore request attempts to restore all indices and data
-streams in the snapshot, including system indices. If your cluster already
-contains one or more of these system indices, the request will return an error.
-
-To avoid this error, specify the indices and data streams to restore. To exclude
-system indices and other index names that begin with a dot (`.`), append the
-`-.*` wildcard pattern. To restore all indices and data streams except dot
-indices, use `*,-.*`.
+In the restore request, explicitly specify any indices and data streams to
+restore.
 
 [source,console]
 ----
-POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore 
+POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 {
   "indices": "my-index,logs-my_app-default"
 }
@@ -153,7 +154,7 @@ any restored index or data stream.
 
 [source,console]
 ----
-POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore 
+POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 {
   "indices": "my-index,logs-my_app-default",
   "rename_pattern": "(.+)",
@@ -210,16 +211,93 @@ POST _reindex
 // TEST[continued]
 
 [discrete]
+[[restore-exclude-system-indices]]
+==== Exclude system indices
+
+Some {es} features, such as the <<geoip-processor,GeoIP processor>>,
+automatically create system indices at startup. To avoid naming conflicts with
+these indices, use the `-.*` wildcard pattern to exclude system indices and
+other dot (`.`) indices from your restore request.
+
+For example, the following request uses the `*,-.*` wildcard pattern to restore
+all indices and data streams except dot indices.
+
+[source,console]
+----
+POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
+{
+  "indices": "*,-.*"
+}
+----
+// TEST[setup:setup-snapshots]
+// TEST[s/^/DELETE my-index\nDELETE _data_stream\/logs-my_app-default\n/]
+// TEST[s/_restore/_restore?wait_for_completion=true/]
+
+[discrete]
+[[restore-feature-state]]
+=== Restore a feature state
+
+You can restore a feature state to recover system indices, system data streams,
+and other configuration data for a feature from a snapshot. Restoring a feature
+state is the preferred way to restore system indices and system data streams.
+
+If you restore a snapshot's cluster state, the operation restores all feature
+states in the snapshot by default. Similarly, if you don't restore a snapshot's
+cluster state, the operation doesn't restore any feature states by default. You
+can also choose to restore only specific feature states from a snapshot,
+regardless of the cluster state.
+
+To view a snapshot's feature states, use the get snapshot API.
+
+[source,console]
+----
+GET _snapshot/my_repository/my_snapshot_2099.05.06
+----
+// TEST[setup:setup-snapshots]
+
+The response's `feature_states` property contains a list of features in the
+snapshot as well as each feature's indices.
+
+To restore a specific feature state from the snapshot, specify the
+`feature_name` from the response in the restore snapshot API's
+<<restore-snapshot-api-feature-states,`feature_states`>> parameter. When you
+restore a feature state, {es} closes and overwrites the feature's existing
+indices.
+
+WARNING: Restoring the `security` feature state overwrites system indices
+used for authentication. If you use {ess}, ensure you have access to the {ess}
+Console before restoring the `security` feature state. If you run {es} on your
+own hardware, <<restore-create-file-realm-user,create a superuser in the file
+realm>> to ensure you'll still be able to access your cluster.
+
+To avoid accidentally restoring system indices, system data streams, and other
+dot indices, append the `-.*` wildcard pattern to the `indices` value.
+
+[source,console]
+----
+POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
+{
+  "indices": "*,-.*",
+  "feature_states": [ "geoip" ]
+}
+----
+// TEST[setup:setup-snapshots]
+// TEST[s/^/DELETE my-index\nDELETE _data_stream\/logs-my_app-default\n/]
+// TEST[s/_restore/_restore?wait_for_completion=true/]
+// TEST[s/",/"/]
+// TEST[s/"feature_states": \[ "geoip" \]//]
+
+[discrete]
 [[restore-entire-cluster]]
 === Restore an entire cluster
 
 In some cases, you need to restore an entire cluster from a snapshot, including
-the cluster state and all system indices. These cases should be rare, such as in
+the cluster state and all feature states. These cases should be rare, such as in
 the event of a catastrophic failure.
 
-Restoring an entire cluster involves deleting important system indices, including
-those used for authentication. Consider whether you can restore specific indices
-or data streams instead.
+Restoring an entire cluster involves deleting important system indices,
+including those used for authentication. Consider whether you can restore
+specific indices or data streams instead.
 
 If you're restoring to a different cluster, see <<restore-different-cluster>>
 before you start.
@@ -239,6 +317,18 @@ the cluster.
 . Temporarily stop indexing and turn off the following features:
 +
 --
+* GeoIP database downloader
++
+[source,console]
+----
+PUT _cluster/settings
+{
+  "persistent": {
+    "ingest.geoip.downloader.enabled": false
+  }
+}
+----
+
 * ILM
 +
 [source,console]
@@ -269,19 +359,18 @@ POST _ml/set_upgrade_mode?enabled=false
 // TEST[continued]
 ////
 
-////
+* Monitoring
++
 [source,console]
 ----
 PUT _cluster/settings
 {
   "persistent": {
-    "xpack.monitoring.collection.enabled": true
+    "xpack.monitoring.collection.enabled": false
   }
 }
 ----
 // TEST[warning:[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version.]
-// TEST[continued]
-////
 
 * Watcher
 +
@@ -299,23 +388,29 @@ POST _watcher/_start
 ////
 --
 
-. If you use {es} security features, log in to a node host, navigate to the {es}
+
+. {blank}
++
+--
+[[restore-create-file-realm-user]]
+If you use {es} security features, log in to a node host, navigate to the {es}
 installation directory, and add a user with the `superuser` role to the file
 realm using the <<users-command,`elasticsearch-users`>> tool.
-+
+
 For example, the following command creates a user named `restore_user`.
-+
+
 [source,sh]
 ----
 ./bin/elasticsearch-users useradd restore_user -p my_password -r superuser
 ----
-+
+
 Use this file realm user to authenticate requests until the restore operation is
 complete.
+--
 
 . Use the <<cluster-update-settings,cluster update settings API>> to set
 <<action-destructive-requires-name,`action.destructive_requires_name`>> to
-`false`. This lets you delete indices and data streams using wildcards.
+`false`. This lets you delete data streams and indices using wildcards.
 +
 [source,console]
 ----
@@ -328,24 +423,28 @@ PUT _cluster/settings
 ----
 // TEST[setup:setup-snapshots]
 
-. Delete existing indices and data streams on the cluster.
+. Delete all existing data streams on the cluster.
 +
 [source,console]
 ----
-# Delete all indices
-DELETE *
-
-# Delete all data streams
-DELETE _data_stream/*
+DELETE _data_stream/*?expand_wildcards=all
 ----
 // TEST[continued]
 
-. Restore the entire snapshot, including the cluster state. This also restores
-any system indices in the snapshot.
+. Delete all existing indices on the cluster.
 +
 [source,console]
 ----
-POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore 
+DELETE *?expand_wildcards=all
+----
+// TEST[continued]
+
+. Restore the entire snapshot, including the cluster state. By default,
+restoring the cluster state also restores any feature states in the snapshot.
++
+[source,console]
+----
+POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 {
   "indices": "*",
   "include_global_state": true
@@ -358,6 +457,19 @@ POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 features you stopped:
 +
 --
+* GeoIP database downloader
++
+[source,console]
+----
+PUT _cluster/settings
+{
+  "persistent": {
+    "ingest.geoip.downloader.enabled": true
+  }
+}
+----
+//TEST[s/true/false/]
+
 * ILM
 +
 [source,console]
@@ -371,6 +483,20 @@ POST _ilm/start
 ----
 POST _ml/set_upgrade_mode?enabled=false
 ----
+
+* Monitoring
++
+[source,console]
+----
+PUT _cluster/settings
+{
+  "persistent": {
+    "xpack.monitoring.collection.enabled": true
+  }
+}
+----
+// TEST[warning:[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version.]
+// TEST[s/true/false/]
 
 * Watcher
 +

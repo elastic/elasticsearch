@@ -368,9 +368,9 @@ snapshot doesn't delete files used by other snapshots.
 [[back-up-config-files]]
 === Back up configuration files
 
-If you run {es} on your own hardware, we recommend that you take regular backups
-of the files in each node's `$ES_PATH_CONF` directory using the file backup
-software of your choice in addition to backups. Snapshots don't back up these
+If you run {es} on your own hardware, we recommend that, in addition to backups,
+you take regular backups of the files in each node's `$ES_PATH_CONF` directory
+using the file backup software of your choice. Snapshots don't back up these
 files.
 
 Depending on your setup, some of these configuration files may contain sensitive
@@ -385,8 +385,7 @@ By default, a snapshot that includes the cluster state also includes all
 cluster state excludes all feature states by default.
 
 You can also configure a snapshot to only include specific feature states,
-regardless of the cluster state. You can't back up specific feature states using
-{kib}.
+regardless of the cluster state.
 
 To get a list of available features, use the <<get-features-api,get features
 API>>.

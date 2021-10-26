@@ -581,7 +581,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         Settings aggregatedIndexSettings = aggregateIndexSettings(clusterState, request, templateMetadata.settings(),
             null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
-            Collections.emptySet(), randomBoolean());
+            Collections.emptySet());
 
         assertThat(aggregatedIndexSettings.get("template_setting"), equalTo("value1"));
         assertThat(aggregatedIndexSettings.get("request_setting"), equalTo("value2"));
@@ -634,7 +634,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, templateMetadata.settings(),
             null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
-            Collections.emptySet(), randomBoolean());
+            Collections.emptySet());
 
         assertThat(resolvedAliases.get(0).getSearchRouting(), equalTo("fromRequest"));
         assertThat(aggregatedIndexSettings.get("key1"), equalTo("requestValue"));
@@ -649,7 +649,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     public void testDefaultSettings() {
         Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY,
             null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
-            Collections.emptySet(), randomBoolean());
+            Collections.emptySet());
 
         assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_SHARDS), equalTo("1"));
     }
@@ -657,7 +657,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     public void testSettingsFromClusterState() {
         Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY,
             null, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 15).build(), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            randomShardLimitService(), Collections.emptySet(), randomBoolean());
+            randomShardLimitService(), Collections.emptySet());
 
         assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_SHARDS), equalTo("15"));
     }
@@ -682,7 +682,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request,
             MetadataIndexTemplateService.resolveSettings(templates), null, Settings.EMPTY,
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(), Collections.emptySet(), randomBoolean());
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(), Collections.emptySet());
         List<AliasMetadata> resolvedAliases = resolveAndValidateAliases(request.index(), request.aliases(),
             MetadataIndexTemplateService.resolveAliases(templates),
             Metadata.builder().build(), aliasValidator, xContentRegistry(), searchExecutionContext,
@@ -740,7 +740,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         Settings aggregatedIndexSettings = aggregateIndexSettings(clusterState, request, templateMetadata.settings(),
             clusterState.metadata().index("sourceIndex"), Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            randomShardLimitService(), Collections.emptySet(), randomBoolean());
+            randomShardLimitService(), Collections.emptySet());
 
         assertThat(aggregatedIndexSettings.get("templateSetting"), is(nullValue()));
         assertThat(aggregatedIndexSettings.get("requestSetting"), is("requestValue"));
@@ -943,8 +943,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(targetRoutingNumberOfShards, is(6));
     }
 
-    private Optional<String> aggregatedTierPreference(Settings settings, boolean isDataStream,
-                                                      boolean enforceDefaultTierPreference) {
+    private Optional<String> aggregatedTierPreference(Settings settings, boolean isDataStream) {
         Settings templateSettings = Settings.EMPTY;
         request.settings(Settings.EMPTY);
 
@@ -961,7 +960,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         }
         Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, templateSettings,
             null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
-            Set.of(new DataTier.DefaultHotAllocationSettingProvider()), enforceDefaultTierPreference);
+            Set.of(new DataTier.DefaultHotAllocationSettingProvider()));
 
         if (aggregatedIndexSettings.keySet().contains(DataTier.TIER_PREFERENCE)) {
             return Optional.of(aggregatedIndexSettings.get(DataTier.TIER_PREFERENCE));
@@ -976,20 +975,19 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         // empty settings gets the appropriate tier
         settings = Settings.EMPTY;
-        tier = aggregatedTierPreference(settings, false, randomBoolean());
+        tier = aggregatedTierPreference(settings, false);
         assertEquals(DataTier.DATA_CONTENT, tier.get());
 
         settings = Settings.EMPTY;
-        tier = aggregatedTierPreference(settings, true, randomBoolean());
+        tier = aggregatedTierPreference(settings, true);
         assertEquals(DataTier.DATA_HOT, tier.get());
 
         // an explicit tier is respected
         settings = Settings.builder().put(DataTier.TIER_PREFERENCE, DataTier.DATA_COLD).build();
-        tier = aggregatedTierPreference(settings, randomBoolean(), randomBoolean());
+        tier = aggregatedTierPreference(settings, randomBoolean());
         assertEquals(DataTier.DATA_COLD, tier.get());
 
-        // any of the INDEX_ROUTING_.*_GROUP_PREFIX settings still result in a default if
-        // we're enforcing
+        // any of the INDEX_ROUTING_.*_GROUP_PREFIX settings still result in a default
         String includeRoutingSetting = randomFrom(
             IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX,
             IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX,
@@ -997,24 +995,16 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         settings = Settings.builder()
             .put(includeRoutingSetting, randomAlphaOfLength(10))
             .build();
-        tier = aggregatedTierPreference(settings, false, true);
+        tier = aggregatedTierPreference(settings, false);
         assertEquals(DataTier.DATA_CONTENT, tier.get());
-        // (continued from above) but not if we aren't
-        tier = aggregatedTierPreference(settings, false, false);
-        assertTrue(tier.isEmpty());
 
-        // an explicit null gets an empty tier if we're not enforcing
+        // an explicit null gets the appropriate tier
         settings = Settings.builder().putNull(DataTier.TIER_PREFERENCE).build();
-        tier = aggregatedTierPreference(settings, randomBoolean(), false);
-        assertTrue(tier.isEmpty());
-
-        // an explicit null gets the appropriate tier if we are enforcing
-        settings = Settings.builder().putNull(DataTier.TIER_PREFERENCE).build();
-        tier = aggregatedTierPreference(settings, false, true);
+        tier = aggregatedTierPreference(settings, false);
         assertEquals(DataTier.DATA_CONTENT, tier.get());
 
         settings = Settings.builder().putNull(DataTier.TIER_PREFERENCE).build();
-        tier = aggregatedTierPreference(settings, true, true);
+        tier = aggregatedTierPreference(settings, true);
         assertEquals(DataTier.DATA_HOT, tier.get());
     }
 
@@ -1024,7 +1014,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             request.settings(Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), false).build());
             aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY,
                 null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
-                Collections.emptySet(), randomBoolean());
+                Collections.emptySet());
         });
         assertThat(error.getMessage(), equalTo("Creating indices with soft-deletes disabled is no longer supported. "
             + "Please do not specify a value for setting [index.soft_deletes.enabled]."));
@@ -1046,7 +1036,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
             () -> aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY,
                 null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
-                Collections.emptySet(), randomBoolean()));
+                Collections.emptySet()));
         assertThat(error.getMessage(), equalTo("Translog retention settings [index.translog.retention.age] " +
             "and [index.translog.retention.size] are no longer supported. Please do not specify values for these settings"));
     }
@@ -1063,7 +1053,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         request.settings(settings.build());
         aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY,
             null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
-            Collections.emptySet(), randomBoolean());
+            Collections.emptySet());
         assertWarnings("Translog retention settings [index.translog.retention.age] "
             + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
     }
@@ -1076,7 +1066,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         request.settings(settings.build());
         aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY,
             null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
-            Collections.emptySet(), randomBoolean());
+            Collections.emptySet());
         assertWarnings("[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. " +
             "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type " +
             "as it offers superior or equivalent performance to [simplefs].");

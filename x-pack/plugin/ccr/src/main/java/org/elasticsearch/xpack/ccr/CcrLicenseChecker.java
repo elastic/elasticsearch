@@ -231,7 +231,7 @@ public class CcrLicenseChecker {
             final Function<RemoteClusterLicenseChecker.LicenseCheck, ElasticsearchStatusException> nonCompliantLicense,
             final Function<Exception, ElasticsearchStatusException> unknownLicense) {
         // we have to check the license on the remote cluster
-        new RemoteClusterLicenseChecker(client, XPackLicenseState::isCcrAllowedForOperationMode).checkRemoteClusterLicenses(
+        new RemoteClusterLicenseChecker(client, CcrConstants.CCR_FEATURE).checkRemoteClusterLicenses(
                 Collections.singletonList(clusterAlias),
                 new ActionListener<RemoteClusterLicenseChecker.LicenseCheck>() {
 
@@ -428,9 +428,8 @@ public class CcrLicenseChecker {
                 leaderIndex,
                 clusterAlias,
                 RemoteClusterLicenseChecker.buildErrorMessage(
-                        "ccr",
-                        licenseCheck.remoteClusterLicenseInfo(),
-                        RemoteClusterLicenseChecker::isAllowedByLicense));
+                        CcrConstants.CCR_FEATURE,
+                        licenseCheck.remoteClusterLicenseInfo()));
         return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
     }
 
@@ -442,9 +441,8 @@ public class CcrLicenseChecker {
                 "can not fetch remote cluster state as the remote cluster [%s] is not licensed for [ccr]; %s",
                 clusterAlias,
                 RemoteClusterLicenseChecker.buildErrorMessage(
-                        "ccr",
-                        licenseCheck.remoteClusterLicenseInfo(),
-                        RemoteClusterLicenseChecker::isAllowedByLicense));
+                        CcrConstants.CCR_FEATURE,
+                        licenseCheck.remoteClusterLicenseInfo()));
         return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
     }
 

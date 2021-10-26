@@ -131,9 +131,8 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         this.sourceDestValidator = new SourceDestValidator(
             indexNameExpressionResolver,
             transportService.getRemoteClusterService(),
-            DiscoveryNode.isRemoteClusterClient(settings)
-                /* transforms are BASIC so always allowed, no need to check license */
-                ? new RemoteClusterLicenseChecker(client, mode -> true) : null,
+            /* transforms are BASIC so always allowed, no need to check license */
+            null,
             ingestService,
             clusterService.getNodeName(),
             License.OperationMode.BASIC.description()

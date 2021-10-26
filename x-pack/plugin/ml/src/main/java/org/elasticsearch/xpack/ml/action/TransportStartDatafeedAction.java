@@ -193,7 +193,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             final List<String> remoteIndices = RemoteClusterLicenseChecker.remoteIndices(params.getDatafeedIndices());
                 if (remoteIndices.isEmpty() == false) {
                     final RemoteClusterLicenseChecker remoteClusterLicenseChecker =
-                            new RemoteClusterLicenseChecker(client, XPackLicenseState::isMachineLearningAllowedForOperationMode);
+                        new RemoteClusterLicenseChecker(client, MachineLearningField.ML_API_FEATURE);
                     remoteClusterLicenseChecker.checkRemoteClusterLicenses(
                             RemoteClusterLicenseChecker.remoteClusterAliases(
                                     transportService.getRemoteClusterService().getRegisteredRemoteClusterNames(),
@@ -394,9 +394,8 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 datafeedId,
                 licenseCheck.remoteClusterLicenseInfo().clusterAlias(),
                 RemoteClusterLicenseChecker.buildErrorMessage(
-                        "ml",
-                        licenseCheck.remoteClusterLicenseInfo(),
-                        RemoteClusterLicenseChecker::isAllowedByLicense));
+                        MachineLearningField.ML_API_FEATURE,
+                        licenseCheck.remoteClusterLicenseInfo()));
         return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
     }
 

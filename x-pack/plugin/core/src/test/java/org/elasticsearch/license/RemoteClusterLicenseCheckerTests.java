@@ -146,9 +146,8 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
         responses.add(new XPackInfoResponse(null, createPlatinumLicenseResponse(), null));
         responses.add(new XPackInfoResponse(null, createPlatinumLicenseResponse(), null));
 
-        final RemoteClusterLicenseChecker licenseChecker =
-                new RemoteClusterLicenseChecker(client, operationMode ->
-                    XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM));
+        LicensedFeature.Momentary feature = LicensedFeature.momentary(null, "feature", License.OperationMode.PLATINUM);
+        final RemoteClusterLicenseChecker licenseChecker = new RemoteClusterLicenseChecker(client, feature);
         final AtomicReference<RemoteClusterLicenseChecker.LicenseCheck> licenseCheck = new AtomicReference<>();
 
         licenseChecker.checkRemoteClusterLicenses(
@@ -189,9 +188,8 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
             return null;
         }).when(client).execute(same(XPackInfoAction.INSTANCE), any(), any());
 
-        final RemoteClusterLicenseChecker licenseChecker =
-                new RemoteClusterLicenseChecker(client, operationMode ->
-                    XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM));
+        LicensedFeature.Momentary feature = LicensedFeature.momentary(null, "feature", License.OperationMode.PLATINUM);
+        final RemoteClusterLicenseChecker licenseChecker = new RemoteClusterLicenseChecker(client, feature);
         final AtomicReference<RemoteClusterLicenseChecker.LicenseCheck> licenseCheck = new AtomicReference<>();
 
         licenseChecker.checkRemoteClusterLicenses(
@@ -236,9 +234,8 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
         responses.add(new XPackInfoResponse(null, createPlatinumLicenseResponse(), null));
         responses.add(new XPackInfoResponse(null, createPlatinumLicenseResponse(), null));
 
-        final RemoteClusterLicenseChecker licenseChecker =
-                new RemoteClusterLicenseChecker(client, operationMode ->
-                    XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM));
+        LicensedFeature.Momentary feature = LicensedFeature.momentary(null, "feature", License.OperationMode.PLATINUM);
+        final RemoteClusterLicenseChecker licenseChecker = new RemoteClusterLicenseChecker(client, feature);
         final AtomicReference<Exception> exception = new AtomicReference<>();
 
         licenseChecker.checkRemoteClusterLicenses(
@@ -277,9 +274,8 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
                 return null;
             }).when(client).execute(same(XPackInfoAction.INSTANCE), any(), any());
 
-            final RemoteClusterLicenseChecker licenseChecker =
-                    new RemoteClusterLicenseChecker(client, operationMode ->
-                        XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM));
+            LicensedFeature.Momentary feature = LicensedFeature.momentary(null, "feature", License.OperationMode.PLATINUM);
+            final RemoteClusterLicenseChecker licenseChecker = new RemoteClusterLicenseChecker(client, feature);
 
             final List<String> remoteClusterAliases = Collections.singletonList("valid");
             licenseChecker.checkRemoteClusterLicenses(
@@ -317,9 +313,8 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
             responses.add(new XPackInfoResponse(null, createPlatinumLicenseResponse(), null));
             responses.add(new XPackInfoResponse(null, createPlatinumLicenseResponse(), null));
 
-            final RemoteClusterLicenseChecker licenseChecker =
-                    new RemoteClusterLicenseChecker(client, operationMode ->
-                        XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM));
+            LicensedFeature.Momentary feature = LicensedFeature.momentary(null, "feature", License.OperationMode.PLATINUM);
+            final RemoteClusterLicenseChecker licenseChecker = new RemoteClusterLicenseChecker(client, feature);
 
             final AtomicBoolean listenerInvoked = new AtomicBoolean();
             threadPool.getThreadContext().putHeader("key", "value");
@@ -359,9 +354,10 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
         final XPackInfoResponse.LicenseInfo platinumLicence = createPlatinumLicenseResponse();
         final RemoteClusterLicenseChecker.RemoteClusterLicenseInfo info =
                 new RemoteClusterLicenseChecker.RemoteClusterLicenseInfo("platinum-cluster", platinumLicence);
+        LicensedFeature.Momentary feature = LicensedFeature.momentary(null, "foo", License.OperationMode.PLATINUM);
         final AssertionError e = expectThrows(
                 AssertionError.class,
-                () -> RemoteClusterLicenseChecker.buildErrorMessage("", info, RemoteClusterLicenseChecker::isAllowedByLicense));
+                () -> RemoteClusterLicenseChecker.buildErrorMessage(feature, info));
         assertThat(e, hasToString(containsString("license must be incompatible to build error message")));
     }
 
@@ -369,17 +365,19 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
         final XPackInfoResponse.LicenseInfo basicLicense = createBasicLicenseResponse();
         final RemoteClusterLicenseChecker.RemoteClusterLicenseInfo info =
                 new RemoteClusterLicenseChecker.RemoteClusterLicenseInfo("basic-cluster", basicLicense);
+        LicensedFeature.Momentary feature = LicensedFeature.momentary(null, "feature", License.OperationMode.PLATINUM);
         assertThat(
-                RemoteClusterLicenseChecker.buildErrorMessage("Feature", info, RemoteClusterLicenseChecker::isAllowedByLicense),
-                equalTo("the license mode [BASIC] on cluster [basic-cluster] does not enable [Feature]"));
+                RemoteClusterLicenseChecker.buildErrorMessage(feature, info),
+                equalTo("the license mode [BASIC] on cluster [basic-cluster] does not enable [feature]"));
     }
 
     public void testBuildErrorMessageForInactiveLicense() {
         final XPackInfoResponse.LicenseInfo expiredLicense = createExpiredLicenseResponse();
         final RemoteClusterLicenseChecker.RemoteClusterLicenseInfo info =
                 new RemoteClusterLicenseChecker.RemoteClusterLicenseInfo("expired-cluster", expiredLicense);
+        LicensedFeature.Momentary feature = LicensedFeature.momentary(null, "foo", License.OperationMode.PLATINUM);
         assertThat(
-                RemoteClusterLicenseChecker.buildErrorMessage("Feature", info, RemoteClusterLicenseChecker::isAllowedByLicense),
+                RemoteClusterLicenseChecker.buildErrorMessage(feature, info),
                 equalTo("the license on cluster [expired-cluster] is not active"));
     }
 
@@ -393,9 +391,8 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
             return null;
         }).when(client).execute(same(XPackInfoAction.INSTANCE), any(), any());
 
-        final RemoteClusterLicenseChecker licenseChecker =
-            new RemoteClusterLicenseChecker(client, operationMode ->
-                XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM));
+        LicensedFeature.Momentary feature = LicensedFeature.momentary(null, "feature", License.OperationMode.PLATINUM);
+        final RemoteClusterLicenseChecker licenseChecker = new RemoteClusterLicenseChecker(client, feature);
         final AtomicReference<Exception> exception = new AtomicReference<>();
 
         licenseChecker.checkRemoteClusterLicenses(

@@ -112,6 +112,18 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         verifySecurityNotAutoConfigured(installation);
     }
 
+    public void test60ReconfigureWithoutEnrollmentToken() throws Exception {
+        cleanup();
+        assertRemoved(distribution());
+        installation = installPackage(sh, distribution(), successfulAutoConfiguration());
+        assertInstalled(distribution());
+        verifyPackageInstallation(installation, distribution(), sh);
+        verifySecurityAutoConfigured(installation);
+        assertNotNull(installation.getElasticPassword());
+        Shell.Result result = installation.executables().nodeReconfigureTool.run("", null, true);
+        assertThat(result.exitCode, equalTo(ExitCodes.USAGE)); // missing enrollment token
+    }
+
     private Predicate<String> successfulAutoConfiguration() {
         Predicate<String> p1 = output -> output.contains("Authentication and authorization are enabled.");
         Predicate<String> p2 = output -> output.contains("TLS for the transport and HTTP layers is enabled and configured.");

@@ -13,11 +13,11 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.script.field.DocValuesField;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -55,17 +55,17 @@ final class VectorDVLeafFieldData implements LeafFieldData {
     }
 
     @Override
-    public ScriptDocValues<BytesRef> getScriptValues() {
+    public DocValuesField getScriptField(String name) {
         try {
             if (indexed) {
                 VectorValues values = reader.getVectorValues(field);
                 if (values == null || values == VectorValues.EMPTY) {
-                    return DenseVectorScriptDocValues.empty(dims);
+                    return new DelegateDocValuesField(DenseVectorScriptDocValues.empty(dims), name);
                 }
-                return new KnnDenseVectorScriptDocValues(values, dims);
+                return new DelegateDocValuesField(new KnnDenseVectorScriptDocValues(values, dims), name);
             } else {
                 BinaryDocValues values = DocValues.getBinary(reader, field);
-                return new BinaryDenseVectorScriptDocValues(values, indexVersion, dims);
+                return new DelegateDocValuesField(new BinaryDenseVectorScriptDocValues(values, indexVersion, dims), name);
             }
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values for vector field!", e);

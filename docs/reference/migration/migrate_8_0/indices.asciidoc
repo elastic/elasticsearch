@@ -18,6 +18,21 @@ instead for that purpose.
 Requests made to the old `_upgrade` API will return an error.
 ====
 
+.The deprecated freeze index API has been removed.
+[%collapsible]
+====
+*Details* +
+The freeze index API (`POST /<index>/_freeze`) was deprecated in 7.14 and
+removed in 8.0.
+https://www.elastic.co/blog/significantly-decrease-your-elasticsearch-heap-memory-usage[Improvements
+in heap memory usage] have eliminated the reason to freeze indices.
+Existing frozen indices can still be unfrozen with the
+<<unfreeze-index-api,unfreeze index API>>.
+
+*Impact* +
+Requests made to the old freeze index API will return an error.
+====
+
 .The force merge API's `max_num_segments` and `only_expunge_deletes` parameters cannot both be specified in the same request.
 [%collapsible]
 ====

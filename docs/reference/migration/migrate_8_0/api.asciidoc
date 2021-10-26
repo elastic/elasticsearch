@@ -6,6 +6,21 @@
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
+.The deprecated freeze index API has been removed.
+[%collapsible]
+====
+*Details* +
+The freeze index API (`POST /<index>/_freeze`) was deprecated in 7.14 and
+removed in 8.0.
+https://www.elastic.co/blog/significantly-decrease-your-elasticsearch-heap-memory-usage[Improvements
+in heap memory usage] have eliminated the reason to freeze indices.
+Existing frozen indices can still be unfrozen with the
+<<unfreeze-index-api,unfreeze index API>>.
+
+*Impact* +
+Requests made to the old freeze index API will return an error.
+====
+
 .The cat node API's `local` query parameter has been removed.
 [%collapsible]
 ====

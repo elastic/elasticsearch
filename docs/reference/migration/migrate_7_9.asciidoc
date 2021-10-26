@@ -20,8 +20,8 @@ See also <<release-highlights>> and <<es-release-notes>>.
 [discrete]
 [[breaking_79_indices_changes]]
 === Indices changes
-.{es} includes built-in index templates for `logs-*-*` and `metrics-*-*`.
 
+.{es} includes built-in index templates for `logs-*-*` and `metrics-*-*`.
 [%collapsible]
 ====
 *Details* +
@@ -43,10 +43,10 @@ For example, if you don't use {agent} and want to use a template for the
 your template is applied instead of the built-in template for `logs-*-*`.
 
 To disable all built-in index and component templates, set
-<<stack-templates-enabled,`stack.templates.enabled`>> to `false` in
-<<config-files-location,`elasticsearch.yml`>> before start up. If the templates
-already exist, this setting ensures {es} does not recreate the built-in
-templates after deletion.
+{ref}/index-management-settings.html#stack-templates-enabled[`stack.templates.enabled`]
+to `false` in {ref}/settings.html#config-files-location[`elasticsearch.yml`]
+before start up. If the templates already exist, this setting ensures {es} does
+not recreate the built-in templates after deletion.
 ====
 //end::notable-breaking-changes[]
 

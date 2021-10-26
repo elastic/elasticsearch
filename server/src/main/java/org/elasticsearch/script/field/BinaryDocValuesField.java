@@ -15,6 +15,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues.BytesRefs;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -94,55 +95,29 @@ public class BinaryDocValuesField implements DocValuesField {
         return count;
     }
 
-    public List<byte[]> getValues() {
+    public List<ByteBuffer> getValues() {
         if (isEmpty()) {
             return Collections.emptyList();
         }
 
-        List<byte[]> values = new ArrayList<>(count);
+        List<ByteBuffer> values = new ArrayList<>(count);
 
         for (int index = 0; index < count; ++index) {
-            values.add(this.values[index].toBytesRef().bytes);
+            values.add(ByteBuffer.wrap(this.values[index].toBytesRef().bytes));
         }
 
         return values;
     }
 
-    public byte[] getValue(byte[] defaultValue) {
+    public ByteBuffer getValue(ByteBuffer defaultValue) {
         return getValue(0, defaultValue);
     }
 
-    public byte[] getValue(int index, byte[] defaultValue) {
+    public ByteBuffer getValue(int index, ByteBuffer defaultValue) {
         if (isEmpty() || index < 0 || index >= count) {
             return defaultValue;
         }
 
-        return values[index].toBytesRef().bytes;
-    }
-
-    public List<String> getUtf8ToStrings() {
-        if (isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        List<String> values = new ArrayList<>(count);
-
-        for (int index = 0; index < count; ++index) {
-            values.add(this.values[index].toBytesRef().utf8ToString());
-        }
-
-        return values;
-    }
-
-    public String getUtf8ToString(String defaultValue) {
-        return getUtf8ToString(0, defaultValue);
-    }
-
-    public String getUtf8ToString(int index, String defaultValue) {
-        if (isEmpty() || index < 0 || index >= count) {
-            return defaultValue;
-        }
-
-        return values[index].toBytesRef().utf8ToString();
+        return ByteBuffer.wrap(values[index].toBytesRef().bytes);
     }
 }

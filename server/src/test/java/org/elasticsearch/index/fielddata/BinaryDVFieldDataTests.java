@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -113,26 +114,26 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
         // Test whether BinaryDocValuesField makes a deepcopy
         fieldData = indexFieldData.load(reader);
         BinaryDocValuesField binaryDocValuesField = (BinaryDocValuesField)fieldData.getScriptField("test");
-        byte[][][] retValues = new byte[4][][];
+        ByteBuffer[][] retValues = new ByteBuffer[4][];
         for (int i = 0; i < 4; i++) {
             binaryDocValuesField.setNextDocId(i);
-            retValues[i] = new byte[binaryDocValuesField.size()][];
+            retValues[i] = new ByteBuffer[binaryDocValuesField.size()];
             for (int j = 0; j < retValues[i].length; j++) {
                 retValues[i][j] = binaryDocValuesField.getValue(j, null);
             }
         }
         assertEquals(2, retValues[0].length);
-        assertArrayEquals(bytesList1.get(0).bytes, retValues[0][0]);
-        assertArrayEquals(bytesList1.get(1).bytes, retValues[0][1]);
+        assertArrayEquals(bytesList1.get(0).bytes, retValues[0][0].array());
+        assertArrayEquals(bytesList1.get(1).bytes, retValues[0][1].array());
 
         assertEquals(1, retValues[1].length);
-        assertArrayEquals(bytes1.bytes, retValues[1][0]);
+        assertArrayEquals(bytes1.bytes, retValues[1][0].array());
 
         assertEquals(0, retValues[2].length);
 
         assertEquals(2, retValues[3].length);
-        assertArrayEquals(bytesList2.get(0).bytes, retValues[3][0]);
-        assertArrayEquals(bytesList2.get(1).bytes, retValues[3][1]);
+        assertArrayEquals(bytesList2.get(0).bytes, retValues[3][0].array());
+        assertArrayEquals(bytesList2.get(1).bytes, retValues[3][1].array());
     }
 
     private static BytesRef randomBytes() {

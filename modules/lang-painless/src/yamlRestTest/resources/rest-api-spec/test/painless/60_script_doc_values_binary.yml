@@ -44,13 +44,13 @@
             script_fields:
               field1:
                 script:
-                  source: "field('binary').getValue(null)[0]"
+                  source: "field('binary').getValue(null).get(0)"
               field2:
                 script:
-                  source: "field('binary').getValue(0, null)[0]"
+                  source: "field('binary').getValue(0, null).get(0)"
               field3:
                 script:
-                  source: "field('binary').getValues()[0][0]"
+                  source: "field('binary').getValues()[0].get(0)"
     - match: { hits.hits.0.fields.field1.0: 83 }
     - match: { hits.hits.0.fields.field2.0: 83 }
     - match: { hits.hits.0.fields.field3.0: 83 }
@@ -61,13 +61,13 @@
             script_fields:
               field1:
                 script:
-                  source: "field('binary').getValue(null).length"
+                  source: "field('binary').getValue(null).limit()"
               field2:
                 script:
-                  source: "field('binary').getValue(0, null).length"
+                  source: "field('binary').getValue(0, null).limit()"
               field3:
                 script:
-                  source: "field('binary').getValues()[0].length"
+                  source: "field('binary').getValues()[0].limit()"
     - match: { hits.hits.0.fields.field1.0: 16 }
     - match: { hits.hits.0.fields.field2.0: 16 }
     - match: { hits.hits.0.fields.field3.0: 16 }

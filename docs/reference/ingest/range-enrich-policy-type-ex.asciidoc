@@ -3,8 +3,10 @@
 [[range-enrich-policy-type]]
 === Example: Enrich your data by matching a value to a range
 
-A `range` <<enrich-policy,enrich policy>> matches a field value in incoming
-documents to a range in the enrich index.
+A `range` <<enrich-policy,enrich policy>> uses a <<query-dsl-term-query,`term`
+query>> matches a number, date, or IP address in incoming documents to a range
+of the same type in the enrich index. Matching a range to a range is not
+supported.
 
 The following example creates a `range` enrich policy that adds a descriptive network name and
 responsible department to incoming documents based on an IP address. It then

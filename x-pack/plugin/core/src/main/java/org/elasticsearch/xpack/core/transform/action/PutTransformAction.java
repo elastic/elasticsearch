@@ -44,7 +44,8 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
         private final TransformConfig config;
         private final boolean deferValidation;
 
-        public Request(TransformConfig config, boolean deferValidation) {
+        public Request(TransformConfig config, boolean deferValidation, TimeValue timeout) {
+            super(timeout);
             this.config = config;
             this.deferValidation = deferValidation;
         }
@@ -59,8 +60,13 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
             }
         }
 
-        public static Request fromXContent(final XContentParser parser, final String id, final boolean deferValidation) {
-            return new Request(TransformConfig.fromXContent(parser, id, false), deferValidation);
+        public static Request fromXContent(
+            final XContentParser parser,
+            final String id,
+            final boolean deferValidation,
+            final TimeValue timeout
+        ) {
+            return new Request(TransformConfig.fromXContent(parser, id, false), deferValidation, timeout);
         }
 
         /**
@@ -123,7 +129,8 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public int hashCode() {
-            return Objects.hash(config, deferValidation);
+            // the base class does not implement hashCode, therefore we need to hash timeout ourselves
+            return Objects.hash(timeout(), config, deferValidation);
         }
 
         @Override
@@ -135,7 +142,11 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(config, other.config) && this.deferValidation == other.deferValidation;
+
+            // the base class does not implement equals, therefore we need to check timeout ourselves
+            return Objects.equals(config, other.config)
+                && this.deferValidation == other.deferValidation
+                && timeout().equals(other.timeout());
         }
     }
 

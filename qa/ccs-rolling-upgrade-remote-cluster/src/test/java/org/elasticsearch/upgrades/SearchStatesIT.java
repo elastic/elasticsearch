@@ -68,6 +68,7 @@ import static org.hamcrest.Matchers.not;
  * This test ensure that we keep the search states of a CCS request correctly when the local and remote clusters
  * have different but compatible versions. See SearchService#createAndPutReaderContext
  */
+@SuppressWarnings("removal")
 public class SearchStatesIT extends ESRestTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(SearchStatesIT.class);

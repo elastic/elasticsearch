@@ -307,7 +307,6 @@ public class DeploymentManager {
 
         @Override
         protected void doRun() throws Exception {
-            logger.info("Request [{}] running", requestId);
             final String requestIdStr = String.valueOf(requestId);
             try {
                 // The request builder expect a list of inputs which are then batched.

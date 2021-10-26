@@ -197,8 +197,8 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             if (inferenceThreads < 1) {
                 validationException.addValidationError("[" + INFERENCE_THREADS + "] must be a positive integer");
             }
-            if (queueCapacity < 1 || queueCapacity > 10000) {
-                validationException.addValidationError("[" + QUEUE_CAPACITY + "] must be in [1, 10000]");
+            if (queueCapacity < 1) {
+                validationException.addValidationError("[" + QUEUE_CAPACITY + "] must be a positive integer");
             }
             return validationException.validationErrors().isEmpty() ? null : validationException;
         }
@@ -280,26 +280,14 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         public TaskParams(String modelId, long modelBytes, int inferenceThreads, int modelThreads, int queueCapacity) {
             this.modelId = Objects.requireNonNull(modelId);
             this.modelBytes = modelBytes;
-            if (modelBytes < 0) {
-                throw new IllegalArgumentException("modelBytes must be non-negative");
-            }
             this.inferenceThreads = inferenceThreads;
-            if (inferenceThreads < 1) {
-                throw new IllegalArgumentException(INFERENCE_THREADS + " must be positive");
-            }
             this.modelThreads = modelThreads;
-            if (modelThreads < 1) {
-                throw new IllegalArgumentException(MODEL_THREADS + " must be positive");
-            }
             this.queueCapacity = queueCapacity;
-            if (queueCapacity < 1 || queueCapacity > 10000) {
-                throw new IllegalArgumentException(QUEUE_CAPACITY + " must be in [1, 10000]");
-            }
         }
 
         public TaskParams(StreamInput in) throws IOException {
             this.modelId = in.readString();
-            this.modelBytes = in.readVLong();
+            this.modelBytes = in.readLong();
             this.inferenceThreads = in.readVInt();
             this.modelThreads = in.readVInt();
             this.queueCapacity = in.readVInt();
@@ -321,7 +309,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(modelId);
-            out.writeVLong(modelBytes);
+            out.writeLong(modelBytes);
             out.writeVInt(inferenceThreads);
             out.writeVInt(modelThreads);
             out.writeVInt(queueCapacity);
@@ -376,6 +364,11 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
 
         public int getQueueCapacity() {
             return queueCapacity;
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
         }
     }
 

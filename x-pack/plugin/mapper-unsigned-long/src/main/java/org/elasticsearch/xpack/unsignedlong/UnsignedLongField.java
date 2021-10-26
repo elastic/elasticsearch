@@ -12,13 +12,16 @@ import org.elasticsearch.script.field.Field;
 import java.math.BigInteger;
 import java.util.List;
 
-public interface UnsignedLongField extends Field<Long> {
+public interface UnsignedLongField extends Field {
 
     /** Returns the 0th index value as an {@code long} if it exists, otherwise {@code defaultValue}. */
-    long getLong(long defaultValue);
+    long getValue(long defaultValue);
 
     /** Returns the value at {@code index} as an {@code long} if it exists, otherwise {@code defaultValue}. */
-    long getLong(int index, long defaultValue);
+    long getValue(int index, long defaultValue);
+
+    /** Return all the values as a {@code List}. */
+    List<Long> getValues();
 
     /** Returns the 0th index value as a {@code BigInteger} if it exists, otherwise {@code defaultValue}. */
     BigInteger getBigInteger(BigInteger defaultValue);

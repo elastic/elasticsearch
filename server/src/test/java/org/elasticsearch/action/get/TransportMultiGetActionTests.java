@@ -55,6 +55,7 @@ import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.UUIDs.randomBase64UUID;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -122,13 +123,15 @@ public class TransportMultiGetActionTests extends ESTestCase {
         when(index2ShardIterator.shardId()).thenReturn(new ShardId(index2, randomInt()));
 
         final OperationRouting operationRouting = mock(OperationRouting.class);
-        when(operationRouting.getShards(eq(clusterState), eq(index1.getName()), anyString(), anyString(), anyString()))
+        when(operationRouting.getShards(eq(clusterState), eq(index1.getName()),
+            anyString(), nullable(String.class), nullable(String.class)))
             .thenReturn(index1ShardIterator);
-        when(operationRouting.shardId(eq(clusterState), eq(index1.getName()), anyString(), anyString()))
+        when(operationRouting.shardId(eq(clusterState), eq(index1.getName()), nullable(String.class), nullable(String.class)))
             .thenReturn(new ShardId(index1, randomInt()));
-        when(operationRouting.getShards(eq(clusterState), eq(index2.getName()), anyString(), anyString(), anyString()))
+        when(operationRouting.getShards(eq(clusterState), eq(index2.getName()),
+            anyString(), nullable(String.class), nullable(String.class)))
             .thenReturn(index2ShardIterator);
-        when(operationRouting.shardId(eq(clusterState), eq(index2.getName()), anyString(), anyString()))
+        when(operationRouting.shardId(eq(clusterState), eq(index2.getName()), nullable(String.class), nullable(String.class)))
             .thenReturn(new ShardId(index2, randomInt()));
 
         clusterService = mock(ClusterService.class);

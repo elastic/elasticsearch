@@ -39,7 +39,8 @@ public class VersionParityTests extends WebServerTestCase {
             // Client's version is wired up to patch level, excluding the qualifier => generate the test version as the server does it.
             String versionString = SqlVersion.fromString(version.toString()).toString();
 
-            SQLException ex = expectThrows(SQLException.class, () -> new JdbcHttpClient(JdbcConfiguration.create(url, null, 0)));
+            SQLException ex = expectThrows(SQLException.class, () -> new JdbcHttpClient(new JdbcConnection(
+                JdbcConfiguration.create(url, null, 0), false)));
             assertEquals("This version of the JDBC driver is only compatible with Elasticsearch version " +
                 ClientVersion.CURRENT.majorMinorToString() + " or newer; attempting to connect to a server " +
                 "version " + versionString, ex.getMessage());
@@ -52,7 +53,7 @@ public class VersionParityTests extends WebServerTestCase {
         try {
             do {
                 prepareResponse(version);
-                new JdbcHttpClient(JdbcConfiguration.create(url, null, 0));
+                new JdbcHttpClient(new JdbcConnection(JdbcConfiguration.create(url, null, 0), false));
                 version = VersionUtils.getPreviousVersion(version);
             } while (version.compareTo(Version.V_7_7_0) >= 0);
         } catch (SQLException sqle) {

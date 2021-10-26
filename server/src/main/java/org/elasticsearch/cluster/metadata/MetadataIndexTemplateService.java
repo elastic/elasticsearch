@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -41,11 +42,9 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -498,7 +497,7 @@ public class MetadataIndexTemplateService {
                     .collect(Collectors.joining(",")),
                 name);
             logger.warn(warning);
-            HeaderWarning.addWarning(warning);
+            HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning);
         }
 
         ComposableIndexTemplate finalIndexTemplate = template;
@@ -828,7 +827,7 @@ public class MetadataIndexTemplateService {
                         .collect(Collectors.joining(",")),
                     request.name);
                 logger.warn(warning);
-                HeaderWarning.addWarning(warning);
+                HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning);
             } else {
                 // Otherwise, this is a hard error, the user should use V2 index templates instead
                 String error = String.format(Locale.ROOT, "legacy template [%s] has index patterns %s matching patterns" +
@@ -1229,16 +1228,6 @@ public class MetadataIndexTemplateService {
                 // triggers inclusion of _timestamp field and its validation:
                 String indexName = DataStream.BACKING_INDEX_PREFIX + temporaryIndexName;
                 // Parse mappings to ensure they are valid after being composed
-
-                if (template.getDataStreamTemplate() != null) {
-                    // If there is no _data_stream meta field mapper and a data stream should be created then
-                    // fail as if the  data_stream field can't be parsed:
-                    if (tempIndexService.mapperService().isMetadataField(DataStreamTimestampFieldMapper.NAME) == false) {
-                        // Fail like a parsing expection, since we will be moving data_stream template out of server module and
-                        // then we would fail with the same error message, like we do here.
-                        throw new XContentParseException("[index_template] unknown field [data_stream]");
-                    }
-                }
 
                 List<CompressedXContent> mappings = collectMappings(stateWithIndex, templateName, indexName, xContentRegistry);
                 try {

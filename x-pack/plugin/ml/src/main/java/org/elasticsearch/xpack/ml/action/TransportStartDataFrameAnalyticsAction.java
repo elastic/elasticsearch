@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -222,7 +223,7 @@ public class TransportStartDataFrameAnalyticsAction
                         expectedMemoryWithoutDisk);
                     auditor.warning(jobId, warning);
                     logger.warn("[{}] {}", jobId, warning);
-                    HeaderWarning.addWarning(warning);
+                    HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning);
                 }
                 // Refresh memory requirement for jobs
                 memoryTracker.addDataFrameAnalyticsJobMemoryAndRefreshAllOthers(

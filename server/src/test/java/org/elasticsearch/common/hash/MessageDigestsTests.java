@@ -8,16 +8,35 @@
 
 package org.elasticsearch.common.hash;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasLength;
+
 public class MessageDigestsTests extends ESTestCase {
-    private void assertHash(String expected, String test, MessageDigest messageDigest) {
-        String actual = MessageDigests.toHexString(messageDigest.digest(test.getBytes(StandardCharsets.UTF_8)));
-        assertEquals(expected, actual);
+
+    private void assertHexString(String expected, byte[] bytes) {
+        final String actualDirect = MessageDigests.toHexString(bytes);
+        assertThat(actualDirect, equalTo(expected));
+    }
+
+    private void assertHash(String expected, String test, MessageDigest messageDigest) throws IOException {
+        final byte[] testBytes = test.getBytes(StandardCharsets.UTF_8);
+
+        assertHexString(expected, messageDigest.digest(testBytes));
+        assertHexString(expected, MessageDigests.digest(new BytesArray(testBytes), messageDigest));
+        try (var in = new ByteArrayInputStream(testBytes)) {
+            assertHexString(expected, MessageDigests.digest(in, messageDigest));
+        }
     }
 
     public void testMd5() throws Exception {
@@ -65,5 +84,51 @@ public class MessageDigestsTests extends ESTestCase {
         assertEquals(expectedHex, hex);
         BigInteger actual = new BigInteger(hex, 16);
         assertEquals(expected, actual);
+    }
+
+    public void testDigestFromStreamWithMultipleBlocks() throws Exception {
+        final String longString = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".repeat(1000);
+        assertThat(longString, hasLength(26_000));
+
+        try (InputStream in = getInputStream(longString)) {
+            final byte[] md5 = MessageDigests.digest(in, MessageDigests.md5());
+            assertThat(MessageDigests.toHexString(md5), equalTo("5c48e92239a655cfe1762851c6708ddb"));
+        }
+        try (InputStream in = getInputStream(longString)) {
+            final byte[] md5 = MessageDigests.digest(in, MessageDigests.sha1());
+            assertThat(MessageDigests.toHexString(md5), equalTo("e363dfc35f4d170906aafcbb6b1f6fd1ae854808"));
+        }
+        try (InputStream in = getInputStream(longString)) {
+            final byte[] md5 = MessageDigests.digest(in, MessageDigests.sha256());
+            assertThat(MessageDigests.toHexString(md5), equalTo("e59a4d700410ce60f912bd6e5b24f77230cbc68b27838c5a9c06daef94737a8a"));
+        }
+    }
+
+    public void testDigestFromStreamWithExactlyOneBlock() throws Exception {
+        final String blockString = "ABCDEFGHIJKLMNOP".repeat(64);
+        assertThat(blockString, hasLength(MessageDigests.STREAM_DIGEST_BLOCK_SIZE));
+
+        try (InputStream in = getInputStream(blockString)) {
+            final byte[] md5 = MessageDigests.digest(in, MessageDigests.md5());
+            assertThat(MessageDigests.toHexString(md5), equalTo("2eda00073add15c6ee5c848797f8c0f4"));
+        }
+        try (InputStream in = getInputStream(blockString)) {
+            final byte[] md5 = MessageDigests.digest(in, MessageDigests.sha1());
+            assertThat(MessageDigests.toHexString(md5), equalTo("bb8275d97cb190cb02fd2c03e9bba2279955ace3"));
+        }
+        try (InputStream in = getInputStream(blockString)) {
+            final byte[] md5 = MessageDigests.digest(in, MessageDigests.sha256());
+            assertThat(MessageDigests.toHexString(md5), equalTo("36350546f9cc3cbd56d3b655ecae0e4281909d510687635b900ea7650976eb3b"));
+        }
+    }
+
+    private InputStream getInputStream(String str) {
+        InputStream in = randomBoolean()
+            ? new ByteArrayInputStream(str.getBytes(StandardCharsets.UTF_8))
+            : new BytesArray(str).streamInput();
+        if (randomBoolean()) {
+            in = new BufferedInputStream(in);
+        }
+        return in;
     }
 }

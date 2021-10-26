@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.license.LicenseUtils;
@@ -165,7 +166,7 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
                             oldModelId);
                         auditor.warning(oldModelId, warning);
                         logger.warn("[{}] {}", oldModelId, warning);
-                        HeaderWarning.addWarning(warning);
+                        HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning);
                     }
                 }
                 clusterService.submitStateUpdateTask("update-model-alias", new AckedClusterStateUpdateTask(request, listener) {

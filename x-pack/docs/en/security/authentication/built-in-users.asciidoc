@@ -179,7 +179,7 @@ for these users.
 The `apm_system` user is used internally within APM when monitoring is enabled.
 
 To enable this feature in APM, you need to update the
-{apm-server-ref-v}/configuring-howto-apm-server.html[APM configuration file] to
+`apm-server.yml` configuration file to
 reference the correct username and password. For example:
 
 [source,yaml]
@@ -188,7 +188,6 @@ xpack.monitoring.elasticsearch.username: apm_system
 xpack.monitoring.elasticsearch.password: apmserverpassword
 ----------------------------------------------------------
 
-See {apm-server-ref-v}/monitoring.html[Monitoring APM Server].
 
 If you have upgraded from an older version of {es}, then you may not have set a
 password for the `apm_system` user. If this is the case,

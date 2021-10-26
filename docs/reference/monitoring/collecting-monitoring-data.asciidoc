@@ -55,7 +55,10 @@ For example, use the following APIs to review and change this setting:
 [source,console]
 ----------------------------------
 GET _cluster/settings
+----------------------------------
 
+[source,console]
+----------------------------------
 PUT _cluster/settings
 {
   "persistent": {
@@ -63,6 +66,7 @@ PUT _cluster/settings
   }
 }
 ----------------------------------
+// TEST[warning:[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version.]
 
 Alternatively, you can enable this setting in {kib}. In the side navigation,
 click *Monitoring*. If data collection is disabled, you are prompted to turn it

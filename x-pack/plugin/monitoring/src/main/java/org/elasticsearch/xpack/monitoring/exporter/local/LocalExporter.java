@@ -102,7 +102,8 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     public static final Setting.AffixSetting<TimeValue> WAIT_MASTER_TIMEOUT_SETTING = Setting.affixKeySetting(
         "xpack.monitoring.exporters.",
         "wait_master.timeout",
-        (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(30), Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY
+        (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(30), Property.Dynamic, Property.NodeScope, Property.Deprecated),
+        TYPE_DEPENDENCY
     );
 
     private final Client client;

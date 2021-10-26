@@ -7,11 +7,22 @@ dependencies {
   testImplementation project(':test:framework')
 }
 
-forbiddenApisMain.enabled = true
+tasks.named("forbiddenApisMain").configure {
+  enabled = true
+}
 
-dependencyLicenses.enabled = false
-dependenciesInfo.enabled = false
+tasks.named("dependencyLicenses").configure {
+  enabled = false
+}
 
-jarHell.enabled = false
+tasks.named("dependenciesInfo").configure {
+  enabled = false
+}
 
-thirdPartyAudit.enabled = false
+tasks.named("jarHell").configure {
+  enabled = false
+}
+
+tasks.named("thirdPartyAudit").configure {
+  enabled = false
+}

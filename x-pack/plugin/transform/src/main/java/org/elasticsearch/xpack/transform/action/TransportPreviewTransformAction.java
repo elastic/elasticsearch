@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.ToXContent;
@@ -243,7 +244,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
             );
 
             List<String> warnings = TransformConfigLinter.getWarnings(function, source, syncConfig);
-            warnings.forEach(HeaderWarning::addWarning);
+            warnings.forEach(warning -> HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning));
             listener.onResponse(new Response(docs, generatedDestIndexSettings));
         }, listener::onFailure);
 
@@ -256,7 +257,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                         Clock.systemUTC()
                     );
                     List<String> warnings = TransformConfigLinter.getWarnings(function, source, syncConfig);
-                    warnings.forEach(HeaderWarning::addWarning);
+                    warnings.forEach(warning -> HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning));
                     listener.onResponse(new Response(docs, generatedDestIndexSettings));
                 } else {
                     List<Map<String, Object>> results = docs.stream().map(doc -> {

@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.preallocate;
 
-final class UnsupportedPreallocator implements Preallocator {
+final class NoNativePreallocator implements Preallocator {
 
     @Override
-    public boolean available() {
+    public boolean useNative() {
         return false;
     }
 

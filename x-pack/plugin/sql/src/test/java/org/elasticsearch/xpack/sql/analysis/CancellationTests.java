@@ -230,7 +230,7 @@ public class CancellationTests extends ESTestCase {
     }
 
     private static IndexResolver indexResolver(Client client) {
-        return new IndexResolver(client, randomAlphaOfLength(10), DefaultDataTypeRegistry.INSTANCE);
+        return new IndexResolver(client, randomAlphaOfLength(10), DefaultDataTypeRegistry.INSTANCE, Collections::emptySet);
     }
 
     private static SqlQueryTask randomTask() {

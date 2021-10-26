@@ -1514,17 +1514,23 @@ public class RecoverySourceHandlerTests extends ESTestCase {
 
     private List<StoreFileMetadata> generateFiles(Store store, int numFiles, IntSupplier fileSizeSupplier) throws IOException {
         List<StoreFileMetadata> files = new ArrayList<>();
+        int fileCounter = 0;
         for (int i = 0; i < numFiles; i++) {
-            byte[] buffer = randomByteArrayOfLength(fileSizeSupplier.getAsInt());
-            CRC32 digest = new CRC32();
-            digest.update(buffer, 0, buffer.length);
-            StoreFileMetadata md = new StoreFileMetadata("test-" + i, buffer.length + 8,
-                Store.digestToString(digest.getValue()), org.apache.lucene.util.Version.LATEST.toString());
-            try (OutputStream out = new IndexOutputOutputStream(store.createVerifyingOutput(md.name(), md, IOContext.DEFAULT))) {
-                out.write(buffer);
-                out.write(Numbers.longToBytes(digest.getValue()));
+            StoreFileMetadata md = null;
+            do {
+                byte[] buffer = randomByteArrayOfLength(fileSizeSupplier.getAsInt());
+                CRC32 digest = new CRC32();
+                digest.update(buffer, 0, buffer.length);
+                md = new StoreFileMetadata("test-" + fileCounter, buffer.length + 8,
+                    Store.digestToString(digest.getValue()), org.apache.lucene.util.Version.LATEST.toString());
+                try (OutputStream out = new IndexOutputOutputStream(store.createVerifyingOutput(md.name(), md, IOContext.DEFAULT))) {
+                    out.write(buffer);
+                    out.write(Numbers.longToBytes(digest.getValue()));
+                }
+                store.directory().sync(Collections.singleton(md.name()));
+                fileCounter++;
             }
-            store.directory().sync(Collections.singleton(md.name()));
+            while (containsFile(files, md));
             files.add(md);
         }
         return files;

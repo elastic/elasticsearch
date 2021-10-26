@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.transform;
 
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Arrays;
 import java.util.Collections;
 
 import static org.elasticsearch.test.NodeRoles.addRoles;
@@ -52,7 +54,7 @@ public class TransformTests extends ESTestCase {
             Boolean.parseBoolean(transform.additionalSettings().get("node.attr.transform.node"))
         );
         if (useExplicitSetting && useLegacySetting) {
-            assertSettingDeprecationsAndWarnings(new String[]{"node.transform"});
+            assertSettingDeprecationsAndWarnings(getDeprecatedSettingsForSettingNames("node.transform"));
         }
     }
 
@@ -77,6 +79,11 @@ public class TransformTests extends ESTestCase {
                 return licenseState;
             }
         };
+    }
+
+    private Setting<?>[] getDeprecatedSettingsForSettingNames(String... settingNames) {
+        return Arrays.stream(settingNames).map(settingName -> Setting.intSetting(settingName, randomInt(),
+            Setting.Property.Deprecated)).toArray(Setting[]::new);
     }
 
 }

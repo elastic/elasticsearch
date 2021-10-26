@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -28,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * The {@code DataTier} class encapsulates the formalization of the "content",
@@ -265,5 +267,27 @@ public class DataTier {
         public Iterator<Setting<?>> settings() {
             return dependencies.iterator();
         }
+    }
+
+    /**
+     * Checks each data node in the cluster state to see whether it has the explicit data role or if it has
+     * all data tiers (e.g. 'data_hot', 'data_warm', etc). The former condition being treated as a shortcut
+     * for the latter condition (see DataTierAllocationDecider#allocationAllowed(String, Set)) for details,
+     * as well as the various DataTier#isFooNode(DiscoveryNode) methods.
+     *
+     * @param clusterState the cluster state
+     * @return a set of data nodes that do not have all data roles
+     */
+    public static Set<DiscoveryNode> dataNodesWithoutAllDataRoles(ClusterState clusterState) {
+        return clusterState.getNodes().getDataNodes().values().stream()
+            .filter(node -> {
+                Set<String> roles = node.getRoles().stream()
+                    .map(DiscoveryNodeRole::roleName)
+                    .collect(Collectors.toSet());
+
+                return roles.contains(DiscoveryNodeRole.DATA_ROLE.roleName()) == false &&
+                    roles.containsAll(ALL_DATA_TIERS) == false;
+            })
+            .collect(Collectors.toSet());
     }
 }

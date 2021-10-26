@@ -469,6 +469,34 @@ public class IndicesPermissionTests extends ESTestCase {
         }
     }
 
+    public void testIndicesPermissionHasFieldOrDocumentLevelSecurity() {
+        // Make sure we have at least one of fieldPermissions and documentPermission
+        final FieldPermissions fieldPermissions = randomBoolean() ?
+            new FieldPermissions(new FieldPermissionsDefinition(Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY)) :
+            FieldPermissions.DEFAULT;
+        final Set<BytesReference> queries;
+        if (fieldPermissions == FieldPermissions.DEFAULT) {
+            queries = org.elasticsearch.core.Set.of(new BytesArray("a query"));
+        } else {
+            queries = randomBoolean() ? org.elasticsearch.core.Set.of(new BytesArray("a query")) : null;
+        }
+
+        final IndicesPermission indicesPermission1 = new IndicesPermission(
+            new IndicesPermission.Group(IndexPrivilege.ALL, fieldPermissions, queries, randomBoolean(), "*"));
+        assertThat(indicesPermission1.hasFieldOrDocumentLevelSecurity(), is(true));
+
+        // IsTotal means no DLS/FLS
+        final IndicesPermission indicesPermission2 = new IndicesPermission(
+            new IndicesPermission.Group(IndexPrivilege.ALL, FieldPermissions.DEFAULT, null, true, "*"));
+        assertThat(indicesPermission2.hasFieldOrDocumentLevelSecurity(), is(false));
+
+        // IsTotal means NO DLS/FLS even when there is another group that has DLS/FLS
+        final IndicesPermission indicesPermission3 = new IndicesPermission(
+            new IndicesPermission.Group(IndexPrivilege.ALL, FieldPermissions.DEFAULT, null, true, "*"),
+            new IndicesPermission.Group(IndexPrivilege.NONE, fieldPermissions, queries, randomBoolean(), "*"));
+        assertThat(indicesPermission3.hasFieldOrDocumentLevelSecurity(), is(false));
+    }
+
     private static IndexMetadata createIndexMetadata(String name) {
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)

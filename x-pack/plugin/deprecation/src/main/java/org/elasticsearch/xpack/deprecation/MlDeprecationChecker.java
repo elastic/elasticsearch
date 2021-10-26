@@ -57,10 +57,8 @@ public class MlDeprecationChecker implements DeprecationChecker {
         if (modelSnapshot.getMinVersion().before(Version.V_7_0_0)) {
             StringBuilder details = new StringBuilder(String.format(
                 Locale.ROOT,
-                "model snapshot [%s] for job [%s] supports minimum version [%s] and needs to be at least [%s].",
+                "Delete model snapshot [%s] or update it to %s or greater.",
                 modelSnapshot.getSnapshotId(),
-                modelSnapshot.getJobId(),
-                modelSnapshot.getMinVersion(),
                 Version.V_7_0_0));
             if (modelSnapshot.getLatestRecordTimeStamp() != null) {
                 details.append(String.format(
@@ -72,9 +70,10 @@ public class MlDeprecationChecker implements DeprecationChecker {
             return Optional.of(new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 String.format(
                     Locale.ROOT,
-                    "model snapshot [%s] for job [%s] needs to be deleted or upgraded",
+                    "Snapshot [%s] for job [%s] has an obsolete minimum version [%s]",
                     modelSnapshot.getSnapshotId(),
-                    modelSnapshot.getJobId()
+                    modelSnapshot.getJobId(),
+                    modelSnapshot.getMinVersion()
                 ),
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/ml-upgrade-job-model-snapshot.html",
                 details.toString(),

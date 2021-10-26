@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -490,7 +491,7 @@ public class MetadataIndexTemplateService {
                     .collect(Collectors.joining(",")),
                 name);
             logger.warn(warning);
-            HeaderWarning.addWarning(warning);
+            HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning);
         }
 
         ComposableIndexTemplate finalIndexTemplate = template;
@@ -816,7 +817,7 @@ public class MetadataIndexTemplateService {
                     .collect(Collectors.joining(",")),
                 request.name);
             logger.warn(warning);
-            HeaderWarning.addWarning(warning);
+            HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning);
         }
 
         templateBuilder.order(request.order);

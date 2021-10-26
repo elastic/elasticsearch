@@ -121,11 +121,6 @@ public class XDocsClientYamlTestSuiteIT extends AbstractXPackRestTest {
     }
 
     @Override
-    protected boolean isMonitoringTest() {
-        return false;
-    }
-
-    @Override
     protected boolean isMachineLearningTest() {
         String testName = getTestName();
         return testName != null && (testName.contains("ml/") || testName.contains("ml\\"));

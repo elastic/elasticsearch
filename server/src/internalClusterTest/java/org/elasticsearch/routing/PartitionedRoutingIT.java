@@ -10,17 +10,21 @@ package org.elasticsearch.routing;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.mockito.internal.util.collections.Sets;
 
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+
+import static org.hamcrest.CoreMatchers.containsString;
 
 public class PartitionedRoutingIT extends ESIntegTestCase {
 
@@ -107,6 +111,28 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                             .build()).get();
             ensureGreen();
         }
+    }
+
+    public void testUnableToUpdateIndexRoutingPartitionSizes() throws Exception {
+        Settings currentSettings = Settings.builder()
+            .put("index.routing_partition_size", 2)
+            .build();
+        IndexScopedSettings indexScopedSettings = new IndexScopedSettings(
+            currentSettings,
+            org.elasticsearch.core.Set.of(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING)
+        );
+        Settings newSettings = Settings.builder().put("index.routing_partition_size", 3).build();
+
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> indexScopedSettings.updateDynamicSettings(
+                newSettings,
+                Settings.builder().put(currentSettings),
+                Settings.builder(),
+                "indexMetadata"
+            )
+        );
+        assertThat(exc.getMessage(), containsString("final indexMetadata setting [index.routing_partition_size]"));
     }
 
     private void verifyRoutedSearches(String index, Map<String, Set<String>> routingToDocumentIds, Set<Integer> expectedShards) {

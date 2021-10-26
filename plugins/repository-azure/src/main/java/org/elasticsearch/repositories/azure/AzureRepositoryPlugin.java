@@ -9,6 +9,7 @@
 package org.elasticsearch.repositories.azure;
 
 import com.azure.core.util.serializer.JacksonAdapter;
+
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -16,10 +17,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -33,6 +32,7 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -132,9 +132,6 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     public void reload(Settings settings) {
         // secure settings should be readable
         final Map<String, AzureStorageSettings> clientsSettings = AzureStorageSettings.load(settings);
-        if (clientsSettings.isEmpty()) {
-            throw new SettingsException("If you want to use an azure repository, you need to define a client configuration.");
-        }
         AzureStorageService storageService = azureStoreService.get();
         assert storageService != null;
         storageService.refreshSettings(clientsSettings);

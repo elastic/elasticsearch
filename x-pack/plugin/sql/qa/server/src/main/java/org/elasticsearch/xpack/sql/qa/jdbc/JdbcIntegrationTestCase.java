@@ -11,10 +11,10 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.jdbc.EsDataSource;
+import org.elasticsearch.xpack.sql.qa.rest.RemoteClusterAwareSqlRestTestCase;
 import org.junit.After;
 
 import java.io.IOException;
@@ -28,15 +28,16 @@ import java.util.List;
 import java.util.Properties;
 import java.util.Set;
 
+import static org.elasticsearch.common.Strings.hasText;
 import static org.elasticsearch.xpack.ql.TestUtils.assertNoSearchContexts;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_TIMEZONE;
 
-public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
+public abstract class JdbcIntegrationTestCase extends RemoteClusterAwareSqlRestTestCase {
 
     @After
     public void checkSearchContent() throws Exception {
         // Some context might linger due to fire and forget nature of scroll cleanup
-        assertNoSearchContexts(client());
+        assertNoSearchContexts(provisioningClient());
     }
 
     /**
@@ -87,13 +88,13 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
         body.accept(builder);
         builder.endObject();
         request.setJsonEntity(Strings.toString(builder));
-        client().performRequest(request);
+        provisioningClient().performRequest(request);
     }
 
     public static void delete(String index, String documentId) throws IOException {
         Request request = new Request("DELETE", "/" + index + "/_doc/" + documentId);
         request.addParameter("refresh", "true");
-        client().performRequest(request);
+        provisioningClient().performRequest(request);
     }
 
     protected String clusterName() {
@@ -113,6 +114,10 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
         connectionProperties.put(JDBC_TIMEZONE, randomKnownTimeZone());
         // in the tests, don't be lenient towards multi values
         connectionProperties.put("field.multi.value.leniency", "false");
+        if (hasText(AUTH_USER) && hasText(AUTH_PASS)) {
+            connectionProperties.put("user", AUTH_USER);
+            connectionProperties.put("password", AUTH_PASS);
+        }
         return connectionProperties;
     }
 
@@ -132,7 +137,7 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
         }
         createIndex.endObject().endObject();
         request.setJsonEntity(Strings.toString(createIndex));
-        client().performRequest(request);
+        provisioningClient().performRequest(request);
     }
 
     protected static void updateMapping(String index, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {
@@ -145,7 +150,7 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
         updateMapping.endObject().endObject();
 
         request.setJsonEntity(Strings.toString(updateMapping));
-        client().performRequest(request);
+        provisioningClient().performRequest(request);
     }
 
     public static String randomKnownTimeZone() {

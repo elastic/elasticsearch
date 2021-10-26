@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.cluster.ClusterStateChanges;
 import org.elasticsearch.test.ESTestCase;
@@ -136,7 +137,8 @@ public class AutoExpandReplicasTests extends ESTestCase {
             CreateIndexRequest request = new CreateIndexRequest("index",
                 Settings.builder()
                     .put(SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(SETTING_AUTO_EXPAND_REPLICAS, "0-all").build())
+                    .put(SETTING_AUTO_EXPAND_REPLICAS, "0-all")
+                    .put(DataTier.TIER_PREFERENCE, DataTier.DATA_CONTENT).build())
                 .waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.createIndex(state, request);
             assertTrue(state.metadata().hasIndex("index"));
@@ -214,7 +216,8 @@ public class AutoExpandReplicasTests extends ESTestCase {
             CreateIndexRequest request = new CreateIndexRequest("index",
                 Settings.builder()
                     .put(SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(SETTING_AUTO_EXPAND_REPLICAS, "0-all").build())
+                    .put(SETTING_AUTO_EXPAND_REPLICAS, "0-all")
+                    .put(DataTier.TIER_PREFERENCE, DataTier.DATA_CONTENT).build())
                 .waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.createIndex(state, request);
             assertTrue(state.metadata().hasIndex("index"));

@@ -58,6 +58,7 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<NodesHo
         HotThreads hotThreads = new HotThreads()
                 .busiestThreads(request.request.threads)
                 .type(request.request.type)
+                .sortOrder(request.request.sortOrder)
                 .interval(request.request.interval)
                 .threadElementsSnapshotCount(request.request.snapshots)
                 .ignoreIdleThreads(request.request.ignoreIdleThreads);

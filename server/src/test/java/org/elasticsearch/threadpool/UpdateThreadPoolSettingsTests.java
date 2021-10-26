@@ -8,6 +8,7 @@
 
 package org.elasticsearch.threadpool;
 
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -15,6 +16,7 @@ import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.lang.reflect.Field;
+import java.util.Arrays;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -109,7 +111,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
         }
 
         if (Names.LISTENER.equals(threadPoolName)) {
-            assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.listener.size"});
+            assertSettingDeprecationsAndWarnings(getDeprecatedSettingsForSettingNames("thread_pool.listener.size"));
         }
     }
 
@@ -168,7 +170,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
         }
 
         if (Names.LISTENER.equals(threadPoolName)) {
-            assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.listener.queue_size"});
+            assertSettingDeprecationsAndWarnings(getDeprecatedSettingsForSettingNames("thread_pool.listener.queue_size"));
         }
     }
 
@@ -222,6 +224,11 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
     private String randomThreadPoolName() {
         Set<String> threadPoolNames = ThreadPool.THREAD_POOL_TYPES.keySet();
         return randomFrom(threadPoolNames.toArray(new String[threadPoolNames.size()]));
+    }
+
+    private Setting<?>[] getDeprecatedSettingsForSettingNames(String... settingNames) {
+        return Arrays.stream(settingNames).map(settingName -> Setting.intSetting(settingName, randomInt(),
+            Setting.Property.Deprecated)).toArray(Setting[]::new);
     }
 
 }

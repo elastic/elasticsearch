@@ -29,7 +29,7 @@ subprojects {
       project.dependencies.add('featureAwarePlugin', project.sourceSets.main.output.getClassesDirs())
 
       File successMarker = file("$buildDir/markers/featureAware")
-      task featureAwareCheck(type: LoggedExec) {
+      def featureAwareCheck = tasks.register("featureAwareCheck", LoggedExec) {
         description = "Runs FeatureAwareCheck on main classes."
         dependsOn project.configurations.featureAwarePlugin
         outputs.file(successMarker)
@@ -40,7 +40,7 @@ subprojects {
         final List files = []
         if (project.sourceSets.findByName("main")) {
           files.add(project.sourceSets.main.output.classesDirs)
-          dependsOn project.tasks.classes
+          dependsOn project.tasks.named('classes')
         }
         // filter out non-existent classes directories from empty source sets
         final FileCollection classDirectories = project.files(files).filter { it.exists() }
@@ -55,7 +55,9 @@ subprojects {
         }
       }
 
-      project.precommit.dependsOn featureAwareCheck
+      project.tasks.named("precommit").configure {
+        dependsOn featureAwareCheck
+      }
     }
   }
 }
@@ -116,8 +118,6 @@ testClusters.configureEach {
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.watcher.enabled', 'false'
   // Integration tests are supposed to enable/disable exporters before/after each test
-  setting 'xpack.monitoring.exporters._local.type', 'local'
-  setting 'xpack.monitoring.exporters._local.enabled', 'false'
   setting 'xpack.security.authc.token.enabled', 'true'
   setting 'xpack.security.authc.api_key.enabled', 'true'
   setting 'xpack.security.transport.ssl.enabled', 'true'

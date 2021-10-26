@@ -37,6 +37,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
@@ -156,6 +157,7 @@ final class Bootstrap {
         ProcessProbe.getInstance();
         OsProbe.getInstance();
         JvmInfo.jvmInfo();
+        HotThreads.initializeRuntimeMonitoring();
     }
 
     private void setup(boolean addShutdownHook, Environment environment) throws BootstrapException {

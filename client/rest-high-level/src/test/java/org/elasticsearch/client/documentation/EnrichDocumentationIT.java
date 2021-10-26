@@ -35,6 +35,7 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonMap;
 
+@SuppressWarnings("removal")
 public class EnrichDocumentationIT extends ESRestHighLevelClientTestCase {
 
     @After

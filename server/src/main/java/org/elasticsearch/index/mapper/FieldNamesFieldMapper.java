@@ -184,15 +184,15 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
                     document.add(new Field(fieldType().name(), path, Defaults.FIELD_TYPE));
                 }
             }
-        } else {
-            if (enabled.value() == false) {
-                return;
-            }
-            for (String field : context.getFieldNames()) {
-                assert noDocValues(field, context) : "Field " + field + " should not have docvalues";
-                context.doc().add(new Field(NAME, field, Defaults.FIELD_TYPE));
-            }
         }
+    }
+
+    public void addFieldNames(DocumentParserContext context, String field) {
+        if (enabled.value() == false) {
+            return;
+        }
+        assert noDocValues(field, context) : "Field " + field + " should not have docvalues";
+        context.doc().add(new Field(NAME, field, Defaults.FIELD_TYPE));
     }
 
     private static boolean noDocValues(String field, DocumentParserContext context) {

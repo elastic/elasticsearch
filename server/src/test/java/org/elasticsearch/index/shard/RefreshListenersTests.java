@@ -437,6 +437,7 @@ public class RefreshListenersTests extends ESTestCase {
         refresher.cancel();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79689")
     public void testDisallowAddListeners() throws Exception {
         assertEquals(0, listeners.pendingCount());
         TestLocationListener listener = new TestLocationListener();

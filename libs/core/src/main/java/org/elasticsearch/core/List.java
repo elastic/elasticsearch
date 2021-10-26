@@ -8,6 +8,7 @@
 
 package org.elasticsearch.core;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -75,8 +76,14 @@ public class List {
      * @param coll a {@code Collection} from which elements are drawn, must be non-null
      * @return a {@code List} containing the elements of the given {@code Collection}
      */
-    @SuppressWarnings("unchecked")
     public static <T> java.util.List<T> copyOf(Collection<? extends T> coll) {
-        return (java.util.List<T>) List.of(coll.toArray());
+        switch (coll.size()) {
+            case 0:
+                return Collections.emptyList();
+            case 1:
+                return Collections.singletonList(coll.iterator().next());
+            default:
+                return Collections.unmodifiableList(new ArrayList<>(coll));
+        }
     }
 }

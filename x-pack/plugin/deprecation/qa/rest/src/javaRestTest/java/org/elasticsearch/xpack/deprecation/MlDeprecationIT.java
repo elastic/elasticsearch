@@ -39,6 +39,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
+@SuppressWarnings("removal")
 public class MlDeprecationIT extends ESRestTestCase {
 
     private static final RequestOptions REQUEST_OPTIONS = RequestOptions.DEFAULT.toBuilder()
@@ -111,7 +112,7 @@ public class MlDeprecationIT extends ESRestTestCase {
         assertThat(response.getMlSettingsIssues(), hasSize(1));
         assertThat(
             response.getMlSettingsIssues().get(0).getMessage(),
-            containsString("model snapshot [1] for job [deprecation_check_job] needs to be deleted or upgraded")
+            containsString("Snapshot [1] for job [deprecation_check_job] has an obsolete minimum version")
         );
         assertThat(response.getMlSettingsIssues().get(0).getMeta(), equalTo(Map.of("job_id", jobId, "snapshot_id", "1")));
     }

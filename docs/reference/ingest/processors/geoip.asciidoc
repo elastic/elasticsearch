@@ -356,14 +356,14 @@ docker run -v my/source/dir:/usr/share/nginx/html:ro nginx
 of each node’s `elasticsearch.yml` file.
 +
 By default, {es} checks the endpoint for updates every three days. To use
-another polling interval, use the <<cluster-update-settings,update cluster
+another polling interval, use the <<cluster-update-settings,cluster update
 settings API>> to set
 <<ingest-geoip-downloader-poll-interval,`ingest.geoip.downloader.poll.interval`>>.
 
 [[manually-update-geoip-databases]]
 **Manually update your GeoIP2 databases**
 
-. Use the <<cluster-update-settings,update cluster settings API>> to set
+. Use the <<cluster-update-settings,cluster update settings API>> to set
 `ingest.geoip.downloader.enabled` to `false`. This disables automatic updates
 that may overwrite your database changes. This also deletes all downloaded
 databases.

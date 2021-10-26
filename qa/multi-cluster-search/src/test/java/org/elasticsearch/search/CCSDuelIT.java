@@ -103,6 +103,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -114,6 +115,7 @@ import static org.hamcrest.Matchers.not;
  * such parameter, hence we want to verify that results are the same in both scenarios.
  */
 @TimeoutSuite(millis = 5 * TimeUnits.MINUTE) // to account for slow as hell VMs
+@SuppressWarnings("removal")
 public class CCSDuelIT extends ESRestTestCase {
 
     private static final String INDEX_NAME = "ccs_duel_index";
@@ -438,7 +440,6 @@ public class CCSDuelIT extends ESRestTestCase {
         assumeMultiClusterSetup();
         SearchRequest searchRequest = initSearchRequest();
         // set to a value greater than the number of shards to avoid differences due to the skipping of shards
-        searchRequest.setPreFilterShardSize(128);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         boolean onlyRemote = randomBoolean();
         sourceBuilder.query(new TermQueryBuilder("_index", onlyRemote ? REMOTE_INDEX_NAME : INDEX_NAME));
@@ -461,7 +462,6 @@ public class CCSDuelIT extends ESRestTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79365")
     public void testFieldCollapsingOneClusterHasNoResults() throws Exception {
         assumeMultiClusterSetup();
         SearchRequest searchRequest = initSearchRequest();
@@ -771,6 +771,7 @@ public class CCSDuelIT extends ESRestTestCase {
                 message.compareMaps(minimizeRoundtripsResponseMap, fanOutResponseMap);
                 throw new AssertionError("Didn't match expected value:\n" + message);
             }
+            assertThat(minimizeRoundtripsSearchResponse.getSkippedShards(), lessThanOrEqualTo(fanOutSearchResponse.getSkippedShards()));
         }
     }
 
@@ -834,6 +835,10 @@ public class CCSDuelIT extends ESRestTestCase {
                  */
                 shard.remove("fetch");
             }
+        }
+        Map<String, Object> shards = (Map<String, Object>)responseMap.get("_shards");
+        if (shards != null) {
+            shards.remove("skipped");
         }
         return responseMap;
     }

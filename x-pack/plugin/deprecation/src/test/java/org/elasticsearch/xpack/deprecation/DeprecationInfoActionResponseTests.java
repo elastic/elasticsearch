@@ -18,11 +18,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
 import org.junit.Assert;
@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -97,9 +98,9 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             Collections.unmodifiableList(Arrays.asList(
                 (s) -> clusterIssueFound ? foundIssue : null
             ));
-        List<Function<IndexMetadata, DeprecationIssue>> indexSettingsChecks =
+        List<BiFunction<ClusterState, IndexMetadata, DeprecationIssue>> indexSettingsChecks =
             Collections.unmodifiableList(Arrays.asList(
-                (idx) -> indexIssueFound ? foundIssue : null
+                (cs, idx) -> indexIssueFound ? foundIssue : null
             ));
 
         NodesDeprecationCheckResponse nodeDeprecationIssues = new NodesDeprecationCheckResponse(
@@ -170,9 +171,9 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
                 }
             ));
         AtomicReference<Settings> visibleIndexSettings = new AtomicReference<>();
-        List<Function<IndexMetadata, DeprecationIssue>> indexSettingsChecks =
+        List<BiFunction<ClusterState, IndexMetadata, DeprecationIssue>> indexSettingsChecks =
             Collections.unmodifiableList(Arrays.asList(
-                (idx) -> {
+                (cs, idx) -> {
                     visibleIndexSettings.set(idx.getSettings());
                     return null;
                 }

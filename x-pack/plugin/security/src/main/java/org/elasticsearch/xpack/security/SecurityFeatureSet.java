@@ -96,7 +96,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
         Map<String, Object> anonymousUsage = singletonMap("enabled", AnonymousUser.isAnonymousEnabled(settings));
         Map<String, Object> fips140Usage = fips140Usage(settings);
         Map<String, Object> operatorPrivilegesUsage = org.elasticsearch.core.Map.of(
-            "available", licenseState.isAllowed(XPackLicenseState.Feature.OPERATOR_PRIVILEGES),
+            "available", Security.OPERATOR_PRIVILEGES_FEATURE.checkWithoutTracking(licenseState),
             "enabled", OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED.get(settings)
         );
 

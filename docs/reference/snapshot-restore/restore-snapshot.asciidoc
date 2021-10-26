@@ -275,6 +275,7 @@ PUT _cluster/settings
   }
 }
 ----
+// TEST[warning:[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version.]
 // TEST[continued]
 ////
 
@@ -308,7 +309,7 @@ For example, the following command creates a user named `restore_user`.
 Use this file realm user to authenticate requests until the restore operation is
 complete.
 
-. Use the <<cluster-update-settings,update cluster settings API>> to set
+. Use the <<cluster-update-settings,cluster update settings API>> to set
 <<action-destructive-requires-name,`action.destructive_requires_name`>> to
 `false`. This lets you delete indices and data streams using wildcards.
 +

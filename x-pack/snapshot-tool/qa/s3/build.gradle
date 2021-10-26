@@ -15,8 +15,9 @@ dependencies {
   testImplementation files(project(':x-pack:snapshot-tool').sourceSets.test.output)
 }
 
-test.enabled = false
-
+tasks.named("test").configure {
+  it.enabled = false
+}
 boolean useS3Fixture = false
 
 String s3PermanentAccessKey = System.getenv("amazon_s3_access_key")
@@ -35,7 +36,7 @@ if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3P
   throw new IllegalArgumentException("not all options specified to run against external S3 service as permanent credentials are present")
 }
 
-task s3ThirdPartyTest(type: Test) {
+def s3ThirdPartyTest = tasks.register("s3ThirdPartyTest", Test) {
   include '**/*.class'
 
   systemProperty 'tests.security.manager', false
@@ -48,7 +49,9 @@ task s3ThirdPartyTest(type: Test) {
 
 if (useS3Fixture) {
   apply plugin: 'elasticsearch.test.fixtures'
-  testingConventions.enabled = false;
+  tasks.named("testingConventions").configure {
+    it.enabled = false
+  }
   testFixtures.useFixture(':test:fixtures:minio-fixture', "minio-fixture-for-snapshot-tool")
 
   def minioAddress = {
@@ -57,9 +60,11 @@ if (useS3Fixture) {
     'http://127.0.0.1:' + minioPort
   }
 
-  s3ThirdPartyTest {
-    dependsOn project(':test:fixtures:minio-fixture').postProcessFixture
+  s3ThirdPartyTest.configure {
+    dependsOn ':test:fixtures:minio-fixture:postProcessFixture'
     nonInputProperties.systemProperty 'test.s3.endpoint', "${-> minioAddress.call()}"
   }
 }
-check.dependsOn(s3ThirdPartyTest)
+tasks.named("check").configure {
+  dependsOn(s3ThirdPartyTest)
+}

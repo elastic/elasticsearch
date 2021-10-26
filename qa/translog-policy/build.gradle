@@ -85,7 +85,7 @@ configurations {
   testArtifacts.extendsFrom testRuntime
 }
 
-task testJar(type: Jar) {
+def testJar = tasks.register("testJar", Jar) {
   archiveAppendix.set('test')
   from sourceSets.test.output
 }

@@ -100,7 +100,7 @@ public final class TransportActionProxy {
         }
     }
 
-    static class ProxyRequest<T extends TransportRequest> extends TransportRequest {
+    static class ProxyRequest<T extends TransportRequest> extends TransportRequest implements RawIndexingDataTransportRequest {
         final T wrapped;
         final DiscoveryNode targetNode;
 
@@ -121,6 +121,14 @@ public final class TransportActionProxy {
             super.writeTo(out);
             targetNode.writeTo(out);
             wrapped.writeTo(out);
+        }
+
+        @Override
+        public boolean isRawIndexingData() {
+            if (wrapped instanceof RawIndexingDataTransportRequest) {
+                return ((RawIndexingDataTransportRequest) wrapped).isRawIndexingData();
+            }
+            return false;
         }
     }
 

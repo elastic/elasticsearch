@@ -218,7 +218,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         builder.startObject();
         builder.stringListField(INDEX_PATTERNS.getPreferredName(), this.indexPatterns);
         if (this.template != null) {
-            builder.field(TEMPLATE.getPreferredName(), this.template);
+            builder.field(TEMPLATE.getPreferredName(), this.template, params);
         }
         if (this.componentTemplates != null) {
             builder.stringListField(COMPOSED_OF.getPreferredName(), this.componentTemplates);
@@ -233,7 +233,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             builder.field(METADATA.getPreferredName(), metadata);
         }
         if (this.dataStreamTemplate != null) {
-            builder.field(DATA_STREAM.getPreferredName(), dataStreamTemplate);
+            builder.field(DATA_STREAM.getPreferredName(), dataStreamTemplate, params);
         }
         if (this.allowAutoCreate != null) {
             builder.field(ALLOW_AUTO_CREATE.getPreferredName(), allowAutoCreate);

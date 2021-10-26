@@ -39,7 +39,8 @@ class DerParser {
     // Tag and data types
     private static final int INTEGER = 0x02;
     private static final int OCTET_STRING = 0x04;
-    private static final int OBJECT_OID = 0x06;
+    static final int OBJECT_OID = 0x06;
+    static final int SEQUENCE = 0x10;
     private static final int NUMERIC_STRING = 0x12;
     private static final int PRINTABLE_STRING = 0x13;
     private static final int VIDEOTEX_STRING = 0x15;
@@ -59,6 +60,16 @@ class DerParser {
     DerParser(byte[] bytes) {
         this.derInputStream = new ByteArrayInputStream(bytes);
         this.maxAsnObjectLength = bytes.length;
+    }
+
+    Asn1Object readAsn1Object(int requiredType) throws IOException {
+        final Asn1Object obj = readAsn1Object();
+        if (obj.type != requiredType) {
+            throw new IllegalStateException(
+                "Expected ASN.1 object of type 0x" + Integer.toHexString(requiredType) + " but was 0x" + Integer.toHexString(obj.type)
+            );
+        }
+        return obj;
     }
 
     Asn1Object readAsn1Object() throws IOException {

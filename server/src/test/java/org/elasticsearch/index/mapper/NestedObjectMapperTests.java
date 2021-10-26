@@ -963,4 +963,240 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             containsString("\"properties\":{\"object\":{\"type\":\"nested\",\"include_in_parent\":true}}")
         );
     }
+
+    public void testFieldNames() throws Exception {
+        DocumentMapper docMapper = createDocumentMapper(mapping(b -> {
+            b.startObject("nested1");
+            {
+                b.field("type", "nested");
+                b.startObject("properties");
+                {
+                    b.startObject("integer1").field("type", "integer").field("doc_values", true).endObject();
+                    b.startObject("nested2");
+                    {
+                        b.field("type", "nested");
+                        b.startObject("properties");
+                        {
+                            b.startObject("integer2").field("type", "integer").field("doc_values", false).endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        XContentBuilder b = XContentFactory.jsonBuilder();
+        b.startObject();
+        b.array("nested1", nested1 -> { // doc 6
+            nested1.startObject(); // doc 0
+            {
+                nested1.field("integer1", 1);
+            }
+            nested1.endObject();
+            nested1.startObject(); // doc 2
+            {
+                nested1.field("integer1", 11);
+                nested1.array("nested2", nested2 -> {
+                    nested2.startObject().endObject(); // doc 1
+                });
+            }
+            nested1.endObject();
+            nested1.startObject(); // doc 5
+            {
+                nested1.field("integer1", 21);
+                nested1.array("nested2", nested2 -> {
+                    nested2.startObject(); // doc 3
+                    {
+                        nested1.field("integer2", 22);
+                    }
+                    nested1.endObject();
+                    nested2.startObject().endObject(); // doc 4
+                });
+            }
+            nested1.endObject();
+        });
+        b.endObject();
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "_doc", "1", BytesReference.bytes(b), XContentType.JSON));
+
+        // Note doc values are disabled for field "integer2",
+        // so the document only contains an IntPoint field whose stringValue method always returns null.
+        // Thus so we cannot use get() for this field, we must use getNumericValue().
+        assertThat(doc.docs().size(), equalTo(7));
+        // Only fields without doc values are added to field names.
+        assertThat(doc.docs().get(6).get("_field_names"), nullValue());
+        assertThat(doc.docs().get(0).get("nested1.integer1"), equalTo("1"));
+        assertThat(doc.docs().get(0).get("nested1._field_names"), nullValue());
+        assertThat(doc.docs().get(2).get("nested1.integer1"), equalTo("11"));
+        assertThat(doc.docs().get(2).get("_field_names"), nullValue());
+        assertThat(doc.docs().get(1).getNumericValue("nested1.nested2.integer2"), nullValue());
+        assertThat(doc.docs().get(1).get("_field_names"), nullValue());
+        assertThat(doc.docs().get(5).get("nested1.integer1"), equalTo("21"));
+        assertThat(doc.docs().get(5).get("_field_names"), nullValue());
+        assertThat(doc.docs().get(3).getNumericValue( "nested1.nested2.integer2" ), equalTo(22));
+        assertThat(doc.docs().get(3).get("_field_names"), equalTo("nested1.nested2.integer2"));
+        assertThat(doc.docs().get(4).getNumericValue("nested1.nested2.integer2"), nullValue());
+        assertThat(doc.docs().get(4).get("_field_names"), nullValue());
+    }
+
+    public void testFieldNamesIncludeInParent() throws Exception {
+        DocumentMapper docMapper = createDocumentMapper(mapping(b -> {
+            b.startObject("nested1");
+            {
+                b.field("type", "nested");
+                b.startObject("properties");
+                {
+                    b.startObject("integer1").field("type", "integer").field("doc_values", true).endObject();
+                    b.startObject("nested2");
+                    {
+                        b.field("type", "nested");
+                        b.field("include_in_parent", true);
+                        b.startObject("properties");
+                        {
+                            b.startObject("integer2").field("type", "integer").field("doc_values", false).endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        XContentBuilder b = XContentFactory.jsonBuilder();
+        b.startObject();
+        b.array("nested1", nested1 -> { // doc 6
+            nested1.startObject(); // doc 0
+            {
+                nested1.field("integer1", 1);
+            }
+            nested1.endObject();
+            nested1.startObject(); // doc 2
+            {
+                nested1.field("integer1", 11);
+                nested1.array("nested2", nested2 -> {
+                    nested2.startObject().endObject(); // doc 1
+                });
+            }
+            nested1.endObject();
+            nested1.startObject(); // doc 5
+            {
+                nested1.field("integer1", 21);
+                nested1.array("nested2", nested2 -> {
+                    nested2.startObject(); // doc 3
+                    {
+                        nested1.field("integer2", 22);
+                    }
+                    nested1.endObject();
+                    nested2.startObject().endObject(); // doc 4
+                });
+            }
+            nested1.endObject();
+        });
+        b.endObject();
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "_doc", "1", BytesReference.bytes(b), XContentType.JSON));
+
+        // Note doc values are disabled for field "integer2",
+        // so the document only contains an IntPoint field whose stringValue method always returns null.
+        // Thus so we cannot use get() for this field, we must use getNumericValue().
+        assertThat(doc.docs().size(), equalTo(7));
+        // Only fields without doc values are added to field names.
+        assertThat(doc.docs().get(6).get("_field_names"), nullValue());
+        assertThat(doc.docs().get(0).get("nested1.integer1"), equalTo("1"));
+        assertThat(doc.docs().get(0).get("nested1._field_names"), nullValue());
+        assertThat(doc.docs().get(2).get("nested1.integer1"), equalTo("11"));
+        assertThat(doc.docs().get(2).get("_field_names"), nullValue());
+        assertThat(doc.docs().get(1).getNumericValue("nested1.nested2.integer2"), nullValue());
+        assertThat(doc.docs().get(1).get("_field_names"), nullValue());
+        assertThat(doc.docs().get(5).get("nested1.integer1"), equalTo("21"));
+        assertThat(doc.docs().get(5).getNumericValue( "nested1.nested2.integer2" ), equalTo(22));
+        assertThat(doc.docs().get(5).get("_field_names"), equalTo("nested1.nested2.integer2"));
+        assertThat(doc.docs().get(3).getNumericValue( "nested1.nested2.integer2" ), equalTo(22));
+        assertThat(doc.docs().get(3).get("_field_names"), equalTo("nested1.nested2.integer2"));
+        assertThat(doc.docs().get(4).getNumericValue("nested1.nested2.integer2"), nullValue());
+        assertThat(doc.docs().get(4).get("_field_names"), nullValue());
+    }
+
+    public void testFieldNamesIncludeInRoot() throws Exception {
+        DocumentMapper docMapper = createDocumentMapper(mapping(b -> {
+            b.startObject("nested1");
+            {
+                b.field("type", "nested");
+                b.startObject("properties");
+                {
+                    b.startObject("integer1").field("type", "integer").field("doc_values", true).endObject();
+                    b.startObject("nested2");
+                    {
+                        b.field("type", "nested");
+                        b.field("include_in_root", true);
+                        b.startObject("properties");
+                        {
+                            b.startObject("integer2").field("type", "integer").field("doc_values", false).endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        XContentBuilder b = XContentFactory.jsonBuilder();
+        b.startObject();
+        b.array("nested1", nested1 -> { // doc 6
+            nested1.startObject(); // doc 0
+            {
+                nested1.field("integer1", 1);
+            }
+            nested1.endObject();
+            nested1.startObject(); // doc 2
+            {
+                nested1.field("integer1", 11);
+                nested1.array("nested2", nested2 -> {
+                    nested2.startObject().endObject(); // doc 1
+                });
+            }
+            nested1.endObject();
+            nested1.startObject(); // doc 5
+            {
+                nested1.field("integer1", 21);
+                nested1.array("nested2", nested2 -> {
+                    nested2.startObject(); // doc 3
+                    {
+                        nested1.field("integer2", 22);
+                    }
+                    nested1.endObject();
+                    nested2.startObject().endObject(); // doc 4
+                });
+            }
+            nested1.endObject();
+        });
+        b.endObject();
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "_doc", "1", BytesReference.bytes(b), XContentType.JSON));
+
+        // Note doc values are disabled for field "integer2",
+        // so the document only contains an IntPoint field whose stringValue method always returns null.
+        // Thus so we cannot use get() for this field, we must use getNumericValue().
+        assertThat(doc.docs().size(), equalTo(7));
+        // Only fields without doc values are added to field names.
+        assertThat(doc.docs().get(6).getNumericValue( "nested1.nested2.integer2" ), equalTo(22));
+        assertThat(doc.docs().get(6).get("_field_names"), equalTo("nested1.nested2.integer2"));
+        assertThat(doc.docs().get(0).get("nested1.integer1"), equalTo("1"));
+        assertThat(doc.docs().get(0).get("nested1._field_names"), nullValue());
+        assertThat(doc.docs().get(2).get("nested1.integer1"), equalTo("11"));
+        assertThat(doc.docs().get(2).get("_field_names"), nullValue());
+        assertThat(doc.docs().get(1).getNumericValue("nested1.nested2.integer2"), nullValue());
+        assertThat(doc.docs().get(1).get("_field_names"), nullValue());
+        assertThat(doc.docs().get(5).get("nested1.integer1"), equalTo("21"));
+        assertThat(doc.docs().get(5).get("_field_names"), nullValue());
+        assertThat(doc.docs().get(3).getNumericValue( "nested1.nested2.integer2" ), equalTo(22));
+        assertThat(doc.docs().get(3).get("_field_names"), equalTo("nested1.nested2.integer2"));
+        assertThat(doc.docs().get(4).getNumericValue("nested1.nested2.integer2"), nullValue());
+        assertThat(doc.docs().get(4).get("_field_names"), nullValue());
+    }
+
 }

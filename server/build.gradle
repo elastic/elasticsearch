@@ -41,7 +41,7 @@ if (!isEclipse) {
     java11Implementation sourceSets.main.output
   }
 
-  compileJava11Java {
+  tasks.named("compileJava11Java").configure {
     sourceCompatibility = 11
     targetCompatibility = 11
   }
@@ -54,7 +54,7 @@ if (!isEclipse) {
     }
   }
 
-  jar {
+  tasks.named("jar").configure {
     metaInf {
       into 'versions/11'
       from sourceSets.java11.output

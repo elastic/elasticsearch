@@ -7,6 +7,7 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
@@ -19,7 +20,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -34,32 +34,6 @@ import java.util.stream.Collectors;
  * A holder for the current state of the license for all xpack features.
  */
 public class XPackLicenseState {
-
-    /**
-     * A licensed feature.
-     *
-     * Each value defines the licensed state necessary for the feature to be allowed.
-     */
-    public enum Feature {
-        SECURITY_TOKEN_SERVICE(OperationMode.STANDARD, false),
-
-        OPERATOR_PRIVILEGES(OperationMode.ENTERPRISE, true);
-
-        // NOTE: this is temporary. The Feature enum will go away in favor of LicensedFeature.
-        // Embedding the feature instance here is a stopgap to allow smaller initial PR,
-        // followed by PRs to convert the current consumers of the license state.
-        final LicensedFeature.Momentary feature;
-
-        Feature(OperationMode minimumOperationMode, boolean needsActive) {
-            assert minimumOperationMode.compareTo(OperationMode.BASIC) > 0: minimumOperationMode.toString();
-            String name = name().toLowerCase(Locale.ROOT);
-            if (needsActive) {
-                this.feature = LicensedFeature.momentary(name, name, minimumOperationMode);
-            } else {
-                this.feature = LicensedFeature.momentaryLenient(name, name, minimumOperationMode);
-            }
-        }
-    }
 
     /** Messages for each feature which are printed when the license expires. */
     static final Map<String, String[]> EXPIRATION_MESSAGES;
@@ -444,11 +418,6 @@ public class XPackLicenseState {
         return executeAgainstStatus(status -> (status.active ? "active" : "expired") + ' ' + status.mode.description() + " license");
     }
 
-    @Deprecated
-    public boolean checkFeature(Feature feature) {
-        return feature.feature.check(this);
-    }
-
     void featureUsed(LicensedFeature feature) {
         checkExpiry();
         usage.put(new FeatureUsage(feature, null), epochMillisProvider.getAsLong());
@@ -476,16 +445,6 @@ public class XPackLicenseState {
         });
     }
 
-    /**
-     * Checks whether the given feature is allowed by the current license.
-     * <p>
-     * This method should only be used when serializing whether a feature is allowed for telemetry.
-     */
-    @Deprecated
-    public boolean isAllowed(Feature feature) {
-        return isAllowed(feature.feature);
-    }
-
     // Package protected: Only allowed to be called by LicensedFeature
     boolean isAllowed(LicensedFeature feature) {
         return isAllowedByLicense(feature.getMinimumOperationMode(), feature.isNeedsActive());
@@ -494,7 +453,7 @@ public class XPackLicenseState {
     void checkExpiry() {
         String warning = status.expiryWarning;
         if (warning != null) {
-            HeaderWarning.addWarning(warning);
+            HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning);
         }
     }
 

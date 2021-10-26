@@ -4,7 +4,6 @@
 <titleabbrev>Vector tile search</titleabbrev>
 ++++
 
-experimental::[]
 
 Searches a vector tile for geospatial values. Returns results as a binary
 https://docs.mapbox.com/vector-tiles/specification[Mapbox vector tile].

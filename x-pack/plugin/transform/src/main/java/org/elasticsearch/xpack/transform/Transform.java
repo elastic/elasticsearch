@@ -318,7 +318,12 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             return emptyList();
         }
 
-        TransformConfigManager configManager = new IndexBasedTransformConfigManager(client, xContentRegistry);
+        TransformConfigManager configManager = new IndexBasedTransformConfigManager(
+            clusterService,
+            expressionResolver,
+            client,
+            xContentRegistry
+        );
         TransformAuditor auditor = new TransformAuditor(client, clusterService.getNodeName(), clusterService);
         TransformCheckpointService checkpointService = new TransformCheckpointService(
             Clock.systemUTC(),

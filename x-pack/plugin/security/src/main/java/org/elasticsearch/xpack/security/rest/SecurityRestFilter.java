@@ -14,6 +14,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -91,9 +92,10 @@ public class SecurityRestFilter implements RestHandler {
                 }, e -> handleException("Authentication", request, channel, e)));
         } else {
             if (request.method() != Method.OPTIONS) {
-                HeaderWarning.addWarning("Elasticsearch built-in security features are not enabled. Without authentication, your cluster " +
-                    "could be accessible to anyone. See https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major +
-                    "." + Version.CURRENT.minor + "/security-minimal-setup.html to enable security.");
+                HeaderWarning.addWarning(DeprecationLogger.CRITICAL, "Elasticsearch built-in security features are not enabled. Without " +
+                    "authentication, your cluster could be accessible to anyone. See " +
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "." + Version.CURRENT.minor +
+                    "/security-minimal-setup.html to enable security.");
             }
             restHandler.handleRequest(request, channel, client);
         }

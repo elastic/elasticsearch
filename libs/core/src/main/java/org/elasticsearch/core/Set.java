@@ -61,9 +61,9 @@ public class Set {
     public static <T> java.util.Set<T> of(T... entries) {
         switch (entries.length) {
             case 0:
-                return Set.of();
+                return of();
             case 1:
-                return Set.of(entries[0]);
+                return of(entries[0]);
             default:
                 return Collections.unmodifiableSet(new HashSet<>(Arrays.asList(entries)));
         }
@@ -78,8 +78,14 @@ public class Set {
      * @throws NullPointerException if coll is null, or if it contains any nulls
      * @since 10
      */
-    @SuppressWarnings("unchecked")
     public static <T> java.util.Set<T> copyOf(Collection<? extends T> coll) {
-        return (java.util.Set<T>) Set.of(new HashSet<>(coll).toArray());
+        switch (coll.size()) {
+            case 0:
+                return Collections.emptySet();
+            case 1:
+                return Collections.singleton(coll.iterator().next());
+            default:
+                return Collections.unmodifiableSet(new HashSet<>(coll));
+        }
     }
 }

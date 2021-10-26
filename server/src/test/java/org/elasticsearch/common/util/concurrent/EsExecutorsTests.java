@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -404,7 +405,7 @@ public class EsExecutorsTests extends ESTestCase {
             processorsSetting.getKey(),
             processors,
             available);
-        assertSettingDeprecationsAndWarnings(deprecatedSettings, expectedWarning);
+        assertSettingDeprecationsAndWarnings(deprecatedSettings, new DeprecationWarning(DeprecationLogger.CRITICAL, expectedWarning));
     }
 
 }

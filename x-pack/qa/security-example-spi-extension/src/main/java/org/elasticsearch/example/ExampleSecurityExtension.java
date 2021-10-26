@@ -43,6 +43,11 @@ public class ExampleSecurityExtension implements SecurityExtension {
     }
 
     @Override
+    public String extensionName() {
+        return "example";
+    }
+
+    @Override
     public Map<String, Realm.Factory> getRealms(SecurityComponents components) {
         final Map<String, Realm.Factory> map = new HashMap<>();
         map.put(CustomRealm.TYPE, CustomRealm::new);

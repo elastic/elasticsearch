@@ -59,8 +59,8 @@ public final class IndicesPermission {
 
     public IndicesPermission(Group... groups) {
         this.groups = groups;
-        this.hasFieldOrDocumentLevelSecurity = Arrays.stream(groups)
-            .anyMatch(g -> g.hasQuery() || g.fieldPermissions.hasFieldLevelSecurity());
+        this.hasFieldOrDocumentLevelSecurity = Arrays.stream(groups).noneMatch(Group::isTotal)
+            && Arrays.stream(groups).anyMatch(g -> g.hasQuery() || g.fieldPermissions.hasFieldLevelSecurity());
     }
 
     private static StringMatcher indexMatcher(Collection<String> ordinaryIndices, Collection<String> restrictedIndices) {

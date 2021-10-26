@@ -43,6 +43,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.env.Environment;
@@ -82,6 +83,8 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.nio.NioGroupFactory;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -228,8 +231,8 @@ import org.elasticsearch.xpack.security.authz.DlsFlsRequestCacheDifferentiator;
 import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.xpack.security.authz.interceptor.BulkShardRequestInterceptor;
-import org.elasticsearch.xpack.security.authz.interceptor.IndicesAliasesRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.DlsFlsLicenseRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.IndicesAliasesRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.ResizeRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestInterceptor;
@@ -352,6 +355,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         LicensedFeature.momentaryLenient(null, "security-ip-filtering", License.OperationMode.GOLD);
     public static final LicensedFeature.Momentary AUDITING_FEATURE =
         LicensedFeature.momentaryLenient(null, "security-auditing", License.OperationMode.GOLD);
+    public static final LicensedFeature.Momentary TOKEN_SERVICE_FEATURE =
+        LicensedFeature.momentaryLenient(null, "security-token-service", License.OperationMode.STANDARD);
 
     private static final String REALMS_FEATURE_FAMILY = "security-realms";
     // Builtin realms (file/native) realms are Basic licensed, so don't need to be checked or tracked
@@ -381,6 +386,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     // Custom role providers are Platinum+
     public static final LicensedFeature.Persistent CUSTOM_ROLE_PROVIDERS_FEATURE =
         LicensedFeature.persistent(null, "security-roles-provider", License.OperationMode.PLATINUM);
+
+    public static final LicensedFeature.Momentary OPERATOR_PRIVILEGES_FEATURE =
+        LicensedFeature.momentary(null, "operator-privileges", License.OperationMode.ENTERPRISE);
 
     private static final Logger logger = LogManager.getLogger(Security.class);
 
@@ -597,7 +605,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 extensionComponents
             );
             if (providers != null && providers.isEmpty() == false) {
-                customRoleProviders.put(extension.toString(), providers);
+                customRoleProviders.put(extension.extensionName(), providers);
             }
         }
 
@@ -629,7 +637,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         );
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, roleProviders,
             privilegeStore, threadPool.getThreadContext(), getLicenseState(), fieldPermissionsCache, apiKeyService,
-            serviceAccountService, dlsBitsetCache.get(), 
+            serviceAccountService, dlsBitsetCache.get(),
             new DeprecationRoleDescriptorConsumer(clusterService, threadPool));
         securityIndex.get().addStateListener(allRolesStore::onSecurityIndexStateChange);
 
@@ -642,6 +650,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         final OperatorPrivilegesService operatorPrivilegesService;
         final boolean operatorPrivilegesEnabled = OPERATOR_PRIVILEGES_ENABLED.get(settings);
         if (operatorPrivilegesEnabled) {
+            logger.info("operator privileges are enabled");
             operatorPrivilegesService = new OperatorPrivileges.DefaultOperatorPrivilegesService(getLicenseState(),
                 new FileOperatorUsersStore(environment, resourceWatcherService),
                 new OperatorOnlyRegistry(clusterService.getClusterSettings()));
@@ -695,37 +704,15 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     }
 
     private AuthorizationEngine getAuthorizationEngine() {
-        AuthorizationEngine authorizationEngine = null;
-        String extensionName = null;
-        for (SecurityExtension extension : securityExtensions) {
-            final AuthorizationEngine extensionEngine = extension.getAuthorizationEngine(settings);
-            if (extensionEngine != null && authorizationEngine != null) {
-                throw new IllegalStateException("Extensions [" + extensionName + "] and [" + extension.toString() + "] "
-                    + "both set an authorization engine");
-            }
-            authorizationEngine = extensionEngine;
-            extensionName = extension.toString();
-        }
-
-        if (authorizationEngine != null) {
-            logger.debug("Using authorization engine from extension [" + extensionName + "]");
-        }
-        return authorizationEngine;
+        return findValueFromExtensions("authorization engine", extension -> extension.getAuthorizationEngine(settings));
     }
 
     private AuthenticationFailureHandler createAuthenticationFailureHandler(final Realms realms,
                                                                             final SecurityExtension.SecurityComponents components) {
-        AuthenticationFailureHandler failureHandler = null;
-        String extensionName = null;
-        for (SecurityExtension extension : securityExtensions) {
-            AuthenticationFailureHandler extensionFailureHandler = extension.getAuthenticationFailureHandler(components);
-            if (extensionFailureHandler != null && failureHandler != null) {
-                throw new IllegalStateException("Extensions [" + extensionName + "] and [" + extension.toString() + "] "
-                        + "both set an authentication failure handler");
-            }
-            failureHandler = extensionFailureHandler;
-            extensionName = extension.toString();
-        }
+        AuthenticationFailureHandler failureHandler = findValueFromExtensions(
+            "authentication failure handler",
+            extension -> extension.getAuthenticationFailureHandler(components)
+        );
         if (failureHandler == null) {
             logger.debug("Using default authentication failure handler");
             Supplier<Map<String, List<String>>> headersSupplier = () -> {
@@ -762,10 +749,46 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             getLicenseState().addListener(() -> {
                 finalDefaultFailureHandler.setHeaders(headersSupplier.get());
             });
-        } else {
-            logger.debug("Using authentication failure handler from extension [" + extensionName + "]");
         }
         return failureHandler;
+    }
+
+    /**
+     * Calls the provided function for each configured extension and return the value that was generated by the extensions.
+     * If multiple extensions provide a value, throws {@link IllegalStateException}.
+     * If no extensions provide a value (or if there are no extensions) returns {@code null}.
+     */
+    @Nullable
+    private <T> T findValueFromExtensions(String valueType, Function<SecurityExtension, T> method) {
+        T foundValue = null;
+        String fromExtension = null;
+        for (SecurityExtension extension : securityExtensions) {
+            final T extensionValue = method.apply(extension);
+            if (extensionValue == null) {
+                continue;
+            }
+            if (foundValue == null) {
+                foundValue = extensionValue;
+                fromExtension = extension.extensionName();
+            } else {
+                throw new IllegalStateException(
+                    "Extensions ["
+                        + fromExtension
+                        + "] and ["
+                        + extension.extensionName()
+                        + "] "
+                        + " both attempted to provide a value for ["
+                        + valueType
+                        + "]"
+                );
+            }
+        }
+        if (foundValue == null) {
+            return null;
+        } else {
+            logger.debug("Using [{}] [{}] from extension [{}]", valueType, foundValue, fromExtension);
+            return foundValue;
+        }
     }
 
     @Override

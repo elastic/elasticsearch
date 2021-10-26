@@ -20,7 +20,7 @@ import java.util.List;
 import static org.elasticsearch.search.DocValueFormat.MASK_2_63;
 import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.BIGINTEGER_2_64_MINUS_ONE;
 
-public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesField<Long> {
+public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesField {
 
     private final SortedNumericDocValues input;
     private long[] values = new long[0];
@@ -89,26 +89,12 @@ public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesF
     }
 
     @Override
-    public Long getValue(Long defaultValue) {
+    public long getValue(long defaultValue) {
         return getValue(0, defaultValue);
     }
 
     @Override
-    public Long getValue(int index, Long defaultValue) {
-        if (isEmpty() || index < 0 || index >= count) {
-            return defaultValue;
-        }
-
-        return toFormatted(index);
-    }
-
-    @Override
-    public long getLong(long defaultValue) {
-        return getLong(0, defaultValue);
-    }
-
-    @Override
-    public long getLong(int index, long defaultValue) {
+    public long getValue(int index, long defaultValue) {
         if (isEmpty() || index < 0 || index >= count) {
             return defaultValue;
         }

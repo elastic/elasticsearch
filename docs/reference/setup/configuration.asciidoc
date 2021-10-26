@@ -149,7 +149,7 @@ nodes.
 ====
 
 NOTE: Transient settings are deprecated and will be removed in a future release.
-Prefer using persistent cluster settings instead.
+Use persistent cluster settings instead.
 --
 
 [[static-cluster-setting]]

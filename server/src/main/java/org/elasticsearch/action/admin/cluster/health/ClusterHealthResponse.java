@@ -104,9 +104,8 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     private static final ObjectParser.NamedObjectParser<ClusterIndexHealth, Void> INDEX_PARSER =
         (XContentParser parser, Void context, String index) -> ClusterIndexHealth.innerFromXContent(parser, index);
     static final String ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200_KEY = "return_200_for_cluster_health_timeout";
-    static final String CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG = "[" + ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200_KEY + "] " +
-        "parameter is superfluous because the HTTP status code for a cluster health timeout is 200 by default. The parameter has been " +
-        "deprecated and will be removed in a future release.";
+    static final String CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG = "the [" + ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200_KEY + "] " +
+        "parameter is deprecated and will be removed in a future release.";
 
     static {
         // ClusterStateHealth fields

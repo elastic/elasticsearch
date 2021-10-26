@@ -10,11 +10,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.core.Booleans;
-import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -35,6 +35,7 @@ public class RollupDateHistoUpgradeIT extends AbstractUpgradeTestCase {
     private static final Version UPGRADE_FROM_VERSION =
         Version.fromString(System.getProperty("tests.upgrade_from_version"));
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79786")
     public void testDateHistoIntervalUpgrade() throws Exception {
         switch (CLUSTER_TYPE) {
             case OLD:

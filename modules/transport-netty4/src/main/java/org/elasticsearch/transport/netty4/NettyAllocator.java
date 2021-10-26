@@ -16,17 +16,17 @@ import io.netty.buffer.UnpooledByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ServerChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 
 public class NettyAllocator {
 
@@ -35,7 +35,7 @@ public class NettyAllocator {
 
     private static final long SUGGESTED_MAX_ALLOCATION_SIZE;
     private static final ByteBufAllocator ALLOCATOR;
-    private static final Supplier<Recycler.V<BytesRef>> RECYCLER;
+    private static final Recycler<BytesRef> RECYCLER;
     private static final String DESCRIPTION;
 
     private static final String USE_UNPOOLED = "es.use_unpooled_allocator";
@@ -109,12 +109,12 @@ public class NettyAllocator {
             ALLOCATOR = new NoDirectBuffers(delegate);
         }
 
-        RECYCLER = new Supplier<>() {
+        RECYCLER = new Recycler<>() {
             @Override
-            public Recycler.V<BytesRef> get() {
+            public Recycler.V<BytesRef> obtain() {
                 ByteBuf byteBuf = ALLOCATOR.heapBuffer(PageCacheRecycler.BYTE_PAGE_SIZE, PageCacheRecycler.BYTE_PAGE_SIZE);
                 assert byteBuf.hasArray();
-                BytesRef bytesRef = new BytesRef(byteBuf.array(), byteBuf.arrayOffset(), byteBuf.writableBytes());
+                BytesRef bytesRef = new BytesRef(byteBuf.array(), byteBuf.arrayOffset(), byteBuf.capacity());
                 return new Recycler.V<>() {
                     @Override
                     public BytesRef v() {
@@ -145,7 +145,7 @@ public class NettyAllocator {
         return ALLOCATOR;
     }
 
-    public static Supplier<Recycler.V<BytesRef>> getRecycler() {
+    public static Recycler<BytesRef> getRecycler() {
         return RECYCLER;
     }
 

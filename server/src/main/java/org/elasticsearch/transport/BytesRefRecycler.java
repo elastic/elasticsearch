@@ -12,9 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
 
-import java.util.function.Supplier;
-
-public class BytesRefRecycler implements Supplier<Recycler.V<BytesRef>> {
+public class BytesRefRecycler implements Recycler<BytesRef> {
 
     private final PageCacheRecycler recycler;
 
@@ -23,7 +21,7 @@ public class BytesRefRecycler implements Supplier<Recycler.V<BytesRef>> {
     }
 
     @Override
-    public Recycler.V<BytesRef> get() {
+    public Recycler.V<BytesRef> obtain() {
         Recycler.V<byte[]> v = recycler.bytePage(false);
         BytesRef bytesRef = new BytesRef(v.v(), 0, PageCacheRecycler.BYTE_PAGE_SIZE);
         return new Recycler.V<>() {

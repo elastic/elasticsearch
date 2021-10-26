@@ -16,11 +16,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.common.util.PageCacheRecycler;
 
 import java.io.IOException;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 public class InboundDecoder implements Releasable {
 
@@ -28,18 +26,14 @@ public class InboundDecoder implements Releasable {
     static final Object END_CONTENT = new Object();
 
     private final Version version;
-    private final Supplier<Recycler.V<BytesRef>> recycler;
+    private final Recycler<BytesRef> recycler;
     private TransportDecompressor decompressor;
     private int totalNetworkSize = -1;
     private int bytesConsumed = 0;
     private boolean isCompressed = false;
     private boolean isClosed = false;
 
-    public InboundDecoder(Version version, PageCacheRecycler recycler) {
-        this(version, new BytesRefRecycler(recycler));
-    }
-
-    public InboundDecoder(Version version, Supplier<Recycler.V<BytesRef>> recycler) {
+    public InboundDecoder(Version version, Recycler<BytesRef> recycler) {
         this.version = version;
         this.recycler = recycler;
     }

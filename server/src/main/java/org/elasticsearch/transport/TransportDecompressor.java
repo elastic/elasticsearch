@@ -15,7 +15,6 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
-import java.util.function.Supplier;
 
 public interface TransportDecompressor extends Releasable {
 
@@ -34,7 +33,7 @@ public interface TransportDecompressor extends Releasable {
     @Override
     void close();
 
-    static TransportDecompressor getDecompressor(Supplier<Recycler.V<BytesRef>> recycler, BytesReference bytes) throws IOException {
+    static TransportDecompressor getDecompressor(Recycler<BytesRef> recycler, BytesReference bytes) throws IOException {
         if (bytes.length() < Compression.Scheme.HEADER_LENGTH) {
             return null;
         }

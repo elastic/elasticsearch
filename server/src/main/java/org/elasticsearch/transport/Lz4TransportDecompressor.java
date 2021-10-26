@@ -36,7 +36,6 @@ import org.elasticsearch.common.recycler.Recycler;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Locale;
-import java.util.function.Supplier;
 
 /**
  * This file is forked from the https://netty.io project. In particular it forks the following file
@@ -113,13 +112,13 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
      */
     private int decompressedLength;
 
-    private final Supplier<Recycler.V<BytesRef>> recycler;
+    private final Recycler<BytesRef> recycler;
     private final ArrayDeque<Recycler.V<BytesRef>> pages;
     private int pageOffset = 0;
     private int pageLength = 0;
     private boolean hasSkippedESHeader = false;
 
-    public Lz4TransportDecompressor(Supplier<Recycler.V<BytesRef>> recycler) {
+    public Lz4TransportDecompressor(Recycler<BytesRef> recycler) {
         this.decompressor = Compression.Scheme.lz4Decompressor();
         this.recycler = recycler;
         this.pages = new ArrayDeque<>(4);
@@ -282,7 +281,7 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
                         while (bytesToCopy > 0) {
                             final boolean isNewPage = pageOffset == pageLength;
                             if (isNewPage) {
-                                Recycler.V<BytesRef> newPage = recycler.get();
+                                Recycler.V<BytesRef> newPage = recycler.obtain();
                                 pageOffset = 0;
                                 pageLength = newPage.v().length;
                                 assert newPage.v().length > 0;

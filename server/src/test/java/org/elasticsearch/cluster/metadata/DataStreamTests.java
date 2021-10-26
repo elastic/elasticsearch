@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -50,8 +51,8 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
     public void testRollover() {
         DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
-        DataStream rolledDs = ds.rollover(Metadata.EMPTY_METADATA, UUIDs.randomBase64UUID());
-
+        Tuple<String, Long> newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
+        final DataStream rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2());
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
         assertThat(rolledDs.getTimeStampField(), equalTo(ds.getTimeStampField()));
         assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
@@ -76,7 +77,8 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             builder.put(im, false);
         }
 
-        DataStream rolledDs = ds.rollover(builder.build(), UUIDs.randomBase64UUID());
+        final Tuple<String, Long> newCoordinates = ds.nextWriteIndexAndGeneration(builder.build());
+        final DataStream rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2());
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
         assertThat(rolledDs.getTimeStampField(), equalTo(ds.getTimeStampField()));
         assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + numConflictingIndices + 1));

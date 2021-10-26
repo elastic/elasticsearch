@@ -221,7 +221,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         LdapRealm realm = new LdapRealm(config, sessionFactory, roleMapper, threadPool);
         realm.initialize(Collections.singleton(realm), licenseState);
 
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         final UsernamePasswordToken token = new UsernamePasswordToken("CN=ironman", new SecureString(PASSWORD));
         logger.info("Attempting to authentication with [{}]", token);
         realm.authenticate(token, future);
@@ -239,7 +239,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         realm.initialize(Collections.singleton(realm), licenseState);
 
         // Thor does not have a UPN of form CN=Thor@ad.test.elasticsearch.com
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("CN=Thor", new SecureString(PASSWORD)), future);
         final User user = getAndVerifyAuthUser(future);
         assertThat(user.roles(), arrayContaining(containsString("Avengers")));
@@ -265,7 +265,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
 
         int count = randomIntBetween(2, 10);
         for (int i = 0; i < count; i++) {
-            PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+            PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
             realm.authenticate(new UsernamePasswordToken("CN=ironman", new SecureString(PASSWORD)), future);
             future.actionGet();
         }
@@ -288,7 +288,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
 
         int count = randomIntBetween(2, 10);
         for (int i = 0; i < count; i++) {
-            PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+            PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
             realm.authenticate(new UsernamePasswordToken("CN=ironman", new SecureString(PASSWORD)), future);
             future.actionGet();
         }
@@ -308,7 +308,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
 
         int count = randomIntBetween(2, 10);
         for (int i = 0; i < count; i++) {
-            PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+            PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
             realm.authenticate(new UsernamePasswordToken("CN=ironman", new SecureString(PASSWORD)), future);
             final AuthenticationResult result = future.actionGet();
             assertThat("Authentication result: " + result, result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
@@ -321,7 +321,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         roleMapper.notifyRefresh();
 
         for (int i = 0; i < count; i++) {
-            PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+            PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
             realm.authenticate(new UsernamePasswordToken("CN=ironman", new SecureString(PASSWORD)), future);
             future.actionGet();
         }
@@ -380,7 +380,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         LdapRealm realm = new LdapRealm(config, sessionFactory, roleMapper, threadPool);
         realm.initialize(Collections.singleton(realm), licenseState);
 
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("CN=ironman", new SecureString(PASSWORD)), future);
         final User user = getAndVerifyAuthUser(future);
         assertThat(user.roles(), arrayContaining(equalTo("group_role")));
@@ -400,7 +400,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         LdapRealm realm = new LdapRealm(config, sessionFactory, roleMapper, threadPool);
         realm.initialize(Collections.singleton(realm), licenseState);
 
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("CN=Thor", new SecureString(PASSWORD)), future);
         final User user = getAndVerifyAuthUser(future);
         assertThat(user.roles(), arrayContainingInAnyOrder(equalTo("group_role"), equalTo("user_role")));
@@ -457,7 +457,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         LdapRealm realm = new LdapRealm(config, sessionFactory, roleMapper, threadPool);
         realm.initialize(Collections.singleton(realm), licenseState);
 
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("CN=Thor", new SecureString(PASSWORD)), future);
         User user = getAndVerifyAuthUser(future);
         assertThat(user.roles(), arrayContaining("_role_13"));
@@ -622,10 +622,10 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         return builder.put(extraSettings).build();
     }
 
-    private User getAndVerifyAuthUser(PlainActionFuture<AuthenticationResult> future) {
-        final AuthenticationResult result = future.actionGet();
+    private User getAndVerifyAuthUser(PlainActionFuture<AuthenticationResult<User>> future) {
+        final AuthenticationResult<User> result = future.actionGet();
         assertThat(result.toString(), result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
-        final User user = result.getUser();
+        final User user = result.getValue();
         assertThat(user, is(notNullValue()));
         return user;
     }

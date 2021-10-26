@@ -234,7 +234,7 @@ public class ArchiveTests extends PackagingTestCase {
             tempDir.resolve("bcprov-jdk15on-1.64.jar")
         );
         Shell.Result result = runElasticsearchStartCommand(null, false, false);
-        assertElasticsearchFailure(result, "java.lang.NoClassDefFoundError: org/bouncycastle/*", null);
+        assertElasticsearchFailure(result, "java.lang.NoClassDefFoundError: org/bouncycastle/", null);
         Files.move(
             tempDir.resolve("bcprov-jdk15on-1.64.jar"),
             installation.lib.resolve("tools").resolve("security-cli").resolve("bcprov-jdk15on-1.64.jar")

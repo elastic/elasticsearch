@@ -47,7 +47,7 @@ public class AutoConfigureNodeTests extends ESTestCase {
             "# commented out line",
             AutoConfigureNode.AUTO_CONFIGURATION_START_MARKER,
             "cluster.initial_master_nodes: [\"node1\"]",
-            "http.host",
+            "http.host: [_site_]",
             "xpack.security.enabled: true",
             "xpack.security.enrollment.enabled: true",
             "xpack.security.http.ssl.enabled: true",

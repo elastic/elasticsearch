@@ -406,13 +406,13 @@ public class XPackLicenseState {
         usage.put(new FeatureUsage(feature, null), epochMillisProvider.getAsLong());
     }
 
-    public void enableUsageTracking(LicensedFeature feature, String contextName) {
+    void enableUsageTracking(LicensedFeature feature, String contextName) {
         checkExpiry();
         Objects.requireNonNull(contextName, "Context name cannot be null");
         usage.put(new FeatureUsage(feature, contextName), -1L);
     }
 
-    public void disableUsageTracking(LicensedFeature feature, String contextName) {
+    void disableUsageTracking(LicensedFeature feature, String contextName) {
         Objects.requireNonNull(contextName, "Context name cannot be null");
         usage.replace(new FeatureUsage(feature, contextName), -1L, epochMillisProvider.getAsLong());
     }

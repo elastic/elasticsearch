@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.inference.deployment;
 
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -19,7 +20,6 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ALLOCATION_TASK_NAME_PREFIX;
 import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ALLOCATION_TASK_TYPE;
-import static org.elasticsearch.xpack.ml.MachineLearning.ML_MODEL_INFERENCE_FEATURE;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -28,6 +28,7 @@ public class TrainedModelDeploymentTaskTests extends ESTestCase {
 
     void assertTrackingComplete(Consumer<TrainedModelDeploymentTask> method, String modelId) {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        LicensedFeature.Persistent feature = mock(LicensedFeature.Persistent.class);
         TrainedModelDeploymentTask task = new TrainedModelDeploymentTask(
             0,
             TRAINED_MODEL_ALLOCATION_TASK_TYPE,
@@ -42,12 +43,14 @@ public class TrainedModelDeploymentTaskTests extends ESTestCase {
                 randomInt(5)
             ),
             mock(TrainedModelAllocationNodeService.class),
-            licenseState);
+            licenseState,
+            feature
+        );
 
         task.init(new PassThroughConfig(null, null, null));
-        verify(licenseState, times(1)).enableUsageTracking(ML_MODEL_INFERENCE_FEATURE, "model-" + modelId);
+        verify(feature, times(1)).startTracking(licenseState, "model-" + modelId);
         method.accept(task);
-        verify(licenseState, times(1)).disableUsageTracking(ML_MODEL_INFERENCE_FEATURE, "model-" + modelId);
+        verify(feature, times(1)).stopTracking(licenseState, "model-" + modelId);
     }
 
     public void testOnStopWithoutNotification() {

@@ -53,6 +53,7 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 
 import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ALLOCATION_TASK_NAME_PREFIX;
 import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ALLOCATION_TASK_TYPE;
+import static org.elasticsearch.xpack.ml.MachineLearning.ML_PYTORCH_MODEL_INFERENCE_FEATURE;
 
 public class TrainedModelAllocationNodeService implements ClusterStateListener {
 
@@ -279,7 +280,8 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
                     headers,
                     params,
                     trainedModelAllocationNodeService,
-                    licenseState
+                    licenseState,
+                    ML_PYTORCH_MODEL_INFERENCE_FEATURE
                 );
             }
         };

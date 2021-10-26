@@ -160,6 +160,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@SuppressWarnings("removal")
 public class RestHighLevelClientTests extends ESTestCase {
 
     private static final String SUBMIT_TASK_PREFIX = "submit_";

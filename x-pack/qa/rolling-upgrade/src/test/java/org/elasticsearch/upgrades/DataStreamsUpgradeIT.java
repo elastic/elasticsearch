@@ -106,6 +106,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         assertCount("logs-foobar", expectedCount);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79786")
     public void testDataStreamValidationDoesNotBreakUpgrade() throws Exception {
         assumeTrue("Bug started to occur from version: " + Version.V_7_10_2, UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_10_2));
         if (CLUSTER_TYPE == ClusterType.OLD) {

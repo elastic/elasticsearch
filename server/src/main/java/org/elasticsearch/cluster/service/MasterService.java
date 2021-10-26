@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -53,6 +54,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.SortedMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -374,6 +376,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         if (previousClusterState != newClusterState) {
             // only the master controls the version numbers
+            final SortedMap<String, IndexAbstraction> previousIndicesLookup = newClusterState.metadata().getIndicesLookup();
             Builder builder = incrementVersion(newClusterState);
             if (previousClusterState.routingTable() != newClusterState.routingTable()) {
                 builder.routingTable(RoutingTable.builder(newClusterState.routingTable())
@@ -384,6 +387,7 @@ public class MasterService extends AbstractLifecycleComponent {
             }
 
             newClusterState = builder.build();
+            assert previousIndicesLookup == newClusterState.metadata().getIndicesLookup();
         }
 
         return newClusterState;

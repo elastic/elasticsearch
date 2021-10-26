@@ -295,3 +295,11 @@ nodes have been upgraded to the newer version before using the {transforms} UI.
 === Up to 1,000 {transforms} are listed in {kib}
 
 The {transforms} management page in {kib} lists up to 1000 {transforms}.
+
+[discrete]
+[[transform-ui-support]]
+=== {kib} might not support every {transform} configuration option
+
+There might be configuration options available via the {transform} APIs that are 
+not supported in {kib}. For an exhaustive list of configuration options, refer 
+to the <<transform-apis,documentation>>.

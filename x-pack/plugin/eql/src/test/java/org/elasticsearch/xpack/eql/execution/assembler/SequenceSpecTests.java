@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.execution.assembler;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -118,7 +119,7 @@ public class SequenceSpecTests extends ESTestCase {
                       .size(10)
                       .query(matchAllQuery())
                       // pass the ordinal through terminate after
-                      .terminateAfter(ordinal), "timestamp", emptyList()),
+                      .terminateAfter(ordinal), "timestamp", emptyList(), emptySet()),
                   keyExtractors,
                   tsExtractor, tbExtractor, implicitTbExtractor, false);
             this.ordinal = ordinal;

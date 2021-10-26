@@ -236,6 +236,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
 
+@SuppressWarnings("removal")
 public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
     private static final RequestOptions POST_DATA_OPTIONS = RequestOptions.DEFAULT.toBuilder()

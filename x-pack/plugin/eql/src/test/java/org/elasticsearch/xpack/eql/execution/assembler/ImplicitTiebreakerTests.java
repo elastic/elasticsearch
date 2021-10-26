@@ -36,6 +36,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 
@@ -106,7 +107,7 @@ public class ImplicitTiebreakerTests extends ESTestCase {
                 new BoxedQueryRequest(() -> SearchSourceBuilder.searchSource()
                     .size(10)
                     .query(matchAllQuery())
-                    .terminateAfter(j), "@timestamp", emptyList()),
+                    .terminateAfter(j), "@timestamp", emptyList(), emptySet()),
                 keyExtractors,
                 tsExtractor,
                 tbExtractor,

@@ -129,11 +129,10 @@ public final class MetadataMigrateToDataTiersRoutingService {
 
         Metadata.Builder mb = Metadata.builder(currentState.metadata());
 
-        // set ENFORCE_DEFAULT_TIER_PREFERENCE to true (in the persistent settings)
-        mb.persistentSettings(Settings.builder()
-            .put(mb.persistentSettings())
-            .put(ENFORCE_DEFAULT_TIER_PREFERENCE, true)
-            .build());
+        // remove ENFORCE_DEFAULT_TIER_PREFERENCE from the persistent settings
+        Settings.Builder persistentSettingsBuilder = Settings.builder().put(mb.persistentSettings());
+        persistentSettingsBuilder.remove(ENFORCE_DEFAULT_TIER_PREFERENCE);
+        mb.persistentSettings(persistentSettingsBuilder.build());
 
         // and remove it from the transient settings, just in case it was there
         Settings.Builder transientSettingsBuilder = Settings.builder().put(mb.transientSettings());

@@ -278,7 +278,7 @@ public final class RemoteClusterLicenseChecker {
             error.append(String.format(Locale.ROOT, "the license on cluster [%s] is not active", remoteClusterLicenseInfo.clusterAlias()));
         } else {
             assert isAllowedByOperationMode(License.OperationMode.parse(remoteClusterLicenseInfo.licenseInfo().getMode()),
-                feature.getMinimumOperationMode()) : "license must be incompatible to build error message";
+                feature.getMinimumOperationMode()) == false : "license must be incompatible to build error message";
             final String message = String.format(
                     Locale.ROOT,
                     "the license mode [%s] on cluster [%s] does not enable [%s]",

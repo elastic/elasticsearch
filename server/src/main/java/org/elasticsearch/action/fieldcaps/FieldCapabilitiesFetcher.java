@@ -14,6 +14,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -42,21 +43,21 @@ class FieldCapabilitiesFetcher {
         this.indicesService = indicesService;
     }
 
-    public FieldCapabilitiesIndexResponse fetch(final FieldCapabilitiesIndexRequest request) throws IOException {
-        final ShardId shardId = request.shardId();
+    FieldCapabilitiesIndexResponse fetch(ShardId shardId, String[] fieldPatterns, QueryBuilder indexFilter,
+                                         long nowInMillis, Map<String, Object> runtimeFields) throws IOException {
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        final IndexShard indexShard = indexService.getShard(request.shardId().getId());
+        final IndexShard indexShard = indexService.getShard(shardId.getId());
         try (Engine.Searcher searcher = indexShard.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE)) {
 
             final SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(shardId.id(), 0,
-                searcher, request::nowInMillis, null, request.runtimeFields());
+                searcher, () -> nowInMillis, null, runtimeFields);
 
-            if (canMatchShard(request, searchExecutionContext) == false) {
-                return new FieldCapabilitiesIndexResponse(request.index(), Collections.emptyMap(), false);
+            if (canMatchShard(shardId, indexFilter, nowInMillis, searchExecutionContext) == false) {
+                return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), Collections.emptyMap(), false);
             }
 
             Set<String> fieldNames = new HashSet<>();
-            for (String pattern : request.fields()) {
+            for (String pattern : fieldPatterns) {
                 fieldNames.addAll(searchExecutionContext.getMatchingFieldNames(pattern));
             }
 
@@ -100,17 +101,18 @@ class FieldCapabilitiesFetcher {
                     }
                 }
             }
-            return new FieldCapabilitiesIndexResponse(request.index(), responseMap, true);
+            return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), responseMap, true);
         }
     }
 
-    private boolean canMatchShard(FieldCapabilitiesIndexRequest req, SearchExecutionContext searchExecutionContext) throws IOException {
-        if (req.indexFilter() == null || req.indexFilter() instanceof MatchAllQueryBuilder) {
+    private boolean canMatchShard(ShardId shardId, QueryBuilder indexFilter, long nowInMillis,
+                                  SearchExecutionContext searchExecutionContext) throws IOException {
+        if (indexFilter == null || indexFilter instanceof MatchAllQueryBuilder) {
             return true;
         }
-        assert req.nowInMillis() != 0L;
-        ShardSearchRequest searchRequest = new ShardSearchRequest(req.shardId(), req.nowInMillis(), AliasFilter.EMPTY);
-        searchRequest.source(new SearchSourceBuilder().query(req.indexFilter()));
+        assert nowInMillis != 0L;
+        ShardSearchRequest searchRequest = new ShardSearchRequest(shardId, nowInMillis, AliasFilter.EMPTY);
+        searchRequest.source(new SearchSourceBuilder().query(indexFilter));
         return SearchService.queryStillMatchesAfterRewrite(searchRequest, searchExecutionContext);
     }
 

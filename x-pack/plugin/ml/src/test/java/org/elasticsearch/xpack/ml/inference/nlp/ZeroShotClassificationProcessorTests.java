@@ -12,6 +12,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigUpdate;
@@ -35,7 +36,7 @@ public class ZeroShotClassificationProcessorTests extends ESTestCase {
                     BertTokenizer.CLASS_TOKEN, BertTokenizer.SEPARATOR_TOKEN, BertTokenizer.PAD_TOKEN),
                 randomAlphaOfLength(10)
             ),
-            new BertTokenization(null, true, 512));
+            new BertTokenization(null, true, 512, Tokenization.Truncate.NONE));
 
         ZeroShotClassificationConfig config = new ZeroShotClassificationConfig(
             List.of("entailment", "neutral", "contradiction"),

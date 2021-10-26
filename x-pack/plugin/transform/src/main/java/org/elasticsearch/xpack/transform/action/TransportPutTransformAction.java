@@ -146,7 +146,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             aVoid -> {
                 client.execute(
                     ValidateTransformAction.INSTANCE,
-                    new ValidateTransformAction.Request(config, request.isDeferValidation()),
+                    new ValidateTransformAction.Request(config, request.isDeferValidation(), request.timeout()),
                     validateTransformListener
                 );
             },

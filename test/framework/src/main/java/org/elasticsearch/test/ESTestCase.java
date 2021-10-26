@@ -18,6 +18,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -34,25 +35,21 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.TestRuleMarkFailure;
+import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.core.CheckedRunnable;
-import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.HeaderWarningAppender;
 import org.elasticsearch.common.logging.LogConfigurator;
@@ -65,16 +62,13 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.xcontent.MediaType;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParser.Token;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.PathUtilsForTesting;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -100,6 +94,15 @@ import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.nio.MockNioTransportPlugin;
+import org.elasticsearch.xcontent.MediaType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -429,58 +432,83 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     protected List<String> filteredWarnings() {
+        List<String> filtered = new ArrayList<>();
+        filtered.add("Configuring multiple [path.data] paths is deprecated. Use RAID or other system level features for utilizing" +
+            " multiple disks. This feature will be removed in a future release.");
+        filtered.add("Configuring [path.data] with a list is deprecated. Instead specify as a string value");
+        filtered.add("setting [path.shared_data] is deprecated and will be removed in a future release");
         if (JvmInfo.jvmInfo().getBundledJdk() == false) {
-            return List.of("setting [path.shared_data] is deprecated and will be removed in a future release",
-                "no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release");
-        } else {
-            return List.of("setting [path.shared_data] is deprecated and will be removed in a future release");
+            filtered.add("no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release");
         }
+        return filtered;
     }
 
     /**
      * Convenience method to assert warnings for settings deprecations and general deprecation warnings.
-     *
      * @param settings the settings that are expected to be deprecated
      * @param warnings other expected general deprecation warnings
      */
-    protected final void assertSettingDeprecationsAndWarnings(final Setting<?>[] settings, final String... warnings) {
-        assertSettingDeprecationsAndWarnings(Arrays.stream(settings).map(Setting::getKey).toArray(String[]::new), warnings);
-    }
-
-    protected final void assertSettingDeprecationsAndWarnings(final String[] settings, final String... warnings) {
+    protected final void assertSettingDeprecationsAndWarnings(final Setting<?>[] settings, final DeprecationWarning... warnings) {
         assertWarnings(
-                Stream.concat(
-                        Arrays
-                                .stream(settings)
-                                .map(k -> "[" + k + "] setting was deprecated in Elasticsearch and will be removed in a future release! " +
-                                        "See the breaking changes documentation for the next major version."),
-                        Arrays.stream(warnings))
-                        .toArray(String[]::new));
+            true,
+            Stream.concat(
+                Arrays
+                    .stream(settings)
+                    .map(setting -> {
+                        String warningMessage = String.format(
+                            Locale.ROOT, "[%s] setting was deprecated in Elasticsearch and will be " +
+                                "removed in a future release! See the breaking changes documentation for the next major version.",
+                            setting.getKey());
+                        return new DeprecationWarning(setting.getProperties().contains(Setting.Property.Deprecated) ?
+                            DeprecationLogger.CRITICAL : Level.WARN, warningMessage);
+                    }),
+                Arrays.stream(warnings))
+                .toArray(DeprecationWarning[]::new));
     }
 
+    /**
+     * Convenience method to assert warnings for settings deprecations and general deprecation warnings. All warnings passed to this method
+     * are assumed to be at DeprecationLogger.CRITICAL level.
+     * @param expectedWarnings expected general deprecation warnings.
+     */
     protected final void assertWarnings(String... expectedWarnings) {
-        assertWarnings(true, expectedWarnings);
+        assertWarnings(true, Arrays.stream(expectedWarnings).map(expectedWarning -> new DeprecationWarning(DeprecationLogger.CRITICAL,
+            expectedWarning)).toArray(DeprecationWarning[]::new));
     }
 
-    protected final void assertWarnings(boolean stripXContentPosition, String... expectedWarnings) {
+    protected final void assertWarnings(boolean stripXContentPosition, DeprecationWarning... expectedWarnings) {
         if (enableWarningsCheck() == false) {
             throw new IllegalStateException("unable to check warning headers if the test is not set to do so");
         }
         try {
-            final List<String> actualWarnings = threadContext.getResponseHeaders().get("Warning");
+            final List<String> actualWarningStrings = threadContext.getResponseHeaders().get("Warning");
             if (expectedWarnings == null || expectedWarnings.length == 0) {
-                assertNull("expected 0 warnings, actual: " + actualWarnings, actualWarnings);
+                assertNull("expected 0 warnings, actual: " + actualWarningStrings, actualWarningStrings);
             } else {
-                assertNotNull("no warnings, expected: " + Arrays.asList(expectedWarnings), actualWarnings);
-                final Set<String> actualWarningValues =
-                    actualWarnings.stream().map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, stripXContentPosition))
+                assertNotNull("no warnings, expected: " + Arrays.asList(expectedWarnings), actualWarningStrings);
+                final Set<DeprecationWarning> actualDeprecationWarnings =
+                    actualWarningStrings.stream()
+                        .map(warningString -> {
+                            String warningText = HeaderWarning.extractWarningValueFromWarningHeader(warningString, stripXContentPosition);
+                            final Level level;
+                            if (warningString.startsWith(Integer.toString(DeprecationLogger.CRITICAL.intLevel()))) {
+                                level = DeprecationLogger.CRITICAL;
+                            } else if (warningString.startsWith(Integer.toString(Level.WARN.intLevel()))) {
+                                level = Level.WARN;
+                            } else {
+                                throw new IllegalArgumentException("Unknown level in deprecation message " + warningString);
+                            }
+                            return new DeprecationWarning(level, warningText);
+                        })
                         .collect(Collectors.toSet());
-                for (String msg : expectedWarnings) {
-                    assertThat(actualWarningValues, hasItem(HeaderWarning.escapeAndEncode(msg)));
+                for (DeprecationWarning expectedWarning : expectedWarnings) {
+                    DeprecationWarning escapedExpectedWarning = new DeprecationWarning(expectedWarning.level,
+                        HeaderWarning.escapeAndEncode(expectedWarning.message));
+                    assertThat(actualDeprecationWarnings, hasItem(escapedExpectedWarning));
                 }
-                assertEquals("Expected " + expectedWarnings.length + " warnings but found " + actualWarnings.size() + "\nExpected: "
-                        + Arrays.asList(expectedWarnings) + "\nActual: " + actualWarnings,
-                    expectedWarnings.length, actualWarnings.size()
+                assertEquals("Expected " + expectedWarnings.length + " warnings but found " + actualWarningStrings.size() + "\nExpected: "
+                        + Arrays.asList(expectedWarnings) + "\nActual: " + actualWarningStrings,
+                    expectedWarnings.length, actualWarningStrings.size()
                 );
             }
         } finally {
@@ -1050,7 +1078,12 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /** Returns a random number of temporary paths. */
     public String[] tmpPaths() {
-        return new String[] { createTempDir().toAbsolutePath().toString() };
+        final int numPaths = TestUtil.nextInt(random(), 1, 3);
+        final String[] absPaths = new String[numPaths];
+        for (int i = 0; i < numPaths; i++) {
+            absPaths[i] = createTempDir().toAbsolutePath().toString();
+        }
+        return absPaths;
     }
 
     public NodeEnvironment newNodeEnvironment() throws IOException {
@@ -1061,7 +1094,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         return Settings.builder()
                 .put(settings)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-                .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toAbsolutePath()).build();
+                .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build();
     }
 
     public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {
@@ -1553,6 +1586,33 @@ public abstract class ESTestCase extends LuceneTestCase {
             }
         } catch (UnknownHostException e) {
             throw new AssertionError();
+        }
+    }
+
+    public static final class DeprecationWarning {
+        private final Level level;
+        private final String message;
+        public DeprecationWarning(Level level, String message) {
+            this.level = level;
+            this.message = message;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(level, message);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            DeprecationWarning that = (DeprecationWarning) o;
+            return Objects.equals(level, that.level) && Objects.equals(message, that.message);
+        }
+
+        @Override
+        public String toString() {
+            return String.format(Locale.ROOT, "%s (%s): %s", level.name(), level.intLevel(), message);
         }
     }
 }

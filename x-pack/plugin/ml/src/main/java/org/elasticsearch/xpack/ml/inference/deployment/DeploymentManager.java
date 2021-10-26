@@ -19,16 +19,16 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.ml.inference.pytorch.process.NativePyTorchProcess
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactory;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResultProcessor;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchStateStreamer;
+import org.elasticsearch.xpack.ml.job.process.ProcessWorkerExecutorService;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -231,7 +232,12 @@ public class DeploymentManager {
         }
 
         final long requestId = requestIdCounter.getAndIncrement();
-        executorServiceForProcess.execute(new InferenceAction(requestId, timeout, processContext, config, doc, threadPool, listener));
+        InferenceAction inferenceAction = new InferenceAction(requestId, timeout, processContext, config, doc, threadPool, listener);
+        try {
+            processContext.executorService.execute(inferenceAction);
+        } catch (Exception e) {
+            inferenceAction.onFailure(e);
+        }
     }
 
     static class InferenceAction extends AbstractRunnable {
@@ -380,11 +386,17 @@ public class DeploymentManager {
         private final SetOnce<TrainedModelInput> modelInput = new SetOnce<>();
         private final PyTorchResultProcessor resultProcessor;
         private final PyTorchStateStreamer stateStreamer;
+        private final ProcessWorkerExecutorService executorService;
 
         ProcessContext(TrainedModelDeploymentTask task, ExecutorService executorService) {
             this.task = Objects.requireNonNull(task);
             resultProcessor = new PyTorchResultProcessor(task.getModelId());
             this.stateStreamer = new PyTorchStateStreamer(client, executorService, xContentRegistry);
+            this.executorService = new ProcessWorkerExecutorService(
+                threadPool.getThreadContext(),
+                "pytorch_inference",
+                task.getParams().getQueueCapacity()
+            );
         }
 
         PyTorchResultProcessor getResultProcessor() {
@@ -393,10 +405,12 @@ public class DeploymentManager {
 
         synchronized void startProcess() {
             process.set(pyTorchProcessFactory.createProcess(task, executorServiceForProcess, onProcessCrash()));
+            executorServiceForProcess.submit(executorService::start);
         }
 
         synchronized void stopProcess() {
             resultProcessor.stop();
+            executorService.shutdown();
             if (process.get() == null) {
                 return;
             }
@@ -412,7 +426,10 @@ public class DeploymentManager {
         private Consumer<String> onProcessCrash() {
             return reason -> {
                 logger.error("[{}] process crashed due to reason [{}]", task.getModelId(), reason);
+                resultProcessor.stop();
+                executorService.shutdown();
                 processContextByAllocation.remove(task.getId());
+                task.setFailed("process crashed due to reason [" + reason + "]");
             };
         }
 

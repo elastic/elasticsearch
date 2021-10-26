@@ -155,7 +155,7 @@ only intended for expert use.
 ----
 PUT /_cluster/settings
 {
-  "transient": {
+  "persistent": {
     "logger.org.elasticsearch.discovery": "DEBUG"
   }
 }

@@ -10,13 +10,12 @@ package org.elasticsearch.xpack.security.authc.kerberos;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -27,9 +26,10 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
@@ -72,7 +72,7 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
 
     protected KerberosTicketValidator mockKerberosTicketValidator;
     protected NativeRoleMappingStore mockNativeRoleMappingStore;
-    protected XPackLicenseState licenseState;
+    protected MockLicenseState licenseState;
 
     protected static final Set<String> roles = Sets.newHashSet("admin", "kibana_user");
 
@@ -84,8 +84,8 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
         globalSettings = Settings.builder().put("path.home", dir).build();
         settings = buildKerberosRealmSettings(REALM_NAME,
             writeKeyTab(dir.resolve("key.keytab"), "asa").toString(), 100, "10m", true, randomBoolean());
-        licenseState = mock(XPackLicenseState.class);
-        when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_REALM)).thenReturn(true);
+        licenseState = mock(MockLicenseState.class);
+        when(licenseState.isAllowed(Security.DELEGATED_AUTHORIZATION_FEATURE)).thenReturn(true);
     }
 
     @After
@@ -109,10 +109,12 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
         }).when(mockKerberosTicketValidator).validateTicket(aryEq(decodedTicket), eq(keytabPath), eq(krbDebug), any(ActionListener.class));
     }
 
-    protected void assertSuccessAuthenticationResult(final User expectedUser, final String outToken, final AuthenticationResult result) {
+    protected void assertSuccessAuthenticationResult(
+        final User expectedUser, final String outToken, final AuthenticationResult<User> result
+    ) {
         assertThat(result, is(notNullValue()));
         assertThat(result.getStatus(), is(equalTo(AuthenticationResult.Status.SUCCESS)));
-        assertThat(result.getUser(), is(equalTo(expectedUser)));
+        assertThat(result.getValue(), is(equalTo(expectedUser)));
         final Map<String, List<String>> responseHeaders = threadPool.getThreadContext().getResponseHeaders();
         assertThat(responseHeaders, is(notNullValue()));
         assertThat(responseHeaders.get(KerberosAuthenticationToken.WWW_AUTHENTICATE).get(0),

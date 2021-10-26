@@ -92,16 +92,17 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.action.support.master.MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
-import static org.elasticsearch.mock.orig.Mockito.doAnswer;
-import static org.elasticsearch.mock.orig.Mockito.doReturn;
-import static org.elasticsearch.mock.orig.Mockito.doThrow;
-import static org.elasticsearch.mock.orig.Mockito.times;
-import static org.elasticsearch.mock.orig.Mockito.verify;
-import static org.elasticsearch.mock.orig.Mockito.verifyNoMoreInteractions;
-import static org.elasticsearch.mock.orig.Mockito.when;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -184,21 +185,23 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                             Settings.builder()
                                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                                .put(SETTING_INDEX_HIDDEN, true)
                                 .put(SETTING_VERSION_CREATED, Version.CURRENT)
                                 .build())
-                        .putAlias(AliasMetadata.builder(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).build())
+                        .putAlias(AliasMetadata.builder(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).isHidden(true).build())
                         .build())
                 .fPut(
-                    AnnotationIndex.INDEX_NAME,
-                    IndexMetadata.builder(AnnotationIndex.INDEX_NAME)
+                    AnnotationIndex.LATEST_INDEX_NAME,
+                    IndexMetadata.builder(AnnotationIndex.LATEST_INDEX_NAME)
                         .settings(
                             Settings.builder()
                                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                                .put(SETTING_INDEX_HIDDEN, true)
                                 .put(SETTING_VERSION_CREATED, Version.CURRENT)
                                 .build())
-                        .putAlias(AliasMetadata.builder(AnnotationIndex.READ_ALIAS_NAME).build())
-                        .putAlias(AliasMetadata.builder(AnnotationIndex.WRITE_ALIAS_NAME).build())
+                        .putAlias(AliasMetadata.builder(AnnotationIndex.READ_ALIAS_NAME).isHidden(true).build())
+                        .putAlias(AliasMetadata.builder(AnnotationIndex.WRITE_ALIAS_NAME).isHidden(true).build())
                         .build())
                 .build())
             .build();
@@ -512,7 +515,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
         // let the communicator throw, simulating a problem with the underlying
         // autodetect, e.g. a crash
-        doThrow(Exception.class).when(autodetectCommunicator).close();
+        doThrow(RuntimeException.class).when(autodetectCommunicator).close();
 
         // create a jobtask
         JobTask jobTask = mock(JobTask.class);

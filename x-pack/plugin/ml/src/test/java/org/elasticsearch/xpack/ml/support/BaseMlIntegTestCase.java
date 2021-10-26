@@ -159,7 +159,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().get().getState();
             assertTrue("Timed out waiting for the ML templates to be installed",
-                    MachineLearning.allTemplatesInstalled(state));
+                    MachineLearning.criticalTemplatesInstalled(state));
         }, 20, TimeUnit.SECONDS);
     }
 

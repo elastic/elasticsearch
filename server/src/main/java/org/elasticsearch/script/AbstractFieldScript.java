@@ -52,7 +52,7 @@ public abstract class AbstractFieldScript extends DocBasedScript {
              * source of runaway script compilations. We think folks will
              * mostly reuse scripts though.
              */
-            ScriptCache.UNLIMITED_COMPILATION_RATE.asTuple(),
+            false,
             /*
              * Disable runtime fields scripts from being allowed
              * to be stored as part of the script meta data.

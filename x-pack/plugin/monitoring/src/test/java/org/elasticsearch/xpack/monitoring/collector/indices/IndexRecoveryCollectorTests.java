@@ -169,6 +169,14 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
             assertThat(recoveries.hasRecoveries(), equalTo(true));
             assertThat(recoveries.shardRecoveryStates().size(), equalTo(nbRecoveries));
         }
+
+        assertWarnings("[xpack.monitoring.collection.index.recovery.timeout] setting was deprecated in Elasticsearch and will be " +
+            "removed in a future release! See the breaking changes documentation for the next major version.",
+            "[xpack.monitoring.collection.index.recovery.active_only] setting was deprecated in Elasticsearch and will be removed " +
+                "in a future release! See the breaking changes documentation for the next major version.",
+            "[xpack.monitoring.collection.indices] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+                "See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testDoCollectThrowsTimeoutException() throws Exception {
@@ -211,6 +219,9 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
         final long interval = randomNonNegativeLong();
 
         expectThrows(ElasticsearchTimeoutException.class, () -> collector.doCollect(node, interval, clusterState));
+
+        assertWarnings("[xpack.monitoring.collection.index.recovery.timeout] setting was deprecated in Elasticsearch and will be " +
+                "removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
 }

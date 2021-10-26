@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
@@ -36,8 +39,8 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -49,6 +52,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.createPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getOnlyIndexSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -68,6 +72,10 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         policy = "policy-" + randomAlphaOfLength(5);
         alias = "alias-" + randomAlphaOfLength(5);
         assertOK(client().performRequest(new Request("POST", "_ilm/start")));
+
+        // we can't have the pre-migration indices getting tier preferences auto-assigned,
+        // if we did, then we wouldn't really be testing the migration *to* data tiers anymore :D
+        enforceDefaultTierPreference(false);
     }
 
     @AfterClass
@@ -130,9 +138,9 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         createNewSingletonPolicy(client(), rolloverOnlyPolicyName, "hot", new RolloverAction(null, null, null, 1L));
 
         String rolloverIndexPrefix = "rolloverpolicytest_index";
-        for (int i = 1; i < randomIntBetween(2, 5); i++) {
-            // assign the rollover-only policy to a few other indices - these indices and the rollover-only policy should not be migrated
-            // in any way
+        for (int i = 1; i <= 2; i++) {
+            // assign the rollover-only policy to a few other indices - these indices will end up getting caught by the catch-all
+            // tier preference migration
             createIndexWithSettings(client(), rolloverIndexPrefix + "-00000" + i, alias + i, Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -163,10 +171,10 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         assertOK(migrateDeploymentResponse);
 
         Map<String, Object> migrateResponseAsMap = responseAsMap(migrateDeploymentResponse);
-        assertThat((ArrayList<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_ILM_POLICIES.getPreferredName()),
-            containsInAnyOrder(policy));
-        assertThat((ArrayList<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_INDICES.getPreferredName()),
-            containsInAnyOrder(index, indexWithDataWarmRouting));
+        assertThat((List<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_ILM_POLICIES.getPreferredName()),
+            contains(policy));
+        assertThat((List<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_INDICES.getPreferredName()),
+            containsInAnyOrder(index, indexWithDataWarmRouting, rolloverIndexPrefix + "-000001", rolloverIndexPrefix + "-000002"));
         assertThat(migrateResponseAsMap.get(MigrateToDataTiersResponse.REMOVED_LEGACY_TEMPLATE.getPreferredName()),
             is(templateName));
 
@@ -205,6 +213,13 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         assertThat(cachedPhaseDefinition, containsString(ShrinkAction.NAME));
         assertThat(cachedPhaseDefinition, containsString(SetPriorityAction.NAME));
         assertThat(cachedPhaseDefinition, containsString(ForceMergeAction.NAME));
+
+        // ENFORCE_DEFAULT_TIER_PREFERENCE has been set to true
+        Request getSettingsRequest = new Request("GET", "_cluster/settings");
+        Response getSettingsResponse = client().performRequest(getSettingsRequest);
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode json = mapper.readTree(getSettingsResponse.getEntity().getContent());
+        assertTrue(json.at("/persistent/cluster/routing/allocation/enforce_default_tier_preference").asBoolean());
     }
 
     @SuppressWarnings("unchecked")
@@ -270,9 +285,9 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
 
         // response should contain the correct "to migrate" entities
         Map<String, Object> migrateResponseAsMap = responseAsMap(migrateDeploymentResponse);
-        assertThat((ArrayList<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_ILM_POLICIES.getPreferredName()),
+        assertThat((List<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_ILM_POLICIES.getPreferredName()),
             containsInAnyOrder(policy));
-        assertThat((ArrayList<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_INDICES.getPreferredName()),
+        assertThat((List<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_INDICES.getPreferredName()),
             containsInAnyOrder(index, indexWithDataWarmRouting));
         assertThat(migrateResponseAsMap.get(MigrateToDataTiersResponse.REMOVED_LEGACY_TEMPLATE.getPreferredName()),
             is(templateName));
@@ -327,5 +342,15 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         templateRequest.setEntity(template);
         templateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(templateRequest);
+    }
+
+    public void enforceDefaultTierPreference(boolean enforceDefaultTierPreference) throws IOException {
+        Request request = new Request("PUT", "_cluster/settings");
+        request.setJsonEntity("{\n" +
+            "  \"persistent\": {\n" +
+            "    \"" + DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE + "\" : " + enforceDefaultTierPreference + "\n" +
+            "  }\n" +
+            "}");
+        assertOK(client().performRequest(request));
     }
 }

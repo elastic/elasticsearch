@@ -30,7 +30,6 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -84,8 +83,8 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIn
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMoveFromRedToNonRed;
 
 /**
- * A composite roles store that combines built in roles, file-based roles, and index-based roles. Checks the built in roles first, then the
- * file roles, and finally the index roles.
+ * A composite roles store that can retrieve roles from multiple sources.
+ * @see RoleProviders
  */
 public class CompositeRolesStore {
 
@@ -98,8 +97,7 @@ public class CompositeRolesStore {
 
     private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(CompositeRolesStore.class);
 
-    private final FileRolesStore fileRolesStore;
-    private final NativeRolesStore nativeRolesStore;
+    private final RoleProviders roleProviders;
     private final NativePrivilegeStore privilegeStore;
     private final XPackLicenseState licenseState;
     private final Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer;
@@ -114,25 +112,31 @@ public class CompositeRolesStore {
     private final ApiKeyService apiKeyService;
     private final ServiceAccountService serviceAccountService;
     private final boolean isAnonymousEnabled;
-    private final List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> builtInRoleProviders;
-    private final List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> allRoleProviders;
     private final Role superuserRole;
     private final Role xpackUserRole;
     private final Role asyncSearchUserRole;
     private final Automaton restrictedIndicesAutomaton;
 
-    public CompositeRolesStore(Settings settings, FileRolesStore fileRolesStore, NativeRolesStore nativeRolesStore,
-                               ReservedRolesStore reservedRolesStore, NativePrivilegeStore privilegeStore,
-                               List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> rolesProviders,
+    public CompositeRolesStore(Settings settings, RoleProviders roleProviders, NativePrivilegeStore privilegeStore,
                                ThreadContext threadContext, XPackLicenseState licenseState, FieldPermissionsCache fieldPermissionsCache,
                                ApiKeyService apiKeyService, ServiceAccountService serviceAccountService,
                                DocumentSubsetBitsetCache dlsBitsetCache, IndexNameExpressionResolver resolver,
                                Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer) {
-        this.fileRolesStore = Objects.requireNonNull(fileRolesStore);
-        this.dlsBitsetCache = Objects.requireNonNull(dlsBitsetCache);
-        fileRolesStore.addListener(this::invalidate);
-        this.nativeRolesStore = Objects.requireNonNull(nativeRolesStore);
+        this.roleProviders = roleProviders;
+        roleProviders.addChangeListener(new RoleProviders.ChangeListener() {
+            @Override
+            public void rolesChanged(Set<String> roles) {
+                CompositeRolesStore.this.invalidate(roles);
+            }
+
+            @Override
+            public void providersChanged() {
+                CompositeRolesStore.this.invalidateAll();
+            }
+        });
+
         this.privilegeStore = Objects.requireNonNull(privilegeStore);
+        this.dlsBitsetCache = Objects.requireNonNull(dlsBitsetCache);
         this.licenseState = Objects.requireNonNull(licenseState);
         this.fieldPermissionsCache = Objects.requireNonNull(fieldPermissionsCache);
         this.apiKeyService = Objects.requireNonNull(apiKeyService);
@@ -152,16 +156,6 @@ public class CompositeRolesStore {
             nlcBuilder.setMaximumWeight(nlcCacheSize);
         }
         this.negativeLookupCache = nlcBuilder.build();
-        this.builtInRoleProviders = List.of(reservedRolesStore, fileRolesStore, nativeRolesStore);
-        if (rolesProviders.isEmpty()) {
-            this.allRoleProviders = this.builtInRoleProviders;
-        } else {
-            List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> allList =
-                new ArrayList<>(builtInRoleProviders.size() + rolesProviders.size());
-            allList.addAll(builtInRoleProviders);
-            allList.addAll(rolesProviders);
-            this.allRoleProviders = Collections.unmodifiableList(allList);
-        }
         this.anonymousUser = new AnonymousUser(settings);
         this.isAnonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.restrictedIndicesAutomaton = resolver.getSystemNameAutomaton();
@@ -411,9 +405,7 @@ public class CompositeRolesStore {
 
     private void loadRoleDescriptorsAsync(Set<String> roleNames, ActionListener<RolesRetrievalResult> listener) {
         final RolesRetrievalResult rolesResult = new RolesRetrievalResult();
-        final List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> asyncRoleProviders =
-            licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS) ? allRoleProviders : builtInRoleProviders;
-
+        final List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> asyncRoleProviders = roleProviders.getProviders();
         final ActionListener<RoleRetrievalResult> descriptorsListener =
             ContextPreservingActionListener.wrapPreservingContext(ActionListener.wrap(ignore -> {
                     rolesResult.setMissingRoles(roleNames);
@@ -553,13 +545,12 @@ public class CompositeRolesStore {
     }
 
     public void usageStats(ActionListener<Map<String, Object>> listener) {
-        final Map<String, Object> usage = new HashMap<>(2);
-        usage.put("file", fileRolesStore.usageStats());
+        final Map<String, Object> usage = new HashMap<>();
         usage.put("dls", Map.of("bit_set_cache", dlsBitsetCache.usageStats()));
-        nativeRolesStore.usageStats(ActionListener.wrap(map -> {
-            usage.put("native", map);
-            listener.onResponse(usage);
-        }, listener::onFailure));
+        roleProviders.usageStats(listener.map(roleUsage -> {
+            usage.putAll(roleUsage);
+            return usage;
+        }));
     }
 
     public void onSecurityIndexStateChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {

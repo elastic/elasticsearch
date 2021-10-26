@@ -372,7 +372,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     // We need to recover the replica async to release the main thread for the following task to fill missing
                     // operations between the local checkpoint and max_seq_no which the recovering replica is waiting for.
                     recoveryFuture = group.asyncRecoverReplica(newReplica,
-                        (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, null, recoveryListener) {});
+                        (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, null, null, recoveryListener) {});
                 }
             }
             if (recoveryFuture != null) {

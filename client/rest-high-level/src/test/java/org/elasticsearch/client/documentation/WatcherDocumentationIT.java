@@ -49,6 +49,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.is;
 
+@SuppressWarnings("removal")
 public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testStartStopWatchService() throws Exception {

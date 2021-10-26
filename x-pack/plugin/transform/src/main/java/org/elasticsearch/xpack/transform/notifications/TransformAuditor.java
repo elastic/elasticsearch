@@ -6,21 +6,14 @@
  */
 package org.elasticsearch.xpack.transform.notifications;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.notifications.TransformAuditMessage;
@@ -44,38 +37,9 @@ public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
             new OriginSettingClient(client, TRANSFORM_ORIGIN),
             TransformInternalIndexConstants.AUDIT_INDEX,
             TransformInternalIndexConstants.AUDIT_INDEX,
-            Version.V_7_16_0,
-            () -> {
-                // legacy template implementation, to be removed in 8.x
-                try {
-                    IndexTemplateMetadata templateMeta = TransformInternalIndex.getAuditIndexTemplateMetadata();
-
-                    PutIndexTemplateRequest request = new PutIndexTemplateRequest(templateMeta.name()).patterns(templateMeta.patterns())
-                        .version(templateMeta.version())
-                        .settings(templateMeta.settings())
-                        .mapping(templateMeta.mappings().uncompressed(), XContentType.JSON);
-
-                    for (ObjectObjectCursor<String, AliasMetadata> cursor : templateMeta.getAliases()) {
-                        AliasMetadata meta = cursor.value;
-                        Alias alias = new Alias(meta.alias()).indexRouting(meta.indexRouting())
-                            .searchRouting(meta.searchRouting())
-                            .isHidden(meta.isHidden())
-                            .writeIndex(meta.writeIndex());
-                        if (meta.filter() != null) {
-                            alias.filter(meta.getFilter().string());
-                        }
-
-                        request.alias(alias);
-                    }
-
-                    return request;
-                } catch (IOException e) {
-                    throw new ElasticsearchException("Failure creating transform notification index", e);
-                }
-            },
             () -> {
                 try {
-                    PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(
+                    return new PutComposableIndexTemplateAction.Request(
                         TransformInternalIndexConstants.AUDIT_INDEX
                     ).indexTemplate(
                         new ComposableIndexTemplate.Builder().template(TransformInternalIndex.getAuditIndexTemplate())
@@ -84,7 +48,6 @@ public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
                             .priority(Long.MAX_VALUE)
                             .build()
                     );
-                    return request;
                 } catch (IOException e) {
                     throw new ElasticsearchException("Failure creating transform notification index", e);
                 }

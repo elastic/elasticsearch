@@ -54,7 +54,13 @@ public abstract class AliasAction {
      */
     @FunctionalInterface
     public interface NewAliasValidator {
-        void validate(String alias, @Nullable String indexRouting, @Nullable String filter, @Nullable Boolean writeIndex);
+        void validate(
+            String alias,
+            @Nullable String indexRouting,
+            @Nullable String searchRouting,
+            @Nullable String filter,
+            @Nullable Boolean writeIndex
+        );
     }
 
     /**
@@ -117,7 +123,7 @@ public abstract class AliasAction {
 
         @Override
         boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
-            aliasValidator.validate(alias, indexRouting, filter, writeIndex);
+            aliasValidator.validate(alias, indexRouting, searchRouting, filter, writeIndex);
 
             AliasMetadata newAliasMd = AliasMetadata.newAliasMetadataBuilder(alias).filter(filter).indexRouting(indexRouting)
                     .searchRouting(searchRouting).writeIndex(writeIndex).isHidden(isHidden).build();
@@ -233,7 +239,7 @@ public abstract class AliasAction {
 
         @Override
         boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
-            aliasValidator.validate(aliasName, null, filter, isWriteDataStream);
+            aliasValidator.validate(aliasName, null, null, filter, isWriteDataStream);
             return metadata.put(aliasName, dataStreamName, isWriteDataStream, filter);
         }
     }

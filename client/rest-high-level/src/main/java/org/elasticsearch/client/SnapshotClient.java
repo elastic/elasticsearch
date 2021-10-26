@@ -37,7 +37,13 @@ import static java.util.Collections.emptySet;
  * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Snapshot API.
  * <p>
  * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html">Snapshot API on elastic.co</a>
+ *
+ * @deprecated The High Level Rest Client is deprecated in favor of the
+ * <a href="https://www.elastic.co/guide/en/elasticsearch/client/java-api-client/current/introduction.html">
+ * Elasticsearch Java API Client</a>
  */
+@Deprecated(since = "7.16.0", forRemoval = true)
+@SuppressWarnings("removal")
 public final class SnapshotClient {
     private final RestHighLevelClient restHighLevelClient;
 

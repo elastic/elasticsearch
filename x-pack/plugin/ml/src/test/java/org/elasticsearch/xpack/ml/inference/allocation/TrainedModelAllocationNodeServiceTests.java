@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
@@ -507,7 +508,8 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
             deploymentManager,
             taskManager,
             threadPool,
-            NODE_ID
+            NODE_ID,
+            mock(XPackLicenseState.class)
         );
     }
 

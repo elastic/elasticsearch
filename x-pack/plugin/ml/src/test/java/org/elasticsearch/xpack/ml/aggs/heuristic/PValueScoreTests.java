@@ -17,7 +17,7 @@ import org.elasticsearch.search.aggregations.bucket.AbstractNXYSignificanceHeuri
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
-import java.util.Arrays;
+import java.util.List;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.allOf;
@@ -56,14 +56,14 @@ public class PValueScoreTests extends AbstractNXYSignificanceHeuristicTestCase {
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(
-            new SearchModule(Settings.EMPTY, Arrays.asList(new MachineLearning(Settings.EMPTY, null))).getNamedXContents()
+            new SearchModule(Settings.EMPTY, List.of(new MachineLearning(Settings.EMPTY))).getNamedXContents()
         );
     }
 
     @Override
     protected NamedWriteableRegistry writableRegistry() {
         return new NamedWriteableRegistry(
-            new SearchModule(Settings.EMPTY, Arrays.asList(new MachineLearning(Settings.EMPTY, null))).getNamedWriteables()
+            new SearchModule(Settings.EMPTY, List.of(new MachineLearning(Settings.EMPTY))).getNamedWriteables()
         );
     }
 

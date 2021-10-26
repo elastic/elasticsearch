@@ -13,7 +13,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.mock.orig.Mockito;
+import org.mockito.Mockito;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.sort.SortBuilder;

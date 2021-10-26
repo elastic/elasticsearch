@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.startsWith;
 
+@SuppressWarnings("removal")
 public class EnrollmentDocumentationIT extends ESRestHighLevelClientTestCase {
     static Path HTTP_TRUSTSTORE;
 

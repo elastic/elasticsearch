@@ -109,8 +109,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.mock.orig.Mockito.times;
-import static org.elasticsearch.mock.orig.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
@@ -608,12 +608,11 @@ public class CompositeRolesStoreTests extends ESTestCase {
                         .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
                         .numberOfShards(1).numberOfReplicas(0).build(), true)
                 .build();
-        Map<String, IndicesAccessControl.IndexAccessControl> acls = role.indices().authorize("indices:data/read/search",
+        IndicesAccessControl iac = role.indices().authorize("indices:data/read/search",
             Collections.singleton("test"), metadata.getIndicesLookup(), cache);
-        assertFalse(acls.isEmpty());
-        assertTrue(acls.get("test").getFieldPermissions().grantsAccessTo("L1.foo"));
-        assertFalse(acls.get("test").getFieldPermissions().grantsAccessTo("L2.foo"));
-        assertTrue(acls.get("test").getFieldPermissions().grantsAccessTo("L3.foo"));
+        assertTrue(iac.getIndexPermissions("test").getFieldPermissions().grantsAccessTo("L1.foo"));
+        assertFalse(iac.getIndexPermissions("test").getFieldPermissions().grantsAccessTo("L2.foo"));
+        assertTrue(iac.getIndexPermissions("test").getFieldPermissions().grantsAccessTo("L3.foo"));
     }
 
     public void testMergingBasicRoles() {

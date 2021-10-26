@@ -239,7 +239,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
      */
     private static ClusterState removeSkippedSettings(ClusterState state, String[] indexNames, List<String> skipTheseDeprecatedSettings) {
         ClusterState.Builder clusterStateBuilder = new ClusterState.Builder(state);
-        Metadata.Builder metadataBuilder = new Metadata.Builder(state.metadata());
+        Metadata.Builder metadataBuilder = Metadata.builder(state.metadata());
         metadataBuilder.transientSettings(
             metadataBuilder.transientSettings().filter(setting -> Regex.simpleMatch(skipTheseDeprecatedSettings, setting) == false));
         metadataBuilder.persistentSettings(

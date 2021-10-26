@@ -542,12 +542,9 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
     private ClusterState givenNodeCount(int nodeCount) {
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
         for (int i = 0; i < nodeCount; i++) {
-            Map<String, String> attrs = new HashMap<>();
-            attrs.put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, Integer.toString(20));
-            Set<DiscoveryNodeRole> roles = new HashSet<>();
-            roles.add(DiscoveryNodeRole.DATA_ROLE);
-            roles.add(DiscoveryNodeRole.MASTER_ROLE);
-            roles.add(DiscoveryNodeRole.INGEST_ROLE);
+            Map<String, String> attrs = Map.of(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "1000000000");
+            Set<DiscoveryNodeRole> roles = Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE,
+                DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.ML_ROLE);
             nodesBuilder.add(new DiscoveryNode("ml-feature-set-given-ml-node-" + i,
                 new TransportAddress(TransportAddress.META_ADDRESS, 9100 + i),
                 attrs,
@@ -687,7 +684,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             IntStream.range(0, pipelineNames.size()).boxed().collect(Collectors.toMap(pipelineNames::get, processorStats::get)));
         return new NodeStats(mock(DiscoveryNode.class),
             Instant.now().toEpochMilli(), null, null, null, null, null, null, null, null,
-            null, null, null, ingestStats, null, null);
+            null, null, null, ingestStats, null, null, null);
 
     }
 

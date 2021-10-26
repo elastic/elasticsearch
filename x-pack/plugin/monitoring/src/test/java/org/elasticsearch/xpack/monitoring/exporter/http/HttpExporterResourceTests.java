@@ -76,7 +76,9 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     private final List<String> templateNames = new ArrayList<>(EXPECTED_TEMPLATES);
     private final List<String> watchNames = new ArrayList<>(EXPECTED_WATCHES);
 
-    private final Settings exporterSettings = Settings.builder().build();
+    private final Settings exporterSettings = Settings.builder()
+        .put("xpack.monitoring.exporters._http.cluster_alerts.management.enabled", true)
+        .build();
 
     private final MultiHttpResource resources =
             HttpExporter.createResources(
@@ -120,7 +122,6 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         verifyNoMoreInteractions(client);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78736")
     public void testTemplateCheckBlocksAfterSuccessfulVersion() {
         final Exception exception = failureGetException();
         final boolean firstSucceeds = randomBoolean();
@@ -159,8 +160,8 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
                 expectedGets += successful + 1; // the string of successes, then the last failure.
             }
 
-            if (unsuccessful == 0) {
-                // There is only going to be one response, and it will be an exception
+            if (successfulFirst && unsuccessful == 0) {
+                // In this case, there will be only one failed response, and it'll be an exception
                 expectedResult = null;
             } else {
                 // The first bad response will be either a 404 or a template with an old version
@@ -363,6 +364,13 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         verifyPutWatches(0);
         verifyDeleteWatches(EXPECTED_WATCHES);
         verifyNoMoreInteractions(client);
+
+        assertWarnings(
+            "[xpack.monitoring.migration.decommission_alerts] setting was deprecated in Elasticsearch and will be " +
+                "removed in a future release! See the breaking changes documentation for the next major version.",
+            "[xpack.monitoring.exporters._http.cluster_alerts.management.enabled] setting was deprecated in Elasticsearch and " +
+                "will be removed in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testSuccessfulChecksOnElectedMasterNode() {
@@ -429,6 +437,9 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         verifyVersionCheck();
         verifyGetTemplates(EXPECTED_TEMPLATES);
         verifyNoMoreInteractions(client);
+
+        assertWarnings("[xpack.monitoring.exporters._http.cluster_alerts.management.enabled] setting was deprecated in Elasticsearch " +
+            "and will be removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     private Exception failureGetException() {
@@ -633,37 +644,39 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     }
 
     private void verifyVersionCheck() {
-        verify(client).performRequestAsync(argThat(new RequestMatcher(is("GET"), is("/"))), any(ResponseListener.class));
+        verify(client).performRequestAsync(argThat(new RequestMatcher(is("GET"), is("/"))::matches), any(ResponseListener.class));
     }
 
     private void verifyGetTemplates(final int called) {
         verify(client, times(called))
-            .performRequestAsync(argThat(new RequestMatcher(is("GET"), startsWith("/_template/"))), any(ResponseListener.class));
+            .performRequestAsync(argThat(new RequestMatcher(is("GET"), startsWith("/_template/"))::matches), any(ResponseListener.class));
     }
 
     private void verifyPutTemplates(final int called) {
         verify(client, times(called))
-            .performRequestAsync(argThat(new RequestMatcher(is("PUT"), startsWith("/_template/"))), any(ResponseListener.class));
+            .performRequestAsync(argThat(new RequestMatcher(is("PUT"), startsWith("/_template/"))::matches), any(ResponseListener.class));
     }
 
     private void verifyWatcherCheck() {
-        verify(client).performRequestAsync(argThat(new RequestMatcher(is("GET"), is("/_xpack"))), any(ResponseListener.class));
+        verify(client).performRequestAsync(argThat(new RequestMatcher(is("GET"), is("/_xpack"))::matches), any(ResponseListener.class));
     }
 
     private void verifyDeleteWatches(final int called) {
         verify(client, times(called))
-            .performRequestAsync(argThat(new RequestMatcher(is("DELETE"), startsWith("/_watcher/watch/"))),
+            .performRequestAsync(argThat(new RequestMatcher(is("DELETE"), startsWith("/_watcher/watch/"))::matches),
                                  any(ResponseListener.class));
     }
 
     private void verifyGetWatches(final int called) {
         verify(client, times(called))
-            .performRequestAsync(argThat(new RequestMatcher(is("GET"), startsWith("/_watcher/watch/"))), any(ResponseListener.class));
+            .performRequestAsync(argThat(new RequestMatcher(is("GET"), startsWith("/_watcher/watch/"))::matches),
+                any(ResponseListener.class));
     }
 
     private void verifyPutWatches(final int called) {
         verify(client, times(called))
-            .performRequestAsync(argThat(new RequestMatcher(is("PUT"), startsWith("/_watcher/watch/"))), any(ResponseListener.class));
+            .performRequestAsync(argThat(new RequestMatcher(is("PUT"), startsWith("/_watcher/watch/"))::matches),
+                any(ResponseListener.class));
     }
 
     private ClusterService mockClusterService(final ClusterState state) {

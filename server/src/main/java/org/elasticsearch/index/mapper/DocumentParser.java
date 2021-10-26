@@ -15,13 +15,10 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -29,6 +26,10 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -575,6 +576,7 @@ public final class DocumentParser {
             if (dynamic == ObjectMapper.Dynamic.STRICT) {
                 throw new StrictDynamicMappingException(mapper.fullPath(), currentFieldName);
             } else if (dynamic == ObjectMapper.Dynamic.FALSE) {
+                failIfMatchesRoutingPath(context, parentMapper, currentFieldName);
                 // not dynamic, read everything up to end object
                 context.parser().skipChildren();
             } else {
@@ -710,9 +712,22 @@ public final class DocumentParser {
             throw new StrictDynamicMappingException(parentMapper.fullPath(), currentFieldName);
         }
         if (dynamic == ObjectMapper.Dynamic.FALSE) {
+            failIfMatchesRoutingPath(context, parentMapper, currentFieldName);
             return;
         }
         dynamic.getDynamicFieldsBuilder().createDynamicFieldFromValue(context, token, currentFieldName);
+    }
+
+    private static void failIfMatchesRoutingPath(DocumentParserContext context, ObjectMapper parentMapper, String currentFieldName) {
+        if (context.indexSettings().getIndexMetadata().getRoutingPaths().isEmpty()) {
+            return;
+        }
+        String path = parentMapper.fullPath().isEmpty() ? currentFieldName : parentMapper.fullPath() + "." + currentFieldName;
+        if (Regex.simpleMatch(context.indexSettings().getIndexMetadata().getRoutingPaths(), path)) {
+            throw new MapperParsingException(
+                "All fields matching [routing_path] must be mapped but [" + path + "] was declared as [dynamic: false]"
+            );
+        }
     }
 
     /**

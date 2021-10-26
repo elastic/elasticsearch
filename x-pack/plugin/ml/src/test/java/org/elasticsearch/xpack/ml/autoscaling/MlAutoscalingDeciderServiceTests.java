@@ -46,7 +46,6 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -88,7 +87,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         when(mlMemoryTracker.getTrainedModelAllocationMemoryRequirement(any())).thenReturn(DEFAULT_JOB_SIZE);
         nodeLoadDetector = mock(NodeLoadDetector.class);
         when(nodeLoadDetector.getMlMemoryTracker()).thenReturn(mlMemoryTracker);
-        when(nodeLoadDetector.detectNodeLoad(any(), anyBoolean(), any(), anyInt(), anyInt(), anyBoolean()))
+        when(nodeLoadDetector.detectNodeLoad(any(), any(), anyInt(), anyInt(), anyBoolean()))
             .thenReturn(NodeLoad.builder("any")
                 .setUseMemory(true)
                 .incAssignedJobMemory(ByteSizeValue.ofGb(1).getBytes())
@@ -704,9 +703,8 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 MapBuilder.<String, String>newMapBuilder()
                     .put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, String.valueOf(DEFAULT_NODE_SIZE))
                     .put(MachineLearning.MAX_JVM_SIZE_NODE_ATTR, String.valueOf(DEFAULT_JVM_SIZE))
-                    .put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, String.valueOf(10))
                     .map(),
-                new HashSet<>(Arrays.asList(DiscoveryNodeRole.MASTER_ROLE)),
+                Set.of(DiscoveryNodeRole.ML_ROLE),
                 Version.CURRENT))
             .collect(Collectors.toList());
     }

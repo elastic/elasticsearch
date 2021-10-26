@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -162,7 +163,8 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         executeAsyncWithOrigin(client,
             ML_ORIGIN,
             InferTrainedModelDeploymentAction.INSTANCE,
-            new InferTrainedModelDeploymentAction.Request(modelId, inferenceConfigUpdate, Collections.singletonList(doc), null),
+            new InferTrainedModelDeploymentAction.Request(modelId, inferenceConfigUpdate, Collections.singletonList(doc),
+                TimeValue.MAX_VALUE),
             ActionListener.wrap(
                 r -> listener.onResponse(r.getResults()),
                 e -> {

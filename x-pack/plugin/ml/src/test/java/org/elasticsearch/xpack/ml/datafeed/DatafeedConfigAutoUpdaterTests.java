@@ -179,7 +179,7 @@ public class DatafeedConfigAutoUpdaterTests extends ESTestCase {
         final ClusterState clusterState = csBuilder.build();
         assertThat(updater.isAbleToRun(clusterState), is(true));
 
-        metadata = new Metadata.Builder(clusterState.metadata());
+        metadata = Metadata.builder(clusterState.metadata());
         routingTable = new RoutingTable.Builder(clusterState.routingTable());
         if (randomBoolean()) {
             routingTable.remove(MlConfigIndex.indexName());

@@ -89,7 +89,6 @@ public class FormattingPrecommitPlugin implements Plugin<Project> {
             return new String[] {
                 "src/*/java/org/elasticsearch/action/admin/cluster/repositories/**/*.java",
                 "src/*/java/org/elasticsearch/action/admin/cluster/snapshots/**/*.java",
-                "src/test/java/org/elasticsearch/common/xcontent/support/AbstractFilteringTestCase.java",
                 "src/test/java/org/elasticsearch/common/xcontent/support/XContentMapValuesTests.java",
                 "src/*/java/org/elasticsearch/index/IndexMode.java",
                 "src/*/java/org/elasticsearch/index/IndexRouting.java",
@@ -98,6 +97,10 @@ public class FormattingPrecommitPlugin implements Plugin<Project> {
                 "src/*/java/org/elasticsearch/repositories/**/*.java",
                 "src/*/java/org/elasticsearch/search/aggregations/**/*.java",
                 "src/*/java/org/elasticsearch/snapshots/**/*.java" };
+        } else if (projectPath.equals(":test:framework")) {
+            return new String[] {
+                "src/test/java/org/elasticsearch/common/xcontent/support/AbstractFilteringTestCase.java",
+            };
         } else {
             // Normally this isn"t necessary, but we have Java sources in
             // non-standard places
@@ -115,6 +118,10 @@ public class FormattingPrecommitPlugin implements Plugin<Project> {
         ":client:sniffer",
         ":client:test",
         ":distribution:archives:integ-test-zip",
+        ":distribution:bwc:bugfix",
+        ":distribution:bwc:maintenance",
+        ":distribution:bwc:minor",
+        ":distribution:bwc:staged",
         ":distribution:docker",
         ":docs",
         ":example-plugins:custom-settings",
@@ -203,7 +210,6 @@ public class FormattingPrecommitPlugin implements Plugin<Project> {
         ":test:fixtures:geoip-fixture",
         ":test:fixtures:krb5kdc-fixture",
         ":test:fixtures:old-elasticsearch",
-        ":test:framework",
         ":test:logger-usage",
         ":x-pack:docs",
         ":x-pack:license-tools",

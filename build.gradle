@@ -116,12 +116,6 @@ tasks.register("verifyVersions") {
         throw new GradleException("No branch choice exists for development branch ${unreleasedVersion.branch} in .backportrc.json.")
       }
     }
-    BwcVersions.UnreleasedVersionInfo nextMinor = unreleased.find { it.branch.endsWith("x") }
-    String versionMapping = backportConfig.get("branchLabelMapping").fields().find { it.value.textValue() == nextMinor.branch }.key
-    if (versionMapping != "^v${nextMinor.version}\$") {
-      throw new GradleException("Backport label mapping for branch ${nextMinor.branch} is '${versionMapping}' but should be " +
-        "'^v${nextMinor.version}\$'. Update .backportrc.json.")
-    }
   }
 }
 

@@ -28,7 +28,7 @@ public class InternalKSTestAggregationTests extends InternalAggregationTestCase<
 
     @Override
     protected SearchPlugin registerPlugin() {
-        return new MachineLearning(Settings.EMPTY, null);
+        return new MachineLearning(Settings.EMPTY);
     }
 
     @Override

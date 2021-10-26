@@ -200,7 +200,7 @@ public class IndexingIT extends AbstractRollingTestCase {
                 Request index = new Request("POST", "/" + indexName + "/_doc/");
                 XContentBuilder doc = XContentBuilder.builder(XContentType.JSON.xContent())
                     .startObject()
-                        .field("date", "2015-01-01T12:10:30.123456789Z")
+                        .field("date", "2015-01-01T12:10:30.123Z")
                         .field("date_nanos", "2015-01-01T12:10:30.123456789Z")
                     .endObject();
                 index.addParameter("refresh", "true");

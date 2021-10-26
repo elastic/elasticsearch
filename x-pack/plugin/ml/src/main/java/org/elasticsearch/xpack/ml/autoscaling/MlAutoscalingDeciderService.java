@@ -425,7 +425,6 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
         boolean nodeIsMemoryAccurate = true;
         for (DiscoveryNode node : nodes) {
             NodeLoad nodeLoad = nodeLoadDetector.detectNodeLoad(clusterState,
-                true,
                 node,
                 maxOpenJobs,
                 maxMachineMemoryPercent,
@@ -859,7 +858,6 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
         Map<String, Long> freeMemoryByNodeId = new HashMap<>();
         for (DiscoveryNode node : mlNodes) {
             NodeLoad nodeLoad = nodeLoadDetector.detectNodeLoad(clusterState,
-                true,
                 node,
                 maxOpenJobs,
                 maxMachineMemoryPercent,

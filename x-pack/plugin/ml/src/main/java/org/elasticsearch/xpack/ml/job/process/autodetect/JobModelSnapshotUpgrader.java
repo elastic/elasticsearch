@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
+import org.elasticsearch.xpack.ml.job.process.ProcessWorkerExecutorService;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.JobSnapshotUpgraderResultProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
@@ -117,7 +118,7 @@ public final class JobModelSnapshotUpgrader {
             snapshotId,
             jobResultsPersister,
             process);
-        AutodetectWorkerExecutorService autodetectWorkerExecutor;
+        ProcessWorkerExecutorService autodetectWorkerExecutor;
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
             autodetectWorkerExecutor = new AutodetectWorkerExecutorService(threadPool.getThreadContext());
             autodetectExecutorService.submit(autodetectWorkerExecutor::start);

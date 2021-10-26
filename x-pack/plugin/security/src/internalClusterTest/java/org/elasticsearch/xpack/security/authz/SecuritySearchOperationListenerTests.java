@@ -8,13 +8,12 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
@@ -32,15 +31,16 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.Authoriza
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.junit.Before;
 
 import java.util.Collections;
 
-import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_KEY;
+import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 import static org.elasticsearch.xpack.security.authz.AuthorizationServiceTests.authzInfoRoles;
 import static org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener.ensureAuthenticatedUserIsSame;
 import static org.hamcrest.Matchers.is;
@@ -98,8 +98,8 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null));
             final IndicesAccessControl indicesAccessControl = mock(IndicesAccessControl.class);
             readerContext.putInContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
-            XPackLicenseState licenseState = mock(XPackLicenseState.class);
-            when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
+            MockLicenseState licenseState = mock(MockLicenseState.class);
+            when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
             ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
             final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
             AuditTrail auditTrail = mock(AuditTrail.class);
@@ -191,8 +191,8 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
         ShardSearchContextId contextId = new ShardSearchContextId(UUIDs.randomBase64UUID(), randomLong());
         final String action = randomAlphaOfLength(4);
         TransportRequest request = Empty.INSTANCE;
-        XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
+        MockLicenseState licenseState = mock(MockLicenseState.class);
+        when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
         AuditTrail auditTrail = mock(AuditTrail.class);
         AuditTrailService auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
 

@@ -60,8 +60,12 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.ClosePointInTimeAction;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.OpenPointInTimeAction;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.ParsedScrollId;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
@@ -88,22 +92,21 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.bulk.stats.BulkOperationListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -113,10 +116,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.action.search.ClosePointInTimeAction;
-import org.elasticsearch.action.search.ClosePointInTimeRequest;
-import org.elasticsearch.action.search.OpenPointInTimeAction;
-import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
@@ -154,6 +154,7 @@ import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
@@ -164,7 +165,6 @@ import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
-import org.hamcrest.Description;
 import org.junit.Before;
 import org.mockito.ArgumentMatcher;
 import org.mockito.Matchers;
@@ -201,8 +201,8 @@ import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceFi
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_KEY;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
-import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON;
+import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
@@ -250,8 +250,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         auditTrail = mock(AuditTrail.class);
-        XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
+        MockLicenseState licenseState = mock(MockLicenseState.class);
+        when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
         auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
         threadContext = new ThreadContext(settings);
         threadPool = mock(ThreadPool.class);
@@ -364,7 +364,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final ElasticsearchSecurityException operatorPrivilegesException =
             new ElasticsearchSecurityException("Operator privileges check failed");
         if (shouldFailOperatorPrivilegesCheck) {
-            when(operatorPrivilegesService.check(action, request, threadContext)).thenAnswer(invocationOnMock -> {
+            when(operatorPrivilegesService.check(authentication, action, request, threadContext)).thenAnswer(invocationOnMock -> {
                 operatorPrivilegesChecked.set(true);
                 return operatorPrivilegesException;
             });
@@ -376,7 +376,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             authorizationInfo.onResponse(threadContext.getTransient(AUTHORIZATION_INFO_KEY));
             indicesPermissions.onResponse(threadContext.getTransient(INDICES_PERMISSIONS_KEY));
 
-            assertNull(verify(operatorPrivilegesService).check(action, request, threadContext));
+            assertNull(verify(operatorPrivilegesService).check(authentication, action, request, threadContext));
 
             if (listenerBody != null) {
                 listenerBody.run();
@@ -1968,8 +1968,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             }
         };
 
-        XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_ENGINE)).thenReturn(true);
+        MockLicenseState licenseState = mock(MockLicenseState.class);
+        when(licenseState.isAllowed(Security.AUTHORIZATION_ENGINE_FEATURE)).thenReturn(true);
         authorizationService = new AuthorizationService(Settings.EMPTY, rolesStore, clusterService,
             auditTrailService, new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool,
             new AnonymousUser(Settings.EMPTY), engine, Collections.emptySet(), licenseState,
@@ -1978,61 +1978,61 @@ public class AuthorizationServiceTests extends ESTestCase {
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             authentication = createAuthentication(new User("test user", "a_all"));
             assertEquals(engine, authorizationService.getAuthorizationEngine(authentication));
-            when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_ENGINE)).thenReturn(false);
+            when(licenseState.isAllowed(Security.AUTHORIZATION_ENGINE_FEATURE)).thenReturn(false);
             assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
         }
 
-        when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_ENGINE)).thenReturn(true);
+        when(licenseState.isAllowed(Security.AUTHORIZATION_ENGINE_FEATURE)).thenReturn(true);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             authentication = createAuthentication(new User("runas", new String[]{"runas_role"}, new User("runner", "runner_role")));
             assertEquals(engine, authorizationService.getAuthorizationEngine(authentication));
             assertEquals(engine, authorizationService.getRunAsAuthorizationEngine(authentication));
-            when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_ENGINE)).thenReturn(false);
+            when(licenseState.isAllowed(Security.AUTHORIZATION_ENGINE_FEATURE)).thenReturn(false);
             assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
             assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
         }
 
-        when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_ENGINE)).thenReturn(true);
+        when(licenseState.isAllowed(Security.AUTHORIZATION_ENGINE_FEATURE)).thenReturn(true);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             authentication = createAuthentication(new User("runas", new String[]{"runas_role"}, new ElasticUser(true)));
             assertEquals(engine, authorizationService.getAuthorizationEngine(authentication));
             assertNotEquals(engine, authorizationService.getRunAsAuthorizationEngine(authentication));
             assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
-            when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_ENGINE)).thenReturn(false);
+            when(licenseState.isAllowed(Security.AUTHORIZATION_ENGINE_FEATURE)).thenReturn(false);
             assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
             assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
         }
 
-        when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_ENGINE)).thenReturn(true);
+        when(licenseState.isAllowed(Security.AUTHORIZATION_ENGINE_FEATURE)).thenReturn(true);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             authentication = createAuthentication(new User("elastic", new String[]{"superuser"}, new User("runner", "runner_role")));
             assertNotEquals(engine, authorizationService.getAuthorizationEngine(authentication));
             assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
             assertEquals(engine, authorizationService.getRunAsAuthorizationEngine(authentication));
-            when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_ENGINE)).thenReturn(false);
+            when(licenseState.isAllowed(Security.AUTHORIZATION_ENGINE_FEATURE)).thenReturn(false);
             assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
             assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
         }
 
-        when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_ENGINE)).thenReturn(true);
+        when(licenseState.isAllowed(Security.AUTHORIZATION_ENGINE_FEATURE)).thenReturn(true);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             authentication = createAuthentication(new User("kibana", new String[]{"kibana_system"}, new ElasticUser(true)));
             assertNotEquals(engine, authorizationService.getAuthorizationEngine(authentication));
             assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
             assertNotEquals(engine, authorizationService.getRunAsAuthorizationEngine(authentication));
             assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
-            when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_ENGINE)).thenReturn(false);
+            when(licenseState.isAllowed(Security.AUTHORIZATION_ENGINE_FEATURE)).thenReturn(false);
             assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
             assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
         }
 
-        when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_ENGINE)).thenReturn(true);
+        when(licenseState.isAllowed(Security.AUTHORIZATION_ENGINE_FEATURE)).thenReturn(true);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             authentication = createAuthentication(randomFrom(XPackUser.INSTANCE, XPackSecurityUser.INSTANCE,
                 new ElasticUser(true), new KibanaUser(true)));
             assertNotEquals(engine, authorizationService.getRunAsAuthorizationEngine(authentication));
             assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
-            when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_ENGINE)).thenReturn(false);
+            when(licenseState.isAllowed(Security.AUTHORIZATION_ENGINE_FEATURE)).thenReturn(false);
             assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
             assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
         }
@@ -2093,7 +2093,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         return Matchers.argThat(new RBACAuthorizationInfoRoleMatcher(expectedRoles));
     }
 
-    private static class RBACAuthorizationInfoRoleMatcher extends ArgumentMatcher<AuthorizationInfo> {
+    private static class RBACAuthorizationInfoRoleMatcher implements ArgumentMatcher<AuthorizationInfo> {
 
         private final String[] wanted;
 
@@ -2102,17 +2102,9 @@ public class AuthorizationServiceTests extends ESTestCase {
         }
 
         @Override
-        public boolean matches(Object item) {
-            if (item instanceof AuthorizationInfo) {
-                final String[] found = (String[]) ((AuthorizationInfo) item).asMap().get(PRINCIPAL_ROLES_FIELD_NAME);
-                return Arrays.equals(wanted, found);
-            }
-            return false;
-        }
-
-        @Override
-        public void describeTo(Description description) {
-            description.appendText("RBAC AuthorizationInfo Roles[").appendText(Strings.arrayToCommaDelimitedString(wanted)).appendText("]");
+        public boolean matches(AuthorizationInfo other) {
+            final String[] found = (String[]) other.asMap().get(PRINCIPAL_ROLES_FIELD_NAME);
+            return Arrays.equals(wanted, found);
         }
     }
 

@@ -23,7 +23,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -180,7 +179,6 @@ import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConst
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
-import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.ml.action.TransportCloseJobAction;
@@ -414,7 +412,6 @@ import org.elasticsearch.xpack.ml.rest.validate.RestValidateJobConfigAction;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -424,7 +421,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -472,6 +468,11 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         "model-inference",
         License.OperationMode.PLATINUM
     );
+    public static final LicensedFeature.Persistent ML_PYTORCH_MODEL_INFERENCE_FEATURE = LicensedFeature.persistent(
+        MachineLearningField.ML_FEATURE_FAMILY,
+        "pytorch-model-inference",
+        License.OperationMode.PLATINUM
+    );
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
@@ -486,9 +487,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         return Collections.singletonMap(InferenceProcessor.TYPE, inferenceFactory);
     }
 
-    // This is not used in v7 and higher, but users are still prevented from setting it directly to avoid confusion
-    private static final String PRE_V7_ML_ENABLED_NODE_ATTR = "ml.enabled";
-    public static final String MAX_OPEN_JOBS_NODE_ATTR = "ml.max_open_jobs";
+    // This is not used in v8 and higher, but users are still prevented from setting it directly to avoid confusion
+    private static final String PRE_V8_MAX_OPEN_JOBS_NODE_ATTR = "ml.max_open_jobs";
     public static final String MACHINE_MEMORY_NODE_ATTR = "ml.machine_memory";
     public static final String MAX_JVM_SIZE_NODE_ATTR = "ml.max_jvm_size";
     public static final Setting<Integer> CONCURRENT_JOB_ALLOCATIONS =
@@ -531,6 +531,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     // as the current node could be running in a cluster where some nodes are still using
     // that setting.  From 8.0.0 onwards we have the flexibility to increase it...
     private static final int MAX_MAX_OPEN_JOBS_PER_NODE = 512;
+    public static final int DEFAULT_MAX_OPEN_JOBS_PER_NODE = MAX_MAX_OPEN_JOBS_PER_NODE;
     // This setting is cluster-wide and can be set dynamically. However, prior to version 7.1 it was
     // a non-dynamic per-node setting. n a mixed version cluster containing 6.7 or 7.0 nodes those
     // older nodes will not react to the dynamic changes. Therefore, in such mixed version clusters
@@ -538,7 +539,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     public static final Setting<Integer> MAX_OPEN_JOBS_PER_NODE =
             Setting.intSetting(
                 "xpack.ml.max_open_jobs",
-                MAX_MAX_OPEN_JOBS_PER_NODE,
+                DEFAULT_MAX_OPEN_JOBS_PER_NODE,
                 1,
                 MAX_MAX_OPEN_JOBS_PER_NODE,
                 Property.Dynamic,
@@ -614,7 +615,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     private final SetOnce<DeploymentManager> deploymentManager = new SetOnce<>();
     private final SetOnce<TrainedModelAllocationClusterService> trainedModelAllocationClusterServiceSetOnce = new SetOnce<>();
 
-    public MachineLearning(Settings settings, Path configPath) {
+    public MachineLearning(Settings settings) {
         this.settings = settings;
         this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(settings);
     }
@@ -622,12 +623,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
 
     public static boolean isMlNode(DiscoveryNode node) {
-        Map<String, String> nodeAttributes = node.getAttributes();
-        try {
-            return Integer.parseInt(nodeAttributes.get(MAX_OPEN_JOBS_NODE_ATTR)) > 0;
-        } catch (NumberFormatException e) {
-            return false;
-        }
+        logger.info("DMR node roles are " + node.getRoles());
+        return node.getRoles().contains(DiscoveryNodeRole.ML_ROLE);
     }
 
     public List<Setting<?>> getSettings() {
@@ -654,29 +651,24 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     }
 
     public Settings additionalSettings() {
-        String mlEnabledNodeAttrName = "node.attr." + PRE_V7_ML_ENABLED_NODE_ATTR;
-        String maxOpenJobsPerNodeNodeAttrName = "node.attr." + MAX_OPEN_JOBS_NODE_ATTR;
+        String maxOpenJobsPerNodeNodeAttrName = "node.attr." + PRE_V8_MAX_OPEN_JOBS_NODE_ATTR;
         String machineMemoryAttrName = "node.attr." + MACHINE_MEMORY_NODE_ATTR;
         String jvmSizeAttrName = "node.attr." + MAX_JVM_SIZE_NODE_ATTR;
 
         if (enabled == false) {
-            disallowMlNodeAttributes(mlEnabledNodeAttrName, maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName);
+            disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName, jvmSizeAttrName);
             return Settings.EMPTY;
         }
 
         Settings.Builder additionalSettings = Settings.builder();
         if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.ML_ROLE)) {
-            // TODO: stop setting this attribute in 8.0.0 but disallow it (like mlEnabledNodeAttrName below)
-            // The ML UI will need to be changed to check machineMemoryAttrName instead before this is done
-            addMlNodeAttribute(additionalSettings, maxOpenJobsPerNodeNodeAttrName,
-                    String.valueOf(MAX_OPEN_JOBS_PER_NODE.get(settings)));
             addMlNodeAttribute(additionalSettings, machineMemoryAttrName,
                     Long.toString(OsProbe.getInstance().osStats().getMem().getAdjustedTotal().getBytes()));
             addMlNodeAttribute(additionalSettings, jvmSizeAttrName, Long.toString(Runtime.getRuntime().maxMemory()));
-            // This is not used in v7 and higher, but users are still prevented from setting it directly to avoid confusion
-            disallowMlNodeAttributes(mlEnabledNodeAttrName);
+            // This is not used in v8 and higher, but users are still prevented from setting it directly to avoid confusion
+            disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName);
         } else {
-            disallowMlNodeAttributes(mlEnabledNodeAttrName,
+            disallowMlNodeAttributes(
                 maxOpenJobsPerNodeNodeAttrName,
                 machineMemoryAttrName,
                 jvmSizeAttrName
@@ -900,7 +892,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 clusterService, datafeedRunner, mlController, autodetectProcessManager, dataFrameAnalyticsManager, memoryTracker);
         this.mlLifeCycleService.set(mlLifeCycleService);
         MlAssignmentNotifier mlAssignmentNotifier = new MlAssignmentNotifier(anomalyDetectionAuditor, dataFrameAnalyticsAuditor, threadPool,
-            new MlConfigMigrator(settings, client, clusterService, indexNameExpressionResolver), clusterService);
+            clusterService);
 
         MlAutoUpdateService mlAutoUpdateService = new MlAutoUpdateService(threadPool,
             List.of(new DatafeedConfigAutoUpdater(datafeedConfigProvider, indexNameExpressionResolver)));
@@ -1091,9 +1083,9 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         var infoAction =
             new ActionHandler<>(XPackInfoFeatureAction.MACHINE_LEARNING, MachineLearningInfoTransportAction.class);
         if (false == enabled) {
-            return Arrays.asList(usageAction, infoAction);
+            return List.of(usageAction, infoAction);
         }
-        return Arrays.asList(
+        return List.of(
                 new ActionHandler<>(GetJobsAction.INSTANCE, TransportGetJobsAction.class),
                 new ActionHandler<>(GetJobsStatsAction.INSTANCE, TransportGetJobsStatsAction.class),
                 new ActionHandler<>(MlInfoAction.INSTANCE, TransportMlInfoAction.class),
@@ -1216,7 +1208,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         ScalingExecutorBuilder datafeed = new ScalingExecutorBuilder(DATAFEED_THREAD_POOL_NAME,
             1, MAX_MAX_OPEN_JOBS_PER_NODE, TimeValue.timeValueMinutes(1), "xpack.ml.datafeed_thread_pool");
 
-        return Arrays.asList(jobComms, utility, datafeed);
+        return List.of(jobComms, utility, datafeed);
     }
 
     @Override
@@ -1244,14 +1236,14 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
 
     @Override
     public List<SignificanceHeuristicSpec<?>> getSignificanceHeuristics() {
-        return Arrays.asList(
+        return List.of(
             new SignificanceHeuristicSpec<>(PValueScore.NAME, PValueScore::new, PValueScore.PARSER)
         );
     }
 
     @Override
     public List<AggregationSpec> getAggregations() {
-        return Arrays.asList(
+        return List.of(
             new AggregationSpec(
                 CategorizeTextAggregationBuilder.NAME,
                 CategorizeTextAggregationBuilder::new,
@@ -1261,21 +1253,14 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         );
     }
 
-    @Override
-    public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
-        return UnaryOperator.identity();
-    }
-
-    public static boolean allTemplatesInstalled(ClusterState clusterState) {
+    public static boolean criticalTemplatesInstalled(ClusterState clusterState) {
         boolean allPresent = true;
-        List<String> templateNames =
-            Arrays.asList(
-                NotificationsIndex.NOTIFICATIONS_INDEX,
-                STATE_INDEX_PREFIX,
-                AnomalyDetectorsIndex.jobResultsIndexPrefix());
+        // The templates for the notifications and stats indices are not critical up-front because
+        // every notification and stats update checks if the appropriate template is installed and
+        // installs it if necessary
+        List<String> templateNames = List.of(STATE_INDEX_PREFIX, AnomalyDetectorsIndex.jobResultsIndexPrefix());
         for (String templateName : templateNames) {
-            allPresent = allPresent && TemplateUtils.checkTemplateExistsAndVersionIsGTECurrentVersion(templateName, clusterState,
-                MlIndexTemplateRegistry.COMPOSABLE_TEMPLATE_SWITCH_VERSION);
+            allPresent = allPresent && TemplateUtils.checkTemplateExistsAndVersionIsGTECurrentVersion(templateName, clusterState);
         }
 
         return allPresent;

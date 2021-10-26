@@ -100,6 +100,7 @@ public class AutoConfigureNodeTests extends ESTestCase {
             "xpack.security.http.ssl.keystore.path: /path/to/the/file",
             "xpack.security.transport.ssl.keystore.path: /path/to/the/file",
             "xpack.security.transport.ssl.truststore.path: /path/to/the/file",
+            "",
             AutoConfigureNode.AUTO_CONFIGURATION_END_MARKER);
         assertEquals(file1, removePreviousAutoconfiguration(file2));
     }

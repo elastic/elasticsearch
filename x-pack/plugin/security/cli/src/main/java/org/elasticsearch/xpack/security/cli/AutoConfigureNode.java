@@ -219,6 +219,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 if (shouldContinue == false) {
                     throw new UserException(ExitCodes.OK, "User cancelled operation");
                 }
+                removeAutoConfigurationFromKeystore(env, terminal);
                 try {
                     fullyWriteFile(env.configFile(), "elasticsearch.yml", true, stream -> {
                         try (BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8))) {
@@ -229,11 +230,10 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                         }
                     });
                     deleteDirectory(env.configFile().resolve(autoConfigDirName));
-                    removeAutoConfigurationFromKeystore(env, terminal);
                 } catch (Throwable t) {
                     throw new UserException(
                         ExitCodes.IO_ERROR,
-                        "Aborting enrolling to cluster. Unable to restore existing configuration.",
+                        "Aborting enrolling to cluster. Unable to remove existing security configuration.",
                         t
                     );
                 }
@@ -242,7 +242,8 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             } else {
                 throw new UserException(
                     ExitCodes.USAGE,
-                    "This node doesn't appear to be auto-configured for security. Necessary configuration missing from elasticsearch.yml."
+                    "Aborting enrolling to cluster. This node doesn't appear to be auto-configured for security. "
+                        + "Expected configuration is missing from elasticsearch.yml."
                 );
             }
         }
@@ -969,11 +970,15 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         if (autoConfigDirNameList.isEmpty()) {
             throw new UserException(
                 ExitCodes.USAGE,
-                "This node doesn't appear to be auto-configured for security. " +
-                    "The directory with generated keys and certificates for TLS is missing."
+                "Aborting enrolling to cluster. This node doesn't appear to be auto-configured for security. "
+                    + "The directory with generated keys and certificates for TLS is missing."
             );
         } else if (autoConfigDirNameList.size() > 1) {
-            throw new UserException(ExitCodes.USAGE, "Multiple tls auto-configuration directories found.");
+            throw new UserException(
+                ExitCodes.USAGE,
+                "Aborting enrolling to cluster. Multiple directories with generated keys and certificates for TLS found: "
+                    + autoConfigDirNameList
+            );
         } else {
             return autoConfigDirNameList.get(0);
         }
@@ -994,18 +999,24 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             final String foundAutoConfigurationSettingsAsString = matcher.group(1);
             final Map<String, String> foundAutoConfigurationSettings = Arrays.stream(
                 foundAutoConfigurationSettingsAsString.split(System.lineSeparator())
-            ).filter(line -> line.startsWith("#") == false).collect(Collectors.toMap(l -> l.split(":")[0], l -> l.split(":")[1]));
+            )
+                .filter(line -> line.startsWith("#") == false)
+                .filter(line -> Strings.isNullOrEmpty(line) == false)
+                .collect(Collectors.toMap(l -> l.split(":")[0], l -> l.split(":")[1]));
 
+            // This is brittle and needs to be updated with every change above
             final Set<String> expectedAutoConfigurationSettings = new TreeSet<String>(
                 List.of(
-                    XPackSettings.SECURITY_ENABLED.getKey(),
-                    XPackSettings.ENROLLMENT_ENABLED.getKey(),
+                    "xpack.security.enabled",
+                    "xpack.security.enrollment.enabled",
                     "xpack.security.transport.ssl.keystore.path",
                     "xpack.security.transport.ssl.truststore.path",
+                    "xpack.security.transport.ssl.verification_mode",
                     "xpack.security.http.ssl.enabled",
+                    "xpack.security.transport.ssl.enabled",
                     "xpack.security.http.ssl.keystore.path",
-                    ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(),
-                    HttpTransportSettings.SETTING_HTTP_HOST.getKey()
+                    "cluster.initial_master_nodes",
+                    "http.host"
                 )
             );
             foundAutoConfigurationSettings.keySet().removeAll(expectedAutoConfigurationSettings);
@@ -1027,23 +1038,47 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
 
     private void removeAutoConfigurationFromKeystore(Environment env, Terminal terminal) throws Exception {
         if (Files.exists(KeyStoreWrapper.keystorePath(env.configFile()))) {
-            final SetOnce<SecureString> nodeKeystorePassword = new SetOnce<>();
-            try (KeyStoreWrapper existingKeystore = KeyStoreWrapper.bootstrap(env.configFile(), () -> {
-                nodeKeystorePassword.set(
-                    new SecureString(
-                        terminal.readSecret(
-                            "Enter password for the elasticsearch keystore (empty for no password): ",
-                            KeyStoreWrapper.MAX_PASSPHRASE_LENGTH
-                        )
+            try (
+                KeyStoreWrapper existingKeystore = KeyStoreWrapper.load(env.configFile());
+                SecureString keystorePassword = new SecureString(
+                    terminal.readSecret(
+                        "Enter password for the elasticsearch keystore (empty for no password): ",
+                        KeyStoreWrapper.MAX_PASSPHRASE_LENGTH
                     )
+                )
+            ) {
+                // We would have exited earlier if the keystore can't be read or doesn't exist
+                assert existingKeystore != null;
+                existingKeystore.decrypt(keystorePassword.getChars());
+                List<String> secureSettingsToRemove = List.of(
+                    "xpack.security.transport.ssl.keystore.secure_password",
+                    "xpack.security.transport.ssl.truststore.secure_password",
+                    "xpack.security.http.ssl.keystore.secure_password",
+                    "autoconfiguration.password_hash"
                 );
-                return nodeKeystorePassword.get();
-            })) {
-                existingKeystore.decrypt(nodeKeystorePassword.get().getChars());
-                existingKeystore.remove("xpack.security.transport.ssl.keystore.secure_password");
-                existingKeystore.remove("xpack.security.transport.ssl.truststore.secure_password");
-                existingKeystore.remove("xpack.security.http.ssl.keystore.secure_password");
-                existingKeystore.save(KeyStoreWrapper.keystorePath(env.configFile()), nodeKeystorePassword.get().getChars());
+                for (String setting : secureSettingsToRemove) {
+                    if (existingKeystore.getSettingNames().contains(setting) == false) {
+                        throw new UserException(
+                            ExitCodes.IO_ERROR,
+                            "Aborting enrolling to cluster. Unable to remove existing security configuration, "
+                                + "elasticsearch.keystore did not contain expected setting ["
+                                + setting
+                                + "]."
+                        );
+                    }
+                    existingKeystore.remove(setting);
+                }
+                existingKeystore.save(env.configFile(), keystorePassword.getChars());
+            } catch (Exception e) {
+                terminal.errorPrintln(Terminal.Verbosity.VERBOSE, "");
+                terminal.errorPrintln(
+                    Terminal.Verbosity.VERBOSE,
+                    "Aborting enrolling to cluster. Unable to remove existing security configuration. Error was: " + e.getMessage()
+                );
+                terminal.errorPrintln(Terminal.Verbosity.VERBOSE, "");
+                terminal.errorPrintln(Terminal.Verbosity.VERBOSE, ExceptionsHelper.stackTrace(e));
+                terminal.errorPrintln(Terminal.Verbosity.VERBOSE, "");
+                throw new UserException(ExitCodes.IO_ERROR, "Aborting enrolling to cluster. Unable to remove existing secure settings.", e);
             }
         }
     }

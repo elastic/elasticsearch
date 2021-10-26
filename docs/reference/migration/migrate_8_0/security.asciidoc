@@ -12,17 +12,17 @@
 ====
 *Details* +
 In 8.0, we're deprecating the `elasticsearch-setup-passwords` tool. To
-manually reset the password for the `elastic` user, use the
-{ref}/reset-password.html[`elasticsearch-reset-password`] tool. To
-change passwords for other users, use either {kib} or the {es}
-{ref}/security-api-change-password.html[change passwords API]. We will remove the
+manually reset the password for builtin users (including the `elastic` user), use
+the <<reset-password,`elasticsearch-reset-password` tool>>, the {es}
+{ref}/security-api-change-password.html[change passwords API], or the
+User Management features in {kib}". We will remove the
 `elasticsearch-setup-passwords` tool in a future release.
 
 *Impact* +
 When starting {es} for the first time, passwords are generated automatically for
-the `elastic` and `kibana_system` users. If you run the
-`elasticsearch-setup-passwords` tool after starting {es}, the command will fail
-because the password for the `elastic` user is already configured.
+the `elastic` user. If you run the `elasticsearch-setup-passwords` tool after
+starting {es}, the command will fail  because the password for the `elastic`
+user is already configured.
 ====
 
 .The file and native realms are now enabled unless explicitly disabled.
@@ -38,7 +38,7 @@ Previously, the file and native realms had the following implicit behaviors:
 if any other realm was configured.
 
 * If no other realm was available because realms were either not configured,
-not perrmitted by license, or explicitly disabled, the file and native realms
+not permitted by license, or explicitly disabled, the file and native realms
 were enabled, even if explicitly disabled.
 
 *Impact* +

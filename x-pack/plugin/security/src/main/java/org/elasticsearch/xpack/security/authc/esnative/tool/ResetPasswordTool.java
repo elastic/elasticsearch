@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc.esnative.tool;
 
 import joptsimple.OptionSet;
 
+import joptsimple.OptionSpec;
 import joptsimple.OptionSpecBuilder;
 
 import org.elasticsearch.cli.ExitCodes;
@@ -34,45 +35,41 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.core.security.CommandLineHttpClient.createURL;
 import static org.elasticsearch.xpack.security.tool.CommandUtils.generatePassword;
 
-public class ResetBuiltinPasswordTool extends BaseRunAsSuperuserCommand {
+public class ResetPasswordTool extends BaseRunAsSuperuserCommand {
 
     private final Function<Environment, CommandLineHttpClient> clientFunction;
     private final OptionSpecBuilder interactive;
     private final OptionSpecBuilder auto;
     private final OptionSpecBuilder batch;
+    private final OptionSpec<String> usernameOption;
 
-    public ResetBuiltinPasswordTool() {
+    public ResetPasswordTool() {
         this(CommandLineHttpClient::new, environment -> KeyStoreWrapper.load(environment.configFile()));
     }
 
     public static void main(String[] args) throws Exception {
-        exit(new ResetBuiltinPasswordTool().main(args, Terminal.DEFAULT));
+        exit(new ResetPasswordTool().main(args, Terminal.DEFAULT));
     }
 
-    protected ResetBuiltinPasswordTool(
+    protected ResetPasswordTool(
         Function<Environment, CommandLineHttpClient> clientFunction,
         CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction
     ) {
-        super(clientFunction, keyStoreFunction, "Resets the password of a built-in user");
-        parser.allowsUnrecognizedOptions();
+        super(clientFunction, keyStoreFunction, "Resets the password of users in the native realm and built-in users.");
         interactive = parser.acceptsAll(List.of("i", "interactive"));
         auto = parser.acceptsAll(List.of("a", "auto")); // default
         batch = parser.acceptsAll(List.of("b", "batch"));
+        usernameOption = parser.acceptsAll(List.of("u", "username"), "The username of the user whose password will be reset")
+            .withRequiredArg()
+            .required();
         this.clientFunction = clientFunction;
     }
 
     @Override
     protected void executeCommand(Terminal terminal, OptionSet options, Environment env, String username, SecureString password)
         throws Exception {
-        final String providedUsername;
-        if (options.nonOptionArguments().contains("--elastic")) {
-            providedUsername = "elastic";
-        } else if (options.nonOptionArguments().contains("--kibana_system")) {
-            providedUsername = "kibana_system";
-        } else {
-            throw new UserException(ExitCodes.USAGE, "Invalid invocation");
-        }
         final SecureString builtinUserPassword;
+        final String providedUsername = options.valueOf(usernameOption);
         if (options.has(interactive)) {
             if (options.has(batch) == false) {
                 terminal.println("This tool will reset the password of the [" + providedUsername + "] user.");
@@ -113,14 +110,22 @@ public class ResetBuiltinPasswordTool extends BaseRunAsSuperuserCommand {
             );
             final int responseStatus = httpResponse.getHttpStatus();
             if (httpResponse.getHttpStatus() != HttpURLConnection.HTTP_OK) {
-                throw new UserException(ExitCodes.TEMP_FAILURE,
-                    "Failed to reset password for the [" + providedUsername + "] user. Unexpected http status [" + responseStatus + "]");
+                final String cause = CommandLineHttpClient.getErrorCause(httpResponse);
+                String message = "Failed to reset password for the ["
+                    + providedUsername
+                    + "] user. Unexpected http status ["
+                    + responseStatus
+                    + "].";
+                if (null != cause) {
+                    message += " Cause was " + cause;
+                }
+                throw new UserException(ExitCodes.TEMP_FAILURE, message);
             } else {
                 if (options.has(interactive)) {
                     terminal.println("Password for the [" + providedUsername + "] user successfully reset.");
                 } else {
                     terminal.println("Password for the [" + providedUsername + "] user successfully reset.");
-                    terminal.print(Terminal.Verbosity.NORMAL,"New value: ");
+                    terminal.print(Terminal.Verbosity.NORMAL, "New value: ");
                     terminal.println(Terminal.Verbosity.SILENT, builtinUserPassword.toString());
                 }
             }

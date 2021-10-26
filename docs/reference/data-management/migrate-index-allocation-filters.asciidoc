@@ -16,8 +16,7 @@ your data in a hot-warm-cold architecture,
 you can still use attribute-based allocation filters to
 control shard allocation for other purposes.
 
-There are two methods to switch to using node roles, an automated method
-for {ess} or {ece}, and a manual method for self-managed {es}:
+{ess} and {ece} can perform the migration automatically. For self-managed deployements, you need to manually update your configuration, ILM policies, and indices to switch to using node roles. 
 
 [discrete]
 == Automated method for {ess} or {ece}

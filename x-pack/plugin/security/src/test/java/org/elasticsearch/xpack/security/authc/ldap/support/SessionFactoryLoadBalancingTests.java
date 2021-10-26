@@ -22,7 +22,6 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.mocksocket.MockSocket;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
@@ -89,7 +88,6 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         }
     }
 
-    @TestLogging(value = "org.elasticsearch.xpack.security.authc.ldap.support:DEBUG", reason = "LDAP SDK Upgrade")
     public void testRoundRobinWithFailures() throws Exception {
         assumeTrue("at least two ldap servers should be present for this test", ldapServers.length > 1);
         logger.debug("using [{}] ldap servers, urls {}", ldapServers.length, ldapUrls());

@@ -25,7 +25,6 @@ import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -203,10 +202,6 @@ public class LdapRealmTests extends LdapTestCase {
         verify(ldapFactory, times(1)).session(anyString(), any(SecureString.class), anyActionListener());
     }
 
-    @TestLogging(
-        value = "org.elasticsearch.xpack.security.authc.ldap.LdapRealm:TRACE",
-        reason = "Occasional test failure due to failed caching"
-    )
     public void testAuthenticateCachingRefresh() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String userTemplate = VALID_USER_TEMPLATE;

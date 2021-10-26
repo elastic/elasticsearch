@@ -66,7 +66,7 @@ public class OpenLdapTests extends ESTestCase {
      * so in order to have a "not-valid-hostname" failure, we need a second
      * hostname that isn't in the certificate's Subj Alt Name list
      */
-    private static final String OPEN_LDAP_ES_IO_URL = "ldaps://local.127.0.0.1.ip.es.io:" + getFromProperty("636");
+    private static final String OPEN_LDAP_ES_IO_URL = "ldaps://127.0.0.1.ip.es.io:" + getFromProperty("636");
 
     public static final String PASSWORD = "NickFuryHeartsES";
     private static final String HAWKEYE_DN = "uid=hawkeye,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";

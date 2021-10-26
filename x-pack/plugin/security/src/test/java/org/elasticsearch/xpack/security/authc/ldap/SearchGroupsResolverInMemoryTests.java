@@ -46,7 +46,6 @@ public class SearchGroupsResolverInMemoryTests extends LdapTestCase {
     @After
     public void closeConnection() {
         if (connection != null) {
-            logger.info("Closing LDAP connection [{}] (@{})", connection, Integer.toHexString(System.identityHashCode(connection)));
             connection.close();
         }
     }
@@ -169,7 +168,6 @@ public class SearchGroupsResolverInMemoryTests extends LdapTestCase {
         this.connection = LdapUtils.privilegedConnect(() -> {
             var c = new LDAPConnection(options, ldapurl.getHost(), ldapurl.getPort());
             c.setConnectionName("test-connection-" + getTestName());
-            logger.info("Established LDAP connection [{}] (@{})", c, Integer.toHexString(System.identityHashCode(c)));
             return c;
         });
     }

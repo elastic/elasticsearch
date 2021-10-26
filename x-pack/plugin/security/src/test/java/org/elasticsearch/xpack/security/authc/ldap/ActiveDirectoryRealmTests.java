@@ -310,7 +310,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         for (int i = 0; i < count; i++) {
             PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
             realm.authenticate(new UsernamePasswordToken("CN=ironman", new SecureString(PASSWORD)), future);
-            final AuthenticationResult result = future.actionGet();
+            final AuthenticationResult<User> result = future.actionGet();
             assertThat("Authentication result: " + result, result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
         }
 

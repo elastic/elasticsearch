@@ -8,6 +8,7 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -19,8 +20,12 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.RepositoryConflictException;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.nio.file.Path;
@@ -236,5 +241,66 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         } catch (RepositoryVerificationException ex) {
             assertThat(ExceptionsHelper.stackTrace(ex), containsString("is not shared"));
         }
+    }
+
+    public void testRepositoryConflict() throws Exception {
+        logger.info("--> creating repository");
+        final String repo = "test-repo";
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(repo)
+                .setType("mock")
+                .setSettings(
+                    Settings.builder()
+                        .put("location", randomRepoPath())
+                        .put("random", randomAlphaOfLength(10))
+                        .put("wait_after_unblock", 200)
+                )
+                .get()
+        );
+
+        logger.info("--> snapshot");
+        final String index = "test-idx";
+        assertAcked(prepareCreate(index, 1, Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0)));
+        for (int i = 0; i < 10; i++) {
+            indexDoc(index, Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
+        final String snapshot1 = "test-snap1";
+        client().admin().cluster().prepareCreateSnapshot(repo, snapshot1).setWaitForCompletion(true).get();
+        String blockedNode = internalCluster().getMasterName();
+        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, blockedNode).repository(repo)).blockOnDataFiles();
+        logger.info("--> start deletion of snapshot");
+        ActionFuture<AcknowledgedResponse> future = client().admin().cluster().prepareDeleteSnapshot(repo, snapshot1).execute();
+        logger.info("--> waiting for block to kick in on node [{}]", blockedNode);
+        waitForBlock(blockedNode, repo);
+
+        logger.info("--> try deleting the repository, should fail because the deletion of the snapshot is in progress");
+        RepositoryConflictException e1 = expectThrows(
+            RepositoryConflictException.class,
+            () -> client().admin().cluster().prepareDeleteRepository(repo).get()
+        );
+        assertThat(e1.status(), equalTo(RestStatus.CONFLICT));
+        assertThat(e1.getMessage(), containsString("trying to modify or unregister repository that is currently used"));
+
+        logger.info("--> try updating the repository, should fail because the deletion of the snapshot is in progress");
+        RepositoryConflictException e2 = expectThrows(
+            RepositoryConflictException.class,
+            () -> client().admin()
+                .cluster()
+                .preparePutRepository(repo)
+                .setType("mock")
+                .setSettings(Settings.builder().put("location", randomRepoPath()))
+                .get()
+        );
+        assertThat(e2.status(), equalTo(RestStatus.CONFLICT));
+        assertThat(e2.getMessage(), containsString("trying to modify or unregister repository that is currently used"));
+
+        logger.info("--> unblocking blocked node [{}]", blockedNode);
+        unblockNode(repo, blockedNode);
+
+        logger.info("--> wait until snapshot deletion is finished");
+        assertAcked(future.actionGet());
     }
 }

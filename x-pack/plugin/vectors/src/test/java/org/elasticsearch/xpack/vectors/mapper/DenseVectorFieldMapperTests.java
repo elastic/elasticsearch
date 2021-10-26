@@ -78,7 +78,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Object getSampleValueForDocument() {
-        return List.of(1, 2, 3, 4);
+        return List.of(0.5, 0.5, 0.5, 0.5);
     }
 
     @Override
@@ -204,7 +204,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             .field("index", true)
             .field("similarity", similarity.name())));
 
-        float[] vector = {-12.1f, 100.7f, -4};
+        float[] vector = {-0.5f, 0.5f, 0.7071f};
         ParsedDocument doc1 = mapper.parse(source(b -> b.array("field", vector)));
 
         IndexableField[] fields = doc1.rootDoc().getFields("field");
@@ -218,6 +218,30 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             vectorField.vectorValue(),
             0.001f);
         assertEquals(similarity.function, vectorField.fieldType().vectorSimilarityFunction());
+    }
+
+    public void testDotProductWithInvalidNorm() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b
+            .field("type", "dense_vector")
+            .field("dims", 3)
+            .field("index", true)
+            .field("similarity", VectorSimilarity.dot_product)));
+        float[] vector = {-12.1f, 2.7f, -4};
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.array("field", vector))));
+        assertNotNull(e.getCause());
+        assertThat(e.getCause().getMessage(), containsString("The [dot_product] similarity can only be used with unit-length vectors. " +
+            "Preview of invalid vector: [-12.1, 2.7, -4.0]"));
+
+        DocumentMapper mapperWithLargerDim = createDocumentMapper(fieldMapping(b -> b
+            .field("type", "dense_vector")
+            .field("dims", 6)
+            .field("index", true)
+            .field("similarity", VectorSimilarity.dot_product)));
+        float[] largerVector = {-12.1f, 2.7f, -4, 1.05f, 10.0f, 29.9f};
+        e = expectThrows(MapperParsingException.class, () -> mapperWithLargerDim.parse(source(b -> b.array("field", largerVector))));
+        assertNotNull(e.getCause());
+        assertThat(e.getCause().getMessage(), containsString("The [dot_product] similarity can only be used with unit-length vectors. " +
+            "Preview of invalid vector: [-12.1, 2.7, -4.0, 1.05, 10.0, ...]"));
     }
 
     public void testInvalidParameters() {
@@ -384,6 +408,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         assertThat(codec, instanceOf(PerFieldMapperCodec.class));
         KnnVectorsFormat knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         assertThat(knnVectorsFormat, instanceOf(Lucene90HnswVectorsFormat.class));
-        //TODO: add more assertions once LUCENE-10178 is implemented
+        String expectedString = "Lucene90HnswVectorsFormat(name = Lucene90HnswVectorsFormat, maxConn = " + m +
+            ", beamWidth=" + efConstruction + ")";
+        assertEquals(expectedString, knnVectorsFormat.toString());
     }
 }

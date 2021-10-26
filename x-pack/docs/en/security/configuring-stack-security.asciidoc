@@ -3,6 +3,28 @@
 
 beta::[This functionality is in beta and is subject to change. The design and code is less mature than official GA features and is being provided as-is with no warranties. Beta features are not subject to the support SLA of official GA features.]
 
+Before you start {es} for the first time, run the `elasticsearch-security-config`
+tool. This tool generates certificates and keys for the transport and HTTP
+layers of {es}, and writes the Transport Layer Security (TLS) configuration
+settings to `elasticsearch.yml`. These certificates allow you to connect a
+{kib} instance to your secured {es} cluster and encrypt internode communication.
+
+When you start {es} for the first time, passwords are automatically generated
+for the `elastic` and `kibana_system` users. Tools are available to reset these
+passwords if you misplace them or need to rotate passwords.
+
+You can then use the
+<<create-enrollment-token,`elasticsearch-create-enrollment-token`>> tool to
+generate separate enrollment tokens for connecting a {kib} instance to your
+secured {es} cluster and enrolling additional nodes.
+
+When you complete the enrollment process for {kib}, it applies the security
+settings from your {es} cluster, authenticates to {es} with the `kibana_system`
+user, and writes the security configuration to `kibana.yml`. A security
+certificate is generated in the {kib} configuration directory. This
+file establishes trust between {kib} and the {es} Certificate Authority (CA) for
+the HTTP layer.
+
 When you start {es} for the first time, the following security configuration
 occurs automatically:
 
@@ -49,6 +71,7 @@ the `kibana 8.0.0-beta` package distribution for your environment.
 [discrete]
 [[stack-start-with-security]]
 === Start {es} and enroll {kib} with security enabled
+
 . From the installation directory, start {es}. A password is generated for the 
 `elastic` user and output to the terminal, plus an enrollment token for
 enrolling {kib}.
@@ -64,10 +87,8 @@ and enrollment token.
 . Copy the generated password and enrollment token and save them in a secure
 location. These values are shown only when you start {es} for the first time.
 +
-NOTE: If you need to reset the password for the `elastic` user, run the
-<<reset-elastic-password,`elasticsearch-reset-elastic-password`>> tool. To
-reset the password for the `kibana_system` user, run the 
-`elasticsearch-reset-kibana-system-password` tool. Both of these tools are
+NOTE: If you need to reset the password for the `elastic` or the `kibana_system` user, run the
+<<reset-password,`elasticsearch-reset-password`>> tool,
 available in the {es} `/bin` directory.
 
 . (Optional) Open a new terminal and verify that you can connect to your {es} 

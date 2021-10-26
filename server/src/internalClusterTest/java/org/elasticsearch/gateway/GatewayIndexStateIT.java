@@ -30,10 +30,9 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
@@ -44,6 +43,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -516,11 +516,11 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         final Path[] paths = internalCluster().getInstance(NodeEnvironment.class).nodeDataPaths();
         final String nodeId = client().admin().cluster().prepareNodesInfo(nodeName).clear().get().getNodes().get(0).getNode().getId();
 
-        writeBrokenMeta(metaStateService -> {
+        writeBrokenMeta(nodeEnvironment -> {
             for (final Path path : paths) {
                 IOUtils.rm(path.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME));
             }
-            metaStateService.writeGlobalState("test", Metadata.builder(metadata)
+            MetaStateWriterUtils.writeGlobalState(nodeEnvironment, "test", Metadata.builder(metadata)
                 // we remove the manifest file, resetting the term and making this look like an upgrade from 6.x, so must also reset the
                 // term in the coordination metadata
                 .coordinationMetadata(CoordinationMetadata.builder(metadata.coordinationMetadata()).term(0L).build())
@@ -534,14 +534,14 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertBusy(() -> assertThat(internalCluster().getInstance(NodeEnvironment.class).availableIndexFolders(), empty()));
     }
 
-    private void writeBrokenMeta(CheckedConsumer<MetaStateService, IOException> writer) throws Exception {
-        Map<String, MetaStateService> metaStateServices = Stream.of(internalCluster().getNodeNames())
-            .collect(Collectors.toMap(Function.identity(), nodeName -> internalCluster().getInstance(MetaStateService.class, nodeName)));
+    private void writeBrokenMeta(CheckedConsumer<NodeEnvironment, IOException> writer) throws Exception {
+        Map<String, NodeEnvironment> nodeEnvironments = Stream.of(internalCluster().getNodeNames())
+            .collect(Collectors.toMap(Function.identity(), nodeName -> internalCluster().getInstance(NodeEnvironment.class, nodeName)));
         internalCluster().fullRestart(new RestartCallback(){
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                final MetaStateService metaStateService = metaStateServices.get(nodeName);
-                writer.accept(metaStateService);
+                final NodeEnvironment nodeEnvironment = nodeEnvironments.get(nodeName);
+                writer.accept(nodeEnvironment);
                 return super.onNodeStopped(nodeName);
             }
         });

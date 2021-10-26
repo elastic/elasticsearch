@@ -83,7 +83,7 @@ public class SecurityTestUtils {
      */
     public static Metadata addAliasToMetadata(Metadata metadata, String indexName) {
         AliasMetadata aliasMetadata = AliasMetadata.newAliasMetadataBuilder(SECURITY_MAIN_ALIAS).build();
-        Metadata.Builder metadataBuilder = new Metadata.Builder(metadata);
+        Metadata.Builder metadataBuilder = Metadata.builder(metadata);
         IndexMetadata indexMetadata = metadata.index(indexName);
         metadataBuilder.put(IndexMetadata.builder(indexMetadata).putAlias(aliasMetadata));
         return metadataBuilder.build();

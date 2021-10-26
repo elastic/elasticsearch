@@ -19,6 +19,12 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.test.StreamsUtils;
+import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectPath;
@@ -26,13 +32,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.search.RestSearchAction;
-import org.elasticsearch.test.StreamsUtils;
-import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 import org.hamcrest.Matcher;
@@ -701,61 +700,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             }
         }
         return null;
-    }
-
-    public void testFrozenIndexAfterRestarted() throws Exception {
-        final String index = "test_frozen_index";
-        if (isRunningAgainstOldCluster()) {
-            Settings.Builder settings = Settings.builder();
-            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
-                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
-            }
-            String mappings = randomBoolean() ? "\"_source\": { \"enabled\": false}" : null;
-            createIndex(index, settings.build(), mappings);
-            ensureGreen(index);
-            int numDocs = randomIntBetween(10, 500);
-            for (int i = 0; i < numDocs; i++) {
-                int id = randomIntBetween(0, 100);
-                final Request indexRequest = new Request("POST", "/" + index + "/" + "_doc/" + id);
-                indexRequest.setJsonEntity(Strings.toString(JsonXContent.contentBuilder().startObject().field("f", "v").endObject()));
-                assertOK(client().performRequest(indexRequest));
-                if (rarely()) {
-                    flush(index, randomBoolean());
-                }
-            }
-        } else {
-            ensureGreen(index);
-            final int totalHits = (int) XContentMapValues.extractValue("hits.total.value",
-                entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
-            Request freezeRequest = new Request("POST", index + "/_freeze");
-            freezeRequest.setOptions(
-                expectWarnings(
-                    "Frozen indices are deprecated because they provide no benefit given "
-                        + "improvements in heap memory utilization. They will be removed in a future release."
-                )
-            );
-            assertOK(client().performRequest(freezeRequest));
-            ensureGreen(index);
-            assertNoFileBasedRecovery(index, n -> true);
-            final Request request = new Request("GET", "/" + index + "/_search");
-            request.setOptions(expectWarnings("[ignore_throttled] parameter is deprecated because frozen " +
-                "indices have been deprecated. Consider cold or frozen tiers in place of frozen indices.",
-                "Searching frozen indices [" + index + "] is deprecated. " +
-                    "Consider cold or frozen tiers in place of frozen indices. The frozen feature will be removed in a feature release."));
-            request.addParameter("ignore_throttled", "false");
-            assertThat(XContentMapValues.extractValue("hits.total.value", entityAsMap(client().performRequest(request))),
-                equalTo(totalHits));
-            final Request unfreezeRequest = new Request("POST", index + "/_unfreeze");
-            unfreezeRequest.setOptions(
-                expectWarnings(
-                    "Frozen indices are deprecated because they provide no benefit given "
-                        + "improvements in heap memory utilization. They will be removed in a future release."
-                )
-            );
-            assertOK(client().performRequest(unfreezeRequest));
-            ensureGreen(index);
-            assertNoFileBasedRecovery(index, n -> true);
-        }
     }
 
     @SuppressWarnings("unchecked")

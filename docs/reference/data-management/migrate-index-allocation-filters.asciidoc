@@ -26,9 +26,8 @@ higher, deploy a warm or cold data tier, or enable
 autoscaling.  This action automatically updates your configuration
 and {ilm-init} policies to use node roles.
 
-If you have created custom index template, then check those templates
-after the automated migration and remove <<shard-allocation-filtering,
-attribute-based allocation filters>> if any are specified.
+If you use custom index templates, check them after the automatic migration completes and remove any <<shard-allocation-filtering,
+attribute-based allocation filters>>.
 
 NOTE: You do not need to take any further action after the automatic migration. The following manual steps are only necessary if you do not allow the automatic migration or have a self-managed deployment.
 

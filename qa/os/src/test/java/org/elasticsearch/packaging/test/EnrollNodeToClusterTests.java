@@ -21,6 +21,7 @@ import java.util.List;
 
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assume.assumeTrue;
 
@@ -37,9 +38,12 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
     }
 
     public void test20EnrollToClusterWithEmptyTokenValue() throws Exception {
-        assumeTrue("something in our tests wrap the error code to 1 on windows", distribution.platform != Distribution.Platform.WINDOWS);
         Shell.Result result = Archives.runElasticsearchStartCommand(installation, sh, null, List.of("--enrollment-token"), false);
-        assertThat(result.exitCode, equalTo(ExitCodes.USAGE));
+        // something in our tests wrap the error code to 1 on windows
+        // TODO investigate this and remove this guard
+        if (distribution.platform != Distribution.Platform.WINDOWS) {
+            assertThat(result.exitCode, equalTo(ExitCodes.USAGE));
+        }
         verifySecurityNotAutoConfigured(installation);
     }
 
@@ -60,7 +64,6 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
     }
 
     public void test40EnrollmentFailsForConfiguredNode() throws Exception {
-        assumeTrue("something in our tests wrap the error code to 1 on windows", distribution.platform != Distribution.Platform.WINDOWS);
         // auto-config requires that the archive owner and the process user be the same,
         Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         startElasticsearch();
@@ -73,12 +76,15 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
             List.of("--enrollment-token", generateMockEnrollmentToken()),
             false
         );
-        assertThat(result.exitCode, equalTo(ExitCodes.NOOP));
+        // something in our tests wrap the error code to 1 on windows
+        // TODO investigate this and remove this guard
+        if (distribution.platform != Distribution.Platform.WINDOWS) {
+            assertThat(result.exitCode, equalTo(ExitCodes.NOOP));
+        }
         Platforms.onWindows(() -> sh.chown(installation.config));
     }
 
     public void test50MultipleValuesForEnrollmentToken() throws Exception {
-        assumeTrue("something in our tests wrap the error code to 1 on windows", distribution.platform != Distribution.Platform.WINDOWS);
         // if invoked with --enrollment-token tokenA tokenB tokenC, only tokenA is read
         Shell.Result result = Archives.runElasticsearchStartCommand(
             installation,
@@ -88,12 +94,15 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
             false
         );
         // Assert we used the first value which is a proper enrollment token but failed because the node is already configured ( 80 )
-        assertThat(result.exitCode, equalTo(ExitCodes.NOOP));
+        // something in our tests wrap the error code to 1 on windows
+        // TODO investigate this and remove this guard
+        if (distribution.platform != Distribution.Platform.WINDOWS) {
+            assertThat(result.exitCode, equalTo(ExitCodes.NOOP));
+        }
     }
 
-    public void test60MultipleParametersForEnrollmentToken() throws Exception {
-        assumeTrue("something in our tests wrap the error code to 1 on windows", distribution.platform != Distribution.Platform.WINDOWS);
-        // if invoked with --enrollment-token tokenA --enrollment-token tokenB --enrollment-token tokenC, only tokenC is used
+    public void test60MultipleParametersForEnrollmentTokenAreNotAllowed() throws Exception {
+        // if invoked with --enrollment-token tokenA --enrollment-token tokenB --enrollment-token tokenC, we exit
         Shell.Result result = Archives.runElasticsearchStartCommand(
             installation,
             sh,
@@ -108,8 +117,9 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
             ),
             false
         );
-        // Assert we used the last named parameter which is a proper enrollment token but failed because the node is already configured (80)
-        assertThat(result.exitCode, equalTo(ExitCodes.NOOP));
+        assertThat(result.stderr, containsString("Multiple --enrollment-token parameters are not allowed"));
+        assertThat(result.exitCode, equalTo(1));
+
     }
 
     private String generateMockEnrollmentToken() throws Exception {

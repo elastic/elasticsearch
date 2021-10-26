@@ -24,6 +24,10 @@ ARG_LIST=("$@")
 
 while [ $# -gt 0 ]; do
    if [[ $1 == "--enrollment-token" ]]; then
+     if [ $ENROLL_TO_CLUSTER = true ]; then
+       echo "Multiple --enrollment-token parameters are not allowed" 1>&2
+       exit 1
+     fi
      ENROLL_TO_CLUSTER=true
      ATTEMPT_SECURITY_AUTO_CONFIG=false
      ENROLLMENT_TOKEN="$2"

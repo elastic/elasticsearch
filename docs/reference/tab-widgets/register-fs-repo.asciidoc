@@ -54,7 +54,7 @@ include::{es-repo-dir}/snapshot-restore/register-repository.asciidoc[tag=multi-c
 
 // tag::fs-repo-read-only[]
 To register a file system repository as read-only using the create snapshot
-repository API, set the `read-only` parameter to true. Alternatively, you can
+repository API, set the `readonly` parameter to true. Alternatively, you can
 register a <<snapshots-read-only-repository,URL repository>> for the file
 system.
 // end::fs-repo-read-only[]
@@ -66,7 +66,7 @@ PUT _snapshot/my_fs_backup
   "type": "fs",
   "settings": {
     "location": "my_fs_backup_location",
-    "read-only": true
+    "readonly": true
   }
 }
 ----
@@ -134,7 +134,7 @@ PUT _snapshot/my_fs_backup
   "type": "fs",
   "settings": {
     "location": "my_fs_backup_location",
-    "read-only": true
+    "readonly": true
   }
 }
 ----

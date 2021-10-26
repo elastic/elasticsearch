@@ -63,8 +63,11 @@ blocks>> that prevent read access.
 * Each snapshot must have a unique name within its repository. Attempts to
 create a snapshot with the same name as an existing snapshot will fail.
 
-* Snapshots are incremental. You can take frequent snapshots with little impact
-to your storage overhead. See <<how-snapshots-work>>.
+* Snapshots are automatically deduplicated. You can take frequent snapshots with
+little impact to your storage overhead.
+
+* Each snapshot is logically independent. You can delete a snapshot without
+affecting other snapshots.
 
 * Taking a snapshot can temporarily pause shard allocations.
 See <<snapshots-shard-allocation>>.
@@ -269,11 +272,10 @@ policy. Other snapshots don't count toward the policy's retention limits.
 [[snapshot-retention-limits]]
 ==== Snapshot retention limits
 
-While not a hard limit, a snapshot repository shouldn't contain more than 200
-snapshots at a time. This ensures the repository's metadata doesn't grow to a
-size that may destabilize the master node. We strongly recommend you set up your
-{slm-init} policy's retention rules to enforce this limit.
-
+While not a hard limit, a snapshot repository shouldn't contain more than
+{max-snapshot-count} snapshots at a time. This ensures the repository's metadata
+doesn't grow to a size that may destabilize the master node. We recommend you
+set up your {slm-init} policy's retention rules to enforce this limit.
 
 [discrete]
 [[manually-create-snapshot]]
@@ -535,8 +537,8 @@ To fix this, you can create multiple {slm-init} policies with the same snapshot
 repository that run on different schedules. Since a policy's retention rules
 only apply to its snapshots, a policy won't delete a snapshot created by another
 policy. However, you'll need to ensure the total number of snapshots in the
-repository doesn't exceed the <<snapshot-retention-limits,200 snapshot soft
-limit>>.
+repository doesn't exceed the <<snapshot-retention-limits,{max-snapshot-count}
+snapshot soft limit>>.
 
 For example, the following {slm-init} policy takes hourly snapshots with a
 maximum of 24 snapshots. The policy keeps its snapshots for one day.

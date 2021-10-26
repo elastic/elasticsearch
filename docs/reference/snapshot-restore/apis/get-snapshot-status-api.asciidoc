@@ -98,15 +98,14 @@ If you specify both the repository name and snapshot, the request retrieves deta
 [WARNING]
 ====
 Using the get snapshot status API to return any status results other than the
-currently running snapshots can be very expensive. Each request to
-retrieve snapshot status results in file reads from every shard in a snapshot,
-for each snapshot. Such requests are taxing to machine resources and can also
-incur high processing costs when running in the cloud.
+currently running snapshots can be very expensive. The API requires a read from
+the repository for each shard in each snapshot. For example, if you have 100
+snapshots with 1,000 shards each, the API request will result in 100,000 reads
+(100 snapshots * 1,000 shards).
 
-For example, if you have 100 snapshots with 1,000 shards each, the API request
-will result in 100,000 file reads (100 snapshots * 1,000 shards). Depending on
-the latency of your file storage, the request can take extremely long to
-retrieve results.
+Depending on the latency of your storage, such requests can take extremely long
+to retrieve results. These requests can also tax machine resources and, when
+using cloud storage, incur high processing costs.
 ====
 
 [[get-snapshot-status-api-path-params]]

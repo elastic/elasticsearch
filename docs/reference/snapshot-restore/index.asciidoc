@@ -9,11 +9,6 @@ A snapshot is a backup of a running {es} cluster. You can use snapshots to:
 * Reduce your storage costs by using <<searchable-snapshots,searchable
   snapshots>> in the cold and frozen data tiers
 
-// tag::backup-warning[]
-**A snapshot is the only supported way to back up a running cluster.** Other
-backup methods may result in data loss, even if they appear successful.
-// end::backup-warning[]
-
 [discrete]
 [[snapshot-workflow]]
 == The snapshot workflow
@@ -69,14 +64,15 @@ index lets you more easily search it.
 [[how-snapshots-work]]
 == How snapshots work
 
-To back up an index, a snapshot makes a copy of the index's
+Snapshot are automatically deduplicated to save storage space and reduce network
+transfer costs. To back up an index, a snapshot makes a copy of the index's
 <<near-real-time,segments>> and stores them in the snapshot repository. Since
 segments are immutable, the snapshot only needs to copy any new segments created
 since the last snapshot.
 
-When you delete a snapshot, {es} only deletes the segments used exclusively by
-that snapshot. {es} doesn't delete segments used by other snapshots in the
-repository.
+Each snapshot is also logically independent. When you delete a snapshot, {es}
+only deletes the segments used exclusively by that snapshot. {es} doesn't delete
+segments used by other snapshots in the repository.
 
 [discrete]
 [[snapshots-shard-allocation]]
@@ -98,8 +94,8 @@ copying the shard's data.
 === Snapshot start and stop times
 
 A snapshot doesn't represent a cluster at a precise point in time. Instead, each
-snapshot includes a start and end time. The snapshot represents a view of the
-cluster's data between these two times.
+snapshot includes a start and end time. The snapshot represents a view of each
+shard's data at some point between these two times.
 
 [discrete]
 [[snapshot-restore-version-compatibility]]
@@ -163,6 +159,27 @@ on your current cluster. Reindex from remote is only possible if the index's
 Reindexing from remote can take significantly longer than restoring a snapshot.
 Before you start, test the reindex from remote process with a subset of the data
 to estimate your time requirements.
+
+[discrete]
+[[other-backup-methods]]
+== Other backup methods
+
+// tag::backup-warning[]
+**Taking a snapshot is the only reliable and supported way to back up a
+cluster.** You cannot back up an {es} cluster by making copies of the data
+directories of its nodes. There are no supported methods to restore any data
+from a filesystem-level backup. If you try to restore a cluster from such a
+backup, it may fail with reports of corruption or missing files or other data
+inconsistencies, or it may appear to have succeeded having silently lost some of
+your data.
+// end::backup-warning[]
+
+A copy of the data directories of a cluster's nodes does not work as a backup
+because it is not a consistent representation of their contents at a single
+point in time. You cannot fix this by shutting down nodes while making the
+copies, nor by taking atomic filesystem-level snapshots, because {es} has
+consistency requirements that span the whole cluster. You must use the built-in
+snapshot functionality for cluster backups.
 
 include::register-repository.asciidoc[]
 include::take-snapshot.asciidoc[]

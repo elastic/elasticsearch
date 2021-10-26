@@ -43,6 +43,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         return Collections.emptyMap();
     }
 
+    @SuppressWarnings("removal")
     public void testOldRepoAccess() throws IOException {
         String repoLocation = System.getProperty("tests.repo.location");
         Version oldVersion = Version.fromString(System.getProperty("tests.es.version"));

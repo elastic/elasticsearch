@@ -1698,7 +1698,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         // unknown, ignore
                     }
                 } else {
-                    throw new IllegalArgumentException("Unexpected token " + token);
+                    XContentParserUtils.throwUnknownToken(token, parser.getTokenLocation());
                 }
             }
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);

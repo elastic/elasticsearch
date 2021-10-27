@@ -71,6 +71,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.ssl.PemUtils.parsePKCS8PemString;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
@@ -115,11 +116,15 @@ public class EnrollNodeToCluster extends KeyStoreAwareCommand {
             // TODO: Files.list leaks a file handle because the stream is not closed
             // this effectively doesn't matter since enroll is run in a separate, short lived, process
             // but it should be fixed...
-            if (Files.isDirectory(dataPath) && Files.list(dataPath).findAny().isPresent()) {
-                throw new UserException(
-                    ExitCodes.CONFIG,
-                    "Aborting enrolling to cluster. It appears that this is not the first time this node starts."
-                );
+            if (Files.isDirectory(dataPath)) {
+                try (Stream<Path> stream = Files.list(dataPath)) {
+                    if (stream.findAny().isPresent()) {
+                        throw new UserException(
+                          ExitCodes.CONFIG,
+                          "Aborting enrolling to cluster. It appears that this is not the first time this node starts."
+                        );
+                    }
+                }
             }
         }
 

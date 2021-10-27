@@ -294,7 +294,8 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
                     .build();
             }
         });
-        ensureGreen(restoredAgainIndex);
+
+        ensureGreen("restored-*");
 
         logger.info("--> shards of [{}] should start without downloading bytes from the blob store", restoredAgainIndex);
         checkNoBlobStoreAccess(useSoftDeletes);

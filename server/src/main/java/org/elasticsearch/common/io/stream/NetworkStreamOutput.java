@@ -12,12 +12,18 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Nullable;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+import java.nio.ByteOrder;
+import java.util.ArrayList;
 
 /**
  * A @link {@link StreamOutput} that uses {@link BigArrays} to acquire pages of
@@ -25,34 +31,17 @@ import java.io.IOException;
  */
 public class NetworkStreamOutput extends BytesStream {
 
-    @Nullable
-    protected ByteArray bytes;
-    protected int count;
+    static final VarHandle VH_BE_INT = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
+    static final VarHandle VH_BE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
 
-    /**
-     * Create a non recycling {@link NetworkStreamOutput} with an initial capacity of 0.
-     */
-    public NetworkStreamOutput() {
-        // since this impl is not recycling anyway, don't bother aligning to
-        // the page size, this will even save memory
-        this(0);
-    }
+    private final ArrayList<Recycler.V<BytesRef>> pages = new ArrayList<>();
+    private final Recycler<BytesRef> recycler;
+    private int currentCapacity = 0;
+    private int currentPageOffset = 0;
+    private int count = 0;
 
-    /**
-     * Create a non recycling {@link NetworkStreamOutput} with enough initial pages acquired
-     * to satisfy the capacity given by expected size.
-     *
-     * @param expectedSize the expected maximum size of the stream in bytes.
-     */
-    public NetworkStreamOutput(int expectedSize) {
-        this(expectedSize, BigArrays.NON_RECYCLING_INSTANCE);
-    }
-
-    protected NetworkStreamOutput(int expectedSize, BigArrays bigArrays) {
-        this.bigArrays = bigArrays;
-        if (expectedSize != 0) {
-            this.bytes = bigArrays.newByteArray(expectedSize, false);
-        }
+    protected NetworkStreamOutput(Recycler<BytesRef> recycler) {
+        this.recycler = recycler;
     }
 
     @Override
@@ -63,8 +52,10 @@ public class NetworkStreamOutput extends BytesStream {
     @Override
     public void writeByte(byte b) {
         ensureCapacity(count + 1L);
-        bytes.set(count, b);
+        BytesRef currentPage = pages.get(pages.size() - 1).v();
+        currentPage.bytes[currentPage.offset + currentPageOffset] = b;
         count++;
+        currentPageOffset++;
     }
 
     @Override
@@ -79,25 +70,51 @@ public class NetworkStreamOutput extends BytesStream {
             throw new IllegalArgumentException("Illegal offset " + offset + "/length " + length + " for byte[] of length " + b.length);
         }
 
+        int currentPageIndex = pages.size();
+
         // get enough pages for new size
         ensureCapacity(((long) count) + length);
 
         // bulk copy
-        bytes.set(count, b, offset, length);
+        int bytesToCopy = length;
+        while (bytesToCopy > 0) {
+            BytesRef currentPage = pages.get(currentPageIndex).v();
+
+        }
+
 
         // advance
         count += length;
     }
 
     @Override
-    public void reset() {
-        // shrink list of pages
-        if (bytes != null && bytes.size() > PageCacheRecycler.PAGE_SIZE_IN_BYTES) {
-            bytes = bigArrays.resize(bytes, PageCacheRecycler.PAGE_SIZE_IN_BYTES);
+    public void writeInt(int i) throws IOException {
+        if (4 > (currentCapacity - count)) {
+            super.writeInt(i);
+        } else {
+            BytesRef currentPage = pages.get(pages.size() - 1).v();
+            VH_BE_INT.set(currentPage.bytes, currentPage.offset + currentPageOffset, i);
         }
+    }
 
-        // go back to start
+    @Override
+    public void writeLong(long i) throws IOException {
+        if (8 > (currentCapacity - count)) {
+            super.writeLong(i);
+        } else {
+            BytesRef currentPage = pages.get(pages.size() - 1).v();
+            VH_BE_LONG.set(currentPage.bytes, currentPage.offset + currentPageOffset, i);
+        }
+    }
+
+    @Override
+    public void reset() {
+        for (Recycler.V<BytesRef> page : pages) {
+            page.close();
+        }
+        pages.clear();
         count = 0;
+        currentPageOffset = 0;
     }
 
     @Override
@@ -107,12 +124,12 @@ public class NetworkStreamOutput extends BytesStream {
 
     @Override
     public void seek(long position) {
-        ensureCapacity(position);
-        count = (int) position;
+//        ensureCapacity(position);
+//        count = (int) position;
     }
 
     public void skip(int length) {
-        seek(((long) count) + length);
+//        seek(((long) count) + length);
     }
 
     @Override
@@ -125,7 +142,7 @@ public class NetworkStreamOutput extends BytesStream {
      *
      * @return the value of the <code>count</code> field, which is the number of valid
      *         bytes in this output stream.
-     * @see java.io.ByteArrayOutputStream#count
+     * @see ByteArrayOutputStream#size()
      */
     public int size() {
         return count;
@@ -133,50 +150,21 @@ public class NetworkStreamOutput extends BytesStream {
 
     @Override
     public BytesReference bytes() {
-        if (bytes == null) {
+        if (count == 0) {
             return BytesArray.EMPTY;
         }
-        return BytesReference.fromByteArray(bytes, count);
-    }
-
-    /**
-     * Like {@link #bytes()} but copies the bytes to a freshly allocated buffer.
-     *
-     * @return copy of the bytes in this instances
-     */
-    public BytesReference copyBytes() {
-        final byte[] keyBytes = new byte[count];
-        int offset = 0;
-        final BytesRefIterator iterator = bytes().iterator();
-        try {
-            BytesRef slice;
-            while ((slice = iterator.next()) != null) {
-                System.arraycopy(slice.bytes, slice.offset, keyBytes, offset, slice.length);
-                offset += slice.length;
-            }
-        } catch (IOException e) {
-            throw new AssertionError(e);
-        }
-        return new BytesArray(keyBytes);
-    }
-
-    /**
-     * Returns the number of bytes used by the underlying {@link ByteArray}
-     * @see ByteArray#ramBytesUsed()
-     */
-    public long ramBytesUsed() {
-        return bytes.ramBytesUsed();
+        return null;
+//        return BytesReference.fromByteArray(bytes, count);
     }
 
     protected void ensureCapacity(long offset) {
-        if (offset > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException(getClass().getSimpleName() + " cannot hold more than 2GB of data");
-        }
-        if (bytes == null) {
-            this.bytes = bigArrays.newByteArray(BigArrays.overSize(offset, PageCacheRecycler.PAGE_SIZE_IN_BYTES, 1), false);
-        } else {
-            bytes = bigArrays.grow(bytes, offset);
+        if (offset > currentCapacity) {
+            if (offset > Integer.MAX_VALUE) {
+                throw new IllegalArgumentException(getClass().getSimpleName() + " cannot hold more than 2GB of data");
+            }
+            Recycler.V<BytesRef> newPage = recycler.obtain();
+            pages.add(newPage);
+            currentCapacity += newPage.v().length;
         }
     }
-
 }

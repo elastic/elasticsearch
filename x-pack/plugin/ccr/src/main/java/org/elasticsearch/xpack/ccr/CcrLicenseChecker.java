@@ -444,14 +444,13 @@ public class CcrLicenseChecker {
     ) {
         final String clusterAlias = licenseCheck.remoteClusterLicenseInfo().clusterAlias();
         final String message = String.format(
-                Locale.ROOT,
-                "can not fetch remote index [%s:%s] metadata as the remote cluster [%s] is not licensed for [ccr]; %s",
-                clusterAlias,
-                leaderIndex,
-                clusterAlias,
-                RemoteClusterLicenseChecker.buildErrorMessage(
-                        CcrConstants.CCR_FEATURE,
-                        licenseCheck.remoteClusterLicenseInfo()));
+            Locale.ROOT,
+            "can not fetch remote index [%s:%s] metadata as the remote cluster [%s] is not licensed for [ccr]; %s",
+            clusterAlias,
+            leaderIndex,
+            clusterAlias,
+            RemoteClusterLicenseChecker.buildErrorMessage(CcrConstants.CCR_FEATURE, licenseCheck.remoteClusterLicenseInfo())
+        );
         return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
     }
 
@@ -460,12 +459,11 @@ public class CcrLicenseChecker {
     ) {
         final String clusterAlias = licenseCheck.remoteClusterLicenseInfo().clusterAlias();
         final String message = String.format(
-                Locale.ROOT,
-                "can not fetch remote cluster state as the remote cluster [%s] is not licensed for [ccr]; %s",
-                clusterAlias,
-                RemoteClusterLicenseChecker.buildErrorMessage(
-                        CcrConstants.CCR_FEATURE,
-                        licenseCheck.remoteClusterLicenseInfo()));
+            Locale.ROOT,
+            "can not fetch remote cluster state as the remote cluster [%s] is not licensed for [ccr]; %s",
+            clusterAlias,
+            RemoteClusterLicenseChecker.buildErrorMessage(CcrConstants.CCR_FEATURE, licenseCheck.remoteClusterLicenseInfo())
+        );
         return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
     }
 

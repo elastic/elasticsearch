@@ -369,33 +369,39 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
 
     public void testBuildErrorMessageForActiveCompatibleLicense() {
         final XPackInfoResponse.LicenseInfo platinumLicence = createPlatinumLicenseResponse();
-        final RemoteClusterLicenseChecker.RemoteClusterLicenseInfo info =
-                new RemoteClusterLicenseChecker.RemoteClusterLicenseInfo("platinum-cluster", platinumLicence);
+        final RemoteClusterLicenseChecker.RemoteClusterLicenseInfo info = new RemoteClusterLicenseChecker.RemoteClusterLicenseInfo(
+            "platinum-cluster",
+            platinumLicence
+        );
         LicensedFeature.Momentary feature = LicensedFeature.momentary(null, "foo", License.OperationMode.PLATINUM);
-        final AssertionError e = expectThrows(
-                AssertionError.class,
-                () -> RemoteClusterLicenseChecker.buildErrorMessage(feature, info));
+        final AssertionError e = expectThrows(AssertionError.class, () -> RemoteClusterLicenseChecker.buildErrorMessage(feature, info));
         assertThat(e, hasToString(containsString("license must be incompatible to build error message")));
     }
 
     public void testBuildErrorMessageForIncompatibleLicense() {
         final XPackInfoResponse.LicenseInfo basicLicense = createBasicLicenseResponse();
-        final RemoteClusterLicenseChecker.RemoteClusterLicenseInfo info =
-                new RemoteClusterLicenseChecker.RemoteClusterLicenseInfo("basic-cluster", basicLicense);
+        final RemoteClusterLicenseChecker.RemoteClusterLicenseInfo info = new RemoteClusterLicenseChecker.RemoteClusterLicenseInfo(
+            "basic-cluster",
+            basicLicense
+        );
         LicensedFeature.Momentary feature = LicensedFeature.momentary(null, "feature", License.OperationMode.PLATINUM);
         assertThat(
-                RemoteClusterLicenseChecker.buildErrorMessage(feature, info),
-                equalTo("the license mode [BASIC] on cluster [basic-cluster] does not enable [feature]"));
+            RemoteClusterLicenseChecker.buildErrorMessage(feature, info),
+            equalTo("the license mode [BASIC] on cluster [basic-cluster] does not enable [feature]")
+        );
     }
 
     public void testBuildErrorMessageForInactiveLicense() {
         final XPackInfoResponse.LicenseInfo expiredLicense = createExpiredLicenseResponse();
-        final RemoteClusterLicenseChecker.RemoteClusterLicenseInfo info =
-                new RemoteClusterLicenseChecker.RemoteClusterLicenseInfo("expired-cluster", expiredLicense);
+        final RemoteClusterLicenseChecker.RemoteClusterLicenseInfo info = new RemoteClusterLicenseChecker.RemoteClusterLicenseInfo(
+            "expired-cluster",
+            expiredLicense
+        );
         LicensedFeature.Momentary feature = LicensedFeature.momentary(null, "foo", License.OperationMode.PLATINUM);
         assertThat(
-                RemoteClusterLicenseChecker.buildErrorMessage(feature, info),
-                equalTo("the license on cluster [expired-cluster] is not active"));
+            RemoteClusterLicenseChecker.buildErrorMessage(feature, info),
+            equalTo("the license on cluster [expired-cluster] is not active")
+        );
     }
 
     public void testCheckRemoteClusterLicencesNoLicenseMetadata() {

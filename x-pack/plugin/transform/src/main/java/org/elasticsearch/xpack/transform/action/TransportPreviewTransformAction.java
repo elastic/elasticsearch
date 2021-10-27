@@ -133,7 +133,8 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
             transportService.getRemoteClusterService(),
             DiscoveryNode.isRemoteClusterClient(settings)
                 /* transforms are BASIC so always allowed, no need to check license */
-                ? new RemoteClusterLicenseChecker(client, null) : null,
+                ? new RemoteClusterLicenseChecker(client, null)
+                : null,
             ingestService,
             clusterService.getNodeName(),
             License.OperationMode.BASIC.description()

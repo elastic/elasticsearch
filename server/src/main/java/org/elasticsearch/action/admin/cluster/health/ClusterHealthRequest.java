@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -64,11 +63,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
             waitForEvents = Priority.readFrom(in);
         }
         waitForNoInitializingShards = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
-            indicesOptions = IndicesOptions.readIndicesOptions(in);
-        } else {
-            indicesOptions = IndicesOptions.lenientExpandOpen();
-        }
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
         return200ForClusterHealthTimeout = in.readBoolean();
     }
 
@@ -97,9 +92,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
             Priority.writeTo(waitForEvents, out);
         }
         out.writeBoolean(waitForNoInitializingShards);
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
-            indicesOptions.writeIndicesOptions(out);
-        }
+        indicesOptions.writeIndicesOptions(out);
         out.writeBoolean(return200ForClusterHealthTimeout);
     }
 

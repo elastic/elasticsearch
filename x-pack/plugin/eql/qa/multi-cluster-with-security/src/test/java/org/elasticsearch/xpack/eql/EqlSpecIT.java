@@ -14,7 +14,7 @@ import static org.elasticsearch.xpack.eql.RemoteClusterTestUtils.remoteClusterIn
 
 public class EqlSpecIT extends EqlSpecTestCase {
 
-    public EqlSpecIT(String query, String name, long[] eventIds) {
-        super(remoteClusterIndex(TEST_INDEX), query, name, eventIds);
+    public EqlSpecIT(String query, String name, long[] eventIds, String[] joinKeys) {
+        super(remoteClusterIndex(TEST_INDEX), query, name, eventIds, joinKeys);
     }
 }

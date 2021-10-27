@@ -21,7 +21,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
-import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
+import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
@@ -165,21 +165,21 @@ public final class SearchPhaseController {
         }
         boolean isSortedByField = false;
         SortField[] sortFields = null;
-        String collapseField = null;
-        Object[] collapseValues = null;
+        String groupField = null;
+        Object[] groupValues = null;
         if (mergedTopDocs instanceof TopFieldDocs) {
             TopFieldDocs fieldDocs = (TopFieldDocs) mergedTopDocs;
             sortFields = fieldDocs.fields;
-            if (fieldDocs instanceof CollapseTopFieldDocs) {
+            if (fieldDocs instanceof TopFieldGroups) {
                 isSortedByField = (fieldDocs.fields.length == 1 && fieldDocs.fields[0].getType() == SortField.Type.SCORE) == false;
-                CollapseTopFieldDocs collapseTopFieldDocs = (CollapseTopFieldDocs) fieldDocs;
-                collapseField = collapseTopFieldDocs.field;
-                collapseValues = collapseTopFieldDocs.collapseValues;
+                TopFieldGroups topFieldGroups = (TopFieldGroups) fieldDocs;
+                groupField = topFieldGroups.field;
+                groupValues = topFieldGroups.groupValues;
             } else {
                 isSortedByField = true;
             }
         }
-        return new SortedTopDocs(scoreDocs, isSortedByField, sortFields, collapseField, collapseValues, numSuggestDocs);
+        return new SortedTopDocs(scoreDocs, isSortedByField, sortFields, groupField, groupValues, numSuggestDocs);
     }
 
     static TopDocs mergeTopDocs(Collection<TopDocs> results, int topN, int from) {
@@ -191,11 +191,11 @@ public final class SearchPhaseController {
         final int numShards = results.size();
         if (numShards == 1 && from == 0) { // only one shard and no pagination we can just return the topDocs as we got them.
             return topDocs;
-        } else if (topDocs instanceof CollapseTopFieldDocs) {
-            CollapseTopFieldDocs firstTopDocs = (CollapseTopFieldDocs) topDocs;
+        } else if (topDocs instanceof TopFieldGroups) {
+            TopFieldGroups firstTopDocs = (TopFieldGroups) topDocs;
             final Sort sort = new Sort(firstTopDocs.fields);
-            final CollapseTopFieldDocs[] shardTopDocs = results.toArray(new CollapseTopFieldDocs[numShards]);
-            mergedTopDocs = CollapseTopFieldDocs.merge(sort, from, topN, shardTopDocs, false);
+            final TopFieldGroups[] shardTopDocs = results.toArray(new TopFieldGroups[numShards]);
+            mergedTopDocs = TopFieldGroups.merge(sort, from, topN, shardTopDocs, false);
         } else if (topDocs instanceof TopFieldDocs) {
             TopFieldDocs firstTopDocs = (TopFieldDocs) topDocs;
             final Sort sort = new Sort(firstTopDocs.fields);

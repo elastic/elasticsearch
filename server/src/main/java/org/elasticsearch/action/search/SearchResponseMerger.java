@@ -14,7 +14,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
+import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
@@ -253,7 +253,7 @@ final class SearchResponseMerger {
         if (searchHits.getSortFields() != null) {
             if (searchHits.getCollapseField() != null) {
                 assert searchHits.getCollapseValues() != null;
-                topDocs = new CollapseTopFieldDocs(searchHits.getCollapseField(), totalHits, scoreDocs,
+                topDocs = new TopFieldGroups(searchHits.getCollapseField(), totalHits, scoreDocs,
                     searchHits.getSortFields(), searchHits.getCollapseValues());
             } else {
                 topDocs = new TopFieldDocs(totalHits, scoreDocs, searchHits.getSortFields());
@@ -338,18 +338,18 @@ final class SearchResponseMerger {
             }
         }
         SortField[] sortFields = null;
-        String collapseField = null;
-        Object[] collapseValues = null;
+        String groupField = null;
+        Object[] groupValues = null;
         if (topDocs instanceof TopFieldDocs) {
             sortFields = ((TopFieldDocs)topDocs).fields;
-            if (topDocs instanceof CollapseTopFieldDocs) {
-                CollapseTopFieldDocs collapseTopFieldDocs = (CollapseTopFieldDocs)topDocs;
-                collapseField = collapseTopFieldDocs.field;
-                collapseValues = collapseTopFieldDocs.collapseValues;
+            if (topDocs instanceof TopFieldGroups) {
+                TopFieldGroups topFieldGroups = (TopFieldGroups)topDocs;
+                groupField = topFieldGroups.field;
+                groupValues = topFieldGroups.groupValues;
             }
         }
         return new SearchHits(searchHits, topDocsStats.getTotalHits(), topDocsStats.getMaxScore(),
-            sortFields, collapseField, collapseValues);
+            sortFields, groupField, groupValues);
     }
 
     private static final class FieldDocAndSearchHit extends FieldDoc {

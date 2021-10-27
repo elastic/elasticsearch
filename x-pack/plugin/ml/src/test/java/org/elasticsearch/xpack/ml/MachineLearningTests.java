@@ -28,9 +28,9 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.same;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -175,7 +175,7 @@ public class MachineLearningTests extends ESTestCase {
     private MachineLearning createMachineLearning(Settings settings) {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
 
-        return new MachineLearning(settings, null){
+        return new MachineLearning(settings) {
             @Override
             protected XPackLicenseState getLicenseState() {
                 return licenseState;

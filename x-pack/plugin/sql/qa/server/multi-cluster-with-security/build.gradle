@@ -18,6 +18,7 @@ def remoteClusterReg = testClusters.register('remote-cluster') {
   setting 'xpack.security.autoconfiguration.enabled', 'false'
 
   user username: "test_user", password: "x-pack-test-password"
+  plugin ':x-pack:qa:freeze-plugin'
 }
 
 def integTestClusterReg = testClusters.register('integTest') {
@@ -33,6 +34,7 @@ def integTestClusterReg = testClusters.register('integTest') {
   setting 'xpack.security.autoconfiguration.enabled', 'false'
 
   user username: "test_user", password: "x-pack-test-password"
+  plugin ':x-pack:qa:freeze-plugin'
 }
 
 tasks.register("startRemoteCluster", DefaultTestClustersTask.class) {

@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
@@ -301,6 +301,7 @@ public class HttpExporterTests extends ESTestCase {
         final Settings.Builder builder = Settings.builder()
                 .put("xpack.monitoring.exporters._http.type", HttpExporter.TYPE)
                 .put("xpack.monitoring.exporters._http.host", "http://localhost:9200")
+                .put("xpack.monitoring.exporters._http.cluster_alerts.management.enabled", true)
                 .putList("xpack.monitoring.exporters._http.cluster_alerts.management.blacklist", blacklist);
 
         final Config config = createConfig(builder.build());
@@ -312,8 +313,12 @@ public class HttpExporterTests extends ESTestCase {
         assertThat(exception.getMessage(),
                    equalTo("[xpack.monitoring.exporters._http.cluster_alerts.management.blacklist] contains unrecognized Cluster " +
                            "Alert IDs [does_not_exist]"));
-        assertWarnings("[xpack.monitoring.exporters._http.cluster_alerts.management.blacklist] setting was deprecated in Elasticsearch" +
-            " and will be removed in a future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(
+            "[xpack.monitoring.exporters._http.cluster_alerts.management.blacklist] setting was deprecated in Elasticsearch" +
+                " and will be removed in a future release! See the breaking changes documentation for the next major version.",
+            "[xpack.monitoring.exporters._http.cluster_alerts.management.enabled] setting was deprecated in Elasticsearch" +
+                " and will be removed in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testExporterWithHostOnly() throws Exception {
@@ -471,8 +476,8 @@ public class HttpExporterTests extends ESTestCase {
                 .put("xpack.monitoring.exporters._http.type", "http");
         List<String> warningsExpected = new ArrayList<>();
 
-        if (clusterAlertManagement == false) {
-            builder.put("xpack.monitoring.exporters._http.cluster_alerts.management.enabled", false);
+        if (clusterAlertManagement) {
+            builder.put("xpack.monitoring.exporters._http.cluster_alerts.management.enabled", true);
             warningsExpected.add("[xpack.monitoring.exporters._http.cluster_alerts.management.enabled] setting was deprecated in " +
                 "Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major " +
                 "version.");

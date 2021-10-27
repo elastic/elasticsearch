@@ -1147,7 +1147,7 @@ public abstract class Engine implements Closeable {
                 throw new AlreadyClosedException("SearcherSupplier was closed");
             }
             final Searcher searcher = acquireSearcherInternal(source);
-            return CAN_MATCH_SEARCH_SOURCE.equals(source) ? searcher : wrapper.apply(searcher);
+            return wrapper.apply(searcher);
         }
 
         @Override

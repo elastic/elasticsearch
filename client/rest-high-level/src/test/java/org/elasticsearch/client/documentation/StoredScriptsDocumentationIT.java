@@ -55,6 +55,7 @@ import static org.hamcrest.Matchers.equalTo;
  * than 84, the line will be cut and a horizontal scroll bar will be displayed.
  * (the code indentation of the tag is not included in the width)
  */
+@SuppressWarnings("removal")
 public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase {
 
     @SuppressWarnings("unused")

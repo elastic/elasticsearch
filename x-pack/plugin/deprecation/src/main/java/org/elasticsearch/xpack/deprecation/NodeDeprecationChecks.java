@@ -8,11 +8,13 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.monitoring.MonitoringDeprecatedSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -364,4 +366,94 @@ public class NodeDeprecationChecks {
             DeprecationIssue.Level.WARNING,
             settings);
     }
+
+    static DeprecationIssue checkScriptContextCache(final Settings settings,
+                                                    final PluginsAndModules pluginsAndModules) {
+        if (ScriptService.isUseContextCacheSet(settings)) {
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                ScriptService.USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE,
+                "https://ela.st/es-deprecation-7-script-context-cache",
+                "found deprecated script context caches in use, change setting to compilation rate or remove " +
+                    "setting to use the default",
+                false, null);
+        }
+        return null;
+    }
+
+    static DeprecationIssue checkScriptContextCompilationsRateLimitSetting(final Settings settings,
+                                                                           final PluginsAndModules pluginsAndModules) {
+        Setting.AffixSetting<?> maxSetting = ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING;
+        Set<String> contextCompilationRates = maxSetting.getAsMap(settings).keySet();
+        if (contextCompilationRates.isEmpty() == false) {
+            String maxSettings = contextCompilationRates.stream().sorted().map(
+                c -> maxSetting.getConcreteSettingForNamespace(c).getKey()
+            ).collect(Collectors.joining(","));
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                    String.format(Locale.ROOT,
+                    "Setting context-specific rate limits [%s] is deprecated."
+                            + " Use [%s] to rate limit the compilation of user scripts."
+                            + " Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
+                        maxSettings, ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey()),
+                "https://ela.st/es-deprecation-7-script-context-cache",
+                String.format(Locale.ROOT, "[%s] is deprecated and will be removed in a future release", maxSettings),
+                false, null);
+        }
+        return null;
+    }
+
+    static DeprecationIssue checkScriptContextCacheSizeSetting(final Settings settings,
+                                                               final PluginsAndModules pluginsAndModules) {
+        Setting.AffixSetting<?> cacheSizeSetting = ScriptService.SCRIPT_CACHE_SIZE_SETTING;
+        Set<String> contextCacheSizes = cacheSizeSetting.getAsMap(settings).keySet();
+        if (contextCacheSizes.isEmpty() == false) {
+            String cacheSizeSettings = contextCacheSizes.stream().sorted().map(
+                c -> cacheSizeSetting.getConcreteSettingForNamespace(c).getKey()
+            ).collect(Collectors.joining(","));
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                String.format(Locale.ROOT,
+                    "Setting a context-specific cache size [%s] is deprecated."
+                    + " Use [%s] to configure the size of the general cache for scripts."
+                    + " Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
+                    cacheSizeSettings, ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING.getKey()),
+                "https://ela.st/es-deprecation-7-script-context-cache",
+                String.format(Locale.ROOT, "[%s] is deprecated and will be removed in a future release", cacheSizeSettings),
+                false, null);
+        }
+        return null;
+    }
+
+    static DeprecationIssue checkScriptContextCacheExpirationSetting(final Settings settings,
+                                                                     final PluginsAndModules pluginsAndModules) {
+        Setting.AffixSetting<?> cacheExpireSetting = ScriptService.SCRIPT_CACHE_EXPIRE_SETTING;
+        Set<String> contextCacheExpires = cacheExpireSetting.getAsMap(settings).keySet();
+        if (contextCacheExpires.isEmpty() == false) {
+            String cacheExpireSettings = contextCacheExpires.stream().sorted().map(
+                c -> cacheExpireSetting.getConcreteSettingForNamespace(c).getKey()
+            ).collect(Collectors.joining(","));
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                String.format(Locale.ROOT,
+                        "Setting a context-specific cache expiration [%s] is deprecated."
+                        + " Use [%s] to configure the expiration of the general cache."
+                        + " Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
+                        cacheExpireSettings, ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.getKey()),
+                "https://ela.st/es-deprecation-7-script-context-cache",
+                String.format(Locale.ROOT, "[%s] is deprecated and will be removed in a future release", cacheExpireSettings),
+                false, null);
+        }
+        return null;
+    }
+
+    static DeprecationIssue checkEnforceDefaultTierPreferenceSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
+        if (DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING.exists(settings)) {
+            String key = DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING.getKey();
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                String.format(Locale.ROOT, "setting [%s] is deprecated and will not be available in a future version", key),
+                "https://www.elastic.co/guide/en/elasticsearch/reference/current/data-tiers.html",
+                String.format(Locale.ROOT, "found [%s] configured. Discontinue use of this setting.", key),
+                false, null);
+        }
+
+        return null;
+    }
+
 }

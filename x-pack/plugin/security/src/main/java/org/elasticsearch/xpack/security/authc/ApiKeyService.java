@@ -377,7 +377,7 @@ public class ApiKeyService {
         return builder;
     }
 
-    void tryAuthenticate(ThreadContext ctx, ApiKeyCredentials credentials, ActionListener<AuthenticationResult> listener) {
+    void tryAuthenticate(ThreadContext ctx, ApiKeyCredentials credentials, ActionListener<AuthenticationResult<User>> listener) {
         if (false == isEnabled()) {
             listener.onResponse(AuthenticationResult.notHandled());
         }
@@ -394,18 +394,18 @@ public class ApiKeyService {
         ));
     }
 
-    public Authentication createApiKeyAuthentication(AuthenticationResult authResult, String nodeName) {
+    public Authentication createApiKeyAuthentication(AuthenticationResult<User> authResult, String nodeName) {
         if (false == authResult.isAuthenticated()) {
             throw new IllegalArgumentException("API Key authn result must be successful");
         }
-        final User user = authResult.getUser();
+        final User user = authResult.getValue();
         final RealmRef authenticatedBy = new RealmRef(ApiKeyService.API_KEY_REALM_NAME, ApiKeyService.API_KEY_REALM_TYPE, nodeName);
         return new Authentication(user, authenticatedBy, null, Version.CURRENT, Authentication.AuthenticationType.API_KEY,
                 authResult.getMetadata());
     }
 
     void loadApiKeyAndValidateCredentials(ThreadContext ctx, ApiKeyCredentials credentials,
-                                          ActionListener<AuthenticationResult> listener) {
+                                          ActionListener<AuthenticationResult<User>> listener) {
         final String docId = credentials.getId();
 
         Consumer<ApiKeyDoc> validator = apiKeyDoc ->
@@ -596,7 +596,7 @@ public class ApiKeyService {
      * @param listener the listener to notify after verification
      */
     void validateApiKeyCredentials(String docId, ApiKeyDoc apiKeyDoc, ApiKeyCredentials credentials, Clock clock,
-                                   ActionListener<AuthenticationResult> listener) {
+                                   ActionListener<AuthenticationResult<User>> listener) {
         if ("api_key".equals(apiKeyDoc.docType) == false) {
             listener.onResponse(
                 AuthenticationResult.unsuccessful("document [" + docId + "] is [" + apiKeyDoc.docType + "] not an api key", null));
@@ -694,7 +694,7 @@ public class ApiKeyService {
 
     // package-private for testing
     void validateApiKeyExpiration(ApiKeyDoc apiKeyDoc, ApiKeyCredentials credentials, Clock clock,
-                                  ActionListener<AuthenticationResult> listener) {
+                                  ActionListener<AuthenticationResult<User>> listener) {
         if (apiKeyDoc.expirationTime == -1 || Instant.ofEpochMilli(apiKeyDoc.expirationTime).isAfter(clock.instant())) {
             final String principal = Objects.requireNonNull((String) apiKeyDoc.creator.get("principal"));
             final String fullName = (String) apiKeyDoc.creator.get("full_name");

@@ -9,16 +9,20 @@
 package org.elasticsearch.action.admin.indices.cache.clear;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.List;
 
 public class ClearIndicesCacheResponseTests extends AbstractBroadcastResponseTestCase<ClearIndicesCacheResponse> {
 
     @Override
-    protected ClearIndicesCacheResponse createTestInstance(int totalShards, int successfulShards, int failedShards,
-                                                           List<DefaultShardOperationFailedException> failures) {
+    protected ClearIndicesCacheResponse createTestInstance(
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<DefaultShardOperationFailedException> failures
+    ) {
         return new ClearIndicesCacheResponse(totalShards, successfulShards, failedShards, failures);
     }
 

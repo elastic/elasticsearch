@@ -15,7 +15,9 @@ import java.io.IOException;
 import java.util.Locale;
 
 public enum TransformTaskState implements Writeable {
-    STOPPED, STARTED, FAILED;
+    STOPPED,
+    STARTED,
+    FAILED;
 
     public static TransformTaskState fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));

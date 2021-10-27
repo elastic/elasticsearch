@@ -137,13 +137,7 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
 
     @Override
     public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
-        return GlobalOrdinalsBuilder.build(
-            indexReader,
-            this,
-            breakerService,
-            logger,
-            scriptFunction
-        );
+        return GlobalOrdinalsBuilder.build(indexReader, this, breakerService, logger, scriptFunction);
     }
 
     @Override

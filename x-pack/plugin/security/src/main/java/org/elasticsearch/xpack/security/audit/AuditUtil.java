@@ -62,8 +62,9 @@ public class AuditUtil {
         if (checkExisting) {
             final String existing = extractRequestId(threadContext);
             if (existing != null) {
-                throw new IllegalStateException("Cannot generate a new audit request id - existing id ["
-                    + existing + "] already registered");
+                throw new IllegalStateException(
+                    "Cannot generate a new audit request id - existing id [" + existing + "] already registered"
+                );
             }
         }
         final String requestId = UUIDs.randomBase64UUID(Randomness.get());

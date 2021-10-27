@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.core.security.authz.support;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -17,6 +15,8 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -34,7 +34,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class SecurityQueryTemplateEvaluatorTests extends ESTestCase {
@@ -46,8 +46,7 @@ public class SecurityQueryTemplateEvaluatorTests extends ESTestCase {
     }
 
     public void testTemplating() throws Exception {
-        User user = new User("_username", new String[] { "role1", "role2" }, "_full_name", "_email",
-                Map.of("key", "value"), true);
+        User user = new User("_username", new String[] { "role1", "role2" }, "_full_name", "_email", Map.of("key", "value"), true);
 
         TemplateScript.Factory compiledTemplate = templateParams -> new TemplateScript(templateParams) {
             @Override
@@ -86,8 +85,14 @@ public class SecurityQueryTemplateEvaluatorTests extends ESTestCase {
     }
 
     public void testDocLevelSecurityTemplateWithOpenIdConnectStyleMetadata() throws Exception {
-        User user = new User(randomAlphaOfLength(8), generateRandomStringArray(5, 5, false), randomAlphaOfLength(9), "sample@example.com",
-            Map.of("oidc(email)", "sample@example.com"), true);
+        User user = new User(
+            randomAlphaOfLength(8),
+            generateRandomStringArray(5, 5, false),
+            randomAlphaOfLength(9),
+            "sample@example.com",
+            Map.of("oidc(email)", "sample@example.com"),
+            true
+        );
 
         final MustacheScriptEngine mustache = new MustacheScriptEngine();
 
@@ -95,7 +100,11 @@ public class SecurityQueryTemplateEvaluatorTests extends ESTestCase {
             assertThat(inv.getArguments(), arrayWithSize(2));
             Script script = (Script) inv.getArguments()[0];
             TemplateScript.Factory factory = mustache.compile(
-                script.getIdOrCode(), script.getIdOrCode(), TemplateScript.CONTEXT, script.getOptions());
+                script.getIdOrCode(),
+                script.getIdOrCode(),
+                TemplateScript.CONTEXT,
+                script.getOptions()
+            );
             return factory;
         });
 
@@ -110,7 +119,7 @@ public class SecurityQueryTemplateEvaluatorTests extends ESTestCase {
         String querySource = Strings.toString(new TermQueryBuilder("field", "value").toXContent(builder, ToXContent.EMPTY_PARAMS));
         String result = SecurityQueryTemplateEvaluator.evaluateTemplate(querySource, scriptService, null);
         assertThat(result, sameInstance(querySource));
-        verifyZeroInteractions(scriptService);
+        verifyNoMoreInteractions(scriptService);
     }
 
 }

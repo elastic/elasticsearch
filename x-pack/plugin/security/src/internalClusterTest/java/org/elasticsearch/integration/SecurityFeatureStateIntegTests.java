@@ -52,9 +52,7 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
 
     @Override
     protected Settings nodeSettings() {
-        return Settings.builder().put(super.nodeSettings())
-            .put("path.repo", repositoryLocation)
-            .build();
+        return Settings.builder().put(super.nodeSettings()).put("path.repo", repositoryLocation).build();
     }
 
     /**
@@ -69,7 +67,9 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
     public void testSecurityFeatureStateSnapshotAndRestore() throws Exception {
         // set up a snapshot repository
         final String repositoryName = "test-repo";
-        client().admin().cluster().preparePutRepository(repositoryName)
+        client().admin()
+            .cluster()
+            .preparePutRepository(repositoryName)
             .setType("fs")
             .setSettings(Settings.builder().put("location", repositoryLocation))
             .get();
@@ -78,23 +78,24 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
         final String roleName = "extra_role";
         final Request createRoleRequest = new Request("PUT", "/_security/role/" + roleName);
         createRoleRequest.addParameter("refresh", "wait_for");
-        createRoleRequest.setJsonEntity("{" +
-            "  \"indices\": [" +
-            "    {" +
-            "      \"names\": [ \"test_index\" ]," +
-            "      \"privileges\" : [ \"create\", \"create_index\", \"create_doc\" ]" +
-            "    }" +
-            "  ]" +
-            "}");
+        createRoleRequest.setJsonEntity(
+            "{"
+                + "  \"indices\": ["
+                + "    {"
+                + "      \"names\": [ \"test_index\" ],"
+                + "      \"privileges\" : [ \"create\", \"create_index\", \"create_doc\" ]"
+                + "    }"
+                + "  ]"
+                + "}"
+        );
         performSuperuserRequest(createRoleRequest);
 
         // create a test user
         final Request createUserRequest = new Request("PUT", "/_security/user/" + LOCAL_TEST_USER_NAME);
         createUserRequest.addParameter("refresh", "wait_for");
-        createUserRequest.setJsonEntity("{" +
-            "  \"password\": \"" + LOCAL_TEST_USER_PASSWORD + "\"," +
-            "  \"roles\": [ \"" + roleName + "\" ]" +
-            "}");
+        createUserRequest.setJsonEntity(
+            "{" + "  \"password\": \"" + LOCAL_TEST_USER_PASSWORD + "\"," + "  \"roles\": [ \"" + roleName + "\" ]" + "}"
+        );
         performSuperuserRequest(createUserRequest);
 
         // test user posts a document
@@ -104,7 +105,9 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
 
         // snapshot state
         final String snapshotName = "security-state";
-        client().admin().cluster().prepareCreateSnapshot(repositoryName, snapshotName)
+        client().admin()
+            .cluster()
+            .prepareCreateSnapshot(repositoryName, snapshotName)
             .setIndices("test_index")
             .setFeatureStates("LocalStateSecurity")
             .get();
@@ -122,13 +125,17 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
         ResponseException exception = expectThrows(ResponseException.class, () -> performTestUserRequest(postDocumentRequest2));
 
         assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-        assertThat(exception.getMessage(),
-            containsString("action [" + IndexAction.NAME + "] is unauthorized for user [" + LOCAL_TEST_USER_NAME + "]"));
+        assertThat(
+            exception.getMessage(),
+            containsString("action [" + IndexAction.NAME + "] is unauthorized for user [" + LOCAL_TEST_USER_NAME + "]")
+        );
 
         client().admin().indices().prepareClose("test_index").get();
 
         // restore state
-        client().admin().cluster().prepareRestoreSnapshot(repositoryName, snapshotName)
+        client().admin()
+            .cluster()
+            .prepareRestoreSnapshot(repositoryName, snapshotName)
             .setFeatureStates("LocalStateSecurity")
             .setIndices("test_index")
             .setWaitForCompletion(true)
@@ -142,13 +149,17 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
 
     private Response performSuperuserRequest(Request request) throws Exception {
         String token = UsernamePasswordToken.basicAuthHeaderValue(
-            TEST_SUPERUSER, new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()));
+            TEST_SUPERUSER,
+            new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())
+        );
         return performAuthenticatedRequest(request, token);
     }
 
     private Response performTestUserRequest(Request request) throws Exception {
         String token = UsernamePasswordToken.basicAuthHeaderValue(
-            LOCAL_TEST_USER_NAME, new SecureString(LOCAL_TEST_USER_PASSWORD.toCharArray()));
+            LOCAL_TEST_USER_NAME,
+            new SecureString(LOCAL_TEST_USER_PASSWORD.toCharArray())
+        );
         return performAuthenticatedRequest(request, token);
     }
 
@@ -165,8 +176,12 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
             assertThat(response.getSnapshots().get(0).getState(), is(SnapshotsInProgress.State.SUCCESS));
             // The status of the snapshot in the repository can become SUCCESS before it is fully finalized in the cluster state so wait for
             // it to disappear from the cluster state as well
-            SnapshotsInProgress snapshotsInProgress =
-                client().admin().cluster().state(new ClusterStateRequest()).get().getState().custom(SnapshotsInProgress.TYPE);
+            SnapshotsInProgress snapshotsInProgress = client().admin()
+                .cluster()
+                .state(new ClusterStateRequest())
+                .get()
+                .getState()
+                .custom(SnapshotsInProgress.TYPE);
             assertTrue(snapshotsInProgress.isEmpty());
         });
     }

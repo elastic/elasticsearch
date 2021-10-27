@@ -7,10 +7,10 @@
  */
 package org.elasticsearch.search.sort;
 
-import java.util.Objects;
-
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.search.DocValueFormat;
+
+import java.util.Objects;
 
 public final class SortFieldAndFormat {
 

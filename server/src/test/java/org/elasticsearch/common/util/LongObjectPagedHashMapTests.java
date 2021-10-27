@@ -9,6 +9,7 @@
 package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -22,8 +23,11 @@ public class LongObjectPagedHashMapTests extends ESTestCase {
 
     public void testDuel() {
         final LongObjectHashMap<Object> map1 = new LongObjectHashMap<>();
-        final LongObjectPagedHashMap<Object> map2 =
-            new LongObjectPagedHashMap<>(randomInt(42), 0.6f + randomFloat() * 0.39f, mockBigArrays());
+        final LongObjectPagedHashMap<Object> map2 = new LongObjectPagedHashMap<>(
+            randomInt(42),
+            0.6f + randomFloat() * 0.39f,
+            mockBigArrays()
+        );
         final int maxKey = randomIntBetween(1, 10000);
         final int iters = scaledRandomIntBetween(10000, 100000);
         for (int i = 0; i < iters; ++i) {

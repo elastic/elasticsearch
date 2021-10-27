@@ -12,9 +12,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.action.ApiKey;
 
 import java.io.IOException;
@@ -62,10 +62,7 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject()
-            .field("total", total)
-            .field("count", items.length)
-            .array("api_keys", (Object[]) items);
+        builder.startObject().field("total", total).field("count", items.length).array("api_keys", (Object[]) items);
         return builder.endObject();
     }
 
@@ -77,10 +74,8 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         QueryApiKeyResponse that = (QueryApiKeyResponse) o;
         return total == that.total && Arrays.equals(items, that.items);
     }
@@ -139,10 +134,8 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
 
         @Override
         public boolean equals(Object o) {
-            if (this == o)
-                return true;
-            if (o == null || getClass() != o.getClass())
-                return false;
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
             Item item = (Item) o;
             return Objects.equals(apiKey, item.apiKey) && Arrays.equals(sortValues, item.sortValues);
         }

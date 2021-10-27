@@ -14,35 +14,29 @@ import org.elasticsearch.test.ESTokenStreamTestCase;
 
 public class SnowballAnalyzerTests extends ESTokenStreamTestCase {
 
-  public void testEnglish() throws Exception {
-    Analyzer a = new SnowballAnalyzer("English");
-    assertAnalyzesTo(a, "he abhorred accents",
-        new String[]{"he", "abhor", "accent"});
-  }
+    public void testEnglish() throws Exception {
+        Analyzer a = new SnowballAnalyzer("English");
+        assertAnalyzesTo(a, "he abhorred accents", new String[] { "he", "abhor", "accent" });
+    }
 
-  public void testStopwords() throws Exception {
-    Analyzer a = new SnowballAnalyzer("English",
-            EnglishAnalyzer.ENGLISH_STOP_WORDS_SET);
-    assertAnalyzesTo(a, "the quick brown fox jumped",
-        new String[]{"quick", "brown", "fox", "jump"});
-  }
+    public void testStopwords() throws Exception {
+        Analyzer a = new SnowballAnalyzer("English", EnglishAnalyzer.ENGLISH_STOP_WORDS_SET);
+        assertAnalyzesTo(a, "the quick brown fox jumped", new String[] { "quick", "brown", "fox", "jump" });
+    }
 
-  /**
-   * Test turkish lowercasing
-   */
-  public void testTurkish() throws Exception {
-    Analyzer a = new SnowballAnalyzer("Turkish");
+    /**
+     * Test turkish lowercasing
+     */
+    public void testTurkish() throws Exception {
+        Analyzer a = new SnowballAnalyzer("Turkish");
 
-    assertAnalyzesTo(a, "ağacı", new String[] { "ağaç" });
-    assertAnalyzesTo(a, "AĞACI", new String[] { "ağaç" });
-  }
+        assertAnalyzesTo(a, "ağacı", new String[] { "ağaç" });
+        assertAnalyzesTo(a, "AĞACI", new String[] { "ağaç" });
+    }
 
-
-  public void testReusableTokenStream() throws Exception {
-    Analyzer a = new SnowballAnalyzer("English");
-    assertAnalyzesTo(a, "he abhorred accents",
-        new String[]{"he", "abhor", "accent"});
-    assertAnalyzesTo(a, "she abhorred him",
-        new String[]{"she", "abhor", "him"});
-  }
+    public void testReusableTokenStream() throws Exception {
+        Analyzer a = new SnowballAnalyzer("English");
+        assertAnalyzesTo(a, "he abhorred accents", new String[] { "he", "abhor", "accent" });
+        assertAnalyzesTo(a, "she abhorred him", new String[] { "she", "abhor", "him" });
+    }
 }

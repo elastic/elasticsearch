@@ -45,8 +45,10 @@ public interface TransportChannel {
             channel.sendResponse(e);
         } catch (Exception sendException) {
             sendException.addSuppressed(e);
-            logger.warn(() -> new ParameterizedMessage(
-                "Failed to send error response for action [{}] and request [{}]", actionName, request), sendException);
+            logger.warn(
+                () -> new ParameterizedMessage("Failed to send error response for action [{}] and request [{}]", actionName, request),
+                sendException
+            );
         }
     }
 }

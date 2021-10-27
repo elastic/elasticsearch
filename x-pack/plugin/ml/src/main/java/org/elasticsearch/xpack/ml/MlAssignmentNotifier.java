@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
 import java.util.Objects;
 
-
 public class MlAssignmentNotifier implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(MlAssignmentNotifier.class);
 
@@ -35,8 +34,12 @@ public class MlAssignmentNotifier implements ClusterStateListener {
     private final DataFrameAnalyticsAuditor dataFrameAnalyticsAuditor;
     private final ThreadPool threadPool;
 
-    MlAssignmentNotifier(AnomalyDetectionAuditor anomalyDetectionAuditor, DataFrameAnalyticsAuditor dataFrameAnalyticsAuditor,
-                         ThreadPool threadPool, ClusterService clusterService) {
+    MlAssignmentNotifier(
+        AnomalyDetectionAuditor anomalyDetectionAuditor,
+        DataFrameAnalyticsAuditor dataFrameAnalyticsAuditor,
+        ThreadPool threadPool,
+        ClusterService clusterService
+    ) {
         this.anomalyDetectionAuditor = anomalyDetectionAuditor;
         this.dataFrameAnalyticsAuditor = dataFrameAnalyticsAuditor;
         this.threadPool = threadPool;
@@ -82,9 +85,13 @@ public class MlAssignmentNotifier implements ClusterStateListener {
         auditMlTasks(nodes, nodes, tasks, tasks, true);
     }
 
-    private void auditMlTasks(DiscoveryNodes previousNodes, DiscoveryNodes currentNodes,
-                              PersistentTasksCustomMetadata previousTasks, PersistentTasksCustomMetadata currentTasks,
-                              boolean alwaysAuditUnassigned) {
+    private void auditMlTasks(
+        DiscoveryNodes previousNodes,
+        DiscoveryNodes currentNodes,
+        PersistentTasksCustomMetadata previousTasks,
+        PersistentTasksCustomMetadata currentTasks,
+        boolean alwaysAuditUnassigned
+    ) {
 
         for (PersistentTask<?> currentTask : currentTasks.tasks()) {
             Assignment currentAssignment = currentTask.getAssignment();
@@ -92,8 +99,7 @@ public class MlAssignmentNotifier implements ClusterStateListener {
             Assignment previousAssignment = previousTask != null ? previousTask.getAssignment() : null;
 
             boolean isTaskAssigned = (currentAssignment.getExecutorNode() != null);
-            if (Objects.equals(currentAssignment, previousAssignment) &&
-                (isTaskAssigned || alwaysAuditUnassigned == false)) {
+            if (Objects.equals(currentAssignment, previousAssignment) && (isTaskAssigned || alwaysAuditUnassigned == false)) {
                 continue;
             }
             boolean wasTaskAssigned = (previousAssignment != null) && (previousAssignment.getExecutorNode() != null);
@@ -104,8 +110,10 @@ public class MlAssignmentNotifier implements ClusterStateListener {
                     String nodeName = nodeName(currentNodes, currentAssignment.getExecutorNode());
                     anomalyDetectionAuditor.info(jobId, "Opening job on node [" + nodeName + "]");
                 } else if (alwaysAuditUnassigned) {
-                    anomalyDetectionAuditor.warning(jobId,
-                        "No node found to open job. Reasons [" + currentAssignment.getExplanation() + "]");
+                    anomalyDetectionAuditor.warning(
+                        jobId,
+                        "No node found to open job. Reasons [" + currentAssignment.getExplanation() + "]"
+                    );
                 } else if (wasTaskAssigned) {
                     String nodeName = nodeName(previousNodes, previousAssignment.getExecutorNode());
                     anomalyDetectionAuditor.info(jobId, "Job unassigned from node [" + nodeName + "]");
@@ -116,19 +124,32 @@ public class MlAssignmentNotifier implements ClusterStateListener {
                 if (jobId != null) {
                     if (isTaskAssigned) {
                         String nodeName = nodeName(currentNodes, currentAssignment.getExecutorNode());
-                        anomalyDetectionAuditor.info(jobId,
-                            "Starting datafeed [" + datafeedParams.getDatafeedId() + "] on node [" + nodeName + "]");
+                        anomalyDetectionAuditor.info(
+                            jobId,
+                            "Starting datafeed [" + datafeedParams.getDatafeedId() + "] on node [" + nodeName + "]"
+                        );
                     } else if (alwaysAuditUnassigned) {
-                        anomalyDetectionAuditor.warning(jobId,
-                            "No node found to start datafeed [" + datafeedParams.getDatafeedId() + "]. Reasons [" +
-                                currentAssignment.getExplanation() + "]");
+                        anomalyDetectionAuditor.warning(
+                            jobId,
+                            "No node found to start datafeed ["
+                                + datafeedParams.getDatafeedId()
+                                + "]. Reasons ["
+                                + currentAssignment.getExplanation()
+                                + "]"
+                        );
                     } else if (wasTaskAssigned) {
                         String nodeName = nodeName(previousNodes, previousAssignment.getExecutorNode());
-                        anomalyDetectionAuditor.info(jobId,
-                            "Datafeed [" + datafeedParams.getDatafeedId() + "] unassigned from node [" + nodeName + "]");
+                        anomalyDetectionAuditor.info(
+                            jobId,
+                            "Datafeed [" + datafeedParams.getDatafeedId() + "] unassigned from node [" + nodeName + "]"
+                        );
                     } else {
-                        logger.warn("[{}] No node found to start datafeed [{}]. Reasons [{}]",
-                            jobId, datafeedParams.getDatafeedId(), currentAssignment.getExplanation());
+                        logger.warn(
+                            "[{}] No node found to start datafeed [{}]. Reasons [{}]",
+                            jobId,
+                            datafeedParams.getDatafeedId(),
+                            currentAssignment.getExplanation()
+                        );
                     }
                 }
             } else if (MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME.equals(currentTask.getTaskName())) {
@@ -137,8 +158,10 @@ public class MlAssignmentNotifier implements ClusterStateListener {
                     String nodeName = nodeName(currentNodes, currentAssignment.getExecutorNode());
                     dataFrameAnalyticsAuditor.info(id, "Starting analytics on node [" + nodeName + "]");
                 } else if (alwaysAuditUnassigned) {
-                    dataFrameAnalyticsAuditor.warning(id,
-                        "No node found to start analytics. Reasons [" + currentAssignment.getExplanation() + "]");
+                    dataFrameAnalyticsAuditor.warning(
+                        id,
+                        "No node found to start analytics. Reasons [" + currentAssignment.getExplanation() + "]"
+                    );
                 } else if (wasTaskAssigned) {
                     String nodeName = nodeName(previousNodes, previousAssignment.getExecutorNode());
                     anomalyDetectionAuditor.info(id, "Analytics unassigned from node [" + nodeName + "]");

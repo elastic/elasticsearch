@@ -21,23 +21,21 @@ public final class Numbers {
     private static final BigInteger MAX_LONG_VALUE = BigInteger.valueOf(Long.MAX_VALUE);
     private static final BigInteger MIN_LONG_VALUE = BigInteger.valueOf(Long.MIN_VALUE);
 
-    private Numbers() {
-    }
+    private Numbers() {}
 
     public static short bytesToShort(byte[] bytes, int offset) {
         return (short) (((bytes[offset] & 0xFF) << 8) | (bytes[offset + 1] & 0xFF));
     }
 
     public static int bytesToInt(byte[] bytes, int offset) {
-        return ((bytes[offset] & 0xFF) << 24) | ((bytes[offset + 1] & 0xFF) << 16) | ((bytes[offset + 2] & 0xFF) << 8)
-                | (bytes[offset + 3] & 0xFF);
+        return ((bytes[offset] & 0xFF) << 24) | ((bytes[offset + 1] & 0xFF) << 16) | ((bytes[offset + 2] & 0xFF) << 8) | (bytes[offset + 3]
+            & 0xFF);
     }
 
     public static long bytesToLong(byte[] bytes, int offset) {
         return (((long) (((bytes[offset] & 0xFF) << 24) | ((bytes[offset + 1] & 0xFF) << 16) | ((bytes[offset + 2] & 0xFF) << 8)
-                | (bytes[offset + 3] & 0xFF))) << 32)
-                | ((((bytes[offset + 4] & 0xFF) << 24) | ((bytes[offset + 5] & 0xFF) << 16) | ((bytes[offset + 6] & 0xFF) << 8)
-                | (bytes[offset + 7] & 0xFF)) & 0xFFFFFFFFL);
+            | (bytes[offset + 3] & 0xFF))) << 32) | ((((bytes[offset + 4] & 0xFF) << 24) | ((bytes[offset + 5] & 0xFF) << 16)
+                | ((bytes[offset + 6] & 0xFF) << 8) | (bytes[offset + 7] & 0xFF)) & 0xFFFFFFFFL);
     }
 
     public static long bytesToLong(BytesRef bytes) {
@@ -107,8 +105,7 @@ public final class Numbers {
      *  stored value cannot be converted to a long that stores the exact same
      *  value. */
     public static long toLongExact(Number n) {
-        if (n instanceof Byte || n instanceof Short || n instanceof Integer
-                || n instanceof Long) {
+        if (n instanceof Byte || n instanceof Short || n instanceof Integer || n instanceof Long) {
             return n.longValue();
         } else if (n instanceof Float || n instanceof Double) {
             double d = n.doubleValue();
@@ -121,8 +118,9 @@ public final class Numbers {
         } else if (n instanceof BigInteger) {
             return ((BigInteger) n).longValueExact();
         } else {
-            throw new IllegalArgumentException("Cannot check whether [" + n + "] of class [" + n.getClass().getName()
-                    + "] is actually a long");
+            throw new IllegalArgumentException(
+                "Cannot check whether [" + n + "] of class [" + n.getClass().getName() + "] is actually a long"
+            );
         }
     }
 
@@ -143,8 +141,8 @@ public final class Numbers {
         final BigInteger bigIntegerValue;
         try {
             BigDecimal bigDecimalValue = new BigDecimal(stringValue);
-            if (bigDecimalValue.compareTo(BIGDECIMAL_GREATER_THAN_LONG_MAX_VALUE) >= 0 ||
-                bigDecimalValue.compareTo(BIGDECIMAL_LESS_THAN_LONG_MIN_VALUE) <= 0) {
+            if (bigDecimalValue.compareTo(BIGDECIMAL_GREATER_THAN_LONG_MAX_VALUE) >= 0
+                || bigDecimalValue.compareTo(BIGDECIMAL_LESS_THAN_LONG_MIN_VALUE) <= 0) {
                 throw new IllegalArgumentException("Value [" + stringValue + "] is out of range for a long");
             }
             bigIntegerValue = coerce ? bigDecimalValue.toBigInteger() : bigDecimalValue.toBigIntegerExact();

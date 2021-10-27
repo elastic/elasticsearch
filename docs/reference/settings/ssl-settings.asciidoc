@@ -4,7 +4,7 @@ You can configure the following TLS/SSL settings.
 ifdef::server[]
 +{ssl-prefix}.ssl.enabled+::
 (<<static-cluster-setting,Static>>)
-Used to enable or disable TLS/SSL. The default is `false`.
+Used to enable or disable TLS/SSL on the {ssl-layer}. The default is `false`.
 endif::server[]
 
 +{ssl-prefix}.ssl.supported_protocols+::

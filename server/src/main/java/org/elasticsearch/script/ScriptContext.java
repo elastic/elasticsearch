@@ -8,8 +8,8 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 
 import java.lang.reflect.Method;
 
@@ -75,8 +75,14 @@ public final class ScriptContext<FactoryType> {
     public final boolean allowStoredScript;
 
     /** Construct a context with the related instance and compiled classes with caller provided cache defaults */
-    public ScriptContext(String name, Class<FactoryType> factoryClazz, int cacheSizeDefault, TimeValue cacheExpireDefault,
-                         boolean compilationRateLimited, boolean allowStoredScript) {
+    public ScriptContext(
+        String name,
+        Class<FactoryType> factoryClazz,
+        int cacheSizeDefault,
+        TimeValue cacheExpireDefault,
+        boolean compilationRateLimited,
+        boolean allowStoredScript
+    ) {
         this.name = name;
         this.factoryClazz = factoryClazz;
         Method newInstanceMethod = findMethod("FactoryType", factoryClazz, "newInstance");
@@ -86,15 +92,25 @@ public final class ScriptContext<FactoryType> {
             statefulFactoryClazz = newFactoryMethod.getReturnType();
             newInstanceMethod = findMethod("StatefulFactoryType", statefulFactoryClazz, "newInstance");
             if (newInstanceMethod == null) {
-                throw new IllegalArgumentException("Could not find method newInstance StatefulFactoryType class ["
-                    + statefulFactoryClazz.getName() + "] for script context [" + name + "]");
+                throw new IllegalArgumentException(
+                    "Could not find method newInstance StatefulFactoryType class ["
+                        + statefulFactoryClazz.getName()
+                        + "] for script context ["
+                        + name
+                        + "]"
+                );
             }
         } else if (newInstanceMethod != null) {
             assert newFactoryMethod == null;
             statefulFactoryClazz = null;
         } else {
-            throw new IllegalArgumentException("Could not find method newInstance or method newFactory on FactoryType class ["
-                + factoryClazz.getName() + "] for script context [" + name + "]");
+            throw new IllegalArgumentException(
+                "Could not find method newInstance or method newFactory on FactoryType class ["
+                    + factoryClazz.getName()
+                    + "] for script context ["
+                    + name
+                    + "]"
+            );
         }
         instanceClazz = newInstanceMethod.getReturnType();
 
@@ -117,8 +133,17 @@ public final class ScriptContext<FactoryType> {
         for (Method method : clazz.getMethods()) {
             if (method.getName().equals(methodName)) {
                 if (foundMethod != null) {
-                    throw new IllegalArgumentException("Cannot have multiple " + methodName + " methods on " + type + " class ["
-                        + clazz.getName() + "] for script context [" + name + "]");
+                    throw new IllegalArgumentException(
+                        "Cannot have multiple "
+                            + methodName
+                            + " methods on "
+                            + type
+                            + " class ["
+                            + clazz.getName()
+                            + "] for script context ["
+                            + name
+                            + "]"
+                    );
                 }
                 foundMethod = method;
             }

@@ -93,6 +93,7 @@ public class FieldDataTests extends ESTestCase {
             public boolean advanceExact(int doc) throws IOException {
                 return true;
             }
+
             @Override
             public double doubleValue() {
                 return value;

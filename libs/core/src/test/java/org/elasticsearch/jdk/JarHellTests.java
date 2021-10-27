@@ -52,8 +52,7 @@ public class JarHellTests extends ESTestCase {
 
     public void testDifferentJars() throws Exception {
         Path dir = createTempDir();
-        Set<URL> jars = asSet(makeJar(dir, "foo.jar", null, "DuplicateClass.class"),
-                              makeJar(dir, "bar.jar", null, "DuplicateClass.class"));
+        Set<URL> jars = asSet(makeJar(dir, "foo.jar", null, "DuplicateClass.class"), makeJar(dir, "bar.jar", null, "DuplicateClass.class"));
         try {
             JarHell.checkJarHell(jars, logger::debug);
             fail("did not get expected exception");
@@ -68,10 +67,7 @@ public class JarHellTests extends ESTestCase {
     public void testModuleInfo() throws Exception {
         Path dir = createTempDir();
         JarHell.checkJarHell(
-            asSet(
-                makeJar(dir, "foo.jar", null, "module-info.class"),
-                makeJar(dir, "bar.jar", null, "module-info.class")
-            ),
+            asSet(makeJar(dir, "foo.jar", null, "module-info.class"), makeJar(dir, "bar.jar", null, "module-info.class")),
             logger::debug
         );
     }
@@ -79,10 +75,7 @@ public class JarHellTests extends ESTestCase {
     public void testModuleInfoPackage() throws Exception {
         Path dir = createTempDir();
         JarHell.checkJarHell(
-            asSet(
-                makeJar(dir, "foo.jar", null, "foo/bar/module-info.class"),
-                makeJar(dir, "bar.jar", null, "foo/bar/module-info.class")
-            ),
+            asSet(makeJar(dir, "foo.jar", null, "foo/bar/module-info.class"), makeJar(dir, "bar.jar", null, "foo/bar/module-info.class")),
             logger::debug
         );
     }
@@ -90,8 +83,7 @@ public class JarHellTests extends ESTestCase {
     public void testDirsOnClasspath() throws Exception {
         Path dir1 = createTempDir();
         Path dir2 = createTempDir();
-        Set<URL> dirs = asSet(makeFile(dir1, "DuplicateClass.class"),
-                              makeFile(dir2, "DuplicateClass.class"));
+        Set<URL> dirs = asSet(makeFile(dir1, "DuplicateClass.class"), makeFile(dir2, "DuplicateClass.class"));
         try {
             JarHell.checkJarHell(dirs, logger::debug);
             fail("did not get expected exception");
@@ -106,8 +98,7 @@ public class JarHellTests extends ESTestCase {
     public void testDirAndJar() throws Exception {
         Path dir1 = createTempDir();
         Path dir2 = createTempDir();
-        Set<URL> dirs = asSet(makeJar(dir1, "foo.jar", null, "DuplicateClass.class"),
-                              makeFile(dir2, "DuplicateClass.class"));
+        Set<URL> dirs = asSet(makeJar(dir1, "foo.jar", null, "DuplicateClass.class"), makeFile(dir2, "DuplicateClass.class"));
         try {
             JarHell.checkJarHell(dirs, logger::debug);
             fail("did not get expected exception");
@@ -148,7 +139,6 @@ public class JarHellTests extends ESTestCase {
         }
         JavaVersion targetVersion = JavaVersion.parse(Strings.collectionToDelimitedString(target, "."));
 
-
         Manifest manifest = new Manifest();
         Attributes attributes = manifest.getMainAttributes();
         attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
@@ -174,8 +164,13 @@ public class JarHellTests extends ESTestCase {
             JarHell.checkJarHell(jars, logger::debug);
             fail("did not get expected exception");
         } catch (IllegalStateException e) {
-            assertTrue(e.getMessage().equals("version string must be a sequence of nonnegative decimal integers separated " +
-                "by \".\"'s and may have leading zeros but was bogus"));
+            assertTrue(
+                e.getMessage()
+                    .equals(
+                        "version string must be a sequence of nonnegative decimal integers separated "
+                            + "by \".\"'s and may have leading zeros but was bogus"
+                    )
+            );
         }
     }
 
@@ -190,7 +185,7 @@ public class JarHellTests extends ESTestCase {
     }
 
     public void testValidVersions() {
-        String[] versions = new String[]{"1.7", "1.7.0", "0.1.7", "1.7.0.80"};
+        String[] versions = new String[] { "1.7", "1.7.0", "0.1.7", "1.7.0.80" };
         for (String version : versions) {
             try {
                 JarHell.checkVersionFormat(version);
@@ -201,13 +196,12 @@ public class JarHellTests extends ESTestCase {
     }
 
     public void testInvalidVersions() {
-        String[] versions = new String[]{"", "1.7.0_80", "1.7."};
+        String[] versions = new String[] { "", "1.7.0_80", "1.7." };
         for (String version : versions) {
             try {
                 JarHell.checkVersionFormat(version);
                 fail("\"" + version + "\"" + " should be rejected as an invalid version format");
-            } catch (IllegalStateException e) {
-            }
+            } catch (IllegalStateException e) {}
         }
     }
 

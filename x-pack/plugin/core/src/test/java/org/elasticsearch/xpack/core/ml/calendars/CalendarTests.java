@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.core.ml.calendars;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 
 import java.io.IOException;
@@ -66,8 +66,7 @@ public class CalendarTests extends AbstractSerializingTestCase<Calendar> {
     public void testStrictParser() throws IOException {
         String json = "{\"foo\":\"bar\"}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                    () -> Calendar.STRICT_PARSER.apply(parser, null));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Calendar.STRICT_PARSER.apply(parser, null));
 
             assertThat(e.getMessage(), containsString("unknown field [foo]"));
         }

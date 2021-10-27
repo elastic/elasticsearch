@@ -53,8 +53,14 @@ public class PendingClusterTasksResponse extends ActionResponse implements Itera
         StringBuilder sb = new StringBuilder();
         sb.append("tasks: (").append(pendingTasks.size()).append("):\n");
         for (PendingClusterTask pendingClusterTask : this) {
-            sb.append(pendingClusterTask.getInsertOrder()).append("/").append(pendingClusterTask.getPriority()).append("/")
-                    .append(pendingClusterTask.getSource()).append("/").append(pendingClusterTask.getTimeInQueue()).append("\n");
+            sb.append(pendingClusterTask.getInsertOrder())
+                .append("/")
+                .append(pendingClusterTask.getPriority())
+                .append("/")
+                .append(pendingClusterTask.getSource())
+                .append("/")
+                .append(pendingClusterTask.getTimeInQueue())
+                .append("\n");
         }
         return sb.toString();
     }

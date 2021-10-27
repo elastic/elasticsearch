@@ -85,11 +85,12 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
     }
 
     public void testUpdateUsingBuilder() throws IOException {
-        SettingsConfig config =
-            fromString("{\"max_page_search_size\" : 10000, "
+        SettingsConfig config = fromString(
+            "{\"max_page_search_size\" : 10000, "
                 + "\"docs_per_second\" :42, "
                 + "\"dates_as_epoch_millis\": true, "
-                + "\"align_checkpoints\": false}");
+                + "\"align_checkpoints\": false}"
+        );
 
         SettingsConfig.Builder builder = new SettingsConfig.Builder(config);
         builder.update(fromString("{\"max_page_search_size\" : 100}"));
@@ -106,10 +107,13 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
         assertThat(builder.build().getAlignCheckpointsForUpdate(), equalTo(0));
 
         builder.update(
-            fromString("{\"max_page_search_size\" : 77, "
-                + "\"docs_per_second\" :null, "
-                + "\"dates_as_epoch_millis\": null, "
-                + "\"align_checkpoints\": null}"));
+            fromString(
+                "{\"max_page_search_size\" : 77, "
+                    + "\"docs_per_second\" :null, "
+                    + "\"dates_as_epoch_millis\": null, "
+                    + "\"align_checkpoints\": null}"
+            )
+        );
         assertThat(builder.build().getMaxPageSearchSize(), equalTo(77));
         assertNull(builder.build().getDocsPerSecond());
         assertNull(builder.build().getDatesAsEpochMillisForUpdate());

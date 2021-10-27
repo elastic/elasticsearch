@@ -85,20 +85,16 @@ class DefaultCheckpointProvider implements CheckpointProvider {
         final long timestamp = clock.millis();
         final long checkpoint = TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? 1 : lastCheckpoint.getCheckpoint() + 1;
 
-        getIndexCheckpoints(
-            ActionListener.wrap(
-                checkpointsByIndex -> {
-                    reportSourceIndexChanges(
-                        TransformCheckpoint.isNullOrEmpty(lastCheckpoint)
-                            ? Collections.emptySet()
-                            : lastCheckpoint.getIndicesCheckpoints().keySet(),
-                        checkpointsByIndex.keySet()
-                    );
+        getIndexCheckpoints(ActionListener.wrap(checkpointsByIndex -> {
+            reportSourceIndexChanges(
+                TransformCheckpoint.isNullOrEmpty(lastCheckpoint)
+                    ? Collections.emptySet()
+                    : lastCheckpoint.getIndicesCheckpoints().keySet(),
+                checkpointsByIndex.keySet()
+            );
 
-                    listener.onResponse(new TransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, 0L));
-                },
-                listener::onFailure)
-        );
+            listener.onResponse(new TransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, 0L));
+        }, listener::onFailure));
     }
 
     protected void getIndexCheckpoints(ActionListener<Map<String, long[]>> listener) {
@@ -177,15 +173,20 @@ class DefaultCheckpointProvider implements CheckpointProvider {
                                 logger.warn(
                                     new ParameterizedMessage(
                                         "Source has [{}] failed shards, shard failure [{}]",
-                                        response.getFailedShards(), i).getFormattedMessage(),
-                                    response.getShardFailures()[i]);
+                                        response.getFailedShards(),
+                                        i
+                                    ).getFormattedMessage(),
+                                    response.getShardFailures()[i]
+                                );
                             }
                             listener.onFailure(
                                 new CheckpointException(
                                     "Source has [{}] failed shards, first shard failure: {}",
                                     response.getShardFailures()[0],
                                     response.getFailedShards(),
-                                    response.getShardFailures()[0].toString()));
+                                    response.getShardFailures()[0].toString()
+                                )
+                            );
                             return;
                         }
                         listener.onResponse(extractIndexCheckPoints(response.getShards(), userIndices, prefix));

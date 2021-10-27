@@ -92,10 +92,16 @@ public class EmptyStateIndexRemoverTests extends ESTestCase {
         IndicesStatsResponse indicesStatsResponse = mock(IndicesStatsResponse.class);
         doReturn(
             Map.of(
-                ".ml-state-a", indexStats(".ml-state-a", 1),
-                ".ml-state-b", indexStats(".ml-state-b", 2),
-                ".ml-state-c", indexStats(".ml-state-c", 1),
-                ".ml-state-d", indexStats(".ml-state-d", 2))).when(indicesStatsResponse).getIndices();
+                ".ml-state-a",
+                indexStats(".ml-state-a", 1),
+                ".ml-state-b",
+                indexStats(".ml-state-b", 2),
+                ".ml-state-c",
+                indexStats(".ml-state-c", 1),
+                ".ml-state-d",
+                indexStats(".ml-state-d", 2)
+            )
+        ).when(indicesStatsResponse).getIndices();
         doAnswer(withResponse(indicesStatsResponse)).when(client).execute(eq(IndicesStatsAction.INSTANCE), any(), any());
 
         remover.remove(1.0f, listener, () -> false);
@@ -109,11 +115,18 @@ public class EmptyStateIndexRemoverTests extends ESTestCase {
         IndicesStatsResponse indicesStatsResponse = mock(IndicesStatsResponse.class);
         doReturn(
             Map.of(
-                ".ml-state-a", indexStats(".ml-state-a", 1),
-                ".ml-state-b", indexStats(".ml-state-b", 0),
-                ".ml-state-c", indexStats(".ml-state-c", 2),
-                ".ml-state-d", indexStats(".ml-state-d", 0),
-                ".ml-state-e", indexStats(".ml-state-e", 0))).when(indicesStatsResponse).getIndices();
+                ".ml-state-a",
+                indexStats(".ml-state-a", 1),
+                ".ml-state-b",
+                indexStats(".ml-state-b", 0),
+                ".ml-state-c",
+                indexStats(".ml-state-c", 2),
+                ".ml-state-d",
+                indexStats(".ml-state-d", 0),
+                ".ml-state-e",
+                indexStats(".ml-state-e", 0)
+            )
+        ).when(indicesStatsResponse).getIndices();
         doAnswer(withResponse(indicesStatsResponse)).when(client).execute(eq(IndicesStatsAction.INSTANCE), any(), any());
 
         GetIndexResponse getIndexResponse = new GetIndexResponse(new String[] { ".ml-state-e" }, null, null, null, null, null);

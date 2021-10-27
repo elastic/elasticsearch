@@ -68,15 +68,24 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
                     continue;
                 }
                 SnapshotsInProgress.ShardSnapshotStatus shardSnapshotStatus = snapshot.shards().get(shardRouting.shardId());
-                if (shardSnapshotStatus != null && shardSnapshotStatus.state().completed() == false &&
-                        shardSnapshotStatus.nodeId() != null && shardSnapshotStatus.nodeId().equals(shardRouting.currentNodeId())) {
+                if (shardSnapshotStatus != null
+                    && shardSnapshotStatus.state().completed() == false
+                    && shardSnapshotStatus.nodeId() != null
+                    && shardSnapshotStatus.nodeId().equals(shardRouting.currentNodeId())) {
                     if (logger.isTraceEnabled()) {
-                        logger.trace("Preventing snapshotted shard [{}] from being moved away from node [{}]",
-                                shardRouting.shardId(), shardSnapshotStatus.nodeId());
+                        logger.trace(
+                            "Preventing snapshotted shard [{}] from being moved away from node [{}]",
+                            shardRouting.shardId(),
+                            shardSnapshotStatus.nodeId()
+                        );
                     }
-                    return allocation.decision(Decision.THROTTLE, NAME,
-                            "waiting for snapshotting of shard [%s] to complete on this node [%s]",
-                            shardRouting.shardId(), shardSnapshotStatus.nodeId());
+                    return allocation.decision(
+                        Decision.THROTTLE,
+                        NAME,
+                        "waiting for snapshotting of shard [%s] to complete on this node [%s]",
+                        shardRouting.shardId(),
+                        shardSnapshotStatus.nodeId()
+                    );
                 }
             }
         }

@@ -370,8 +370,8 @@ public class HttpExporterTests extends ESTestCase {
         );
         assertWarnings(
             Level.WARN,
-            "[xpack.monitoring.exporters._http.cluster_alerts.management.blacklist] setting was deprecated in "
-                + "Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."
+            "[xpack.monitoring.exporters._http.cluster_alerts.management.blacklist] setting was deprecated in Elasticsearch and will be "
+                + "removed in a future release! See the breaking changes documentation for the next major version."
         );
     }
 
@@ -565,9 +565,8 @@ public class HttpExporterTests extends ESTestCase {
             expectedWarnings.add(
                 new DeprecationWarning(
                     Level.WARN,
-                    "[xpack.monitoring.exporters._http.cluster_alerts.management.enabled] setting was deprecated in "
-                        + "Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major "
-                        + "version."
+                    "[xpack.monitoring.exporters._http.cluster_alerts.management.enabled] setting was deprecated in Elasticsearch and will "
+                        + "be removed in a future release! See the breaking changes documentation for the next major version."
                 )
             );
         }
@@ -589,9 +588,8 @@ public class HttpExporterTests extends ESTestCase {
             expectedWarnings.add(
                 new DeprecationWarning(
                     Level.WARN,
-                    "[xpack.monitoring.exporters._http.index.template.master_timeout] setting was deprecated in "
-                        + "Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major "
-                        + "version."
+                    "[xpack.monitoring.exporters._http.index.template.master_timeout] setting was deprecated in Elasticsearch and will be "
+                        + "removed in a future release! See the breaking changes documentation for the next major version."
                 )
             );
         }

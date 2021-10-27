@@ -191,8 +191,8 @@ class NodeDeprecationChecks {
             && (licenseState.getOperationMode().equals(License.OperationMode.BASIC)
                 || licenseState.getOperationMode().equals(License.OperationMode.TRIAL))) {
             String details = "Security will no longer be disabled by default for Trial licenses in 8.0. The [xpack.security.enabled] "
-                + "setting will always default to \"true\". See https://ela.st/es-deprecation-7-security-minimal-setup to secure your cluster"
-                + ". To explicitly disable security, set [xpack.security.enabled] to \"false\" (not recommended).";
+                + "setting will always default to \"true\". See https://ela.st/es-deprecation-7-security-minimal-setup to secure your "
+                + "cluster. To explicitly disable security, set [xpack.security.enabled] to \"false\" (not recommended).";
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
                 "Security is enabled by default for all licenses",

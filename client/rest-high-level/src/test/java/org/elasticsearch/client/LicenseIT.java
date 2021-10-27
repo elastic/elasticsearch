@@ -95,6 +95,11 @@ public class LicenseIT extends ESRestHighLevelClientTestCase {
         assumeTrue("Trial license is only valid when tested against snapshot/test builds", Build.CURRENT.isSnapshot());
 
         // use a hard-coded trial license for 20 yrs to be able to roll back from another licenses
+        final String signature =
+            "AAAABAAAAA3FXON9kGmNqmH+ASDWAAAAIAo5/x6hrsGh1GqqrJmy4qgmEC7gK0U4zQ6q5ZEMhm4jAAABAAcdKHL0BfM2uqTgT7BDuFxX5lb\n"
+                + "t/bHDVJ421Wwgm5p3IMbw/W13iiAHz0hhDziF7acJbc/y65L+BKGtVC1gSSHeLDHaAD66VrjKxfc7VbGyJIAYBOdujf0rheurmaD3IcNo\n"
+                + "/tWDjCdtTwrNziFkorsGcPadBP5Yc6csk3/Q74DlfiYweMBxLUfkBERwxwd5OQS6ujGvl/4bb8p5zXvOw8vMSaAXSXXnExP6lam+0934W\n"
+                + "0kHvU7IGk+fCUjOaiSWKSoE4TEcAtVNYj/oRoRtfQ1KQGpdCHxTHs1BimdZaG0nBHDsvhYlVVLSvHN6QzqsHWgFDG6JJxhtU872oTRSUHA=";
         final String licenseDefinition = Strings.toString(
             jsonBuilder().startObject()
                 .field(
@@ -111,13 +116,7 @@ public class LicenseIT extends ESRestHighLevelClientTestCase {
                             .put("issued_to", "client_rest-high-level_integTestCluster")
                             .put("issuer", "elasticsearch")
                             .put("start_date_in_millis", "-1")
-                            .put(
-                                "signature",
-                                "AAAABAAAAA3FXON9kGmNqmH+ASDWAAAAIAo5/x6hrsGh1GqqrJmy4qgmEC7gK0U4zQ6q5ZEMhm4jAAABAAcdKHL0BfM2uqTgT7BDuFxX5lb"
-                                    + "t/bHDVJ421Wwgm5p3IMbw/W13iiAHz0hhDziF7acJbc/y65L+BKGtVC1gSSHeLDHaAD66VrjKxfc7VbGyJIAYBOdujf0rheurmaD3IcNo"
-                                    + "/tWDjCdtTwrNziFkorsGcPadBP5Yc6csk3/Q74DlfiYweMBxLUfkBERwxwd5OQS6ujGvl/4bb8p5zXvOw8vMSaAXSXXnExP6lam+0934W"
-                                    + "0kHvU7IGk+fCUjOaiSWKSoE4TEcAtVNYj/oRoRtfQ1KQGpdCHxTHs1BimdZaG0nBHDsvhYlVVLSvHN6QzqsHWgFDG6JJxhtU872oTRSUHA="
-                            )
+                            .put("signature", signature)
                             .immutableMap()
                     )
                 )

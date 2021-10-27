@@ -1014,8 +1014,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                         + "indices have been deprecated. Consider cold or frozen tiers in place of frozen indices.",
                     "Searching frozen indices ["
                         + index
-                        + "] is deprecated. "
-                        + "Consider cold or frozen tiers in place of frozen indices. The frozen feature will be removed in a feature release."
+                        + "] is deprecated. Consider cold or frozen tiers in place of frozen indices. "
+                        + "The frozen feature will be removed in a feature release."
                 )
             );
             request.addParameter("ignore_throttled", "false");

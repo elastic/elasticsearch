@@ -569,7 +569,8 @@ public class SSLService {
                     "invalid_ssl_configuration",
                     "invalid SSL configuration for "
                         + prefix
-                        + " - server ssl configuration requires a key and certificate, but these have not been configured; you must set either "
+                        + " - server ssl configuration requires a key and certificate, "
+                        + "but these have not been configured; you must set either "
                         + "["
                         + configurationSettings.x509KeyPair.keystorePath.getKey()
                         + "], or both ["

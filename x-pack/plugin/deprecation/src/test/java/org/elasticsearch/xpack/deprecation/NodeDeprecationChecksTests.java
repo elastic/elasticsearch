@@ -751,8 +751,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                     DeprecationIssue.Level.CRITICAL,
                     "Setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node=false] is deprecated",
                     expectedUrl,
-                    "Remove the [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] setting. Disk watermarks are always "
-                        + "enabled for single node clusters in 8.0.",
+                    "Remove the [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] setting. Disk watermarks"
+                        + " are always enabled for single node clusters in 8.0.",
                     false,
                     null
                 )
@@ -1982,7 +1982,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             hasItem(
                 new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
-                    "The [xpack.monitoring.exporters.test.index.pipeline.master_timeout] settings are deprecated and will be removed after 8.0",
+                    "The [xpack.monitoring.exporters.test.index.pipeline.master_timeout] settings are"
+                        + " deprecated and will be removed after 8.0",
                     expectedUrl,
                     "Remove the following settings from elasticsearch.yml: [xpack.monitoring.exporters.test.index.pipeline.master_timeout]",
                     false,

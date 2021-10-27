@@ -467,8 +467,9 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                     DeprecationIssue.Level.WARNING,
                     "Translog retention settings are deprecated",
                     "https://ela.st/es-deprecation-7-translog-settings",
-                    "Remove the translog retention settings: \"index.translog.retention.size\" and \"index.translog.retention.age\". The "
-                        + "translog has not been used in peer recoveries with soft-deletes enabled since 7.0 and these settings have no effect.",
+                    "Remove the translog retention settings: \"index.translog.retention.size\" and \"index.translog.retention.age\". "
+                        + "The translog has not been used in peer recoveries with soft-deletes enabled since 7.0 and these settings "
+                        + "have no effect.",
                     false,
                     null
                 )
@@ -572,7 +573,8 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                     DeprecationIssue.Level.WARNING,
                     "Setting [index.indexing.slowlog.level] is deprecated",
                     expectedUrl,
-                    "Remove the [index.indexing.slowlog.level] setting. Use the [index.*.slowlog.threshold] settings to set the log levels.",
+                    "Remove the [index.indexing.slowlog.level] setting. Use the [index.*.slowlog.threshold]"
+                        + " settings to set the log levels.",
                     false,
                     null
                 )
@@ -717,8 +719,8 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                     DeprecationIssue.Level.CRITICAL,
                     "[test] index uses deprecated geo_shape properties",
                     "https://ela.st/es-deprecation-7-geo-shape-mappings",
-                    "The following geo_shape parameters must be removed from test: [[parameter [points_only] in field [location]; parameter "
-                        + "[strategy] in field [location]]]",
+                    "The following geo_shape parameters must be removed from test: [[parameter [points_only] in field [location];"
+                        + " parameter [strategy] in field [location]]]",
                     false,
                     null
                 )
@@ -748,8 +750,8 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                     DeprecationIssue.Level.CRITICAL,
                     "[test] index uses deprecated geo_shape properties",
                     "https://ela.st/es-deprecation-7-geo-shape-mappings",
-                    "The following geo_shape parameters must be removed from test: [[parameter [points_only] in field [location]; parameter "
-                        + "[strategy] in field [location]]]",
+                    "The following geo_shape parameters must be removed from test: [[parameter [points_only] in field [location];"
+                        + " parameter [strategy] in field [location]]]",
                     false,
                     null
                 )

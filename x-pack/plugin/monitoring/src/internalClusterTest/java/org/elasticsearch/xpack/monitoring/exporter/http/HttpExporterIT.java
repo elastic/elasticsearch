@@ -196,13 +196,8 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         final String authHeaderValue = Base64.encode(userName + ":" + securePassword1);
         final String authHeaderValue2 = Base64.encode(userName + ":" + securePassword2);
 
-        Settings settings = secureSettings(securePassword1).put("xpack.monitoring.exporters._http.auth.password", "insecurePassword") // verify
-                                                                                                                                      // this
-                                                                                                                                      // password
-                                                                                                                                      // is
-                                                                                                                                      // not
-                                                                                                                                      // used
-            .build();
+        Settings settings = secureSettings(securePassword1).put("xpack.monitoring.exporters._http.auth.password", "insecurePassword")
+            .build(); // verify this password is not used
         PluginsService pluginsService = internalCluster().getInstances(PluginsService.class).iterator().next();
         LocalStateMonitoring localStateMonitoring = pluginsService.filterPlugins(LocalStateMonitoring.class).iterator().next();
         localStateMonitoring.getMonitoring().reload(settings);

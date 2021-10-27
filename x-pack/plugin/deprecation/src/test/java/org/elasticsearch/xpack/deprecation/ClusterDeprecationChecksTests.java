@@ -513,8 +513,8 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
                     DeprecationIssue.Level.CRITICAL,
                     "[my-template] component template and [single-type] index template use deprecated geo_shape properties",
                     "https://ela.st/es-deprecation-7-geo-shape-mappings",
-                    "Remove the following deprecated geo_shape properties from the mappings: [my-template: [parameter [points_only] in field"
-                        + " [location]; parameter [strategy] in field [location]]]; [single-type: [parameter [points_only] in field "
+                    "Remove the following deprecated geo_shape properties from the mappings: [my-template: [parameter [points_only] in"
+                        + " field [location]; parameter [strategy] in field [location]]]; [single-type: [parameter [points_only] in field "
                         + "[location]; parameter [strategy] in field [location]]].",
                     false,
                     null

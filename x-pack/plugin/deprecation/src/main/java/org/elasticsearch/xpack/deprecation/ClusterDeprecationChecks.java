@@ -153,9 +153,8 @@ public class ClusterDeprecationChecks {
                 "https://ela.st/es-deprecation-7-field_names-settings",
                 String.format(
                     Locale.ROOT,
-                    "Remove the \"%s\" mapping that configures the enabled setting from the "
-                        + "following templates: \"%s\". There's no longer a need to disable this field to reduce index overhead if you have a "
-                        + "lot of fields.",
+                    "Remove the \"%s\" mapping that configures the enabled setting from the following templates: \"%s\". "
+                        + "There's no longer a need to disable this field to reduce index overhead if you have a lot of fields.",
                     FieldNamesFieldMapper.NAME,
                     templatesContainingFieldNames.stream().collect(Collectors.joining(","))
                 ),

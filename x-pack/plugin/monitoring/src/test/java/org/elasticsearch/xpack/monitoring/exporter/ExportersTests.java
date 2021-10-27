@@ -311,14 +311,13 @@ public class ExportersTests extends ESTestCase {
             ),
             new DeprecationWarning(
                 DeprecationLogger.CRITICAL,
-                "[xpack.monitoring.exporters._name0.use_ingest] setting was deprecated in "
-                    + "Elasticsearch "
+                "[xpack.monitoring.exporters._name0.use_ingest] setting was deprecated in Elasticsearch "
                     + "and will be removed in a future release! See the breaking changes documentation for the next major version."
             ),
             new DeprecationWarning(
                 DeprecationLogger.CRITICAL,
-                "[xpack.monitoring.exporters._name1.use_ingest] setting was deprecated in "
-                    + "Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."
+                "[xpack.monitoring.exporters._name1.use_ingest] setting was deprecated in Elasticsearch and will be removed in a future "
+                    + "release! See the breaking changes documentation for the next major version."
             )
         );
     }

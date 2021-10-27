@@ -157,7 +157,11 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
 
     public void testDynamicClusterSettings() {
         final LoggingAuditTrail loggingAuditTrail = (LoggingAuditTrail) internalCluster().getInstances(AuditTrailService.class)
-            .iterator().next().getAuditTrails().iterator().next();
+            .iterator()
+            .next()
+            .getAuditTrails()
+            .iterator()
+            .next();
 
         final Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(LoggingAuditTrail.EMIT_CLUSTER_NAME_SETTING.getKey(), true);

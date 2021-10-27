@@ -1934,10 +1934,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 }
             }
             // Null value triggers LoggingAuditTrailTests.assertMsg to verify a key is absent in an audit log message.
-            commonFields.putIfAbsent(NODE_NAME_FIELD_NAME,    null);
-            commonFields.putIfAbsent(NODE_ID_FIELD_NAME,      null);
+            commonFields.putIfAbsent(NODE_NAME_FIELD_NAME, null);
+            commonFields.putIfAbsent(NODE_ID_FIELD_NAME, null);
             commonFields.putIfAbsent(HOST_ADDRESS_FIELD_NAME, null);
-            commonFields.putIfAbsent(HOST_NAME_FIELD_NAME,    null);
+            commonFields.putIfAbsent(HOST_NAME_FIELD_NAME, null);
             commonFields.putIfAbsent(CLUSTER_NAME_FIELD_NAME, null);
             commonFields.putIfAbsent(CLUSTER_UUID_FIELD_NAME, null);
             this.commonFields = Collections.unmodifiableMap(commonFields);

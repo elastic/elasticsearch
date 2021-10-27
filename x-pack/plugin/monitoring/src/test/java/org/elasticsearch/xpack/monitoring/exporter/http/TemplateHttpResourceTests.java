@@ -18,7 +18,7 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 /**
  * Tests {@link TemplateHttpResource}.
@@ -71,7 +71,7 @@ public class TemplateHttpResourceTests extends AbstractPublishableHttpResourceTe
         RestClient mockClient = mock(RestClient.class);
         SetOnce<HttpResource.ResourcePublishResult> result = new SetOnce<>();
         resource.doPublish(mockClient, ActionListener.wrap(result::set, e -> { throw new RuntimeException("Unexpected exception", e); }));
-        verifyZeroInteractions(mockClient); // Should not have used the client at all.
+        verifyNoMoreInteractions(mockClient); // Should not have used the client at all.
         HttpResource.ResourcePublishResult resourcePublishResult = result.get();
         assertThat(resourcePublishResult, notNullValue());
         assertThat(resourcePublishResult.getResourceState(), notNullValue());

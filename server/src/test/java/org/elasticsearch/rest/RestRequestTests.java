@@ -11,16 +11,14 @@ package org.elasticsearch.rest;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;

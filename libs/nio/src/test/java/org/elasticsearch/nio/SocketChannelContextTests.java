@@ -229,7 +229,7 @@ public class SocketChannelContextTests extends ESTestCase {
         ByteBuffer[] buffers = { ByteBuffer.wrap(createMessage(10)) };
         context.sendMessage(buffers, listener);
 
-        verify(listener).accept(isNull(Void.class), any(ClosedChannelException.class));
+        verify(listener).accept(isNull(), any(ClosedChannelException.class));
     }
 
     public void testSendMessageFromDifferentThreadIsQueuedWithSelector() throws Exception {

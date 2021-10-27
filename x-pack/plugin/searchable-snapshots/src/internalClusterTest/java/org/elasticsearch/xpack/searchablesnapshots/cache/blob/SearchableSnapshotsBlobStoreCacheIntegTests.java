@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.cache.blob;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -65,6 +66,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.SharedByt
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79896")
 public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
 
     private static Settings cacheSettings = null;

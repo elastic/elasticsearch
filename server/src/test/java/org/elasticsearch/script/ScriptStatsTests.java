@@ -165,7 +165,7 @@ public class ScriptStatsTests extends ESTestCase {
                 long day = randomLongBetween(0, histStats[j]);
                 long fifteen = day >= 1 ? randomLongBetween(0, day) : 0;
                 long five = fifteen >= 1 ? randomLongBetween(0, fifteen) : 0;
-                timeSeries.add(new TimeSeries(five, fifteen, day, day));
+                timeSeries.add(new TimeSeries(five, fifteen, day, 0));
             } else {
                 timeSeries.add(new TimeSeries());
             }

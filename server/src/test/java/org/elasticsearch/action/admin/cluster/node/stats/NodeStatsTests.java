@@ -878,7 +878,7 @@ public class NodeStatsTests extends ESTestCase {
             long day = randomLongBetween(0, 1024);
             long fifteen = day >= 1 ? randomLongBetween(0, day) : 0;
             long five = fifteen >= 1 ? randomLongBetween(0, fifteen) : 0;
-            return new TimeSeries(five, fifteen, day);
+            return new TimeSeries(five, fifteen, day, day);
         } else {
             return new TimeSeries();
         }

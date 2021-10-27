@@ -293,7 +293,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     private ClusterState randomAllocate(ClusterState state) {
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(List.of()),
-            new RoutingNodes(state, false),
+            state.mutableRoutingNodes(),
             state,
             null,
             null,
@@ -324,7 +324,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     private ClusterState startAll(ClusterState state) {
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(List.of()),
-            new RoutingNodes(state, false),
+            state.mutableRoutingNodes(),
             state,
             null,
             null,

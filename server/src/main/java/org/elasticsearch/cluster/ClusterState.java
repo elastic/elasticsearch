@@ -158,8 +158,17 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         this.customs = customs;
         this.wasReadFromDiff = wasReadFromDiff;
         this.routingNodes = routingNodes;
-        assert routingNodes == null || routingNodes.equals(new RoutingNodes(this))
-            : "RoutingNodes [" + routingNodes + "] are not consistent with this cluster state [" + new RoutingNodes(this) + "]";
+        assert assertConsistentRoutingNodes(routingTable, nodes, routingNodes);
+    }
+
+    private boolean assertConsistentRoutingNodes(RoutingTable routingTable, DiscoveryNodes nodes, @Nullable RoutingNodes routingNodes) {
+        if (routingNodes == null) {
+            return true;
+        }
+        final RoutingNodes expected = new RoutingNodes(routingTable, nodes);
+        assert routingNodes.equals(expected)
+            : "RoutingNodes [" + routingNodes + "] are not consistent with this cluster state [" + expected + "]";
+        return true;
     }
 
     public long term() {
@@ -259,8 +268,22 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         if (routingNodes != null) {
             return routingNodes;
         }
-        routingNodes = new RoutingNodes(this);
+        routingNodes = new RoutingNodes(routingTable, nodes);
         return routingNodes;
+    }
+
+    /**
+     * Returns a fresh mutable copy of the routing nodes view.
+     */
+    public RoutingNodes mutableRoutingNodes() {
+        final RoutingNodes nodes = this.routingNodes;
+        // use the cheaper copy constructor if we already computed the routing nodes for this state.
+        if (nodes != null) {
+            return nodes.mutableCopy();
+        }
+        // we don't have any routing nodes for this state, likely because it's a temporary state in the reroute logic, don't compute an
+        // immutable copy that will never be used and instead directly build a mutable copy
+        return new RoutingNodes(routingTable, this.nodes, false);
     }
 
     @Override

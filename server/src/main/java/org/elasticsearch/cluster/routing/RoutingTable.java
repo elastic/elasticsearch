@@ -46,7 +46,7 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.isInd
  */
 public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<RoutingTable> {
 
-    public static final RoutingTable EMPTY_ROUTING_TABLE = builder().build();
+    public static final RoutingTable EMPTY_ROUTING_TABLE = new RoutingTable(0, ImmutableOpenMap.of());
 
     private final long version;
 
@@ -409,7 +409,6 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             }
         }
 
-        @SuppressWarnings("unchecked")
         public Builder updateNodes(long version, RoutingNodes routingNodes) {
             // this is being called without pre initializing the routing table, so we must copy over the version as well
             this.version = version;
@@ -585,7 +584,12 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             if (indicesRouting == null) {
                 throw new IllegalStateException("once build is called the builder cannot be reused");
             }
-            RoutingTable table = new RoutingTable(version, indicesRouting.build());
+            RoutingTable table;
+            if (version == 0 && indicesRouting.isEmpty()) {
+                table = EMPTY_ROUTING_TABLE;
+            } else {
+                table = new RoutingTable(version, indicesRouting.build());
+            }
             indicesRouting = null;
             return table;
         }

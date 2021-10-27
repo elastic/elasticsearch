@@ -39,6 +39,7 @@ import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.CommandLineHttpClient;
 import org.elasticsearch.xpack.core.security.EnrollmentToken;
@@ -195,7 +196,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             if (false == inEnrollmentMode) {
                 throw new UserException(ExitCodes.USAGE, "enrollment-token is a mandatory parameter.");
             }
-            possibleReconfigureNode(env, terminal);
+            env = possibleReconfigureNode(env, terminal);
         }
 
         // only perform auto-configuration if the existing configuration is not conflicting (eg Security already enabled)
@@ -687,7 +688,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         Files.deleteIfExists(keystoreBackupPath);
     }
 
-    private void possibleReconfigureNode(Environment env, Terminal terminal) throws UserException{
+    private Environment possibleReconfigureNode(Environment env, Terminal terminal) throws UserException {
         // We remove the existing auto-configuration stanza from elasticsearch.yml, the elastisearch.keystore and
         // the directory with the auto-configured TLS key material, and then proceed as if elasticsearch is started
         // with --enrolment-token token, in the first place.
@@ -702,9 +703,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         final List<String> existingConfigWithoutAutoconfiguration = removePreviousAutoconfiguration(existingConfigLines);
         if (existingConfigLines.equals(existingConfigWithoutAutoconfiguration) == false) {
             terminal.println("");
-            terminal.println(
-                "This node will be reconfigured to join an existing cluster, using the enrollment token that you provided."
-            );
+            terminal.println("This node will be reconfigured to join an existing cluster, using the enrollment token that you provided.");
             terminal.println("This operation will overwrite the existing configuration. Specifically: ");
             terminal.println("  - Security auto configuration will be removed from elasticsearch.yml");
             terminal.println("  - The " + autoConfigDirName + " directory will be removed");
@@ -732,7 +731,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 );
             }
             // rebuild the environment after removing the settings that were added in auto-configuration.
-            env = createEnv(Map.of("path.home", env.settings().get("path.home")));
+            return createEnv(Map.of("path.home", env.settings().get("path.home")));
         } else {
             throw new UserException(
                 ExitCodes.USAGE,
@@ -868,8 +867,8 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
     private boolean isInitialClusterNode(Settings settings) {
         return DiscoveryModule.isSingleNodeDiscovery(settings)
             || (ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(settings).isEmpty()
-            && SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.get(settings).isEmpty()
-            && DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.get(settings).isEmpty())
+                && SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.get(settings).isEmpty()
+                && DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.get(settings).isEmpty())
             || ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(settings).equals(List.of(Node.NODE_NAME_SETTING.get(settings)));
     }
 
@@ -1003,7 +1002,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
      * the auto-configuration stanza. It only matches configuration setting keys for auto-configuration as the values depend
      * on the timestamp of the installation time so we can't know with certainty that a user has changed the value
      */
-    static List<String> removePreviousAutoconfiguration(List<String> existingConfigLines) {
+    static List<String> removePreviousAutoconfiguration(List<String> existingConfigLines) throws UserException {
         final Pattern pattern = Pattern.compile(
             "(?s)(" + Pattern.quote(AUTO_CONFIGURATION_START_MARKER) + ".*?" + Pattern.quote(AUTO_CONFIGURATION_END_MARKER) + ")"
         );
@@ -1011,13 +1010,18 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         final Matcher matcher = pattern.matcher(existingConfigurationAsString);
         if (matcher.find()) {
             final String foundAutoConfigurationSettingsAsString = matcher.group(1);
-            final Map<String, String> foundAutoConfigurationSettings = Arrays.stream(
-                foundAutoConfigurationSettingsAsString.split(System.lineSeparator())
-            )
-                .filter(line -> line.startsWith("#") == false)
-                .filter(line -> Strings.isNullOrEmpty(line) == false)
-                .collect(Collectors.toMap(l -> l.split(":")[0], l -> l.split(":")[1]));
-
+            final Settings foundAutoConfigurationSettings;
+            try {
+                foundAutoConfigurationSettings = Settings.builder()
+                    .loadFromSource(foundAutoConfigurationSettingsAsString, XContentType.YAML)
+                    .build();
+            } catch (Exception e) {
+                throw new UserException(
+                    ExitCodes.IO_ERROR,
+                    "Aborting enrolling to cluster. Unable to parse existing configuration file. Error was: " + e.getMessage(),
+                    e
+                );
+            }
             // This is brittle and needs to be updated with every change above
             final Set<String> expectedAutoConfigurationSettings = new TreeSet<String>(
                 List.of(
@@ -1033,19 +1037,17 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     "http.host"
                 )
             );
-            foundAutoConfigurationSettings.keySet().removeAll(expectedAutoConfigurationSettings);
-            final List<String> newConfiguration = Arrays.stream(
+            final Set<String> userAddedSettings = new HashSet<>(foundAutoConfigurationSettings.keySet());
+            userAddedSettings.removeAll(expectedAutoConfigurationSettings);
+            final List<String> newConfigurationLines = Arrays.stream(
                 existingConfigurationAsString.replace(foundAutoConfigurationSettingsAsString, "").split(System.lineSeparator())
             ).collect(Collectors.toList());
-            if (false == foundAutoConfigurationSettings.isEmpty()) {
-                newConfiguration.addAll(
-                    foundAutoConfigurationSettings.entrySet()
-                        .stream()
-                        .map(e -> e.getKey() + ":" + e.getValue())
-                        .collect(Collectors.toList())
-                );
+            if (false == userAddedSettings.isEmpty()) {
+                for (String key : userAddedSettings) {
+                    newConfigurationLines.add(key + ": " + foundAutoConfigurationSettings.get(key));
+                }
             }
-            return newConfiguration;
+            return newConfigurationLines;
         }
         return existingConfigLines;
     }
@@ -1054,15 +1056,13 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         if (Files.exists(KeyStoreWrapper.keystorePath(env.configFile()))) {
             try (
                 KeyStoreWrapper existingKeystore = KeyStoreWrapper.load(env.configFile());
-                SecureString keystorePassword = new SecureString(
+                SecureString keystorePassword = existingKeystore.hasPassword() ? new SecureString(
                     terminal.readSecret(
-                        "Enter password for the elasticsearch keystore (empty for no password): ",
+                        "Enter password for the elasticsearch keystore: ",
                         KeyStoreWrapper.MAX_PASSPHRASE_LENGTH
                     )
-                )
+                ) : new SecureString(new char[0]);
             ) {
-                // We would have exited earlier if the keystore can't be read or doesn't exist
-                assert existingKeystore != null;
                 existingKeystore.decrypt(keystorePassword.getChars());
                 List<String> secureSettingsToRemove = List.of(
                     "xpack.security.transport.ssl.keystore.secure_password",

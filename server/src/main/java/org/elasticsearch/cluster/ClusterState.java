@@ -38,6 +38,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -134,7 +135,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         ClusterBlocks blocks,
         ImmutableOpenMap<String, Custom> customs,
         boolean wasReadFromDiff,
-        RoutingNodes routingNodes
+        @Nullable RoutingNodes routingNodes
     ) {
         this.version = version;
         this.stateUUID = stateUUID;
@@ -146,6 +147,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         this.customs = customs;
         this.wasReadFromDiff = wasReadFromDiff;
         this.routingNodes = routingNodes;
+        assert routingNodes == null || routingNodes.equals(new RoutingNodes(this)) :
+            "RoutingNodes [" + routingNodes + "] are not consistent with this cluster state [" + new RoutingNodes(this) + "]";
     }
 
     public long term() {

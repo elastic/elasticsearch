@@ -23,15 +23,21 @@ public final class MonitoringDeprecatedSettings {
 
     // ===================
     // Deprecated in 7.16:
-    public static final Setting.AffixSetting<Boolean> TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING =
-        Setting.affixKeySetting("xpack.monitoring.exporters.","index.template.create_legacy_templates",
-            (key) -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope, Property.Deprecated));
-    public static final Setting.AffixSetting<Boolean> USE_INGEST_PIPELINE_SETTING =
-        Setting.affixKeySetting("xpack.monitoring.exporters.","use_ingest",
-            key -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope, Property.Deprecated));
-    public static final Setting.AffixSetting<TimeValue> PIPELINE_CHECK_TIMEOUT_SETTING =
-        Setting.affixKeySetting("xpack.monitoring.exporters.","index.pipeline.master_timeout",
-            (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope, Property.Deprecated));
+    public static final Setting.AffixSetting<Boolean> TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING = Setting.affixKeySetting(
+        "xpack.monitoring.exporters.",
+        "index.template.create_legacy_templates",
+        (key) -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope, Property.Deprecated)
+    );
+    public static final Setting.AffixSetting<Boolean> USE_INGEST_PIPELINE_SETTING = Setting.affixKeySetting(
+        "xpack.monitoring.exporters.",
+        "use_ingest",
+        key -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope, Property.Deprecated)
+    );
+    public static final Setting.AffixSetting<TimeValue> PIPELINE_CHECK_TIMEOUT_SETTING = Setting.affixKeySetting(
+        "xpack.monitoring.exporters.",
+        "index.pipeline.master_timeout",
+        (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope, Property.Deprecated)
+    );
     // ===================
 
     public static List<Setting.AffixSetting<?>> getSettings() {

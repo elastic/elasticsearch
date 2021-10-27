@@ -15,12 +15,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
@@ -37,13 +37,15 @@ public class MoveToStepAction extends ActionType<AcknowledgedResponse> {
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
         static final ParseField CURRENT_KEY_FIELD = new ParseField("current_step");
         static final ParseField NEXT_KEY_FIELD = new ParseField("next_step");
-        private static final ConstructingObjectParser<Request, String> PARSER =
-            new ConstructingObjectParser<>("move_to_step_request", false,
-                (a, index) -> {
-                    StepKey currentStepKey = (StepKey) a[0];
-                    PartialStepKey nextStepKey = (PartialStepKey) a[1];
-                    return new Request(index, currentStepKey, nextStepKey);
-                });
+        private static final ConstructingObjectParser<Request, String> PARSER = new ConstructingObjectParser<>(
+            "move_to_step_request",
+            false,
+            (a, index) -> {
+                StepKey currentStepKey = (StepKey) a[0];
+                PartialStepKey nextStepKey = (PartialStepKey) a[1];
+                return new Request(index, currentStepKey, nextStepKey);
+            }
+        );
 
         static {
             // The current step uses the strict parser (meaning it requires all three parts of a stepkey)
@@ -69,8 +71,7 @@ public class MoveToStepAction extends ActionType<AcknowledgedResponse> {
             this.nextStepKey = new PartialStepKey(in);
         }
 
-        public Request() {
-        }
+        public Request() {}
 
         public String getIndex() {
             return index;
@@ -115,7 +116,8 @@ public class MoveToStepAction extends ActionType<AcknowledgedResponse> {
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(index, other.index) && Objects.equals(currentStepKey, other.currentStepKey)
+            return Objects.equals(index, other.index)
+                && Objects.equals(currentStepKey, other.currentStepKey)
                 && Objects.equals(nextStepKey, other.nextStepKey);
         }
 
@@ -143,9 +145,10 @@ public class MoveToStepAction extends ActionType<AcknowledgedResponse> {
             public static final ParseField PHASE_FIELD = new ParseField("phase");
             public static final ParseField ACTION_FIELD = new ParseField("action");
             public static final ParseField NAME_FIELD = new ParseField("name");
-            private static final ConstructingObjectParser<PartialStepKey, Void> PARSER =
-                new ConstructingObjectParser<>("step_specification",
-                    a -> new PartialStepKey((String) a[0], (String) a[1], (String) a[2]));
+            private static final ConstructingObjectParser<PartialStepKey, Void> PARSER = new ConstructingObjectParser<>(
+                "step_specification",
+                a -> new PartialStepKey((String) a[0], (String) a[1], (String) a[2])
+            );
             static {
                 PARSER.declareString(ConstructingObjectParser.constructorArg(), PHASE_FIELD);
                 PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ACTION_FIELD);
@@ -157,8 +160,10 @@ public class MoveToStepAction extends ActionType<AcknowledgedResponse> {
                 this.action = action;
                 this.name = name;
                 if (name != null && action == null) {
-                    throw new IllegalArgumentException("phase; phase and action; or phase, action, and step must be provided, " +
-                        "but a step name was specified without a corresponding action");
+                    throw new IllegalArgumentException(
+                        "phase; phase and action; or phase, action, and step must be provided, "
+                            + "but a step name was specified without a corresponding action"
+                    );
                 }
             }
 
@@ -167,8 +172,10 @@ public class MoveToStepAction extends ActionType<AcknowledgedResponse> {
                 this.action = in.readOptionalString();
                 this.name = in.readOptionalString();
                 if (name != null && action == null) {
-                    throw new IllegalArgumentException("phase; phase and action; or phase, action, and step must be provided, " +
-                        "but a step name was specified without a corresponding action");
+                    throw new IllegalArgumentException(
+                        "phase; phase and action; or phase, action, and step must be provided, "
+                            + "but a step name was specified without a corresponding action"
+                    );
                 }
             }
 
@@ -212,9 +219,7 @@ public class MoveToStepAction extends ActionType<AcknowledgedResponse> {
                     return false;
                 }
                 PartialStepKey other = (PartialStepKey) obj;
-                return Objects.equals(phase, other.phase) &&
-                    Objects.equals(action, other.action) &&
-                    Objects.equals(name, other.name);
+                return Objects.equals(phase, other.phase) && Objects.equals(action, other.action) && Objects.equals(name, other.name);
             }
 
             @Override

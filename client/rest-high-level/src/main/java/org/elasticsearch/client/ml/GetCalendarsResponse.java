@@ -9,9 +9,9 @@
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.ml.calendars.Calendar;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -25,9 +25,11 @@ public class GetCalendarsResponse extends AbstractResultResponse<Calendar> {
     public static final ParseField RESULTS_FIELD = new ParseField("calendars");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<GetCalendarsResponse, Void> PARSER =
-            new ConstructingObjectParser<>("calendars_response", true,
-                    a -> new GetCalendarsResponse((List<Calendar>) a[0], (long) a[1]));
+    public static final ConstructingObjectParser<GetCalendarsResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "calendars_response",
+        true,
+        a -> new GetCalendarsResponse((List<Calendar>) a[0], (long) a[1])
+    );
 
     static {
         PARSER.declareObjectArray(constructorArg(), Calendar.PARSER, RESULTS_FIELD);

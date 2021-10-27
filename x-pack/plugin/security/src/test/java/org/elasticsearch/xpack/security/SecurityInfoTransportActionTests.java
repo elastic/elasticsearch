@@ -71,18 +71,23 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
 
     public void testAvailable() {
         SecurityInfoTransportAction featureSet = new SecurityInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), settings);
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            settings
+        );
         assertThat(featureSet.available(), is(true));
     }
 
     public void testEnabled() {
         SecurityInfoTransportAction featureSet = new SecurityInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), settings);
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            settings
+        );
         assertThat(featureSet.enabled(), is(true));
 
-        Settings disabled = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(),false).build();
-        featureSet = new SecurityInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), disabled);
+        Settings disabled = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
+        featureSet = new SecurityInfoTransportAction(mock(TransportService.class), mock(ActionFilters.class), disabled);
         assertThat(featureSet.enabled(), is(false));
     }
 
@@ -124,12 +129,12 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
         settings.put(XPackSettings.AUDIT_ENABLED.getKey(), auditingEnabled);
         final boolean httpIpFilterEnabled = randomBoolean();
         final boolean transportIPFilterEnabled = randomBoolean();
-        when(ipFilter.usageStats())
-                .thenReturn(MapBuilder.<String, Object>newMapBuilder()
-                        .put("http", Collections.singletonMap("enabled", httpIpFilterEnabled))
-                        .put("transport", Collections.singletonMap("enabled", transportIPFilterEnabled))
-                        .map());
-
+        when(ipFilter.usageStats()).thenReturn(
+            MapBuilder.<String, Object>newMapBuilder()
+                .put("http", Collections.singletonMap("enabled", httpIpFilterEnabled))
+                .put("transport", Collections.singletonMap("enabled", transportIPFilterEnabled))
+                .map()
+        );
 
         final boolean rolesStoreEnabled = randomBoolean();
         configureRoleStoreUsage(rolesStoreEnabled);
@@ -296,8 +301,15 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
     }
 
     private SecurityUsageTransportAction newUsageAction(Settings settings) {
-        return new SecurityUsageTransportAction(mock(TransportService.class),null,
-            null, mock(ActionFilters.class),null,
-            settings, licenseState, securityServices);
+        return new SecurityUsageTransportAction(
+            mock(TransportService.class),
+            null,
+            null,
+            mock(ActionFilters.class),
+            null,
+            settings,
+            licenseState,
+            securityServices
+        );
     }
 }

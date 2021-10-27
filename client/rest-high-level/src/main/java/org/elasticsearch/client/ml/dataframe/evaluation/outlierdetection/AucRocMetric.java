@@ -9,8 +9,8 @@ package org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection;
 
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.common.AucRocResult;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -31,8 +31,11 @@ public class AucRocMetric implements EvaluationMetric {
     public static final ParseField INCLUDE_CURVE = new ParseField("include_curve");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<AucRocMetric, Void> PARSER =
-        new ConstructingObjectParser<>(NAME, true, args -> new AucRocMetric((Boolean) args[0]));
+    public static final ConstructingObjectParser<AucRocMetric, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        true,
+        args -> new AucRocMetric((Boolean) args[0])
+    );
 
     static {
         PARSER.declareBoolean(optionalConstructorArg(), INCLUDE_CURVE);

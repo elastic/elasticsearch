@@ -51,8 +51,7 @@ public class ProcessWorkerExecutorServiceTests extends ESTestCase {
         executor.execute(() -> {
             try {
                 latch.await();
-            } catch (InterruptedException e) {
-            }
+            } catch (InterruptedException e) {}
         });
 
         AtomicBoolean runnableShouldNotBeCalled = new AtomicBoolean(false);
@@ -60,7 +59,7 @@ public class ProcessWorkerExecutorServiceTests extends ESTestCase {
 
         AtomicInteger onFailureCallCount = new AtomicInteger();
         AtomicInteger doRunCallCount = new AtomicInteger();
-        for (int i=0; i<2; i++) {
+        for (int i = 0; i < 2; i++) {
             executor.execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
@@ -88,13 +87,9 @@ public class ProcessWorkerExecutorServiceTests extends ESTestCase {
     public void testAutodetectWorkerExecutorServiceDoesNotSwallowErrors() {
         ProcessWorkerExecutorService executor = createExecutorService();
         if (randomBoolean()) {
-            executor.submit(() -> {
-                throw new Error("future error");
-            });
+            executor.submit(() -> { throw new Error("future error"); });
         } else {
-            executor.execute(() -> {
-                throw new Error("future error");
-            });
+            executor.execute(() -> { throw new Error("future error"); });
         }
         Error e = expectThrows(Error.class, () -> executor.start());
         assertThat(e.getMessage(), containsString("future error"));

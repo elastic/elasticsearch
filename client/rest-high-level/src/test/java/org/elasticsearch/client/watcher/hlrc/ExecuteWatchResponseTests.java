@@ -21,7 +21,8 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ExecuteWatchResponseTests extends AbstractResponseTestCase<
-    ExecuteWatchResponse, org.elasticsearch.client.watcher.ExecuteWatchResponse> {
+    ExecuteWatchResponse,
+    org.elasticsearch.client.watcher.ExecuteWatchResponse> {
 
     @Override
     protected ExecuteWatchResponse createServerTestInstance(XContentType xContentType) {
@@ -40,8 +41,7 @@ public class ExecuteWatchResponseTests extends AbstractResponseTestCase<
             builder.endObject();
             BytesReference bytes = BytesReference.bytes(builder);
             return new ExecuteWatchResponse(id, bytes, XContentType.JSON);
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             throw new AssertionError(e);
         }
     }
@@ -52,8 +52,10 @@ public class ExecuteWatchResponseTests extends AbstractResponseTestCase<
     }
 
     @Override
-    protected void assertInstances(ExecuteWatchResponse serverTestInstance,
-                                   org.elasticsearch.client.watcher.ExecuteWatchResponse clientInstance) {
+    protected void assertInstances(
+        ExecuteWatchResponse serverTestInstance,
+        org.elasticsearch.client.watcher.ExecuteWatchResponse clientInstance
+    ) {
         assertThat(clientInstance.getRecordId(), equalTo(serverTestInstance.getRecordId()));
         assertThat(clientInstance.getRecordAsMap(), equalTo(serverTestInstance.getRecordSource().getAsMap()));
     }

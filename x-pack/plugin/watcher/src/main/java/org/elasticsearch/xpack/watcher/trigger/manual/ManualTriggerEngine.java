@@ -34,24 +34,19 @@ public class ManualTriggerEngine implements TriggerEngine<ManualTrigger, ManualT
      * from the given list of jobs
      */
     @Override
-    public void start(Collection<Watch> jobs) {
-    }
+    public void start(Collection<Watch> jobs) {}
 
     @Override
-    public void stop() {
-    }
+    public void stop() {}
 
     @Override
-    public void register(Consumer<Iterable<TriggerEvent>> consumer) {
-    }
+    public void register(Consumer<Iterable<TriggerEvent>> consumer) {}
 
     @Override
-    public void add(Watch job) {
-    }
+    public void add(Watch job) {}
 
     @Override
-    public void pauseExecution() {
-    }
+    public void pauseExecution() {}
 
     @Override
     public boolean remove(String jobId) {
@@ -80,8 +75,8 @@ public class ManualTriggerEngine implements TriggerEngine<ManualTrigger, ManualT
     }
 
     @Override
-    public ManualTriggerEvent parseTriggerEvent(TriggerService service, String watchId, String context, XContentParser parser) throws
-            IOException {
+    public ManualTriggerEvent parseTriggerEvent(TriggerService service, String watchId, String context, XContentParser parser)
+        throws IOException {
         return ManualTriggerEvent.parse(service, watchId, context, parser);
     }
 }

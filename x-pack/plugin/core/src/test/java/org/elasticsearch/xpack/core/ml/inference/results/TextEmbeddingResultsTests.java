@@ -25,7 +25,7 @@ public class TextEmbeddingResultsTests extends InferenceResultsTestCase<TextEmbe
     protected TextEmbeddingResults createTestInstance() {
         int columns = randomIntBetween(1, 10);
         double[] arr = new double[columns];
-        for (int i=0; i<columns; i++) {
+        for (int i = 0; i < columns; i++) {
             arr[i] = randomDouble();
         }
 
@@ -43,7 +43,8 @@ public class TextEmbeddingResultsTests extends InferenceResultsTestCase<TextEmbe
     void assertFieldValues(TextEmbeddingResults createdInstance, IngestDocument document, String resultsField) {
         assertArrayEquals(
             document.getFieldValue(resultsField + "." + createdInstance.getResultsField(), double[].class),
-            createdInstance.getInference(), 1e-10
+            createdInstance.getInference(),
+            1e-10
         );
     }
 }

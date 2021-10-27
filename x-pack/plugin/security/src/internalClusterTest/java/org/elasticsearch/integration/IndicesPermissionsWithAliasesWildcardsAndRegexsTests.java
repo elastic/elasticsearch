@@ -20,9 +20,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
@@ -36,9 +36,9 @@ import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends SecurityIntegTestCase {
@@ -48,42 +48,40 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
     @Override
     protected String configUsers() {
         final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(USERS_PASSWD));
-        return super.configUsers() +
-            "user1:" + usersPasswdHashed + "\n";
+        return super.configUsers() + "user1:" + usersPasswdHashed + "\n";
     }
 
     @Override
     protected String configUsersRoles() {
-        return super.configUsersRoles() +
-                "role1:user1\n";
+        return super.configUsersRoles() + "role1:user1\n";
     }
 
     @Override
     protected String configRoles() {
-        return super.configRoles() +
-                "\nrole1:\n" +
-                "  cluster: [ all ]\n" +
-                "  indices:\n" +
-                "      - names: 't*'\n" +
-                "        privileges: [ALL]\n" +
-                "        field_security:\n" +
-                "           grant: [ field1 ]\n" +
-                "      - names: 'my_alias'\n" +
-                "        privileges: [ALL]\n" +
-                "        field_security:\n" +
-                "           grant: [ field2 ]\n" +
-                "      - names: '/an_.*/'\n" +
-                "        privileges: [ALL]\n" +
-                "        field_security:\n" +
-                "           grant: [ field3 ]\n";
+        return super.configRoles()
+            + "\nrole1:\n"
+            + "  cluster: [ all ]\n"
+            + "  indices:\n"
+            + "      - names: 't*'\n"
+            + "        privileges: [ALL]\n"
+            + "        field_security:\n"
+            + "           grant: [ field1 ]\n"
+            + "      - names: 'my_alias'\n"
+            + "        privileges: [ALL]\n"
+            + "        field_security:\n"
+            + "           grant: [ field2 ]\n"
+            + "      - names: '/an_.*/'\n"
+            + "        privileges: [ALL]\n"
+            + "        field_security:\n"
+            + "           grant: [ field3 ]\n";
     }
 
     @Override
     public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal, otherSettings))
-                .put(XPackSettings.DLS_FLS_ENABLED.getKey(), true)
-                .build();
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(XPackSettings.DLS_FLS_ENABLED.getKey(), true)
+            .build();
     }
 
     @Override
@@ -94,59 +92,63 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
     }
 
     public void testGetResolveWildcardsRegexs() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test")
-                        .setMapping("field1", "type=text", "field2", "type=text")
-                        .addAlias(new Alias("my_alias"))
-                        .addAlias(new Alias("an_alias"))
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("test")
+                .setMapping("field1", "type=text", "field2", "type=text")
+                .addAlias(new Alias("my_alias"))
+                .addAlias(new Alias("an_alias"))
         );
-        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2",  "field3", "value3")
-                .setRefreshPolicy(IMMEDIATE)
-                .get();
+        client().prepareIndex("test")
+            .setId("1")
+            .setSource("field1", "value1", "field2", "value2", "field3", "value3")
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        GetResponse getResponse = client()
-                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-                .prepareGet("test", "1")
-                .get();
+        GetResponse getResponse = client().filterWithHeader(
+            Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
+        ).prepareGet("test", "1").get();
         assertThat(getResponse.getSource().size(), equalTo(1));
         assertThat((String) getResponse.getSource().get("field1"), equalTo("value1"));
 
-        getResponse = client()
-                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-                .prepareGet("my_alias", "1")
-                .get();
+        getResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+            .prepareGet("my_alias", "1")
+            .get();
         assertThat(getResponse.getSource().size(), equalTo(1));
         assertThat((String) getResponse.getSource().get("field2"), equalTo("value2"));
 
-        getResponse = client()
-                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-                .prepareGet("an_alias", "1")
-                .get();
+        getResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+            .prepareGet("an_alias", "1")
+            .get();
         assertThat(getResponse.getSource().size(), equalTo(1));
         assertThat((String) getResponse.getSource().get("field3"), equalTo("value3"));
     }
 
     public void testSearchResolveWildcardsRegexs() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test")
-            .setMapping("field1", "type=text", "field2", "type=text")
-            .addAlias(new Alias("my_alias"))
-            .addAlias(new Alias("an_alias"))
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("test")
+                .setMapping("field1", "type=text", "field2", "type=text")
+                .addAlias(new Alias("my_alias"))
+                .addAlias(new Alias("an_alias"))
         );
-        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2",  "field3", "value3")
+        client().prepareIndex("test")
+            .setId("1")
+            .setSource("field1", "value1", "field2", "value2", "field3", "value3")
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        SearchResponse response = client()
-            .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-            .prepareSearch("test")
-            .setQuery(QueryBuilders.termQuery("_id", "1"))
-            .get();
+        SearchResponse response = client().filterWithHeader(
+            Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
+        ).prepareSearch("test").setQuery(QueryBuilders.termQuery("_id", "1")).get();
         assertThat(response.getHits().getHits().length, equalTo(1));
         Map<String, Object> source = response.getHits().getHits()[0].getSourceAsMap();
         assertThat(source.size(), equalTo(1));
         assertThat((String) source.get("field1"), equalTo("value1"));
 
-        response = client()
-            .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
             .prepareSearch("my_alias")
             .setQuery(QueryBuilders.termQuery("_id", "1"))
             .get();
@@ -155,9 +157,7 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
         assertThat(source.size(), equalTo(1));
         assertThat((String) source.get("field2"), equalTo("value2"));
 
-
-        response = client()
-            .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
             .prepareSearch("an_alias")
             .setQuery(QueryBuilders.termQuery("_id", "1"))
             .get();
@@ -166,8 +166,7 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
         assertThat(source.size(), equalTo(1));
         assertThat((String) source.get("field3"), equalTo("value3"));
 
-        response = client()
-            .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
             .prepareSearch("*_alias")
             .setQuery(QueryBuilders.termQuery("_id", "1"))
             .get();
@@ -177,8 +176,7 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
         assertThat((String) source.get("field2"), equalTo("value2"));
         assertThat((String) source.get("field3"), equalTo("value3"));
 
-        response = client()
-            .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
             .prepareSearch("*_alias", "t*")
             .setQuery(QueryBuilders.termQuery("_id", "1"))
             .get();
@@ -196,9 +194,10 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 
         IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest();
-        aliasesRequest.addAliasAction(new IndicesAliasesRequest.AliasActions(IndicesAliasesRequest.AliasActions.Type.ADD)
-            .aliases("my_alias", "an_alias")
-            .index("test"));
+        aliasesRequest.addAliasAction(
+            new IndicesAliasesRequest.AliasActions(IndicesAliasesRequest.AliasActions.Type.ADD).aliases("my_alias", "an_alias")
+                .index("test")
+        );
         assertAcked(client().admin().indices().aliases(aliasesRequest).actionGet());
 
         try {
@@ -210,18 +209,15 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 
-            SearchResponse response = client()
-                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-                .prepareSearch("test")
-                .setQuery(QueryBuilders.termQuery("_id", "1"))
-                .get();
+            SearchResponse response = client().filterWithHeader(
+                Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
+            ).prepareSearch("test").setQuery(QueryBuilders.termQuery("_id", "1")).get();
             assertThat(response.getHits().getHits().length, equalTo(1));
             Map<String, Object> source = response.getHits().getHits()[0].getSourceAsMap();
             assertThat(source.size(), equalTo(1));
             assertThat((String) source.get("field1"), equalTo("value1"));
 
-            response = client()
-                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+            response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareSearch("my_alias")
                 .setQuery(QueryBuilders.termQuery("_id", "1"))
                 .get();
@@ -230,8 +226,7 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
             assertThat(source.size(), equalTo(1));
             assertThat((String) source.get("field2"), equalTo("value2"));
 
-            response = client()
-                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+            response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareSearch("an_alias")
                 .setQuery(QueryBuilders.termQuery("_id", "1"))
                 .get();
@@ -240,8 +235,7 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
             assertThat(source.size(), equalTo(1));
             assertThat((String) source.get("field3"), equalTo("value3"));
 
-            response = client()
-                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+            response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareSearch("*_alias")
                 .setQuery(QueryBuilders.termQuery("_id", "1"))
                 .get();
@@ -251,8 +245,7 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
             assertThat((String) source.get("field2"), equalTo("value2"));
             assertThat((String) source.get("field3"), equalTo("value3"));
 
-            response = client()
-                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+            response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareSearch("*_alias", "t*")
                 .setQuery(QueryBuilders.termQuery("_id", "1"))
                 .get();
@@ -265,11 +258,11 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
         } finally {
             AcknowledgedResponse response = client().execute(
                 DeleteDataStreamAction.INSTANCE,
-                new DeleteDataStreamAction.Request(new String[]{"*"})
+                new DeleteDataStreamAction.Request(new String[] { "*" })
             ).actionGet();
             assertAcked(response);
 
-            DeleteDataStreamAction.Request deleteDSRequest = new DeleteDataStreamAction.Request(new String[]{"*"});
+            DeleteDataStreamAction.Request deleteDSRequest = new DeleteDataStreamAction.Request(new String[] { "*" });
             client().execute(DeleteDataStreamAction.INSTANCE, deleteDSRequest).actionGet();
             DeleteComposableIndexTemplateAction.Request deleteTemplateRequest = new DeleteComposableIndexTemplateAction.Request("*");
             client().execute(DeleteComposableIndexTemplateAction.INSTANCE, deleteTemplateRequest).actionGet();

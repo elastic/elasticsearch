@@ -20,18 +20,17 @@ public class OneHotEncodingSizeTests extends SizeEstimatorTestCase<OneHotEncodin
         int numFieldEntries = randomIntBetween(1, 10);
         return new OneHotEncodingSize(
             randomInt(100),
-            Stream.generate(() -> randomIntBetween(5, 10))
-                .limit(numFieldEntries)
-                .collect(Collectors.toList()),
-            Stream.generate(() -> randomIntBetween(5, 10))
-                .limit(numFieldEntries)
-                .collect(Collectors.toList()));
+            Stream.generate(() -> randomIntBetween(5, 10)).limit(numFieldEntries).collect(Collectors.toList()),
+            Stream.generate(() -> randomIntBetween(5, 10)).limit(numFieldEntries).collect(Collectors.toList())
+        );
     }
 
     static OneHotEncodingSize translateToEstimate(OneHotEncoding encoding) {
-        return new OneHotEncodingSize(encoding.getField().length(),
+        return new OneHotEncodingSize(
+            encoding.getField().length(),
             encoding.getHotMap().values().stream().map(String::length).collect(Collectors.toList()),
-            encoding.getHotMap().keySet().stream().map(String::length).collect(Collectors.toList()));
+            encoding.getHotMap().keySet().stream().map(String::length).collect(Collectors.toList())
+        );
     }
 
     @Override

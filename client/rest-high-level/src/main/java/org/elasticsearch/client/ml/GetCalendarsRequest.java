@@ -20,8 +20,10 @@ import java.util.Objects;
 
 public class GetCalendarsRequest implements Validatable, ToXContentObject {
 
-    public static final ObjectParser<GetCalendarsRequest, Void> PARSER =
-            new ObjectParser<>("get_calendars_request", GetCalendarsRequest::new);
+    public static final ObjectParser<GetCalendarsRequest, Void> PARSER = new ObjectParser<>(
+        "get_calendars_request",
+        GetCalendarsRequest::new
+    );
 
     static {
         PARSER.declareString(GetCalendarsRequest::setCalendarId, Calendar.ID);
@@ -31,8 +33,7 @@ public class GetCalendarsRequest implements Validatable, ToXContentObject {
     private String calendarId;
     private PageParams pageParams;
 
-    public GetCalendarsRequest() {
-    }
+    public GetCalendarsRequest() {}
 
     public GetCalendarsRequest(String calendarId) {
         this.calendarId = calendarId;

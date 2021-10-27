@@ -22,28 +22,28 @@ final class DateField {
     private DateField() {}
 
     // supported variables
-    static final String VALUE_VARIABLE          = "value";
-    static final String EMPTY_VARIABLE          = "empty";
-    static final String LENGTH_VARIABLE         = "length";
+    static final String VALUE_VARIABLE = "value";
+    static final String EMPTY_VARIABLE = "empty";
+    static final String LENGTH_VARIABLE = "length";
 
     // supported methods
-    static final String GETVALUE_METHOD         = "getValue";
-    static final String ISEMPTY_METHOD          = "isEmpty";
-    static final String SIZE_METHOD             = "size";
-    static final String MINIMUM_METHOD          = "min";
-    static final String MAXIMUM_METHOD          = "max";
-    static final String AVERAGE_METHOD          = "avg";
-    static final String MEDIAN_METHOD           = "median";
-    static final String SUM_METHOD              = "sum";
-    static final String COUNT_METHOD            = "count";
+    static final String GETVALUE_METHOD = "getValue";
+    static final String ISEMPTY_METHOD = "isEmpty";
+    static final String SIZE_METHOD = "size";
+    static final String MINIMUM_METHOD = "min";
+    static final String MAXIMUM_METHOD = "max";
+    static final String AVERAGE_METHOD = "avg";
+    static final String MEDIAN_METHOD = "median";
+    static final String SUM_METHOD = "sum";
+    static final String COUNT_METHOD = "count";
 
     // date-specific
-    static final String GET_YEAR_METHOD         = "getYear";
-    static final String GET_MONTH_METHOD        = "getMonth";
+    static final String GET_YEAR_METHOD = "getYear";
+    static final String GET_MONTH_METHOD = "getMonth";
     static final String GET_DAY_OF_MONTH_METHOD = "getDayOfMonth";
-    static final String GET_HOUR_OF_DAY_METHOD  = "getHourOfDay";
-    static final String GET_MINUTES_METHOD      = "getMinutes";
-    static final String GET_SECONDS_METHOD      = "getSeconds";
+    static final String GET_HOUR_OF_DAY_METHOD = "getHourOfDay";
+    static final String GET_MINUTES_METHOD = "getMinutes";
+    static final String GET_SECONDS_METHOD = "getSeconds";
 
     static DoubleValuesSource getVariable(IndexFieldData<?> fieldData, String fieldName, String variable) {
         switch (variable) {

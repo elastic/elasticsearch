@@ -42,8 +42,10 @@ import static java.util.Collections.singletonMap;
 // TODO: Remove this timeout increase once this test suite is broken up
 @TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
 public class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
-    private static final String BASIC_AUTH_VALUE =
-            basicAuthHeaderValue("x_pack_rest_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
+    private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue(
+        "x_pack_rest_user",
+        SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
+    );
 
     public AbstractXPackRestTest(ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
@@ -56,11 +58,8 @@ public class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
 
     @Override
     protected Settings restClientSettings() {
-        return Settings.builder()
-                .put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE)
-                .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE).build();
     }
-
 
     @Before
     public void setupForTests() throws Exception {
@@ -79,9 +78,13 @@ public class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
             );
 
             for (String template : templates) {
-                awaitCallApi("indices.exists_index_template", singletonMap("name", template), emptyList(),
+                awaitCallApi(
+                    "indices.exists_index_template",
+                    singletonMap("name", template),
+                    emptyList(),
                     response -> true,
-                    () -> "Exception when waiting for [" + template + "] template to be created");
+                    () -> "Exception when waiting for [" + template + "] template to be created"
+                );
             }
         }
     }
@@ -99,8 +102,8 @@ public class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
             // This waits for pending tasks to complete, so must go last (otherwise
             // it could be waiting for pending tasks while monitoring is still running).
             waitForPendingTasks(adminClient(), task -> {
-                    // Don't check rollup jobs because we clear them in the superclass.
-                    return task.contains(RollupJob.NAME);
+                // Don't check rollup jobs because we clear them in the superclass.
+                return task.contains(RollupJob.NAME);
             });
         }
     }
@@ -117,11 +120,13 @@ public class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
     /**
      * Executes an API call using the admin context, waiting for it to succeed.
      */
-    private void awaitCallApi(String apiName,
-                              Map<String, String> params,
-                              List<Map<String, Object>> bodies,
-                              CheckedFunction<ClientYamlTestResponse, Boolean, IOException> success,
-                              Supplier<String> error) {
+    private void awaitCallApi(
+        String apiName,
+        Map<String, String> params,
+        List<Map<String, Object>> bodies,
+        CheckedFunction<ClientYamlTestResponse, Boolean, IOException> success,
+        Supplier<String> error
+    ) {
         try {
             final AtomicReference<ClientYamlTestResponse> response = new AtomicReference<>();
             assertBusy(() -> {
@@ -136,10 +141,12 @@ public class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
         }
     }
 
-    private ClientYamlTestResponse callApi(String apiName,
-                                           Map<String, String> params,
-                                           List<Map<String, Object>> bodies,
-                                           Map<String, String> headers) throws IOException {
+    private ClientYamlTestResponse callApi(
+        String apiName,
+        Map<String, String> params,
+        List<Map<String, Object>> bodies,
+        Map<String, String> headers
+    ) throws IOException {
         return getAdminExecutionContext().callApi(apiName, params, bodies, headers);
     }
 

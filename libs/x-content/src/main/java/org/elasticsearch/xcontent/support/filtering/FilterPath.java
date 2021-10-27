@@ -114,7 +114,7 @@ public class FilterPath {
      * @param nextFilters nextFilters is a List, used to check the inner property of name
      * @return true if the name equal a final node, otherwise return false
      */
-    public boolean matches(String name, List<FilterPath> nextFilters) {
+    boolean matches(String name, List<FilterPath> nextFilters) {
         FilterPath termNode = termsChildren.get(name);
         if (termNode != null) {
             if (termNode.isFinalNode()) {

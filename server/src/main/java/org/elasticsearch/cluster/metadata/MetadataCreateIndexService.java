@@ -129,8 +129,6 @@ public class MetadataCreateIndexService {
     private final boolean forbidPrivateIndexSettings;
     private final Set<IndexSettingProvider> indexSettingProviders = new HashSet<>();
 
-    private volatile boolean enforceDefaultTierPreference;
-
     public MetadataCreateIndexService(
         final Settings settings,
         final ClusterService clusterService,
@@ -156,14 +154,6 @@ public class MetadataCreateIndexService {
         this.systemIndices = systemIndices;
         this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
         this.shardLimitValidator = shardLimitValidator;
-
-        enforceDefaultTierPreference = DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING.get(settings);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING,
-            this::setEnforceDefaultTierPreference);
-    }
-
-    public void setEnforceDefaultTierPreference(boolean enforceDefaultTierPreference) {
-        this.enforceDefaultTierPreference = enforceDefaultTierPreference;
     }
 
     /**
@@ -492,8 +482,7 @@ public class MetadataCreateIndexService {
 
         final Settings aggregatedIndexSettings =
             aggregateIndexSettings(currentState, request, resolveSettings(templates),
-                null, settings, indexScopedSettings, shardLimitValidator, indexSettingProviders,
-                this.enforceDefaultTierPreference);
+                null, settings, indexScopedSettings, shardLimitValidator, indexSettingProviders);
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
 
@@ -528,8 +517,7 @@ public class MetadataCreateIndexService {
         final Settings aggregatedIndexSettings =
             aggregateIndexSettings(currentState, request,
                 resolveSettings(currentState.metadata(), templateName),
-                null, settings, indexScopedSettings, shardLimitValidator, indexSettingProviders,
-                this.enforceDefaultTierPreference);
+                null, settings, indexScopedSettings, shardLimitValidator, indexSettingProviders);
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
 
@@ -583,8 +571,7 @@ public class MetadataCreateIndexService {
             settings,
             indexScopedSettings,
             shardLimitValidator,
-            indexSettingProviders,
-            this.enforceDefaultTierPreference
+            indexSettingProviders
         );
         final int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         final IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
@@ -648,7 +635,7 @@ public class MetadataCreateIndexService {
         }
 
         final Settings aggregatedIndexSettings = aggregateIndexSettings(currentState, request, Settings.EMPTY,
-            sourceMetadata, settings, indexScopedSettings, shardLimitValidator, indexSettingProviders, this.enforceDefaultTierPreference);
+            sourceMetadata, settings, indexScopedSettings, shardLimitValidator, indexSettingProviders);
         final int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, sourceMetadata);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
 
@@ -710,7 +697,7 @@ public class MetadataCreateIndexService {
     static Settings aggregateIndexSettings(ClusterState currentState, CreateIndexClusterStateUpdateRequest request,
                                            Settings combinedTemplateSettings, @Nullable IndexMetadata sourceMetadata, Settings settings,
                                            IndexScopedSettings indexScopedSettings, ShardLimitValidator shardLimitValidator,
-                                           Set<IndexSettingProvider> indexSettingProviders, boolean enforceDefaultTierPreference) {
+                                           Set<IndexSettingProvider> indexSettingProviders) {
         final boolean isDataStreamIndex = request.dataStreamName() != null;
 
         // Create builders for the template and request settings. We transform these into builders
@@ -770,16 +757,14 @@ public class MetadataCreateIndexService {
         indexSettingsBuilder.put(requestSettings.build());
 
         if (sourceMetadata == null) { // not for shrink/split/clone
-            if (enforceDefaultTierPreference) {
-                // regardless of any previous logic, we're going to force there
-                // to be an appropriate non-empty value for the tier preference
-                String currentTierPreference = indexSettingsBuilder.get(DataTier.TIER_PREFERENCE);
-                if (DataTier.parseTierList(currentTierPreference).isEmpty()) {
-                    String newTierPreference = isDataStreamIndex ? DataTier.DATA_HOT : DataTier.DATA_CONTENT;
-                    logger.debug("enforcing default [{}] setting for [{}] creation, replacing [{}] with [{}]",
-                        DataTier.TIER_PREFERENCE, request.index(), currentTierPreference, newTierPreference);
-                    indexSettingsBuilder.put(DataTier.TIER_PREFERENCE, newTierPreference);
-                }
+            // regardless of any previous logic, we're going to force there
+            // to be an appropriate non-empty value for the tier preference
+            String currentTierPreference = indexSettingsBuilder.get(DataTier.TIER_PREFERENCE);
+            if (DataTier.parseTierList(currentTierPreference).isEmpty()) {
+                String newTierPreference = isDataStreamIndex ? DataTier.DATA_HOT : DataTier.DATA_CONTENT;
+                logger.debug("enforcing default [{}] setting for [{}] creation, replacing [{}] with [{}]",
+                    DataTier.TIER_PREFERENCE, request.index(), currentTierPreference, newTierPreference);
+                indexSettingsBuilder.put(DataTier.TIER_PREFERENCE, newTierPreference);
             }
         }
 

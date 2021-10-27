@@ -222,7 +222,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     }
 
     // Visible for testing
-    Releasable tryAcquireSnapshotDownloadPermits() {
+    public Releasable tryAcquireSnapshotDownloadPermits() {
         return recoverySettings.tryAcquireSnapshotDownloadPermits();
     }
 

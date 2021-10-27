@@ -70,6 +70,10 @@ no partial results. Defaults to `true`.
 To override the default for this field, set the
 `search.default_allow_partial_results` cluster setting to `false`.
 
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=analyzer]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=analyze_wildcard]
+
 `batched_reduce_size`::
 (Optional, integer) The number of shard results that should be reduced at once
 on the coordinating node. This value should be used as a protection mechanism
@@ -81,6 +85,10 @@ shards in the request can be large. Defaults to `512`.
 (Optional, Boolean) If `true`, network round-trips between the
 coordinating node and the remote clusters are minimized when executing
 {ccs} (CCS) requests. See <<ccs-network-delays>>. Defaults to `true`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=default_operator]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=df]
 
 `docvalue_fields`::
 (Optional, string) A comma-separated list of fields to return as the docvalue
@@ -105,6 +113,8 @@ By default, you cannot page through more than 10,000 hits using the `from` and
 ignored when frozen. Defaults to `true`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=lenient]
 
 `max_concurrent_shard_requests`::
 (Optional, integer) Defines the number of concurrent shard requests per node
@@ -274,9 +284,32 @@ stored fields in the search response.
 `suggest_field`::
 (Optional, string) Specifies which field to use for suggestions.
 
+`suggest_mode`::
+(Optional, string) Specifies the <<search-suggesters,suggest mode>>. Defaults to
+`missing`. Available options:
++
+--
+
+* `always`
+* `missing`
+* `popular`
+
+This parameter can only be used when the `suggest_field` and `suggest_text`
+query string parameters are specified.
+--
+
+`suggest_size`::
+(Optional, integer) Number of <<search-suggesters,suggestions>> to return.
++
+This parameter can only be used when the `suggest_field` and `suggest_text`
+query string parameters are specified.
+
 `suggest_text`::
 (Optional, string) The source text for which the suggestions should be
 returned.
++
+This parameter can only be used when the `suggest_field` query string parameter
+is specified.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 +

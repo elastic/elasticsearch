@@ -62,6 +62,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.CoreMatchers.containsString;
 
+@SuppressWarnings("removal")
 public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
 
     private static RestHighLevelClient restHighLevelClient;

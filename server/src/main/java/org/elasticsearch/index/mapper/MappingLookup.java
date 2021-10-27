@@ -329,7 +329,14 @@ public final class MappingLookup {
         return objectMappers.containsKey(field);
     }
 
-    public String getNestedScope(String path) {
+    /**
+     * Given a nested object path, returns the path to its nested parent
+     *
+     * In particular, if a nested field `foo` contains an object field
+     * `bar.baz`, then calling this method with `foo.bar.baz` will return
+     * the path `foo`, skipping over the object-but-not-nested `foo.bar`
+     */
+    public String getNestedParent(String path) {
         for (String parentPath = parentObject(path); parentPath != null; parentPath = parentObject(parentPath)) {
             ObjectMapper objectMapper = objectMappers.get(parentPath);
             if (objectMapper != null && objectMapper.isNested()) {
@@ -465,35 +472,5 @@ public final class MappingLookup {
             }
         }
         return parents;
-    }
-
-    /**
-     * Given a nested object path, returns the path to its nested parent
-     *
-     * In particular, if a nested field `foo` contains an object field
-     * `bar.baz`, then calling this method with `foo.bar.baz` will return
-     * the path `foo`, skipping over the object-but-not-nested `foo.bar`
-     */
-    public String getNestedParent(String path) {
-        ObjectMapper mapper = objectMappers().get(path);
-        if (mapper == null) {
-            return null;
-        }
-        if (path.contains(".") == false) {
-            return null;
-        }
-        do {
-            path = path.substring(0, path.lastIndexOf("."));
-            mapper = objectMappers().get(path);
-            if (mapper == null) {
-                return null;
-            }
-            if (mapper.isNested()) {
-                return path;
-            }
-            if (path.contains(".") == false) {
-                return null;
-            }
-        } while(true);
     }
 }

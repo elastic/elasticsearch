@@ -48,6 +48,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.ExecutorNames;
@@ -83,8 +84,6 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.transport.nio.NioGroupFactory;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -163,7 +162,7 @@ import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.core.ssl.TLSLicenseBootstrapCheck;
+import org.elasticsearch.xpack.core.ssl.TransportTLSBootstrapCheck;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.action.TransportGetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.rest.RestGetCertificateInfoAction;
@@ -341,7 +340,6 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
-import static org.elasticsearch.xpack.core.XPackSettings.SECURITY_AUTOCONFIGURATION_ENABLED;
 import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_TOKENS_ALIAS;
@@ -359,29 +357,29 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     public static final LicensedFeature.Momentary IP_FILTERING_FEATURE =
         LicensedFeature.momentaryLenient(null, "security-ip-filtering", License.OperationMode.GOLD);
     public static final LicensedFeature.Momentary AUDITING_FEATURE =
-        LicensedFeature.momentaryLenient(null, "security-auditing", License.OperationMode.GOLD);
+        LicensedFeature.momentary(null, "security-auditing", License.OperationMode.GOLD);
     public static final LicensedFeature.Momentary TOKEN_SERVICE_FEATURE =
-        LicensedFeature.momentaryLenient(null, "security-token-service", License.OperationMode.STANDARD);
+        LicensedFeature.momentary(null, "security-token-service", License.OperationMode.STANDARD);
 
     private static final String REALMS_FEATURE_FAMILY = "security-realms";
     // Builtin realms (file/native) realms are Basic licensed, so don't need to be checked or tracked
     // Some realms (LDAP, AD, PKI) are Gold+
     public static final LicensedFeature.Persistent LDAP_REALM_FEATURE =
-        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "ldap", License.OperationMode.GOLD);
+        LicensedFeature.persistent(REALMS_FEATURE_FAMILY, "ldap", License.OperationMode.GOLD);
     public static final LicensedFeature.Persistent AD_REALM_FEATURE =
-        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "active-directory", License.OperationMode.GOLD);
+        LicensedFeature.persistent(REALMS_FEATURE_FAMILY, "active-directory", License.OperationMode.GOLD);
     public static final LicensedFeature.Persistent PKI_REALM_FEATURE =
-        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "pki", License.OperationMode.GOLD);
+        LicensedFeature.persistent(REALMS_FEATURE_FAMILY, "pki", License.OperationMode.GOLD);
     // SSO realms are Platinum+
     public static final LicensedFeature.Persistent SAML_REALM_FEATURE =
-        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "saml", License.OperationMode.PLATINUM);
+        LicensedFeature.persistent(REALMS_FEATURE_FAMILY, "saml", License.OperationMode.PLATINUM);
     public static final LicensedFeature.Persistent OIDC_REALM_FEATURE =
-        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "oidc", License.OperationMode.PLATINUM);
+        LicensedFeature.persistent(REALMS_FEATURE_FAMILY, "oidc", License.OperationMode.PLATINUM);
     public static final LicensedFeature.Persistent KERBEROS_REALM_FEATURE =
-        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "kerberos", License.OperationMode.PLATINUM);
+        LicensedFeature.persistent(REALMS_FEATURE_FAMILY, "kerberos", License.OperationMode.PLATINUM);
     // Custom realms are Platinum+
     public static final LicensedFeature.Persistent CUSTOM_REALMS_FEATURE =
-        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "custom", License.OperationMode.PLATINUM);
+        LicensedFeature.persistent(REALMS_FEATURE_FAMILY, "custom", License.OperationMode.PLATINUM);
 
     public static final LicensedFeature.Momentary DELEGATED_AUTHORIZATION_FEATURE =
         LicensedFeature.momentary(null, "security-delegated-authorization", License.OperationMode.PLATINUM);
@@ -391,6 +389,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     // Custom role providers are Platinum+
     public static final LicensedFeature.Persistent CUSTOM_ROLE_PROVIDERS_FEATURE =
         LicensedFeature.persistent(null, "security-roles-provider", License.OperationMode.PLATINUM);
+
+    public static final LicensedFeature.Momentary OPERATOR_PRIVILEGES_FEATURE =
+        LicensedFeature.momentary(null, "operator-privileges", License.OperationMode.ENTERPRISE);
 
     private static final Logger logger = LogManager.getLogger(Security.class);
 
@@ -431,9 +432,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
         if (enabled) {
             runStartupChecks(settings);
-            // we load them all here otherwise we can't access secure settings since they are closed once the checks are
-            // fetched
-
             Automatons.updateConfiguration(settings);
         } else {
             this.bootstrapChecks.set(Collections.emptyList());
@@ -464,7 +462,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                                                Supplier<RepositoriesService> repositoriesServiceSupplier) {
         try {
             return createComponents(client, threadPool, clusterService, resourceWatcherService, scriptService, xContentRegistry,
-                environment, expressionResolver);
+                environment, nodeEnvironment.nodeMetadata(), expressionResolver);
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
         }
@@ -473,7 +471,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     // pkg private for testing - tests want to pass in their set of extensions hence we are not using the extension service directly
     Collection<Object> createComponents(Client client, ThreadPool threadPool, ClusterService clusterService,
                                         ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                        NamedXContentRegistry xContentRegistry, Environment environment,
+                                        NamedXContentRegistry xContentRegistry, Environment environment, NodeMetadata nodeMetadata,
                                         IndexNameExpressionResolver expressionResolver) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
@@ -487,7 +485,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         checks.addAll(Arrays.asList(
             new TokenSSLBootstrapCheck(),
             new PkiRealmBootstrapCheck(getSslService()),
-            new TLSLicenseBootstrapCheck()));
+            new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata),
+            new TransportTLSBootstrapCheck()));
         checks.addAll(InternalRealms.getBootstrapChecks(settings, environment));
         this.bootstrapChecks.set(Collections.unmodifiableList(checks));
 
@@ -521,7 +520,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         // realms construction
         final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, securityIndex.get());
-
         final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(settings, client, securityIndex.get(),
             scriptService);
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
@@ -606,16 +604,18 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             new DeprecationRoleDescriptorConsumer(clusterService, threadPool));
         securityIndex.get().addStateListener(allRolesStore::onSecurityIndexStateChange);
 
-        if (SECURITY_AUTOCONFIGURATION_ENABLED.get(settings)) {
-            InitialSecurityConfigurationListener initialSecurityConfigurationListener = new InitialSecurityConfigurationListener(
-                nativeUsersStore,
-                securityIndex.get(),
-                getSslService(),
-                client,
-                environment
-            );
-            securityIndex.get().addStateListener(initialSecurityConfigurationListener);
-        }
+        // We use the value of the {@code ENROLLMENT_ENABLED} setting to determine if the node is starting up with auto-generated
+        // certificates (which have been generated by pre-startup scripts). In this case, and further if the node forms a new cluster by
+        // itself, rather than joining an existing one, we complete the auto-configuration by generating and printing credentials and
+        // enrollment tokens (when the .security index becomes available).
+        // The generated information is output on node's standard out (if
+        InitialNodeSecurityAutoConfiguration.maybeGenerateEnrollmentTokensAndElasticCredentialsOnNodeStartup(
+            nativeUsersStore,
+            securityIndex.get(),
+            getSslService(),
+            client,
+            environment);
+
         // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be
         // minimal
         getLicenseState().addListener(allRolesStore::invalidateAll);
@@ -624,6 +624,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         final OperatorPrivilegesService operatorPrivilegesService;
         final boolean operatorPrivilegesEnabled = OPERATOR_PRIVILEGES_ENABLED.get(settings);
         if (operatorPrivilegesEnabled) {
+            logger.info("operator privileges are enabled");
             operatorPrivilegesService = new OperatorPrivileges.DefaultOperatorPrivilegesService(getLicenseState(),
                 new FileOperatorUsersStore(environment, resourceWatcherService),
                 new OperatorOnlyRegistry(clusterService.getClusterSettings()));

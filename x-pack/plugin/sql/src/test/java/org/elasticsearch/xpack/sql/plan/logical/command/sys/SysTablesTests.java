@@ -25,8 +25,8 @@ import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
-import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
+import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
@@ -44,7 +44,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.ql.index.IndexResolver.SQL_TABLE;
 import static org.elasticsearch.xpack.ql.index.IndexResolver.SQL_VIEW;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -55,12 +55,13 @@ public class SysTablesTests extends ESTestCase {
 
     private final SqlParser parser = new SqlParser();
     private final Map<String, EsField> mapping = SqlTypesTests.loadMapping("mapping-multi-field-with-nested.json", true);
-    private final IndexInfo index = new IndexInfo("test", IndexType.STANDARD_INDEX);
-    private final IndexInfo alias = new IndexInfo("alias", IndexType.ALIAS);
-    private final IndexInfo frozen = new IndexInfo("frozen", IndexType.FROZEN_INDEX);
+    private final IndexInfo index = new IndexInfo(CLUSTER_NAME, "test", IndexType.STANDARD_INDEX);
+    private final IndexInfo alias = new IndexInfo(CLUSTER_NAME, "alias", IndexType.ALIAS);
+    private final IndexInfo frozen = new IndexInfo(CLUSTER_NAME, "frozen", IndexType.FROZEN_INDEX);
 
-    private final SqlConfiguration FROZEN_CFG = new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
-            Protocol.PAGE_TIMEOUT, null, null, Mode.PLAIN, null, null, null, null, false, true);
+    private final SqlConfiguration FROZEN_CFG = new SqlConfiguration(DateUtils.UTC, null, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
+            Protocol.PAGE_TIMEOUT, null, null, Mode.PLAIN, null, null, null, null,
+            false, true, null, null);
 
     //
     // catalog enumeration
@@ -147,6 +148,17 @@ public class SysTablesTests extends ESTestCase {
             assertEquals(0, r.size());
             assertFalse(r.hasCurrentRow());
         });
+    }
+
+    public void testSysTablesLocalCatalog() throws Exception {
+        executeCommand("SYS TABLES CATALOG LIKE '" + CLUSTER_NAME + "'", r -> {
+            assertEquals(2, r.size());
+            assertEquals("test", r.column(2));
+            assertEquals(SQL_TABLE, r.column(3));
+            assertTrue(r.advanceRow());
+            assertEquals("alias", r.column(2));
+            assertEquals(SQL_VIEW, r.column(3));
+        }, index, alias);
     }
 
     public void testSysTablesNoTypes() throws Exception {
@@ -315,12 +327,6 @@ public class SysTablesTests extends ESTestCase {
         }, alias);
     }
 
-    public void testSysTablesWithEmptyCatalogOnlyAliases() throws Exception {
-        executeCommand("SYS TABLES CATALOG LIKE '' LIKE 'test' TYPE 'VIEW'", r -> {
-            assertEquals(0, r.size());
-        }, alias);
-    }
-
     public void testSysTablesWithInvalidType() throws Exception {
         executeCommand("SYS TABLES LIKE 'test' TYPE 'QUE HORA ES'", r -> {
             assertEquals(0, r.size());
@@ -366,9 +372,9 @@ public class SysTablesTests extends ESTestCase {
         IndexResolver resolver = tuple.v2().indexResolver();
 
         doAnswer(invocation -> {
-            ((ActionListener) invocation.getArguments()[3]).onResponse(new LinkedHashSet<>(asList(infos)));
+            ((ActionListener) invocation.getArguments()[4]).onResponse(new LinkedHashSet<>(asList(infos)));
             return Void.TYPE;
-        }).when(resolver).resolveNames(any(), any(), any(), any());
+        }).when(resolver).resolveNames(any(), any(), any(), any(), any());
 
         tuple.v1().execute(tuple.v2(), wrap(p -> consumer.accept((SchemaRowSet) p.rowSet()), ex -> fail(ex.getMessage())));
     }

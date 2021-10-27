@@ -14,9 +14,12 @@ import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -1958,6 +1961,42 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(doc.rootDoc().getField("obj.baz"));
         assertNull(doc.rootDoc().getField("obj.bar"));
         assertNotNull(doc.dynamicMappingsUpdate());
+    }
+
+    public void testDynamicFalseMatchesRoutingPath() throws IOException {
+        DocumentMapper mapper = createMapperService(
+            Settings.builder()
+                .put(getIndexSettings())
+                .put(IndexSettings.MODE.getKey(), "time_series")
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim.*")
+                .build(),
+            mapping(b -> {
+                b.startObject("dim");
+                b.field("type", "object");
+                b.field("dynamic", false);
+                b.endObject();
+            })
+        ).documentMapper();
+
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
+            b.startObject("dim");
+            b.field("foo", "bar");
+            b.endObject();
+        })));
+        assertThat(
+            e.getMessage(),
+            equalTo("All fields matching [routing_path] must be mapped but [dim.foo] was declared as [dynamic: false]")
+        );
+
+        e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
+            b.startObject("dim");
+            b.startObject("foo").field("bar", "baz").endObject();
+            b.endObject();
+        })));
+        assertThat(
+            e.getMessage(),
+            equalTo("All fields matching [routing_path] must be mapped but [dim.foo] was declared as [dynamic: false]")
+        );
     }
 
     /**

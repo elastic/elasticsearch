@@ -99,7 +99,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -159,7 +159,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().get().getState();
             assertTrue("Timed out waiting for the ML templates to be installed",
-                    MachineLearning.allTemplatesInstalled(state));
+                    MachineLearning.criticalTemplatesInstalled(state));
         }, 20, TimeUnit.SECONDS);
     }
 

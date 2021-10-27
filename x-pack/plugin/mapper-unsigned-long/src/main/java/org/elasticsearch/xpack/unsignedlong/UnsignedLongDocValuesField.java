@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.unsignedlong;
 
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.field.DocValuesField;
 
 import java.io.IOException;
@@ -20,13 +21,17 @@ import java.util.List;
 import static org.elasticsearch.search.DocValueFormat.MASK_2_63;
 import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.BIGINTEGER_2_64_MINUS_ONE;
 
-public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesField<Long> {
+public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesField {
 
     private final SortedNumericDocValues input;
-    private long[] values = new long[0];
-    private int count;
-
     private final String name;
+
+    private long[] values = new long[0];
+    private int count = 0;
+
+    // used for backwards compatibility for old-style "doc" access
+    // as a delegate to this field class
+    private UnsignedLongScriptDocValues unsignedLongScriptDocValues = null;
 
     public UnsignedLongDocValuesField(SortedNumericDocValues input, String name) {
         this.input = input;
@@ -43,6 +48,15 @@ public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesF
         } else {
             resize(0);
         }
+    }
+
+    @Override
+    public ScriptDocValues<?> getScriptDocValues() {
+        if (unsignedLongScriptDocValues == null) {
+            unsignedLongScriptDocValues = new UnsignedLongScriptDocValues(this);
+        }
+
+        return unsignedLongScriptDocValues;
     }
 
     protected void resize(int newSize) {
@@ -89,26 +103,12 @@ public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesF
     }
 
     @Override
-    public Long getValue(Long defaultValue) {
+    public long getValue(long defaultValue) {
         return getValue(0, defaultValue);
     }
 
     @Override
-    public Long getValue(int index, Long defaultValue) {
-        if (isEmpty() || index < 0 || index >= count) {
-            return defaultValue;
-        }
-
-        return toFormatted(index);
-    }
-
-    @Override
-    public long getLong(long defaultValue) {
-        return getLong(0, defaultValue);
-    }
-
-    @Override
-    public long getLong(int index, long defaultValue) {
+    public long getValue(int index, long defaultValue) {
         if (isEmpty() || index < 0 || index >= count) {
             return defaultValue;
         }
@@ -121,7 +121,7 @@ public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesF
     }
 
     @Override
-    public List<BigInteger> getBigIntegers() {
+    public List<BigInteger> asBigIntegers() {
         if (isEmpty()) {
             return Collections.emptyList();
         }
@@ -136,12 +136,12 @@ public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesF
     }
 
     @Override
-    public BigInteger getBigInteger(BigInteger defaultValue) {
-        return getBigInteger(0, defaultValue);
+    public BigInteger asBigInteger(BigInteger defaultValue) {
+        return asBigInteger(0, defaultValue);
     }
 
     @Override
-    public BigInteger getBigInteger(int index, BigInteger defaultValue) {
+    public BigInteger asBigInteger(int index, BigInteger defaultValue) {
         if (isEmpty() || index < 0 || index >= count) {
             return defaultValue;
         }

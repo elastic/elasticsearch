@@ -68,7 +68,7 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
+import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -331,7 +331,7 @@ public class Lucene {
                 fieldDocs[i] = readFieldDoc(in);
                 collapseValues[i] = readSortValue(in);
             }
-            return new TopDocsAndMaxScore(new CollapseTopFieldDocs(field, totalHits, fieldDocs, fields, collapseValues), maxScore);
+            return new TopDocsAndMaxScore(new TopFieldGroups(field, totalHits, fieldDocs, fields, collapseValues), maxScore);
         } else {
             throw new IllegalStateException("Unknown type " + type);
         }
@@ -411,21 +411,21 @@ public class Lucene {
     }
 
     public static void writeTopDocs(StreamOutput out, TopDocsAndMaxScore topDocs) throws IOException {
-        if (topDocs.topDocs instanceof CollapseTopFieldDocs) {
+        if (topDocs.topDocs instanceof TopFieldGroups) {
             out.writeByte((byte) 2);
-            CollapseTopFieldDocs collapseDocs = (CollapseTopFieldDocs) topDocs.topDocs;
+            TopFieldGroups topFieldGroups = (TopFieldGroups) topDocs.topDocs;
 
             writeTotalHits(out, topDocs.topDocs.totalHits);
             out.writeFloat(topDocs.maxScore);
 
-            out.writeString(collapseDocs.field);
-            out.writeArray(Lucene::writeSortField, collapseDocs.fields);
+            out.writeString(topFieldGroups.field);
+            out.writeArray(Lucene::writeSortField, topFieldGroups.fields);
 
             out.writeVInt(topDocs.topDocs.scoreDocs.length);
             for (int i = 0; i < topDocs.topDocs.scoreDocs.length; i++) {
-                ScoreDoc doc = collapseDocs.scoreDocs[i];
+                ScoreDoc doc = topFieldGroups.scoreDocs[i];
                 writeFieldDoc(out, (FieldDoc) doc);
-                writeSortValue(out, collapseDocs.collapseValues[i]);
+                writeSortValue(out, topFieldGroups.groupValues[i]);
             }
         } else if (topDocs.topDocs instanceof TopFieldDocs) {
             out.writeByte((byte) 1);

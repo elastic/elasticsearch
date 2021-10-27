@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConst
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.junit.Before;
@@ -72,7 +73,7 @@ public class TrainedModelCRUDIT extends MlSingleNodeTestCase {
                             new VocabularyConfig(
                                 InferenceIndexConstants.nativeDefinitionStore()
                             ),
-                            new BertTokenization(null, false, null),
+                            new BertTokenization(null, false, null, Tokenization.Truncate.NONE),
                             null
                         )
                     )

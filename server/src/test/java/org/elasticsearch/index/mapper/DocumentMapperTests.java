@@ -294,7 +294,8 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         Collections.sort(metadataMappers, Comparator.comparing(c -> c.getSimpleName()));
         assertMap(
             metadataMappers,
-            matchesList().item(DocCountFieldMapper.class)
+            matchesList().item(DataStreamTimestampFieldMapper.class)
+                .item(DocCountFieldMapper.class)
                 .item(FieldNamesFieldMapper.class)
                 .item(IdFieldMapper.class)
                 .item(IgnoredFieldMapper.class)
@@ -309,7 +310,8 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         Collections.sort(matching);
         assertMap(
             matching,
-            matchesList().item(DocCountFieldMapper.CONTENT_TYPE)
+            matchesList().item(DataStreamTimestampFieldMapper.NAME)
+                .item(DocCountFieldMapper.CONTENT_TYPE)
                 .item(FieldNamesFieldMapper.CONTENT_TYPE)
                 .item(IdFieldMapper.CONTENT_TYPE)
                 .item(IgnoredFieldMapper.CONTENT_TYPE)

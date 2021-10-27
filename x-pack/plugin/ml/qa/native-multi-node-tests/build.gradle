@@ -40,7 +40,6 @@ testClusters.configureEach {
   testDistribution = 'DEFAULT'
 
   setting 'xpack.security.enabled', 'true'
-  setting 'xpack.monitoring.elasticsearch.collection.enabled', 'false'
   setting 'xpack.ml.enabled', 'true'
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.security.authc.token.enabled', 'true'

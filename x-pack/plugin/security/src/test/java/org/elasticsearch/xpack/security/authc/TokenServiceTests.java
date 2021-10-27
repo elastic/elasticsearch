@@ -116,9 +116,9 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -954,7 +954,7 @@ public class TokenServiceTests extends ESTestCase {
                 when(response.getSource()).thenReturn(sourceMap);
             }
             listener.onResponse(response);
-            return Void.TYPE;
+            return null;
         }).when(client).get(any(GetRequest.class), anyActionListener());
     }
 
@@ -1057,7 +1057,7 @@ public class TokenServiceTests extends ESTestCase {
             when(response.getHits()).thenReturn(hits);
             listener.onResponse(response);
             return Void.TYPE;
-        }).when(client).search(any(SearchRequest.class), anyActionListener());
+        }).when(client).search(any(SearchRequest.class), any());
     }
 
     private void mockGetTokenAsyncForDecryptedToken(String accessToken) {

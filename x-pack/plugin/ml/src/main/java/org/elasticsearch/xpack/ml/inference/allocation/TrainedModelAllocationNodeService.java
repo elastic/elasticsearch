@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskId;
@@ -52,6 +53,7 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 
 import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ALLOCATION_TASK_NAME_PREFIX;
 import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ALLOCATION_TASK_TYPE;
+import static org.elasticsearch.xpack.ml.MachineLearning.ML_PYTORCH_MODEL_INFERENCE_FEATURE;
 
 public class TrainedModelAllocationNodeService implements ClusterStateListener {
 
@@ -65,6 +67,7 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
     private final Map<String, TrainedModelDeploymentTask> modelIdToTask;
     private final ThreadPool threadPool;
     private final Deque<TrainedModelDeploymentTask> loadingModels;
+    private final XPackLicenseState licenseState;
     private volatile Scheduler.Cancellable scheduledFuture;
     private volatile boolean stopped;
     private volatile String nodeId;
@@ -74,7 +77,8 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
         ClusterService clusterService,
         DeploymentManager deploymentManager,
         TaskManager taskManager,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        XPackLicenseState licenseState
     ) {
         this.trainedModelAllocationService = trainedModelAllocationService;
         this.deploymentManager = deploymentManager;
@@ -82,6 +86,7 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
         this.modelIdToTask = new ConcurrentHashMap<>();
         this.loadingModels = new ConcurrentLinkedDeque<>();
         this.threadPool = threadPool;
+        this.licenseState = licenseState;
         clusterService.addLifecycleListener(new LifecycleListener() {
             @Override
             public void afterStart() {
@@ -102,7 +107,8 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
         DeploymentManager deploymentManager,
         TaskManager taskManager,
         ThreadPool threadPool,
-        String nodeId
+        String nodeId,
+        XPackLicenseState licenseState
     ) {
         this.trainedModelAllocationService = trainedModelAllocationService;
         this.deploymentManager = deploymentManager;
@@ -111,6 +117,7 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
         this.loadingModels = new ConcurrentLinkedDeque<>();
         this.threadPool = threadPool;
         this.nodeId = nodeId;
+        this.licenseState = licenseState;
         clusterService.addLifecycleListener(new LifecycleListener() {
             @Override
             public void afterStart() {
@@ -265,7 +272,17 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
 
             @Override
             public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-                return new TrainedModelDeploymentTask(id, type, action, parentTaskId, headers, params, trainedModelAllocationNodeService);
+                return new TrainedModelDeploymentTask(
+                    id,
+                    type,
+                    action,
+                    parentTaskId,
+                    headers,
+                    params,
+                    trainedModelAllocationNodeService,
+                    licenseState,
+                    ML_PYTORCH_MODEL_INFERENCE_FEATURE
+                );
             }
         };
     }
@@ -332,6 +349,8 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
     }
 
     void prepareModelToLoad(StartTrainedModelDeploymentAction.TaskParams taskParams) {
+        logger.debug(() -> new ParameterizedMessage("[{}] preparing to load model with task params: {}",
+            taskParams.getModelId(), taskParams));
         TrainedModelDeploymentTask task = (TrainedModelDeploymentTask) taskManager.register(
             TRAINED_MODEL_ALLOCATION_TASK_TYPE,
             TRAINED_MODEL_ALLOCATION_TASK_NAME_PREFIX + taskParams.getModelId(),

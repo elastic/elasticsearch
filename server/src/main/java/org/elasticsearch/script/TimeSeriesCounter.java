@@ -82,17 +82,22 @@ public class TimeSeriesCounter {
         /*
          * In the following diagrams, we take a duration of 100 and resolution of 20.
          *
-         *  |_______________________________________|
+         *  |___________________________________________________________|
          * duration = 100
-         *  |_______|_______|_______|_______|_______|
+         *
+         *  |___________|___________|___________|___________|___________|
          * buckets = 5
-         *  |_______|
+         *
+         *  |___________|
          * resolution = 20
          *
-         * Action: inc(235)
+         * Action: inc(235) - Increment the counter at time 235 seconds.
+         *
+         * While there is only one `buckets` array, it's useful to view the array as overlapping three
+         * epoch (time at bucket[0]), the last epoch, the present epoch and the future epoch.
          *
          *  Past
-         *       [_]         [_]         [_]         [3]         [4]
+         *       [_]         [_]         [2]         [3]         [4]
          *  |___________|___________|___________|___________|___________|
          *                         140[e]->    160->       180->       199
          *
@@ -240,7 +245,7 @@ public class TimeSeriesCounter {
          *
          * Future
          *       [_]         [_]         [_]         [_]         [_]
-         *  |_____0_____|___________|___________|___________|___________|
+         *  |___________|___________|___________|___________|___________|
          * 400[c][f]->
          *
          * ------------------------------------------------------------------------------------------------------------------

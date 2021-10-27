@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -720,6 +721,12 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Override
     public boolean isRequireAlias() {
         return requireAlias;
+    }
+
+    @Override
+    public int route(IndexRouting indexRouting) {
+        assert id != null : "route must be called after process";
+        return indexRouting.indexShard(id, routing, contentType, source);
     }
 
     public IndexRequest setRequireAlias(boolean requireAlias) {

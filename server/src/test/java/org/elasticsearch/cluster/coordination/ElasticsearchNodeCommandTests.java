@@ -15,14 +15,14 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -85,7 +85,7 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
                 final Metadata reloadedMetadata = Metadata.FORMAT.loadLatestState(logger, xContentRegistry(), tempdir);
                 assertThat(reloadedMetadata.indexGraveyard(), equalTo(latestMetadata.indexGraveyard()));
             }
-        }  else {
+        } else {
             assertThat(loadedMetadata.indexGraveyard(), equalTo(latestMetadata.indexGraveyard()));
         }
     }
@@ -103,8 +103,7 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
             for (int i = 0; i < numDataStreams; i++) {
                 String dataStreamName = "name" + 1;
                 IndexMetadata backingIndex = createFirstBackingIndex(dataStreamName).build();
-                mdBuilder.put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
-                    List.of(backingIndex.getIndex())));
+                mdBuilder.put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(backingIndex.getIndex())));
             }
         }
         mdBuilder.indexGraveyard(graveyard.build());
@@ -115,8 +114,8 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(
             Stream.of(ClusterModule.getNamedXWriteables().stream(), IndicesModule.getNamedXContents().stream())
-            .flatMap(Function.identity())
-            .collect(Collectors.toList())
+                .flatMap(Function.identity())
+                .collect(Collectors.toList())
         );
     }
 }

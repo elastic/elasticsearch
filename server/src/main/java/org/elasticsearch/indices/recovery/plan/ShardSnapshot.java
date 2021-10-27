@@ -28,10 +28,12 @@ public class ShardSnapshot {
     private final Store.MetadataSnapshot metadataSnapshot;
     private final org.apache.lucene.util.Version commitLuceneVersion;
 
-    public ShardSnapshot(ShardSnapshotInfo shardSnapshotInfo,
-                  List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles,
-                  Map<String, String> luceneCommitUserData,
-                  org.apache.lucene.util.Version commitLuceneVersion) {
+    public ShardSnapshot(
+        ShardSnapshotInfo shardSnapshotInfo,
+        List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles,
+        Map<String, String> luceneCommitUserData,
+        org.apache.lucene.util.Version commitLuceneVersion
+    ) {
         this.shardSnapshotInfo = shardSnapshotInfo;
         this.snapshotFiles = snapshotFiles.stream()
             .collect(Collectors.toMap(snapshotFile -> snapshotFile.metadata().name(), Function.identity()));
@@ -82,17 +84,17 @@ public class ShardSnapshot {
     }
 
     public List<BlobStoreIndexShardSnapshot.FileInfo> getSnapshotFilesMatching(List<StoreFileMetadata> segmentFiles) {
-        return segmentFiles.stream()
-            .map(storeFileMetadata -> snapshotFiles.get(storeFileMetadata.name()))
-            .collect(Collectors.toList());
+        return segmentFiles.stream().map(storeFileMetadata -> snapshotFiles.get(storeFileMetadata.name())).collect(Collectors.toList());
     }
 
     public List<BlobStoreIndexShardSnapshot.FileInfo> getSnapshotFiles() {
         return List.copyOf(snapshotFiles.values());
     }
 
-    static Store.MetadataSnapshot convertToMetadataSnapshot(List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles,
-                                                            Map<String, String> luceneCommitUserData) {
+    static Store.MetadataSnapshot convertToMetadataSnapshot(
+        List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles,
+        Map<String, String> luceneCommitUserData
+    ) {
         return new Store.MetadataSnapshot(
             snapshotFiles.stream()
                 .map(BlobStoreIndexShardSnapshot.FileInfo::metadata)

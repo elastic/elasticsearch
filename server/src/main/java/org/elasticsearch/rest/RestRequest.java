@@ -119,13 +119,12 @@ public class RestRequest implements ToXContent.Params {
     }
 
     private static @Nullable ParsedMediaType parseHeaderWithMediaType(Map<String, List<String>> headers, String headerName) {
-        //TODO: make all usages of headers case-insensitive
+        // TODO: make all usages of headers case-insensitive
         List<String> header = headers.get(headerName);
         if (header == null || header.isEmpty()) {
             return null;
         } else if (header.size() > 1) {
-            throw new IllegalArgumentException("Incorrect header [" + headerName + "]. " +
-                "Only one value should be provided");
+            throw new IllegalArgumentException("Incorrect header [" + headerName + "]. " + "Only one value should be provided");
         }
         String rawContentType = header.get(0);
         if (Strings.hasText(rawContentType)) {
@@ -200,7 +199,15 @@ public class RestRequest implements ToXContent.Params {
     }
 
     public enum Method {
-        GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH, TRACE, CONNECT
+        GET,
+        POST,
+        PUT,
+        DELETE,
+        OPTIONS,
+        HEAD,
+        PATCH,
+        TRACE,
+        CONNECT
     }
 
     /**
@@ -351,11 +358,7 @@ public class RestRequest implements ToXContent.Params {
      * @return the list of currently unconsumed parameters.
      */
     List<String> unconsumedParams() {
-        return params
-            .keySet()
-            .stream()
-            .filter(p -> consumedParams.contains(p) == false)
-            .collect(Collectors.toList());
+        return params.keySet().stream().filter(p -> consumedParams.contains(p) == false).collect(Collectors.toList());
     }
 
     public float paramAsFloat(String key, float defaultValue) {
@@ -561,7 +564,8 @@ public class RestRequest implements ToXContent.Params {
         final String[] elements = rawContentType.split("[ \t]*;");
         if (elements.length > 0) {
             final String[] splitMediaType = elements[0].split("/");
-            if (splitMediaType.length == 2 && TCHAR_PATTERN.matcher(splitMediaType[0]).matches()
+            if (splitMediaType.length == 2
+                && TCHAR_PATTERN.matcher(splitMediaType[0]).matches()
                 && TCHAR_PATTERN.matcher(splitMediaType[1].trim()).matches()) {
                 return XContentType.fromMediaType(elements[0]);
             } else {

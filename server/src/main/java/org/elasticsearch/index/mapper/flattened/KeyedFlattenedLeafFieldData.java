@@ -38,8 +38,7 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
     private final String key;
     private final LeafOrdinalsFieldData delegate;
 
-    KeyedFlattenedLeafFieldData(String key,
-                                LeafOrdinalsFieldData delegate) {
+    KeyedFlattenedLeafFieldData(String key, LeafOrdinalsFieldData delegate) {
         this.key = key;
         this.delegate = delegate;
     }
@@ -81,8 +80,7 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
 
     @Override
     public DocValuesField getScriptField(String name) {
-        return new DelegateDocValuesField(
-                AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION.apply(getOrdinalsValues()), name);
+        return new DelegateDocValuesField(AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION.apply(getOrdinalsValues()), name);
     }
 
     @Override
@@ -164,10 +162,7 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
          */
         private long cachedNextOrd;
 
-        private KeyedFlattenedDocValues(BytesRef key,
-                                        SortedSetDocValues delegate,
-                                        long minOrd,
-                                        long maxOrd) {
+        private KeyedFlattenedDocValues(BytesRef key, SortedSetDocValues delegate, long minOrd, long maxOrd) {
             assert minOrd >= 0 && maxOrd >= 0;
             this.key = key;
             this.delegate = delegate;

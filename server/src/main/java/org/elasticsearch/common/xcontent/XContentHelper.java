@@ -124,7 +124,7 @@ public class XContentHelper {
      */
     @Deprecated
     public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered)
-            throws ElasticsearchParseException {
+        throws ElasticsearchParseException {
         return convertToMap(bytes, ordered, null);
     }
 
@@ -168,16 +168,18 @@ public class XContentHelper {
                 final int offset = bytes.arrayOffset();
                 final int length = bytes.length();
                 contentType = xContentType != null ? xContentType : XContentFactory.xContentType(raw, offset, length);
-                return new Tuple<>(Objects.requireNonNull(contentType),
-                        convertToMap(XContentFactory.xContent(contentType), raw, offset, length, ordered, include, exclude));
+                return new Tuple<>(
+                    Objects.requireNonNull(contentType),
+                    convertToMap(XContentFactory.xContent(contentType), raw, offset, length, ordered, include, exclude)
+                );
             } else {
                 input = bytes.streamInput();
                 contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
             }
             try (InputStream stream = input) {
                 return new Tuple<>(
-                        Objects.requireNonNull(contentType),
-                        convertToMap(XContentFactory.xContent(contentType), stream, ordered, include, exclude)
+                    Objects.requireNonNull(contentType),
+                    convertToMap(XContentFactory.xContent(contentType), stream, ordered, include, exclude)
                 );
             }
         } catch (IOException e) {
@@ -191,8 +193,13 @@ public class XContentHelper {
      */
     public static Map<String, Object> convertToMap(XContent xContent, String string, boolean ordered) throws ElasticsearchParseException {
         // It is safe to use EMPTY here because this never uses namedObject
-        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, string)) {
+        try (
+            XContentParser parser = xContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                string
+            )
+        ) {
             return ordered ? parser.mapOrdered() : parser.map();
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);
@@ -204,7 +211,7 @@ public class XContentHelper {
      * fields are filtered.
      */
     public static Map<String, Object> convertToMap(XContent xContent, InputStream input, boolean ordered)
-            throws ElasticsearchParseException {
+        throws ElasticsearchParseException {
         return convertToMap(xContent, input, ordered, null, null);
     }
 
@@ -233,7 +240,7 @@ public class XContentHelper {
      * error. Note that unlike {@link #convertToMap(BytesReference, boolean)}, this doesn't automatically uncompress the input.
      */
     public static Map<String, Object> convertToMap(XContent xContent, byte[] bytes, int offset, int length, boolean ordered)
-            throws ElasticsearchParseException {
+        throws ElasticsearchParseException {
         return convertToMap(xContent, bytes, offset, length, ordered, null, null);
     }
 
@@ -348,8 +355,11 @@ public class XContentHelper {
             Object old = source.get(changesEntry.getKey());
             if (old instanceof Map && changesEntry.getValue() instanceof Map) {
                 // recursive merge maps
-                modified |= update((Map<String, Object>) source.get(changesEntry.getKey()),
-                        (Map<String, Object>) changesEntry.getValue(), checkUpdatesAreUnequal && modified == false);
+                modified |= update(
+                    (Map<String, Object>) source.get(changesEntry.getKey()),
+                    (Map<String, Object>) changesEntry.getValue(),
+                    checkUpdatesAreUnequal && modified == false
+                );
                 continue;
             }
             // update the field
@@ -439,8 +449,8 @@ public class XContentHelper {
      * auto-detection
      */
     @Deprecated
-    public static void writeRawField(String field, BytesReference source, XContentBuilder builder,
-                                     ToXContent.Params params) throws IOException {
+    public static void writeRawField(String field, BytesReference source, XContentBuilder builder, ToXContent.Params params)
+        throws IOException {
         Compressor compressor = CompressorFactory.compressor(source);
         if (compressor != null) {
             try (InputStream compressedStreamInput = compressor.threadLocalInputStream(source.streamInput())) {
@@ -457,8 +467,13 @@ public class XContentHelper {
      * Writes a "raw" (bytes) field, handling cases where the bytes are compressed, and tries to optimize writing using
      * {@link XContentBuilder#rawField(String, InputStream, XContentType)}.
      */
-    public static void writeRawField(String field, BytesReference source, XContentType xContentType, XContentBuilder builder,
-                                     ToXContent.Params params) throws IOException {
+    public static void writeRawField(
+        String field,
+        BytesReference source,
+        XContentType xContentType,
+        XContentBuilder builder,
+        ToXContent.Params params
+    ) throws IOException {
         Objects.requireNonNull(xContentType);
         Compressor compressor = CompressorFactory.compressor(source);
         if (compressor != null) {
@@ -486,8 +501,8 @@ public class XContentHelper {
      * {@link XContentType}. Wraps the output into a new anonymous object according to the value returned
      * by the {@link ToXContent#isFragment()} method returns.
      */
-    public static BytesReference toXContent(ToXContent toXContent, XContentType xContentType, Params params,
-                                            boolean humanReadable) throws IOException {
+    public static BytesReference toXContent(ToXContent toXContent, XContentType xContentType, Params params, boolean humanReadable)
+        throws IOException {
         try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
             builder.humanReadable(humanReadable);
             if (toXContent.isFragment()) {
@@ -533,8 +548,10 @@ public class XContentHelper {
     public static BytesReference childBytes(XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                throw new XContentParseException(parser.getTokenLocation(),
-                    "Expected [START_OBJECT] but got [" + parser.currentToken() + "]");
+                throw new XContentParseException(
+                    parser.getTokenLocation(),
+                    "Expected [START_OBJECT] but got [" + parser.currentToken() + "]"
+                );
             }
         }
         XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());

@@ -22,14 +22,16 @@ public class SuggestingErrorOnUnknownTests extends ESTestCase {
     public void testNoCandidates() {
         assertThat(errorMessage("foo"), equalTo("[test] unknown field [foo]"));
     }
+
     public void testBadCandidates() {
         assertThat(errorMessage("foo", "bar", "baz"), equalTo("[test] unknown field [foo]"));
     }
+
     public void testOneCandidate() {
         assertThat(errorMessage("foo", "bar", "fop"), equalTo("[test] unknown field [foo] did you mean [fop]?"));
     }
+
     public void testManyCandidate() {
-        assertThat(errorMessage("foo", "bar", "fop", "fou", "baz"),
-                equalTo("[test] unknown field [foo] did you mean any of [fop, fou]?"));
+        assertThat(errorMessage("foo", "bar", "fop", "fou", "baz"), equalTo("[test] unknown field [foo] did you mean any of [fop, fou]?"));
     }
 }

@@ -51,11 +51,10 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
  */
 public class MultiSearchRequest extends ActionRequest implements CompositeIndicesRequest {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchAction.class);
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
-        " Specifying types in search requests is deprecated.";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" + " Specifying types in search requests is deprecated.";
     public static final String FIRST_LINE_EMPTY_DEPRECATION_MESSAGE =
-        "support for empty first line before any action metadata in msearch API is deprecated " +
-            "and will be removed in the next major version";
+        "support for empty first line before any action metadata in msearch API is deprecated "
+            + "and will be removed in the next major version";
     public static final int MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT = 0;
 
     private int maxConcurrentSearchRequests = 0;
@@ -134,7 +133,6 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         return this;
     }
 
-
     public MultiSearchRequest(StreamInput in) throws IOException {
         super(in);
         maxConcurrentSearchRequests = in.readVInt();
@@ -160,9 +158,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         MultiSearchRequest that = (MultiSearchRequest) o;
-        return maxConcurrentSearchRequests == that.maxConcurrentSearchRequests &&
-                Objects.equals(requests, that.requests) &&
-                Objects.equals(indicesOptions, that.indicesOptions);
+        return maxConcurrentSearchRequests == that.maxConcurrentSearchRequests
+            && Objects.equals(requests, that.requests)
+            && Objects.equals(indicesOptions, that.indicesOptions);
     }
 
     @Override
@@ -285,8 +283,13 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                             throw new IllegalArgumentException("key [" + entry.getKey() + "] is not supported in the metadata section");
                         }
                     }
-                    defaultOptions = IndicesOptions.fromParameters(expandWildcards, ignoreUnavailable, allowNoIndices, ignoreThrottled,
-                        defaultOptions);
+                    defaultOptions = IndicesOptions.fromParameters(
+                        expandWildcards,
+                        ignoreUnavailable,
+                        allowNoIndices,
+                        ignoreThrottled,
+                        defaultOptions
+                    );
                 }
             }
             searchRequest.indicesOptions(defaultOptions);
@@ -376,9 +379,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         return new CancellableTask(id, type, action, "", parentTaskId, headers) {
             @Override
             public String getDescription() {
-                return requests.stream()
-                    .map(SearchRequest::buildDescription)
-                    .collect(Collectors.joining(action + "[", ",", "]"));
+                return requests.stream().map(SearchRequest::buildDescription).collect(Collectors.joining(action + "[", ",", "]"));
             }
         };
     }

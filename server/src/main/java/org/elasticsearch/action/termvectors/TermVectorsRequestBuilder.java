@@ -10,8 +10,8 @@ package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.Map;
 
@@ -87,7 +87,6 @@ public class TermVectorsRequestBuilder extends ActionRequestBuilder<TermVectorsR
         request.offsets(offsets);
         return this;
     }
-
 
     /**
      * Sets whether to return the positions for each term if stored or skip.

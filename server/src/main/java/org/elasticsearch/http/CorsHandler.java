@@ -200,9 +200,9 @@ public class CorsHandler {
 
     private static boolean isPreflightRequest(final HttpRequest request) {
         final Map<String, List<String>> headers = request.getHeaders();
-        return request.method().equals(RestRequest.Method.OPTIONS) &&
-            headers.containsKey(ORIGIN) &&
-            headers.containsKey(ACCESS_CONTROL_REQUEST_METHOD);
+        return request.method().equals(RestRequest.Method.OPTIONS)
+            && headers.containsKey(ORIGIN)
+            && headers.containsKey(ACCESS_CONTROL_REQUEST_METHOD);
     }
 
     private static void setVaryHeader(final HttpResponse response) {
@@ -296,16 +296,24 @@ public class CorsHandler {
 
         @Override
         public String toString() {
-            return "Config{" +
-                "enabled=" + enabled +
-                ", origins=" + origins +
-                ", pattern=" + pattern +
-                ", anyOrigin=" + anyOrigin +
-                ", credentialsAllowed=" + credentialsAllowed +
-                ", allowedRequestMethods=" + allowedRequestMethods +
-                ", allowedRequestHeaders=" + allowedRequestHeaders +
-                ", maxAge=" + maxAge +
-                '}';
+            return "Config{"
+                + "enabled="
+                + enabled
+                + ", origins="
+                + origins
+                + ", pattern="
+                + pattern
+                + ", anyOrigin="
+                + anyOrigin
+                + ", credentialsAllowed="
+                + credentialsAllowed
+                + ", allowedRequestMethods="
+                + allowedRequestMethods
+                + ", allowedRequestHeaders="
+                + allowedRequestHeaders
+                + ", maxAge="
+                + maxAge
+                + '}';
         }
 
         private static class Builder {
@@ -353,7 +361,6 @@ public class CorsHandler {
                 this.allowCredentials = true;
                 return this;
             }
-
 
             public Builder allowedRequestMethods(RestRequest.Method[] methods) {
                 requestMethods.addAll(Arrays.asList(methods));

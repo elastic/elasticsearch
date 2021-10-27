@@ -60,8 +60,13 @@ public class FakeRestRequest extends RestRequest {
             this(method, uri, content, headers, null);
         }
 
-        private FakeHttpRequest(Method method, String uri, BytesReference content, Map<String, List<String>> headers,
-                                Exception inboundException) {
+        private FakeHttpRequest(
+            Method method,
+            String uri,
+            BytesReference content,
+            Map<String, List<String>> headers,
+            Exception inboundException
+        ) {
             this.method = method;
             this.uri = uri;
             this.content = content == null ? BytesArray.EMPTY : content;
@@ -122,8 +127,7 @@ public class FakeRestRequest extends RestRequest {
         }
 
         @Override
-        public void release() {
-        }
+        public void release() {}
 
         @Override
         public HttpRequest releaseAndCopy() {

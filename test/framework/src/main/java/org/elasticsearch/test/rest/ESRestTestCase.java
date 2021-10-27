@@ -571,7 +571,13 @@ public abstract class ESRestTestCase extends ESTestCase {
             "watch-history-ilm-policy",
             "ml-size-based-ilm-policy",
             "logs",
-            "metrics"
+            "metrics",
+            "synthetics",
+            "7-days-default",
+            "30-days-default",
+            "90-days-default",
+            "180-days-default",
+            "365-days-default"
         );
     }
 

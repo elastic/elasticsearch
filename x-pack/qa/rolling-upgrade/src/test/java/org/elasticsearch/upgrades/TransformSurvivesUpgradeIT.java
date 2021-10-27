@@ -221,6 +221,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private void verifyUpgradeFailsIfMixedCluster() {
+        // upgrade tests by design are also executed with the same version, this check must be skipped in this case, see gh#39102.
         if (UPGRADE_FROM_VERSION.equals(Version.CURRENT)) {
             return;
         }

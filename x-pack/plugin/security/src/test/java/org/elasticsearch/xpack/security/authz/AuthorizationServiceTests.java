@@ -168,7 +168,7 @@ import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.junit.Before;
 import org.mockito.ArgumentMatcher;
-import org.mockito.Matchers;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -215,8 +215,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -1743,10 +1743,10 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         // both deletes should fail
         verify(auditTrail, times(2)).explicitIndexAccessEvent(eq(requestId), eq(AuditLevel.ACCESS_DENIED), eq(authentication),
-            eq(DeleteAction.NAME), Matchers.startsWith("datemath-"), eq(BulkItemRequest.class.getSimpleName()),
+            eq(DeleteAction.NAME), ArgumentMatchers.startsWith("datemath-"), eq(BulkItemRequest.class.getSimpleName()),
             eq(request.remoteAddress()), authzInfoRoles(new String[]{role.getName()}));
         verify(auditTrail, times(2)).explicitIndexAccessEvent(eq(requestId), eq(AuditLevel.ACCESS_GRANTED), eq(authentication),
-            eq(IndexAction.NAME + ":op_type/index"), Matchers.startsWith("datemath-"), eq(BulkItemRequest.class.getSimpleName()),
+            eq(IndexAction.NAME + ":op_type/index"), ArgumentMatchers.startsWith("datemath-"), eq(BulkItemRequest.class.getSimpleName()),
             eq(request.remoteAddress()), authzInfoRoles(new String[]{role.getName()}));
         // bulk request is allowed
         verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(action), eq(request),
@@ -2092,7 +2092,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     static AuthorizationInfo authzInfoRoles(String[] expectedRoles) {
-        return Matchers.argThat(new RBACAuthorizationInfoRoleMatcher(expectedRoles));
+        return ArgumentMatchers.argThat(new RBACAuthorizationInfoRoleMatcher(expectedRoles));
     }
 
     private static class RBACAuthorizationInfoRoleMatcher implements ArgumentMatcher<AuthorizationInfo> {

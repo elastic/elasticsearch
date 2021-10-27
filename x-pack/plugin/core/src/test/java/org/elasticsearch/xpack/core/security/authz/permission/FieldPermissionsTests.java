@@ -20,7 +20,7 @@ import java.util.Arrays;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Matchers.same;
+import static org.mockito.ArgumentMatchers.same;
 
 public class FieldPermissionsTests extends ESTestCase {
 

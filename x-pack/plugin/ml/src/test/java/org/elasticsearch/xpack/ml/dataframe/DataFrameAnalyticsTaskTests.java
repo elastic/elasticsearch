@@ -53,9 +53,9 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.same;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.inOrder;
@@ -182,15 +182,15 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
 
         DataFrameAnalyticsTask task =
             new DataFrameAnalyticsTask(
-                123, 
-                "type", 
-                "action", 
-                null, 
-                Collections.emptyMap(), 
-                client, 
-                analyticsManager, 
-                auditor, 
-                taskParams, 
+                123,
+                "type",
+                "action",
+                null,
+                Collections.emptyMap(),
+                client,
+                analyticsManager,
+                auditor,
+                taskParams,
                 mock(XPackLicenseState.class)
             );
         task.init(persistentTasksService, taskManager, "task-id", 42);
@@ -270,15 +270,15 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
 
         DataFrameAnalyticsTask task =
             new DataFrameAnalyticsTask(
-                123, 
+                123,
                 "type",
                 "action",
-                null, 
+                null,
                 Collections.emptyMap(),
-                client, 
-                analyticsManager, 
-                auditor, 
-                taskParams, 
+                client,
+                analyticsManager,
+                auditor,
+                taskParams,
                 mock(XPackLicenseState.class)
             );
         task.init(persistentTasksService, taskManager, "task-id", 42);

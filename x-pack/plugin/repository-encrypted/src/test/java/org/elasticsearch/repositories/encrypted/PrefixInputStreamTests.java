@@ -159,7 +159,7 @@ public class PrefixInputStreamTests extends ESTestCase {
     private Tuple<AtomicInteger, InputStream> getMockBoundedInputStream(int bound) throws IOException {
         InputStream mockSource = mock(InputStream.class);
         AtomicInteger bytesRemaining = new AtomicInteger(bound);
-        when(mockSource.read(org.mockito.Matchers.<byte[]>any(), org.mockito.Matchers.anyInt(), org.mockito.Matchers.anyInt())).thenAnswer(
+        when(mockSource.read(org.mockito.ArgumentMatchers.<byte[]>any(), org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyInt())).thenAnswer(
             invocationOnMock -> {
                 final byte[] b = (byte[]) invocationOnMock.getArguments()[0];
                 final int off = (int) invocationOnMock.getArguments()[1];
@@ -183,7 +183,7 @@ public class PrefixInputStreamTests extends ESTestCase {
             bytesRemaining.decrementAndGet();
             return Randomness.get().nextInt(256);
         });
-        when(mockSource.skip(org.mockito.Matchers.anyLong())).thenAnswer(invocationOnMock -> {
+        when(mockSource.skip(org.mockito.ArgumentMatchers.anyLong())).thenAnswer(invocationOnMock -> {
             final long n = (long) invocationOnMock.getArguments()[0];
             if (n <= 0 || bytesRemaining.get() <= 0) {
                 return 0L;

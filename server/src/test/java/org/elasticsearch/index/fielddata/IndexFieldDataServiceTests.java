@@ -43,7 +43,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.mockito.Matchers;
+import org.mockito.ArgumentMatchers;
 
 import java.util.Arrays;
 import java.util.Collection;

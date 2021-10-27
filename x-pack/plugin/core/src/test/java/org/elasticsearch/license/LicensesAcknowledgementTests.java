@@ -16,7 +16,7 @@ import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import static org.elasticsearch.core.TimeValue.timeValueHours;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 

@@ -18,8 +18,8 @@
           github-hooks: true
           status-context: elasticsearch-ci/part-2-fips
           cancel-builds-on-update: true
-          white-list-target-branches:
-            - 7.16
+          black-list-target-branches:
+            - 6.8
           excluded-regions:
             - ^docs/.*
           white-list-labels:

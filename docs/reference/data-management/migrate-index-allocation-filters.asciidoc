@@ -47,7 +47,7 @@ on new indices.
 
 [discrete]
 [[assign-data-tier]]
-=== Assign data nodes to a data tier
+==== Assign data nodes to a data tier
 
 Configure the appropriate roles for each data node to assign it to one or more
 data tiers: `data_hot`, `data_content`, `data_warm`, `data_cold`, or `data_frozen`.
@@ -85,7 +85,7 @@ node.roles [ data_hot, data_content ]
 
 [discrete]
 [[remove-custom-allocation-settings]]
-=== Remove custom allocation settings from existing {ilm-init} policies
+==== Remove custom allocation settings from existing {ilm-init} policies
 
 Update the allocate action for each lifecycle phase to remove the attribute-based
 allocation settings. {ilm-init} will inject a
@@ -104,7 +104,7 @@ your policy must include the hot, warm, and cold phases.
 
 [discrete]
 [[stop-setting-custom-hot-attribute]]
-=== Stop setting the custom hot attribute on new indices
+==== Stop setting the custom hot attribute on new indices
 
 When you create a data stream, its first backing index
 is now automatically assigned to `data_hot` nodes.
@@ -124,7 +124,7 @@ If you're using a custom index template, update it to remove the <<shard-allocat
 
 [discrete]
 [[set-tier-preference]]
-=== Set a tier preference for existing indices.
+==== Set a tier preference for existing indices.
 
 {ilm-init} automatically transitions managed indices through the available
 data tiers by automatically injecting a <<ilm-migrate,migrate action>>

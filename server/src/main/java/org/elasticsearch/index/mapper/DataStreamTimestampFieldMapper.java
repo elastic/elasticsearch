@@ -12,6 +12,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentType;
@@ -208,6 +209,12 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
             .count();
         if (numberOfValues > 1) {
             throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] encountered multiple values");
+        }
+
+        IndexMode mode = context.indexSettings().getMode();
+        if (mode == IndexMode.TIME_SERIES) {
+            long timestamp = fields[0].numericValue().longValue();
+            context.indexSettings().getMode().validateTimestampRange(context, timestamp);
         }
     }
 

@@ -555,6 +555,7 @@ public class IndexSettingsTests extends ESTestCase {
         long startTime = endTime - TimeUnit.DAYS.toMillis(1);
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
             .put(TIME_SERIES_START_TIME.getKey(), startTime)
             .put(TIME_SERIES_END_TIME.getKey(), endTime)
             .build();
@@ -580,6 +581,7 @@ public class IndexSettingsTests extends ESTestCase {
         long endTime = startTime - randomLongBetween(1, 1000);
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
             .put(TIME_SERIES_START_TIME.getKey(), startTime)
             .put(TIME_SERIES_END_TIME.getKey(), endTime)
             .build();

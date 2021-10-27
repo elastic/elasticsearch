@@ -83,87 +83,6 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.sort.order]"));
     }
 
-    public void testValidateTimestamp() throws IOException {
-        long endTime = System.currentTimeMillis();
-        long startTime = endTime - TimeUnit.DAYS.toMillis(1);
-
-        Settings s = Settings.builder()
-            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), startTime)
-            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), endTime)
-            .put(IndexSettings.MODE.getKey(), "time_series")
-            .build();
-
-        DocumentMapper mapper = createMapperService(s, mapping(b -> b.startObject("@timestamp").field("type", "date").endObject()))
-            .documentMapper();
-        // timestamp missing
-        {
-            MapperParsingException e = expectThrows(
-                MapperParsingException.class,
-                () -> mapper.parse(
-                    new SourceToParse(
-                        "test",
-                        "1",
-                        BytesReference.bytes(XContentFactory.jsonBuilder().startObject().endObject()),
-                        XContentType.JSON
-                    )
-                )
-            );
-            assertThat(e.getRootCause().getMessage(), containsString("time series index @timestamp field is missing"));
-        }
-
-        // timestamp smaller than start_time
-        {
-            MapperParsingException e = expectThrows(
-                MapperParsingException.class,
-                () -> mapper.parse(
-                    new SourceToParse(
-                        "test",
-                        "1",
-                        BytesReference.bytes(
-                            XContentFactory.jsonBuilder()
-                                .startObject()
-                                .field("@timestamp", Math.max(startTime - randomLongBetween(1, 10), 0))
-                                .endObject()
-                        ),
-                        XContentType.JSON
-                    )
-                )
-            );
-            assertThat(e.getRootCause().getMessage(), containsString("must be larger than"));
-        }
-
-        // timestamp larger than end_time
-        {
-            MapperParsingException e = expectThrows(
-                MapperParsingException.class,
-                () -> mapper.parse(
-                    new SourceToParse(
-                        "test",
-                        "1",
-                        BytesReference.bytes(
-                            XContentFactory.jsonBuilder().startObject().field("@timestamp", endTime + randomLongBetween(0, 10)).endObject()
-                        ),
-                        XContentType.JSON
-                    )
-                )
-            );
-            assertThat(e.getRootCause().getMessage(), containsString("must be smaller than"));
-        }
-
-        // timestamp correct
-        {
-            mapper.parse(
-                new SourceToParse(
-                    "test",
-                    "1",
-                    BytesReference.bytes(
-                        XContentFactory.jsonBuilder().startObject().field("@timestamp", randomLongBetween(startTime, endTime)).endObject()
-                    ),
-                    XContentType.JSON
-                )
-            );
-        }
-
     public void testAddsTimestamp() throws IOException {
         Settings s = Settings.builder()
             .put(IndexSettings.MODE.getKey(), "time_series")
@@ -225,6 +144,113 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
             e.getMessage(),
             equalTo("data stream timestamp field [@timestamp] is of type [" + type + "], but [date,date_nanos] is expected")
         );
+    }
+
+    public void testWithoutTimestamp() throws IOException {
+        Settings s = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .build();
+
+        DocumentMapper mapper = createMapperService(s, mapping(b -> b.startObject("@timestamp").field("type", "date").endObject()))
+            .documentMapper();
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(
+                new SourceToParse(
+                    "test",
+                    "1",
+                    BytesReference.bytes(XContentFactory.jsonBuilder().startObject().endObject()),
+                    XContentType.JSON
+                )
+            )
+        );
+        assertThat(e.getRootCause().getMessage(), containsString("data stream timestamp field [@timestamp] is missing"));
+    }
+
+    public void testEnableTimestampRange() throws IOException {
+        long endTime = System.currentTimeMillis();
+        long startTime = endTime - TimeUnit.DAYS.toMillis(1);
+
+        Settings s = Settings.builder()
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), startTime)
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), endTime)
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .build();
+        DocumentMapper mapper = createMapperService(s, mapping(b -> b.startObject("@timestamp").field("type", "date").endObject()))
+            .documentMapper();
+        mapper.parse(
+            new SourceToParse(
+                "test",
+                "1",
+                BytesReference.bytes(
+                    XContentFactory.jsonBuilder().startObject().field("@timestamp", randomLongBetween(startTime, endTime)).endObject()
+                ),
+                XContentType.JSON
+            )
+        );
+    }
+
+    public void testBadStartTime() throws IOException {
+        long endTime = System.currentTimeMillis();
+        long startTime = endTime - TimeUnit.DAYS.toMillis(1);
+
+        Settings s = Settings.builder()
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), startTime)
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), endTime)
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .build();
+
+        DocumentMapper mapper = createMapperService(s, mapping(b -> b.startObject("@timestamp").field("type", "date").endObject()))
+            .documentMapper();
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(
+                new SourceToParse(
+                    "test",
+                    "1",
+                    BytesReference.bytes(
+                        XContentFactory.jsonBuilder()
+                            .startObject()
+                            .field("@timestamp", Math.max(startTime - randomLongBetween(1, 3), 0))
+                            .endObject()
+                    ),
+                    XContentType.JSON
+                )
+            )
+        );
+        assertThat(e.getRootCause().getMessage(), containsString("must be larger than"));
+    }
+
+    public void testBadEndTime() throws IOException {
+        long endTime = System.currentTimeMillis();
+        long startTime = endTime - TimeUnit.DAYS.toMillis(1);
+
+        Settings s = Settings.builder()
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), startTime)
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), endTime)
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .build();
+
+        DocumentMapper mapper = createMapperService(s, mapping(b -> b.startObject("@timestamp").field("type", "date").endObject()))
+            .documentMapper();
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(
+                new SourceToParse(
+                    "test",
+                    "1",
+                    BytesReference.bytes(
+                        XContentFactory.jsonBuilder().startObject().field("@timestamp", endTime + randomLongBetween(0, 3)).endObject()
+                    ),
+                    XContentType.JSON
+                )
+            )
+        );
+        assertThat(e.getRootCause().getMessage(), containsString("must be smaller than"));
     }
 
     public void testEnabledTimeStampMapper() throws IOException {

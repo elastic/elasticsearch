@@ -8,23 +8,20 @@
 
 package org.elasticsearch.index;
 
-import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;
-import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,8 +38,6 @@ import static org.elasticsearch.core.TimeValue.NSEC_PER_MSEC;
 public enum IndexMode {
     STANDARD {
         @Override
-        public void validateWithSource(DocumentParserContext context) {}
-
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
             if (false == Objects.equals(
                 IndexMetadata.INDEX_ROUTING_PATH.getDefault(Settings.EMPTY),
@@ -62,6 +57,9 @@ public enum IndexMode {
 
         @Override
         public void completeMappings(MappingParserContext context, Map<String, Object> mapping, RootObjectMapper.Builder builder) {}
+
+        @Override
+        public void validateTimestampRange(DocumentParserContext context, long timestamp) {}
     },
     TIME_SERIES {
         public static final String TIMESTAMP_FIELD = "@timestamp";
@@ -84,24 +82,7 @@ public enum IndexMode {
         }
 
         @Override
-        public void validateWithSource(DocumentParserContext context) {
-            validateTimestamp(context);
-        }
-
-        private void validateTimestamp(DocumentParserContext context) {
-            IndexableField[] fields = context.rootDoc().getFields(TIMESTAMP_FIELD);
-            if (fields.length == 0) {
-                throw new IllegalArgumentException("time series index @timestamp field is missing");
-            }
-
-            long numberOfValues = Arrays.stream(fields)
-                .filter(indexableField -> indexableField.fieldType().docValuesType() == DocValuesType.SORTED_NUMERIC)
-                .count();
-            if (numberOfValues > 1) {
-                throw new IllegalArgumentException("time series index @timestamp field encountered multiple values");
-            }
-
-            long timestamp = fields[0].numericValue().longValue();
+        public void validateTimestampRange(DocumentParserContext context, long timestamp) {
             if (context.mappingLookup().getMapper(TIMESTAMP_FIELD).typeName().equals(DateFieldMapper.DATE_NANOS_CONTENT_TYPE)) {
                 timestamp /= NSEC_PER_MSEC;
             }
@@ -111,13 +92,13 @@ public enum IndexMode {
 
             if (timestamp < startTime) {
                 throw new IllegalArgumentException(
-                    "time series index @timestamp value [" + timestamp + "] must be larger than " + startTime
+                    "time series index " + TIMESTAMP_FIELD + " value [" + timestamp + "] must be larger than " + startTime
                 );
             }
 
             if (timestamp >= endTime) {
                 throw new IllegalArgumentException(
-                    "time series index @timestamp value [" + timestamp + "] must be smaller than " + endTime
+                    "time series index " + TIMESTAMP_FIELD + " value [" + timestamp + "] must be smaller than " + endTime
                 );
             }
         }
@@ -206,8 +187,6 @@ public enum IndexMode {
 
     abstract void validateWithOtherSettings(Map<Setting<?>, Object> settings);
 
-    public abstract void validateWithSource(DocumentParserContext context);
-
     /**
      * Validate the mapping for this index.
      */
@@ -222,4 +201,9 @@ public enum IndexMode {
      * Validate and/or modify the mappings after after they've been parsed.
      */
     public abstract void completeMappings(MappingParserContext context, Map<String, Object> mapping, RootObjectMapper.Builder builder);
+
+    /**
+     * Validate the timestamp, check the timestamp range between start_time and end_time
+     */
+    public abstract void validateTimestampRange(DocumentParserContext context, long timestamp);
 }

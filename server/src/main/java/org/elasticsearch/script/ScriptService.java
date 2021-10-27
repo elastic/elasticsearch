@@ -592,8 +592,12 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
     }
 
     CacheHolder generalCacheHolder(Settings settings) {
-        return new CacheHolder(SCRIPT_GENERAL_CACHE_SIZE_SETTING.get(settings), SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.get(settings),
-            SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings), SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey());
+        ScriptCache.CompilationRate rate = SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings);
+        if (SCRIPT_DISABLE_MAX_COMPILATIONS_RATE_SETTING.get(settings) || compilationLimitsEnabled() == false) {
+            rate = SCRIPT_COMPILATION_RATE_ZERO;
+        }
+        return new CacheHolder(SCRIPT_GENERAL_CACHE_SIZE_SETTING.get(settings), SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.get(settings), rate,
+                SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey());
     }
 
     CacheHolder contextCacheHolder(Settings settings) {

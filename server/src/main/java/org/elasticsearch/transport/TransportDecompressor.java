@@ -8,9 +8,10 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
@@ -32,7 +33,7 @@ public interface TransportDecompressor extends Releasable {
     @Override
     void close();
 
-    static TransportDecompressor getDecompressor(PageCacheRecycler recycler, BytesReference bytes) throws IOException {
+    static TransportDecompressor getDecompressor(Recycler<BytesRef> recycler, BytesReference bytes) throws IOException {
         if (bytes.length() < Compression.Scheme.HEADER_LENGTH) {
             return null;
         }

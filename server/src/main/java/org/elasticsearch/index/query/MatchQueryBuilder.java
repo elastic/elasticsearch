@@ -11,17 +11,17 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.search.MatchQueryParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -32,8 +32,8 @@ import java.util.Objects;
  */
 public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
-    private static final String CUTOFF_FREQUENCY_DEPRECATION_MSG = "you can omit this option, " +
-        "the [match] query can skip block of documents efficiently if the total number of hits is not tracked";
+    private static final String CUTOFF_FREQUENCY_DEPRECATION_MSG = "you can omit this option, "
+        + "the [match] query can skip block of documents efficiently if the total number of hits is not tracked";
 
     public static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
     /**
@@ -41,8 +41,9 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
      *             will achieve the same result without any configuration.
      */
     @Deprecated
-    public static final ParseField CUTOFF_FREQUENCY_FIELD =
-        new ParseField("cutoff_frequency").withAllDeprecated(CUTOFF_FREQUENCY_DEPRECATION_MSG);
+    public static final ParseField CUTOFF_FREQUENCY_FIELD = new ParseField("cutoff_frequency").withAllDeprecated(
+        CUTOFF_FREQUENCY_DEPRECATION_MSG
+    );
     public static final ParseField LENIENT_FIELD = new ParseField("lenient");
     public static final ParseField FUZZY_TRANSPOSITIONS_FIELD = new ParseField("fuzzy_transpositions");
     public static final ParseField FUZZY_REWRITE_FIELD = new ParseField("fuzzy_rewrite");
@@ -72,7 +73,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
     private int prefixLength = FuzzyQuery.defaultPrefixLength;
 
-    private int  maxExpansions = FuzzyQuery.defaultMaxExpansions;
+    private int maxExpansions = FuzzyQuery.defaultMaxExpansions;
 
     private boolean fuzzyTranspositions = FuzzyQuery.defaultTranspositions;
 
@@ -214,7 +215,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
      * @throws IllegalArgumentException in case the prefix is negative
      */
     public MatchQueryBuilder prefixLength(int prefixLength) {
-        if (prefixLength < 0 ) {
+        if (prefixLength < 0) {
             throw new IllegalArgumentException("[" + NAME + "] requires prefix length to be non-negative.");
         }
         this.prefixLength = prefixLength;
@@ -232,7 +233,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
      * When using fuzzy or prefix type query, the number of term expansions to use.
      */
     public MatchQueryBuilder maxExpansions(int maxExpansions) {
-        if (maxExpansions <= 0 ) {
+        if (maxExpansions <= 0) {
             throw new IllegalArgumentException("[" + NAME + "] requires maxExpansions to be positive.");
         }
         this.maxExpansions = maxExpansions;
@@ -341,7 +342,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         return this.zeroTermsQuery;
     }
 
-
     public MatchQueryBuilder autoGenerateSynonymsPhraseQuery(boolean enable) {
         this.autoGenerateSynonymsPhraseQuery = enable;
         return this;
@@ -417,27 +417,40 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
     @Override
     protected boolean doEquals(MatchQueryBuilder other) {
-        return Objects.equals(fieldName, other.fieldName) &&
-               Objects.equals(value, other.value) &&
-               Objects.equals(operator, other.operator) &&
-               Objects.equals(analyzer, other.analyzer) &&
-               Objects.equals(fuzziness, other.fuzziness) &&
-               Objects.equals(prefixLength, other.prefixLength) &&
-               Objects.equals(maxExpansions, other.maxExpansions) &&
-               Objects.equals(minimumShouldMatch, other.minimumShouldMatch) &&
-               Objects.equals(fuzzyRewrite, other.fuzzyRewrite) &&
-               Objects.equals(lenient, other.lenient) &&
-               Objects.equals(fuzzyTranspositions, other.fuzzyTranspositions) &&
-               Objects.equals(zeroTermsQuery, other.zeroTermsQuery) &&
-               Objects.equals(cutoffFrequency, other.cutoffFrequency) &&
-               Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery);
+        return Objects.equals(fieldName, other.fieldName)
+            && Objects.equals(value, other.value)
+            && Objects.equals(operator, other.operator)
+            && Objects.equals(analyzer, other.analyzer)
+            && Objects.equals(fuzziness, other.fuzziness)
+            && Objects.equals(prefixLength, other.prefixLength)
+            && Objects.equals(maxExpansions, other.maxExpansions)
+            && Objects.equals(minimumShouldMatch, other.minimumShouldMatch)
+            && Objects.equals(fuzzyRewrite, other.fuzzyRewrite)
+            && Objects.equals(lenient, other.lenient)
+            && Objects.equals(fuzzyTranspositions, other.fuzzyTranspositions)
+            && Objects.equals(zeroTermsQuery, other.zeroTermsQuery)
+            && Objects.equals(cutoffFrequency, other.cutoffFrequency)
+            && Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, value, operator, analyzer,
-                fuzziness, prefixLength, maxExpansions, minimumShouldMatch,
-                fuzzyRewrite, lenient, fuzzyTranspositions, zeroTermsQuery, cutoffFrequency, autoGenerateSynonymsPhraseQuery);
+        return Objects.hash(
+            fieldName,
+            value,
+            operator,
+            analyzer,
+            fuzziness,
+            prefixLength,
+            maxExpansions,
+            minimumShouldMatch,
+            fuzzyRewrite,
+            lenient,
+            fuzzyTranspositions,
+            zeroTermsQuery,
+            cutoffFrequency,
+            autoGenerateSynonymsPhraseQuery
+        );
     }
 
     @Override
@@ -505,20 +518,26 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
                             } else if ("all".equalsIgnoreCase(zeroTermsValue)) {
                                 zeroTermsQuery = ZeroTermsQueryOption.ALL;
                             } else {
-                                throw new ParsingException(parser.getTokenLocation(),
-                                        "Unsupported zero_terms_query value [" + zeroTermsValue + "]");
+                                throw new ParsingException(
+                                    parser.getTokenLocation(),
+                                    "Unsupported zero_terms_query value [" + zeroTermsValue + "]"
+                                );
                             }
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();
                         } else if (GENERATE_SYNONYMS_PHRASE_QUERY.match(currentFieldName, parser.getDeprecationHandler())) {
                             autoGenerateSynonymsPhraseQuery = parser.booleanValue();
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(),
-                                    "[" + NAME + "] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "[" + NAME + "] query does not support [" + currentFieldName + "]"
+                            );
                         }
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(),
-                                "[" + NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "[" + NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]"
+                        );
                     }
                 }
             } else {

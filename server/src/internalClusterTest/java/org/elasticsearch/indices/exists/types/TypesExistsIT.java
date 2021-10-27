@@ -24,9 +24,9 @@ import java.util.Collections;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TypesExistsIT extends ESIntegTestCase {
@@ -38,12 +38,18 @@ public class TypesExistsIT extends ESIntegTestCase {
 
     public void testSimple() throws Exception {
         Client client = client();
-        CreateIndexResponse response1 = client.admin().indices().prepareCreate("test1")
-                .addMapping("type1", jsonBuilder().startObject().startObject("type1").endObject().endObject())
-                .execute().actionGet();
-        CreateIndexResponse response2 = client.admin().indices().prepareCreate("test2")
-                .addMapping("type2", jsonBuilder().startObject().startObject("type2").endObject().endObject())
-                .execute().actionGet();
+        CreateIndexResponse response1 = client.admin()
+            .indices()
+            .prepareCreate("test1")
+            .addMapping("type1", jsonBuilder().startObject().startObject("type1").endObject().endObject())
+            .execute()
+            .actionGet();
+        CreateIndexResponse response2 = client.admin()
+            .indices()
+            .prepareCreate("test2")
+            .addMapping("type2", jsonBuilder().startObject().startObject("type2").endObject().endObject())
+            .execute()
+            .actionGet();
         client.admin().indices().prepareAliases().addAlias("test1", "alias1").execute().actionGet();
         assertAcked(response1);
         assertAcked(response2);
@@ -78,8 +84,10 @@ public class TypesExistsIT extends ESIntegTestCase {
         for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY)) {
             try {
                 enableIndexBlock("ro", block);
-                assertThat(client().admin().indices().prepareTypesExists("ro").setTypes("type1").execute().actionGet().isExists(),
-                    equalTo(true));
+                assertThat(
+                    client().admin().indices().prepareTypesExists("ro").setTypes("type1").execute().actionGet().isExists(),
+                    equalTo(true)
+                );
             } finally {
                 disableIndexBlock("ro", block);
             }

@@ -17,8 +17,8 @@ import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
@@ -42,7 +42,6 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         assertEquals(index1, getSettingsResponse.getSetting(index1, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
         assertEquals(index2, getSettingsResponse.getSetting(index2, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
         assertEquals(index3, getSettingsResponse.getSetting(index3, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
-
 
         String dateMathExp1 = "<.marvel-{now/d}>";
         String dateMathExp2 = "<.marvel-{now/d-1d}>";
@@ -71,7 +70,8 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         MultiGetResponse mgetResponse = client().prepareMultiGet()
             .add(dateMathExp1, "type", "1")
             .add(dateMathExp2, "type", "2")
-            .add(dateMathExp3, "type", "3").get();
+            .add(dateMathExp3, "type", "3")
+            .get();
         assertThat(mgetResponse.getResponses()[0].getResponse().isExists(), is(true));
         assertThat(mgetResponse.getResponses()[0].getResponse().getId(), equalTo("1"));
         assertThat(mgetResponse.getResponses()[1].getResponse().isExists(), is(true));
@@ -131,7 +131,6 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         String dateMathExp2 = "<.marvel-{now/d-1d}>";
         String dateMathExp3 = "<.marvel-{now/d-2d}>";
         createIndex(dateMathExp1, dateMathExp2, dateMathExp3);
-
 
         GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings(index1, index2, index3).get();
         assertEquals(dateMathExp1, getSettingsResponse.getSetting(index1, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));

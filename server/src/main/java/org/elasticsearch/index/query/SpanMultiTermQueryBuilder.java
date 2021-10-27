@@ -15,16 +15,16 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopTermsRewrite;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -33,8 +33,7 @@ import java.util.Objects;
  * Query that allows wrapping a {@link MultiTermQueryBuilder} (one of wildcard, fuzzy, prefix, term, range or regexp query)
  * as a {@link SpanQueryBuilder} so it can be nested.
  */
-public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTermQueryBuilder>
-    implements SpanQueryBuilder {
+public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTermQueryBuilder> implements SpanQueryBuilder {
 
     public static final String NAME = "span_multi";
     private static final ParseField MATCH_FIELD = new ParseField("match");
@@ -65,8 +64,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
     }
 
     @Override
-    protected void doXContent(XContentBuilder builder, Params params)
-        throws IOException {
+    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.field(MATCH_FIELD.getPreferredName());
         multiTermQueryBuilder.toXContent(builder, params);
@@ -87,8 +85,10 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
                 if (MATCH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     QueryBuilder query = parseInnerQueryBuilder(parser);
                     if (query instanceof MultiTermQueryBuilder == false) {
-                        throw new ParsingException(parser.getTokenLocation(),
-                            "[span_multi] [" + MATCH_FIELD.getPreferredName() + "] must be of type multi term query");
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "[span_multi] [" + MATCH_FIELD.getPreferredName() + "] must be of type multi term query"
+                        );
                     }
                     subQuery = (MultiTermQueryBuilder) query;
                 } else {
@@ -106,8 +106,10 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
         }
 
         if (subQuery == null) {
-            throw new ParsingException(parser.getTokenLocation(),
-                "[span_multi] must have [" + MATCH_FIELD.getPreferredName() + "] multi term query clause");
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "[span_multi] must have [" + MATCH_FIELD.getPreferredName() + "] multi term query clause"
+            );
         }
 
         return new SpanMultiTermQueryBuilder(subQuery).queryName(queryName).boost(boost);
@@ -128,8 +130,11 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
             }
             final SpanMultiTermQueryWrapper.SpanRewriteMethod spanRewriteMethod;
             if (prefixBuilder.rewrite() != null) {
-                MultiTermQuery.RewriteMethod rewriteMethod =
-                    QueryParsers.parseRewriteMethod(prefixBuilder.rewrite(), null, LoggingDeprecationHandler.INSTANCE);
+                MultiTermQuery.RewriteMethod rewriteMethod = QueryParsers.parseRewriteMethod(
+                    prefixBuilder.rewrite(),
+                    null,
+                    LoggingDeprecationHandler.INSTANCE
+                );
                 if (rewriteMethod instanceof TopTermsRewrite) {
                     TopTermsRewrite<?> innerRewrite = (TopTermsRewrite<?>) rewriteMethod;
                     spanRewriteMethod = new SpanMultiTermQueryWrapper.TopTermsSpanBooleanQueryRewrite(innerRewrite.getSize());
@@ -155,8 +160,9 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
             if (subQuery instanceof MatchNoDocsQuery) {
                 return new SpanMatchNoDocsQuery(this.multiTermQueryBuilder.fieldName(), subQuery.toString());
             } else if (subQuery instanceof MultiTermQuery == false) {
-                throw new UnsupportedOperationException("unsupported inner query, should be "
-                    + MultiTermQuery.class.getName() + " but was " + subQuery.getClass().getName());
+                throw new UnsupportedOperationException(
+                    "unsupported inner query, should be " + MultiTermQuery.class.getName() + " but was " + subQuery.getClass().getName()
+                );
             }
             MultiTermQuery multiTermQuery = (MultiTermQuery) subQuery;
             SpanMultiTermQueryWrapper<?> wrapper = new SpanMultiTermQueryWrapper<>(multiTermQuery);

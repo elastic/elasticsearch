@@ -16,11 +16,11 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -38,13 +38,22 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
     public static final ObjectParser<ResizeRequest, Void> PARSER = new ObjectParser<>("resize_request");
     private static final ParseField MAX_PRIMARY_SHARD_SIZE = new ParseField("max_primary_shard_size");
     static {
-        PARSER.declareField((parser, request, context) -> request.getTargetIndexRequest().settings(parser.map()),
-            new ParseField("settings"), ObjectParser.ValueType.OBJECT);
-        PARSER.declareField((parser, request, context) -> request.getTargetIndexRequest().aliases(parser.map()),
-            new ParseField("aliases"), ObjectParser.ValueType.OBJECT);
-        PARSER.declareField(ResizeRequest::setMaxPrimaryShardSize,
+        PARSER.declareField(
+            (parser, request, context) -> request.getTargetIndexRequest().settings(parser.map()),
+            new ParseField("settings"),
+            ObjectParser.ValueType.OBJECT
+        );
+        PARSER.declareField(
+            (parser, request, context) -> request.getTargetIndexRequest().aliases(parser.map()),
+            new ParseField("aliases"),
+            ObjectParser.ValueType.OBJECT
+        );
+        PARSER.declareField(
+            ResizeRequest::setMaxPrimaryShardSize,
             (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_PRIMARY_SHARD_SIZE.getPreferredName()),
-            MAX_PRIMARY_SHARD_SIZE, ObjectParser.ValueType.STRING);
+            MAX_PRIMARY_SHARD_SIZE,
+            ObjectParser.ValueType.STRING
+        );
     }
 
     private CreateIndexRequest targetIndexRequest;
@@ -132,7 +141,7 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
 
     @Override
     public String[] indices() {
-        return new String[] {sourceIndex};
+        return new String[] { sourceIndex };
     }
 
     @Override
@@ -262,11 +271,11 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         ResizeRequest that = (ResizeRequest) obj;
-        return Objects.equals(targetIndexRequest, that.targetIndexRequest) &&
-            Objects.equals(sourceIndex, that.sourceIndex) &&
-            Objects.equals(type, that.type) &&
-            Objects.equals(copySettings, that.copySettings) &&
-            Objects.equals(maxPrimaryShardSize, that.maxPrimaryShardSize);
+        return Objects.equals(targetIndexRequest, that.targetIndexRequest)
+            && Objects.equals(sourceIndex, that.sourceIndex)
+            && Objects.equals(type, that.type)
+            && Objects.equals(copySettings, that.copySettings)
+            && Objects.equals(maxPrimaryShardSize, that.maxPrimaryShardSize);
     }
 
     @Override

@@ -8,12 +8,6 @@
 
 package org.elasticsearch.search.query;
 
-import static java.util.Collections.emptyList;
-import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
-import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
-
-import java.io.IOException;
-
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
@@ -33,6 +27,12 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.suggest.Suggest;
+
+import java.io.IOException;
+
+import static java.util.Collections.emptyList;
+import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
+import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
 public final class QuerySearchResult extends SearchPhaseResult {
     private int from;
@@ -172,8 +172,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
         if (topDocs.topDocs.scoreDocs.length > 0 && topDocs.topDocs.scoreDocs[0] instanceof FieldDoc) {
             int numFields = ((FieldDoc) topDocs.topDocs.scoreDocs[0]).fields.length;
             if (numFields != sortValueFormats.length) {
-                throw new IllegalArgumentException("The number of sort fields does not match: "
-                        + numFields + " != " + sortValueFormats.length);
+                throw new IllegalArgumentException(
+                    "The number of sort fields does not match: " + numFields + " != " + sortValueFormats.length
+                );
             }
         }
         this.sortValueFormats = sortValueFormats;
@@ -318,7 +319,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * Returns <code>true</code> if this result has any suggest score docs
      */
     public boolean hasSuggestHits() {
-      return (suggest != null && suggest.hasScoreDocs());
+        return (suggest != null && suggest.hasScoreDocs());
     }
 
     public boolean hasSearchContext() {

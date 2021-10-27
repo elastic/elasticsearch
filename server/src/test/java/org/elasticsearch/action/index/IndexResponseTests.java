@@ -13,13 +13,13 @@ import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.function.Predicate;
@@ -34,16 +34,22 @@ public class IndexResponseTests extends ESTestCase {
         {
             IndexResponse indexResponse = new IndexResponse(new ShardId("index", "index_uuid", 0), "type", "id", 3, 17, 5, true);
             String output = Strings.toString(indexResponse);
-            assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":5,\"result\":\"created\",\"_shards\":null," +
-                    "\"_seq_no\":3,\"_primary_term\":17}", output);
+            assertEquals(
+                "{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":5,\"result\":\"created\",\"_shards\":null,"
+                    + "\"_seq_no\":3,\"_primary_term\":17}",
+                output
+            );
         }
         {
             IndexResponse indexResponse = new IndexResponse(new ShardId("index", "index_uuid", 0), "type", "id", -1, 17, 7, true);
             indexResponse.setForcedRefresh(true);
             indexResponse.setShardInfo(new ReplicationResponse.ShardInfo(10, 5));
             String output = Strings.toString(indexResponse);
-            assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":7,\"result\":\"created\"," +
-                    "\"forced_refresh\":true,\"_shards\":{\"total\":10,\"successful\":5,\"failed\":0}}", output);
+            assertEquals(
+                "{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":7,\"result\":\"created\","
+                    + "\"forced_refresh\":true,\"_shards\":{\"total\":10,\"successful\":5,\"failed\":0}}",
+                output
+            );
         }
     }
 
@@ -128,8 +134,15 @@ public class IndexResponseTests extends ESTestCase {
         actual.setForcedRefresh(forcedRefresh);
         actual.setShardInfo(shardInfos.v1());
 
-        IndexResponse expected =
-                new IndexResponse(new ShardId(index, INDEX_UUID_NA_VALUE, -1), type, id, seqNo, primaryTerm, version, created);
+        IndexResponse expected = new IndexResponse(
+            new ShardId(index, INDEX_UUID_NA_VALUE, -1),
+            type,
+            id,
+            seqNo,
+            primaryTerm,
+            version,
+            created
+        );
         expected.setForcedRefresh(forcedRefresh);
         expected.setShardInfo(shardInfos.v2());
 

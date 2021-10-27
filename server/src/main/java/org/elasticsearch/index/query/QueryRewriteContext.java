@@ -30,8 +30,11 @@ public class QueryRewriteContext {
     private final List<BiConsumer<Client, ActionListener<?>>> asyncActions = new ArrayList<>();
 
     public QueryRewriteContext(
-            NamedXContentRegistry xContentRegistry, NamedWriteableRegistry writeableRegistry,Client client,
-            LongSupplier nowInMillis) {
+        NamedXContentRegistry xContentRegistry,
+        NamedWriteableRegistry writeableRegistry,
+        Client client,
+        LongSupplier nowInMillis
+    ) {
 
         this.xContentRegistry = xContentRegistry;
         this.writeableRegistry = writeableRegistry;

@@ -19,46 +19,48 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class TeardownSectionTests extends AbstractClientYamlTestFragmentParserTestCase {
     public void testParseTeardownSection() throws Exception {
-        parser = createParser(YamlXContent.yamlXContent,
-                "  - do:\n" +
-                "      delete:\n" +
-                "        index: foo\n" +
-                "        type: doc\n" +
-                "        id: 1\n" +
-                "        ignore: 404\n" +
-                "  - do:\n" +
-                "      delete2:\n" +
-                "        index: foo\n" +
-                "        type: doc\n" +
-                "        id: 1\n" +
-                "        ignore: 404"
+        parser = createParser(
+            YamlXContent.yamlXContent,
+            "  - do:\n"
+                + "      delete:\n"
+                + "        index: foo\n"
+                + "        type: doc\n"
+                + "        id: 1\n"
+                + "        ignore: 404\n"
+                + "  - do:\n"
+                + "      delete2:\n"
+                + "        index: foo\n"
+                + "        type: doc\n"
+                + "        id: 1\n"
+                + "        ignore: 404"
         );
 
         TeardownSection section = TeardownSection.parse(parser);
         assertThat(section, notNullValue());
         assertThat(section.getSkipSection().isEmpty(), equalTo(true));
         assertThat(section.getDoSections().size(), equalTo(2));
-        assertThat(((DoSection)section.getDoSections().get(0)).getApiCallSection().getApi(), equalTo("delete"));
-        assertThat(((DoSection)section.getDoSections().get(1)).getApiCallSection().getApi(), equalTo("delete2"));
+        assertThat(((DoSection) section.getDoSections().get(0)).getApiCallSection().getApi(), equalTo("delete"));
+        assertThat(((DoSection) section.getDoSections().get(1)).getApiCallSection().getApi(), equalTo("delete2"));
     }
 
     public void testParseWithSkip() throws Exception {
-        parser = createParser(YamlXContent.yamlXContent,
-            "  - skip:\n" +
-                        "      version:  \"6.0.0 - 6.3.0\"\n" +
-                "      reason:   \"there is a reason\"\n" +
-                "  - do:\n" +
-                "      delete:\n" +
-                "        index: foo\n" +
-                "        type: doc\n" +
-                "        id: 1\n" +
-                "        ignore: 404\n" +
-                "  - do:\n" +
-                "      delete2:\n" +
-                "        index: foo\n" +
-                "        type: doc\n" +
-                "        id: 1\n" +
-                "        ignore: 404"
+        parser = createParser(
+            YamlXContent.yamlXContent,
+            "  - skip:\n"
+                + "      version:  \"6.0.0 - 6.3.0\"\n"
+                + "      reason:   \"there is a reason\"\n"
+                + "  - do:\n"
+                + "      delete:\n"
+                + "        index: foo\n"
+                + "        type: doc\n"
+                + "        id: 1\n"
+                + "        ignore: 404\n"
+                + "  - do:\n"
+                + "      delete2:\n"
+                + "        index: foo\n"
+                + "        type: doc\n"
+                + "        id: 1\n"
+                + "        ignore: 404"
         );
 
         TeardownSection section = TeardownSection.parse(parser);
@@ -68,7 +70,7 @@ public class TeardownSectionTests extends AbstractClientYamlTestFragmentParserTe
         assertThat(section.getSkipSection().getUpperVersion(), equalTo(Version.V_6_3_0));
         assertThat(section.getSkipSection().getReason(), equalTo("there is a reason"));
         assertThat(section.getDoSections().size(), equalTo(2));
-        assertThat(((DoSection)section.getDoSections().get(0)).getApiCallSection().getApi(), equalTo("delete"));
-        assertThat(((DoSection)section.getDoSections().get(1)).getApiCallSection().getApi(), equalTo("delete2"));
+        assertThat(((DoSection) section.getDoSections().get(0)).getApiCallSection().getApi(), equalTo("delete"));
+        assertThat(((DoSection) section.getDoSections().get(1)).getApiCallSection().getApi(), equalTo("delete2"));
     }
 }

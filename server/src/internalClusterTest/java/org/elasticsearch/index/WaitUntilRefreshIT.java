@@ -58,8 +58,10 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
     }
 
     public void testIndex() {
-        IndexResponse index = client().prepareIndex("test", "index", "1").setSource("foo", "bar").setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
-                .get();
+        IndexResponse index = client().prepareIndex("test", "index", "1")
+            .setSource("foo", "bar")
+            .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
+            .get();
         assertEquals(RestStatus.CREATED, index.status());
         assertFalse("request shouldn't have forced a refresh", index.forcedRefresh());
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get(), "1");
@@ -84,23 +86,28 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
 
         // Update with RefreshPolicy.WAIT_UNTIL
         UpdateResponse update = client().prepareUpdate("test", "test", "1")
-            .setDoc(Requests.INDEX_CONTENT_TYPE, "foo", "baz").setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
-                .get();
+            .setDoc(Requests.INDEX_CONTENT_TYPE, "foo", "baz")
+            .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
+            .get();
         assertEquals(2, update.getVersion());
         assertFalse("request shouldn't have forced a refresh", update.forcedRefresh());
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "baz")).get(), "1");
 
         // Upsert with RefreshPolicy.WAIT_UNTIL
-        update = client().prepareUpdate("test", "test", "2").setDocAsUpsert(true).setDoc(Requests.INDEX_CONTENT_TYPE, "foo", "cat")
-                .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).get();
+        update = client().prepareUpdate("test", "test", "2")
+            .setDocAsUpsert(true)
+            .setDoc(Requests.INDEX_CONTENT_TYPE, "foo", "cat")
+            .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
+            .get();
         assertEquals(1, update.getVersion());
         assertFalse("request shouldn't have forced a refresh", update.forcedRefresh());
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "cat")).get(), "2");
 
         // Update-becomes-delete with RefreshPolicy.WAIT_UNTIL
-        update = client().prepareUpdate("test", "test", "2").setScript(
-            new Script(ScriptType.INLINE, "mockscript", "delete_plz", emptyMap()))
-                .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).get();
+        update = client().prepareUpdate("test", "test", "2")
+            .setScript(new Script(ScriptType.INLINE, "mockscript", "delete_plz", emptyMap()))
+            .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
+            .get();
         assertEquals(2, update.getVersion());
         assertFalse("request shouldn't have forced a refresh", update.forcedRefresh());
         assertNoSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "cat")).get());
@@ -137,8 +144,10 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
      */
     public void testNoRefreshInterval() throws InterruptedException, ExecutionException {
         client().admin().indices().prepareUpdateSettings("test").setSettings(singletonMap("index.refresh_interval", -1)).get();
-        ActionFuture<IndexResponse> index = client().prepareIndex("test", "index", "1").setSource("foo", "bar")
-                .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).execute();
+        ActionFuture<IndexResponse> index = client().prepareIndex("test", "index", "1")
+            .setSource("foo", "bar")
+            .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
+            .execute();
         while (false == index.isDone()) {
             client().admin().indices().prepareRefresh("test").get();
         }

@@ -79,9 +79,11 @@ public class QueryPhase {
     public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
         if (searchContext.hasOnlySuggest()) {
             suggestPhase.execute(searchContext);
-            searchContext.queryResult().topDocs(new TopDocsAndMaxScore(
-                    new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
-                new DocValueFormat[0]);
+            searchContext.queryResult()
+                .topDocs(
+                    new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
+                    new DocValueFormat[0]
+                );
             return;
         }
 
@@ -136,8 +138,7 @@ public class QueryPhase {
                         // now this gets interesting: since we sort in index-order, we can directly
                         // skip to the desired doc
                         if (after != null) {
-                            query = new BooleanQuery.Builder()
-                                .add(query, BooleanClause.Occur.MUST)
+                            query = new BooleanQuery.Builder().add(query, BooleanClause.Occur.MUST)
                                 .add(new MinDocQuery(after.doc + 1), BooleanClause.Occur.FILTER)
                                 .build();
                         }
@@ -147,8 +148,7 @@ public class QueryPhase {
                         // now this gets interesting: since the search sort is a prefix of the index sort, we can directly
                         // skip to the desired doc
                         if (after != null) {
-                            query = new BooleanQuery.Builder()
-                                .add(query, BooleanClause.Occur.MUST)
+                            query = new BooleanQuery.Builder().add(query, BooleanClause.Occur.MUST)
                                 .add(new SearchAfterSortedDocQuery(searchContext.sort().sort, (FieldDoc) after), BooleanClause.Occur.FILTER)
                                 .build();
                         }
@@ -189,8 +189,9 @@ public class QueryPhase {
                 // TODO: sort leaves according to search sort when Lucene supports sharing bottom sort value between collectors
             }
 
-            boolean timeoutSet = scrollContext == null && searchContext.timeout() != null &&
-                searchContext.timeout().equals(SearchService.NO_TIMEOUT) == false;
+            boolean timeoutSet = scrollContext == null
+                && searchContext.timeout() != null
+                && searchContext.timeout().equals(SearchService.NO_TIMEOUT) == false;
 
             final Runnable timeoutRunnable;
             if (timeoutSet) {
@@ -219,7 +220,7 @@ public class QueryPhase {
             } finally {
                 // Search phase has finished, no longer need to check for timeout
                 // otherwise aggregation phase might get cancelled.
-                if (timeoutRunnable!=null) {
+                if (timeoutRunnable != null) {
                     searcher.removeQueryCancellation(timeoutRunnable);
                 }
             }
@@ -228,8 +229,14 @@ public class QueryPhase {
         }
     }
 
-    private static boolean searchWithCollector(SearchContext searchContext, ContextIndexSearcher searcher, Query query,
-            LinkedList<QueryCollectorContext> collectors, boolean hasFilterCollector, boolean timeoutSet) throws IOException {
+    private static boolean searchWithCollector(
+        SearchContext searchContext,
+        ContextIndexSearcher searcher,
+        Query query,
+        LinkedList<QueryCollectorContext> collectors,
+        boolean hasFilterCollector,
+        boolean timeoutSet
+    ) throws IOException {
         // create the top docs collector last when the other collectors are known
         final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(searchContext, hasFilterCollector);
         // add the top docs collector, the first collector context in the chain
@@ -265,7 +272,6 @@ public class QueryPhase {
         return topDocsFactory.shouldRescore();
     }
 
-
     private static void optimizeNumericSort(SearchContext searchContext, IndexReader reader) {
         if (searchContext.sort() == null) return;
         // disable this optimization if index sorting matches the query sort since it's already optimized by index searcher
@@ -299,8 +305,7 @@ public class QueryPhase {
             // sort by score
             // queries that return constant scores will return docs in index
             // order since Lucene tie-breaks on the doc id
-            return query.getClass() == ConstantScoreQuery.class
-                || query.getClass() == MatchAllDocsQuery.class;
+            return query.getClass() == ConstantScoreQuery.class || query.getClass() == MatchAllDocsQuery.class;
         } else {
             return Sort.INDEXORDER.equals(sf.sort);
         }

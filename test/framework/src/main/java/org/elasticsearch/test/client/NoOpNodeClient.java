@@ -55,8 +55,11 @@ public class NoOpNodeClient extends NodeClient {
     }
 
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse>
-    void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+    public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+        ActionType<Response> action,
+        Request request,
+        ActionListener<Response> listener
+    ) {
         executionCount.incrementAndGet();
         listener.onResponse(null);
     }
@@ -72,16 +75,22 @@ public class NoOpNodeClient extends NodeClient {
     }
 
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse>
-    Task executeLocally(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+    public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
+        ActionType<Response> action,
+        Request request,
+        ActionListener<Response> listener
+    ) {
         executionCount.incrementAndGet();
         listener.onResponse(null);
         return null;
     }
 
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse>
-    Task executeLocally(ActionType<Response> action, Request request, TaskListener<Response> listener) {
+    public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
+        ActionType<Response> action,
+        Request request,
+        TaskListener<Response> listener
+    ) {
         executionCount.incrementAndGet();
         listener.onResponse(null, null);
         return null;

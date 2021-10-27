@@ -66,6 +66,7 @@ public class StoreStats implements Writeable, ToXContentFragment {
         this.totalDataSetSizeInBytes = totalDataSetSizeInBytes;
         this.reservedSize = reservedSize;
     }
+
     public void add(StoreStats stats) {
         if (stats == null) {
             return;

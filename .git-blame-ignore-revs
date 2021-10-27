@@ -20,3 +20,6 @@ bef1e45add0ca34dc707c1ea810d4b893aecaa15
 
 # Apply spotless formatting to aggregations (server and xpack)
 4079bc91b9d0a4799557cc794ca5ca153d81d26f
+
+# Reformatting of whole codebase
+bcfbf000748b538884087623113682165abcb92d

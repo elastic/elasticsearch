@@ -8,10 +8,10 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedRunnable;
 
 /**
  * Base class for {@link Runnable}s that need to call {@link ActionListener#onFailure(Exception)} in case an uncaught

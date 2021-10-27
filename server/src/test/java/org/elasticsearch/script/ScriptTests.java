@@ -13,13 +13,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -72,8 +72,8 @@ public class ScriptTests extends ESTestCase {
             scriptType,
             scriptType == ScriptType.STORED ? null : randomFrom("_lang1", "_lang2", "_lang3"),
             script,
-            scriptType == ScriptType.INLINE ?
-                    Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()) : null, params
+            scriptType == ScriptType.INLINE ? Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()) : null,
+            params
         );
     }
 
@@ -113,10 +113,11 @@ public class ScriptTests extends ESTestCase {
             options.put("option" + i, Integer.toString(i));
         }
         map.put("options", options);
-        String lang = Script.DEFAULT_SCRIPT_LANG;;
+        String lang = Script.DEFAULT_SCRIPT_LANG;
+        ;
         if (randomBoolean()) {
             map.put("lang", lang);
-        } else if(randomBoolean()) {
+        } else if (randomBoolean()) {
             lang = "expression";
             map.put("lang", lang);
         }
@@ -148,24 +149,15 @@ public class ScriptTests extends ESTestCase {
 
     public void testParseFromObjectWrongFormat() {
         {
-            NullPointerException exc = expectThrows(
-                NullPointerException.class,
-                () -> Script.parse((Object)null)
-            );
+            NullPointerException exc = expectThrows(NullPointerException.class, () -> Script.parse((Object) null));
             assertEquals("Script must not be null", exc.getMessage());
         }
         {
-            IllegalArgumentException exc = expectThrows(
-                IllegalArgumentException.class,
-                () -> Script.parse(3)
-            );
+            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> Script.parse(3));
             assertEquals("Script value should be a String or a Map", exc.getMessage());
         }
         {
-            ElasticsearchParseException exc = expectThrows(
-                ElasticsearchParseException.class,
-                () -> Script.parse(Collections.emptyMap())
-            );
+            ElasticsearchParseException exc = expectThrows(ElasticsearchParseException.class, () -> Script.parse(Collections.emptyMap()));
             assertEquals("Expected one of [source] or [id] fields, but found none", exc.getMessage());
         }
     }
@@ -174,10 +166,7 @@ public class ScriptTests extends ESTestCase {
         Map<String, Object> map = new HashMap<>();
         map.put("source", "doc['my_field']");
         map.put("options", 3);
-        ElasticsearchParseException exc = expectThrows(
-            ElasticsearchParseException.class,
-            () -> Script.parse(map)
-        );
+        ElasticsearchParseException exc = expectThrows(ElasticsearchParseException.class, () -> Script.parse(map));
         assertEquals("Value must be of type Map: [options]", exc.getMessage());
     }
 
@@ -185,10 +174,7 @@ public class ScriptTests extends ESTestCase {
         Map<String, Object> map = new HashMap<>();
         map.put("source", "doc['my_field']");
         map.put("params", 3);
-        ElasticsearchParseException exc = expectThrows(
-            ElasticsearchParseException.class,
-            () -> Script.parse(map)
-        );
+        ElasticsearchParseException exc = expectThrows(ElasticsearchParseException.class, () -> Script.parse(map));
         assertEquals("Value must be of type Map: [params]", exc.getMessage());
     }
 

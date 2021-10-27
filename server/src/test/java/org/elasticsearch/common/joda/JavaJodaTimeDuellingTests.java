@@ -9,11 +9,11 @@
 package org.elasticsearch.common.joda;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -40,14 +40,15 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     }
 
     @BeforeClass
-    public static void checkJvmProperties(){
+    public static void checkJvmProperties() {
         boolean runtimeJdk8 = JavaVersion.current().getVersion().get(0) == 8;
         assert (runtimeJdk8 && ("SPI,JRE".equals(System.getProperty("java.locale.providers"))))
             || (false == runtimeJdk8 && ("SPI,COMPAT".equals(System.getProperty("java.locale.providers"))))
             : "`-Djava.locale.providers` needs to be set";
-        assumeFalse("won't work in jdk8 " +
-                "because SPI mechanism is not looking at classpath - needs ISOCalendarDataProvider in jre's ext/libs",
-            runtimeJdk8);
+        assumeFalse(
+            "won't work in jdk8 " + "because SPI mechanism is not looking at classpath - needs ISOCalendarDataProvider in jre's ext/libs",
+            runtimeJdk8
+        );
     }
 
     public void testIncorrectFormat() {
@@ -60,10 +61,11 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         String javaFormatted = DateFormatter.forPattern("strict_date_optional_time").formatMillis(Long.MIN_VALUE);
         Assert.assertEquals(jodaFormatted, javaFormatted);
     }
+
     public void testYearParsing() {
-        //this one is considered a year
+        // this one is considered a year
         assertSameDate("1234", "strict_date_optional_time||epoch_millis");
-        //this one is considered a 12345milliseconds since epoch
+        // this one is considered a 12345milliseconds since epoch
         assertSameDate("12345", "strict_date_optional_time||epoch_millis");
     }
 
@@ -77,21 +79,21 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     }
 
     public void testPartialTimeParsing() {
-         /*
-         This does not work in Joda as it reports 2016-11-30T01:00:00Z
-         because StrictDateOptionalTime confuses +01 with an hour (which is a signed fixed length digit)
-         assertSameDateAs("2016-11-30T+01", "strict_date_optional_time", "strict_date_optional_time");
-         ES java.time implementation does not suffer from this,
-         but we intentionally not allow parsing timezone without an time part as it is not allowed in iso8601
-  */
-        assertJavaTimeParseException("2016-11-30T+01","strict_date_optional_time");
+        /*
+        This does not work in Joda as it reports 2016-11-30T01:00:00Z
+        because StrictDateOptionalTime confuses +01 with an hour (which is a signed fixed length digit)
+        assertSameDateAs("2016-11-30T+01", "strict_date_optional_time", "strict_date_optional_time");
+        ES java.time implementation does not suffer from this,
+        but we intentionally not allow parsing timezone without an time part as it is not allowed in iso8601
+        */
+        assertJavaTimeParseException("2016-11-30T+01", "strict_date_optional_time");
 
         assertSameDateAs("2016-11-30T12+01", "strict_date_optional_time", "strict_date_optional_time");
         assertSameDateAs("2016-11-30T12:00+01", "strict_date_optional_time", "strict_date_optional_time");
         assertSameDateAs("2016-11-30T12:00:00+01", "strict_date_optional_time", "strict_date_optional_time");
         assertSameDateAs("2016-11-30T12:00:00.000+01", "strict_date_optional_time", "strict_date_optional_time");
 
-        //without timezone
+        // without timezone
         assertSameDateAs("2016-11-30T", "strict_date_optional_time", "strict_date_optional_time");
         assertSameDateAs("2016-11-30T12", "strict_date_optional_time", "strict_date_optional_time");
         assertSameDateAs("2016-11-30T12:00", "strict_date_optional_time", "strict_date_optional_time");
@@ -114,33 +116,36 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("2001-01", "date_optional_time");
         assertSameDate("2001-01-01", "date_optional_time");
 
-
         assertSameDateAs("2001", "iso8601", "strict_date_optional_time");
         assertSameDateAs("2001-01", "iso8601", "strict_date_optional_time");
         assertSameDateAs("2001-01-01", "iso8601", "strict_date_optional_time");
 
-        assertSameDate("9999","date_optional_time||epoch_second");
+        assertSameDate("9999", "date_optional_time||epoch_second");
     }
 
-    public void testCompositeDateMathParsing(){
-        //in all these examples the second pattern will be used
+    public void testCompositeDateMathParsing() {
+        // in all these examples the second pattern will be used
         assertDateMathEquals("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SSS");
         assertDateMathEquals("2014-06-06T12:01:02.123", "strictDateTimeNoMillis||yyyy-MM-dd'T'HH:mm:ss.SSS");
         assertDateMathEquals("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss+HH:MM||yyyy-MM-dd'T'HH:mm:ss.SSS");
     }
 
-    public void testExceptionWhenCompositeParsingFailsDateMath(){
-        //both parsing failures should contain pattern and input text in exception
-        //both patterns fail parsing the input text due to only 2 digits of millis. Hence full text was not parsed.
+    public void testExceptionWhenCompositeParsingFailsDateMath() {
+        // both parsing failures should contain pattern and input text in exception
+        // both patterns fail parsing the input text due to only 2 digits of millis. Hence full text was not parsed.
         String pattern = "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SS";
         String text = "2014-06-06T12:01:02.123";
-        ElasticsearchParseException e1 = expectThrows(ElasticsearchParseException.class,
-            () -> dateMathToMillis(text, DateFormatter.forPattern(pattern)));
+        ElasticsearchParseException e1 = expectThrows(
+            ElasticsearchParseException.class,
+            () -> dateMathToMillis(text, DateFormatter.forPattern(pattern))
+        );
         assertThat(e1.getMessage(), containsString(pattern));
         assertThat(e1.getMessage(), containsString(text));
 
-        ElasticsearchParseException e2 = expectThrows(ElasticsearchParseException.class,
-            () -> dateMathToMillis(text, Joda.forPattern(pattern)));
+        ElasticsearchParseException e2 = expectThrows(
+            ElasticsearchParseException.class,
+            () -> dateMathToMillis(text, Joda.forPattern(pattern))
+        );
         assertThat(e2.getMessage(), containsString(pattern));
         assertThat(e2.getMessage(), containsString(text));
     }
@@ -151,8 +156,8 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         return javaDateMath.parse(text, () -> 0, true, (ZoneId) null).toEpochMilli();
     }
 
-    //these parsers should allow both ',' and '.' as a decimal point
-    public void testDecimalPointParsing(){
+    // these parsers should allow both ',' and '.' as a decimal point
+    public void testDecimalPointParsing() {
         assertSameDate("2001-01-01T00:00:00.123Z", "strict_date_optional_time");
         assertSameDate("2001-01-01T00:00:00,123Z", "strict_date_optional_time");
 
@@ -167,8 +172,8 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 
         assertParseException("2001-01-01T00:00:00.123,456Z", "strict_date_optional_time");
         assertParseException("2001-01-01T00:00:00.123,456Z", "date_optional_time");
-        //This should fail, but java is ok with this because the field has the same value
-//        assertJavaTimeParseException("2001-01-01T00:00:00.123,123Z", "strict_date_optional_time_nanos");
+        // This should fail, but java is ok with this because the field has the same value
+        // assertJavaTimeParseException("2001-01-01T00:00:00.123,123Z", "strict_date_optional_time_nanos");
     }
 
     public void testIncompatiblePatterns() {
@@ -179,20 +184,18 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         // year-of-era in joda becomes 'y' in java.time
         assertSameMillis("2019-01-01", "YYYY-MM-dd", "8yyyy-MM-dd");
 
-
-        //in joda 'Z' was able to parse 'Z' zulu but in java it fails. You have to use 'X' to do that.
+        // in joda 'Z' was able to parse 'Z' zulu but in java it fails. You have to use 'X' to do that.
         assertSameMillis("2019-01-01T01:01:01.001Z", "YYYY-MM-dd'T'HH:mm:ss.SSSZ", "8yyyy-MM-dd'T'HH:mm:ss.SSSX");
         assertSameMillis("2019-01-01T01:01:01.001+0000", "YYYY-MM-dd'T'HH:mm:ss.SSSZ", "8yyyy-MM-dd'T'HH:mm:ss.SSSZ");
 
-
         // 'z' zoneId in joda prints UTC whereas joda prints 'Z' for zulu
-        TemporalAccessor parse = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSz",Locale.getDefault())
-                                                  .parse("2019-01-01T01:01:01.001+00:00");
-        String javaZoneId = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSz",Locale.getDefault())
-                                             .format(parse);
+        TemporalAccessor parse = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSz", Locale.getDefault())
+            .parse("2019-01-01T01:01:01.001+00:00");
+        String javaZoneId = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSz", Locale.getDefault()).format(parse);
 
-        DateTime dateTime = DateTimeFormat.forPattern("YYYY-MM-dd'T'HH:mm:ss.SSSZ").withOffsetParsed()
-                                          .parseDateTime("2019-01-01T01:01:01.001+0000");
+        DateTime dateTime = DateTimeFormat.forPattern("YYYY-MM-dd'T'HH:mm:ss.SSSZ")
+            .withOffsetParsed()
+            .parseDateTime("2019-01-01T01:01:01.001+0000");
         String jodaZoneId = DateTimeFormat.forPattern("YYYY-MM-dd'T'HH:mm:ss.SSSz").print(dateTime);
         assertThat(javaZoneId, equalTo("2019-01-01T01:01:01.001Z"));
         assertThat(jodaZoneId, equalTo("2019-01-01T01:01:01.001UTC"));
@@ -207,8 +210,15 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         TemporalAccessor javaTimeAccessor = javaFormatter.parse(input);
         ZonedDateTime zonedDateTime = DateFormatters.from(javaTimeAccessor);
 
-        String msg = String.format(Locale.ROOT, "Input [%s] JodaFormat [%s] JavaFormat [%s] Joda [%s], Java [%s]",
-            input, jodaFormat, javaFormat, jodaDateTime, DateTimeFormatter.ISO_INSTANT.format(zonedDateTime.toInstant()));
+        String msg = String.format(
+            Locale.ROOT,
+            "Input [%s] JodaFormat [%s] JavaFormat [%s] Joda [%s], Java [%s]",
+            input,
+            jodaFormat,
+            javaFormat,
+            jodaDateTime,
+            DateTimeFormatter.ISO_INSTANT.format(zonedDateTime.toInstant())
+        );
 
         assertThat(msg, jodaDateTime.getMillis(), is(zonedDateTime.toInstant().toEpochMilli()));
     }
@@ -245,18 +255,18 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     }
 
     // this test requires tests to run with -Djava.locale.providers=COMPAT in order to work
-//    public void testCustomLocales() {
-//
-//        // also ensure that locale based dates are the same
-//        assertSameDate("Di., 05 Dez. 2000 02:55:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
-//        assertSameDate("Mi., 06 Dez. 2000 02:55:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
-//        assertSameDate("Do., 07 Dez. 2000 00:00:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
-//        assertSameDate("Fr., 08 Dez. 2000 00:00:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
-//
-//        DateTime dateTimeNow = DateTime.now(DateTimeZone.UTC);
-//        ZonedDateTime javaTimeNow = Instant.ofEpochMilli(dateTimeNow.getMillis()).atZone(ZoneOffset.UTC);
-//        assertSamePrinterOutput("E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"), javaTimeNow, dateTimeNow);
-//    }
+    // public void testCustomLocales() {
+    //
+    // // also ensure that locale based dates are the same
+    // assertSameDate("Di., 05 Dez. 2000 02:55:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
+    // assertSameDate("Mi., 06 Dez. 2000 02:55:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
+    // assertSameDate("Do., 07 Dez. 2000 00:00:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
+    // assertSameDate("Fr., 08 Dez. 2000 00:00:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
+    //
+    // DateTime dateTimeNow = DateTime.now(DateTimeZone.UTC);
+    // ZonedDateTime javaTimeNow = Instant.ofEpochMilli(dateTimeNow.getMillis()).atZone(ZoneOffset.UTC);
+    // assertSamePrinterOutput("E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"), javaTimeNow, dateTimeNow);
+    // }
 
     public void testDuellingFormatsValidParsing() {
         assertSameDate("1522332219", "epoch_second");
@@ -502,8 +512,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("2012-W01-6", "week_date");
         assertSameDate("2012-W1-6", "week_date");
         // joda comes up with a different exception message here, so we have to adapt
-        assertJodaParseException("2012-W1-8", "week_date",
-            "Cannot parse \"2012-W1-8\": Value 8 for dayOfWeek must be in the range [1,7]");
+        assertJodaParseException("2012-W1-8", "week_date", "Cannot parse \"2012-W1-8\": Value 8 for dayOfWeek must be in the range [1,7]");
         assertJavaTimeParseException("2012-W1-8", "week_date");
 
         assertSameDate("2012-W48-6T10:15:30.1Z", "week_date_time");
@@ -550,14 +559,14 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("2012-W1-1", "weekyear_week_day");
     }
 
-    public void testCompositeParsing(){
-        //in all these examples the second pattern will be used
+    public void testCompositeParsing() {
+        // in all these examples the second pattern will be used
         assertSameDate("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SSS");
         assertSameDate("2014-06-06T12:01:02.123", "strictDateTimeNoMillis||yyyy-MM-dd'T'HH:mm:ss.SSS");
         assertSameDate("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss+HH:MM||yyyy-MM-dd'T'HH:mm:ss.SSS");
     }
 
-    public void testExceptionWhenCompositeParsingFails(){
+    public void testExceptionWhenCompositeParsingFails() {
         assertParseException("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SS");
     }
 
@@ -722,8 +731,11 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("2012-W01-6", "strict_week_date");
         assertParseException("2012-W1-6", "strict_week_date");
         // joda comes up with a different exception message here, so we have to adapt
-        assertJodaParseException("2012-W01-8", "strict_week_date",
-            "Cannot parse \"2012-W01-8\": Value 8 for dayOfWeek must be in the range [1,7]");
+        assertJodaParseException(
+            "2012-W01-8",
+            "strict_week_date",
+            "Cannot parse \"2012-W01-8\": Value 8 for dayOfWeek must be in the range [1,7]"
+        );
         assertJavaTimeParseException("2012-W01-8", "strict_week_date");
 
         assertSameDate("2012-W48-6T10:15:30.1Z", "strict_week_date_time");
@@ -798,8 +810,13 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 
         String javaDateString = javaFormatter.withZone(ZoneOffset.ofHours(-1)).format(javaDate);
         String jodaDateString = jodaFormatter.withZone(ZoneOffset.ofHours(-1)).formatJoda(dateTime);
-        String message = String.format(Locale.ROOT, "expected string representation to be equal for format [%s]: joda [%s], java [%s]",
-            format, jodaDateString, javaDateString);
+        String message = String.format(
+            Locale.ROOT,
+            "expected string representation to be equal for format [%s]: joda [%s], java [%s]",
+            format,
+            jodaDateString,
+            javaDateString
+        );
         assertThat(message, javaDateString, is(jodaDateString));
     }
 
@@ -851,10 +868,11 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("2018-10-10T10:11:12,123+05:30", format, jodaFormatter, javaFormatter);
     }
 
-    public void testParsingLocalDateFromYearOfEra(){
-        //with strict resolving, YearOfEra expect an era, otherwise it won't resolve to a date
-        assertSameDate("2018363","yyyyDDD",Joda.forPattern("YYYYDDD"),DateFormatter.forPattern("uuuuDDD"));
+    public void testParsingLocalDateFromYearOfEra() {
+        // with strict resolving, YearOfEra expect an era, otherwise it won't resolve to a date
+        assertSameDate("2018363", "yyyyDDD", Joda.forPattern("YYYYDDD"), DateFormatter.forPattern("uuuuDDD"));
     }
+
     public void testParsingMissingTimezone() {
         long millisJava = DateFormatter.forPattern("8yyyy-MM-dd HH:mm:ss").parseMillis("2018-02-18 17:47:17");
         long millisJoda = DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss").parseMillis("2018-02-18 17:47:17");
@@ -875,24 +893,32 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSamePrinterOutput(format, javaDate, jodaDate, dateFormatter, jodaDateFormatter);
     }
 
-    private void assertSamePrinterOutput(String format,
-                                         ZonedDateTime javaDate,
-                                         DateTime jodaDate,
-                                         DateFormatter dateFormatter,
-                                         DateFormatter jodaDateFormatter) {
+    private void assertSamePrinterOutput(
+        String format,
+        ZonedDateTime javaDate,
+        DateTime jodaDate,
+        DateFormatter dateFormatter,
+        DateFormatter jodaDateFormatter
+    ) {
         String javaTimeOut = dateFormatter.format(javaDate);
         String jodaTimeOut = jodaDateFormatter.formatJoda(jodaDate);
 
         assertThat(jodaDate.getMillis(), is(javaDate.toInstant().toEpochMilli()));
 
-        if (JavaVersion.current().getVersion().get(0) == 8 && javaTimeOut.endsWith(".0")
+        if (JavaVersion.current().getVersion().get(0) == 8
+            && javaTimeOut.endsWith(".0")
             && (format.equals("epoch_second") || format.equals("epoch_millis"))) {
             // java 8 has a bug in DateTimeFormatter usage when printing dates that rely on isSupportedBy for fields, which is
             // what we use for epoch time. This change accounts for that bug. It should be removed when java 8 support is removed
             jodaTimeOut += ".0";
         }
-        String message = String.format(Locale.ROOT, "expected string representation to be equal for format [%s]: joda [%s], java [%s]",
-                format, jodaTimeOut, javaTimeOut);
+        String message = String.format(
+            Locale.ROOT,
+            "expected string representation to be equal for format [%s]: joda [%s], java [%s]",
+            format,
+            jodaTimeOut,
+            javaTimeOut
+        );
         assertThat(message, javaTimeOut, is(jodaTimeOut));
     }
 
@@ -914,8 +940,14 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         TemporalAccessor javaTimeAccessor = javaFormatter.parse(input);
         ZonedDateTime zonedDateTime = DateFormatters.from(javaTimeAccessor);
 
-        String msg = String.format(Locale.ROOT, "Input [%s] Format [%s] Joda [%s], Java [%s]", input, format, jodaDateTime,
-            DateTimeFormatter.ISO_INSTANT.format(zonedDateTime.toInstant()));
+        String msg = String.format(
+            Locale.ROOT,
+            "Input [%s] Format [%s] Joda [%s], Java [%s]",
+            input,
+            format,
+            jodaDateTime,
+            DateTimeFormatter.ISO_INSTANT.format(zonedDateTime.toInstant())
+        );
 
         assertThat(msg, jodaDateTime.getMillis(), is(zonedDateTime.toInstant().toEpochMilli()));
     }

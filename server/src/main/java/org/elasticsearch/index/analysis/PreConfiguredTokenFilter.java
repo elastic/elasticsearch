@@ -24,60 +24,100 @@ import java.util.function.Function;
  */
 public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisComponent<TokenFilterFactory> {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER =  DeprecationLogger.getLogger(PreConfiguredTokenFilter.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(PreConfiguredTokenFilter.class);
 
     /**
      * Create a pre-configured token filter that may not vary at all.
      */
-    public static PreConfiguredTokenFilter singleton(String name, boolean useFilterForMultitermQueries,
-            Function<TokenStream, TokenStream> create) {
-        return new PreConfiguredTokenFilter(name, useFilterForMultitermQueries, true, CachingStrategy.ONE,
-                (tokenStream, version) -> create.apply(tokenStream));
+    public static PreConfiguredTokenFilter singleton(
+        String name,
+        boolean useFilterForMultitermQueries,
+        Function<TokenStream, TokenStream> create
+    ) {
+        return new PreConfiguredTokenFilter(
+            name,
+            useFilterForMultitermQueries,
+            true,
+            CachingStrategy.ONE,
+            (tokenStream, version) -> create.apply(tokenStream)
+        );
     }
 
     /**
      * Create a pre-configured token filter that may not vary at all.
      */
-    public static PreConfiguredTokenFilter singleton(String name, boolean useFilterForMultitermQueries,
-                                                     boolean allowForSynonymParsing,
-                                                     Function<TokenStream, TokenStream> create) {
-        return new PreConfiguredTokenFilter(name, useFilterForMultitermQueries, allowForSynonymParsing, CachingStrategy.ONE,
-            (tokenStream, version) -> create.apply(tokenStream));
+    public static PreConfiguredTokenFilter singleton(
+        String name,
+        boolean useFilterForMultitermQueries,
+        boolean allowForSynonymParsing,
+        Function<TokenStream, TokenStream> create
+    ) {
+        return new PreConfiguredTokenFilter(
+            name,
+            useFilterForMultitermQueries,
+            allowForSynonymParsing,
+            CachingStrategy.ONE,
+            (tokenStream, version) -> create.apply(tokenStream)
+        );
     }
 
     /**
      * Create a pre-configured token filter that may vary based on the Lucene version.
      */
-    public static PreConfiguredTokenFilter luceneVersion(String name, boolean useFilterForMultitermQueries,
-            BiFunction<TokenStream, org.apache.lucene.util.Version, TokenStream> create) {
-        return new PreConfiguredTokenFilter(name, useFilterForMultitermQueries, true, CachingStrategy.LUCENE,
-                (tokenStream, version) -> create.apply(tokenStream, version.luceneVersion));
+    public static PreConfiguredTokenFilter luceneVersion(
+        String name,
+        boolean useFilterForMultitermQueries,
+        BiFunction<TokenStream, org.apache.lucene.util.Version, TokenStream> create
+    ) {
+        return new PreConfiguredTokenFilter(
+            name,
+            useFilterForMultitermQueries,
+            true,
+            CachingStrategy.LUCENE,
+            (tokenStream, version) -> create.apply(tokenStream, version.luceneVersion)
+        );
     }
 
     /**
      * Create a pre-configured token filter that may vary based on the Elasticsearch version.
      */
-    public static PreConfiguredTokenFilter elasticsearchVersion(String name, boolean useFilterForMultitermQueries,
-            BiFunction<TokenStream, org.elasticsearch.Version, TokenStream> create) {
+    public static PreConfiguredTokenFilter elasticsearchVersion(
+        String name,
+        boolean useFilterForMultitermQueries,
+        BiFunction<TokenStream, org.elasticsearch.Version, TokenStream> create
+    ) {
         return new PreConfiguredTokenFilter(name, useFilterForMultitermQueries, true, CachingStrategy.ELASTICSEARCH, create);
     }
 
     /**
      * Create a pre-configured token filter that may vary based on the Elasticsearch version.
      */
-    public static PreConfiguredTokenFilter elasticsearchVersion(String name, boolean useFilterForMultitermQueries,
-                                                                boolean useFilterForParsingSynonyms,
-                                                                BiFunction<TokenStream, Version, TokenStream> create) {
-        return new PreConfiguredTokenFilter(name, useFilterForMultitermQueries, useFilterForParsingSynonyms,
-                CachingStrategy.ELASTICSEARCH, create);
+    public static PreConfiguredTokenFilter elasticsearchVersion(
+        String name,
+        boolean useFilterForMultitermQueries,
+        boolean useFilterForParsingSynonyms,
+        BiFunction<TokenStream, Version, TokenStream> create
+    ) {
+        return new PreConfiguredTokenFilter(
+            name,
+            useFilterForMultitermQueries,
+            useFilterForParsingSynonyms,
+            CachingStrategy.ELASTICSEARCH,
+            create
+        );
     }
 
     private final boolean useFilterForMultitermQueries;
     private final boolean allowForSynonymParsing;
     private final BiFunction<TokenStream, Version, TokenStream> create;
 
-    private PreConfiguredTokenFilter(String name, boolean useFilterForMultitermQueries, boolean allowForSynonymParsing,
-            PreBuiltCacheFactory.CachingStrategy cache, BiFunction<TokenStream, Version, TokenStream> create) {
+    private PreConfiguredTokenFilter(
+        String name,
+        boolean useFilterForMultitermQueries,
+        boolean allowForSynonymParsing,
+        PreBuiltCacheFactory.CachingStrategy cache,
+        BiFunction<TokenStream, Version, TokenStream> create
+    ) {
         super(name, cache);
         this.useFilterForMultitermQueries = useFilterForMultitermQueries;
         this.allowForSynonymParsing = allowForSynonymParsing;
@@ -118,10 +158,12 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
                     }
                     if (version.onOrAfter(Version.V_7_0_0)) {
                         throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
-                    }
-                    else {
-                        DEPRECATION_LOGGER.critical(DeprecationCategory.ANALYSIS, name(), "Token filter [" + name()
-                            + "] will not be usable to parse synonyms after v7.0");
+                    } else {
+                        DEPRECATION_LOGGER.critical(
+                            DeprecationCategory.ANALYSIS,
+                            name(),
+                            "Token filter [" + name() + "] will not be usable to parse synonyms after v7.0"
+                        );
                         return this;
                     }
                 }
@@ -145,10 +187,12 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
                 }
                 if (version.onOrAfter(Version.V_7_0_0)) {
                     throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
-                }
-                else {
-                    DEPRECATION_LOGGER.critical(DeprecationCategory.ANALYSIS, name(), "Token filter [" + name()
-                        + "] will not be usable to parse synonyms after v7.0");
+                } else {
+                    DEPRECATION_LOGGER.critical(
+                        DeprecationCategory.ANALYSIS,
+                        name(),
+                        "Token filter [" + name() + "] will not be usable to parse synonyms after v7.0"
+                    );
                     return this;
                 }
             }

@@ -72,8 +72,9 @@ public class RoutingNode implements Iterable<ShardRouting> {
         for (ShardRouting shardRouting : shardRoutings) {
             ShardRouting previousValue = shards.put(shardRouting.shardId(), shardRouting);
             if (previousValue != null) {
-                throw new IllegalArgumentException("Cannot have two different shards with same shard id " + shardRouting.shardId() +
-                    " on same node ");
+                throw new IllegalArgumentException(
+                    "Cannot have two different shards with same shard id " + shardRouting.shardId() + " on same node "
+                );
             }
         }
         return shards;
@@ -118,8 +119,17 @@ public class RoutingNode implements Iterable<ShardRouting> {
     void add(ShardRouting shard) {
         assert invariant();
         if (shards.containsKey(shard.shardId())) {
-            throw new IllegalStateException("Trying to add a shard " + shard.shardId() + " to a node [" + nodeId
-                + "] where it already exists. current [" + shards.get(shard.shardId()) + "]. new [" + shard + "]");
+            throw new IllegalStateException(
+                "Trying to add a shard "
+                    + shard.shardId()
+                    + " to a node ["
+                    + nodeId
+                    + "] where it already exists. current ["
+                    + shards.get(shard.shardId())
+                    + "]. new ["
+                    + shard
+                    + "]"
+            );
         }
         shards.put(shard.shardId(), shard);
 
@@ -327,19 +337,24 @@ public class RoutingNode implements Iterable<ShardRouting> {
 
     private boolean invariant() {
         // initializingShards must consistent with that in shards
-        Collection<ShardRouting> shardRoutingsInitializing =
-            shards.values().stream().filter(ShardRouting::initializing).collect(Collectors.toList());
+        Collection<ShardRouting> shardRoutingsInitializing = shards.values()
+            .stream()
+            .filter(ShardRouting::initializing)
+            .collect(Collectors.toList());
         assert initializingShards.size() == shardRoutingsInitializing.size();
         assert initializingShards.containsAll(shardRoutingsInitializing);
 
         // relocatingShards must consistent with that in shards
-        Collection<ShardRouting> shardRoutingsRelocating =
-            shards.values().stream().filter(ShardRouting::relocating).collect(Collectors.toList());
+        Collection<ShardRouting> shardRoutingsRelocating = shards.values()
+            .stream()
+            .filter(ShardRouting::relocating)
+            .collect(Collectors.toList());
         assert relocatingShards.size() == shardRoutingsRelocating.size();
         assert relocatingShards.containsAll(shardRoutingsRelocating);
 
-        final Map<Index, Set<ShardRouting>> shardRoutingsByIndex =
-            shards.values().stream().collect(Collectors.groupingBy(ShardRouting::index, Collectors.toSet()));
+        final Map<Index, Set<ShardRouting>> shardRoutingsByIndex = shards.values()
+            .stream()
+            .collect(Collectors.groupingBy(ShardRouting::index, Collectors.toSet()));
         assert shardRoutingsByIndex.equals(shardsByIndex);
 
         return true;

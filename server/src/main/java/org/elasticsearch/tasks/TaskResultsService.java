@@ -22,13 +22,13 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.indices.SystemIndexDescriptor;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -37,8 +37,8 @@ import java.util.Iterator;
 
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.tasks.TaskInfo.INCLUDE_CANCELLED_PARAM;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * Service that can store task results.
@@ -68,8 +68,7 @@ public class TaskResultsService {
      * The backoff policy to use when saving a task result fails. The total wait
      * time is 600000 milliseconds, ten minutes.
      */
-    static final BackoffPolicy STORE_BACKOFF_POLICY =
-            BackoffPolicy.exponentialBackoff(timeValueMillis(250), 14);
+    static final BackoffPolicy STORE_BACKOFF_POLICY = BackoffPolicy.exponentialBackoff(timeValueMillis(250), 14);
 
     private final Client client;
 
@@ -101,8 +100,7 @@ public class TaskResultsService {
 
             @Override
             public void onFailure(Exception e) {
-                if (false == (e instanceof EsRejectedExecutionException)
-                        || false == backoff.hasNext()) {
+                if (false == (e instanceof EsRejectedExecutionException) || false == backoff.hasNext()) {
                     listener.onFailure(e);
                 } else {
                     TimeValue wait = backoff.next();

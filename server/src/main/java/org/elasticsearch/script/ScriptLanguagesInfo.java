@@ -8,12 +8,12 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -74,11 +74,11 @@ public class ScriptLanguagesInfo implements ToXContentObject, Writeable {
     private static final ParseField CONTEXTS = new ParseField("contexts");
 
     public final Set<String> typesAllowed;
-    public final Map<String,Set<String>> languageContexts;
+    public final Map<String, Set<String>> languageContexts;
 
-    public ScriptLanguagesInfo(Set<String> typesAllowed, Map<String,Set<String>> languageContexts) {
-        this.typesAllowed = typesAllowed != null ? Collections.unmodifiableSet(typesAllowed): Collections.emptySet();
-        this.languageContexts = languageContexts != null ? Collections.unmodifiableMap(languageContexts): Collections.emptyMap();
+    public ScriptLanguagesInfo(Set<String> typesAllowed, Map<String, Set<String>> languageContexts) {
+        this.typesAllowed = typesAllowed != null ? Collections.unmodifiableSet(typesAllowed) : Collections.emptySet();
+        this.languageContexts = languageContexts != null ? Collections.unmodifiableMap(languageContexts) : Collections.emptyMap();
     }
 
     public ScriptLanguagesInfo(StreamInput in) throws IOException {
@@ -87,18 +87,21 @@ public class ScriptLanguagesInfo implements ToXContentObject, Writeable {
     }
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<ScriptLanguagesInfo,Void> PARSER =
-        new ConstructingObjectParser<>("script_languages_info", true,
-            (a) -> new ScriptLanguagesInfo(
-                new HashSet<>((List<String>)a[0]),
-                ((List<Tuple<String,Set<String>>>)a[1]).stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2))
-            )
-        );
+    public static final ConstructingObjectParser<ScriptLanguagesInfo, Void> PARSER = new ConstructingObjectParser<>(
+        "script_languages_info",
+        true,
+        (a) -> new ScriptLanguagesInfo(
+            new HashSet<>((List<String>) a[0]),
+            ((List<Tuple<String, Set<String>>>) a[1]).stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2))
+        )
+    );
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<Tuple<String,Set<String>>,Void> LANGUAGE_CONTEXT_PARSER =
-        new ConstructingObjectParser<>("language_contexts", true,
-            (m, name) -> new Tuple<>((String)m[0], Collections.unmodifiableSet(new HashSet<>((List<String>)m[1])))
+    private static final ConstructingObjectParser<Tuple<String, Set<String>>, Void> LANGUAGE_CONTEXT_PARSER =
+        new ConstructingObjectParser<>(
+            "language_contexts",
+            true,
+            (m, name) -> new Tuple<>((String) m[0], Collections.unmodifiableSet(new HashSet<>((List<String>) m[1])))
         );
 
     static {
@@ -120,13 +123,10 @@ public class ScriptLanguagesInfo implements ToXContentObject, Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         ScriptLanguagesInfo that = (ScriptLanguagesInfo) o;
-        return Objects.equals(typesAllowed, that.typesAllowed) &&
-            Objects.equals(languageContexts, that.languageContexts);
+        return Objects.equals(typesAllowed, that.typesAllowed) && Objects.equals(languageContexts, that.languageContexts);
     }
 
     @Override
@@ -137,18 +137,19 @@ public class ScriptLanguagesInfo implements ToXContentObject, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject().startArray(TYPES_ALLOWED.getPreferredName());
-        for (String type: typesAllowed.stream().sorted().collect(Collectors.toList())) {
+        for (String type : typesAllowed.stream().sorted().collect(Collectors.toList())) {
             builder.value(type);
         }
 
         builder.endArray().startArray(LANGUAGE_CONTEXTS.getPreferredName());
-        List<Map.Entry<String,Set<String>>> languagesByName = languageContexts.entrySet().stream().sorted(
-            Map.Entry.comparingByKey()
-        ).collect(Collectors.toList());
+        List<Map.Entry<String, Set<String>>> languagesByName = languageContexts.entrySet()
+            .stream()
+            .sorted(Map.Entry.comparingByKey())
+            .collect(Collectors.toList());
 
-        for (Map.Entry<String,Set<String>> languageContext: languagesByName) {
+        for (Map.Entry<String, Set<String>> languageContext : languagesByName) {
             builder.startObject().field(LANGUAGE.getPreferredName(), languageContext.getKey()).startArray(CONTEXTS.getPreferredName());
-            for (String context: languageContext.getValue().stream().sorted().collect(Collectors.toList())) {
+            for (String context : languageContext.getValue().stream().sorted().collect(Collectors.toList())) {
                 builder.value(context);
             }
             builder.endArray().endObject();

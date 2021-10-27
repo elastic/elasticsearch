@@ -12,13 +12,13 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -30,8 +30,8 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
 
     private static final ParseField VALUE_FIELD = new ParseField("value");
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TypeQueryBuilder.class);
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Type queries are deprecated, " +
-        "prefer to filter on a field instead.";
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Type queries are deprecated, "
+        + "prefer to filter on a field instead.";
 
     private final String type;
 
@@ -92,24 +92,27 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
                 } else if (VALUE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     type = parser.text();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "[" + TypeQueryBuilder.NAME + "] filter doesn't support [" + currentFieldName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[" + TypeQueryBuilder.NAME + "] filter doesn't support [" + currentFieldName + "]"
+                    );
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(),
-                        "[" + TypeQueryBuilder.NAME + "] filter doesn't support [" + currentFieldName + "]");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "[" + TypeQueryBuilder.NAME + "] filter doesn't support [" + currentFieldName + "]"
+                );
             }
         }
 
         if (type == null) {
-            throw new ParsingException(parser.getTokenLocation(),
-                    "[" + TypeQueryBuilder.NAME + "] filter needs to be provided with a value for the type");
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "[" + TypeQueryBuilder.NAME + "] filter needs to be provided with a value for the type"
+            );
         }
-        return new TypeQueryBuilder(type)
-                .boost(boost)
-                .queryName(queryName);
+        return new TypeQueryBuilder(type).boost(boost).queryName(queryName);
     }
-
 
     @Override
     public String getWriteableName() {

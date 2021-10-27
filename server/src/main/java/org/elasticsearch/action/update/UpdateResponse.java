@@ -11,11 +11,11 @@ package org.elasticsearch.action.update;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -50,7 +50,15 @@ public class UpdateResponse extends DocWriteResponse {
     }
 
     public UpdateResponse(
-            ShardInfo shardInfo, ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, Result result) {
+        ShardInfo shardInfo,
+        ShardId shardId,
+        String type,
+        String id,
+        long seqNo,
+        long primaryTerm,
+        long version,
+        Result result
+    ) {
         super(shardId, type, id, seqNo, primaryTerm, version, result);
         setShardInfo(shardInfo);
     }
@@ -163,10 +171,20 @@ public class UpdateResponse extends DocWriteResponse {
                 update = new UpdateResponse(shardId, type, id, seqNo, primaryTerm, version, result);
             }
             if (getResult != null) {
-                update.setGetResult(new GetResult(update.getIndex(), update.getType(), update.getId(),
-                    getResult.getSeqNo(), getResult.getPrimaryTerm(), update.getVersion(),
-                    getResult.isExists(), getResult.internalSourceRef(), getResult.getDocumentFields(),
-                    getResult.getMetadataFields()));
+                update.setGetResult(
+                    new GetResult(
+                        update.getIndex(),
+                        update.getType(),
+                        update.getId(),
+                        getResult.getSeqNo(),
+                        getResult.getPrimaryTerm(),
+                        update.getVersion(),
+                        getResult.isExists(),
+                        getResult.internalSourceRef(),
+                        getResult.getDocumentFields(),
+                        getResult.getMetadataFields()
+                    )
+                );
             }
             update.setForcedRefresh(forcedRefresh);
             return update;

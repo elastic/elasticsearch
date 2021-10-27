@@ -8,11 +8,10 @@
 
 package org.elasticsearch.common.logging;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.util.List;
-
 
 /**
  * Represents a single log line in a json format.

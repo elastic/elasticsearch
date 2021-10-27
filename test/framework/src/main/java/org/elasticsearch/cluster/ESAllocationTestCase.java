@@ -47,17 +47,20 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 
 public abstract class ESAllocationTestCase extends ESTestCase {
-    private static final ClusterSettings EMPTY_CLUSTER_SETTINGS =
-        new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+    private static final ClusterSettings EMPTY_CLUSTER_SETTINGS = new ClusterSettings(
+        Settings.EMPTY,
+        ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
+    );
 
-    public static final SnapshotsInfoService SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES = () ->
-        new SnapshotShardSizeInfo(ImmutableOpenMap.of()) {
-            @Override
-            public Long getShardSize(ShardRouting shardRouting) {
-                assert shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT :
-                    "Expecting a recovery source of type [SNAPSHOT] but got [" + shardRouting.recoverySource().getType() + ']';
-                throw new UnsupportedOperationException();
-            }
+    public static final SnapshotsInfoService SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES = () -> new SnapshotShardSizeInfo(
+        ImmutableOpenMap.of()
+    ) {
+        @Override
+        public Long getShardSize(ShardRouting shardRouting) {
+            assert shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT
+                : "Expecting a recovery source of type [SNAPSHOT] but got [" + shardRouting.recoverySource().getType() + ']';
+            throw new UnsupportedOperationException();
+        }
     };
 
     public static MockAllocationService createAllocationService() {
@@ -74,16 +77,22 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
     public static MockAllocationService createAllocationService(Settings settings, ClusterSettings clusterSettings, Random random) {
         return new MockAllocationService(
-                randomAllocationDeciders(settings, clusterSettings, random),
-                new TestGatewayAllocator(), new BalancedShardsAllocator(settings), EmptyClusterInfoService.INSTANCE,
-            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES);
+            randomAllocationDeciders(settings, clusterSettings, random),
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(settings),
+            EmptyClusterInfoService.INSTANCE,
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
+        );
     }
 
     public static MockAllocationService createAllocationService(Settings settings, ClusterInfoService clusterInfoService) {
         return new MockAllocationService(
-                randomAllocationDeciders(settings, EMPTY_CLUSTER_SETTINGS, random()),
-            new TestGatewayAllocator(), new BalancedShardsAllocator(settings), clusterInfoService,
-            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES);
+            randomAllocationDeciders(settings, EMPTY_CLUSTER_SETTINGS, random()),
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(settings),
+            clusterInfoService,
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
+        );
     }
 
     public static MockAllocationService createAllocationService(Settings settings, GatewayAllocator gatewayAllocator) {
@@ -101,18 +110,24 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     ) {
         return new MockAllocationService(
             randomAllocationDeciders(settings, EMPTY_CLUSTER_SETTINGS, random()),
-            gatewayAllocator, new BalancedShardsAllocator(settings), EmptyClusterInfoService.INSTANCE, snapshotsInfoService);
+            gatewayAllocator,
+            new BalancedShardsAllocator(settings),
+            EmptyClusterInfoService.INSTANCE,
+            snapshotsInfoService
+        );
     }
 
     public static AllocationDeciders randomAllocationDeciders(Settings settings, ClusterSettings clusterSettings, Random random) {
         List<AllocationDecider> deciders = new ArrayList<>(
-            ClusterModule.createAllocationDeciders(settings, clusterSettings, Collections.emptyList()));
+            ClusterModule.createAllocationDeciders(settings, clusterSettings, Collections.emptyList())
+        );
         Collections.shuffle(deciders, random);
         return new AllocationDeciders(deciders);
     }
 
-    protected static Set<DiscoveryNodeRole> MASTER_DATA_ROLES =
-            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)));
+    protected static Set<DiscoveryNodeRole> MASTER_DATA_ROLES = Collections.unmodifiableSet(
+        new HashSet<>(Arrays.asList(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+    );
 
     protected static DiscoveryNode newNode(String nodeId) {
         return newNode(nodeId, Version.CURRENT);
@@ -138,7 +153,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(), MASTER_DATA_ROLES, version);
     }
 
-    protected  static ClusterState startRandomInitializingShard(ClusterState clusterState, AllocationService strategy) {
+    protected static ClusterState startRandomInitializingShard(ClusterState clusterState, AllocationService strategy) {
         List<ShardRouting> initializingShards = RoutingNodesHelper.shardsWithState(clusterState.getRoutingNodes(), INITIALIZING);
         if (initializingShards.isEmpty()) {
             return clusterState;
@@ -147,10 +162,15 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     protected static AllocationDeciders yesAllocationDeciders() {
-        return new AllocationDeciders(Arrays.asList(
-            new TestAllocateDecision(Decision.YES),
-            new SameShardAllocationDecider(Settings.EMPTY,
-                                           new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))));
+        return new AllocationDeciders(
+            Arrays.asList(
+                new TestAllocateDecision(Decision.YES),
+                new SameShardAllocationDecider(
+                    Settings.EMPTY,
+                    new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                )
+            )
+        );
     }
 
     protected static AllocationDeciders noAllocationDeciders() {
@@ -158,10 +178,15 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     protected static AllocationDeciders throttleAllocationDeciders() {
-        return new AllocationDeciders(Arrays.asList(
-            new TestAllocateDecision(Decision.THROTTLE),
-            new SameShardAllocationDecider(Settings.EMPTY,
-                                           new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))));
+        return new AllocationDeciders(
+            Arrays.asList(
+                new TestAllocateDecision(Decision.THROTTLE),
+                new SameShardAllocationDecider(
+                    Settings.EMPTY,
+                    new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                )
+            )
+        );
     }
 
     protected ClusterState applyStartedShardsUntilNoChange(ClusterState clusterState, AllocationService service) {
@@ -188,9 +213,11 @@ public abstract class ESAllocationTestCase extends ESTestCase {
      *
      * @return the cluster state after completing the reroute.
      */
-    public static ClusterState startInitializingShardsAndReroute(AllocationService allocationService,
-                                                                 ClusterState clusterState,
-                                                                 RoutingNode routingNode) {
+    public static ClusterState startInitializingShardsAndReroute(
+        AllocationService allocationService,
+        ClusterState clusterState,
+        RoutingNode routingNode
+    ) {
         return startShardsAndReroute(allocationService, clusterState, routingNode.shardsWithState(INITIALIZING));
     }
 
@@ -199,11 +226,16 @@ public abstract class ESAllocationTestCase extends ESTestCase {
      *
      * @return the cluster state after completing the reroute.
      */
-    public static ClusterState startInitializingShardsAndReroute(AllocationService allocationService,
-                                                                 ClusterState clusterState,
-                                                                 String index) {
-        return startShardsAndReroute(allocationService, clusterState,
-            clusterState.routingTable().index(index).shardsWithState(INITIALIZING));
+    public static ClusterState startInitializingShardsAndReroute(
+        AllocationService allocationService,
+        ClusterState clusterState,
+        String index
+    ) {
+        return startShardsAndReroute(
+            allocationService,
+            clusterState,
+            clusterState.routingTable().index(index).shardsWithState(INITIALIZING)
+        );
     }
 
     /**
@@ -211,9 +243,11 @@ public abstract class ESAllocationTestCase extends ESTestCase {
      *
      * @return the cluster state after completing the reroute.
      */
-    public static ClusterState startShardsAndReroute(AllocationService allocationService,
-                                                     ClusterState clusterState,
-                                                     ShardRouting... initializingShards) {
+    public static ClusterState startShardsAndReroute(
+        AllocationService allocationService,
+        ClusterState clusterState,
+        ShardRouting... initializingShards
+    ) {
         return startShardsAndReroute(allocationService, clusterState, Arrays.asList(initializingShards));
     }
 
@@ -222,9 +256,11 @@ public abstract class ESAllocationTestCase extends ESTestCase {
      *
      * @return the cluster state after completing the reroute.
      */
-    public static ClusterState startShardsAndReroute(AllocationService allocationService,
-                                                     ClusterState clusterState,
-                                                     List<ShardRouting> initializingShards) {
+    public static ClusterState startShardsAndReroute(
+        AllocationService allocationService,
+        ClusterState clusterState,
+        List<ShardRouting> initializingShards
+    ) {
         return allocationService.reroute(allocationService.applyStartedShards(clusterState, initializingShards), "reroute after starting");
     }
 
@@ -252,9 +288,13 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
         private volatile long nanoTimeOverride = -1L;
 
-        public MockAllocationService(AllocationDeciders allocationDeciders, GatewayAllocator gatewayAllocator,
-                                     ShardsAllocator shardsAllocator, ClusterInfoService clusterInfoService,
-                                     SnapshotsInfoService snapshotsInfoService) {
+        public MockAllocationService(
+            AllocationDeciders allocationDeciders,
+            GatewayAllocator gatewayAllocator,
+            ShardsAllocator shardsAllocator,
+            ClusterInfoService clusterInfoService,
+            SnapshotsInfoService snapshotsInfoService
+        ) {
             super(allocationDeciders, gatewayAllocator, shardsAllocator, clusterInfoService, snapshotsInfoService);
         }
 
@@ -295,8 +335,11 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         }
 
         @Override
-        public void allocateUnassigned(ShardRouting shardRouting, RoutingAllocation allocation,
-                                       UnassignedAllocationHandler unassignedAllocationHandler) {
+        public void allocateUnassigned(
+            ShardRouting shardRouting,
+            RoutingAllocation allocation,
+            UnassignedAllocationHandler unassignedAllocationHandler
+        ) {
             if (shardRouting.primary() || shardRouting.unassignedInfo().getReason() == UnassignedInfo.Reason.INDEX_CREATED) {
                 return;
             }

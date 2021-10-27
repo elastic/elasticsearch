@@ -19,12 +19,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -55,8 +55,13 @@ public class MetadataIndexAliasesService {
     private final NamedXContentRegistry xContentRegistry;
 
     @Inject
-    public MetadataIndexAliasesService(ClusterService clusterService, IndicesService indicesService,
-            AliasValidator aliasValidator, MetadataDeleteIndexService deleteIndexService, NamedXContentRegistry xContentRegistry) {
+    public MetadataIndexAliasesService(
+        ClusterService clusterService,
+        IndicesService indicesService,
+        AliasValidator aliasValidator,
+        MetadataDeleteIndexService deleteIndexService,
+        NamedXContentRegistry xContentRegistry
+    ) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.aliasValidator = aliasValidator;
@@ -64,21 +69,19 @@ public class MetadataIndexAliasesService {
         this.xContentRegistry = xContentRegistry;
     }
 
-    public void indicesAliases(final IndicesAliasesClusterStateUpdateRequest request,
-                               final ActionListener<AcknowledgedResponse> listener) {
-        clusterService.submitStateUpdateTask("index-aliases",
-            new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    return applyAliasActions(currentState, request.actions());
-                }
-            });
+    public void indicesAliases(final IndicesAliasesClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
+        clusterService.submitStateUpdateTask("index-aliases", new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                return applyAliasActions(currentState, request.actions());
+            }
+        });
     }
 
     /**
      * Handles the cluster state transition to a version that reflects the provided {@link AliasAction}s.
      */
-     public ClusterState applyAliasActions(ClusterState currentState, Iterable<AliasAction> actions) {
+    public ClusterState applyAliasActions(ClusterState currentState, Iterable<AliasAction> actions) {
         List<Index> indicesToClose = new ArrayList<>();
         Map<String, IndexService> indices = new HashMap<>();
         try {
@@ -189,12 +192,14 @@ public class MetadataIndexAliasesService {
         }
     }
 
-    private void validateFilter(List<Index> indicesToClose,
-                                Map<String, IndexService> indices,
-                                AliasAction action,
-                                IndexMetadata index,
-                                String alias,
-                                String filter) {
+    private void validateFilter(
+        List<Index> indicesToClose,
+        Map<String, IndexService> indices,
+        AliasAction action,
+        IndexMetadata index,
+        String alias,
+        String filter
+    ) {
         IndexService indexService = indices.get(index.getIndex().getName());
         if (indexService == null) {
             indexService = indicesService.indexService(index.getIndex());
@@ -212,17 +217,25 @@ public class MetadataIndexAliasesService {
         }
         // the context is only used for validation so it's fine to pass fake values for the shard id,
         // but the current timestamp should be set to real value as we may use `now` in a filtered alias
-        aliasValidator.validateAliasFilter(alias, filter, indexService.newSearchExecutionContext(0, 0,
-                null, System::currentTimeMillis, null, emptyMap()), xContentRegistry);
+        aliasValidator.validateAliasFilter(
+            alias,
+            filter,
+            indexService.newSearchExecutionContext(0, 0, null, System::currentTimeMillis, null, emptyMap()),
+            xContentRegistry
+        );
     }
 
     private void validateAliasTargetIsNotDSBackingIndex(ClusterState currentState, AliasAction action) {
         IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(action.getIndex());
         assert indexAbstraction != null : "invalid cluster metadata. index [" + action.getIndex() + "] was not found";
         if (indexAbstraction.getParentDataStream() != null) {
-            throw new IllegalArgumentException("The provided index [" + action.getIndex()
-                + "] is a backing index belonging to data stream [" + indexAbstraction.getParentDataStream().getName()
-                + "]. Data stream backing indices don't support alias operations.");
+            throw new IllegalArgumentException(
+                "The provided index ["
+                    + action.getIndex()
+                    + "] is a backing index belonging to data stream ["
+                    + indexAbstraction.getParentDataStream().getName()
+                    + "]. Data stream backing indices don't support alias operations."
+            );
         }
     }
 }

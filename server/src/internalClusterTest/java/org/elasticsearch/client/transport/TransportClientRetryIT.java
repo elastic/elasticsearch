@@ -41,24 +41,25 @@ public class TransportClientRetryIT extends ESIntegTestCase {
 
         String transport = getTestTransportType();
 
-        Settings.Builder builder = Settings.builder().put("client.transport.nodes_sampler_interval", "1s")
-                .put("node.name", "transport_client_retry_test")
-                .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), internalCluster().getClusterName())
-                .put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(),transport)
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir());
+        Settings.Builder builder = Settings.builder()
+            .put("client.transport.nodes_sampler_interval", "1s")
+            .put("node.name", "transport_client_retry_test")
+            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), internalCluster().getClusterName())
+            .put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), transport)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir());
 
         try (TransportClient client = new MockTransportClient(builder.build())) {
             client.addTransportAddresses(addresses);
             assertEquals(client.connectedNodes().size(), internalCluster().size());
 
             int size = cluster().size();
-            //kill all nodes one by one, leaving a single master/data node at the end of the loop
+            // kill all nodes one by one, leaving a single master/data node at the end of the loop
             for (int j = 1; j < size; j++) {
                 internalCluster().stopRandomNode(input -> true);
 
                 ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest().local(true);
                 ClusterState clusterState;
-                //use both variants of execute method: with and without listener
+                // use both variants of execute method: with and without listener
                 if (randomBoolean()) {
                     clusterState = client.admin().cluster().state(clusterStateRequest).get().getState();
                 } else {

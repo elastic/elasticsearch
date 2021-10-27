@@ -51,8 +51,13 @@ public class NodeUsage extends BaseNodeResponse implements ToXContentFragment {
      *            a map containing the counts of the number of times each REST
      *            endpoint has been called
      */
-    public NodeUsage(DiscoveryNode node, long timestamp, long sinceTime, Map<String, Long> restUsage,
-                     Map<String, Object> aggregationUsage) {
+    public NodeUsage(
+        DiscoveryNode node,
+        long timestamp,
+        long sinceTime,
+        Map<String, Long> restUsage,
+        Map<String, Object> aggregationUsage
+    ) {
         super(node);
         this.timestamp = timestamp;
         this.sinceTime = sinceTime;

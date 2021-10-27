@@ -18,15 +18,15 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.index.RandomCreateIndexGenerator;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.index.RandomCreateIndexGenerator;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Map;
@@ -55,25 +55,26 @@ public class CreateIndexRequestTests extends AbstractWireSerializingTestCase<Cre
     }
 
     public void testTopLevelKeys() {
-        String createIndex =
-                "{\n"
-                + "  \"FOO_SHOULD_BE_ILLEGAL_HERE\": {\n"
-                + "    \"BAR_IS_THE_SAME\": 42\n"
-                + "  },\n"
-                + "  \"mappings\": {\n"
-                + "    \"test\": {\n"
-                + "      \"properties\": {\n"
-                + "        \"field1\": {\n"
-                + "          \"type\": \"text\"\n"
-                + "       }\n"
-                + "     }\n"
-                + "    }\n"
-                + "  }\n"
-                + "}";
+        String createIndex = "{\n"
+            + "  \"FOO_SHOULD_BE_ILLEGAL_HERE\": {\n"
+            + "    \"BAR_IS_THE_SAME\": 42\n"
+            + "  },\n"
+            + "  \"mappings\": {\n"
+            + "    \"test\": {\n"
+            + "      \"properties\": {\n"
+            + "        \"field1\": {\n"
+            + "          \"type\": \"text\"\n"
+            + "       }\n"
+            + "     }\n"
+            + "    }\n"
+            + "  }\n"
+            + "}";
 
         CreateIndexRequest request = new CreateIndexRequest();
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
-                () -> {request.source(createIndex, XContentType.JSON);});
+        ElasticsearchParseException e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> { request.source(createIndex, XContentType.JSON); }
+        );
         assertEquals("unknown key [FOO_SHOULD_BE_ILLEGAL_HERE] for create index", e.getMessage());
     }
 
@@ -100,9 +101,9 @@ public class CreateIndexRequestTests extends AbstractWireSerializingTestCase<Cre
 
         String actualRequestBody = Strings.toString(request);
 
-        String expectedRequestBody = "{\"settings\":{\"index\":{\"number_of_shards\":\"10\"}}," +
-            "\"mappings\":{\"my_type\":{\"my_type\":{}}}," +
-            "\"aliases\":{\"test_alias\":{\"filter\":{\"term\":{\"year\":2016}},\"routing\":\"1\",\"is_write_index\":true}}}";
+        String expectedRequestBody = "{\"settings\":{\"index\":{\"number_of_shards\":\"10\"}},"
+            + "\"mappings\":{\"my_type\":{\"my_type\":{}}},"
+            + "\"aliases\":{\"test_alias\":{\"filter\":{\"term\":{\"year\":2016}},\"routing\":\"1\",\"is_write_index\":true}}}";
 
         assertEquals(expectedRequestBody, actualRequestBody);
     }
@@ -112,34 +113,38 @@ public class CreateIndexRequestTests extends AbstractWireSerializingTestCase<Cre
         CreateIndexRequest request2 = new CreateIndexRequest("bar");
         {
             XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-            builder.startObject().startObject("properties")
+            builder.startObject()
+                .startObject("properties")
                 .startObject("field1")
-                    .field("type", "text")
+                .field("type", "text")
                 .endObject()
                 .startObject("field2")
-                    .startObject("properties")
-                        .startObject("field21")
-                            .field("type", "keyword")
-                        .endObject()
-                    .endObject()
+                .startObject("properties")
+                .startObject("field21")
+                .field("type", "keyword")
                 .endObject()
-            .endObject().endObject();
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
             request1.mapping("type1", builder);
             builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-            builder.startObject().startObject("type1")
+            builder.startObject()
+                .startObject("type1")
                 .startObject("properties")
-                    .startObject("field1")
-                        .field("type", "text")
-                    .endObject()
-                    .startObject("field2")
-                        .startObject("properties")
-                            .startObject("field21")
-                                .field("type", "keyword")
-                            .endObject()
-                        .endObject()
-                    .endObject()
+                .startObject("field1")
+                .field("type", "text")
                 .endObject()
-            .endObject().endObject();
+                .startObject("field2")
+                .startObject("properties")
+                .startObject("field21")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
             request2.mapping("type1", builder);
             assertEquals(request1.mappings(), request2.mappings());
         }
@@ -154,14 +159,14 @@ public class CreateIndexRequestTests extends AbstractWireSerializingTestCase<Cre
         {
             request1 = new CreateIndexRequest("foo");
             request2 = new CreateIndexRequest("bar");
-            Map<String , Object> nakedMapping = MapBuilder.<String, Object>newMapBuilder()
-                    .put("properties", MapBuilder.<String, Object>newMapBuilder()
-                            .put("bar", MapBuilder.<String, Object>newMapBuilder()
-                                    .put("type", "scaled_float")
-                                    .put("scaling_factor", 100)
-                            .map())
-                    .map())
-            .map();
+            Map<String, Object> nakedMapping = MapBuilder.<String, Object>newMapBuilder()
+                .put(
+                    "properties",
+                    MapBuilder.<String, Object>newMapBuilder()
+                        .put("bar", MapBuilder.<String, Object>newMapBuilder().put("type", "scaled_float").put("scaling_factor", 100).map())
+                        .map()
+                )
+                .map();
             request1.mapping("type3", nakedMapping);
             request2.mapping("type3", MapBuilder.<String, Object>newMapBuilder().put("type3", nakedMapping).map());
             assertEquals(request1.mappings(), request2.mappings());
@@ -202,10 +207,18 @@ public class CreateIndexRequestTests extends AbstractWireSerializingTestCase<Cre
         for (Map.Entry<String, String> expectedEntry : expected.entrySet()) {
             String expectedValue = expectedEntry.getValue();
             String actualValue = actual.get(expectedEntry.getKey());
-            try (XContentParser expectedJson = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE, expectedValue);
-                 XContentParser actualJson = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE, actualValue)){
+            try (
+                XContentParser expectedJson = JsonXContent.jsonXContent.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.INSTANCE,
+                    expectedValue
+                );
+                XContentParser actualJson = JsonXContent.jsonXContent.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.INSTANCE,
+                    actualValue
+                )
+            ) {
                 assertEquals(expectedJson.map(), actualJson.map());
             }
         }
@@ -227,7 +240,9 @@ public class CreateIndexRequestTests extends AbstractWireSerializingTestCase<Cre
     }
 
     @Override
-    protected Writeable.Reader<CreateIndexRequest> instanceReader() { return CreateIndexRequest::new; }
+    protected Writeable.Reader<CreateIndexRequest> instanceReader() {
+        return CreateIndexRequest::new;
+    }
 
     @Override
     protected CreateIndexRequest createTestInstance() {

@@ -94,10 +94,13 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
 
     @Override
     public String toString() {
-        return "GetFeatureUpgradeStatusResponse{" +
-            "featureUpgradeStatuses=" + featureUpgradeStatuses +
-            ", upgradeStatus='" + upgradeStatus + '\'' +
-            '}';
+        return "GetFeatureUpgradeStatusResponse{"
+            + "featureUpgradeStatuses="
+            + featureUpgradeStatuses
+            + ", upgradeStatus='"
+            + upgradeStatus
+            + '\''
+            + '}';
     }
 
     public enum UpgradeStatus {
@@ -131,8 +134,12 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
          * @param upgradeStatus Whether the feature needs to be upgraded
          * @param indexInfos A list of this feature's concrete indices and the Elasticsearch version that created them
          */
-        public FeatureUpgradeStatus(String featureName, Version minimumIndexVersion,
-                                    UpgradeStatus upgradeStatus, List<IndexInfo> indexInfos) {
+        public FeatureUpgradeStatus(
+            String featureName,
+            Version minimumIndexVersion,
+            UpgradeStatus upgradeStatus,
+            List<IndexInfo> indexInfos
+        ) {
             this.featureName = featureName;
             this.minimumIndexVersion = minimumIndexVersion;
             this.upgradeStatus = upgradeStatus;
@@ -207,12 +214,19 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
 
         @Override
         public String toString() {
-            return "FeatureUpgradeStatus{" +
-                "featureName='" + featureName + '\'' +
-                ", minimumIndexVersion='" + minimumIndexVersion + '\'' +
-                ", upgradeStatus='" + upgradeStatus + '\'' +
-                ", indexInfos=" + indexInfos +
-                '}';
+            return "FeatureUpgradeStatus{"
+                + "featureName='"
+                + featureName
+                + '\''
+                + ", minimumIndexVersion='"
+                + minimumIndexVersion
+                + '\''
+                + ", upgradeStatus='"
+                + upgradeStatus
+                + '\''
+                + ", indexInfos="
+                + indexInfos
+                + '}';
         }
     }
 
@@ -220,12 +234,15 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
      * A data class that holds an index name and the version of Elasticsearch with which that index was created
      */
     public static class IndexInfo implements Writeable, ToXContentObject {
-        private static final Map<String, String> STACK_TRACE_ENABLED_PARAMS =
-            org.elasticsearch.core.Map.of(ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "false");
+        private static final Map<String, String> STACK_TRACE_ENABLED_PARAMS = org.elasticsearch.core.Map.of(
+            ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE,
+            "false"
+        );
 
         private final String indexName;
         private final Version version;
-        @Nullable private final Exception exception; // Present if this index failed
+        @Nullable
+        private final Exception exception; // Present if this index failed
 
         /**
          * @param indexName Name of the index
@@ -310,11 +327,17 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
 
         @Override
         public String toString() {
-            return "IndexInfo{" +
-                "indexName='" + indexName + '\'' +
-                ", version='" + version + '\'' +
-                ", exception='" + exception.getMessage() + "'" +
-                '}';
+            return "IndexInfo{"
+                + "indexName='"
+                + indexName
+                + '\''
+                + ", version='"
+                + version
+                + '\''
+                + ", exception='"
+                + exception.getMessage()
+                + "'"
+                + '}';
         }
     }
 }

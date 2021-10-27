@@ -25,7 +25,8 @@ import static java.util.Collections.unmodifiableList;
  * and the related skip sections can be removed from the tests as well.
  */
 public final class Features {
-    private static final List<String> SUPPORTED = unmodifiableList(Arrays.asList(
+    private static final List<String> SUPPORTED = unmodifiableList(
+        Arrays.asList(
             "catch_unauthorized",
             "default_shards",
             "embedded_stash_key",
@@ -42,7 +43,9 @@ public final class Features {
             "arbitrary_key",
             "allowed_warnings",
             "allowed_warnings_regex",
-            "close_to"));
+            "close_to"
+        )
+    );
     private static final String SPI_ON_CLASSPATH_SINCE_JDK_9 = "spi_on_classpath_jdk9";
 
     private Features() {
@@ -70,10 +73,9 @@ public final class Features {
     }
 
     private static boolean isSupported(String feature) {
-        if(feature.equals(SPI_ON_CLASSPATH_SINCE_JDK_9) &&
-            JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0) {
+        if (feature.equals(SPI_ON_CLASSPATH_SINCE_JDK_9) && JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0) {
             return true;
         }
-        return SUPPORTED.contains(feature) ;
+        return SUPPORTED.contains(feature);
     }
 }

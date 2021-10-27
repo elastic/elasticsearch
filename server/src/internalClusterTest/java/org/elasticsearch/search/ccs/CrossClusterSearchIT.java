@@ -19,8 +19,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.shard.SearchOperationListener;
@@ -75,9 +75,17 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         assertAcked(client(LOCAL_CLUSTER).admin().indices().prepareCreate("demo"));
         indexDocs(client(LOCAL_CLUSTER), "demo");
         final String remoteNode = cluster("cluster_a").startDataOnlyNode();
-        assertAcked(client("cluster_a").admin().indices().prepareCreate("prod")
-            .setSettings(Settings.builder().put("index.routing.allocation.require._name", remoteNode)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()));
+        assertAcked(
+            client("cluster_a").admin()
+                .indices()
+                .prepareCreate("prod")
+                .setSettings(
+                    Settings.builder()
+                        .put("index.routing.allocation.require._name", remoteNode)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .build()
+                )
+        );
         indexDocs(client("cluster_a"), "prod");
         SearchListenerPlugin.blockQueryPhase();
         try {
@@ -129,10 +137,21 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 allocationFilter.put("index.routing.allocation.include._name", String.join(",", seedNodes));
             }
         }
-        assertAcked(client("cluster_a").admin().indices().prepareCreate("prod")
-            .setSettings(Settings.builder().put(allocationFilter.build()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)));
-        assertFalse(client("cluster_a").admin().cluster().prepareHealth("prod")
-            .setWaitForYellowStatus().setTimeout(TimeValue.timeValueSeconds(10)).get().isTimedOut());
+        assertAcked(
+            client("cluster_a").admin()
+                .indices()
+                .prepareCreate("prod")
+                .setSettings(Settings.builder().put(allocationFilter.build()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+        );
+        assertFalse(
+            client("cluster_a").admin()
+                .cluster()
+                .prepareHealth("prod")
+                .setWaitForYellowStatus()
+                .setTimeout(TimeValue.timeValueSeconds(10))
+                .get()
+                .isTimedOut()
+        );
         indexDocs(client("cluster_a"), "prod");
         SearchListenerPlugin.blockQueryPhase();
         PlainActionFuture<SearchResponse> queryFuture = new PlainActionFuture<>();
@@ -143,10 +162,16 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         client(LOCAL_CLUSTER).search(searchRequest, queryFuture);
         SearchListenerPlugin.waitSearchStarted();
         // Get the search task and cancelled
-        final TaskInfo rootTask = client().admin().cluster().prepareListTasks()
+        final TaskInfo rootTask = client().admin()
+            .cluster()
+            .prepareListTasks()
             .setActions(SearchAction.INSTANCE.name())
-            .get().getTasks().stream().filter(t -> t.getParentTaskId().isSet() == false)
-            .findFirst().get();
+            .get()
+            .getTasks()
+            .stream()
+            .filter(t -> t.getParentTaskId().isSet() == false)
+            .findFirst()
+            .get();
         final CancelTasksRequest cancelRequest = new CancelTasksRequest().setTaskId(rootTask.getTaskId());
         cancelRequest.setWaitForCompletion(randomBoolean());
         final ActionFuture<CancelTasksResponse> cancelFuture = client().admin().cluster().cancelTasks(cancelRequest);

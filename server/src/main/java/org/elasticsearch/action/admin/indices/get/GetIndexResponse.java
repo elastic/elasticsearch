@@ -20,11 +20,11 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
-import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -50,12 +50,14 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
     private ImmutableOpenMap<String, String> dataStreams = ImmutableOpenMap.of();
     private final String[] indices;
 
-    public GetIndexResponse(String[] indices,
-                     ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings,
-                     ImmutableOpenMap<String, List<AliasMetadata>> aliases,
-                     ImmutableOpenMap<String, Settings> settings,
-                     ImmutableOpenMap<String, Settings> defaultSettings,
-                     ImmutableOpenMap<String, String> dataStreams) {
+    public GetIndexResponse(
+        String[] indices,
+        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings,
+        ImmutableOpenMap<String, List<AliasMetadata>> aliases,
+        ImmutableOpenMap<String, Settings> settings,
+        ImmutableOpenMap<String, Settings> defaultSettings,
+        ImmutableOpenMap<String, String> dataStreams
+    ) {
         this.indices = indices;
         // to have deterministic order
         Arrays.sort(indices);
@@ -263,8 +265,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                     builder.endObject();
 
                     ImmutableOpenMap<String, MappingMetadata> indexMappings = mappings.get(index);
-                    boolean includeTypeName = params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
-                        DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+                    boolean includeTypeName = params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
                     if (includeTypeName) {
                         builder.startObject("mappings");
                         if (indexMappings != null) {
@@ -388,8 +389,14 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         Settings indexSettings = Settings.EMPTY;
         Settings indexDefaultSettings = Settings.EMPTY;
         String dataStream;
-        IndexEntry(List<AliasMetadata> indexAliases, ImmutableOpenMap<String, MappingMetadata> indexMappings,
-                   Settings indexSettings, Settings indexDefaultSettings, String dataStream) {
+
+        IndexEntry(
+            List<AliasMetadata> indexAliases,
+            ImmutableOpenMap<String, MappingMetadata> indexMappings,
+            Settings indexSettings,
+            Settings indexDefaultSettings,
+            String dataStream
+        ) {
             if (indexAliases != null) this.indexAliases = indexAliases;
             if (indexMappings != null) this.indexMappings = indexMappings;
             if (indexSettings != null) this.indexSettings = indexSettings;
@@ -435,11 +442,14 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                 parser.nextToken();
             }
         }
-        return
-            new GetIndexResponse(
-                indices.toArray(new String[0]), mappings.build(), aliases.build(),
-                settings.build(), defaultSettings.build(), dataStreams.build()
-            );
+        return new GetIndexResponse(
+            indices.toArray(new String[0]),
+            mappings.build(),
+            aliases.build(),
+            settings.build(),
+            defaultSettings.build(),
+            dataStreams.build()
+        );
     }
 
     @Override
@@ -450,26 +460,18 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o== null || getClass() != o.getClass()) return false;
+        if (o == null || getClass() != o.getClass()) return false;
         GetIndexResponse that = (GetIndexResponse) o;
-        return Arrays.equals(indices, that.indices) &&
-            Objects.equals(aliases, that.aliases) &&
-            Objects.equals(mappings, that.mappings) &&
-            Objects.equals(settings, that.settings) &&
-            Objects.equals(defaultSettings, that.defaultSettings) &&
-            Objects.equals(dataStreams, that.dataStreams);
+        return Arrays.equals(indices, that.indices)
+            && Objects.equals(aliases, that.aliases)
+            && Objects.equals(mappings, that.mappings)
+            && Objects.equals(settings, that.settings)
+            && Objects.equals(defaultSettings, that.defaultSettings)
+            && Objects.equals(dataStreams, that.dataStreams);
     }
 
     @Override
     public int hashCode() {
-        return
-            Objects.hash(
-                Arrays.hashCode(indices),
-                aliases,
-                mappings,
-                settings,
-                defaultSettings,
-                dataStreams
-            );
+        return Objects.hash(Arrays.hashCode(indices), aliases, mappings, settings, defaultSettings, dataStreams);
     }
 }

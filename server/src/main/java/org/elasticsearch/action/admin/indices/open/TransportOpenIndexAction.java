@@ -39,12 +39,26 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
     private final DestructiveOperations destructiveOperations;
 
     @Inject
-    public TransportOpenIndexAction(TransportService transportService, ClusterService clusterService,
-                                    ThreadPool threadPool, MetadataIndexStateService indexStateService,
-                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                    DestructiveOperations destructiveOperations) {
-        super(OpenIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, OpenIndexRequest::new,
-            indexNameExpressionResolver, OpenIndexResponse::new, ThreadPool.Names.SAME);
+    public TransportOpenIndexAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        MetadataIndexStateService indexStateService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        DestructiveOperations destructiveOperations
+    ) {
+        super(
+            OpenIndexAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            OpenIndexRequest::new,
+            indexNameExpressionResolver,
+            OpenIndexResponse::new,
+            ThreadPool.Names.SAME
+        );
         this.indexStateService = indexStateService;
         this.destructiveOperations = destructiveOperations;
     }
@@ -57,21 +71,25 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
 
     @Override
     protected ClusterBlockException checkBlock(OpenIndexRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE,
-            indexNameExpressionResolver.concreteIndexNames(state, request));
+        return state.blocks()
+            .indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override
-    protected void masterOperation(final OpenIndexRequest request, final ClusterState state,
-                                   final ActionListener<OpenIndexResponse> listener) {
+    protected void masterOperation(
+        final OpenIndexRequest request,
+        final ClusterState state,
+        final ActionListener<OpenIndexResponse> listener
+    ) {
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         if (concreteIndices == null || concreteIndices.length == 0) {
             listener.onResponse(new OpenIndexResponse(true, true));
             return;
         }
-        OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest()
-                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                .indices(concreteIndices).waitForActiveShards(request.waitForActiveShards());
+        OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest().ackTimeout(request.timeout())
+            .masterNodeTimeout(request.masterNodeTimeout())
+            .indices(concreteIndices)
+            .waitForActiveShards(request.waitForActiveShards());
 
         indexStateService.openIndex(updateRequest, new ActionListener<ShardsAcknowledgedResponse>() {
 

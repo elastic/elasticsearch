@@ -13,12 +13,6 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
@@ -38,6 +32,12 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -111,12 +111,13 @@ public class RandomSearchRequestGenerator {
     }
 
     public static SearchSourceBuilder randomSearchSourceBuilder(
-            Supplier<HighlightBuilder> randomHighlightBuilder,
-            Supplier<SuggestBuilder> randomSuggestBuilder,
-            Supplier<RescorerBuilder<?>> randomRescoreBuilder,
-            Supplier<List<SearchExtBuilder>> randomExtBuilders,
-            Supplier<CollapseBuilder> randomCollapseBuilder,
-            Supplier<Map<String, Object>> randomRuntimeMappings) {
+        Supplier<HighlightBuilder> randomHighlightBuilder,
+        Supplier<SuggestBuilder> randomSuggestBuilder,
+        Supplier<RescorerBuilder<?>> randomRescoreBuilder,
+        Supplier<List<SearchExtBuilder>> randomExtBuilders,
+        Supplier<CollapseBuilder> randomCollapseBuilder,
+        Supplier<Map<String, Object>> randomRuntimeMappings
+    ) {
         SearchSourceBuilder builder = new SearchSourceBuilder();
         if (randomBoolean()) {
             builder.from(randomIntBetween(0, 10000));
@@ -155,7 +156,7 @@ public class RandomSearchRequestGenerator {
             }
         }
 
-        switch(randomInt(2)) {
+        switch (randomInt(2)) {
             case 0:
                 builder.storedFields();
                 break;
@@ -210,8 +211,11 @@ public class RandomSearchRequestGenerator {
                     fetchSourceContext = new FetchSourceContext(true, includes, excludes);
                     break;
                 case 2:
-                    fetchSourceContext = new FetchSourceContext(true, new String[]{randomAlphaOfLengthBetween(5, 20)},
-                        new String[]{randomAlphaOfLengthBetween(5, 20)});
+                    fetchSourceContext = new FetchSourceContext(
+                        true,
+                        new String[] { randomAlphaOfLengthBetween(5, 20) },
+                        new String[] { randomAlphaOfLengthBetween(5, 20) }
+                    );
                     break;
                 case 3:
                     fetchSourceContext = new FetchSourceContext(true, includes, excludes);
@@ -220,7 +224,7 @@ public class RandomSearchRequestGenerator {
                     fetchSourceContext = new FetchSourceContext(true, includes, null);
                     break;
                 case 5:
-                    fetchSourceContext = new FetchSourceContext(true, new String[] {randomAlphaOfLengthBetween(5, 20)}, null);
+                    fetchSourceContext = new FetchSourceContext(true, new String[] { randomAlphaOfLengthBetween(5, 20) }, null);
                     break;
                 default:
                     throw new IllegalStateException();
@@ -256,18 +260,21 @@ public class RandomSearchRequestGenerator {
                         builder.sort(SortBuilders.fieldSort(randomAlphaOfLengthBetween(5, 20)).order(randomFrom(SortOrder.values())));
                         break;
                     case 1:
-                        builder.sort(SortBuilders.geoDistanceSort(randomAlphaOfLengthBetween(5, 20),
-                                AbstractQueryTestCase.randomGeohash(1, 12)).order(randomFrom(SortOrder.values())));
+                        builder.sort(
+                            SortBuilders.geoDistanceSort(randomAlphaOfLengthBetween(5, 20), AbstractQueryTestCase.randomGeohash(1, 12))
+                                .order(randomFrom(SortOrder.values()))
+                        );
                         break;
                     case 2:
                         builder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
                         break;
                     case 3:
-                        builder.sort(SortBuilders
-                                .scriptSort(
-                                        new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "foo", emptyMap()),
-                                        ScriptSortBuilder.ScriptSortType.NUMBER)
-                                .order(randomFrom(SortOrder.values())));
+                        builder.sort(
+                            SortBuilders.scriptSort(
+                                new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "foo", emptyMap()),
+                                ScriptSortBuilder.ScriptSortType.NUMBER
+                            ).order(randomFrom(SortOrder.values()))
+                        );
                         break;
                     case 4:
                         builder.sort(randomAlphaOfLengthBetween(5, 20));
@@ -324,8 +331,11 @@ public class RandomSearchRequestGenerator {
                 jsonBuilder.endArray();
                 jsonBuilder.endObject();
                 XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        BytesReference.bytes(jsonBuilder).streamInput());
+                    .createParser(
+                        NamedXContentRegistry.EMPTY,
+                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                        BytesReference.bytes(jsonBuilder).streamInput()
+                    );
                 parser.nextToken();
                 parser.nextToken();
                 parser.nextToken();
@@ -355,7 +365,7 @@ public class RandomSearchRequestGenerator {
         if (randomBoolean()) {
             String field = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 20);
             int max = between(2, 1000);
-            int id = randomInt(max-1);
+            int id = randomInt(max - 1);
             if (field == null) {
                 builder.slice(new SliceBuilder(id, max));
             } else {

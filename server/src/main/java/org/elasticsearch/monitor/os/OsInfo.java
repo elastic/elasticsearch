@@ -12,8 +12,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.node.ReportingService;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -28,13 +28,14 @@ public class OsInfo implements ReportingService.Info {
     private final String version;
 
     public OsInfo(
-            final long refreshInterval,
-            final int availableProcessors,
-            final int allocatedProcessors,
-            final String name,
-            final String prettyName,
-            final String arch,
-            final String version) {
+        final long refreshInterval,
+        final int availableProcessors,
+        final int allocatedProcessors,
+        final String name,
+        final String prettyName,
+        final String arch,
+        final String version
+    ) {
         this.refreshInterval = refreshInterval;
         this.availableProcessors = availableProcessors;
         this.allocatedProcessors = allocatedProcessors;

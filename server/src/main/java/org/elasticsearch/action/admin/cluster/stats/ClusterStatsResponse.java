@@ -57,14 +57,16 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         indicesStats = new ClusterStatsIndices(getNodes(), mappingStats, analysisStats, versionStats);
     }
 
-    public ClusterStatsResponse(long timestamp,
-                                String clusterUUID,
-                                ClusterName clusterName,
-                                List<ClusterStatsNodeResponse> nodes,
-                                List<FailedNodeException> failures,
-                                MappingStats mappingStats,
-                                AnalysisStats analysisStats,
-                                VersionStats versionStats) {
+    public ClusterStatsResponse(
+        long timestamp,
+        String clusterUUID,
+        ClusterName clusterName,
+        List<ClusterStatsNodeResponse> nodes,
+        List<FailedNodeException> failures,
+        MappingStats mappingStats,
+        AnalysisStats analysisStats,
+        VersionStats versionStats
+    ) {
         super(clusterName, nodes, failures);
         this.clusterUUID = clusterUUID;
         this.timestamp = timestamp;

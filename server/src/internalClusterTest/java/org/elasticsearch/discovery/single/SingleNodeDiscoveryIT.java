@@ -35,21 +35,21 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(
-        scope = ESIntegTestCase.Scope.TEST,
-        numDataNodes = 1,
-        numClientNodes = 0,
-        supportsDedicatedMasters = false,
-        autoManageMasterNodes = false)
+    scope = ESIntegTestCase.Scope.TEST,
+    numDataNodes = 1,
+    numClientNodes = 0,
+    supportsDedicatedMasters = false,
+    autoManageMasterNodes = false
+)
 public class SingleNodeDiscoveryIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings
-                .builder()
-                .put(super.nodeSettings(nodeOrdinal, otherSettings))
-                .put("discovery.type", "single-node")
-                .put("transport.port", getPortRange())
-                .build();
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put("discovery.type", "single-node")
+            .put("transport.port", getPortRange())
+            .build();
     }
 
     public void testSingleNodesDoNotDiscoverEachOther() throws IOException, InterruptedException {
@@ -58,16 +58,15 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
         final NodeConfigurationSource configurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-                return Settings
-                        .builder()
-                        .put("discovery.type", "single-node")
-                        .put("transport.type", getTestTransportType())
-                        /*
-                         * We align the port ranges of the two as then with zen discovery these two
-                         * nodes would find each other.
-                         */
-                        .put("transport.port", port + "-" + (port + 5 - 1))
-                        .build();
+                return Settings.builder()
+                    .put("discovery.type", "single-node")
+                    .put("transport.type", getTestTransportType())
+                    /*
+                     * We align the port ranges of the two as then with zen discovery these two
+                     * nodes would find each other.
+                     */
+                    .put("transport.port", port + "-" + (port + 5 - 1))
+                    .build();
             }
 
             @Override
@@ -75,31 +74,29 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                 return null;
             }
         };
-        try (InternalTestCluster other =
-                new InternalTestCluster(
-                        randomLong(),
-                        createTempDir(),
-                        false,
-                        false,
-                        1,
-                        1,
-                        internalCluster().getClusterName(),
-                        configurationSource,
-                        0,
-                        "other",
-                        Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
-                        Function.identity())) {
+        try (
+            InternalTestCluster other = new InternalTestCluster(
+                randomLong(),
+                createTempDir(),
+                false,
+                false,
+                1,
+                1,
+                internalCluster().getClusterName(),
+                configurationSource,
+                0,
+                "other",
+                Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
+                Function.identity()
+            )
+        ) {
             other.beforeTest(random(), 0);
             final ClusterState first = internalCluster().getInstance(ClusterService.class).state();
             final ClusterState second = other.getInstance(ClusterService.class).state();
             assertThat(first.nodes().getSize(), equalTo(1));
             assertThat(second.nodes().getSize(), equalTo(1));
-            assertThat(
-                    first.nodes().getMasterNodeId(),
-                    not(equalTo(second.nodes().getMasterNodeId())));
-            assertThat(
-                    first.metadata().clusterUUID(),
-                    not(equalTo(second.metadata().clusterUUID())));
+            assertThat(first.nodes().getMasterNodeId(), not(equalTo(second.nodes().getMasterNodeId())));
+            assertThat(first.metadata().clusterUUID(), not(equalTo(second.metadata().clusterUUID())));
         }
     }
 
@@ -107,11 +104,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
         MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test",
-                JoinHelper.class.getCanonicalName(),
-                Level.INFO,
-                "failed to join") {
+            new MockLogAppender.SeenEventExpectation("test", JoinHelper.class.getCanonicalName(), Level.INFO, "failed to join") {
 
                 @Override
                 public boolean innerMatch(final LogEvent event) {
@@ -119,17 +112,19 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                         && event.getThrown().getClass() == RemoteTransportException.class
                         && event.getThrown().getCause() != null
                         && event.getThrown().getCause().getClass() == IllegalStateException.class
-                        && event.getThrown().getCause().getMessage().contains(
-                            "cannot join node with [discovery.type] set to [single-node]");
+                        && event.getThrown()
+                            .getCause()
+                            .getMessage()
+                            .contains("cannot join node with [discovery.type] set to [single-node]");
                 }
-            });
+            }
+        );
         final TransportService service = internalCluster().getInstance(TransportService.class);
         final int port = service.boundAddress().publishAddress().getPort();
         final NodeConfigurationSource configurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-                return Settings
-                    .builder()
+                return Settings.builder()
                     .put("discovery.type", "zen")
                     .put("transport.type", getTestTransportType())
                     .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s")
@@ -146,20 +141,22 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                 return null;
             }
         };
-        try (InternalTestCluster other =
-                 new InternalTestCluster(
-                     randomLong(),
-                     createTempDir(),
-                     false,
-                     false,
-                     1,
-                     1,
-                     internalCluster().getClusterName(),
-                     configurationSource,
-                     0,
-                     "other",
-                     Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
-                     Function.identity())) {
+        try (
+            InternalTestCluster other = new InternalTestCluster(
+                randomLong(),
+                createTempDir(),
+                false,
+                false,
+                1,
+                1,
+                internalCluster().getClusterName(),
+                configurationSource,
+                0,
+                "other",
+                Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
+                Function.identity()
+            )
+        ) {
 
             Logger clusterLogger = LogManager.getLogger(JoinHelper.class);
             Loggers.addAppender(clusterLogger, mockAppender);

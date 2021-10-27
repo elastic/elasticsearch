@@ -85,8 +85,7 @@ public class RelativeByteSizeValue {
         try {
             return new RelativeByteSizeValue(ByteSizeValue.parseBytesSizeValue(value, settingName));
         } catch (ElasticsearchParseException e) {
-            throw new ElasticsearchParseException("unable to parse [{}={}] as either percentage or bytes", e,
-                settingName, value);
+            throw new ElasticsearchParseException("unable to parse [{}={}] as either percentage or bytes", e, settingName, value);
         }
     }
 

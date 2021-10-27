@@ -9,8 +9,8 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -58,7 +58,7 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             assertThat(cap2.isSearchable(), equalTo(true));
             assertThat(cap2.isAggregatable(), equalTo(false));
             assertThat(cap2.indices().length, equalTo(3));
-            assertThat(cap2.indices(), equalTo(new String[]{"index1", "index2", "index3"}));
+            assertThat(cap2.indices(), equalTo(new String[] { "index1", "index2", "index3" }));
             assertNull(cap2.nonSearchableIndices());
             assertNull(cap2.nonAggregatableIndices());
             assertEquals(Collections.emptyMap(), cap2.meta());
@@ -73,17 +73,17 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             assertThat(cap1.isSearchable(), equalTo(false));
             assertThat(cap1.isAggregatable(), equalTo(false));
             assertNull(cap1.indices());
-            assertThat(cap1.nonSearchableIndices(), equalTo(new String[]{"index1", "index3"}));
-            assertThat(cap1.nonAggregatableIndices(), equalTo(new String[]{"index2", "index3"}));
+            assertThat(cap1.nonSearchableIndices(), equalTo(new String[] { "index1", "index3" }));
+            assertThat(cap1.nonAggregatableIndices(), equalTo(new String[] { "index2", "index3" }));
             assertEquals(Collections.emptyMap(), cap1.meta());
 
             FieldCapabilities cap2 = builder.build(true);
             assertThat(cap2.isSearchable(), equalTo(false));
             assertThat(cap2.isAggregatable(), equalTo(false));
             assertThat(cap2.indices().length, equalTo(3));
-            assertThat(cap2.indices(), equalTo(new String[]{"index1", "index2", "index3"}));
-            assertThat(cap2.nonSearchableIndices(), equalTo(new String[]{"index1", "index3"}));
-            assertThat(cap2.nonAggregatableIndices(), equalTo(new String[]{"index2", "index3"}));
+            assertThat(cap2.indices(), equalTo(new String[] { "index1", "index2", "index3" }));
+            assertThat(cap2.nonSearchableIndices(), equalTo(new String[] { "index1", "index3" }));
+            assertThat(cap2.nonAggregatableIndices(), equalTo(new String[] { "index2", "index3" }));
             assertEquals(Collections.emptyMap(), cap2.meta());
         }
 
@@ -104,7 +104,7 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             assertThat(cap2.isSearchable(), equalTo(true));
             assertThat(cap2.isAggregatable(), equalTo(true));
             assertThat(cap2.indices().length, equalTo(3));
-            assertThat(cap2.indices(), equalTo(new String[]{"index1", "index2", "index3"}));
+            assertThat(cap2.indices(), equalTo(new String[] { "index1", "index2", "index3" }));
             assertNull(cap2.nonSearchableIndices());
             assertNull(cap2.nonAggregatableIndices());
             assertEquals(Collections.singletonMap("foo", new HashSet<>(Arrays.asList("bar", "quux"))), cap2.meta());
@@ -136,20 +136,28 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
 
         Map<String, Set<String>> meta;
         switch (randomInt(2)) {
-        case 0:
-            meta = Collections.emptyMap();
-            break;
-        case 1:
-            meta = Collections.singletonMap("foo", Collections.singleton("bar"));
-            break;
-        default:
-            meta = Collections.singletonMap("foo", new HashSet<>(Arrays.asList("bar", "baz")));
-            break;
+            case 0:
+                meta = Collections.emptyMap();
+                break;
+            case 1:
+                meta = Collections.singletonMap("foo", Collections.singleton("bar"));
+                break;
+            default:
+                meta = Collections.singletonMap("foo", new HashSet<>(Arrays.asList("bar", "baz")));
+                break;
         }
 
-        return new FieldCapabilities(fieldName,
-            randomAlphaOfLengthBetween(5, 20), randomBoolean(), randomBoolean(), randomBoolean(),
-            indices, nonSearchableIndices, nonAggregatableIndices, meta);
+        return new FieldCapabilities(
+            fieldName,
+            randomAlphaOfLengthBetween(5, 20),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            indices,
+            nonSearchableIndices,
+            nonAggregatableIndices,
+            meta
+        );
     }
 
     @Override
@@ -164,76 +172,85 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
         String[] nonAggregatableIndices = instance.nonAggregatableIndices();
         Map<String, Set<String>> meta = instance.meta();
         switch (between(0, 8)) {
-        case 0:
-            name += randomAlphaOfLengthBetween(1, 10);
-            break;
-        case 1:
-            type += randomAlphaOfLengthBetween(1, 10);
-            break;
-        case 2:
-            isSearchable = isSearchable == false;
-            break;
-        case 3:
-            isAggregatable = isAggregatable == false;
-            break;
-        case 4:
-            String[] newIndices;
-            int startIndicesPos = 0;
-            if (indices == null) {
-                newIndices = new String[between(1, 10)];
-            } else {
-                newIndices = Arrays.copyOf(indices, indices.length + between(1, 10));
-                startIndicesPos = indices.length;
-            }
-            for (int i = startIndicesPos; i < newIndices.length; i++) {
-                newIndices[i] = randomAlphaOfLengthBetween(5, 20);
-            }
-            indices = newIndices;
-            break;
-        case 5:
-            String[] newNonSearchableIndices;
-            int startNonSearchablePos = 0;
-            if (nonSearchableIndices == null) {
-                newNonSearchableIndices = new String[between(1, 10)];
-            } else {
-                newNonSearchableIndices = Arrays.copyOf(nonSearchableIndices, nonSearchableIndices.length + between(1, 10));
-                startNonSearchablePos = nonSearchableIndices.length;
-            }
-            for (int i = startNonSearchablePos; i < newNonSearchableIndices.length; i++) {
-                newNonSearchableIndices[i] = randomAlphaOfLengthBetween(5, 20);
-            }
-            nonSearchableIndices = newNonSearchableIndices;
-            break;
-        case 6:
-            String[] newNonAggregatableIndices;
-            int startNonAggregatablePos = 0;
-            if (nonAggregatableIndices == null) {
-                newNonAggregatableIndices = new String[between(1, 10)];
-            } else {
-                newNonAggregatableIndices = Arrays.copyOf(nonAggregatableIndices, nonAggregatableIndices.length + between(1, 10));
-                startNonAggregatablePos = nonAggregatableIndices.length;
-            }
-            for (int i = startNonAggregatablePos; i < newNonAggregatableIndices.length; i++) {
-                newNonAggregatableIndices[i] = randomAlphaOfLengthBetween(5, 20);
-            }
-            nonAggregatableIndices = newNonAggregatableIndices;
-            break;
-        case 7:
-            Map<String, Set<String>> newMeta;
-            if (meta.isEmpty()) {
-                newMeta = Collections.singletonMap("foo", Collections.singleton("bar"));
-            } else {
-                newMeta = Collections.emptyMap();
-            }
-            meta = newMeta;
-            break;
-        case 8:
-            isMetadataField = isMetadataField == false;
-            break;
-        default:
-            throw new AssertionError();
+            case 0:
+                name += randomAlphaOfLengthBetween(1, 10);
+                break;
+            case 1:
+                type += randomAlphaOfLengthBetween(1, 10);
+                break;
+            case 2:
+                isSearchable = isSearchable == false;
+                break;
+            case 3:
+                isAggregatable = isAggregatable == false;
+                break;
+            case 4:
+                String[] newIndices;
+                int startIndicesPos = 0;
+                if (indices == null) {
+                    newIndices = new String[between(1, 10)];
+                } else {
+                    newIndices = Arrays.copyOf(indices, indices.length + between(1, 10));
+                    startIndicesPos = indices.length;
+                }
+                for (int i = startIndicesPos; i < newIndices.length; i++) {
+                    newIndices[i] = randomAlphaOfLengthBetween(5, 20);
+                }
+                indices = newIndices;
+                break;
+            case 5:
+                String[] newNonSearchableIndices;
+                int startNonSearchablePos = 0;
+                if (nonSearchableIndices == null) {
+                    newNonSearchableIndices = new String[between(1, 10)];
+                } else {
+                    newNonSearchableIndices = Arrays.copyOf(nonSearchableIndices, nonSearchableIndices.length + between(1, 10));
+                    startNonSearchablePos = nonSearchableIndices.length;
+                }
+                for (int i = startNonSearchablePos; i < newNonSearchableIndices.length; i++) {
+                    newNonSearchableIndices[i] = randomAlphaOfLengthBetween(5, 20);
+                }
+                nonSearchableIndices = newNonSearchableIndices;
+                break;
+            case 6:
+                String[] newNonAggregatableIndices;
+                int startNonAggregatablePos = 0;
+                if (nonAggregatableIndices == null) {
+                    newNonAggregatableIndices = new String[between(1, 10)];
+                } else {
+                    newNonAggregatableIndices = Arrays.copyOf(nonAggregatableIndices, nonAggregatableIndices.length + between(1, 10));
+                    startNonAggregatablePos = nonAggregatableIndices.length;
+                }
+                for (int i = startNonAggregatablePos; i < newNonAggregatableIndices.length; i++) {
+                    newNonAggregatableIndices[i] = randomAlphaOfLengthBetween(5, 20);
+                }
+                nonAggregatableIndices = newNonAggregatableIndices;
+                break;
+            case 7:
+                Map<String, Set<String>> newMeta;
+                if (meta.isEmpty()) {
+                    newMeta = Collections.singletonMap("foo", Collections.singleton("bar"));
+                } else {
+                    newMeta = Collections.emptyMap();
+                }
+                meta = newMeta;
+                break;
+            case 8:
+                isMetadataField = isMetadataField == false;
+                break;
+            default:
+                throw new AssertionError();
         }
-        return new FieldCapabilities(name, type, isMetadataField, isSearchable, isAggregatable,
-            indices, nonSearchableIndices, nonAggregatableIndices, meta);
+        return new FieldCapabilities(
+            name,
+            type,
+            isMetadataField,
+            isSearchable,
+            isAggregatable,
+            indices,
+            nonSearchableIndices,
+            nonAggregatableIndices,
+            meta
+        );
     }
 }

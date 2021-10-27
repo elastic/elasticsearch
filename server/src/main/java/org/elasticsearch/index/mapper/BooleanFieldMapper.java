@@ -17,11 +17,10 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
@@ -32,6 +31,7 @@ import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -71,13 +71,17 @@ public class BooleanFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder {
 
-        private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> toType(m).hasDocValues,  true);
+        private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
 
-        private final Parameter<Boolean> nullValue = new Parameter<>("null_value", false, () -> null,
-            (n, c, o) -> o == null ? null : XContentMapValues.nodeBooleanValue(o), m -> toType(m).nullValue)
-            .acceptsNull();
+        private final Parameter<Boolean> nullValue = new Parameter<>(
+            "null_value",
+            false,
+            () -> null,
+            (n, c, o) -> o == null ? null : XContentMapValues.nodeBooleanValue(o),
+            m -> toType(m).nullValue
+        ).acceptsNull();
 
         private final Parameter<Float> boost = Parameter.boostParam();
         private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
@@ -101,8 +105,15 @@ public class BooleanFieldMapper extends FieldMapper {
 
         @Override
         public BooleanFieldMapper build(MapperBuilderContext context) {
-            MappedFieldType ft = new BooleanFieldType(context.buildFullName(name), indexed.getValue(), stored.getValue(),
-                docValues.getValue(), nullValue.getValue(), scriptValues(), meta.getValue());
+            MappedFieldType ft = new BooleanFieldType(
+                context.buildFullName(name),
+                indexed.getValue(),
+                stored.getValue(),
+                docValues.getValue(),
+                nullValue.getValue(),
+                scriptValues(),
+                meta.getValue()
+            );
             ft.setBoost(boost.getValue());
             return new BooleanFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
@@ -112,10 +123,11 @@ public class BooleanFieldMapper extends FieldMapper {
                 return null;
             }
             BooleanFieldScript.Factory scriptFactory = scriptCompiler.compile(script.get(), BooleanFieldScript.CONTEXT);
-            return scriptFactory == null ? null : (lookup, ctx, doc, consumer) -> scriptFactory
-                .newFactory(name, script.get().getParams(), lookup)
-                .newInstance(ctx)
-                .runForDoc(doc, consumer);
+            return scriptFactory == null
+                ? null
+                : (lookup, ctx, doc, consumer) -> scriptFactory.newFactory(name, script.get().getParams(), lookup)
+                    .newInstance(ctx)
+                    .runForDoc(doc, consumer);
         }
     }
 
@@ -126,8 +138,15 @@ public class BooleanFieldMapper extends FieldMapper {
         private final Boolean nullValue;
         private final FieldValues<Boolean> scriptValues;
 
-        public BooleanFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
-                                Boolean nullValue, FieldValues<Boolean> scriptValues, Map<String, String> meta) {
+        public BooleanFieldType(
+            String name,
+            boolean isSearchable,
+            boolean isStored,
+            boolean hasDocValues,
+            Boolean nullValue,
+            FieldValues<Boolean> scriptValues,
+            Map<String, String> meta
+        ) {
             super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.nullValue = nullValue;
             this.scriptValues = scriptValues;
@@ -187,8 +206,7 @@ public class BooleanFieldMapper extends FieldMapper {
                 case "false":
                     return Values.FALSE;
                 default:
-                    throw new IllegalArgumentException("Can't parse boolean value [" +
-                                    sValue + "], expected [true] or [false]");
+                    throw new IllegalArgumentException("Can't parse boolean value [" + sValue + "], expected [true] or [false]");
             }
         }
 
@@ -197,13 +215,13 @@ public class BooleanFieldMapper extends FieldMapper {
             if (value == null) {
                 return null;
             }
-            switch(value.toString()) {
-            case "F":
-                return false;
-            case "T":
-                return true;
-            default:
-                throw new IllegalArgumentException("Expected [T] or [F] but got [" + value + "]");
+            switch (value.toString()) {
+                case "F":
+                    return false;
+                case "T":
+                    return true;
+                default:
+                    throw new IllegalArgumentException("Expected [T] or [F] but got [" + value + "]");
             }
         }
 
@@ -221,13 +239,21 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-                                SearchExecutionContext context) {
+        public Query rangeQuery(
+            Object lowerTerm,
+            Object upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            SearchExecutionContext context
+        ) {
             failIfNotIndexed();
-            return new TermRangeQuery(name(),
+            return new TermRangeQuery(
+                name(),
                 lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
                 upperTerm == null ? null : indexedValueForSearch(upperTerm),
-                includeLower, includeUpper);
+                includeLower,
+                includeUpper
+            );
         }
     }
 
@@ -239,10 +265,22 @@ public class BooleanFieldMapper extends FieldMapper {
     private final FieldValues<Boolean> scriptValues;
     private final ScriptCompiler scriptCompiler;
 
-    protected BooleanFieldMapper(String simpleName, MappedFieldType mappedFieldType,
-                                 MultiFields multiFields, CopyTo copyTo, Builder builder) {
-        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo,
-            builder.script.get() != null, builder.onScriptError.getValue());
+    protected BooleanFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        Builder builder
+    ) {
+        super(
+            simpleName,
+            mappedFieldType,
+            Lucene.KEYWORD_ANALYZER,
+            multiFields,
+            copyTo,
+            builder.script.get() != null,
+            builder.onScriptError.getValue()
+        );
         this.nullValue = builder.nullValue.getValue();
         this.stored = builder.stored.getValue();
         this.indexed = builder.indexed.getValue();
@@ -293,8 +331,12 @@ public class BooleanFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc,
-                                     DocumentParserContext documentParserContext) {
+    protected void indexScriptValues(
+        SearchLookup searchLookup,
+        LeafReaderContext readerContext,
+        int doc,
+        DocumentParserContext documentParserContext
+    ) {
         this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(documentParserContext, value));
     }
 

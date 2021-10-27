@@ -15,11 +15,11 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.is;
@@ -28,13 +28,13 @@ public class RestTasksActionTests extends ESTestCase {
 
     public void testConsumesParameters() throws Exception {
         RestTasksAction action = new RestTasksAction(() -> DiscoveryNodes.EMPTY_NODES);
-        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-            .withParams(MapBuilder.<String, String>newMapBuilder()
+        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(
+            MapBuilder.<String, String>newMapBuilder()
                 .put("parent_task_id", "the node:3")
                 .put("nodes", "node1,node2")
                 .put("actions", "*")
                 .map()
-            ).build();
+        ).build();
         FakeRestChannel fakeRestChannel = new FakeRestChannel(fakeRestRequest, false, 1);
         try (NoOpNodeClient nodeClient = buildNodeClient()) {
             action.handleRequest(fakeRestRequest, fakeRestChannel, nodeClient);
@@ -48,8 +48,11 @@ public class RestTasksActionTests extends ESTestCase {
         return new NoOpNodeClient(getTestName()) {
             @Override
             @SuppressWarnings("unchecked")
-            public <Request extends ActionRequest, Response extends ActionResponse>
-            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
                 listener.onResponse((Response) new ListTasksResponse(emptyList(), emptyList(), emptyList()));
             }
         };

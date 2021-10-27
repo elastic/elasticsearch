@@ -24,10 +24,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -42,6 +38,10 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -104,21 +104,48 @@ public class SliceBuilderTests extends ESTestCase {
     private ShardSearchRequest createPointInTimeRequest(int shardIndex, int numShards) {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true)
             .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("1m")));
-        return new ShardSearchRequest(OriginalIndices.NONE, searchRequest,
-            new ShardId("index", "index", 0), shardIndex, numShards, null, 0f, System.currentTimeMillis(), null);
+        return new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            new ShardId("index", "index", 0),
+            shardIndex,
+            numShards,
+            null,
+            0f,
+            System.currentTimeMillis(),
+            null
+        );
     }
 
     private ShardSearchRequest createScrollRequest(int shardIndex, int numShards) {
-        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true)
-            .scroll("1m");
-        return new ShardSearchRequest(OriginalIndices.NONE, searchRequest,
-            new ShardId("index", "index", 0), shardIndex, numShards, null, 0f, System.currentTimeMillis(), null);
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true).scroll("1m");
+        return new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            new ShardId("index", "index", 0),
+            shardIndex,
+            numShards,
+            null,
+            0f,
+            System.currentTimeMillis(),
+            null
+        );
     }
 
-    private SearchExecutionContext createSearchExecutionContext(Version indexVersionCreated, IndexReader reader,
-                                                                String fieldName, DocValuesType dvType) {
-        MappedFieldType fieldType = new MappedFieldType(fieldName, true, false, dvType != null,
-            TextSearchInfo.NONE, Collections.emptyMap()) {
+    private SearchExecutionContext createSearchExecutionContext(
+        Version indexVersionCreated,
+        IndexReader reader,
+        String fieldName,
+        DocValuesType dvType
+    ) {
+        MappedFieldType fieldType = new MappedFieldType(
+            fieldName,
+            true,
+            false,
+            dvType != null,
+            TextSearchInfo.NONE,
+            Collections.emptyMap()
+        ) {
 
             @Override
             public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
@@ -225,8 +252,7 @@ public class SliceBuilderTests extends ESTestCase {
             writer.commit();
         }
         try (IndexReader reader = DirectoryReader.open(dir)) {
-            SearchExecutionContext context =
-                createSearchExecutionContext(Version.CURRENT, reader, "_id", null);
+            SearchExecutionContext context = createSearchExecutionContext(Version.CURRENT, reader, "_id", null);
             SliceBuilder builder = new SliceBuilder(5, 10);
             Query query = builder.toFilter(createScrollRequest(0, 1), context);
             assertThat(query, instanceOf(TermsSliceQuery.class));
@@ -245,8 +271,7 @@ public class SliceBuilderTests extends ESTestCase {
             writer.commit();
         }
         try (IndexReader reader = DirectoryReader.open(dir)) {
-            SearchExecutionContext context =
-                createSearchExecutionContext(Version.CURRENT, reader, "field", DocValuesType.SORTED_NUMERIC);
+            SearchExecutionContext context = createSearchExecutionContext(Version.CURRENT, reader, "field", DocValuesType.SORTED_NUMERIC);
             SliceBuilder builder = new SliceBuilder("field", 5, 10);
             Query query = builder.toFilter(createScrollRequest(0, 1), context);
             assertThat(query, instanceOf(DocValuesSliceQuery.class));
@@ -331,8 +356,10 @@ public class SliceBuilderTests extends ESTestCase {
         try (IndexReader reader = DirectoryReader.open(dir)) {
             SearchExecutionContext context = createSearchExecutionContext(Version.CURRENT, reader, "field", null);
             SliceBuilder builder = new SliceBuilder("field", 5, 10);
-            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
-                () -> builder.toFilter(createScrollRequest(0, 1), context));
+            IllegalArgumentException exc = expectThrows(
+                IllegalArgumentException.class,
+                () -> builder.toFilter(createScrollRequest(0, 1), context)
+            );
             assertThat(exc.getMessage(), containsString("cannot load numeric doc values"));
         }
     }
@@ -356,14 +383,20 @@ public class SliceBuilderTests extends ESTestCase {
         SliceBuilder sliceBuilder = new SliceBuilder(IdFieldMapper.NAME, 1, 5);
         assertEquals(IdFieldMapper.NAME, sliceBuilder.getField());
 
-        SliceBuilder copy62 = copyWriteable(sliceBuilder,
+        SliceBuilder copy62 = copyWriteable(
+            sliceBuilder,
             new NamedWriteableRegistry(Collections.emptyList()),
-            SliceBuilder::new, Version.V_6_2_0);
+            SliceBuilder::new,
+            Version.V_6_2_0
+        );
         assertEquals(sliceBuilder, copy62);
 
-        SliceBuilder copy63 = copyWriteable(copy62,
+        SliceBuilder copy63 = copyWriteable(
+            copy62,
             new NamedWriteableRegistry(Collections.emptyList()),
-            SliceBuilder::new, Version.V_6_3_0);
+            SliceBuilder::new,
+            Version.V_6_3_0
+        );
         assertEquals(sliceBuilder, copy63);
     }
 
@@ -372,15 +405,11 @@ public class SliceBuilderTests extends ESTestCase {
         assertNull(sliceBuilder.getField());
 
         Version version1 = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_7_14_0);
-        SliceBuilder copy1 = copyWriteable(sliceBuilder,
-            new NamedWriteableRegistry(Collections.emptyList()),
-            SliceBuilder::new, version1);
+        SliceBuilder copy1 = copyWriteable(sliceBuilder, new NamedWriteableRegistry(Collections.emptyList()), SliceBuilder::new, version1);
         assertEquals(IdFieldMapper.NAME, copy1.getField());
 
         Version version2 = VersionUtils.randomVersionBetween(random(), Version.V_7_15_0, Version.CURRENT);
-        SliceBuilder copy2 = copyWriteable(sliceBuilder,
-            new NamedWriteableRegistry(Collections.emptyList()),
-            SliceBuilder::new, version2);
+        SliceBuilder copy2 = copyWriteable(sliceBuilder, new NamedWriteableRegistry(Collections.emptyList()), SliceBuilder::new, version2);
         assertNull(copy2.getField());
     }
 }

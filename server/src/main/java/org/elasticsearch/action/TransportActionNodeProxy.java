@@ -33,7 +33,12 @@ public class TransportActionNodeProxy<Request extends ActionRequest, Response ex
             listener.onFailure(validationException);
             return;
         }
-        transportService.sendRequest(node, action.name(), request, transportOptions,
-            new ActionListenerResponseHandler<>(listener, action.getResponseReader()));
+        transportService.sendRequest(
+            node,
+            action.name(),
+            request,
+            transportOptions,
+            new ActionListenerResponseHandler<>(listener, action.getResponseReader())
+        );
     }
 }

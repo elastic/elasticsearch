@@ -22,8 +22,11 @@ import java.io.IOException;
  */
 public class OpenIndexResponse extends ShardsAcknowledgedResponse {
 
-    private static final ConstructingObjectParser<OpenIndexResponse, Void> PARSER = new ConstructingObjectParser<>("open_index", true,
-            args -> new OpenIndexResponse((boolean) args[0], (boolean) args[1]));
+    private static final ConstructingObjectParser<OpenIndexResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "open_index",
+        true,
+        args -> new OpenIndexResponse((boolean) args[0], (boolean) args[1])
+    );
 
     static {
         declareAcknowledgedAndShardsAcknowledgedFields(PARSER);

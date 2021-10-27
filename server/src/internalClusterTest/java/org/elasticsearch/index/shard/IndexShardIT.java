@@ -31,8 +31,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -41,8 +39,9 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -74,6 +73,7 @@ import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -136,7 +136,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         ClusterService cs = getInstanceFromNode(ClusterService.class);
         final Index index = cs.state().metadata().index("test").getIndex();
         Path[] shardPaths = env.availableShardPaths(new ShardId(index, 0));
-        logger.info("--> paths: [{}]", (Object)shardPaths);
+        logger.info("--> paths: [{}]", (Object) shardPaths);
         // Should not be able to acquire the lock because it's already open
         try {
             NodeEnvironment.acquireFSLockForPaths(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), shardPaths);
@@ -150,26 +150,33 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final ShardLock sLock = new DummyShardLock(new ShardId(index, 0));
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
 
-        final LockObtainFailedException exception = expectThrows(LockObtainFailedException.class, () ->
-            env.deleteShardDirectoryUnderLock(sLock, indexSettings, indexPaths -> {
-                assert false : "should not be called " + indexPaths;
-            }));
+        final LockObtainFailedException exception = expectThrows(
+            LockObtainFailedException.class,
+            () -> env.deleteShardDirectoryUnderLock(
+                sLock,
+                indexSettings,
+                indexPaths -> { assert false : "should not be called " + indexPaths; }
+            )
+        );
         assertThat(exception.getMessage(), exception.getMessage(), containsString("unable to acquire write.lock"));
     }
 
     public void testMarkAsInactiveTriggersSyncedFlush() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test")
-            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("test")
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
+        );
         client().prepareIndex("test", "test").setSource("{}", XContentType.JSON).get();
         ensureGreen("test");
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         indicesService.indexService(resolveIndex("test")).getShardOrNull(0).checkIdle(0);
         assertBusy(() -> {
-                IndexStats indexStats = client().admin().indices().prepareStats("test").clear().setTranslog(true).get().getIndex("test");
-                assertThat(indexStats.getTotal().translog.getUncommittedOperations(), equalTo(0));
-                indicesService.indexService(resolveIndex("test")).getShardOrNull(0).checkIdle(0);
-            }
-        );
+            IndexStats indexStats = client().admin().indices().prepareStats("test").clear().setTranslog(true).get().getIndex("test");
+            assertThat(indexStats.getTotal().translog.getUncommittedOperations(), equalTo(0));
+            indicesService.indexService(resolveIndex("test")).getShardOrNull(0).checkIdle(0);
+        });
     }
 
     public void testDurableFlagHasEffect() {
@@ -205,49 +212,56 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         client().prepareDelete("test", "bar", "2").get();
         assertTrue(translog.syncNeeded());
         setDurability(shard, Translog.Durability.REQUEST);
-        assertNoFailures(client().prepareBulk()
-            .add(client().prepareIndex("test", "bar", "3").setSource("{}", XContentType.JSON))
-            .add(client().prepareDelete("test", "bar", "1")).get());
+        assertNoFailures(
+            client().prepareBulk()
+                .add(client().prepareIndex("test", "bar", "3").setSource("{}", XContentType.JSON))
+                .add(client().prepareDelete("test", "bar", "1"))
+                .get()
+        );
         assertFalse(needsSync.test(translog));
 
         setDurability(shard, Translog.Durability.ASYNC);
-        assertNoFailures(client().prepareBulk()
-            .add(client().prepareIndex("test", "bar", "4").setSource("{}", XContentType.JSON))
-            .add(client().prepareDelete("test", "bar", "3")).get());
+        assertNoFailures(
+            client().prepareBulk()
+                .add(client().prepareIndex("test", "bar", "4").setSource("{}", XContentType.JSON))
+                .add(client().prepareDelete("test", "bar", "3"))
+                .get()
+        );
         setDurability(shard, Translog.Durability.REQUEST);
         assertTrue(needsSync.test(translog));
     }
 
     private void setDurability(IndexShard shard, Translog.Durability durability) {
-        client().admin().indices().prepareUpdateSettings(shard.shardId().getIndexName()).setSettings(
-            Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), durability.name()).build()).get();
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(shard.shardId().getIndexName())
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), durability.name()).build())
+            .get();
         assertEquals(durability, shard.getTranslogDurability());
     }
 
     public void testUpdatePriority() {
-        assertAcked(client().admin().indices().prepareCreate("test")
-            .setSettings(Settings.builder().put(IndexMetadata.SETTING_PRIORITY, 200)));
+        assertAcked(
+            client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_PRIORITY, 200))
+        );
         IndexService indexService = getInstanceFromNode(IndicesService.class).indexService(resolveIndex("test"));
-        assertEquals(200,
-            indexService.getIndexSettings().getSettings().getAsInt(IndexMetadata.SETTING_PRIORITY, 0).intValue());
-        client().admin().indices().prepareUpdateSettings("test")
-            .setSettings(Settings.builder().put(IndexMetadata.SETTING_PRIORITY, 400)
-            .build()).get();
-        assertEquals(400,
-            indexService.getIndexSettings().getSettings().getAsInt(IndexMetadata.SETTING_PRIORITY, 0).intValue());
+        assertEquals(200, indexService.getIndexSettings().getSettings().getAsInt(IndexMetadata.SETTING_PRIORITY, 0).intValue());
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_PRIORITY, 400).build())
+            .get();
+        assertEquals(400, indexService.getIndexSettings().getSettings().getAsInt(IndexMetadata.SETTING_PRIORITY, 0).intValue());
     }
 
     public void testIndexDirIsDeletedWhenShardRemoved() throws Exception {
         Environment env = getInstanceFromNode(Environment.class);
         Path idxPath = env.sharedDataFile().resolve(randomAlphaOfLength(10));
         logger.info("--> idxPath: [{}]", idxPath);
-        Settings idxSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_DATA_PATH, idxPath)
-            .build();
+        Settings idxSettings = Settings.builder().put(IndexMetadata.SETTING_DATA_PATH, idxPath).build();
         createIndex("test", idxSettings);
         ensureGreen("test");
-        client().prepareIndex("test", "bar", "1")
-            .setSource("{}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test", "bar", "1").setSource("{}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
         SearchResponse response = client().prepareSearch("test").get();
         assertHitCount(response, 1L);
         client().admin().indices().prepareDelete("test").get();
@@ -256,8 +270,12 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     }
 
     public void testExpectedShardSizeIsPresent() throws InterruptedException {
-        assertAcked(client().admin().indices().prepareCreate("test")
-            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("test")
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
+        );
         for (int i = 0; i < 50; i++) {
             client().prepareIndex("test", "test").setSource("{}", XContentType.JSON).get();
         }
@@ -319,9 +337,13 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         }
 
         logger.info("--> updating data_path to [{}] for index [{}]", newIndexDataPath, index);
-        assertAcked(client().admin().indices().prepareUpdateSettings(index)
-            .setSettings(Settings.builder().put(IndexMetadata.SETTING_DATA_PATH, newIndexDataPath.toAbsolutePath().toString()).build())
-            .setIndicesOptions(IndicesOptions.fromOptions(true, false, true, true)));
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(index)
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_DATA_PATH, newIndexDataPath.toAbsolutePath().toString()).build())
+                .setIndicesOptions(IndicesOptions.fromOptions(true, false, true, true))
+        );
 
         logger.info("--> settings updated and files moved, re-opening index");
         assertAcked(client().admin().indices().prepareOpen(index));
@@ -336,28 +358,50 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     }
 
     public void testMaybeFlush() throws Exception {
-        createIndex("test", Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
-            .build());
+        createIndex(
+            "test",
+            Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST).build()
+        );
         ensureGreen();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
         assertFalse(shard.shouldPeriodicallyFlush());
-        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
-            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
-                new ByteSizeValue(135 /* size of the operation + one generation header&footer*/, ByteSizeUnit.BYTES)).build()).get();
-        client().prepareIndex("test", "_doc").setId("0")
-            .setSource("{}", XContentType.JSON).setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(
+                Settings.builder()
+                    .put(
+                        IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
+                        new ByteSizeValue(135 /* size of the operation + one generation header&footer*/, ByteSizeUnit.BYTES)
+                    )
+                    .build()
+            )
+            .get();
+        client().prepareIndex("test", "_doc")
+            .setId("0")
+            .setSource("{}", XContentType.JSON)
+            .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE)
+            .get();
         assertFalse(shard.shouldPeriodicallyFlush());
-        shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
+        shard.applyIndexOperationOnPrimary(
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
             new SourceToParse("test", "_doc", "1", new BytesArray("{}"), XContentType.JSON),
-            SequenceNumbers.UNASSIGNED_SEQ_NO, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            0,
+            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+            false
+        );
         assertTrue(shard.shouldPeriodicallyFlush());
         final Translog translog = getTranslog(shard);
         assertEquals(2, translog.stats().getUncommittedOperations());
         assertThat(shard.flushStats().getTotal(), equalTo(0L));
-        client().prepareIndex("test", "_doc", "2").setSource("{}", XContentType.JSON)
-            .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
+        client().prepareIndex("test", "_doc", "2")
+            .setSource("{}", XContentType.JSON)
+            .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE)
+            .get();
         assertThat(shard.getLastKnownGlobalCheckpoint(), equalTo(2L));
         assertBusy(() -> { // this is async
             assertFalse(shard.shouldPeriodicallyFlush());
@@ -368,21 +412,40 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertThat(shard.getLastSyncedGlobalCheckpoint(), equalTo(2L));
         assertThat("last commit [" + shard.commitStats().getUserData() + "]", translog.stats().getUncommittedOperations(), equalTo(0));
         long size = Math.max(translog.stats().getUncommittedSizeInBytes(), Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1);
-        logger.info("--> current translog size: [{}] num_ops [{}] generation [{}]",
-            translog.stats().getUncommittedSizeInBytes(), translog.stats().getUncommittedOperations(), translog.getGeneration());
-        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(
-            IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(size, ByteSizeUnit.BYTES))
-            .build()).get();
+        logger.info(
+            "--> current translog size: [{}] num_ops [{}] generation [{}]",
+            translog.stats().getUncommittedSizeInBytes(),
+            translog.stats().getUncommittedOperations(),
+            translog.getGeneration()
+        );
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(
+                Settings.builder()
+                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(size, ByteSizeUnit.BYTES))
+                    .build()
+            )
+            .get();
         client().prepareDelete("test", "_doc", "2").get();
-        logger.info("--> translog size after delete: [{}] num_ops [{}] generation [{}]",
-            translog.stats().getUncommittedSizeInBytes(), translog.stats().getUncommittedOperations(), translog.getGeneration());
+        logger.info(
+            "--> translog size after delete: [{}] num_ops [{}] generation [{}]",
+            translog.stats().getUncommittedSizeInBytes(),
+            translog.stats().getUncommittedOperations(),
+            translog.getGeneration()
+        );
         assertBusy(() -> { // this is async
             final TranslogStats translogStats = translog.stats();
             final CommitStats commitStats = shard.commitStats();
             final FlushStats flushStats = shard.flushStats();
-            logger.info("--> translog stats [{}] gen [{}] commit_stats [{}] flush_stats [{}/{}]",
-                Strings.toString(translogStats), translog.getGeneration().translogFileGeneration,
-                commitStats.getUserData(), flushStats.getPeriodic(), flushStats.getTotal());
+            logger.info(
+                "--> translog stats [{}] gen [{}] commit_stats [{}] flush_stats [{}/{}]",
+                Strings.toString(translogStats),
+                translog.getGeneration().translogFileGeneration,
+                commitStats.getUserData(),
+                flushStats.getPeriodic(),
+                flushStats.getTotal()
+            );
             assertFalse(shard.shouldPeriodicallyFlush());
         });
         shard.sync();
@@ -391,12 +454,10 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
     public void testMaybeRollTranslogGeneration() throws Exception {
         final int generationThreshold = randomIntBetween(64, 512);
-        final Settings settings =
-                Settings
-                        .builder()
-                        .put("index.number_of_shards", 1)
-                        .put("index.translog.generation_threshold_size", generationThreshold + "b")
-                        .build();
+        final Settings settings = Settings.builder()
+            .put("index.number_of_shards", 1)
+            .put("index.translog.generation_threshold_size", generationThreshold + "b")
+            .build();
         createIndex("test", settings, "test");
         ensureGreen("test");
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
@@ -408,9 +469,15 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final int numberOfDocuments = randomIntBetween(32, 128);
         for (int i = 0; i < numberOfDocuments; i++) {
             assertThat(translog.currentFileGeneration(), equalTo(generation + rolls));
-            final Engine.IndexResult result = shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
+            final Engine.IndexResult result = shard.applyIndexOperationOnPrimary(
+                Versions.MATCH_ANY,
+                VersionType.INTERNAL,
                 new SourceToParse("test", "test", "1", new BytesArray("{}"), XContentType.JSON),
-                SequenceNumbers.UNASSIGNED_SEQ_NO, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                0,
+                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+                false
+            );
             final Translog.Location location = result.getTranslogLocation();
             shard.afterWriteOperation();
             if (location.translogLocation + location.size > generationThreshold) {
@@ -440,9 +507,9 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         }
         client().admin().indices().prepareUpdateSettings("test").setSettings(settings).get();
         client().prepareIndex("test", "test", "0")
-                .setSource("{}", XContentType.JSON)
-                .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE)
-                .get();
+            .setSource("{}", XContentType.JSON)
+            .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE)
+            .get();
         assertFalse(shard.shouldPeriodicallyFlush());
         final AtomicBoolean running = new AtomicBoolean(true);
         final int numThreads = randomIntBetween(2, 4);
@@ -469,12 +536,24 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             check = () -> {
                 assertFalse(shard.shouldPeriodicallyFlush());
                 final FlushStats currentStats = shard.flushStats();
-                String msg = String.format(Locale.ROOT, "flush stats: total=[%d vs %d], periodic=[%d vs %d]",
-                    initialStats.getTotal(), currentStats.getTotal(), initialStats.getPeriodic(), currentStats.getPeriodic());
-                assertThat(msg, currentStats.getPeriodic(),
-                    either(equalTo(initialStats.getPeriodic() + 1)).or(equalTo(initialStats.getPeriodic() + 2)));
-                assertThat(msg, currentStats.getTotal(),
-                    either(equalTo(initialStats.getTotal() + 1)).or(equalTo(initialStats.getTotal() + 2)));
+                String msg = String.format(
+                    Locale.ROOT,
+                    "flush stats: total=[%d vs %d], periodic=[%d vs %d]",
+                    initialStats.getTotal(),
+                    currentStats.getTotal(),
+                    initialStats.getPeriodic(),
+                    currentStats.getPeriodic()
+                );
+                assertThat(
+                    msg,
+                    currentStats.getPeriodic(),
+                    either(equalTo(initialStats.getPeriodic() + 1)).or(equalTo(initialStats.getPeriodic() + 2))
+                );
+                assertThat(
+                    msg,
+                    currentStats.getTotal(),
+                    either(equalTo(initialStats.getTotal() + 1)).or(equalTo(initialStats.getTotal() + 2))
+                );
             };
         } else {
             final long generation = getTranslog(shard).currentFileGeneration();
@@ -524,8 +603,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         IndexShard shard = indexService.getShardOrNull(0);
         client().prepareIndex("test", "test", "0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         client().prepareDelete("test", "test", "0").get();
-        client().prepareIndex("test", "test", "1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test", "test", "1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
 
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = directoryReader -> directoryReader;
         shard.close("simon says", false);
@@ -545,7 +623,6 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                     throw e;
                 }
             }
-
 
             @Override
             public void postDelete(ShardId shardId, Engine.Delete delete, Engine.DeleteResult result) {
@@ -587,21 +664,29 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     }
 
     public void testCircuitBreakerIncrementedByIndexShard() throws Exception {
-        client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put("network.breaker.inflight_requests.overhead", 0.0)).get();
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put("network.breaker.inflight_requests.overhead", 0.0))
+            .get();
 
         // Generate a couple of segments
         client().prepareIndex("test", "_doc", "1")
             .setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE).get();
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
         // Use routing so 2 documents are guaranteed to be on the same shard
         String routing = randomAlphaOfLength(5);
         client().prepareIndex("test", "_doc", "2")
             .setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE).setRouting(routing).get();
+            .setRefreshPolicy(IMMEDIATE)
+            .setRouting(routing)
+            .get();
         client().prepareIndex("test", "_doc", "3")
             .setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE).setRouting(routing).get();
+            .setRefreshPolicy(IMMEDIATE)
+            .setRouting(routing)
+            .get();
 
         checkAccountingBreaker();
         // Test that force merging causes the breaker to be correctly adjusted
@@ -610,21 +695,28 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         client().admin().indices().prepareRefresh().get();
         checkAccountingBreaker();
 
-        client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put("indices.breaker.total.limit", "1kb")).get();
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put("indices.breaker.total.limit", "1kb"))
+            .get();
 
         // Test that we're now above the parent limit due to the segments
-        Exception e = expectThrows(Exception.class,
-                () -> client().prepareSearch("test")
-                    .addAggregation(AggregationBuilders.terms("foo_terms").field("foo.keyword")).get());
+        Exception e = expectThrows(
+            Exception.class,
+            () -> client().prepareSearch("test").addAggregation(AggregationBuilders.terms("foo_terms").field("foo.keyword")).get()
+        );
         logger.info("--> got an expected exception", e);
         assertThat(e.getCause(), notNullValue());
         assertThat(e.getCause().getMessage(), containsString("[parent] Data too large, data for [preallocate[aggregations]]"));
 
-        client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder()
-                        .putNull("indices.breaker.total.limit")
-                        .putNull("network.breaker.inflight_requests.overhead")).get();
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(
+                Settings.builder().putNull("indices.breaker.total.limit").putNull("network.breaker.inflight_requests.overhead")
+            )
+            .get();
 
         // Test that deleting the index causes the breaker to correctly be decremented
         logger.info("--> deleting index");
@@ -646,47 +738,57 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
     public static final IndexShard newIndexShard(
         final IndexService indexService,
-        final IndexShard shard, CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper,
+        final IndexShard shard,
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper,
         final CircuitBreakerService cbs,
-        final IndexingOperationListener... listeners) throws IOException {
+        final IndexingOperationListener... listeners
+    ) throws IOException {
         ShardRouting initializingShardRouting = getInitializingShardRouting(shard.routingEntry());
         return new IndexShard(
-                initializingShardRouting,
-                indexService.getIndexSettings(),
-                shard.shardPath(),
-                shard.store(),
-                indexService.getIndexSortSupplier(),
-                indexService.cache(),
-                indexService.mapperService(),
-                indexService.similarityService(),
-                shard.getEngineFactory(),
-                indexService.getIndexEventListener(),
-                wrapper,
-                indexService.getThreadPool(),
-                indexService.getBigArrays(),
-                null,
-                Collections.emptyList(),
-                Arrays.asList(listeners),
-                () -> {},
-                RetentionLeaseSyncer.EMPTY,
-                cbs,
-                IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER);
+            initializingShardRouting,
+            indexService.getIndexSettings(),
+            shard.shardPath(),
+            shard.store(),
+            indexService.getIndexSortSupplier(),
+            indexService.cache(),
+            indexService.mapperService(),
+            indexService.similarityService(),
+            shard.getEngineFactory(),
+            indexService.getIndexEventListener(),
+            wrapper,
+            indexService.getThreadPool(),
+            indexService.getBigArrays(),
+            null,
+            Collections.emptyList(),
+            Arrays.asList(listeners),
+            () -> {},
+            RetentionLeaseSyncer.EMPTY,
+            cbs,
+            IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER
+        );
     }
 
     private static ShardRouting getInitializingShardRouting(ShardRouting existingShardRouting) {
-        ShardRouting shardRouting = newShardRouting(existingShardRouting.shardId(),
-            existingShardRouting.currentNodeId(), null, existingShardRouting.primary(), ShardRoutingState.INITIALIZING,
-            existingShardRouting.allocationId());
-        shardRouting = shardRouting.updateUnassigned(new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, "fake recovery"),
-            RecoverySource.ExistingStoreRecoverySource.INSTANCE);
+        ShardRouting shardRouting = newShardRouting(
+            existingShardRouting.shardId(),
+            existingShardRouting.currentNodeId(),
+            null,
+            existingShardRouting.primary(),
+            ShardRoutingState.INITIALIZING,
+            existingShardRouting.allocationId()
+        );
+        shardRouting = shardRouting.updateUnassigned(
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, "fake recovery"),
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE
+        );
         return shardRouting;
     }
 
     public void testInvalidateIndicesRequestCacheWhenRollbackEngine() throws Exception {
-        createIndex("test", Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put("index.refresh_interval", -1).build());
+        createIndex(
+            "test",
+            Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).put("index.refresh_interval", -1).build()
+        );
         ensureGreen();
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexShard shard = indicesService.getShardOrNull(new ShardId(resolveIndex("test"), 0));
@@ -722,11 +824,17 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         }
         shard.refresh("test");
         try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-            assertThat("numDocs=" + numDocs + " moreDocs=" + moreDocs,
-                (long) searcher.getIndexReader().numDocs(), equalTo(numDocs + moreDocs));
+            assertThat(
+                "numDocs=" + numDocs + " moreDocs=" + moreDocs,
+                (long) searcher.getIndexReader().numDocs(),
+                equalTo(numDocs + moreDocs)
+            );
         }
-        assertThat("numDocs=" + numDocs + " moreDocs=" + moreDocs,
-            client().search(countRequest).actionGet().getHits().getTotalHits().value, equalTo(numDocs + moreDocs));
+        assertThat(
+            "numDocs=" + numDocs + " moreDocs=" + moreDocs,
+            client().search(countRequest).actionGet().getHits().getTotalHits().value,
+            equalTo(numDocs + moreDocs)
+        );
     }
 
     public void testShardChangesWithDefaultDocType() throws Exception {
@@ -734,20 +842,24 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)
             .put("index.translog.flush_threshold_size", "512mb") // do not flush
-            .put("index.soft_deletes.enabled", true).build();
+            .put("index.soft_deletes.enabled", true)
+            .build();
         IndexService indexService = createIndex("index", settings, "user_doc", "title", "type=keyword");
         int numOps = between(1, 10);
         for (int i = 0; i < numOps; i++) {
             if (randomBoolean()) {
                 client().prepareIndex("index", randomFrom("_doc", "user_doc"), randomFrom("1", "2"))
-                    .setSource("{}", XContentType.JSON).get();
+                    .setSource("{}", XContentType.JSON)
+                    .get();
             } else {
                 client().prepareDelete("index", randomFrom("_doc", "user_doc"), randomFrom("1", "2")).get();
             }
         }
         IndexShard shard = indexService.getShard(0);
-        try (Translog.Snapshot luceneSnapshot = shard.newChangesSnapshot("test", 0, numOps - 1, true);
-             Translog.Snapshot translogSnapshot = getTranslog(shard).newSnapshot()) {
+        try (
+            Translog.Snapshot luceneSnapshot = shard.newChangesSnapshot("test", 0, numOps - 1, true);
+            Translog.Snapshot translogSnapshot = getTranslog(shard).newSnapshot()
+        ) {
             List<Translog.Operation> opsFromLucene = TestTranslog.drainSnapshot(luceneSnapshot, true);
             List<Translog.Operation> opsFromTranslog = TestTranslog.drainSnapshot(translogSnapshot, true);
             assertThat(opsFromLucene, equalTo(opsFromTranslog));

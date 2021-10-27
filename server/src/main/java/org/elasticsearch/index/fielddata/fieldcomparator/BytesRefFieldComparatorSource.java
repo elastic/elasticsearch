@@ -84,8 +84,9 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
                     } else {
                         final BitSet rootDocs = nested.rootDocs(context);
                         final DocIdSetIterator innerDocs = nested.innerDocs(context);
-                        final int maxChildren = nested.getNestedSort() != null ?
-                            nested.getNestedSort().getMaxChildren() : Integer.MAX_VALUE;
+                        final int maxChildren = nested.getNestedSort() != null
+                            ? nested.getNestedSort().getMaxChildren()
+                            : Integer.MAX_VALUE;
                         selectedValues = sortMode.select(values, rootDocs, innerDocs, maxChildren);
                     }
                     if (sortMissingFirst(missingValue) || sortMissingLast(missingValue)) {
@@ -129,8 +130,13 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
     }
 
     @Override
-    public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format,
-            int bucketSize, BucketedSort.ExtraData extra) {
+    public BucketedSort newBucketedSort(
+        BigArrays bigArrays,
+        SortOrder sortOrder,
+        DocValueFormat format,
+        int bucketSize,
+        BucketedSort.ExtraData extra
+    ) {
         throw new IllegalArgumentException("only supported on numeric fields");
     }
 
@@ -151,7 +157,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
             this.substituteTerm = term;
             int sub = in.lookupTerm(term);
             if (sub < 0) {
-                substituteOrd = -sub-1;
+                substituteOrd = -sub - 1;
                 exists = false;
             } else {
                 substituteOrd = sub;
@@ -197,7 +203,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
             if (ord == substituteOrd) {
                 return substituteTerm;
             } else if (exists == false && ord > substituteOrd) {
-                return in.lookupOrd(ord-1);
+                return in.lookupOrd(ord - 1);
             } else {
                 return in.lookupOrd(ord);
             }

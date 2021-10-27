@@ -161,9 +161,17 @@ final class InternalIndexingStats implements IndexingOperationListener {
 
         IndexingStats.Stats stats(boolean isThrottled, long currentThrottleMillis) {
             return new IndexingStats.Stats(
-                indexMetric.count(), TimeUnit.NANOSECONDS.toMillis(indexMetric.sum()), indexCurrent.count(), indexFailed.count(),
-                deleteMetric.count(), TimeUnit.NANOSECONDS.toMillis(deleteMetric.sum()), deleteCurrent.count(),
-                noopUpdates.count(), isThrottled, TimeUnit.MILLISECONDS.toMillis(currentThrottleMillis));
+                indexMetric.count(),
+                TimeUnit.NANOSECONDS.toMillis(indexMetric.sum()),
+                indexCurrent.count(),
+                indexFailed.count(),
+                deleteMetric.count(),
+                TimeUnit.NANOSECONDS.toMillis(deleteMetric.sum()),
+                deleteCurrent.count(),
+                noopUpdates.count(),
+                isThrottled,
+                TimeUnit.MILLISECONDS.toMillis(currentThrottleMillis)
+            );
         }
     }
 }

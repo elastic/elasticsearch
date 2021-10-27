@@ -32,7 +32,7 @@ public class GetIndexTemplatesResponse extends ActionResponse implements ToXCont
         super(in);
         int size = in.readVInt();
         indexTemplates = new ArrayList<>();
-        for (int i = 0 ; i < size ; i++) {
+        for (int i = 0; i < size; i++) {
             indexTemplates.add(0, IndexTemplateMetadata.readFrom(in));
         }
     }
@@ -57,8 +57,7 @@ public class GetIndexTemplatesResponse extends ActionResponse implements ToXCont
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         params = new ToXContent.DelegatingMapParams(singletonMap("reduce_mappings", "true"), params);
 
-        boolean includeTypeName = params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
-            DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+        boolean includeTypeName = params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
 
         builder.startObject();
         for (IndexTemplateMetadata indexTemplateMetadata : getIndexTemplates()) {

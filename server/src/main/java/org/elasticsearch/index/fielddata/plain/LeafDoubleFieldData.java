@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
-
 /**
  * Specialization of {@link LeafNumericFieldData} for floating-point numerics.
  */
@@ -92,7 +91,6 @@ public abstract class LeafDoubleFieldData implements LeafNumericFieldData {
     }
 
     @Override
-    public void close() {
-    }
+    public void close() {}
 
 }

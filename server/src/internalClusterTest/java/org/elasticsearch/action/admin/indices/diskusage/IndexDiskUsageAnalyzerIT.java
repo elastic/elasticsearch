@@ -12,9 +12,9 @@ import org.apache.lucene.util.English;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -44,7 +44,9 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         mapping.endObject();
 
         final String index = "test-index";
-        client().admin().indices().prepareCreate(index)
+        client().admin()
+            .indices()
+            .prepareCreate(index)
             .addMapping("_doc", mapping)
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
             .get();
@@ -58,10 +60,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
                 .field("english_text", English.intToEnglish(value))
                 .field("value", value)
                 .endObject();
-            client().prepareIndex(index, "_doc")
-                .setId("id-" + i)
-                .setSource(doc)
-                .get();
+            client().prepareIndex(index, "_doc").setId("id-" + i).setSource(doc).get();
         }
         final boolean forceNorms = randomBoolean();
         if (forceNorms) {
@@ -69,15 +68,14 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
                 .startObject()
                 .field("english_text", "A long sentence to make sure that norms is non-zero")
                 .endObject();
-            client().prepareIndex(index, "_doc")
-                .setId("id")
-                .setSource(doc)
-                .get();
+            client().prepareIndex(index, "_doc").setId("id").setSource(doc).get();
         }
         PlainActionFuture<AnalyzeIndexDiskUsageResponse> future = PlainActionFuture.newFuture();
-        client().execute(AnalyzeIndexDiskUsageAction.INSTANCE,
-            new AnalyzeIndexDiskUsageRequest(new String[] {index}, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true),
-            future);
+        client().execute(
+            AnalyzeIndexDiskUsageAction.INSTANCE,
+            new AnalyzeIndexDiskUsageRequest(new String[] { index }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true),
+            future
+        );
 
         AnalyzeIndexDiskUsageResponse resp = future.actionGet();
         final IndexDiskUsageStats stats = resp.getStats().get(index);
@@ -99,7 +97,6 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
 
         assertMetadataFields(stats);
     }
-
 
     void assertMetadataFields(IndexDiskUsageStats stats) {
         final IndexDiskUsageStats.PerFieldDiskUsage sourceField = stats.getFields().get("_source");

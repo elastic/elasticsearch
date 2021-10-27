@@ -17,8 +17,8 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.fielddata.DoubleScriptFieldData;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.CompositeFieldScript;
+import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -43,10 +43,12 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         }
 
         @Override
-        AbstractScriptFieldType<?> createFieldType(String name,
-                                                   DoubleFieldScript.Factory factory,
-                                                   Script script,
-                                                   Map<String, String> meta) {
+        AbstractScriptFieldType<?> createFieldType(
+            String name,
+            DoubleFieldScript.Factory factory,
+            Script script,
+            Map<String, String> meta
+        ) {
             return new DoubleScriptFieldType(name, factory, script, meta);
         }
 
@@ -65,14 +67,14 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         return new Builder(name).createRuntimeField(DoubleFieldScript.PARSE_FROM_SOURCE);
     }
 
-    DoubleScriptFieldType(
-        String name,
-        DoubleFieldScript.Factory scriptFactory,
-        Script script,
-        Map<String, String> meta
-    ) {
-        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
-            script, scriptFactory.isResultDeterministic(), meta);
+    DoubleScriptFieldType(String name, DoubleFieldScript.Factory scriptFactory, Script script, Map<String, String> meta) {
+        super(
+            name,
+            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
+            script,
+            scriptFactory.isResultDeterministic(),
+            meta
+        );
     }
 
     @Override

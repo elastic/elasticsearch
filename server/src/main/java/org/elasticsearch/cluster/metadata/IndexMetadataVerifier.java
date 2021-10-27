@@ -17,7 +17,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -27,6 +26,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.AbstractMap;
 import java.util.Collections;
@@ -55,8 +55,13 @@ public class IndexMetadataVerifier {
     private final IndexScopedSettings indexScopedSettings;
     private final ScriptCompiler scriptService;
 
-    public IndexMetadataVerifier(Settings settings, NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry,
-                                 IndexScopedSettings indexScopedSettings, ScriptCompiler scriptCompiler) {
+    public IndexMetadataVerifier(
+        Settings settings,
+        NamedXContentRegistry xContentRegistry,
+        MapperRegistry mapperRegistry,
+        IndexScopedSettings indexScopedSettings,
+        ScriptCompiler scriptCompiler
+    ) {
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;
         this.mapperRegistry = mapperRegistry;
@@ -86,10 +91,19 @@ public class IndexMetadataVerifier {
     private void checkSupportedVersion(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
         boolean isSupportedVersion = indexMetadata.getCreationVersion().onOrAfter(minimumIndexCompatibilityVersion);
         if (indexMetadata.getState() == IndexMetadata.State.OPEN && isSupportedVersion == false) {
-            throw new IllegalStateException("The index " + indexMetadata.getIndex() + " was created with version ["
-                + indexMetadata.getCreationVersion() + "] but the minimum compatible version is ["
-                + minimumIndexCompatibilityVersion + "]. It should be re-indexed in Elasticsearch " + minimumIndexCompatibilityVersion.major
-                + ".x before upgrading to " + Version.CURRENT + ".");
+            throw new IllegalStateException(
+                "The index "
+                    + indexMetadata.getIndex()
+                    + " was created with version ["
+                    + indexMetadata.getCreationVersion()
+                    + "] but the minimum compatible version is ["
+                    + minimumIndexCompatibilityVersion
+                    + "]. It should be re-indexed in Elasticsearch "
+                    + minimumIndexCompatibilityVersion.major
+                    + ".x before upgrading to "
+                    + Version.CURRENT
+                    + "."
+            );
         }
     }
 
@@ -116,8 +130,9 @@ public class IndexMetadataVerifier {
 
             IndexSettings indexSettings = new IndexSettings(indexMetadata, this.settings);
 
-            final Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarityMap
-                    = new AbstractMap<String, TriFunction<Settings, Version, ScriptService, Similarity>>() {
+            final Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarityMap = new AbstractMap<
+                String,
+                TriFunction<Settings, Version, ScriptService, Similarity>>() {
                 @Override
                 public boolean containsKey(Object key) {
                     return true;
@@ -148,7 +163,7 @@ public class IndexMetadataVerifier {
                 @Override
                 public NamedAnalyzer get(Object key) {
                     assert key instanceof String : "key must be a string but was: " + key.getClass();
-                    return new NamedAnalyzer((String)key, AnalyzerScope.INDEX, fakeDefault.analyzer());
+                    return new NamedAnalyzer((String) key, AnalyzerScope.INDEX, fakeDefault.analyzer());
                 }
 
                 // this entrySet impl isn't fully correct but necessary as IndexAnalyzers will iterate
@@ -158,10 +173,17 @@ public class IndexMetadataVerifier {
                     return Collections.emptySet();
                 }
             };
-            try (IndexAnalyzers fakeIndexAnalzyers =
-                     new IndexAnalyzers(analyzerMap, analyzerMap, analyzerMap)) {
-                MapperService mapperService = new MapperService(indexSettings, fakeIndexAnalzyers, xContentRegistry, similarityService,
-                        mapperRegistry, () -> null, () -> false, scriptService);
+            try (IndexAnalyzers fakeIndexAnalzyers = new IndexAnalyzers(analyzerMap, analyzerMap, analyzerMap)) {
+                MapperService mapperService = new MapperService(
+                    indexSettings,
+                    fakeIndexAnalzyers,
+                    xContentRegistry,
+                    similarityService,
+                    mapperRegistry,
+                    () -> null,
+                    () -> false,
+                    scriptService
+                );
                 mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
             }
         } catch (Exception ex) {
@@ -178,10 +200,22 @@ public class IndexMetadataVerifier {
         final Settings settings = indexMetadata.getSettings();
         final Settings newSettings = indexScopedSettings.archiveUnknownOrInvalidSettings(
             settings,
-            e -> logger.warn("{} ignoring unknown index setting: [{}] with value [{}]; archiving",
-                indexMetadata.getIndex(), e.getKey(), e.getValue()),
-            (e, ex) -> logger.warn(() -> new ParameterizedMessage("{} ignoring invalid index setting: [{}] with value [{}]; archiving",
-                indexMetadata.getIndex(), e.getKey(), e.getValue()), ex));
+            e -> logger.warn(
+                "{} ignoring unknown index setting: [{}] with value [{}]; archiving",
+                indexMetadata.getIndex(),
+                e.getKey(),
+                e.getValue()
+            ),
+            (e, ex) -> logger.warn(
+                () -> new ParameterizedMessage(
+                    "{} ignoring invalid index setting: [{}] with value [{}]; archiving",
+                    indexMetadata.getIndex(),
+                    e.getKey(),
+                    e.getValue()
+                ),
+                ex
+            )
+        );
         if (newSettings != settings) {
             return IndexMetadata.builder(indexMetadata).settings(newSettings).build();
         } else {

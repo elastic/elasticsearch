@@ -18,11 +18,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -30,6 +25,11 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -52,8 +52,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField ID_FIELD = new ParseField("id");
     public static final ParseField MAX_FIELD = new ParseField("max");
-    private static final ObjectParser<SliceBuilder, Void> PARSER =
-        new ObjectParser<>("slice", SliceBuilder::new);
+    private static final ObjectParser<SliceBuilder, Void> PARSER = new ObjectParser<>("slice", SliceBuilder::new);
 
     static {
         PARSER.declareString(SliceBuilder::setField, FIELD_FIELD);
@@ -260,9 +259,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
 
     private Query createSliceQuery(int id, int max, SearchExecutionContext context, boolean isScroll) {
         if (field == null) {
-            return isScroll
-                ? new TermsSliceQuery(IdFieldMapper.NAME, id, max)
-                : new DocIdSliceQuery(id, max);
+            return isScroll ? new TermsSliceQuery(IdFieldMapper.NAME, id, max) : new DocIdSliceQuery(id, max);
         } else if (IdFieldMapper.NAME.equals(field)) {
             if (isScroll == false) {
                 throw new IllegalArgumentException("cannot slice on [_id] when using [point-in-time]");
@@ -275,8 +272,11 @@ public class SliceBuilder implements Writeable, ToXContentObject {
             if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
                 throw new IllegalArgumentException("Computing slices on the [_uid] field is illegal for 7.x indices, use [_id] instead");
             }
-            DEPRECATION_LOG.critical(DeprecationCategory.API, "slice_on_uid",
-                "Computing slices on the [_uid] field is deprecated for 6.x indices, use [_id] instead");
+            DEPRECATION_LOG.critical(
+                DeprecationCategory.API,
+                "slice_on_uid",
+                "Computing slices on the [_uid] field is deprecated for 6.x indices, use [_id] instead"
+            );
             // on new indices, the _id acts as a _uid
             return new TermsSliceQuery(IdFieldMapper.NAME, id, max);
         } else {

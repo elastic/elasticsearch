@@ -123,8 +123,8 @@ public class JodaDateFormatter implements DateFormatter {
         }
         JodaDateFormatter other = (JodaDateFormatter) obj;
 
-        return Objects.equals(pattern(), other.pattern()) &&
-            Objects.equals(locale(), other.locale()) &&
-            Objects.equals(zone(), other.zone());
+        return Objects.equals(pattern(), other.pattern())
+            && Objects.equals(locale(), other.locale())
+            && Objects.equals(zone(), other.zone());
     }
 }

@@ -98,11 +98,13 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
      *                                          preventing the exhaustion of repository resources.
      * @param listener                          called when recovery is completed/failed
      */
-    public RecoveryTarget(IndexShard indexShard,
-                          DiscoveryNode sourceNode,
-                          SnapshotFilesProvider snapshotFilesProvider,
-                          @Nullable Releasable snapshotFileDownloadsPermit,
-                          PeerRecoveryTargetService.RecoveryListener listener) {
+    public RecoveryTarget(
+        IndexShard indexShard,
+        DiscoveryNode sourceNode,
+        SnapshotFilesProvider snapshotFilesProvider,
+        @Nullable Releasable snapshotFileDownloadsPermit,
+        PeerRecoveryTargetService.RecoveryListener listener
+    ) {
         this.cancellableThreads = new CancellableThreads();
         this.recoveryId = idGenerator.incrementAndGet();
         this.listener = listener;
@@ -113,8 +115,13 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         this.snapshotFileDownloadsPermit = snapshotFileDownloadsPermit;
         this.shardId = indexShard.shardId();
         final String tempFilePrefix = RECOVERY_PREFIX + UUIDs.randomBase64UUID() + ".";
-        this.multiFileWriter = new MultiFileWriter(indexShard.store(), indexShard.recoveryState().getIndex(), tempFilePrefix, logger,
-            this::ensureRefCount);
+        this.multiFileWriter = new MultiFileWriter(
+            indexShard.store(),
+            indexShard.recoveryState().getIndex(),
+            tempFilePrefix,
+            logger,
+            this::ensureRefCount
+        );
         this.store = indexShard.store();
         // make sure the store is not released until we are done.
         store.incRef();
@@ -217,8 +224,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             try {
                 newTargetCancellableThreads.execute(closedLatch::await);
             } catch (CancellableThreads.ExecutionCancelledException e) {
-                logger.trace("new recovery target cancelled for shard {} while waiting on old recovery target with id [{}] to close",
-                    shardId, recoveryId);
+                logger.trace(
+                    "new recovery target cancelled for shard {} while waiting on old recovery target with id [{}] to close",
+                    shardId,
+                    recoveryId
+                );
                 return false;
             }
             RecoveryState.Stage stage = indexShard.recoveryState().getStage();
@@ -322,8 +332,9 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     private void ensureRefCount() {
         if (refCount() <= 0) {
-            throw new ElasticsearchException("RecoveryStatus is used but it's refcount is 0. Probably a mismatch between incRef/decRef " +
-                    "calls");
+            throw new ElasticsearchException(
+                "RecoveryStatus is used but it's refcount is 0. Probably a mismatch between incRef/decRef " + "calls"
+            );
         }
     }
 
@@ -367,9 +378,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     private boolean hasUncommittedOperations() throws IOException {
         long localCheckpointOfCommit = Long.parseLong(indexShard.commitStats().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-        return indexShard.estimateNumberOfHistoryOperations("peer-recovery",
+        return indexShard.estimateNumberOfHistoryOperations(
+            "peer-recovery",
             indexShard.indexSettings().isSoftDeleteEnabled() ? Engine.HistorySource.INDEX : Engine.HistorySource.TRANSLOG,
-            localCheckpointOfCommit + 1) > 0;
+            localCheckpointOfCommit + 1
+        ) > 0;
     }
 
     @Override
@@ -382,13 +395,14 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     @Override
     public void indexTranslogOperations(
-            final List<Translog.Operation> operations,
-            final int totalTranslogOps,
-            final long maxSeenAutoIdTimestampOnPrimary,
-            final long maxSeqNoOfDeletesOrUpdatesOnPrimary,
-            final RetentionLeases retentionLeases,
-            final long mappingVersionOnPrimary,
-            final ActionListener<Long> listener) {
+        final List<Translog.Operation> operations,
+        final int totalTranslogOps,
+        final long maxSeenAutoIdTimestampOnPrimary,
+        final long maxSeqNoOfDeletesOrUpdatesOnPrimary,
+        final RetentionLeases retentionLeases,
+        final long mappingVersionOnPrimary,
+        final ActionListener<Long> listener
+    ) {
         ActionListener.completeWith(listener, () -> {
             final RecoveryState.Translog translog = state().getTranslog();
             translog.totalOperations(totalTranslogOps);
@@ -435,12 +449,14 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public void receiveFileInfo(List<String> phase1FileNames,
-                                List<Long> phase1FileSizes,
-                                List<String> phase1ExistingFileNames,
-                                List<Long> phase1ExistingFileSizes,
-                                int totalTranslogOps,
-                                ActionListener<Void> listener) {
+    public void receiveFileInfo(
+        List<String> phase1FileNames,
+        List<Long> phase1FileSizes,
+        List<String> phase1ExistingFileNames,
+        List<Long> phase1ExistingFileSizes,
+        int totalTranslogOps,
+        ActionListener<Void> listener
+    ) {
         ActionListener.completeWith(listener, () -> {
             multiFileWriter.deleteTempFiles();
             indexShard.resetRecoveryStage();
@@ -460,8 +476,12 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetadata,
-                           ActionListener<Void> listener) {
+    public void cleanFiles(
+        int totalTranslogOps,
+        long globalCheckpoint,
+        Store.MetadataSnapshot sourceMetadata,
+        ActionListener<Void> listener
+    ) {
         ActionListener.completeWith(listener, () -> {
             state().getTranslog().totalOperations(totalTranslogOps);
             // first, we go and move files that were created with the recovery id suffix to
@@ -476,7 +496,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                     store.ensureIndexHasHistoryUUID();
                 }
                 final String translogUUID = Translog.createEmptyTranslog(
-                    indexShard.shardPath().resolveTranslog(), globalCheckpoint, shardId, indexShard.getPendingPrimaryTerm());
+                    indexShard.shardPath().resolveTranslog(),
+                    globalCheckpoint,
+                    shardId,
+                    indexShard.getPendingPrimaryTerm()
+                );
                 store.associateIndexWithNewTranslog(translogUUID);
 
                 if (indexShard.getRetentionLeases().leases().isEmpty()) {
@@ -519,8 +543,14 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public void writeFileChunk(StoreFileMetadata fileMetadata, long position, ReleasableBytesReference content,
-                               boolean lastChunk, int totalTranslogOps, ActionListener<Void> listener) {
+    public void writeFileChunk(
+        StoreFileMetadata fileMetadata,
+        long position,
+        ReleasableBytesReference content,
+        boolean lastChunk,
+        int totalTranslogOps,
+        ActionListener<Void> listener
+    ) {
         try {
             state().getTranslog().totalOperations(totalTranslogOps);
             multiFileWriter.writeFileChunk(fileMetadata, position, content, lastChunk);
@@ -531,22 +561,29 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public void restoreFileFromSnapshot(String repository,
-                                        IndexId indexId,
-                                        BlobStoreIndexShardSnapshot.FileInfo fileInfo,
-                                        ActionListener<Void> listener) {
+    public void restoreFileFromSnapshot(
+        String repository,
+        IndexId indexId,
+        BlobStoreIndexShardSnapshot.FileInfo fileInfo,
+        ActionListener<Void> listener
+    ) {
         assert hasPermitToDownloadSnapshotFiles();
 
-        try (InputStream inputStream =
-                 snapshotFilesProvider.getInputStreamForSnapshotFile(repository, indexId, shardId, fileInfo, this::registerThrottleTime)) {
+        try (
+            InputStream inputStream = snapshotFilesProvider.getInputStreamForSnapshotFile(
+                repository,
+                indexId,
+                shardId,
+                fileInfo,
+                this::registerThrottleTime
+            )
+        ) {
             StoreFileMetadata metadata = fileInfo.metadata();
             int readSnapshotFileBufferSize = snapshotFilesProvider.getReadSnapshotFileBufferSizeForRepo(repository);
             multiFileWriter.writeFile(metadata, readSnapshotFileBufferSize, inputStream);
             listener.onResponse(null);
         } catch (Exception e) {
-            logger.debug(
-                new ParameterizedMessage("Unable to recover snapshot file {} from repository {}", fileInfo, repository), e
-            );
+            logger.debug(new ParameterizedMessage("Unable to recover snapshot file {} from repository {}", fileInfo, repository), e);
             listener.onFailure(e);
         }
     }

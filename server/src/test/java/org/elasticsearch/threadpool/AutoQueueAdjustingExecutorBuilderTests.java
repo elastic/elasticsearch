@@ -19,9 +19,9 @@ public class AutoQueueAdjustingExecutorBuilderTests extends ESThreadPoolTestCase
 
     public void testValidatingMinMaxSettings() {
         Settings settings = Settings.builder()
-                .put("thread_pool.test.min_queue_size", randomIntBetween(30, 100))
-                .put("thread_pool.test.max_queue_size", randomIntBetween(1,25))
-                .build();
+            .put("thread_pool.test.min_queue_size", randomIntBetween(30, 100))
+            .put("thread_pool.test.max_queue_size", randomIntBetween(1, 25))
+            .build();
         try {
             new AutoQueueAdjustingExecutorBuilder(settings, "test", 1, 15, 1, 100, 10);
             fail("should have thrown an exception");
@@ -29,10 +29,7 @@ public class AutoQueueAdjustingExecutorBuilderTests extends ESThreadPoolTestCase
             assertThat(e.getMessage(), containsString("Failed to parse value"));
         }
 
-        settings = Settings.builder()
-            .put("thread_pool.test.min_queue_size", 10)
-            .put("thread_pool.test.max_queue_size", 9)
-            .build();
+        settings = Settings.builder().put("thread_pool.test.min_queue_size", 10).put("thread_pool.test.max_queue_size", 9).build();
         try {
             new AutoQueueAdjustingExecutorBuilder(settings, "test", 1, 15, 1, 100, 2000).getSettings(settings);
             fail("should have thrown an exception");
@@ -40,10 +37,7 @@ public class AutoQueueAdjustingExecutorBuilderTests extends ESThreadPoolTestCase
             assertEquals(e.getMessage(), "Failed to parse value [10] for setting [thread_pool.test.min_queue_size] must be <= 9");
         }
 
-        settings = Settings.builder()
-            .put("thread_pool.test.min_queue_size", 11)
-            .put("thread_pool.test.max_queue_size", 10)
-            .build();
+        settings = Settings.builder().put("thread_pool.test.min_queue_size", 11).put("thread_pool.test.max_queue_size", 10).build();
         try {
             new AutoQueueAdjustingExecutorBuilder(settings, "test", 1, 15, 1, 100, 2000).getSettings(settings);
             fail("should have thrown an exception");
@@ -51,9 +45,7 @@ public class AutoQueueAdjustingExecutorBuilderTests extends ESThreadPoolTestCase
             assertEquals(e.getMessage(), "Failed to parse value [11] for setting [thread_pool.test.min_queue_size] must be <= 10");
         }
 
-        settings = Settings.builder()
-            .put("thread_pool.test.min_queue_size", 101)
-            .build();
+        settings = Settings.builder().put("thread_pool.test.min_queue_size", 101).build();
         try {
             new AutoQueueAdjustingExecutorBuilder(settings, "test", 1, 15, 100, 100, 2000).getSettings(settings);
             fail("should have thrown an exception");
@@ -61,9 +53,7 @@ public class AutoQueueAdjustingExecutorBuilderTests extends ESThreadPoolTestCase
             assertEquals(e.getMessage(), "Failed to parse value [101] for setting [thread_pool.test.min_queue_size] must be <= 100");
         }
 
-        settings = Settings.builder()
-            .put("thread_pool.test.max_queue_size", 99)
-            .build();
+        settings = Settings.builder().put("thread_pool.test.max_queue_size", 99).build();
         try {
             new AutoQueueAdjustingExecutorBuilder(settings, "test", 1, 15, 100, 100, 2000).getSettings(settings);
             fail("should have thrown an exception");
@@ -84,8 +74,9 @@ public class AutoQueueAdjustingExecutorBuilderTests extends ESThreadPoolTestCase
         assertEquals(10, s.maxQueueSize);
         assertEquals(10, s.minQueueSize);
 
-        assertSettingDeprecationsAndWarnings(getDeprecatedSettingsForSettingNames("thread_pool.test.min_queue_size",
-            "thread_pool.test.max_queue_size"));
+        assertSettingDeprecationsAndWarnings(
+            getDeprecatedSettingsForSettingNames("thread_pool.test.min_queue_size", "thread_pool.test.max_queue_size")
+        );
     }
 
     public void testSetHigherSettings() {
@@ -98,13 +89,15 @@ public class AutoQueueAdjustingExecutorBuilderTests extends ESThreadPoolTestCase
         assertEquals(3000, s.maxQueueSize);
         assertEquals(2000, s.minQueueSize);
 
-        assertSettingDeprecationsAndWarnings(getDeprecatedSettingsForSettingNames("thread_pool.test.min_queue_size",
-            "thread_pool.test.max_queue_size"));
+        assertSettingDeprecationsAndWarnings(
+            getDeprecatedSettingsForSettingNames("thread_pool.test.min_queue_size", "thread_pool.test.max_queue_size")
+        );
     }
 
     private Setting<?>[] getDeprecatedSettingsForSettingNames(String... settingNames) {
-        return Arrays.stream(settingNames).map(settingName -> Setting.intSetting(settingName, randomInt(),
-            Setting.Property.Deprecated)).toArray(Setting[]::new);
+        return Arrays.stream(settingNames)
+            .map(settingName -> Setting.intSetting(settingName, randomInt(), Setting.Property.Deprecated))
+            .toArray(Setting[]::new);
     }
 
 }

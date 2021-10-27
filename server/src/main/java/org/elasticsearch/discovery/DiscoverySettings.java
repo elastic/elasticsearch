@@ -23,9 +23,13 @@ public class DiscoverySettings {
      * sets the timeout for a complete publishing cycle, including both sending and committing. the master
      * will continue to process the next cluster state update after this time has elapsed
      **/
-    public static final Setting<TimeValue> PUBLISH_TIMEOUT_SETTING =
-        Setting.positiveTimeSetting("discovery.zen.publish_timeout", TimeValue.timeValueSeconds(30),
-            Property.Dynamic, Property.NodeScope, Property.Deprecated);
+    public static final Setting<TimeValue> PUBLISH_TIMEOUT_SETTING = Setting.positiveTimeSetting(
+        "discovery.zen.publish_timeout",
+        TimeValue.timeValueSeconds(30),
+        Property.Dynamic,
+        Property.NodeScope,
+        Property.Deprecated
+    );
 
     /**
      * sets the timeout for receiving enough acks for a specific cluster state and committing it. failing
@@ -37,11 +41,20 @@ public class DiscoverySettings {
         (s) -> TimeValue.parseTimeValue(s, TimeValue.timeValueSeconds(30), "discovery.zen.commit_timeout"),
         Property.Deprecated,
         Property.Dynamic,
-        Property.NodeScope);
-    public static final Setting<Boolean> PUBLISH_DIFF_ENABLE_SETTING =
-        Setting.boolSetting("discovery.zen.publish_diff.enable", true, Property.Dynamic, Property.NodeScope, Property.Deprecated);
-    public static final Setting<TimeValue> INITIAL_STATE_TIMEOUT_SETTING =
-        Setting.positiveTimeSetting("discovery.initial_state_timeout", TimeValue.timeValueSeconds(30), Property.NodeScope);
+        Property.NodeScope
+    );
+    public static final Setting<Boolean> PUBLISH_DIFF_ENABLE_SETTING = Setting.boolSetting(
+        "discovery.zen.publish_diff.enable",
+        true,
+        Property.Dynamic,
+        Property.NodeScope,
+        Property.Deprecated
+    );
+    public static final Setting<TimeValue> INITIAL_STATE_TIMEOUT_SETTING = Setting.positiveTimeSetting(
+        "discovery.initial_state_timeout",
+        TimeValue.timeValueSeconds(30),
+        Property.NodeScope
+    );
 
     private volatile TimeValue publishTimeout;
 
@@ -80,6 +93,8 @@ public class DiscoverySettings {
         this.commitTimeout = commitTimeout;
     }
 
-    public boolean getPublishDiff() { return publishDiff;}
+    public boolean getPublishDiff() {
+        return publishDiff;
+    }
 
 }

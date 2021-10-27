@@ -22,10 +22,10 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -51,9 +51,13 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
 
     public static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time").withZone(ZoneOffset.UTC);
 
-    public static final Setting<TimeValue> INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING =
-        Setting.positiveTimeSetting("index.unassigned.node_left.delayed_timeout", TimeValue.timeValueMinutes(1), Property.Dynamic,
-            Property.IndexScope);
+    public static final Setting<TimeValue> INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING = Setting.positiveTimeSetting(
+        "index.unassigned.node_left.delayed_timeout",
+        TimeValue.timeValueMinutes(1),
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     /**
      * Reason why the shard is in unassigned state.
      * <p>
@@ -232,8 +236,18 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      * @param message more information about cause.
      **/
     public UnassignedInfo(Reason reason, String message) {
-        this(reason, message, null, reason == Reason.ALLOCATION_FAILED ? 1 : 0, System.nanoTime(), System.currentTimeMillis(), false,
-             AllocationStatus.NO_ATTEMPT, Collections.emptySet(), null);
+        this(
+            reason,
+            message,
+            null,
+            reason == Reason.ALLOCATION_FAILED ? 1 : 0,
+            System.nanoTime(),
+            System.currentTimeMillis(),
+            false,
+            AllocationStatus.NO_ATTEMPT,
+            Collections.emptySet(),
+            null
+        );
     }
 
     /**
@@ -269,14 +283,11 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         this.lastAllocationStatus = Objects.requireNonNull(lastAllocationStatus);
         this.failedNodeIds = org.elasticsearch.core.Set.copyOf(failedNodeIds);
         this.lastAllocatedNodeId = lastAllocatedNodeId;
-        assert (failedAllocations > 0) == (reason == Reason.ALLOCATION_FAILED) : "failedAllocations: "
-            + failedAllocations
-            + " for reason "
-            + reason;
+        assert (failedAllocations > 0) == (reason == Reason.ALLOCATION_FAILED)
+            : "failedAllocations: " + failedAllocations + " for reason " + reason;
         assert (message == null && failure != null) == false : "provide a message if a failure exception is provided";
-        assert (delayed
-            && reason != Reason.NODE_LEFT
-            && reason != Reason.NODE_RESTARTING) == false : "shard can only be delayed if it is unassigned due to a node leaving";
+        assert (delayed && reason != Reason.NODE_LEFT && reason != Reason.NODE_RESTARTING) == false
+            : "shard can only be delayed if it is unassigned due to a node leaving";
         // The below check should be expanded to require `lastAllocatedNodeId` for `NODE_LEFT` as well, once we no longer have to consider
         // BWC with versions prior to `VERSION_LAST_ALLOCATED_NODE_ADDED`.
         assert (reason == Reason.NODE_RESTARTING && lastAllocatedNodeId == null) == false
@@ -494,7 +505,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         StringBuilder sb = new StringBuilder();
         sb.append("[reason=").append(reason).append("]");
         sb.append(", at[").append(DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(unassignedTimeMillis))).append("]");
-        if (failedAllocations >  0) {
+        if (failedAllocations > 0) {
             sb.append(", failed_attempts[").append(failedAllocations).append("]");
         }
         if (failedNodeIds.isEmpty() == false) {
@@ -520,7 +531,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         builder.startObject("unassigned_info");
         builder.field("reason", reason);
         builder.field("at", DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(unassignedTimeMillis)));
-        if (failedAllocations >  0) {
+        if (failedAllocations > 0) {
             builder.field("failed_attempts", failedAllocations);
         }
         if (failedNodeIds.isEmpty() == false) {

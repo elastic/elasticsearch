@@ -8,14 +8,14 @@
 
 package org.elasticsearch.common.logging;
 
-import java.util.Arrays;
-
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
 import org.apache.lucene.util.SetOnce;
+
+import java.util.Arrays;
 
 /**
  * Converts {@code %node_name} in log4j patterns into the current node name.
@@ -24,7 +24,7 @@ import org.apache.lucene.util.SetOnce;
  * elasticsearch.yml.
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "NodeNamePatternConverter")
-@ConverterKeys({"node_name"})
+@ConverterKeys({ "node_name" })
 public final class NodeNamePatternConverter extends LogEventPatternConverter {
     /**
      * The name of this node.
@@ -43,8 +43,7 @@ public final class NodeNamePatternConverter extends LogEventPatternConverter {
      */
     public static NodeNamePatternConverter newInstance(final String[] options) {
         if (options.length > 0) {
-            throw new IllegalArgumentException("no options supported but options provided: "
-                    + Arrays.toString(options));
+            throw new IllegalArgumentException("no options supported but options provided: " + Arrays.toString(options));
         }
         String nodeName = NODE_NAME.get();
         if (nodeName == null) {

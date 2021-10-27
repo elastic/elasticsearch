@@ -445,10 +445,20 @@ public class ActionModule extends AbstractModule {
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
     private final ThreadPool threadPool;
 
-    public ActionModule(boolean transportClient, Settings settings, IndexNameExpressionResolver indexNameExpressionResolver,
-                        IndexScopedSettings indexScopedSettings, ClusterSettings clusterSettings, SettingsFilter settingsFilter,
-                        ThreadPool threadPool, List<ActionPlugin> actionPlugins, NodeClient nodeClient,
-                        CircuitBreakerService circuitBreakerService, UsageService usageService, SystemIndices systemIndices) {
+    public ActionModule(
+        boolean transportClient,
+        Settings settings,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        IndexScopedSettings indexScopedSettings,
+        ClusterSettings clusterSettings,
+        SettingsFilter settingsFilter,
+        ThreadPool threadPool,
+        List<ActionPlugin> actionPlugins,
+        NodeClient nodeClient,
+        CircuitBreakerService circuitBreakerService,
+        UsageService usageService,
+        SystemIndices systemIndices
+    ) {
         this.transportClient = transportClient;
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -465,10 +475,7 @@ public class ActionModule extends AbstractModule {
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         Set<RestHeaderDefinition> headers = Stream.concat(
             actionPlugins.stream().flatMap(p -> p.getRestHeaders().stream()),
-            Stream.of(
-                new RestHeaderDefinition(Task.X_OPAQUE_ID, false),
-                new RestHeaderDefinition(Task.TRACE_PARENT, false)
-            )
+            Stream.of(new RestHeaderDefinition(Task.X_OPAQUE_ID, false), new RestHeaderDefinition(Task.TRACE_PARENT, false))
         ).collect(Collectors.toSet());
         UnaryOperator<RestHandler> restWrapper = null;
         for (ActionPlugin plugin : actionPlugins) {
@@ -480,17 +487,24 @@ public class ActionModule extends AbstractModule {
                 }
                 restWrapper = newRestWrapper;
                 if ("org.elasticsearch.xpack.security.Security".equals(plugin.getClass().getCanonicalName()) == false) {
-                    deprecationLogger.critical(DeprecationCategory.PLUGINS, "3rd_party_rest_deprecation", "The " +
-                        plugin.getClass().getName() + " plugin installs a custom REST wrapper. This functionality is deprecated and will " +
-                        "not be possible in Elasticsearch 8.0. If this plugin is intended to provide security features for Elasticsearch " +
-                        "then you should switch to using the built-in Elasticsearch features instead.");
+                    deprecationLogger.critical(
+                        DeprecationCategory.PLUGINS,
+                        "3rd_party_rest_deprecation",
+                        "The "
+                            + plugin.getClass().getName()
+                            + " plugin installs a custom REST wrapper. This functionality is deprecated and will not be possible in "
+                            + "Elasticsearch 8.0. If this plugin is intended to provide security features for Elasticsearch "
+                            + "then you should switch to using the built-in Elasticsearch features instead."
+                    );
                 }
             }
         }
         mappingRequestValidators = new RequestValidators<>(
-            actionPlugins.stream().flatMap(p -> p.mappingRequestValidators().stream()).collect(Collectors.toList()));
+            actionPlugins.stream().flatMap(p -> p.mappingRequestValidators().stream()).collect(Collectors.toList())
+        );
         indicesAliasesRequestRequestValidators = new RequestValidators<>(
-                actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).collect(Collectors.toList()));
+            actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).collect(Collectors.toList())
+        );
 
         if (transportClient) {
             restController = null;
@@ -498,7 +512,6 @@ public class ActionModule extends AbstractModule {
             restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService);
         }
     }
-
 
     public Map<String, ActionHandler<?, ?>> getActions() {
         return actions;
@@ -516,8 +529,10 @@ public class ActionModule extends AbstractModule {
             }
 
             public <Request extends ActionRequest, Response extends ActionResponse> void register(
-                ActionType<Response> action, Class<? extends TransportAction<Request, Response>> transportAction,
-                Class<?>... supportTransportActions) {
+                ActionType<Response> action,
+                Class<? extends TransportAction<Request, Response>> transportAction,
+                Class<?>... supportTransportActions
+            ) {
                 register(new ActionHandler<>(action, transportAction, supportTransportActions));
             }
         }
@@ -574,8 +589,11 @@ public class ActionModule extends AbstractModule {
         actions.register(TypesExistsAction.INSTANCE, TransportTypesExistsAction.class);
         actions.register(AddIndexBlockAction.INSTANCE, TransportAddIndexBlockAction.class);
         actions.register(GetMappingsAction.INSTANCE, TransportGetMappingsAction.class);
-        actions.register(GetFieldMappingsAction.INSTANCE, TransportGetFieldMappingsAction.class,
-                TransportGetFieldMappingsIndexAction.class);
+        actions.register(
+            GetFieldMappingsAction.INSTANCE,
+            TransportGetFieldMappingsAction.class,
+            TransportGetFieldMappingsIndexAction.class
+        );
         actions.register(PutMappingAction.INSTANCE, TransportPutMappingAction.class);
         actions.register(AutoPutMappingAction.INSTANCE, TransportAutoPutMappingAction.class);
         actions.register(IndicesAliasesAction.INSTANCE, TransportIndicesAliasesAction.class);
@@ -608,14 +626,15 @@ public class ActionModule extends AbstractModule {
         actions.register(IndexAction.INSTANCE, TransportIndexAction.class);
         actions.register(GetAction.INSTANCE, TransportGetAction.class);
         actions.register(TermVectorsAction.INSTANCE, TransportTermVectorsAction.class);
-        actions.register(MultiTermVectorsAction.INSTANCE, TransportMultiTermVectorsAction.class,
-                TransportShardMultiTermsVectorAction.class);
+        actions.register(
+            MultiTermVectorsAction.INSTANCE,
+            TransportMultiTermVectorsAction.class,
+            TransportShardMultiTermsVectorAction.class
+        );
         actions.register(DeleteAction.INSTANCE, TransportDeleteAction.class);
         actions.register(UpdateAction.INSTANCE, TransportUpdateAction.class);
-        actions.register(MultiGetAction.INSTANCE, TransportMultiGetAction.class,
-                TransportShardMultiGetAction.class);
-        actions.register(BulkAction.INSTANCE, TransportBulkAction.class,
-                TransportShardBulkAction.class);
+        actions.register(MultiGetAction.INSTANCE, TransportMultiGetAction.class, TransportShardMultiGetAction.class);
+        actions.register(BulkAction.INSTANCE, TransportBulkAction.class, TransportShardBulkAction.class);
         actions.register(SearchAction.INSTANCE, TransportSearchAction.class);
         actions.register(SearchScrollAction.INSTANCE, TransportSearchScrollAction.class);
         actions.register(OpenPointInTimeAction.INSTANCE, TransportOpenPointInTimeAction.class);
@@ -630,10 +649,10 @@ public class ActionModule extends AbstractModule {
         actions.register(AnalyzeIndexDiskUsageAction.INSTANCE, TransportAnalyzeIndexDiskUsageAction.class);
         actions.register(FieldUsageStatsAction.INSTANCE, TransportFieldUsageAction.class);
 
-        //Data streams
+        // Data streams
         actions.register(ModifyDataStreamsAction.INSTANCE, ModifyDataStreamsTransportAction.class);
 
-        //Indexed scripts
+        // Indexed scripts
         actions.register(PutStoredScriptAction.INSTANCE, TransportPutStoredScriptAction.class);
         actions.register(GetStoredScriptAction.INSTANCE, TransportGetStoredScriptAction.class);
         actions.register(DeleteStoredScriptAction.INSTANCE, TransportDeleteStoredScriptAction.class);
@@ -671,7 +690,8 @@ public class ActionModule extends AbstractModule {
 
     private ActionFilters setupActionFilters(List<ActionPlugin> actionPlugins) {
         return new ActionFilters(
-            Collections.unmodifiableSet(actionPlugins.stream().flatMap(p -> p.getActionFilters().stream()).collect(Collectors.toSet())));
+            Collections.unmodifiableSet(actionPlugins.stream().flatMap(p -> p.getActionFilters().stream()).collect(Collectors.toSet()))
+        );
     }
 
     public void initRestHandlers(Supplier<DiscoveryNodes> nodesInCluster) {
@@ -843,8 +863,15 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestFieldUsageStatsAction());
 
         for (ActionPlugin plugin : actionPlugins) {
-            for (RestHandler handler : plugin.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings,
-                    settingsFilter, indexNameExpressionResolver, nodesInCluster)) {
+            for (RestHandler handler : plugin.getRestHandlers(
+                settings,
+                restController,
+                clusterSettings,
+                indexScopedSettings,
+                settingsFilter,
+                indexNameExpressionResolver,
+                nodesInCluster
+            )) {
                 registerHandler.accept(handler);
             }
         }
@@ -855,8 +882,10 @@ public class ActionModule extends AbstractModule {
     protected void configure() {
         bind(ActionFilters.class).toInstance(actionFilters);
         bind(DestructiveOperations.class).toInstance(destructiveOperations);
-        bind(new TypeLiteral<RequestValidators<PutMappingRequest>>() {}).toInstance(mappingRequestValidators);
-        bind(new TypeLiteral<RequestValidators<IndicesAliasesRequest>>() {}).toInstance(indicesAliasesRequestRequestValidators);
+        bind(new TypeLiteral<RequestValidators<PutMappingRequest>>() {
+        }).toInstance(mappingRequestValidators);
+        bind(new TypeLiteral<RequestValidators<IndicesAliasesRequest>>() {
+        }).toInstance(indicesAliasesRequestRequestValidators);
 
         if (false == transportClient) {
             // Supporting classes only used when not a transport client
@@ -865,8 +894,11 @@ public class ActionModule extends AbstractModule {
 
             // register ActionType -> transportAction Map used by NodeClient
             @SuppressWarnings("rawtypes")
-            MapBinder<ActionType, TransportAction> transportActionsBinder
-                    = MapBinder.newMapBinder(binder(), ActionType.class, TransportAction.class);
+            MapBinder<ActionType, TransportAction> transportActionsBinder = MapBinder.newMapBinder(
+                binder(),
+                ActionType.class,
+                TransportAction.class
+            );
             for (ActionHandler<?, ?> action : actions.values()) {
                 // bind the action as eager singleton, so the map binder one will reuse it
                 bind(action.getTransportAction()).asEagerSingleton();

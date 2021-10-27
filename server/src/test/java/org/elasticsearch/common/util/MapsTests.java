@@ -34,8 +34,9 @@ public class MapsTests extends ESTestCase {
         final Supplier<String> keyGenerator = () -> randomAlphaOfLengthBetween(1, 5);
         final Supplier<int[]> arrayValueGenerator = () -> random().ints(randomInt(5)).toArray();
         final Map<String, int[]> map = randomMap(randomInt(5), keyGenerator, arrayValueGenerator);
-        final Map<String, int[]> mapCopy = map.entrySet().stream()
-                .collect(toMap(Map.Entry::getKey, e -> Arrays.copyOf(e.getValue(), e.getValue().length)));
+        final Map<String, int[]> mapCopy = map.entrySet()
+            .stream()
+            .collect(toMap(Map.Entry::getKey, e -> Arrays.copyOf(e.getValue(), e.getValue().length)));
 
         assertTrue(Maps.deepEquals(map, mapCopy));
 
@@ -57,12 +58,12 @@ public class MapsTests extends ESTestCase {
 
     public void testCollectToUnmodifiableSortedMap() {
         SortedMap<String, String> canadianProvinces = Stream.of(
-                new Tuple<>("ON", "Ontario"),
-                new Tuple<>("QC", "Quebec"),
-                new Tuple<>("NS", "Nova Scotia"),
-                new Tuple<>("NB", "New Brunswick"),
-                new Tuple<>("MB", "Manitoba"))
-            .collect(Maps.toUnmodifiableSortedMap(Tuple::v1, Tuple::v2));
+            new Tuple<>("ON", "Ontario"),
+            new Tuple<>("QC", "Quebec"),
+            new Tuple<>("NS", "Nova Scotia"),
+            new Tuple<>("NB", "New Brunswick"),
+            new Tuple<>("MB", "Manitoba")
+        ).collect(Maps.toUnmodifiableSortedMap(Tuple::v1, Tuple::v2));
 
         SortedMap<String, String> expectedMap = new TreeMap<>();
         expectedMap.put("ON", "Ontario");
@@ -75,8 +76,7 @@ public class MapsTests extends ESTestCase {
     }
 
     public void testCollectRandomListToUnmodifiableSortedMap() {
-        List<Tuple<String, String>> tuples = randomList(0, 100, () -> randomAlphaOfLength(10))
-            .stream()
+        List<Tuple<String, String>> tuples = randomList(0, 100, () -> randomAlphaOfLength(10)).stream()
             .distinct()
             .map(key -> Tuple.tuple(key, randomAlphaOfLength(10)))
             .collect(Collectors.toList());
@@ -96,16 +96,21 @@ public class MapsTests extends ESTestCase {
     }
 
     public void testThrowsExceptionOnDuplicateKeysWhenCollectingToUnmodifiableSortedMap() {
-        IllegalStateException illegalStateException = expectThrows(IllegalStateException.class, () -> Stream.of(
+        IllegalStateException illegalStateException = expectThrows(
+            IllegalStateException.class,
+            () -> Stream.of(
                 new Tuple<>("ON", "Ontario"),
                 new Tuple<>("QC", "Quebec"),
                 new Tuple<>("NS", "Nova Scotia"),
                 new Tuple<>("NS", "Nouvelle-Écosse"),
                 new Tuple<>("NB", "New Brunswick"),
-                new Tuple<>("MB", "Manitoba"))
-            .collect(Maps.toUnmodifiableSortedMap(Tuple::v1, Tuple::v2)));
-        assertThat(illegalStateException.getMessage(),
-            equalTo("Duplicate key (attempted merging values Nova Scotia  and Nouvelle-Écosse)"));
+                new Tuple<>("MB", "Manitoba")
+            ).collect(Maps.toUnmodifiableSortedMap(Tuple::v1, Tuple::v2))
+        );
+        assertThat(
+            illegalStateException.getMessage(),
+            equalTo("Duplicate key (attempted merging values Nova Scotia  and Nouvelle-Écosse)")
+        );
     }
 
     private static <K, V> Map<K, V> randomMap(int size, Supplier<K> keyGenerator, Supplier<V> valueGenerator) {
@@ -148,7 +153,7 @@ public class MapsTests extends ESTestCase {
             } else if (val instanceof List) {
                 sum += deepCount((List<Object>) val);
             } else {
-                sum ++;
+                sum++;
             }
         }
         return sum;

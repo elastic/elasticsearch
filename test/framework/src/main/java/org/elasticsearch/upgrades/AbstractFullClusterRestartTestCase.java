@@ -10,11 +10,11 @@ package org.elasticsearch.upgrades;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -29,8 +29,11 @@ public abstract class AbstractFullClusterRestartTestCase extends ESRestTestCase 
 
     @Before
     public void init() throws IOException {
-        assertThat("we don't need this branch if we aren't compatible with 6.0",
-                Version.CURRENT.minimumIndexCompatibilityVersion().onOrBefore(Version.V_6_0_0), equalTo(true));
+        assertThat(
+            "we don't need this branch if we aren't compatible with 6.0",
+            Version.CURRENT.minimumIndexCompatibilityVersion().onOrBefore(Version.V_6_0_0),
+            equalTo(true)
+        );
         if (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_7_0_0)) {
             XContentBuilder template = jsonBuilder();
             template.startObject();

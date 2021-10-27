@@ -38,11 +38,11 @@ public class HotThreadsTests extends ESTestCase {
     }
 
     public void testSupportedThreadsReportType() {
-        for (String type : new String[]{"unsupported", "", null, "CPU", "WAIT", "BLOCK", "MEM"}) {
+        for (String type : new String[] { "unsupported", "", null, "CPU", "WAIT", "BLOCK", "MEM" }) {
             expectThrows(IllegalArgumentException.class, () -> new HotThreads().type(HotThreads.ReportType.of(type)));
         }
 
-        for (String type : new String[]{"cpu", "wait", "block", "mem"}) {
+        for (String type : new String[] { "cpu", "wait", "block", "mem" }) {
             try {
                 new HotThreads().type(HotThreads.ReportType.of(type));
             } catch (IllegalArgumentException e) {
@@ -64,16 +64,21 @@ public class HotThreadsTests extends ESTestCase {
     }
 
     public void testIdleThreadsDetection() {
-        for (String threadName : new String[]{
-            "Signal Dispatcher", "Finalizer", "Reference Handler", "Notification Thread",
-            "Common-Cleaner", "process reaper", "DestroyJavaVM"}) {
+        for (String threadName : new String[] {
+            "Signal Dispatcher",
+            "Finalizer",
+            "Reference Handler",
+            "Notification Thread",
+            "Common-Cleaner",
+            "process reaper",
+            "DestroyJavaVM" }) {
             ThreadInfo mockedThreadInfo = mock(ThreadInfo.class);
             when(mockedThreadInfo.getThreadName()).thenReturn(threadName);
             assertTrue(HotThreads.isKnownJDKThread(mockedThreadInfo));
             assertTrue(HotThreads.isIdleThread(mockedThreadInfo));
         }
 
-        for (String threadName : new String[]{"Text", "", null, "Finalizer".toLowerCase(Locale.ROOT)}) {
+        for (String threadName : new String[] { "Text", "", null, "Finalizer".toLowerCase(Locale.ROOT) }) {
             ThreadInfo mockedThreadInfo = mock(ThreadInfo.class);
             when(mockedThreadInfo.getThreadName()).thenReturn(threadName);
             when(mockedThreadInfo.getStackTrace()).thenReturn(new StackTraceElement[0]);
@@ -83,11 +88,12 @@ public class HotThreadsTests extends ESTestCase {
 
         List<StackTraceElement> testJvmStack = makeThreadStackHelper(
             org.elasticsearch.core.List.of(
-                new String[]{"org.elasticsearch.monitor.test", "methodOne"},
-                new String[]{"org.elasticsearch.monitor.testOther", "methodTwo"},
-                new String[]{"org.elasticsearch.monitor.test", "methodThree"},
-                new String[]{"org.elasticsearch.monitor.testOther", "methodFour"}
-            ));
+                new String[] { "org.elasticsearch.monitor.test", "methodOne" },
+                new String[] { "org.elasticsearch.monitor.testOther", "methodTwo" },
+                new String[] { "org.elasticsearch.monitor.test", "methodThree" },
+                new String[] { "org.elasticsearch.monitor.testOther", "methodFour" }
+            )
+        );
 
         for (StackTraceElement stackFrame : testJvmStack) {
             assertFalse(HotThreads.isKnownIdleStackFrame(stackFrame.getClassName(), stackFrame.getMethodName()));
@@ -101,18 +107,19 @@ public class HotThreadsTests extends ESTestCase {
 
         List<StackTraceElement> idleThreadStackElements = makeThreadStackHelper(
             org.elasticsearch.core.List.of(
-                new String[]{"java.util.concurrent.ThreadPoolExecutor", "getTask"},
-                new String[]{"sun.nio.ch.SelectorImpl", "select"},
-                new String[]{"org.elasticsearch.threadpool.ThreadPool$CachedTimeThread", "run"},
-                new String[]{"org.elasticsearch.indices.ttl.IndicesTTLService$Notifier", "await"},
-                new String[]{"java.util.concurrent.LinkedTransferQueue", "poll"},
-                new String[]{"com.sun.jmx.remote.internal.ServerCommunicatorAdmin$Timeout", "run"}
-            ));
+                new String[] { "java.util.concurrent.ThreadPoolExecutor", "getTask" },
+                new String[] { "sun.nio.ch.SelectorImpl", "select" },
+                new String[] { "org.elasticsearch.threadpool.ThreadPool$CachedTimeThread", "run" },
+                new String[] { "org.elasticsearch.indices.ttl.IndicesTTLService$Notifier", "await" },
+                new String[] { "java.util.concurrent.LinkedTransferQueue", "poll" },
+                new String[] { "com.sun.jmx.remote.internal.ServerCommunicatorAdmin$Timeout", "run" }
+            )
+        );
 
         for (StackTraceElement extraFrame : idleThreadStackElements) {
             ThreadInfo idleThread = mock(ThreadInfo.class);
             when(idleThread.getThreadName()).thenReturn("Idle Thread");
-            when(idleThread.getStackTrace()).thenReturn(new StackTraceElement[]{extraFrame});
+            when(idleThread.getStackTrace()).thenReturn(new StackTraceElement[] { extraFrame });
             assertTrue(HotThreads.isKnownIdleStackFrame(extraFrame.getClassName(), extraFrame.getMethodName()));
             assertTrue(HotThreads.isIdleThread(idleThread));
 
@@ -135,28 +142,32 @@ public class HotThreadsTests extends ESTestCase {
     public void testSimilarity() {
         StackTraceElement[] stackOne = makeThreadStackHelper(
             org.elasticsearch.core.List.of(
-                new String[]{"org.elasticsearch.monitor.test", "methodOne"},
-                new String[]{"org.elasticsearch.monitor.testOther", "methodTwo"}
-            )).toArray(new StackTraceElement[0]);
+                new String[] { "org.elasticsearch.monitor.test", "methodOne" },
+                new String[] { "org.elasticsearch.monitor.testOther", "methodTwo" }
+            )
+        ).toArray(new StackTraceElement[0]);
 
         StackTraceElement[] stackTwo = makeThreadStackHelper(
             org.elasticsearch.core.List.of(
-                new String[]{"org.elasticsearch.monitor.test1", "methodOne"},
-                new String[]{"org.elasticsearch.monitor.testOther", "methodTwo"}
-            )).toArray(new StackTraceElement[0]);
+                new String[] { "org.elasticsearch.monitor.test1", "methodOne" },
+                new String[] { "org.elasticsearch.monitor.testOther", "methodTwo" }
+            )
+        ).toArray(new StackTraceElement[0]);
 
         StackTraceElement[] stackThree = makeThreadStackHelper(
             org.elasticsearch.core.List.of(
-                new String[]{"org.elasticsearch.monitor.testOther", "methodTwo"},
-                new String[]{"org.elasticsearch.monitor.test", "methodOne"}
-            )).toArray(new StackTraceElement[0]);
+                new String[] { "org.elasticsearch.monitor.testOther", "methodTwo" },
+                new String[] { "org.elasticsearch.monitor.test", "methodOne" }
+            )
+        ).toArray(new StackTraceElement[0]);
 
         StackTraceElement[] stackFour = makeThreadStackHelper(
             org.elasticsearch.core.List.of(
-                new String[]{"org.elasticsearch.monitor.testPrior", "methodOther"},
-                new String[]{"org.elasticsearch.monitor.test", "methodOne"},
-                new String[]{"org.elasticsearch.monitor.testOther", "methodTwo"}
-            )).toArray(new StackTraceElement[0]);
+                new String[] { "org.elasticsearch.monitor.testPrior", "methodOther" },
+                new String[] { "org.elasticsearch.monitor.test", "methodOne" },
+                new String[] { "org.elasticsearch.monitor.testOther", "methodTwo" }
+            )
+        ).toArray(new StackTraceElement[0]);
 
         HotThreads hotThreads = new HotThreads();
 
@@ -173,14 +184,13 @@ public class HotThreadsTests extends ESTestCase {
             }
         }
 
-        SimilarityTestCase[] testCases = new SimilarityTestCase[]{
+        SimilarityTestCase[] testCases = new SimilarityTestCase[] {
             new SimilarityTestCase(stackOne, stackOne, 2),
             new SimilarityTestCase(stackOne, stackTwo, 1),
             new SimilarityTestCase(stackOne, stackThree, 0),
             new SimilarityTestCase(stackOne, stackFour, 2),
             new SimilarityTestCase(stackTwo, stackFour, 1),
-            new SimilarityTestCase(stackOne, new StackTraceElement[0], 0),
-        };
+            new SimilarityTestCase(stackOne, new StackTraceElement[0], 0), };
 
         for (SimilarityTestCase testCase : testCases) {
             ThreadInfo threadOne = mock(ThreadInfo.class);
@@ -224,9 +234,10 @@ public class HotThreadsTests extends ESTestCase {
 
         StackTraceElement[] stack = makeThreadStackHelper(
             org.elasticsearch.core.List.of(
-                new String[]{"org.elasticsearch.monitor.test", String.format(Locale.ROOT, "method_%d", (threadId) % 2)},
-                new String[]{"org.elasticsearch.monitor.testOther", "methodFinal"}
-            )).toArray(new StackTraceElement[0]);
+                new String[] { "org.elasticsearch.monitor.test", String.format(Locale.ROOT, "method_%d", (threadId) % 2) },
+                new String[] { "org.elasticsearch.monitor.testOther", "methodFinal" }
+            )
+        ).toArray(new StackTraceElement[0]);
         when(mockedThreadInfo.getStackTrace()).thenReturn(stack);
 
         return mockedThreadInfo;
@@ -271,7 +282,7 @@ public class HotThreadsTests extends ESTestCase {
         ThreadMXBean mockedMXBean = makeMockMXBeanHelper();
         SunThreadInfo mockedSunThreadInfo = makeMockSunThreadInfoHelper();
 
-        long[] threadIds = new long[]{1, 2, 3, 4}; // Adds up to 10, the intervalNanos for calculating time percentages
+        long[] threadIds = new long[] { 1, 2, 3, 4 }; // Adds up to 10, the intervalNanos for calculating time percentages
         long mockCurrentThreadId = 0L;
         when(mockedMXBean.getAllThreadIds()).thenReturn(threadIds);
 
@@ -280,8 +291,7 @@ public class HotThreadsTests extends ESTestCase {
             allInfos.get(0), allInfos.get(1), allInfos.get(2), allInfos.get(3));
         when(mockedMXBean.getThreadInfo(ArgumentMatchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
 
-        HotThreads hotThreads = new HotThreads()
-            .busiestThreads(4)
+        HotThreads hotThreads = new HotThreads().busiestThreads(4)
             .type(HotThreads.ReportType.CPU)
             .interval(TimeValue.timeValueMillis(10))
             .threadElementsSnapshotCount(11)
@@ -292,15 +302,18 @@ public class HotThreadsTests extends ESTestCase {
         assertThat(innerResult, containsString("Hot threads at "));
         assertThat(innerResult, containsString("interval=10ms, busiestThreads=4, ignoreIdleThreads=false:"));
         assertThat(innerResult, containsString("11/11 snapshots sharing following 2 elements"));
-        assertThat(innerResult, stringContainsInOrder(
-            "90.0% [cpu=1.0%, other=89.0%] (9ms out of 10ms) cpu usage by thread 'Thread 1'",
-            "80.0% [cpu=2.0%, other=78.0%] (8ms out of 10ms) cpu usage by thread 'Thread 2'",
-            "70.0% [cpu=3.0%, other=67.0%] (7ms out of 10ms) cpu usage by thread 'Thread 3'",
-            "60.0% [cpu=4.0%, other=56.0%] (6ms out of 10ms) cpu usage by thread 'Thread 4'"));
+        assertThat(
+            innerResult,
+            stringContainsInOrder(
+                "90.0% [cpu=1.0%, other=89.0%] (9ms out of 10ms) cpu usage by thread 'Thread 1'",
+                "80.0% [cpu=2.0%, other=78.0%] (8ms out of 10ms) cpu usage by thread 'Thread 2'",
+                "70.0% [cpu=3.0%, other=67.0%] (7ms out of 10ms) cpu usage by thread 'Thread 3'",
+                "60.0% [cpu=4.0%, other=56.0%] (6ms out of 10ms) cpu usage by thread 'Thread 4'"
+            )
+        );
         assertThat(innerResult, containsString("org.elasticsearch.monitor.test.method_0(Some_File:1)"));
         assertThat(innerResult, containsString("org.elasticsearch.monitor.test.method_1(Some_File:1)"));
         assertThat(innerResult, containsString("org.elasticsearch.monitor.testOther.methodFinal(Some_File:1)"));
-
 
         // Let's ask again without progressing the CPU thread counters, e.g. resetting the mocks
         innerResult = hotThreads.innerDetect(mockedMXBean, mockedSunThreadInfo, mockCurrentThreadId, (interval) -> null);
@@ -315,8 +328,7 @@ public class HotThreadsTests extends ESTestCase {
         cpuOrderedInfos = org.elasticsearch.core.List.of(allInfos.get(3), allInfos.get(2), allInfos.get(1), allInfos.get(0));
         when(mockedMXBean.getThreadInfo(ArgumentMatchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
 
-        hotThreads = new HotThreads()
-            .busiestThreads(4)
+        hotThreads = new HotThreads().busiestThreads(4)
             .type(HotThreads.ReportType.CPU)
             .interval(TimeValue.timeValueMillis(10))
             .sortOrder(HotThreads.SortOrder.CPU)
@@ -328,11 +340,15 @@ public class HotThreadsTests extends ESTestCase {
         assertThat(innerResult, containsString("Hot threads at "));
         assertThat(innerResult, containsString("interval=10ms, busiestThreads=4, ignoreIdleThreads=false:"));
         assertThat(innerResult, containsString("11/11 snapshots sharing following 2 elements"));
-        assertThat(innerResult, stringContainsInOrder(
-            "60.0% [cpu=4.0%, other=56.0%] (6ms out of 10ms) cpu usage by thread 'Thread 4'",
-            "70.0% [cpu=3.0%, other=67.0%] (7ms out of 10ms) cpu usage by thread 'Thread 3'",
-            "80.0% [cpu=2.0%, other=78.0%] (8ms out of 10ms) cpu usage by thread 'Thread 2'",
-            "90.0% [cpu=1.0%, other=89.0%] (9ms out of 10ms) cpu usage by thread 'Thread 1'"));
+        assertThat(
+            innerResult,
+            stringContainsInOrder(
+                "60.0% [cpu=4.0%, other=56.0%] (6ms out of 10ms) cpu usage by thread 'Thread 4'",
+                "70.0% [cpu=3.0%, other=67.0%] (7ms out of 10ms) cpu usage by thread 'Thread 3'",
+                "80.0% [cpu=2.0%, other=78.0%] (8ms out of 10ms) cpu usage by thread 'Thread 2'",
+                "90.0% [cpu=1.0%, other=89.0%] (9ms out of 10ms) cpu usage by thread 'Thread 1'"
+            )
+        );
         assertThat(innerResult, containsString("org.elasticsearch.monitor.test.method_0(Some_File:1)"));
         assertThat(innerResult, containsString("org.elasticsearch.monitor.test.method_1(Some_File:1)"));
         assertThat(innerResult, containsString("org.elasticsearch.monitor.testOther.methodFinal(Some_File:1)"));
@@ -342,12 +358,11 @@ public class HotThreadsTests extends ESTestCase {
         ThreadMXBean mockedMXBean = makeMockMXBeanHelper();
         SunThreadInfo mockedSunThreadInfo = makeMockSunThreadInfoHelper();
 
-        long[] threadIds = new long[]{1, 2, 3, 4}; // Adds up to 10, the intervalNanos for calculating time percentages
+        long[] threadIds = new long[] { 1, 2, 3, 4 }; // Adds up to 10, the intervalNanos for calculating time percentages
         long mockCurrentThreadId = 0L;
         when(mockedMXBean.getAllThreadIds()).thenReturn(threadIds);
 
-        HotThreads hotWaitingThreads = new HotThreads()
-            .busiestThreads(4)
+        HotThreads hotWaitingThreads = new HotThreads().busiestThreads(4)
             .type(HotThreads.ReportType.WAIT)
             .interval(TimeValue.timeValueMillis(50))
             .threadElementsSnapshotCount(11)
@@ -360,15 +375,18 @@ public class HotThreadsTests extends ESTestCase {
 
         String waitInnerResult = hotWaitingThreads.innerDetect(mockedMXBean, mockedSunThreadInfo, mockCurrentThreadId, (interval) -> null);
 
-        assertThat(waitInnerResult, stringContainsInOrder(
-            "8.0% (4ms out of 50ms) wait usage by thread 'Thread 4'",
-            "4.0% (2ms out of 50ms) wait usage by thread 'Thread 2'",
-            "0.0% (0s out of 50ms) wait usage by thread 'Thread 1'",
-            "0.0% (0s out of 50ms) wait usage by thread 'Thread 3'"));
+        assertThat(
+            waitInnerResult,
+            stringContainsInOrder(
+                "8.0% (4ms out of 50ms) wait usage by thread 'Thread 4'",
+                "4.0% (2ms out of 50ms) wait usage by thread 'Thread 2'",
+                "0.0% (0s out of 50ms) wait usage by thread 'Thread 1'",
+                "0.0% (0s out of 50ms) wait usage by thread 'Thread 3'"
+            )
+        );
 
         // Sort order has no impact on wait mode
-        hotWaitingThreads = new HotThreads()
-            .busiestThreads(4)
+        hotWaitingThreads = new HotThreads().busiestThreads(4)
             .type(HotThreads.ReportType.WAIT)
             .sortOrder(HotThreads.SortOrder.CPU)
             .interval(TimeValue.timeValueMillis(50))
@@ -381,22 +399,25 @@ public class HotThreadsTests extends ESTestCase {
 
         waitInnerResult = hotWaitingThreads.innerDetect(mockedMXBean, mockedSunThreadInfo, mockCurrentThreadId, (interval) -> null);
 
-        assertThat(waitInnerResult, stringContainsInOrder(
-            "8.0% (4ms out of 50ms) wait usage by thread 'Thread 4'",
-            "4.0% (2ms out of 50ms) wait usage by thread 'Thread 2'",
-            "0.0% (0s out of 50ms) wait usage by thread 'Thread 1'",
-            "0.0% (0s out of 50ms) wait usage by thread 'Thread 3'"));
+        assertThat(
+            waitInnerResult,
+            stringContainsInOrder(
+                "8.0% (4ms out of 50ms) wait usage by thread 'Thread 4'",
+                "4.0% (2ms out of 50ms) wait usage by thread 'Thread 2'",
+                "0.0% (0s out of 50ms) wait usage by thread 'Thread 1'",
+                "0.0% (0s out of 50ms) wait usage by thread 'Thread 3'"
+            )
+        );
     }
 
     public void testInnerDetectBlockedMode() throws Exception {
         ThreadMXBean mockedMXBean = makeMockMXBeanHelper();
         SunThreadInfo mockedSunThreadInfo = makeMockSunThreadInfoHelper();
 
-        long[] threadIds = new long[]{1, 2, 3, 4}; // Adds up to 10, the intervalNanos for calculating time percentages
+        long[] threadIds = new long[] { 1, 2, 3, 4 }; // Adds up to 10, the intervalNanos for calculating time percentages
         long mockCurrentThreadId = 0L;
         when(mockedMXBean.getAllThreadIds()).thenReturn(threadIds);
-        HotThreads hotBlockedThreads = new HotThreads()
-            .busiestThreads(4)
+        HotThreads hotBlockedThreads = new HotThreads().busiestThreads(4)
             .type(HotThreads.ReportType.BLOCK)
             .interval(TimeValue.timeValueMillis(60))
             .threadElementsSnapshotCount(11)
@@ -409,15 +430,18 @@ public class HotThreadsTests extends ESTestCase {
 
         String blockInnerResult = hotBlockedThreads.innerDetect(mockedMXBean, mockedSunThreadInfo, mockCurrentThreadId, (interval) -> null);
 
-        assertThat(blockInnerResult, stringContainsInOrder(
-            "5.0% (3ms out of 60ms) block usage by thread 'Thread 3'",
-            "1.7% (1ms out of 60ms) block usage by thread 'Thread 1'",
-            "0.0% (0s out of 60ms) block usage by thread 'Thread 2'",
-            "0.0% (0s out of 60ms) block usage by thread 'Thread 4'"));
+        assertThat(
+            blockInnerResult,
+            stringContainsInOrder(
+                "5.0% (3ms out of 60ms) block usage by thread 'Thread 3'",
+                "1.7% (1ms out of 60ms) block usage by thread 'Thread 1'",
+                "0.0% (0s out of 60ms) block usage by thread 'Thread 2'",
+                "0.0% (0s out of 60ms) block usage by thread 'Thread 4'"
+            )
+        );
 
         // Sort order has no impact on block mode
-        hotBlockedThreads = new HotThreads()
-            .busiestThreads(4)
+        hotBlockedThreads = new HotThreads().busiestThreads(4)
             .type(HotThreads.ReportType.BLOCK)
             .sortOrder(HotThreads.SortOrder.CPU)
             .interval(TimeValue.timeValueMillis(60))
@@ -430,18 +454,22 @@ public class HotThreadsTests extends ESTestCase {
 
         blockInnerResult = hotBlockedThreads.innerDetect(mockedMXBean, mockedSunThreadInfo, mockCurrentThreadId, (interval) -> null);
 
-        assertThat(blockInnerResult, stringContainsInOrder(
-            "5.0% (3ms out of 60ms) block usage by thread 'Thread 3'",
-            "1.7% (1ms out of 60ms) block usage by thread 'Thread 1'",
-            "0.0% (0s out of 60ms) block usage by thread 'Thread 2'",
-            "0.0% (0s out of 60ms) block usage by thread 'Thread 4'"));
+        assertThat(
+            blockInnerResult,
+            stringContainsInOrder(
+                "5.0% (3ms out of 60ms) block usage by thread 'Thread 3'",
+                "1.7% (1ms out of 60ms) block usage by thread 'Thread 1'",
+                "0.0% (0s out of 60ms) block usage by thread 'Thread 2'",
+                "0.0% (0s out of 60ms) block usage by thread 'Thread 4'"
+            )
+        );
     }
 
     public void testInnerDetectMemoryMode() throws Exception {
         ThreadMXBean mockedMXBean = makeMockMXBeanHelper();
         SunThreadInfo mockedSunThreadInfo = makeMockSunThreadInfoHelper();
 
-        long[] threadIds = new long[]{1, 2, 3, 4}; // Adds up to 10, the intervalNanos for calculating time percentages
+        long[] threadIds = new long[] { 1, 2, 3, 4 }; // Adds up to 10, the intervalNanos for calculating time percentages
         long mockCurrentThreadId = 0L;
         when(mockedMXBean.getAllThreadIds()).thenReturn(threadIds);
 
@@ -451,11 +479,10 @@ public class HotThreadsTests extends ESTestCase {
         when(mockedMXBean.getThreadInfo(ArgumentMatchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
 
         for (long threadId : threadIds) {
-            when(mockedSunThreadInfo.getThreadAllocatedBytes(threadId)).thenReturn(0L).thenReturn(threadId*100);
+            when(mockedSunThreadInfo.getThreadAllocatedBytes(threadId)).thenReturn(0L).thenReturn(threadId * 100);
         }
 
-        HotThreads hotThreads = new HotThreads()
-            .busiestThreads(4)
+        HotThreads hotThreads = new HotThreads().busiestThreads(4)
             .type(HotThreads.ReportType.MEM)
             .interval(TimeValue.timeValueNanos(10))
             .threadElementsSnapshotCount(1)
@@ -463,11 +490,15 @@ public class HotThreadsTests extends ESTestCase {
 
         String memInnerResult = hotThreads.innerDetect(mockedMXBean, mockedSunThreadInfo, mockCurrentThreadId, (interval) -> null);
         assertThat(memInnerResult, containsString("  unique snapshot"));
-        assertThat(memInnerResult, stringContainsInOrder(
-            "400b memory allocated by thread 'Thread 4'",
-            "300b memory allocated by thread 'Thread 3'",
-            "200b memory allocated by thread 'Thread 2'",
-            "100b memory allocated by thread 'Thread 1'"));
+        assertThat(
+            memInnerResult,
+            stringContainsInOrder(
+                "400b memory allocated by thread 'Thread 4'",
+                "300b memory allocated by thread 'Thread 3'",
+                "200b memory allocated by thread 'Thread 2'",
+                "100b memory allocated by thread 'Thread 1'"
+            )
+        );
 
         // Sort order has no impact on memory mode
 
@@ -476,11 +507,10 @@ public class HotThreadsTests extends ESTestCase {
         when(mockedMXBean.getThreadInfo(ArgumentMatchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
 
         for (long threadId : threadIds) {
-            when(mockedSunThreadInfo.getThreadAllocatedBytes(threadId)).thenReturn(0L).thenReturn(threadId*100);
+            when(mockedSunThreadInfo.getThreadAllocatedBytes(threadId)).thenReturn(0L).thenReturn(threadId * 100);
         }
 
-        hotThreads = new HotThreads()
-            .busiestThreads(4)
+        hotThreads = new HotThreads().busiestThreads(4)
             .type(HotThreads.ReportType.MEM)
             .sortOrder(HotThreads.SortOrder.CPU)
             .interval(TimeValue.timeValueNanos(10))
@@ -489,18 +519,22 @@ public class HotThreadsTests extends ESTestCase {
 
         memInnerResult = hotThreads.innerDetect(mockedMXBean, mockedSunThreadInfo, mockCurrentThreadId, (interval) -> null);
         assertThat(memInnerResult, containsString("  unique snapshot"));
-        assertThat(memInnerResult, stringContainsInOrder(
-            "400b memory allocated by thread 'Thread 4'",
-            "300b memory allocated by thread 'Thread 3'",
-            "200b memory allocated by thread 'Thread 2'",
-            "100b memory allocated by thread 'Thread 1'"));
+        assertThat(
+            memInnerResult,
+            stringContainsInOrder(
+                "400b memory allocated by thread 'Thread 4'",
+                "300b memory allocated by thread 'Thread 3'",
+                "200b memory allocated by thread 'Thread 2'",
+                "100b memory allocated by thread 'Thread 1'"
+            )
+        );
     }
 
     public void testInnerDetectSingleSnapshot() throws Exception {
         ThreadMXBean mockedMXBean = makeMockMXBeanHelper();
         SunThreadInfo mockedSunThreadInfo = makeMockSunThreadInfoHelper();
 
-        long[] threadIds = new long[]{1, 2, 3, 4}; // Adds up to 10, the intervalNanos for calculating time percentages
+        long[] threadIds = new long[] { 1, 2, 3, 4 }; // Adds up to 10, the intervalNanos for calculating time percentages
         long mockCurrentThreadId = 0L;
         when(mockedMXBean.getAllThreadIds()).thenReturn(threadIds);
 
@@ -510,8 +544,7 @@ public class HotThreadsTests extends ESTestCase {
             allInfos.get(3), allInfos.get(2), allInfos.get(1), allInfos.get(0));
         when(mockedMXBean.getThreadInfo(ArgumentMatchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
 
-        HotThreads hotThreads = new HotThreads()
-            .busiestThreads(4)
+        HotThreads hotThreads = new HotThreads().busiestThreads(4)
             .type(HotThreads.ReportType.CPU)
             .interval(TimeValue.timeValueNanos(10))
             .threadElementsSnapshotCount(1)
@@ -534,15 +567,14 @@ public class HotThreadsTests extends ESTestCase {
         ThreadMXBean mockedMXBean = makeMockMXBeanHelper();
 
         long mockCurrentThreadId = 5L;
-        long[] threadIds = new long[]{mockCurrentThreadId}; // Matches half the intervalNanos for calculating time percentages
+        long[] threadIds = new long[] { mockCurrentThreadId }; // Matches half the intervalNanos for calculating time percentages
 
         when(mockedMXBean.getAllThreadIds()).thenReturn(threadIds);
 
         List<ThreadInfo> allInfos = makeThreadInfoMocksHelper(mockedMXBean, threadIds);
         when(mockedMXBean.getThreadInfo(ArgumentMatchers.any(), anyInt())).thenReturn(allInfos.toArray(new ThreadInfo[0]));
 
-        HotThreads hotThreads = new HotThreads()
-            .busiestThreads(4)
+        HotThreads hotThreads = new HotThreads().busiestThreads(4)
             .type(HotThreads.ReportType.CPU)
             .interval(TimeValue.timeValueNanos(10))
             .threadElementsSnapshotCount(11)
@@ -559,17 +591,20 @@ public class HotThreadsTests extends ESTestCase {
         when(mockedThreadInfo.getBlockedTime()).thenReturn(2L).thenReturn(0L);
         when(mockedThreadInfo.getWaitedTime()).thenReturn(3L).thenReturn(0L);
 
-        HotThreads.ThreadTimeAccumulator info = new HotThreads.ThreadTimeAccumulator(
-            mockedThreadInfo, new TimeValue(10L), 1L, 4L);
+        HotThreads.ThreadTimeAccumulator info = new HotThreads.ThreadTimeAccumulator(mockedThreadInfo, new TimeValue(10L), 1L, 4L);
 
         assertEquals(1L, HotThreads.ThreadTimeAccumulator.valueGetterForReportType(HotThreads.ReportType.CPU).applyAsLong(info));
-        assertEquals(nanosHelper(3L),
-            HotThreads.ThreadTimeAccumulator.valueGetterForReportType(HotThreads.ReportType.WAIT).applyAsLong(info));
-        assertEquals(nanosHelper(2L),
-            HotThreads.ThreadTimeAccumulator.valueGetterForReportType(HotThreads.ReportType.BLOCK).applyAsLong(info));
+        assertEquals(
+            nanosHelper(3L),
+            HotThreads.ThreadTimeAccumulator.valueGetterForReportType(HotThreads.ReportType.WAIT).applyAsLong(info)
+        );
+        assertEquals(
+            nanosHelper(2L),
+            HotThreads.ThreadTimeAccumulator.valueGetterForReportType(HotThreads.ReportType.BLOCK).applyAsLong(info)
+        );
         assertEquals(4L, HotThreads.ThreadTimeAccumulator.valueGetterForReportType(HotThreads.ReportType.MEM).applyAsLong(info));
 
-        //Ensure all enum types have a report type getter
+        // Ensure all enum types have a report type getter
         for (HotThreads.ReportType type : HotThreads.ReportType.values()) {
             assertNotNull(HotThreads.ThreadTimeAccumulator.valueGetterForReportType(type));
         }
@@ -580,12 +615,11 @@ public class HotThreadsTests extends ESTestCase {
         when(mockedMXBean.isThreadCpuTimeSupported()).thenReturn(true);
         SunThreadInfo mockedSunThreadInfo = mock(SunThreadInfo.class);
 
-        long[] threadIds = new long[]{1, 2, 3, 4}; // Adds up to 10, the intervalNanos for calculating time percentages
+        long[] threadIds = new long[] { 1, 2, 3, 4 }; // Adds up to 10, the intervalNanos for calculating time percentages
         long mockCurrentThreadId = 0L;
         when(mockedMXBean.getAllThreadIds()).thenReturn(threadIds);
 
-        HotThreads hotThreads = new HotThreads()
-            .busiestThreads(4)
+        HotThreads hotThreads = new HotThreads().busiestThreads(4)
             .type(HotThreads.ReportType.CPU)
             .interval(TimeValue.timeValueNanos(10))
             .threadElementsSnapshotCount(11)
@@ -594,8 +628,11 @@ public class HotThreadsTests extends ESTestCase {
         // Test the case when all threads exist before and after sleep
         List<ThreadInfo> allInfos = makeThreadInfoMocksHelper(mockedMXBean, threadIds);
 
-        Map<Long, HotThreads.ThreadTimeAccumulator> validInfos = hotThreads.getAllValidThreadInfos(mockedMXBean, mockedSunThreadInfo,
-            mockCurrentThreadId);
+        Map<Long, HotThreads.ThreadTimeAccumulator> validInfos = hotThreads.getAllValidThreadInfos(
+            mockedMXBean,
+            mockedSunThreadInfo,
+            mockCurrentThreadId
+        );
         assertEquals(allInfos.size(), validInfos.size());
 
         for (long threadId : threadIds) {
@@ -608,8 +645,11 @@ public class HotThreadsTests extends ESTestCase {
 
         // Fake sleep, e.g. don't sleep call the mock again
 
-        Map<Long, HotThreads.ThreadTimeAccumulator> afterValidInfos = hotThreads.getAllValidThreadInfos(mockedMXBean, mockedSunThreadInfo,
-            mockCurrentThreadId);
+        Map<Long, HotThreads.ThreadTimeAccumulator> afterValidInfos = hotThreads.getAllValidThreadInfos(
+            mockedMXBean,
+            mockedSunThreadInfo,
+            mockCurrentThreadId
+        );
         assertEquals(allInfos.size(), afterValidInfos.size());
         for (long threadId : threadIds) {
             HotThreads.ThreadTimeAccumulator accumulator = afterValidInfos.get(threadId);
@@ -628,7 +668,7 @@ public class HotThreadsTests extends ESTestCase {
         assertEquals(allInfos.size(), validInfos.size());
 
         ThreadInfo removedInfo = allInfos.remove(0);
-        long[] reducedThreadIds = new long[]{2, 3, 4};
+        long[] reducedThreadIds = new long[] { 2, 3, 4 };
         when(mockedMXBean.getAllThreadIds()).thenReturn(reducedThreadIds);
         when(mockedMXBean.getThreadInfo(ArgumentMatchers.any(), anyInt())).thenReturn(allInfos.toArray(new ThreadInfo[0]));
         when(mockedMXBean.getThreadInfo(ArgumentMatchers.any(long[].class))).thenReturn(allInfos.toArray(new ThreadInfo[0]));
@@ -686,11 +726,10 @@ public class HotThreadsTests extends ESTestCase {
         ThreadMXBean mockedMXBean = mock(ThreadMXBean.class);
         when(mockedMXBean.isThreadCpuTimeSupported()).thenReturn(true);
 
-        long[] threadIds = new long[]{1, 2, 3, 4}; // Adds up to 10, the intervalNanos for calculating time percentages
+        long[] threadIds = new long[] { 1, 2, 3, 4 }; // Adds up to 10, the intervalNanos for calculating time percentages
         when(mockedMXBean.getAllThreadIds()).thenReturn(threadIds);
 
-        HotThreads hotThreads = new HotThreads()
-            .busiestThreads(4)
+        HotThreads hotThreads = new HotThreads().busiestThreads(4)
             .type(HotThreads.ReportType.CPU)
             .interval(TimeValue.timeValueNanos(1))
             .threadElementsSnapshotCount(3)
@@ -699,10 +738,11 @@ public class HotThreadsTests extends ESTestCase {
         // Set up the mocks
         List<ThreadInfo> allInfos = makeThreadInfoMocksHelper(mockedMXBean, threadIds);
 
-        long[] topThreadIds = new long[]{threadIds[threadIds.length - 1], threadIds[threadIds.length - 2]};
+        long[] topThreadIds = new long[] { threadIds[threadIds.length - 1], threadIds[threadIds.length - 2] };
         List<ThreadInfo> topThreads = org.elasticsearch.core.List.of(
             allInfos.get(threadIds.length - 1),
-            allInfos.get(threadIds.length - 2));
+            allInfos.get(threadIds.length - 2)
+        );
 
         when(mockedMXBean.getThreadInfo(ArgumentMatchers.any(long[].class), anyInt())).thenReturn(topThreads.toArray(new ThreadInfo[0]));
 
@@ -725,10 +765,8 @@ public class HotThreadsTests extends ESTestCase {
 
         TimeValue maxTime = new TimeValue(1000L);
 
-        HotThreads.ThreadTimeAccumulator acc = new HotThreads.ThreadTimeAccumulator(
-            threadOne, maxTime, 100L, 1000L);
-        HotThreads.ThreadTimeAccumulator accNext = new HotThreads.ThreadTimeAccumulator(
-            threadOne, maxTime,  250L, 2500L);
+        HotThreads.ThreadTimeAccumulator acc = new HotThreads.ThreadTimeAccumulator(threadOne, maxTime, 100L, 1000L);
+        HotThreads.ThreadTimeAccumulator accNext = new HotThreads.ThreadTimeAccumulator(threadOne, maxTime, 250L, 2500L);
         accNext.subtractPrevious(acc);
 
         assertEquals(1500, accNext.getAllocatedBytes());
@@ -737,10 +775,8 @@ public class HotThreadsTests extends ESTestCase {
         assertEquals(nanosHelper(1), accNext.getBlockedTime());
         assertEquals(nanosHelper(999), accNext.getRunnableTime());
 
-        HotThreads.ThreadTimeAccumulator accNotMoving = new HotThreads.ThreadTimeAccumulator(
-            threadOne, maxTime, 250L, 2500L);
-        HotThreads.ThreadTimeAccumulator accNotMovingNext = new HotThreads.ThreadTimeAccumulator(
-            threadOne, maxTime, 250L, 2500L);
+        HotThreads.ThreadTimeAccumulator accNotMoving = new HotThreads.ThreadTimeAccumulator(threadOne, maxTime, 250L, 2500L);
+        HotThreads.ThreadTimeAccumulator accNotMovingNext = new HotThreads.ThreadTimeAccumulator(threadOne, maxTime, 250L, 2500L);
 
         accNotMovingNext.subtractPrevious(accNotMoving);
 
@@ -750,10 +786,8 @@ public class HotThreadsTests extends ESTestCase {
         assertEquals(0, accNotMovingNext.getBlockedTime());
         assertEquals(0, accNotMovingNext.getRunnableTime());
 
-        HotThreads.ThreadTimeAccumulator accOne = new HotThreads.ThreadTimeAccumulator(
-            threadOne, maxTime, 250L, 2500L);
-        HotThreads.ThreadTimeAccumulator accTwo = new HotThreads.ThreadTimeAccumulator(
-            threadTwo, maxTime, 350L, 3500L);
+        HotThreads.ThreadTimeAccumulator accOne = new HotThreads.ThreadTimeAccumulator(threadOne, maxTime, 250L, 2500L);
+        HotThreads.ThreadTimeAccumulator accTwo = new HotThreads.ThreadTimeAccumulator(threadTwo, maxTime, 350L, 3500L);
 
         expectThrows(IllegalStateException.class, () -> accTwo.subtractPrevious(accOne));
     }
@@ -763,7 +797,7 @@ public class HotThreadsTests extends ESTestCase {
         when(mockedMXBean.isThreadCpuTimeSupported()).thenReturn(true);
         when(mockedMXBean.isThreadContentionMonitoringSupported()).thenReturn(true);
 
-        long[] threadIds = new long[]{1, 2, 3, 4}; // Adds up to 10, the intervalNanos for calculating time percentages
+        long[] threadIds = new long[] { 1, 2, 3, 4 }; // Adds up to 10, the intervalNanos for calculating time percentages
         long mockCurrentThreadId = 0L;
         when(mockedMXBean.getAllThreadIds()).thenReturn(threadIds);
 
@@ -772,15 +806,16 @@ public class HotThreadsTests extends ESTestCase {
             allInfos.get(3), allInfos.get(2), allInfos.get(1), allInfos.get(0));
         when(mockedMXBean.getThreadInfo(ArgumentMatchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
 
-        HotThreads hotThreads = new HotThreads()
-            .busiestThreads(4)
+        HotThreads hotThreads = new HotThreads().busiestThreads(4)
             .type(HotThreads.ReportType.CPU)
             .interval(TimeValue.timeValueNanos(10))
             .threadElementsSnapshotCount(11)
             .ignoreIdleThreads(false);
 
-        Exception e = expectThrows(ElasticsearchException.class, () ->
-            hotThreads.innerDetect(mockedMXBean, mock(SunThreadInfo.class), mockCurrentThreadId, (interval) -> null));
+        Exception e = expectThrows(
+            ElasticsearchException.class,
+            () -> hotThreads.innerDetect(mockedMXBean, mock(SunThreadInfo.class), mockCurrentThreadId, (interval) -> null)
+        );
         assertEquals(e.getMessage(), "thread wait/blocked time accounting is not supported on this JDK");
 
         // Ensure we checked if JVM lock monitoring is enabled
@@ -798,7 +833,7 @@ public class HotThreadsTests extends ESTestCase {
         SunThreadInfo mockedSunThreadInfo = mock(SunThreadInfo.class);
         when(mockedSunThreadInfo.isThreadAllocatedMemorySupported()).thenReturn(false);
 
-        long[] threadIds = new long[]{1, 2, 3, 4}; // Adds up to 10, the intervalNanos for calculating time percentages
+        long[] threadIds = new long[] { 1, 2, 3, 4 }; // Adds up to 10, the intervalNanos for calculating time percentages
         when(mockedMXBean.getAllThreadIds()).thenReturn(threadIds);
 
         List<ThreadInfo> allInfos = makeThreadInfoMocksHelper(mockedMXBean, threadIds);
@@ -806,15 +841,16 @@ public class HotThreadsTests extends ESTestCase {
             allInfos.get(3), allInfos.get(2), allInfos.get(1), allInfos.get(0));
         when(mockedMXBean.getThreadInfo(ArgumentMatchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
 
-        HotThreads hotThreads0 = new HotThreads()
-            .busiestThreads(4)
+        HotThreads hotThreads0 = new HotThreads().busiestThreads(4)
             .type(HotThreads.ReportType.MEM)
             .interval(TimeValue.timeValueNanos(10))
             .threadElementsSnapshotCount(1)
             .ignoreIdleThreads(false);
 
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-            () -> hotThreads0.innerDetect(mockedMXBean, mockedSunThreadInfo, 0L, (interval) -> null));
+        ElasticsearchException exception = expectThrows(
+            ElasticsearchException.class,
+            () -> hotThreads0.innerDetect(mockedMXBean, mockedSunThreadInfo, 0L, (interval) -> null)
+        );
         assertThat(exception.getMessage(), equalTo("thread allocated memory is not supported on this JDK"));
     }
 }

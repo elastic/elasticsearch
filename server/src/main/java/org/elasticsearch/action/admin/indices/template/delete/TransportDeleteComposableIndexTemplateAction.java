@@ -22,18 +22,30 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportDeleteComposableIndexTemplateAction
-    extends AcknowledgedTransportMasterNodeAction<DeleteComposableIndexTemplateAction.Request> {
+public class TransportDeleteComposableIndexTemplateAction extends AcknowledgedTransportMasterNodeAction<
+    DeleteComposableIndexTemplateAction.Request> {
 
     private final MetadataIndexTemplateService indexTemplateService;
 
     @Inject
-    public TransportDeleteComposableIndexTemplateAction(TransportService transportService, ClusterService clusterService,
-                                                        ThreadPool threadPool, MetadataIndexTemplateService indexTemplateService,
-                                                        ActionFilters actionFilters,
-                                                        IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(DeleteComposableIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            DeleteComposableIndexTemplateAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
+    public TransportDeleteComposableIndexTemplateAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        MetadataIndexTemplateService indexTemplateService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            DeleteComposableIndexTemplateAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            DeleteComposableIndexTemplateAction.Request::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
         this.indexTemplateService = indexTemplateService;
     }
 
@@ -43,8 +55,11 @@ public class TransportDeleteComposableIndexTemplateAction
     }
 
     @Override
-    protected void masterOperation(final DeleteComposableIndexTemplateAction.Request request, final ClusterState state,
-                                   final ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(
+        final DeleteComposableIndexTemplateAction.Request request,
+        final ClusterState state,
+        final ActionListener<AcknowledgedResponse> listener
+    ) {
         indexTemplateService.removeIndexTemplateV2(request.names(), request.masterNodeTimeout(), listener);
     }
 }

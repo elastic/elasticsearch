@@ -52,11 +52,20 @@ public class ParseFieldRegistry<T> {
      */
     public void register(T value, ParseField parseField) {
         Tuple<ParseField, T> parseFieldParserTuple = new Tuple<>(parseField, value);
-        for (String name: parseField.getAllNamesIncludedDeprecated()) {
+        for (String name : parseField.getAllNamesIncludedDeprecated()) {
             Tuple<ParseField, T> previousValue = registry.putIfAbsent(name, parseFieldParserTuple);
             if (previousValue != null) {
-                throw new IllegalArgumentException("[" + previousValue.v2() + "] already registered for [" + registryName + "][" + name
-                        + "] while trying to register [" + value + "]");
+                throw new IllegalArgumentException(
+                    "["
+                        + previousValue.v2()
+                        + "] already registered for ["
+                        + registryName
+                        + "]["
+                        + name
+                        + "] while trying to register ["
+                        + value
+                        + "]"
+                );
             }
         }
     }
@@ -91,7 +100,7 @@ public class ParseFieldRegistry<T> {
         ParseField parseField = parseFieldAndValue.v1();
         T value = parseFieldAndValue.v2();
         boolean match = parseField.match(name, deprecationHandler);
-        //this is always expected to match, ParseField is useful for deprecation warnings etc. here
+        // this is always expected to match, ParseField is useful for deprecation warnings etc. here
         assert match : "ParseField did not match registered name [" + name + "][" + registryName + "]";
         return value;
     }

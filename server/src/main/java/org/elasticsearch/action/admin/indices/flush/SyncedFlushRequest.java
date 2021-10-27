@@ -40,7 +40,6 @@ public class SyncedFlushRequest extends BroadcastRequest<SyncedFlushRequest> {
 
     @Override
     public String toString() {
-        return "SyncedFlushRequest{" +
-            "indices=" + Arrays.toString(indices) + "}";
+        return "SyncedFlushRequest{" + "indices=" + Arrays.toString(indices) + "}";
     }
 }

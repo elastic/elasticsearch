@@ -10,22 +10,22 @@ package org.elasticsearch.rest;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.http.HttpChannel;
+import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.http.HttpChannel;
-import org.elasticsearch.http.HttpRequest;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -68,13 +68,26 @@ public class RestRequest implements ToXContent.Params {
         return contentConsumed;
     }
 
-    protected RestRequest(NamedXContentRegistry xContentRegistry, Map<String, String> params, String path,
-                          Map<String, List<String>> headers, HttpRequest httpRequest, HttpChannel httpChannel) {
+    protected RestRequest(
+        NamedXContentRegistry xContentRegistry,
+        Map<String, String> params,
+        String path,
+        Map<String, List<String>> headers,
+        HttpRequest httpRequest,
+        HttpChannel httpChannel
+    ) {
         this(xContentRegistry, params, path, headers, httpRequest, httpChannel, requestIdGenerator.incrementAndGet());
     }
 
-    private RestRequest(NamedXContentRegistry xContentRegistry, Map<String, String> params, String path,
-                        Map<String, List<String>> headers, HttpRequest httpRequest, HttpChannel httpChannel, long requestId) {
+    private RestRequest(
+        NamedXContentRegistry xContentRegistry,
+        Map<String, String> params,
+        String path,
+        Map<String, List<String>> headers,
+        HttpRequest httpRequest,
+        HttpChannel httpChannel,
+        long requestId
+    ) {
         final XContentType xContentType;
         try {
             xContentType = parseContentType(headers.get("Content-Type"));
@@ -94,8 +107,15 @@ public class RestRequest implements ToXContent.Params {
     }
 
     protected RestRequest(RestRequest restRequest) {
-        this(restRequest.getXContentRegistry(), restRequest.params(), restRequest.path(), restRequest.getHeaders(),
-            restRequest.getHttpRequest(), restRequest.getHttpChannel(), restRequest.getRequestId());
+        this(
+            restRequest.getXContentRegistry(),
+            restRequest.params(),
+            restRequest.path(),
+            restRequest.getHeaders(),
+            restRequest.getHttpRequest(),
+            restRequest.getHttpChannel(),
+            restRequest.getRequestId()
+        );
     }
 
     /**
@@ -120,8 +140,15 @@ public class RestRequest implements ToXContent.Params {
     public static RestRequest request(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest, HttpChannel httpChannel) {
         Map<String, String> params = params(httpRequest.uri());
         String path = path(httpRequest.uri());
-        return new RestRequest(xContentRegistry, params, path, httpRequest.getHeaders(), httpRequest, httpChannel,
-            requestIdGenerator.incrementAndGet());
+        return new RestRequest(
+            xContentRegistry,
+            params,
+            path,
+            httpRequest.getHeaders(),
+            httpRequest,
+            httpChannel,
+            requestIdGenerator.incrementAndGet()
+        );
     }
 
     private static Map<String, String> params(final String uri) {
@@ -155,15 +182,33 @@ public class RestRequest implements ToXContent.Params {
      * @param httpChannel      the http channel
      * @throws ContentTypeHeaderException if the Content-Type header can not be parsed
      */
-    public static RestRequest requestWithoutParameters(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest,
-                                                       HttpChannel httpChannel) {
+    public static RestRequest requestWithoutParameters(
+        NamedXContentRegistry xContentRegistry,
+        HttpRequest httpRequest,
+        HttpChannel httpChannel
+    ) {
         Map<String, String> params = Collections.emptyMap();
-        return new RestRequest(xContentRegistry, params, httpRequest.uri(), httpRequest.getHeaders(), httpRequest, httpChannel,
-            requestIdGenerator.incrementAndGet());
+        return new RestRequest(
+            xContentRegistry,
+            params,
+            httpRequest.uri(),
+            httpRequest.getHeaders(),
+            httpRequest,
+            httpChannel,
+            requestIdGenerator.incrementAndGet()
+        );
     }
 
     public enum Method {
-        GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH, TRACE, CONNECT
+        GET,
+        POST,
+        PUT,
+        DELETE,
+        OPTIONS,
+        HEAD,
+        PATCH,
+        TRACE,
+        CONNECT
     }
 
     /**
@@ -314,11 +359,7 @@ public class RestRequest implements ToXContent.Params {
      * @return the list of currently unconsumed parameters.
      */
     List<String> unconsumedParams() {
-        return params
-            .keySet()
-            .stream()
-            .filter(p -> consumedParams.contains(p) == false)
-            .collect(Collectors.toList());
+        return params.keySet().stream().filter(p -> consumedParams.contains(p) == false).collect(Collectors.toList());
     }
 
     public float paramAsFloat(String key, float defaultValue) {
@@ -465,9 +506,10 @@ public class RestRequest implements ToXContent.Params {
             Tuple<XContentType, BytesReference> tuple = contentOrSourceParam();
             BytesReference content = tuple.v2();
             XContentType xContentType = tuple.v1();
-            try (InputStream stream = content.streamInput();
-                 XContentParser parser = xContentType.xContent()
-                     .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
+            try (
+                InputStream stream = content.streamInput();
+                XContentParser parser = xContentType.xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
+            ) {
                 withParser.accept(parser);
             }
         } else {
@@ -513,7 +555,8 @@ public class RestRequest implements ToXContent.Params {
         final String[] elements = rawContentType.split("[ \t]*;");
         if (elements.length > 0) {
             final String[] splitMediaType = elements[0].split("/");
-            if (splitMediaType.length == 2 && TCHAR_PATTERN.matcher(splitMediaType[0]).matches()
+            if (splitMediaType.length == 2
+                && TCHAR_PATTERN.matcher(splitMediaType[0]).matches()
                 && TCHAR_PATTERN.matcher(splitMediaType[1].trim()).matches()) {
                 return XContentType.fromMediaType(elements[0]);
             } else {

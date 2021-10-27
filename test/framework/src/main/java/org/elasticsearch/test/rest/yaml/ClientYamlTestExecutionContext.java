@@ -41,7 +41,7 @@ public class ClientYamlTestExecutionContext {
 
     private static final Logger logger = LogManager.getLogger(ClientYamlTestExecutionContext.class);
 
-    private static final XContentType[] STREAMING_CONTENT_TYPES = new XContentType[]{XContentType.JSON, XContentType.SMILE};
+    private static final XContentType[] STREAMING_CONTENT_TYPES = new XContentType[] { XContentType.JSON, XContentType.SMILE };
 
     private final Stash stash = new Stash();
     private final ClientYamlTestClient clientYamlTestClient;
@@ -54,7 +54,8 @@ public class ClientYamlTestExecutionContext {
     ClientYamlTestExecutionContext(
         ClientYamlTestCandidate clientYamlTestCandidate,
         ClientYamlTestClient clientYamlTestClient,
-        boolean randomizeContentType) {
+        boolean randomizeContentType
+    ) {
         this.clientYamlTestClient = clientYamlTestClient;
         this.clientYamlTestCandidate = clientYamlTestCandidate;
         this.randomizeContentType = randomizeContentType;
@@ -64,8 +65,12 @@ public class ClientYamlTestExecutionContext {
      * Calls an elasticsearch api with the parameters and request body provided as arguments.
      * Saves the obtained response in the execution context.
      */
-    public ClientYamlTestResponse callApi(String apiName, Map<String, String> params, List<Map<String, Object>> bodies,
-                                    Map<String, String> headers) throws IOException {
+    public ClientYamlTestResponse callApi(
+        String apiName,
+        Map<String, String> params,
+        List<Map<String, Object>> bodies,
+        Map<String, String> headers
+    ) throws IOException {
         return callApi(apiName, params, bodies, headers, NodeSelector.ANY);
     }
 
@@ -73,9 +78,14 @@ public class ClientYamlTestExecutionContext {
      * Calls an elasticsearch api with the parameters and request body provided as arguments.
      * Saves the obtained response in the execution context.
      */
-    public ClientYamlTestResponse callApi(String apiName, Map<String, String> params, List<Map<String, Object>> bodies,
-                                    Map<String, String> headers, NodeSelector nodeSelector) throws IOException {
-        //makes a copy of the parameters before modifying them for this specific request
+    public ClientYamlTestResponse callApi(
+        String apiName,
+        Map<String, String> params,
+        List<Map<String, Object>> bodies,
+        Map<String, String> headers,
+        NodeSelector nodeSelector
+    ) throws IOException {
+        // makes a copy of the parameters before modifying them for this specific request
         Map<String, String> requestParams = new HashMap<>(params);
         requestParams.putIfAbsent("error_trace", "true"); // By default ask for error traces, this my be overridden by params
         for (Map.Entry<String, String> entry : requestParams.entrySet()) {
@@ -84,7 +94,7 @@ public class ClientYamlTestExecutionContext {
             }
         }
 
-        //make a copy of the headers before modifying them for this specific request
+        // make a copy of the headers before modifying them for this specific request
         Map<String, String> requestHeaders = new HashMap<>(headers);
         for (Map.Entry<String, String> entry : requestHeaders.entrySet()) {
             if (stash.containsStashedValue(entry.getValue())) {
@@ -100,15 +110,15 @@ public class ClientYamlTestExecutionContext {
         try {
             response = callApiInternal(apiName, requestParams, entity, requestHeaders, nodeSelector);
             return response;
-        } catch(ClientYamlTestResponseException e) {
+        } catch (ClientYamlTestResponseException e) {
             response = e.getRestTestResponse();
             throw e;
         } finally {
             // if we hit a bad exception the response is null
             Object responseBody = response != null ? response.getBody() : null;
-            //we always stash the last response body
+            // we always stash the last response body
             stash.stashValue("body", responseBody);
-            if(requestHeaders.isEmpty() == false) {
+            if (requestHeaders.isEmpty() == false) {
                 stash.stashValue("request_headers", requestHeaders);
             }
         }
@@ -123,9 +133,7 @@ public class ClientYamlTestExecutionContext {
      * behavior). Here we modify the request so that it will work against a 6.x node.
      */
     @SuppressWarnings("unchecked")
-    private void adaptRequestForOlderVersion(String apiName,
-                                             List<Map<String, Object>> bodies,
-                                             Map<String, String> requestParams) {
+    private void adaptRequestForOlderVersion(String apiName, List<Map<String, Object>> bodies, Map<String, String> requestParams) {
         // For index creations, we specify 'include_type_name=false' if it is not explicitly set. This
         // allows us to omit the parameter in the test description, while still being able to communicate
         // with 6.x nodes where include_type_name defaults to 'true'.
@@ -135,7 +143,7 @@ public class ClientYamlTestExecutionContext {
 
         // We add the type to the document API requests if it's not already included.
         if ((apiName.equals("index") || apiName.equals("update") || apiName.equals("delete") || apiName.equals("get"))
-                && requestParams.containsKey("type") == false) {
+            && requestParams.containsKey("type") == false) {
             requestParams.put("type", "_doc");
         }
 
@@ -180,8 +188,12 @@ public class ClientYamlTestExecutionContext {
         if (bodies.size() == 1) {
             XContentType xContentType = getContentType(headers, XContentType.values());
             BytesRef bytesRef = bodyAsBytesRef(bodies.get(0), xContentType);
-            return new ByteArrayEntity(bytesRef.bytes, bytesRef.offset, bytesRef.length,
-                    ContentType.create(xContentType.mediaTypeWithoutParameters(), StandardCharsets.UTF_8));
+            return new ByteArrayEntity(
+                bytesRef.bytes,
+                bytesRef.offset,
+                bytesRef.length,
+                ContentType.create(xContentType.mediaTypeWithoutParameters(), StandardCharsets.UTF_8)
+            );
         } else {
             XContentType xContentType = getContentType(headers, STREAMING_CONTENT_TYPES);
             List<BytesRef> bytesRefList = new ArrayList<>(bodies.size());
@@ -226,8 +238,13 @@ public class ClientYamlTestExecutionContext {
     }
 
     // pkg-private for testing
-    ClientYamlTestResponse callApiInternal(String apiName, Map<String, String> params, HttpEntity entity,
-            Map<String, String> headers, NodeSelector nodeSelector) throws IOException  {
+    ClientYamlTestResponse callApiInternal(
+        String apiName,
+        Map<String, String> params,
+        HttpEntity entity,
+        Map<String, String> headers,
+        NodeSelector nodeSelector
+    ) throws IOException {
         return clientYamlTestClient.callApi(apiName, params, entity, headers, nodeSelector);
     }
 

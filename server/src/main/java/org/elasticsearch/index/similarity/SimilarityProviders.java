@@ -129,12 +129,19 @@ final class SimilarityProviders {
             String replacement = LEGACY_BASIC_MODELS.get(basicModel);
             if (replacement != null) {
                 if (indexCreatedVersion.onOrAfter(Version.V_7_0_0)) {
-                    throw new IllegalArgumentException("Basic model [" + basicModel + "] isn't supported anymore, " +
-                        "please use another model.");
+                    throw new IllegalArgumentException(
+                        "Basic model [" + basicModel + "] isn't supported anymore, " + "please use another model."
+                    );
                 } else {
-                    deprecationLogger.critical(DeprecationCategory.QUERIES, basicModel + "_similarity_model_replaced",
-                        "Basic model [" + basicModel + "] isn't supported anymore and has arbitrarily been replaced with ["
-                            + replacement + "].");
+                    deprecationLogger.critical(
+                        DeprecationCategory.QUERIES,
+                        basicModel + "_similarity_model_replaced",
+                        "Basic model ["
+                            + basicModel
+                            + "] isn't supported anymore and has arbitrarily been replaced with ["
+                            + replacement
+                            + "]."
+                    );
                     model = BASIC_MODELS.get(replacement);
                     assert model != null;
                 }
@@ -161,12 +168,19 @@ final class SimilarityProviders {
             String replacement = LEGACY_AFTER_EFFECTS.get(afterEffect);
             if (replacement != null) {
                 if (indexCreatedVersion.onOrAfter(Version.V_7_0_0)) {
-                    throw new IllegalArgumentException("After effect [" + afterEffect +
-                        "] isn't supported anymore, please use another effect.");
+                    throw new IllegalArgumentException(
+                        "After effect [" + afterEffect + "] isn't supported anymore, please use another effect."
+                    );
                 } else {
-                    deprecationLogger.critical(DeprecationCategory.QUERIES, afterEffect + "_after_effect_replaced",
-                        "After effect [" + afterEffect + "] isn't supported anymore and has arbitrarily been replaced with ["
-                            + replacement + "].");
+                    deprecationLogger.critical(
+                        DeprecationCategory.QUERIES,
+                        afterEffect + "_after_effect_replaced",
+                        "After effect ["
+                            + afterEffect
+                            + "] isn't supported anymore and has arbitrarily been replaced with ["
+                            + replacement
+                            + "]."
+                    );
                     effect = AFTER_EFFECTS.get(replacement);
                     assert effect != null;
                 }
@@ -211,8 +225,9 @@ final class SimilarityProviders {
         String name = settings.get("independence_measure");
         Independence measure = INDEPENDENCE_MEASURES.get(name);
         if (measure == null) {
-            throw new IllegalArgumentException("Unsupported IndependenceMeasure [" + name + "], expected one of "
-                    + INDEPENDENCE_MEASURES.keySet());
+            throw new IllegalArgumentException(
+                "Unsupported IndependenceMeasure [" + name + "], expected one of " + INDEPENDENCE_MEASURES.keySet()
+            );
         }
         return measure;
     }
@@ -255,8 +270,11 @@ final class SimilarityProviders {
             if (version.onOrAfter(Version.V_7_0_0)) {
                 throw new IllegalArgumentException("Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
             } else {
-                deprecationLogger.critical(DeprecationCategory.QUERIES, "unknown_similarity_setting",
-                    "Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
+                deprecationLogger.critical(
+                    DeprecationCategory.QUERIES,
+                    "unknown_similarity_setting",
+                    "Unknown settings for similarity of type [" + type + "]: " + unknownSettings
+                );
             }
         }
     }
@@ -289,15 +307,24 @@ final class SimilarityProviders {
     }
 
     public static DFRSimilarity createDfrSimilarity(Settings settings, Version indexCreatedVersion) {
-        assertSettingsIsSubsetOf("DFR", indexCreatedVersion, settings,
-                "basic_model", "after_effect", "normalization",
-                "normalization.h1.c", "normalization.h2.c", "normalization.h3.c", "normalization.z.z");
-
+        assertSettingsIsSubsetOf(
+            "DFR",
+            indexCreatedVersion,
+            settings,
+            "basic_model",
+            "after_effect",
+            "normalization",
+            "normalization.h1.c",
+            "normalization.h2.c",
+            "normalization.h3.c",
+            "normalization.z.z"
+        );
 
         return new DFRSimilarity(
-                parseBasicModel(indexCreatedVersion, settings),
-                parseAfterEffect(indexCreatedVersion, settings),
-                parseNormalization(settings));
+            parseBasicModel(indexCreatedVersion, settings),
+            parseAfterEffect(indexCreatedVersion, settings),
+            parseNormalization(settings)
+        );
     }
 
     public static DFISimilarity createDfiSimilarity(Settings settings, Version indexCreatedVersion) {
@@ -307,13 +334,20 @@ final class SimilarityProviders {
     }
 
     public static IBSimilarity createIBSimilarity(Settings settings, Version indexCreatedVersion) {
-        assertSettingsIsSubsetOf("IB", indexCreatedVersion, settings, "distribution", "lambda", "normalization",
-                "normalization.h1.c", "normalization.h2.c", "normalization.h3.c", "normalization.z.z");
+        assertSettingsIsSubsetOf(
+            "IB",
+            indexCreatedVersion,
+            settings,
+            "distribution",
+            "lambda",
+            "normalization",
+            "normalization.h1.c",
+            "normalization.h2.c",
+            "normalization.h3.c",
+            "normalization.z.z"
+        );
 
-        return new IBSimilarity(
-                parseDistribution(settings),
-                parseLambda(settings),
-                parseNormalization(settings));
+        return new IBSimilarity(parseDistribution(settings), parseLambda(settings), parseNormalization(settings));
     }
 
     public static LMDirichletSimilarity createLMDirichletSimilarity(Settings settings, Version indexCreatedVersion) {

@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.sql.client.ClientVersion;
 import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
@@ -32,6 +32,7 @@ import static org.elasticsearch.xpack.sql.client.StringUtils.EMPTY;
  */
 class JdbcHttpClient {
     private final HttpClient httpClient;
+    private final JdbcConnection jdbcConn;
     private final JdbcConfiguration conCfg;
     private InfoResponse serverInfo;
 
@@ -39,13 +40,14 @@ class JdbcHttpClient {
      * The SQLException is the only type of Exception the JDBC API can throw (and that the user expects).
      * If we remove it, we need to make sure no other types of Exceptions (runtime or otherwise) are thrown
      */
-    JdbcHttpClient(JdbcConfiguration conCfg) throws SQLException {
-        this(conCfg, true);
+    JdbcHttpClient(JdbcConnection jdbcConn) throws SQLException {
+        this(jdbcConn, true);
     }
 
-    JdbcHttpClient(JdbcConfiguration conCfg, boolean checkServer) throws SQLException {
+    JdbcHttpClient(JdbcConnection jdbcConn, boolean checkServer) throws SQLException {
+        this.jdbcConn = jdbcConn;
+        conCfg = jdbcConn.config();
         httpClient = new HttpClient(conCfg);
-        this.conCfg = conCfg;
         if (checkServer) {
             this.serverInfo = fetchServerInfo();
             checkServerVersion();
@@ -59,9 +61,10 @@ class JdbcHttpClient {
     Cursor query(String sql, List<SqlTypedParamValue> params, RequestMeta meta) throws SQLException {
         int fetch = meta.fetchSize() > 0 ? meta.fetchSize() : conCfg.pageSize();
         SqlQueryRequest sqlRequest = new SqlQueryRequest(sql, params, conCfg.zoneId(),
+                jdbcConn.getCatalog(),
                 fetch,
-                TimeValue.timeValueMillis(meta.timeoutInMs()),
                 TimeValue.timeValueMillis(meta.queryTimeoutInMs()),
+                TimeValue.timeValueMillis(meta.pageTimeoutInMs()),
                 null,
                 Boolean.FALSE,
                 null,
@@ -79,8 +82,13 @@ class JdbcHttpClient {
      * the scroll id to use to fetch the next page.
      */
     Tuple<String, List<List<Object>>> nextPage(String cursor, RequestMeta meta) throws SQLException {
-        SqlQueryRequest sqlRequest = new SqlQueryRequest(cursor, TimeValue.timeValueMillis(meta.timeoutInMs()),
-                TimeValue.timeValueMillis(meta.queryTimeoutInMs()), new RequestInfo(Mode.JDBC), conCfg.binaryCommunication());
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(
+            cursor,
+            TimeValue.timeValueMillis(meta.queryTimeoutInMs()),
+            TimeValue.timeValueMillis(meta.pageTimeoutInMs()),
+            new RequestInfo(Mode.JDBC),
+            conCfg.binaryCommunication()
+        );
         SqlQueryResponse response = httpClient.query(sqlRequest);
         return new Tuple<>(response.cursor(), response.rows());
     }

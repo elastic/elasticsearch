@@ -28,8 +28,8 @@ import org.junit.Before;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -47,7 +47,7 @@ public class TransportFinalizeJobExecutionActionTests extends ESTestCase {
     private void setupMocks() {
         ExecutorService executorService = mock(ExecutorService.class);
         threadPool = mock(ThreadPool.class);
-        org.elasticsearch.mock.orig.Mockito.doAnswer(invocation -> {
+        org.mockito.Mockito.doAnswer(invocation -> {
             ((Runnable) invocation.getArguments()[0]).run();
             return null;
         }).when(executorService).execute(any(Runnable.class));

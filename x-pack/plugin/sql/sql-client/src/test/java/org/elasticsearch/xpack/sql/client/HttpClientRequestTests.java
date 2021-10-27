@@ -163,6 +163,7 @@ public class HttpClientRequestTests extends ESTestCase {
         SqlQueryRequest request = new SqlQueryRequest(query,
                 null,
                 ZoneId.of("Z"),
+                randomAlphaOfLength(10),
                 randomIntBetween(1, 100),
                 TimeValue.timeValueMillis(randomNonNegativeLong()),
                 TimeValue.timeValueMillis(randomNonNegativeLong()),

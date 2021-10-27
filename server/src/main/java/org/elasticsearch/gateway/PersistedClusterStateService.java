@@ -21,8 +21,11 @@ import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SerialMergeScheduler;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -53,20 +56,21 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.Closeable;
 import java.io.IOError;
@@ -123,6 +127,9 @@ public class PersistedClusterStateService {
     private static final String INDEX_TYPE_NAME = "index";
     private static final String INDEX_UUID_FIELD_NAME = "index_uuid";
     private static final int COMMIT_DATA_SIZE = 4;
+
+    private static final MergePolicy NO_MERGE_POLICY = noMergePolicy();
+    private static final MergePolicy DEFAULT_MERGE_POLICY = defaultMergePolicy();
 
     public static final String METADATA_DIRECTORY_NAME = MetadataStateFormat.STATE_DIR_NAME;
 
@@ -193,10 +200,13 @@ public class PersistedClusterStateService {
         indexWriterConfig.setOpenMode(openExisting ? IndexWriterConfig.OpenMode.APPEND : IndexWriterConfig.OpenMode.CREATE);
         // only commit when specifically instructed, we must not write any intermediate states
         indexWriterConfig.setCommitOnClose(false);
-        // most of the data goes into stored fields which are not buffered, so we only really need a tiny buffer
+        // most of the data goes into stored fields which are not buffered, so each doc written accounts for ~500B of indexing buffer
+        // (see e.g. BufferedUpdates#BYTES_PER_DEL_TERM); a 1MB buffer therefore gets flushed every ~2000 docs.
         indexWriterConfig.setRAMBufferSizeMB(1.0);
         // merge on the write thread (e.g. while flushing)
         indexWriterConfig.setMergeScheduler(new SerialMergeScheduler());
+        // apply the adjusted merge policy
+        indexWriterConfig.setMergePolicy(DEFAULT_MERGE_POLICY);
 
         return new IndexWriter(directory, indexWriterConfig);
     }
@@ -262,7 +272,7 @@ public class PersistedClusterStateService {
                     final String thisNodeId = userData.get(NODE_ID_KEY);
                     assert thisNodeId != null;
                     if (nodeId != null && nodeId.equals(thisNodeId) == false) {
-                        throw new IllegalStateException("unexpected node ID in metadata, found [" + thisNodeId +
+                        throw new CorruptStateException("unexpected node ID in metadata, found [" + thisNodeId +
                             "] in [" + dataPath + "] but expected [" + nodeId + "]");
                     } else if (nodeId == null) {
                         nodeId = thisNodeId;
@@ -342,7 +352,7 @@ public class PersistedClusterStateService {
                                 if (logger.isErrorEnabled()) {
                                     outputStream.bytes().utf8ToString().lines().forEach(l -> logger.error("checkIndex: {}", l));
                                 }
-                                throw new IllegalStateException(
+                                throw new CorruptStateException(
                                     "the index containing the cluster metadata under the data path ["
                                         + dataPath
                                         + "] has been changed by an external force after it was last written by Elasticsearch and is "
@@ -356,7 +366,7 @@ public class PersistedClusterStateService {
                         final OnDiskState onDiskState = loadOnDiskState(dataPath, directoryReader);
 
                         if (nodeId.equals(onDiskState.nodeId) == false) {
-                            throw new IllegalStateException("the index containing the cluster metadata under the data path [" + dataPath +
+                            throw new CorruptStateException("the index containing the cluster metadata under the data path [" + dataPath +
                                 "] belongs to a node with ID [" + onDiskState.nodeId + "] but this node's ID is [" + nodeId + "]");
                         }
 
@@ -365,7 +375,7 @@ public class PersistedClusterStateService {
                                 committedClusterUuid = onDiskState.metadata.clusterUUID();
                                 committedClusterUuidPath = dataPath;
                             } else if (committedClusterUuid.equals(onDiskState.metadata.clusterUUID()) == false) {
-                                throw new IllegalStateException("mismatched cluster UUIDs in metadata, found [" + committedClusterUuid +
+                                throw new CorruptStateException("mismatched cluster UUIDs in metadata, found [" + committedClusterUuid +
                                     "] in [" + committedClusterUuidPath + "] and [" + onDiskState.metadata.clusterUUID() + "] in ["
                                     + dataPath + "]");
                             }
@@ -393,7 +403,7 @@ public class PersistedClusterStateService {
         }
 
         if (bestOnDiskState.currentTerm != maxCurrentTermOnDiskState.currentTerm) {
-            throw new IllegalStateException("inconsistent terms found: best state is from [" + bestOnDiskState.dataPath +
+            throw new CorruptStateException("inconsistent terms found: best state is from [" + bestOnDiskState.dataPath +
                 "] in term [" + bestOnDiskState.currentTerm + "] but there is a stale state in [" + maxCurrentTermOnDiskState.dataPath +
                 "] with greater term [" + maxCurrentTermOnDiskState.currentTerm + "]");
         }
@@ -412,14 +422,14 @@ public class PersistedClusterStateService {
                 .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes.bytes, bytes.offset, bytes.length));
             logger.trace("found global metadata with last-accepted term [{}]", metadata.coordinationMetadata().term());
             if (builderReference.get() != null) {
-                throw new IllegalStateException("duplicate global metadata found in [" + dataPath + "]");
+                throw new CorruptStateException("duplicate global metadata found in [" + dataPath + "]");
             }
             builderReference.set(Metadata.builder(metadata));
         });
 
         final Metadata.Builder builder = builderReference.get();
         if (builder == null) {
-            throw new IllegalStateException("no global metadata found in [" + dataPath + "]");
+            throw new CorruptStateException("no global metadata found in [" + dataPath + "]");
         }
 
         logger.trace("got global metadata, now reading index metadata");
@@ -431,7 +441,7 @@ public class PersistedClusterStateService {
                 .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes.bytes, bytes.offset, bytes.length));
             logger.trace("found index metadata for {}", indexMetadata.getIndex());
             if (indexUUIDs.add(indexMetadata.getIndexUUID()) == false) {
-                throw new IllegalStateException("duplicate metadata found for " + indexMetadata.getIndex() + " in [" + dataPath + "]");
+                throw new CorruptStateException("duplicate metadata found for " + indexMetadata.getIndex() + " in [" + dataPath + "]");
             }
             builder.put(indexMetadata, false);
         });
@@ -481,6 +491,28 @@ public class PersistedClusterStateService {
         FORMAT_PARAMS = new ToXContent.MapParams(params);
     }
 
+    @SuppressForbidden(reason = "merges are only temporarily suppressed, the merge scheduler does not need changing")
+    private static MergePolicy noMergePolicy() {
+        return NoMergePolicy.INSTANCE;
+    }
+
+    private static MergePolicy defaultMergePolicy() {
+        final TieredMergePolicy mergePolicy = new TieredMergePolicy();
+
+        // don't worry about cleaning up deletes too much, segments will often get completely deleted once they're old enough
+        mergePolicy.setDeletesPctAllowed(50.0);
+        // more/smaller segments means there's a better chance they just get deleted before needing a merge
+        mergePolicy.setSegmentsPerTier(100);
+        // ... but if we do end up merging them then do them all
+        mergePolicy.setMaxMergeAtOnce(100);
+        // always use compound segments to avoid fsync overhead
+        mergePolicy.setNoCFSRatio(1.0);
+        // segments are mostly tiny, so don't pretend they are bigger
+        mergePolicy.setFloorSegmentMB(0.001);
+
+        return mergePolicy;
+    }
+
     /**
      * Encapsulates a single {@link IndexWriter} with its {@link Directory} for ease of closing, and a {@link Logger}. There is one of these
      * for each data path.
@@ -522,7 +554,15 @@ public class PersistedClusterStateService {
             this.indexWriter.flush();
         }
 
+        void startWrite() {
+            // Disable merges during indexing - many older segments will ultimately contain no live docs and simply get deleted.
+            indexWriter.getConfig().setMergePolicy(NO_MERGE_POLICY);
+        }
+
         void prepareCommit(String nodeId, long currentTerm, long lastAcceptedVersion) throws IOException {
+            indexWriter.getConfig().setMergePolicy(DEFAULT_MERGE_POLICY);
+            indexWriter.maybeMerge();
+
             final Map<String, String> commitData = new HashMap<>(COMMIT_DATA_SIZE);
             commitData.put(CURRENT_TERM_KEY, Long.toString(currentTerm));
             commitData.put(LAST_ACCEPTED_VERSION_KEY, Long.toString(lastAcceptedVersion));
@@ -594,6 +634,11 @@ public class PersistedClusterStateService {
             ensureOpen();
             try {
                 final long startTimeMillis = relativeTimeMillisSupplier.getAsLong();
+
+                for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
+                    metadataIndexWriter.startWrite();
+                }
+
                 final WriterStats stats = overwriteMetadata(clusterState.metadata());
                 commit(currentTerm, clusterState.version());
                 fullStateWritten = true;
@@ -623,6 +668,11 @@ public class PersistedClusterStateService {
 
             try {
                 final long startTimeMillis = relativeTimeMillisSupplier.getAsLong();
+
+                for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
+                    metadataIndexWriter.startWrite();
+                }
+
                 final WriterStats stats = updateMetadata(previousClusterState.metadata(), clusterState.metadata());
                 commit(currentTerm, clusterState.version());
                 final long durationMillis = relativeTimeMillisSupplier.getAsLong() - startTimeMillis;

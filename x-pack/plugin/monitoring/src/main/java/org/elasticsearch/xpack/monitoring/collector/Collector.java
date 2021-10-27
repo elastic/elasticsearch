@@ -41,7 +41,8 @@ public abstract class Collector {
      * List of indices names whose stats will be exported (default to all indices)
      */
     public static final Setting<List<String>> INDICES =
-            listSetting(collectionSetting("indices"), emptyList(), Function.identity(), Property.Dynamic, Property.NodeScope);
+            listSetting(collectionSetting("indices"), emptyList(), Function.identity(), Property.Dynamic, Property.NodeScope,
+                Setting.Property.Deprecated);
 
     private final String name;
     private final Setting<TimeValue> collectionTimeoutSetting;
@@ -170,6 +171,6 @@ public abstract class Collector {
 
     protected static Setting<TimeValue> collectionTimeoutSetting(final String settingName) {
         String name = collectionSetting(settingName);
-        return timeSetting(name, TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
+        return timeSetting(name, TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope, Property.Deprecated);
     }
 }

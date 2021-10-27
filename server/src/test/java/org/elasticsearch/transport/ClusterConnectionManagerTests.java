@@ -48,8 +48,8 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
@@ -255,12 +255,13 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                     ActionListener.wrap(c -> {
                         assert connectionManager.nodeConnected(node);
 
+                        assertTrue(pendingCloses.tryAcquire());
+                        connectionManager.getConnection(node).addRemovedListener(ActionListener.wrap(pendingCloses::release));
+
                         if (randomBoolean()) {
                             releasables[threadIndex] = c;
                             nodeConnectedCount.incrementAndGet();
                         } else {
-                            assertTrue(pendingCloses.tryAcquire());
-                            connectionManager.getConnection(node).addRemovedListener(ActionListener.wrap(pendingCloses::release));
                             Releasables.close(c);
                             nodeClosedCount.incrementAndGet();
                         }
@@ -296,6 +297,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         if (nodeConnectedCount.get() == 0) {
             // Any successful connections were closed
             assertTrue(pendingCloses.tryAcquire(threadCount, 10, TimeUnit.SECONDS));
+            pendingCloses.release(threadCount);
             assertTrue(connections.stream().allMatch(Transport.Connection::isClosed));
             assertEquals(0, connectionManager.size());
         } else {
@@ -305,6 +307,8 @@ public class ClusterConnectionManagerTests extends ESTestCase {
 
         if (randomBoolean()) {
             Releasables.close(releasables);
+            assertTrue(pendingCloses.tryAcquire(threadCount, 10, TimeUnit.SECONDS));
+            pendingCloses.release(threadCount);
             assertEquals(0, connectionManager.size());
             assertTrue(connections.stream().allMatch(Transport.Connection::isClosed));
         }

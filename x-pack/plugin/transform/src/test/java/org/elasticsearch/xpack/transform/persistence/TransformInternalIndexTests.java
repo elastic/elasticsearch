@@ -40,7 +40,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -173,7 +173,7 @@ public class TransformInternalIndexTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<ClusterHealthResponse> listener = (ActionListener<ClusterHealthResponse>) invocationOnMock.getArguments()[1];
-            listener.onResponse(new ClusterHealthResponse("", new String[]{}, ClusterState.EMPTY_STATE, false));
+            listener.onResponse(new ClusterHealthResponse("", Strings.EMPTY_ARRAY, ClusterState.EMPTY_STATE, false));
             return null;
         }).when(clusterClient).health(any(), any());
 
@@ -257,7 +257,7 @@ public class TransformInternalIndexTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<ClusterHealthResponse> listener = (ActionListener<ClusterHealthResponse>) invocationOnMock.getArguments()[1];
-            listener.onResponse(new ClusterHealthResponse("", new String[]{}, ClusterState.EMPTY_STATE, false));
+            listener.onResponse(new ClusterHealthResponse("", Strings.EMPTY_ARRAY, ClusterState.EMPTY_STATE, false));
             return null;
         }).when(clusterClient).health(any(), any());
 

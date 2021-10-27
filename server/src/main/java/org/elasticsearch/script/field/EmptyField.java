@@ -8,13 +8,10 @@
 
 package org.elasticsearch.script.field;
 
-import java.util.Collections;
-import java.util.List;
-
 /**
  * Script field with no mapping, always returns {@code defaultValue}.
  */
-public class EmptyField<T> implements Field<T> {
+public class EmptyField implements Field {
 
     private final String name;
 
@@ -35,20 +32,5 @@ public class EmptyField<T> implements Field<T> {
     @Override
     public int size() {
         return 0;
-    }
-
-    @Override
-    public List<T> getValues() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public T getValue(T defaultValue) {
-        return defaultValue;
-    }
-
-    @Override
-    public T getValue(int index, T defaultValue) {
-        return defaultValue;
     }
 }

@@ -1,8 +1,8 @@
 ---
 "Modify a data stream":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.15.99 after backporting"
+      version: " - 7.15.99"
+      reason: "this API was released in 7.16.0"
       features: allowed_warnings
 
   - do:

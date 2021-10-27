@@ -13,11 +13,12 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
-import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
+import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.script.field.DocValuesField;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -79,9 +80,9 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
     }
 
     @Override
-    public ScriptDocValues<?> getScriptValues() {
-        return AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION
-            .apply(getOrdinalsValues());
+    public DocValuesField getScriptField(String name) {
+        return new DelegateDocValuesField(
+                AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION.apply(getOrdinalsValues()), name);
     }
 
     @Override

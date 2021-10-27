@@ -11,7 +11,6 @@ package org.elasticsearch.ingest.geoip;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -47,6 +46,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -218,12 +218,13 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("[database_file] database file [does-not-exist.mmdb] doesn't exist"));
     }
 
-    public void testBuildNoDatabasesDownloaded() throws Exception {
+    public void testBuildBuiltinDatabaseMissing() throws Exception {
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseNodeService, clusterService);
+        cleanDatabaseFiles(geoIpConfigDir, configDatabases);
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
-        config.put("database_file", "does-not-exist-yet.mmdb");
+        config.put("database_file", randomFrom(IngestGeoIpPlugin.DEFAULT_DATABASE_FILENAMES));
         Processor processor = factory.create(null, null, null, config);
         assertThat(processor, instanceOf(GeoIpProcessor.DatabaseUnavailableProcessor.class));
     }
@@ -426,21 +427,22 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             assertThat(geoData, nullValue());
         }
         {
-            // There are database available, but not the right one, so fail:
+            // There are database available, but not the right one, so tag:
             databaseNodeService.updateDatabase("GeoLite2-City-Test.mmdb", "md5", geoipTmpDir.resolve("GeoLite2-City-Test.mmdb"));
             IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-            Exception e = expectThrows(ResourceNotFoundException.class, () -> processor.execute(ingestDocument));
-            assertThat(e.getMessage(), equalTo("database file [GeoLite2-City.mmdb] doesn't exist"));
+            processor.execute(ingestDocument);
+            assertThat(ingestDocument.getSourceAndMetadata(), hasEntry("tags", List.of("_geoip_database_unavailable_GeoLite2-City.mmdb")));
         }
     }
 
     public void testDatabaseNotReadyYet() throws Exception {
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseNodeService, clusterService);
+        cleanDatabaseFiles(geoIpConfigDir, configDatabases);
 
         {
             Map<String, Object> config = new HashMap<>();
             config.put("field", "source_field");
-            config.put("database_file", "GeoLite2-City-Test.mmdb");
+            config.put("database_file", "GeoLite2-City.mmdb");
 
             Map<String, Object> document = new HashMap<>();
             document.put("source_field", "89.160.20.128");
@@ -451,16 +453,16 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             processor.execute(ingestDocument);
             assertThat(ingestDocument.getSourceAndMetadata().get("geoip"), nullValue());
             assertThat(ingestDocument.getSourceAndMetadata().get("tags"),
-                equalTo(List.of("_geoip_database_unavailable_GeoLite2-City-Test.mmdb")));
+                equalTo(List.of("_geoip_database_unavailable_GeoLite2-City.mmdb")));
         }
 
         copyDatabaseFile(geoipTmpDir, "GeoLite2-City-Test.mmdb");
-        databaseNodeService.updateDatabase("GeoLite2-City-Test.mmdb", "md5", geoipTmpDir.resolve("GeoLite2-City-Test.mmdb"));
+        databaseNodeService.updateDatabase("GeoLite2-City.mmdb", "md5", geoipTmpDir.resolve("GeoLite2-City-Test.mmdb"));
 
         {
             Map<String, Object> config = new HashMap<>();
             config.put("field", "source_field");
-            config.put("database_file", "GeoLite2-City-Test.mmdb");
+            config.put("database_file", "GeoLite2-City.mmdb");
 
             Map<String, Object> document = new HashMap<>();
             document.put("source_field", "89.160.20.128");
@@ -486,6 +488,12 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         for (final String databaseFilename : IngestGeoIpPlugin.DEFAULT_DATABASE_FILENAMES) {
             copyDatabaseFile(path, databaseFilename);
             configDatabases.updateDatabase(path.resolve(databaseFilename), true);
+        }
+    }
+
+    static void cleanDatabaseFiles(final Path path, ConfigDatabases configDatabases) throws IOException {
+        for (final String databaseFilename : IngestGeoIpPlugin.DEFAULT_DATABASE_FILENAMES) {
+            configDatabases.updateDatabase(path.resolve(databaseFilename), false);
         }
     }
 

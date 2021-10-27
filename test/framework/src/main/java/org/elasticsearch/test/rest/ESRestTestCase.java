@@ -382,6 +382,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             ensureNoInitializingShards();
             wipeCluster();
             waitForClusterStateUpdatesToFinish();
+            checkForUnexpectedlyRecreatedObjects();
             logIfThereAreRunningTasks();
         }
     }
@@ -577,7 +578,9 @@ public abstract class ESRestTestCase extends ESTestCase {
             "30-days-default",
             "90-days-default",
             "180-days-default",
-            "365-days-default"
+            "365-days-default",
+            ".fleet-actions-results-ilm-policy",
+            ".deprecation-indexing-ilm-policy"
         );
     }
 
@@ -794,6 +797,85 @@ public abstract class ESRestTestCase extends ESTestCase {
         deleteAllNodeShutdownMetadata();
 
         assertThat("Found in progress snapshots [" + inProgressSnapshots.get() + "].", inProgressSnapshots.get(), anEmptyMap());
+    }
+
+    /**
+     * This method checks whether ILM policies or templates get recreated after they have been deleted. If so, we are probably deleting
+     * them unnecessarily, potentially causing test performance problems. This could happen for example if someone adds a new standard ILM
+     * policy but forgets to put it in the exclusion list in this test.
+     * @throws IOException
+     */
+    private void checkForUnexpectedlyRecreatedObjects() throws IOException {
+        if (hasIlm && false == preserveILMPoliciesUponCompletion()) {
+            Set<String> unexpectedIlmPlicies = getAllUnexpectedIlmPolicies(preserveILMPolicyIds());
+            assertTrue("Expected no ILM policies after deletions, but found " +
+                    unexpectedIlmPlicies.stream().collect(Collectors.joining(", ")),
+                unexpectedIlmPlicies.isEmpty());
+        }
+        Set<String> unexpectedTemplates = getAllUnexpectedTemplates();
+        assertTrue("Expected no templates after deletions, but found " +
+                unexpectedTemplates.stream().collect(Collectors.joining(", ")),
+            unexpectedTemplates.isEmpty());
+    }
+
+    private Set<String> getAllUnexpectedIlmPolicies(Set<String> exclusions) throws IOException {
+        Map<String, Object> policies;
+        try {
+            Response response = adminClient().performRequest(new Request("GET", "/_ilm/policy"));
+            policies = entityAsMap(response);
+        } catch (ResponseException e) {
+            if (RestStatus.METHOD_NOT_ALLOWED.getStatus() == e.getResponse().getStatusLine().getStatusCode()
+                || RestStatus.BAD_REQUEST.getStatus() == e.getResponse().getStatusLine().getStatusCode()) {
+                // If bad request returned, ILM is not enabled.
+                policies = new HashMap<>();
+            } else {
+                throw e;
+            }
+        }
+        Set<String> unexpectedPolicies =
+            policies.keySet().stream().filter(p -> exclusions.contains(p) == false).collect(Collectors.toSet());
+        return unexpectedPolicies;
+    }
+
+    private Set<String> getAllUnexpectedTemplates() throws IOException {
+        Set<String> unexpectedTemplates = new HashSet<>();
+        if (preserveTemplatesUponCompletion() == false) {
+            if (hasXPack) {
+                // In case of bwc testing, if all nodes are before 7.7.0 then no need to attempt to delete component and composable
+                // index templates, because these were introduced in 7.7.0:
+                if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_7_0))) {
+                    Request getTemplatesRequest = new Request("GET", "_index_template");
+                    Map<String, Object> composableIndexTemplates = XContentHelper.convertToMap(
+                        JsonXContent.jsonXContent,
+                        EntityUtils.toString(adminClient().performRequest(getTemplatesRequest).getEntity()),
+                        false
+                    );
+                    unexpectedTemplates.addAll(((List<?>) composableIndexTemplates.get("index_templates")).stream()
+                        .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
+                        .filter(name -> isXPackTemplate(name) == false)
+                        .collect(Collectors.toSet()));
+                    Request compReq = new Request("GET", "_component_template");
+                    String componentTemplates = EntityUtils.toString(adminClient().performRequest(compReq).getEntity());
+                    Map<String, Object> cTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent, componentTemplates, false);
+                    unexpectedTemplates.addAll(((List<?>) cTemplates.get("component_templates")).stream()
+                        .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
+                        .filter(name -> isXPackTemplate(name) == false)
+                        .collect(Collectors.toList()));
+                }
+                // Always check for legacy templates:
+                Request getLegacyTemplatesRequest = new Request("GET", "_template");
+                Map<String, Object> legacyTemplates = XContentHelper.convertToMap(
+                    JsonXContent.jsonXContent,
+                    EntityUtils.toString(adminClient().performRequest(getLegacyTemplatesRequest).getEntity()),
+                    false
+                );
+                unexpectedTemplates.addAll(legacyTemplates.keySet().stream().filter(template -> isXPackTemplate(template) == false)
+                    .collect(Collectors.toSet()));
+            } else {
+                // Do nothing
+            }
+        }
+        return unexpectedTemplates;
     }
 
     /**

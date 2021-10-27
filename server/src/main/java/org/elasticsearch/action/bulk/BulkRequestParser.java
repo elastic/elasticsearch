@@ -24,10 +24,10 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -63,7 +63,10 @@ public final class BulkRequestParser {
     // TODO: Remove this parameter once the BulkMonitoring endpoint has been removed
     // for CompatibleApi V7 this means to deprecate on type, for V8+ it means to throw an error
     private final boolean deprecateOrErrorOnType;
-    private RestApiVersion restApiVersion;
+    /**
+     * Configuration for {@link XContentParser}.
+     */
+    private final XContentParserConfiguration config;
 
     /**
      * Create a new parser.
@@ -73,7 +76,8 @@ public final class BulkRequestParser {
      */
     public BulkRequestParser(boolean deprecateOrErrorOnType, RestApiVersion restApiVersion) {
         this.deprecateOrErrorOnType = deprecateOrErrorOnType;
-        this.restApiVersion = restApiVersion;
+        this.config = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
+            .withRestApiVersion(restApiVersion);
     }
 
     private static int findNextMarker(byte marker, int from, BytesReference data) {
@@ -143,7 +147,7 @@ public final class BulkRequestParser {
             line++;
 
             // now parse the action
-            try (XContentParser parser = createParser(data, xContent, from, nextMarker, restApiVersion)) {
+            try (XContentParser parser = createParser(xContent, data, from, nextMarker)) {
                 // move pointers
                 from = nextMarker + 1;
 
@@ -390,9 +394,8 @@ public final class BulkRequestParser {
                             .routing(routing);
                         try (
                             XContentParser sliceParser = createParser(
-                                sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType),
                                 xContent,
-                                restApiVersion
+                                sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType)
                             )
                         ) {
                             updateRequest.fromXContent(sliceParser);
@@ -414,64 +417,33 @@ public final class BulkRequestParser {
         }
     }
 
-    private static XContentParser createParser(BytesReference data, XContent xContent, RestApiVersion restApiVersion) throws IOException {
+    private XContentParser createParser(XContent xContent, BytesReference data) throws IOException {
         if (data.hasArray()) {
-            return parseBytesArray(xContent, data, 0, data.length(), restApiVersion);
+            return parseBytesArray(xContent, data, 0, data.length());
         } else {
-            return xContent.createParserForCompatibility(
-                NamedXContentRegistry.EMPTY,
-                LoggingDeprecationHandler.INSTANCE,
-                data.streamInput(),
-                restApiVersion
-            );
+            return xContent.createParser(config, data.streamInput());
         }
     }
 
     // Create an efficient parser of the given bytes, trying to directly parse a byte array if possible and falling back to stream wrapping
     // otherwise.
-    private static XContentParser createParser(
-        BytesReference data,
-        XContent xContent,
-        int from,
-        int nextMarker,
-        RestApiVersion restApiVersion
-    ) throws IOException {
+    private XContentParser createParser(XContent xContent, BytesReference data, int from, int nextMarker) throws IOException {
         if (data.hasArray()) {
-            return parseBytesArray(xContent, data, from, nextMarker, restApiVersion);
+            return parseBytesArray(xContent, data, from, nextMarker);
         } else {
             final int length = nextMarker - from;
             final BytesReference slice = data.slice(from, length);
             if (slice.hasArray()) {
-                return parseBytesArray(xContent, slice, 0, length, restApiVersion);
+                return parseBytesArray(xContent, slice, 0, length);
             } else {
-                // EMPTY is safe here because we never call namedObject
-                return xContent.createParserForCompatibility(
-                    NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE,
-                    slice.streamInput(),
-                    restApiVersion
-                );
+                return xContent.createParser(config, slice.streamInput());
             }
         }
     }
 
-    private static XContentParser parseBytesArray(
-        XContent xContent,
-        BytesReference array,
-        int from,
-        int nextMarker,
-        RestApiVersion restApiVersion
-    ) throws IOException {
+    private XContentParser parseBytesArray(XContent xContent, BytesReference array, int from, int nextMarker) throws IOException {
         assert array.hasArray();
         final int offset = array.arrayOffset();
-        // EMPTY is safe here because we never call namedObject
-        return xContent.createParserForCompatibility(
-            NamedXContentRegistry.EMPTY,
-            LoggingDeprecationHandler.INSTANCE,
-            array.array(),
-            offset + from,
-            nextMarker - from,
-            restApiVersion
-        );
+        return xContent.createParser(config, array.array(), offset + from, nextMarker - from);
     }
 }

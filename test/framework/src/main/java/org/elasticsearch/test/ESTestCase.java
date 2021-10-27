@@ -102,6 +102,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -111,13 +112,11 @@ import org.junit.Rule;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -1417,6 +1416,12 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    protected final XContentParserConfiguration parserConfig() {
+        XContentParserConfiguration config = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry())
+            .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
+        return randomBoolean() ? config : config.withRestApiVersion(RestApiVersion.minimumSupported());
+    }
+
     /**
      * Create a new {@link XContentParser}.
      */
@@ -1428,59 +1433,44 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContent xContent, String data) throws IOException {
-        if (randomBoolean()) {
-            return createParserWithCompatibilityFor(xContent, data, RestApiVersion.minimumSupported());
-        } else {
-            return xContent.createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, data);
-        }
+        return xContent.createParser(parserConfig(), data);
     }
 
     /**
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContent xContent, InputStream data) throws IOException {
-        return xContent.createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, data);
+        return xContent.createParser(parserConfig(), data);
     }
 
     /**
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContent xContent, byte[] data) throws IOException {
-        return xContent.createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, data);
+        return xContent.createParser(parserConfig(), data);
     }
 
     /**
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContent xContent, BytesReference data) throws IOException {
-        return createParser(xContentRegistry(), xContent, data);
+        return createParser(parserConfig(), xContent, data);
     }
 
     /**
      * Create a new {@link XContentParser}.
      */
-    protected final XContentParser createParser(NamedXContentRegistry namedXContentRegistry, XContent xContent, BytesReference data)
+    protected final XContentParser createParser(XContentParserConfiguration config, XContent xContent, BytesReference data)
         throws IOException {
         if (data.hasArray()) {
-            return xContent.createParser(
-                namedXContentRegistry,
-                LoggingDeprecationHandler.INSTANCE,
-                data.array(),
-                data.arrayOffset(),
-                data.length()
-            );
+            return xContent.createParser(config, data.array(), data.arrayOffset(), data.length());
         }
-        return xContent.createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, data.streamInput());
+        return xContent.createParser(config, data.streamInput());
     }
 
     protected final XContentParser createParserWithCompatibilityFor(XContent xContent, String data, RestApiVersion restApiVersion)
         throws IOException {
-        return xContent.createParserForCompatibility(
-            xContentRegistry(),
-            LoggingDeprecationHandler.INSTANCE,
-            new ByteArrayInputStream(data.getBytes(StandardCharsets.UTF_8)),
-            restApiVersion
-        );
+        return xContent.createParser(parserConfig().withRestApiVersion(restApiVersion), data);
     }
 
     private static final NamedXContentRegistry DEFAULT_NAMED_X_CONTENT_REGISTRY = new NamedXContentRegistry(

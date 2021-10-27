@@ -196,7 +196,7 @@ public final class RemoteClusterLicenseChecker {
     }
 
     private boolean isActive(XPackInfoResponse.LicenseInfo licenseInfo) {
-        return (feature == null || feature.isNeedsActive()) && licenseInfo.getStatus() == LicenseStatus.ACTIVE;
+        return feature != null && feature.isNeedsActive() == false || licenseInfo.getStatus() == LicenseStatus.ACTIVE;
     }
 
     private boolean isAllowed(XPackInfoResponse.LicenseInfo licenseInfo) {

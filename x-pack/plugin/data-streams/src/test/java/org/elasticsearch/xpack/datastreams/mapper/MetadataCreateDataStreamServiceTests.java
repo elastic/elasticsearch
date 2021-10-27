@@ -15,7 +15,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 
 import java.io.IOException;
 import java.util.List;
@@ -74,7 +73,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             )
             .putMapping(mapping)
             .build();
-        IndicesModule indicesModule = new IndicesModule(List.of(new DataStreamsPlugin()));
+        IndicesModule indicesModule = new IndicesModule(List.of());
         MapperService mapperService = MapperTestUtils.newMapperService(
             xContentRegistry(),
             createTempDir(),

@@ -868,8 +868,8 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
     private boolean isInitialClusterNode(Settings settings) {
         return DiscoveryModule.isSingleNodeDiscovery(settings)
             || (ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(settings).isEmpty()
-                && SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.get(settings).isEmpty()
-                && DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.get(settings).isEmpty())
+            && SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.get(settings).isEmpty()
+            && DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.get(settings).isEmpty())
             || ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(settings).equals(List.of(Node.NODE_NAME_SETTING.get(settings)));
     }
 

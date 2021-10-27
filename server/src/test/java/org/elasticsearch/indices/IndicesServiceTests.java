@@ -31,8 +31,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.GatewayMetaState;
+import org.elasticsearch.gateway.MetaStateWriterUtils;
 import org.elasticsearch.gateway.LocalAllocateDangledIndices;
-import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
@@ -326,7 +326,6 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         final Index index = new Index("test", UUIDs.randomBase64UUID());
         final IndicesService indicesService = getIndicesService();
         final NodeEnvironment nodeEnv = getNodeEnvironment();
-        final MetaStateService metaStateService = getInstanceFromNode(MetaStateService.class);
 
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         final Settings idxSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -337,7 +336,8 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
                                                              .numberOfShards(1)
                                                              .numberOfReplicas(0)
                                                              .build();
-        metaStateService.writeIndex("test index being created", indexMetadata);
+
+        MetaStateWriterUtils.writeIndex(nodeEnv, "test index being created", indexMetadata);
         final Metadata metadata = Metadata.builder(clusterService.state().metadata()).put(indexMetadata, true).build();
         final ClusterState csWithIndex = new ClusterState.Builder(clusterService.state()).metadata(metadata).build();
         try {

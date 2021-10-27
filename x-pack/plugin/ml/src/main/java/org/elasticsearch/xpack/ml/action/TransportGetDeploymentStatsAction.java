@@ -185,6 +185,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<Trai
             ByteSizeValue.ofBytes(task.getParams().getModelBytes()),
             task.getParams().getInferenceThreads(),
             task.getParams().getModelThreads(),
+            task.getParams().getQueueCapacity(),
             nodeStats)
         );
     }

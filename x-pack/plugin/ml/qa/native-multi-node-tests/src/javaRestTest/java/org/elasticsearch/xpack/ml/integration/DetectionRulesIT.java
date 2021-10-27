@@ -123,7 +123,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
     }
 
     public void testScope() throws Exception {
-        MlFilter safeIps = MlFilter.builder("safe_ips").setItems("111.111.111.111", "222.222.222.222").build();
+        MlFilter safeIps = MlFilter.builder("safe_ips").setItems("111.111.111.111<", "222.222.222.222").build();
         assertThat(putMlFilter(safeIps).getFilter(), equalTo(safeIps));
 
         DetectionRule rule = new DetectionRule.Builder(RuleScope.builder().include("ip", "safe_ips")).build();
@@ -154,7 +154,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         }
 
         // Now send anomalous counts for our filtered IPs plus 333.333.333.333
-        List<String> namedIps = Arrays.asList("111.111.111.111", "222.222.222.222", "333.333.333.333");
+        List<String> namedIps = Arrays.asList("111.111.111.111<", "222.222.222.222", "333.333.333.333");
         long firstAnomalyTime = timestamp;
         for (int i = 0; i < 10; i++) {
             for (String ip : namedIps) {
@@ -225,7 +225,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         assertThat(records.size(), equalTo(2));
         for (AnomalyRecord record : records) {
             assertThat(record.getTimestamp().getTime(), equalTo(secondAnomalyTime));
-            assertThat(record.getOverFieldValue(), is(oneOf("111.111.111.111", "222.222.222.222")));
+            assertThat(record.getOverFieldValue(), is(oneOf("111.111.111.111<", "222.222.222.222")));
         }
 
         closeJob(job.getId());

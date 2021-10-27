@@ -8,13 +8,13 @@
 
 package org.elasticsearch.xcontent.support.filtering;
 
+import org.elasticsearch.core.Glob;
+
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import org.elasticsearch.core.Glob;
 
 public class FilterPath {
     private static final String WILDCARD = "*";
@@ -23,12 +23,14 @@ public class FilterPath {
     private final Map<String, FilterPath> termsChildren;
     private final Map<String, FilterPath> wildcardChildren;
     private final boolean doubleWildcard;
+    private final boolean isFinalNode;
     private boolean hasDoubleWildcard;
 
-    public FilterPath(String field) {
+    public FilterPath(boolean doubleWildcard, boolean isFinalNode) {
         this.termsChildren = new HashMap<>();
         this.wildcardChildren = new HashMap<>();
-        this.doubleWildcard = DOUBLE_WILDCARD.equals(field);
+        this.doubleWildcard = doubleWildcard;
+        this.isFinalNode = isFinalNode;
     }
 
     public boolean hasDoubleWildcard() {
@@ -64,17 +66,23 @@ public class FilterPath {
                 if (field.contains(WILDCARD)) {
                     child = wildcardChildren.get(field);
                     if (child == null) {
-                        child = new FilterPath(field);
+                        if (field.equals(DOUBLE_WILDCARD)) {
+                            child = new FilterPath(true, false);
+                        } else {
+                            child = new FilterPath(false, false);
+                        }
                         wildcardChildren.put(field, child);
                     }
                 } else {
                     child = termsChildren.get(field);
                     if (child == null) {
-                        child = new FilterPath(field);
+                        child = new FilterPath(false, false);
                         termsChildren.put(field, child);
                     }
                 }
-                child.insert(filter.substring(i + 1));
+                if (false == child.isFinalNode()) {
+                    child.insert(filter.substring(i + 1));
+                }
                 return;
             }
             ++i;
@@ -87,32 +95,29 @@ public class FilterPath {
         if (field.contains(DOUBLE_WILDCARD)) {
             hasDoubleWildcard = true;
         }
-        if (field.contains(WILDCARD)) {
-            wildcardChildren.put(field, new FilterPath(field));
+        if (field.equals(DOUBLE_WILDCARD)) {
+            wildcardChildren.put(field, new FilterPath(true, true));
+        } else if (field.contains(WILDCARD)) {
+            wildcardChildren.put(field, new FilterPath(false, true));
         } else {
-            termsChildren.put(field, new FilterPath(field));
+            termsChildren.put(field, new FilterPath(false, true));
         }
     }
 
     public boolean matches(String name, List<FilterPath> nextFilters) {
-        if (doubleWildcard) {
-            nextFilters.add(this);
-        }
-
         FilterPath termNode = termsChildren.get(name);
         if (termNode != null) {
-            if (termNode.isEnd()) {
+            if (termNode.isFinalNode()) {
                 return true;
             } else {
                 nextFilters.add(termNode);
             }
         }
 
-        for (Map.Entry<String, FilterPath> entry : wildcardChildren.entrySet()) {
-            String wildcardPattern = entry.getKey();
-            FilterPath wildcardNode = entry.getValue();
+        for (String wildcardPattern : wildcardChildren.keySet()) {
             if (Glob.globMatch(wildcardPattern, name)) {
-                if (wildcardNode.isEnd()) {
+                FilterPath wildcardNode = wildcardChildren.get(wildcardPattern);
+                if (wildcardNode.isFinalNode()) {
                     return true;
                 } else {
                     nextFilters.add(wildcardNode);
@@ -120,11 +125,15 @@ public class FilterPath {
             }
         }
 
+        if (doubleWildcard) {
+            nextFilters.add(this);
+        }
+
         return false;
     }
 
-    private boolean isEnd() {
-        return termsChildren.isEmpty() && wildcardChildren.isEmpty();
+    private boolean isFinalNode() {
+        return isFinalNode;
     }
 
     public static FilterPath[] compile(Set<String> filters) {
@@ -132,7 +141,7 @@ public class FilterPath {
             return null;
         }
 
-        FilterPath filterPath = new FilterPath("");
+        FilterPath filterPath = new FilterPath(false, false);
         for (String filter : filters) {
             if (filter != null) {
                 filter = filter.trim();

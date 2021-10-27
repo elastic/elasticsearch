@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.ssl.StoredCertificate;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.ssl.SslKeyConfig;
@@ -81,6 +82,23 @@ public class TransportNodeEnrollmentAction extends HandledTransportAction<NodeEn
                 "Unable to enroll node. Elasticsearch node transport layer SSL configuration contains multiple keys"));
             return;
         }
+        final List<X509Certificate> transportCaCertificates;
+        try {
+            transportCaCertificates = ((StoreKeyConfig) transportKeyConfig).getConfiguredCertificates()
+                .stream()
+                .map(StoredCertificate::getCertificate)
+                .filter(x509Certificate -> x509Certificate.getBasicConstraints() != -1)
+                .collect(Collectors.toList());
+        } catch (Exception e) {
+            listener.onFailure(new ElasticsearchException("Unable to enroll node. Cannot retrieve CA certificate " +
+                "for the transport layer of the Elasticsearch node.", e));
+            return;
+        }
+        if (transportCaCertificates.size() != 1) {
+            listener.onFailure(new ElasticsearchException(
+                "Unable to enroll Elasticsearch node. Elasticsearch node transport layer SSL configuration Keystore " +
+                    "[xpack.security.transport.ssl.keystore] doesn't contain a single CA certificate"));
+        }
 
         if (httpCaKeysAndCertificates.isEmpty()) {
             listener.onFailure(new IllegalStateException(
@@ -104,12 +122,14 @@ public class TransportNodeEnrollmentAction extends HandledTransportAction<NodeEn
                 try {
                     final String httpCaKey = Base64.getEncoder().encodeToString(httpCaKeysAndCertificates.get(0).v1().getEncoded());
                     final String httpCaCert = Base64.getEncoder().encodeToString(httpCaKeysAndCertificates.get(0).v2().getEncoded());
+                    final String transportCaCert = Base64.getEncoder().encodeToString(transportCaCertificates.get(0).getEncoded());
                     final String transportKey =
                         Base64.getEncoder().encodeToString(transportKeysAndCertificates.get(0).v1().getEncoded());
                     final String transportCert =
                         Base64.getEncoder().encodeToString(transportKeysAndCertificates.get(0).v2().getEncoded());
                     listener.onResponse(new NodeEnrollmentResponse(httpCaKey,
                         httpCaCert,
+                        transportCaCert,
                         transportKey,
                         transportCert,
                         nodeList));

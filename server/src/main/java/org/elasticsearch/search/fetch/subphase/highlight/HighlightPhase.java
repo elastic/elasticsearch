@@ -10,6 +10,7 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -60,16 +61,43 @@ public class HighlightPhase implements FetchSubPhase {
                     Highlighter highlighter = getHighlighter(fieldContext.field);
                     HighlightField highlightField = highlighter.highlight(fieldContext);
                     if (highlightField != null) {
+                        Text[] fragments = addTruncationTag(fieldContext, highlightField.fragments());
                         // Note that we make sure to use the original field name in the response. This is because the
                         // original field could be an alias, and highlighter implementations may instead reference the
                         // concrete field it points to.
-                        highlightFields.put(field,
-                            new HighlightField(field, highlightField.fragments()));
+                        highlightFields.put(field, new HighlightField(field, fragments));
                     }
                 }
                 hitContext.hit().highlightFields(highlightFields);
             }
         };
+    }
+
+    private Text[] addTruncationTag(FieldHighlightContext fieldContext, Text[] fragments) {
+        String truncatedTag = fieldContext.field.fieldOptions().truncationTag();
+        Integer maxAnalyzedOffset = fieldContext.field.fieldOptions().maxAnalyzedOffset();
+        if (maxAnalyzedOffset != null && truncatedTag != null) {
+            String postTag = fieldContext.field.fieldOptions().postTags()[0];
+            Text[] taggedFragments = new Text[fragments.length];
+            for (int i = 0; i < fragments.length; i++) {
+                String fragment = fragments[i].toString();
+                int truncTagIdx = fragment.indexOf(postTag, maxAnalyzedOffset);
+                if (truncTagIdx < 0) {
+                    truncTagIdx = fragment.lastIndexOf(postTag, maxAnalyzedOffset);
+                }
+                int tmpIdx = truncTagIdx;
+                while (tmpIdx > 0) {
+                    tmpIdx = fragment.indexOf(postTag, tmpIdx + 1);
+                    if (tmpIdx > 0) {
+                        truncTagIdx = tmpIdx;
+                    }
+                }
+                truncTagIdx += postTag.length();
+                taggedFragments[i] = new Text(fragment.substring(0, truncTagIdx) + truncatedTag);
+            }
+            fragments = taggedFragments;
+        }
+        return fragments;
     }
 
     private Highlighter getHighlighter(SearchHighlightContext.Field field) {

@@ -65,6 +65,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     public static final ParseField HIGHLIGHT_QUERY_FIELD = new ParseField("highlight_query");
     public static final ParseField MATCHED_FIELDS_FIELD = new ParseField("matched_fields");
     public static final ParseField MAX_ANALYZED_OFFSET_FIELD = new ParseField("max_analyzed_offset");
+    public static final ParseField TRUNCATION_TAG_FIELD = new ParseField("truncation_tag");
 
     protected String[] preTags;
 
@@ -104,6 +105,8 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
 
     protected Integer maxAnalyzedOffset;
 
+    protected String truncationTag;
+
     public AbstractHighlighterBuilder() {
     }
 
@@ -126,7 +129,8 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         phraseLimit = template.phraseLimit;
         options = template.options;
         requireFieldMatch = template.requireFieldMatch;
-        this.maxAnalyzedOffset = template.maxAnalyzedOffset;
+        maxAnalyzedOffset = template.maxAnalyzedOffset;
+        truncationTag = template.truncationTag;
     }
 
     /**
@@ -161,6 +165,9 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         requireFieldMatch(in.readOptionalBoolean());
         if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
             maxAnalyzedOffset(in.readOptionalInt());
+        }
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            truncationTag(in.readOptionalString());
         }
     }
 
@@ -205,6 +212,9 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         out.writeOptionalBoolean(requireFieldMatch);
         if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
             out.writeOptionalInt(maxAnalyzedOffset);
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalString(truncationTag);
         }
         doWriteTo(out);
     }
@@ -561,6 +571,23 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         return this.maxAnalyzedOffset;
     }
 
+    /**
+     * Tag to append to the text after the length {@link #maxAnalyzedOffset}
+     * to demonstrate that highlighting has been truncated.
+     */
+    @SuppressWarnings("unchecked")
+    public HB truncationTag(String truncationTag) {
+        this.truncationTag = truncationTag;
+        return (HB) this;
+    }
+
+    /**
+     * @return the value set by {@link #truncationTag(String)}
+     */
+    public String truncationTag() {
+        return this.truncationTag;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -629,6 +656,9 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         if (maxAnalyzedOffset != null) {
             builder.field(MAX_ANALYZED_OFFSET_FIELD.getPreferredName(), maxAnalyzedOffset);
         }
+        if (truncationTag != null) {
+            builder.field(TRUNCATION_TAG_FIELD.getPreferredName(), truncationTag);
+        }
     }
 
     static <HB extends AbstractHighlighterBuilder<HB>> BiFunction<XContentParser, HB, HB> setupParser(
@@ -650,6 +680,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         parser.declareBoolean(HB::forceSource, FORCE_SOURCE_FIELD);
         parser.declareInt(HB::phraseLimit, PHRASE_LIMIT_FIELD);
         parser.declareInt(HB::maxAnalyzedOffset, MAX_ANALYZED_OFFSET_FIELD);
+        parser.declareString(HB::truncationTag, TRUNCATION_TAG_FIELD);
         parser.declareObject(HB::options, (XContentParser p, Void c) -> {
             try {
                 return p.map();
@@ -683,7 +714,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         return Objects.hash(getClass(), Arrays.hashCode(preTags), Arrays.hashCode(postTags), fragmentSize,
                 numOfFragments, highlighterType, fragmenter, highlightQuery, order, highlightFilter,
                 forceSource, boundaryScannerType, boundaryMaxScan, Arrays.hashCode(boundaryChars), boundaryScannerLocale,
-                noMatchSize, phraseLimit, options, requireFieldMatch, maxAnalyzedOffset, doHashCode());
+                noMatchSize, phraseLimit, options, requireFieldMatch, maxAnalyzedOffset, truncationTag, doHashCode());
     }
 
     /**
@@ -720,6 +751,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
                Objects.equals(options, other.options) &&
                Objects.equals(requireFieldMatch, other.requireFieldMatch) &&
                Objects.equals(maxAnalyzedOffset, other.maxAnalyzedOffset) &&
+               Objects.equals(truncationTag, other.truncationTag) &&
                doEquals(other);
     }
 

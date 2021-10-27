@@ -308,6 +308,7 @@ public class HighlightBuilderTests extends ESTestCase {
                 checkSame.accept(AbstractHighlighterBuilder::options, FieldOptions::options);
                 checkSame.accept(AbstractHighlighterBuilder::order, op -> op.scoreOrdered() ? Order.SCORE : Order.NONE);
                 checkSame.accept(AbstractHighlighterBuilder::maxAnalyzedOffset, FieldOptions::maxAnalyzedOffset);
+                checkSame.accept(AbstractHighlighterBuilder::truncationTag, FieldOptions::truncationTag);
                 assertEquals(fieldBuilder.fragmentOffset, fieldOptions.fragmentOffset());
                 if (fieldBuilder.matchedFields != null) {
                     String[] copy = Arrays.copyOf(fieldBuilder.matchedFields, fieldBuilder.matchedFields.length);
@@ -595,6 +596,9 @@ public class HighlightBuilderTests extends ESTestCase {
             highlightBuilder.maxAnalyzedOffset(randomIntBetween(1, 100));
         }
         if (randomBoolean()) {
+            highlightBuilder.truncationTag(randomAlphaOfLengthBetween(1, 10));
+        }
+        if (randomBoolean()) {
             int items = randomIntBetween(0, 5);
             Map<String, Object> options = new HashMap<>(items);
             for (int i = 0; i < items; i++) {
@@ -620,7 +624,7 @@ public class HighlightBuilderTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     private static void mutateCommonOptions(AbstractHighlighterBuilder highlightBuilder) {
-        switch (randomIntBetween(1, 17)) {
+        switch (randomIntBetween(1, 18)) {
             case 1:
                 highlightBuilder.preTags(randomStringArray(4, 6));
                 break;
@@ -684,6 +688,9 @@ public class HighlightBuilderTests extends ESTestCase {
                 highlightBuilder.maxAnalyzedOffset(
                     randomValueOtherThan(highlightBuilder.maxAnalyzedOffset(), () -> randomIntBetween(1, 100))
                 );
+                break;
+            case 18:
+                highlightBuilder.truncationTag(randomAlphaOfLengthBetween(1, 10));
                 break;
         }
     }

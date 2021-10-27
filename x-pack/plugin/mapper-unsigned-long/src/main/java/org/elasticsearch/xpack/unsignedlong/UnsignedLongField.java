@@ -12,20 +12,23 @@ import org.elasticsearch.script.field.Field;
 import java.math.BigInteger;
 import java.util.List;
 
-public interface UnsignedLongField extends Field<Long> {
+public interface UnsignedLongField extends Field {
+
+    /** Return all the values as a {@code List}. */
+    List<Long> getValues();
 
     /** Returns the 0th index value as an {@code long} if it exists, otherwise {@code defaultValue}. */
-    long getLong(long defaultValue);
+    long getValue(long defaultValue);
 
     /** Returns the value at {@code index} as an {@code long} if it exists, otherwise {@code defaultValue}. */
-    long getLong(int index, long defaultValue);
-
-    /** Returns the 0th index value as a {@code BigInteger} if it exists, otherwise {@code defaultValue}. */
-    BigInteger getBigInteger(BigInteger defaultValue);
-
-    /** Returns the value at {@code index} as a {@code BigInteger} if it exists, otherwise {@code defaultValue}. */
-    BigInteger getBigInteger(int index, BigInteger defaultValue);
+    long getValue(int index, long defaultValue);
 
     /** Converts all the values to {@code BigInteger} and returns them as a {@code List}. */
-    List<BigInteger> getBigIntegers();
+    List<BigInteger> asBigIntegers();
+
+    /** Returns the 0th index value as a {@code BigInteger} if it exists, otherwise {@code defaultValue}. */
+    BigInteger asBigInteger(BigInteger defaultValue);
+
+    /** Returns the value at {@code index} as a {@code BigInteger} if it exists, otherwise {@code defaultValue}. */
+    BigInteger asBigInteger(int index, BigInteger defaultValue);
 }

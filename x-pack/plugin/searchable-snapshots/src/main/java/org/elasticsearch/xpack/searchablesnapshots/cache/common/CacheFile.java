@@ -53,11 +53,13 @@ public class CacheFile {
         void onCacheFileDelete(CacheFile cacheFile);
     }
 
-    private static final StandardOpenOption[] OPEN_OPTIONS = new StandardOpenOption[] {
+    private static final StandardOpenOption[] CREATE_OPTIONS = new StandardOpenOption[] {
         StandardOpenOption.READ,
         StandardOpenOption.WRITE,
-        StandardOpenOption.CREATE,
+        StandardOpenOption.CREATE_NEW,
         StandardOpenOption.SPARSE };
+
+    private static final StandardOpenOption[] OPEN_OPTIONS = new StandardOpenOption[] { StandardOpenOption.READ, StandardOpenOption.WRITE };
 
     /**
      * Reference counter that counts the number of eviction listeners referencing this cache file plus the number of open file channels
@@ -100,8 +102,8 @@ public class CacheFile {
 
         private final FileChannel fileChannel;
 
-        FileChannelReference() throws IOException {
-            this.fileChannel = FileChannel.open(file, OPEN_OPTIONS);
+        FileChannelReference(StandardOpenOption[] options) throws IOException {
+            this.fileChannel = FileChannel.open(file, options);
             refCounter.incRef();
         }
 
@@ -124,19 +126,26 @@ public class CacheFile {
     @Nullable
     private volatile FileChannelReference channelRef;
 
+    /**
+     * {@code true} if the physical cache file exists on disk
+     */
+    private volatile boolean fileExists;
+
     public CacheFile(CacheKey cacheKey, long length, Path file, ModificationListener listener) {
-        this(cacheKey, new SparseFileTracker(file.toString(), length), file, listener);
+        this(cacheKey, new SparseFileTracker(file.toString(), length), file, listener, false);
     }
 
     public CacheFile(CacheKey cacheKey, long length, Path file, SortedSet<ByteRange> ranges, ModificationListener listener) {
-        this(cacheKey, new SparseFileTracker(file.toString(), length, ranges), file, listener);
+        this(cacheKey, new SparseFileTracker(file.toString(), length, ranges), file, listener, true);
     }
 
-    private CacheFile(CacheKey cacheKey, SparseFileTracker tracker, Path file, ModificationListener listener) {
+    private CacheFile(CacheKey cacheKey, SparseFileTracker tracker, Path file, ModificationListener listener, boolean fileExists) {
         this.cacheKey = Objects.requireNonNull(cacheKey);
         this.tracker = Objects.requireNonNull(tracker);
         this.file = Objects.requireNonNull(file);
         this.listener = Objects.requireNonNull(listener);
+        assert fileExists == Files.exists(file) : file + " exists? " + fileExists;
+        this.fileExists = fileExists;
         assert invariant();
     }
 
@@ -182,7 +191,8 @@ public class CacheFile {
                     ensureOpen();
                     if (listeners.isEmpty()) {
                         assert channelRef == null;
-                        channelRef = new FileChannelReference();
+                        channelRef = new FileChannelReference(fileExists ? OPEN_OPTIONS : CREATE_OPTIONS);
+                        fileExists = true;
                     }
                     final boolean added = listeners.add(listener);
                     assert added : "listener already exists " + listener;

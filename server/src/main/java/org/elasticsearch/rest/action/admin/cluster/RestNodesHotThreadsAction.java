@@ -91,9 +91,13 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         NodesHotThreadsRequest nodesHotThreadsRequest = new NodesHotThreadsRequest(nodesIds);
         nodesHotThreadsRequest.threads(request.paramAsInt("threads", nodesHotThreadsRequest.threads()));
-        nodesHotThreadsRequest.ignoreIdleThreads(request.paramAsBoolean("ignore_idle_threads", nodesHotThreadsRequest.ignoreIdleThreads()));
+        nodesHotThreadsRequest.ignoreIdleThreads(
+            request.paramAsBoolean("ignore_idle_threads", nodesHotThreadsRequest.ignoreIdleThreads()));
         nodesHotThreadsRequest.type(HotThreads.ReportType.of(request.param("type", nodesHotThreadsRequest.type().getTypeValue())));
-        nodesHotThreadsRequest.interval(TimeValue.parseTimeValue(request.param("interval"), nodesHotThreadsRequest.interval(), "interval"));
+        nodesHotThreadsRequest.sortOrder(
+            HotThreads.SortOrder.of(request.param("sort", nodesHotThreadsRequest.sortOrder().getOrderValue())));
+        nodesHotThreadsRequest.interval(
+            TimeValue.parseTimeValue(request.param("interval"), nodesHotThreadsRequest.interval(), "interval"));
         nodesHotThreadsRequest.snapshots(request.paramAsInt("snapshots", nodesHotThreadsRequest.snapshots()));
         nodesHotThreadsRequest.timeout(request.param("timeout"));
         return channel -> client.admin().cluster().nodesHotThreads(

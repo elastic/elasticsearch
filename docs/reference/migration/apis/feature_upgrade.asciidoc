@@ -24,7 +24,7 @@ and to trigger an automated system upgrade that might potentially involve downti
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the `manage`
-<<privileges-list-cluster,cluster privilege>> to use this API. (TODO: true?)
+<<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[feature-upgrade-api-example]]
 ==== {api-examples-title}
@@ -46,79 +46,80 @@ Example response:
     {
       "feature_name" : "async_search",
       "minimum_index_version" : "8.0.0",
-      "upgrade_status" : "NO_UPGRADE_NEEDED",
+      "migration_status" : "NO_MIGRATION_NEEDED",
       "indices" : [ ]
     },
     {
       "feature_name" : "enrich",
       "minimum_index_version" : "8.0.0",
-      "upgrade_status" : "NO_UPGRADE_NEEDED",
+      "migration_status" : "NO_MIGRATION_NEEDED",
       "indices" : [ ]
     },
     {
       "feature_name" : "fleet",
       "minimum_index_version" : "8.0.0",
-      "upgrade_status" : "NO_UPGRADE_NEEDED",
+      "migration_status" : "NO_MIGRATION_NEEDED",
       "indices" : [ ]
     },
     {
       "feature_name" : "geoip",
       "minimum_index_version" : "8.0.0",
-      "upgrade_status" : "NO_UPGRADE_NEEDED",
+      "migration_status" : "NO_MIGRATION_NEEDED",
       "indices" : [ ]
     },
     {
       "feature_name" : "kibana",
       "minimum_index_version" : "8.0.0",
-      "upgrade_status" : "NO_UPGRADE_NEEDED",
+      "migration_status" : "NO_MIGRATION_NEEDED",
       "indices" : [ ]
     },
     {
       "feature_name" : "logstash_management",
       "minimum_index_version" : "8.0.0",
-      "upgrade_status" : "NO_UPGRADE_NEEDED",
+      "migration_status" : "NO_MIGRATION_NEEDED",
       "indices" : [ ]
     },
     {
       "feature_name" : "machine_learning",
       "minimum_index_version" : "8.0.0",
-      "upgrade_status" : "NO_UPGRADE_NEEDED",
+      "migration_status" : "NO_MIGRATION_NEEDED",
       "indices" : [ ]
     },
     {
       "feature_name" : "searchable_snapshots",
       "minimum_index_version" : "8.0.0",
-      "upgrade_status" : "NO_UPGRADE_NEEDED",
+      "migration_status" : "NO_MIGRATION_NEEDED",
       "indices" : [ ]
     },
     {
       "feature_name" : "security",
       "minimum_index_version" : "8.0.0",
-      "upgrade_status" : "NO_UPGRADE_NEEDED",
+      "migration_status" : "NO_MIGRATION_NEEDED",
       "indices" : [ ]
     },
     {
       "feature_name" : "tasks",
       "minimum_index_version" : "8.0.0",
-      "upgrade_status" : "NO_UPGRADE_NEEDED",
+      "migration_status" : "NO_MIGRATION_NEEDED",
       "indices" : [ ]
     },
     {
       "feature_name" : "transform",
       "minimum_index_version" : "8.0.0",
-      "upgrade_status" : "NO_UPGRADE_NEEDED",
+      "migration_status" : "NO_MIGRATION_NEEDED",
       "indices" : [ ]
     },
     {
       "feature_name" : "watcher",
       "minimum_index_version" : "8.0.0",
-      "upgrade_status" : "NO_UPGRADE_NEEDED",
+      "migration_status" : "NO_MIGRATION_NEEDED",
       "indices" : [ ]
     }
   ],
-  "upgrade_status" : "NO_UPGRADE_NEEDED"
+  "migration_status" : "NO_MIGRATION_NEEDED"
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"minimum_index_version" : "8.0.0"/"minimum_index_version" : $body.$_path/]
 
 This response tells us that Elasticsearch security needs its internal
 indices upgraded before we can upgrade the cluster to 8.0.
@@ -143,6 +144,7 @@ Example response:
   ]
 }
 --------------------------------------------------
+// TESTRESPONSE[skip: can't actually upgrade system indices in these tests]
 
 This tells us that the security index is being upgraded. To check the
 overall status of the upgrade, call the endpoint with GET.

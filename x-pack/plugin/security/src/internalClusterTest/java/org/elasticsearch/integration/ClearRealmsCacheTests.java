@@ -234,9 +234,9 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
         Map<String, Map<Realm, User>> users = new HashMap<>();
         for (Realm realm : realms) {
             for (String username : usernames) {
-                PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+                PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
                 realm.authenticate(tokens.get(username), future);
-                User user = future.actionGet().getUser();
+                User user = future.actionGet().getValue();
                 assertThat(user, notNullValue());
                 Map<Realm, User> realmToUser = users.get(username);
                 if (realmToUser == null) {
@@ -251,9 +251,9 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
 
         for (String username : usernames) {
             for (Realm realm : realms) {
-                PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+                PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
                 realm.authenticate(tokens.get(username), future);
-                User user = future.actionGet().getUser();
+                User user = future.actionGet().getValue();
                 assertThat(user, sameInstance(users.get(username).get(realm)));
             }
         }
@@ -264,9 +264,9 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
         // now, user_a should have been evicted, but user_b should still be cached
         for (String username : usernames) {
             for (Realm realm : realms) {
-                PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+                PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
                 realm.authenticate(tokens.get(username), future);
-                User user = future.actionGet().getUser();
+                User user = future.actionGet().getValue();
                 assertThat(user, notNullValue());
                 scenario.assertEviction(users.get(username).get(realm), user);
             }

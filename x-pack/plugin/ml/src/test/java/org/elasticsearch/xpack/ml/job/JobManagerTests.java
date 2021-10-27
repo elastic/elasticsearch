@@ -68,7 +68,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Matchers;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -94,7 +94,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -135,7 +135,7 @@ public class JobManagerTests extends ESTestCase {
 
         ExecutorService executorService = mock(ExecutorService.class);
         threadPool = mock(ThreadPool.class);
-        org.elasticsearch.mock.orig.Mockito.doAnswer(invocation -> {
+        org.mockito.Mockito.doAnswer(invocation -> {
             ((Runnable) invocation.getArguments()[0]).run();
             return null;
         }).when(executorService).execute(any(Runnable.class));
@@ -260,7 +260,7 @@ public class JobManagerTests extends ESTestCase {
         doAnswer(invocation -> {
             ((AckedClusterStateUpdateTask) invocation.getArguments()[1]).onAllNodesAcked(null);
             return null;
-        }).when(clusterService).submitStateUpdateTask(Matchers.eq("put-job-foo"), any(AckedClusterStateUpdateTask.class));
+        }).when(clusterService).submitStateUpdateTask(ArgumentMatchers.eq("put-job-foo"), any(AckedClusterStateUpdateTask.class));
 
         ArgumentCaptor<Job> requestCaptor = ArgumentCaptor.forClass(Job.class);
         doAnswer(invocation -> {

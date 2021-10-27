@@ -37,6 +37,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.monitoring.MonitoringDeprecatedSettings;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsAction;
@@ -77,7 +78,7 @@ import static org.elasticsearch.common.settings.Setting.boolSetting;
 public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin {
 
     public static final Setting<Boolean> MIGRATION_DECOMMISSION_ALERTS = boolSetting("xpack.monitoring.migration.decommission_alerts",
-        false, Setting.Property.Dynamic, Setting.Property.NodeScope);
+        false, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Deprecated);
 
     public static final LicensedFeature.Momentary MONITORING_CLUSTER_ALERTS_FEATURE =
         LicensedFeature.momentary("monitoring", "cluster-alerts", License.OperationMode.STANDARD);

@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -108,7 +109,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setDefaultParallel(ParallelDetector.findDefaultParallel(project));
             params.setInFipsJvm(Util.getBooleanProperty("tests.fips.enabled", false));
             params.setIsSnapshotBuild(Util.getBooleanProperty("build.snapshot", true));
-            params.setBwcVersions(providers.provider(() -> resolveBwcVersions(rootDir)));
+            AtomicReference<BwcVersions> cache = new AtomicReference<>();
+            params.setBwcVersions(providers.provider(() -> cache.updateAndGet(val -> val == null ? resolveBwcVersions(rootDir) : val)));
         });
 
         // Enforce the minimum compiler version

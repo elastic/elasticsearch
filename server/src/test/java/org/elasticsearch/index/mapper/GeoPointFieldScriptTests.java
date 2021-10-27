@@ -47,6 +47,11 @@ public class GeoPointFieldScriptTests extends FieldScriptTestCase<GeoPointFieldS
         return DUMMY;
     }
 
+    @Override
+    protected GeoPointFieldScript.Factory fromSource() {
+        return GeoPointFieldScript.PARSE_FROM_SOURCE;
+    }
+
     public void testTooManyValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{}"))));

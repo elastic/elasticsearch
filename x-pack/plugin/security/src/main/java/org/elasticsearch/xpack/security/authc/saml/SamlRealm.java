@@ -421,7 +421,7 @@ public final class SamlRealm extends Realm implements Releasable {
     }
 
     @Override
-    public void authenticate(AuthenticationToken authenticationToken, ActionListener<AuthenticationResult> listener) {
+    public void authenticate(AuthenticationToken authenticationToken, ActionListener<AuthenticationResult<User>> listener) {
         if (authenticationToken instanceof SamlToken && isTokenForRealm((SamlToken) authenticationToken)) {
             try {
                 final SamlToken token = (SamlToken) authenticationToken;
@@ -440,7 +440,7 @@ public final class SamlRealm extends Realm implements Releasable {
         }
     }
 
-    private void buildUser(SamlAttributes attributes, ActionListener<AuthenticationResult> baseListener) {
+    private void buildUser(SamlAttributes attributes, ActionListener<AuthenticationResult<User>> baseListener) {
         final String principal = resolveSingleValueAttribute(attributes, principalAttribute, PRINCIPAL_ATTRIBUTE.name(config));
         if (Strings.isNullOrEmpty(principal)) {
             final String msg =
@@ -450,12 +450,12 @@ public final class SamlRealm extends Realm implements Releasable {
         }
 
         final Map<String, Object> tokenMetadata = createTokenMetadata(attributes.name(), attributes.session());
-        ActionListener<AuthenticationResult> wrappedListener = ActionListener.wrap(auth -> {
+        ActionListener<AuthenticationResult<User>> wrappedListener = ActionListener.wrap(auth -> {
             if (auth.isAuthenticated()) {
                 // Add the SAML token details as metadata on the authentication
                 Map<String, Object> metadata = new HashMap<>(auth.getMetadata());
                 metadata.put(CONTEXT_TOKEN_DATA, tokenMetadata);
-                auth = AuthenticationResult.success(auth.getUser(), metadata);
+                auth = AuthenticationResult.success(auth.getValue(), metadata);
             }
             baseListener.onResponse(auth);
         }, baseListener::onFailure);

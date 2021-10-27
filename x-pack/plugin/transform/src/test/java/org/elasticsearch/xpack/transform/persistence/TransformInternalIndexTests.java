@@ -19,7 +19,6 @@ import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -41,7 +40,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -96,20 +95,6 @@ public class TransformInternalIndexTests extends ESTestCase {
                 .build()
         );
 
-        return csBuilder.build();
-    }
-
-    public static ClusterState randomTransformAuditClusterState() {
-        ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templateMapBuilder = ImmutableOpenMap.builder();
-        try {
-            templateMapBuilder.put(TransformInternalIndexConstants.AUDIT_INDEX, TransformInternalIndex.getAuditIndexTemplateMetadata());
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        Metadata.Builder metaBuilder = Metadata.builder();
-        metaBuilder.templates(templateMapBuilder.build());
-        ClusterState.Builder csBuilder = ClusterState.builder(ClusterName.DEFAULT);
-        csBuilder.metadata(metaBuilder.build());
         return csBuilder.build();
     }
 
@@ -188,7 +173,7 @@ public class TransformInternalIndexTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<ClusterHealthResponse> listener = (ActionListener<ClusterHealthResponse>) invocationOnMock.getArguments()[1];
-            listener.onResponse(new ClusterHealthResponse("", new String[]{}, ClusterState.EMPTY_STATE, false));
+            listener.onResponse(new ClusterHealthResponse("", Strings.EMPTY_ARRAY, ClusterState.EMPTY_STATE, false));
             return null;
         }).when(clusterClient).health(any(), any());
 
@@ -272,7 +257,7 @@ public class TransformInternalIndexTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<ClusterHealthResponse> listener = (ActionListener<ClusterHealthResponse>) invocationOnMock.getArguments()[1];
-            listener.onResponse(new ClusterHealthResponse("", new String[]{}, ClusterState.EMPTY_STATE, false));
+            listener.onResponse(new ClusterHealthResponse("", Strings.EMPTY_ARRAY, ClusterState.EMPTY_STATE, false));
             return null;
         }).when(clusterClient).health(any(), any());
 

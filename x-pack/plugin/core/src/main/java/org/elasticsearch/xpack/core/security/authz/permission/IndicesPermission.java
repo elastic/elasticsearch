@@ -86,8 +86,8 @@ public final class IndicesPermission {
         this.restrictedNamesAutomaton = restrictedNamesAutomaton;
         this.characterRunAutomaton = new CharacterRunAutomaton(restrictedNamesAutomaton);
         this.groups = groups;
-        this.hasFieldOrDocumentLevelSecurity = Arrays.stream(groups)
-            .anyMatch(g -> g.hasQuery() || g.fieldPermissions.hasFieldLevelSecurity());
+        this.hasFieldOrDocumentLevelSecurity = Arrays.stream(groups).noneMatch(Group::isTotal)
+            && Arrays.stream(groups).anyMatch(g -> g.hasQuery() || g.fieldPermissions.hasFieldLevelSecurity());
     }
 
     /**

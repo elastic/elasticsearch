@@ -12,6 +12,8 @@ import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.script.field.DocValuesField;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.LeafGeoShapeFieldData;
 
@@ -30,8 +32,8 @@ public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoSha
     }
 
     @Override
-    public final ScriptDocValues.Geometry<GeoShapeValues.GeoShapeValue> getScriptValues() {
-        return new GeoShapeScriptValues(getGeoShapeValues());
+    public final DocValuesField getScriptField(String name) {
+        return new DelegateDocValuesField(new GeoShapeScriptValues(getGeoShapeValues()), name);
     }
 
     public static LeafGeoShapeFieldData empty(final int maxDoc) {

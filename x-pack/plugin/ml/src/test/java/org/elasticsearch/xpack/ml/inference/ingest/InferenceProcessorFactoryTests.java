@@ -24,16 +24,22 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -42,6 +48,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -224,6 +231,30 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             equalTo("Configuration [classification] requires minimum node version [7.6.0] (current minimum node version [7.5.0]"));
     }
 
+    public void testCreateProcessorWithTooOldMinNodeVersionNlp() throws IOException {
+        InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
+            clusterService,
+            Settings.EMPTY);
+        processorFactory.accept(builderClusterStateWithModelReferences(Version.V_7_5_0, "model1"));
+
+        for (String name : List.of(
+            FillMaskConfig.NAME,
+            NerConfig.NAME,
+            PassThroughConfig.NAME,
+            TextClassificationConfig.NAME,
+            TextEmbeddingConfig.NAME,
+            ZeroShotClassificationConfig.NAME
+        )) {
+            ElasticsearchException ex = expectThrows(
+                ElasticsearchException.class,
+                () -> processorFactory.inferenceConfigUpdateFromMap(Map.of(name, Map.of()))
+            );
+            assertThat(
+                ex.getMessage(),
+                equalTo("Configuration [" + name +"] requires minimum node version [8.0.0] (current minimum node version [7.5.0]"));
+        }
+    }
+
     public void testCreateProcessorWithEmptyConfigNotSupportedOnOldNode() throws IOException {
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
             clusterService,
@@ -291,6 +322,22 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, regression));
         assertThat(ex.getMessage(), equalTo("Invalid inference config. " +
             "More than one field is configured as [warning]"));
+    }
+
+    public void testParseFromMap() {
+        InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client, clusterService, Settings.EMPTY);
+        for (String name : List.of(
+            ClassificationConfig.NAME.getPreferredName(),
+            RegressionConfig.NAME.getPreferredName(),
+            FillMaskConfig.NAME,
+            NerConfig.NAME,
+            PassThroughConfig.NAME,
+            TextClassificationConfig.NAME,
+            TextEmbeddingConfig.NAME,
+            ZeroShotClassificationConfig.NAME
+        )) {
+            assertThat(processorFactory.inferenceConfigUpdateFromMap(Map.of(name, Map.of())).getName(), equalTo(name));
+        }
     }
 
     private static ClusterState buildClusterState(Metadata metadata) {

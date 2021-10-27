@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -64,14 +63,8 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
             waitForEvents = Priority.readFrom(in);
         }
         waitForNoInitializingShards = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
-            indicesOptions = IndicesOptions.readIndicesOptions(in);
-        } else {
-            indicesOptions = IndicesOptions.lenientExpandOpen();
-        }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            return200ForClusterHealthTimeout = in.readBoolean();
-        }
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        return200ForClusterHealthTimeout = in.readBoolean();
     }
 
     @Override
@@ -99,14 +92,8 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
             Priority.writeTo(waitForEvents, out);
         }
         out.writeBoolean(waitForNoInitializingShards);
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
-            indicesOptions.writeIndicesOptions(out);
-        }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeBoolean(return200ForClusterHealthTimeout);
-        } else if (return200ForClusterHealthTimeout) {
-            throw new IllegalArgumentException("Can't fix response code in a cluster involving nodes with version " + out.getVersion());
-        }
+        indicesOptions.writeIndicesOptions(out);
+        out.writeBoolean(return200ForClusterHealthTimeout);
     }
 
     @Override

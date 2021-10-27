@@ -94,10 +94,22 @@ public class XPackSettings {
     public static final Setting<Boolean> FIPS_MODE_ENABLED =
         Setting.boolSetting("xpack.security.fips_mode.enabled", false, Property.NodeScope);
 
-    /** Setting for enabling enrollment process; set-up by the es start-up script */
+    /**
+     * Setting for enabling the enrollment process, ie the enroll APIs are enabled, and the initial cluster node generates and displays
+     * enrollment tokens (for Kibana and sometimes for ES nodes) when starting up for the first time.
+     * This is usually set by start-up scripts, which run before the node starts, which perform TLS and cluster formation specific
+     * configuration (persisted in the node's config dir).
+     * This can be toggled liberally by admins (it can be made a dynamic setting), in order to permit or not the enrollment of subsequent
+     * nodes. Nevertheless, we assumes that when {@code ENROLLMENT_ENABLED} is {@code true} the node MUST have been configured by said
+     * start-up scripts (eg we don't support enrollment with general TLS certificates).
+     */
     public static final Setting<Boolean> ENROLLMENT_ENABLED =
         Setting.boolSetting("xpack.security.enrollment.enabled", false, Property.NodeScope);
 
+    /**
+     * Setting for enabling or disabling the TLS auto-configuration as well as credentials auto-generation for nodes, before starting for
+     * the first time, and in the absence of other conflicting configurations.
+     */
     public static final Setting<Boolean> SECURITY_AUTOCONFIGURATION_ENABLED =
         Setting.boolSetting("xpack.security.autoconfiguration.enabled", true, Property.NodeScope);
 

@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPriv
 import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 class AuthenticatorChain {
@@ -71,8 +73,19 @@ class AuthenticatorChain {
         );
     }
 
-    void authenticateAsync(Authenticator.Context context, ActionListener<Authentication> listener) {
+    void authenticateAsync(Authenticator.Context context, ActionListener<Authentication> originalListener) {
         assert false == context.getDefaultOrderedRealmList().isEmpty() : "realm list must not be empty";
+        // Check whether authentication is an operator user and mark the threadContext if necessary
+        // before returning the authentication object
+        final ActionListener<Authentication> listener = originalListener.map(authentication -> {
+            operatorPrivilegesService.maybeMarkOperatorUser(authentication, context.getThreadContext());
+            return authentication;
+        });
+        // If a token is directly provided in the context, authenticate with it
+        if (context.getMostRecentAuthenticationToken() != null) {
+            authenticateAsyncWithExistingAuthenticationToken(context, listener);
+            return;
+        }
         final Authentication authentication;
         try {
             authentication = lookForExistingAuthentication(context);
@@ -94,7 +107,7 @@ class AuthenticatorChain {
      * This method currently uses a shorter chain to match existing behaviour. But there is no reason
      * why this could not use the same chain.
      */
-    void authenticateAsyncWithExistingCredentials(
+    private void authenticateAsyncWithExistingAuthenticationToken(
         Authenticator.Context context,
         ActionListener<Authentication> listener) {
         assert context.getMostRecentAuthenticationToken() != null : "existing authentication token must not be null";
@@ -111,10 +124,12 @@ class AuthenticatorChain {
         // each Authenticator (and optionally asks it to extract the authenticationToken).
         // Depending on the authentication result from each Authenticator, the iteration may stop earlier
         // because of either a successful authentication or a not-continuable failure.
-        final IteratingActionListener<Authenticator.Result, Authenticator> iteratingActionListener = new IteratingActionListener<>(
+        final IteratingActionListener<AuthenticationResult<Authentication>, Authenticator> iterListener = new IteratingActionListener<>(
             ActionListener.wrap(result -> {
-                if (result.getStatus() == Authenticator.Status.SUCCESS) {
-                    maybeLookupRunAsUser(context, result.getAuthentication(), listener);
+                assert result.getStatus() != AuthenticationResult.Status.TERMINATE
+                    : "terminate should already be handled by each individual authenticator";
+                if (result.getStatus() == AuthenticationResult.Status.SUCCESS) {
+                    maybeLookupRunAsUser(context, result.getValue(), listener);
                 } else {
                     if (context.shouldHandleNullToken()) {
                         handleNullToken(context, listener);
@@ -127,11 +142,11 @@ class AuthenticatorChain {
             allAuthenticators,
             context.getThreadContext(),
             Function.identity(),
-            result -> result.getStatus() == Authenticator.Status.UNSUCCESSFUL || result.getStatus() == Authenticator.Status.NOT_HANDLED);
-        iteratingActionListener.run();
+            result -> result.getStatus() == AuthenticationResult.Status.CONTINUE);
+        iterListener.run();
     }
 
-    private BiConsumer<Authenticator, ActionListener<Authenticator.Result>> getAuthenticatorConsumer(
+    private BiConsumer<Authenticator, ActionListener<AuthenticationResult<Authentication>>> getAuthenticatorConsumer(
         Authenticator.Context context,
         boolean shouldExtractCredentials
     ) {
@@ -145,35 +160,44 @@ class AuthenticatorChain {
                         listener.onFailure(e);
                     } else { // other exceptions like illegal argument
                         context.addUnsuccessfulMessage(authenticator.name() + ": " + e.getMessage());
-                        listener.onResponse(Authenticator.Result.unsuccessful(e.getMessage(), e));
+                        listener.onResponse(AuthenticationResult.unsuccessful(e.getMessage(), e));
                     }
                     return;
                 }
                 if (authenticationToken == null) {
-                    listener.onResponse(Authenticator.Result.notHandled());
+                    listener.onResponse(AuthenticationResult.notHandled());
                     return;
                 }
                 context.addAuthenticationToken(authenticationToken);
             }
             context.setHandleNullToken(context.shouldHandleNullToken() && authenticator.canBeFollowedByNullTokenHandler());
-            authenticator.authenticate(context, ActionListener.wrap(result -> {
-                if (result.getStatus() == Authenticator.Status.UNSUCCESSFUL) {
-                    context.addUnsuccessfulMessage(authenticator.name() + ": " + result.getMessage());
-                }
-                listener.onResponse(result);
-            }, e -> {
+
+            final Consumer<Exception> onFailure = (e) -> {
+                assert e != null : "exception cannot be null";
+                // Not adding additional metadata if the exception is not security related, e.g. server busy.
+                // Because (1) unlike security errors which are intentionally obscure, non-security errors are clear
+                // about their nature so that no additional information is needed; (2) Non-security errors may
+                // not inherit ElasticsearchException and thus does not have the addMetadata method.
                 if (e instanceof ElasticsearchSecurityException) {
+                    // Attach any other unsuccessful messages to the final error
                     final ElasticsearchSecurityException ese = (ElasticsearchSecurityException) e;
                     if (false == context.getUnsuccessfulMessages().isEmpty()) {
                         addMetadata(context, ese);
                     }
                 }
-                // Not adding additional metadata if the exception is not security related, e.g. server busy.
-                // Because (1) unlike security errors which are intentionally obscure, non-security errors are clear
-                // about their nature so that no additional information is needed; (2) Non-security errors may
-                // not inherit ElasticsearchException and thus does not have the addMetadata method.
                 listener.onFailure(e);
-            }));
+            };
+
+            authenticator.authenticate(context, ActionListener.wrap(result -> {
+                if (result.getStatus() == AuthenticationResult.Status.TERMINATE) {
+                    onFailure.accept(result.getException());
+                    return;
+                }
+                if (result.getStatus() == AuthenticationResult.Status.CONTINUE && result.getMessage() != null) {
+                    context.addUnsuccessfulMessage(authenticator.name() + ": " + result.getMessage());
+                }
+                listener.onResponse(result);
+            }, onFailure));
         };
     }
 
@@ -331,9 +355,6 @@ class AuthenticatorChain {
         try {
             authenticationSerializer.writeToContext(authentication, context.getThreadContext());
             context.getRequest().authenticationSuccess(authentication);
-            // Header for operator privileges will only be written if authentication actually happens,
-            // i.e. not read from either header or transient header
-            operatorPrivilegesService.maybeMarkOperatorUser(authentication, context.getThreadContext());
         } catch (Exception e) {
             logger.debug(new ParameterizedMessage("Failed to store authentication [{}] for request [{}]",
                 authentication,

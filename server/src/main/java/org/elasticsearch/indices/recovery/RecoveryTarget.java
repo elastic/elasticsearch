@@ -67,8 +67,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private final IndexShard indexShard;
     private final DiscoveryNode sourceNode;
     private final SnapshotFilesProvider snapshotFilesProvider;
-    @Nullable // if we're not downloading files from snapshots in this recovery
-    private final Releasable snapshotFileDownloadsPermit;
     private final MultiFileWriter multiFileWriter;
     private final RecoveryRequestTracker requestTracker = new RecoveryRequestTracker();
     private final Store store;
@@ -82,6 +80,9 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private volatile long lastAccessTime = System.nanoTime();
 
     private volatile boolean recoveryMonitorEnabled = true;
+
+    @Nullable // if we're not downloading files from snapshots in this recovery or we're retrying
+    private volatile Releasable snapshotFileDownloadsPermit;
 
     // latch that can be used to blockingly wait for RecoveryTarget to be closed
     private final CountDownLatch closedLatch = new CountDownLatch(1);
@@ -125,7 +126,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
      * @return a copy of this recovery target
      */
     public RecoveryTarget retryCopy() {
-        return new RecoveryTarget(indexShard, sourceNode, snapshotFilesProvider, snapshotFileDownloadsPermit, listener);
+        // If we're retrying we should remove the reference from this instance as the underlying resources
+        // get released after the retry copy is created
+        Releasable snapshotFileDownloadsPermitCopy = snapshotFileDownloadsPermit;
+        snapshotFileDownloadsPermit = null;
+        return new RecoveryTarget(indexShard, sourceNode, snapshotFilesProvider, snapshotFileDownloadsPermitCopy, listener);
     }
 
     @Nullable

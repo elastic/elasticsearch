@@ -32,6 +32,8 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -39,8 +41,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 @Fork(1)
-@Warmup(iterations = 5)
-@Measurement(iterations = 5)
+@Warmup(iterations = 2)
+@Measurement(iterations = 3)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Benchmark)
@@ -49,8 +51,11 @@ public class FilterContentBenchmark {
     @Param({ "cluster_stats", "index_stats", "node_stats" })
     private String type;
 
-    @Param({ "10_field", "half_field", "all_field" })
+    @Param({ "10_field", "half_field", "all_field", "wildcard_field", "10_wildcard_field" })
     private String fieldCount;
+
+    @Param({ "true", "false" })
+    private boolean inclusive;
 
     private BytesReference source;
     private FilterPath[] includesFilters;
@@ -95,6 +100,27 @@ public class FilterContentBenchmark {
             case "all_field":
                 includesFilters = FilterPath.compile(keys);
                 break;
+            case "wildcard_field":
+                Set<String> wildcardField = new HashSet<>(Arrays.asList("*stats"));
+                includesFilters = FilterPath.compile(wildcardField);
+                break;
+            case "10_wildcard_field":
+                Set<String> wildcardField10 = new HashSet<>(
+                    Arrays.asList(
+                        "*stats.nodes*",
+                        "*stats.ind*",
+                        "*sta*.shards",
+                        "*stats*.xpack",
+                        "*stats.*.segments",
+                        "*stat*.*.data*",
+                        "*stats.**.request_cache",
+                        "*stats.**.stat",
+                        "*stats.**.threads",
+                        "*source_node.t*"
+                    )
+                );
+                includesFilters = FilterPath.compile(wildcardField10);
+                break;
             default:
                 throw new IllegalArgumentException("Unknown type [" + type + "]");
         }
@@ -104,14 +130,23 @@ public class FilterContentBenchmark {
     public BytesReference benchmark() throws IOException {
         try (BytesStreamOutput os = new BytesStreamOutput()) {
             XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), os);
+            FilterPath[] includes;
+            FilterPath[] excludes;
+            if (inclusive) {
+                includes = includesFilters;
+                excludes = null;
+            } else {
+                includes = null;
+                excludes = includesFilters;
+            }
             try (
                 XContentParser parser = XContentType.JSON.xContent()
                     .createParser(
                         NamedXContentRegistry.EMPTY,
                         DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
                         source.streamInput(),
-                        includesFilters,
-                        null
+                        includes,
+                        excludes
                     )
             ) {
                 builder.copyCurrentStructure(parser);

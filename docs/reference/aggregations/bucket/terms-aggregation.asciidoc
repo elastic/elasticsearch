@@ -114,33 +114,33 @@ memory usage.
 [[search-aggregations-bucket-terms-aggregation-size]]
 ==== Size
 
-By default, the `terms` aggregation returns the top ten buckets with the most
-documents. Use the `size` parameter to return more buckets, up to the
+By default, the `terms` aggregation returns the top ten terms with the most
+documents. Use the `size` parameter to return more terms, up to the
 <<search-settings-max-buckets,search.max_buckets>> limit. If
 there aren't many unique terms, you can return them all using the
-`terms` aggregation. If your data has a lot of unique terms, use the
+`terms` aggregation. If your data has a lot of unique terms and you need them
+all, use the
 <<search-aggregations-bucket-composite-aggregation,composite aggregation>>
 instead.
 
 [[search-aggregations-bucket-terms-aggregation-shard-size]]
 ==== Shard Size
 
-It's reasonable to assume the `terms` aggregation gets the top `size` terms
-from each shard and combines the results.
-But what if a term has many documents on one shard but is just
-below the `size` threshold on all other shards? If each shard only returned `size` buckets,
-the aggregation would return an partial doc count for the bucket.
+In an effort to get more accurate results the `terms` agg fetches more than
+the top `size` terms from each shard. It fetches the top `shard_size` terms
+which defaults to `size * 1.5 + 10`.
 
-To avoid this problem, each shard returns `shard_size` buckets,
-which defaults to `(size * 1.5 + 10)`. For a `terms` aggregation with the default
-size of `10` each shard will return the top `25` buckets. This helps, but
-it's still quite possible to return a partial doc count for a bucket. It just takes a bucket with
-more disparate per-shard doc counts.
+This is to handle the case when one term has many documents on one shard but is
+just below the `size` threshold on all other shards. If each shard only
+returned `size` terms, the aggregation would return an partial doc count for
+the term. So `terms` returns more terms in an attempt to catch the missing
+terms. This helps, but it's still quite possible to return a partial doc
+count for a term. It just takes a term with more disparate per-shard doc counts.
 
-You can increase `shard_size` to improve the accuracy of
-the selection of top buckets. It is much cheaper to increase the `shard_size`
-than to increase the `size`. However, it still takes more bytes over the wire and
-waiting in memory on the coordinating node.
+You can increase `shard_size` to improve the accuracy of the selection of top
+terms to help in these disparate doc counts. It is much cheaper to increase
+the `shard_size` than to increase the `size`. However, it still takes more
+bytes over the wire and waiting in memory on the coordinating node.
 
 IMPORTANT: See the note in <<search-aggregations-bucket-terms-aggregation-order>>
            if you are sorting by anything other than document count in
@@ -153,7 +153,7 @@ NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sens
 ==== Document count error
 
 `sum_other_doc_count` is the number of documents that didn't make it into the
-the top `size` buckets. If this is greater than `0` you can be sure that the
+the top `size` terms. If this is greater than `0` you can be sure that the
 `terms` agg had to throw away some buckets, either because they didn't fit into
 `size` on the coordinating node or they didn't fit into `shard_size` on the
 data node.

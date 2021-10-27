@@ -15,16 +15,16 @@ import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.ql.type.Schema;
-import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Rows;
+import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 
 import java.io.IOException;
 import java.util.BitSet;
@@ -100,13 +100,13 @@ public class ScrollCursor implements Cursor {
         client.searchScroll(request, wrap(response -> {
             handle(response, () -> new SearchHitRowSet(extractors, mask, limit, response),
                     p -> listener.onResponse(p),
-                    p -> clear(cfg, client, wrap(success -> listener.onResponse(p), listener::onFailure)),
+                    p -> clear(client, wrap(success -> listener.onResponse(p), listener::onFailure)),
                     Schema.EMPTY);
         }, listener::onFailure));
     }
 
     @Override
-    public void clear(SqlConfiguration cfg, Client client, ActionListener<Boolean> listener) {
+    public void clear(Client client, ActionListener<Boolean> listener) {
         cleanCursor(client, scrollId, wrap(
                         clearScrollResponse -> listener.onResponse(clearScrollResponse.isSucceeded()),
                         listener::onFailure));

@@ -114,8 +114,8 @@ public class PlanExecutor {
         }));
     }
 
-    public void cleanCursor(SqlConfiguration cfg, Cursor cursor, ActionListener<Boolean> listener) {
-        cursor.clear(cfg, client, listener);
+    public void cleanCursor(Cursor cursor, ActionListener<Boolean> listener) {
+        cursor.clear(client, listener);
     }
 
     public Client client() {

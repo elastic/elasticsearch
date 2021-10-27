@@ -242,20 +242,8 @@ public class CcrLicenseChecker {
     ) {
         // we have to check the license on the remote cluster
         new RemoteClusterLicenseChecker(client, CcrConstants.CCR_FEATURE).checkRemoteClusterLicenses(
-                Collections.singletonList(clusterAlias),
-                new ActionListener<RemoteClusterLicenseChecker.LicenseCheck>() {
-
-                    @Override
-                    public void onResponse(final RemoteClusterLicenseChecker.LicenseCheck licenseCheck) {
-                        if (licenseCheck.isSuccess()) {
-                            final ActionListener<ClusterStateResponse> clusterStateListener =
-                                ActionListener.wrap(leaderClusterStateConsumer::accept, onFailure);
-                            // following an index in remote cluster, so use remote client to fetch leader index metadata
-                            remoteClient.admin().cluster().state(request, clusterStateListener);
-                        } else {
-                            onFailure.accept(nonCompliantLicense.apply(licenseCheck));
-                        }
-                    }
+            Collections.singletonList(clusterAlias),
+            new ActionListener<RemoteClusterLicenseChecker.LicenseCheck>() {
 
                 @Override
                 public void onResponse(final RemoteClusterLicenseChecker.LicenseCheck licenseCheck) {

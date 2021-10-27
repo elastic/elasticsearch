@@ -224,85 +224,42 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         // Verify data extractor factory can be created, then start persistent task
         Consumer<Job> createDataExtractor = job -> {
             final List<String> remoteIndices = RemoteClusterLicenseChecker.remoteIndices(params.getDatafeedIndices());
-                if (remoteIndices.isEmpty() == false) {
-                    final RemoteClusterLicenseChecker remoteClusterLicenseChecker =
-                        new RemoteClusterLicenseChecker(client, MachineLearningField.ML_API_FEATURE);
-                    remoteClusterLicenseChecker.checkRemoteClusterLicenses(
-                            RemoteClusterLicenseChecker.remoteClusterAliases(
-                                    transportService.getRemoteClusterService().getRegisteredRemoteClusterNames(),
-                                    params.getDatafeedIndices()),
-                            ActionListener.wrap(
-                                    response -> {
-                                        if (response.isSuccess() == false) {
-                                            listener.onFailure(createUnlicensedError(params.getDatafeedId(), response));
-                                        } else if (remoteClusterClient == false) {
-                                            listener.onFailure(
-                                                ExceptionsHelper.badRequestException(Messages.getMessage(
-                                                    Messages.DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH,
-                                                    datafeedConfigHolder.get().getId(),
-                                                    RemoteClusterLicenseChecker.remoteIndices(datafeedConfigHolder.get().getIndices()),
-                                                    clusterService.getNodeName())));
-                                        } else {
-                                            final RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
-                                            List<String> remoteAliases = RemoteClusterLicenseChecker.remoteClusterAliases(
-                                                remoteClusterService.getRegisteredRemoteClusterNames(),
-                                                remoteIndices
-                                            );
-                                            checkRemoteClusterVersions(
-                                                datafeedConfigHolder.get(),
-                                                remoteAliases,
-                                                (cn) -> remoteClusterService.getConnection(cn).getVersion()
-                                            );
-                                            createDataExtractor(job, datafeedConfigHolder.get(), params, waitForTaskListener);
-                                        }
-                                    },
-                                    e -> listener.onFailure(
-                                            createUnknownLicenseError(
-                                                    params.getDatafeedId(),
-                                                    RemoteClusterLicenseChecker.remoteIndices(params.getDatafeedIndices()), e))
-                            )
-                    );
-                } else {
-                    createDataExtractor(job, datafeedConfigHolder.get(), params, waitForTaskListener);
-                }
-            };
-
-        ActionListener<Job.Builder> jobListener = ActionListener.wrap(
-                jobBuilder -> {
-                    try {
-                        Job job = jobBuilder.build();
-                        validate(job, datafeedConfigHolder.get(), tasks, xContentRegistry);
-                        auditDeprecations(datafeedConfigHolder.get(), job, auditor, xContentRegistry);
-                        createDataExtractor.accept(job);
-                    } catch (Exception e) {
-                        listener.onFailure(e);
-                    }
-                },
-                listener::onFailure
-        );
-
-        ActionListener<DatafeedConfig.Builder> datafeedListener = ActionListener.wrap(
-                datafeedBuilder -> {
-                    try {
-                        DatafeedConfig datafeedConfig = datafeedBuilder.build();
-                        params.setDatafeedIndices(datafeedConfig.getIndices());
-                        params.setJobId(datafeedConfig.getJobId());
-                        params.setIndicesOptions(datafeedConfig.getIndicesOptions());
-                        datafeedConfigHolder.set(datafeedConfig);
-                        if (datafeedConfig.hasCompositeAgg(xContentRegistry)) {
-                            if (state.nodes()
-                                .mastersFirstStream()
-                                .filter(MachineLearning::isMlNode)
-                                .map(DiscoveryNode::getVersion)
-                                .anyMatch(COMPOSITE_AGG_SUPPORT::after)) {
-                                listener.onFailure(ExceptionsHelper.badRequestException(
-                                    "cannot start datafeed [{}] as [{}] requires all machine learning nodes to be at least version [{}]",
-                                    datafeedConfig.getId(),
-                                    "composite aggs",
-                                    COMPOSITE_AGG_SUPPORT
-                                ));
-                                return;
-                            }
+            if (remoteIndices.isEmpty() == false) {
+                final RemoteClusterLicenseChecker remoteClusterLicenseChecker = new RemoteClusterLicenseChecker(
+                    client,
+                    MachineLearningField.ML_API_FEATURE
+                );
+                remoteClusterLicenseChecker.checkRemoteClusterLicenses(
+                    RemoteClusterLicenseChecker.remoteClusterAliases(
+                        transportService.getRemoteClusterService().getRegisteredRemoteClusterNames(),
+                        params.getDatafeedIndices()
+                    ),
+                    ActionListener.wrap(response -> {
+                        if (response.isSuccess() == false) {
+                            listener.onFailure(createUnlicensedError(params.getDatafeedId(), response));
+                        } else if (remoteClusterClient == false) {
+                            listener.onFailure(
+                                ExceptionsHelper.badRequestException(
+                                    Messages.getMessage(
+                                        Messages.DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH,
+                                        datafeedConfigHolder.get().getId(),
+                                        RemoteClusterLicenseChecker.remoteIndices(datafeedConfigHolder.get().getIndices()),
+                                        clusterService.getNodeName()
+                                    )
+                                )
+                            );
+                        } else {
+                            final RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
+                            List<String> remoteAliases = RemoteClusterLicenseChecker.remoteClusterAliases(
+                                remoteClusterService.getRegisteredRemoteClusterNames(),
+                                remoteIndices
+                            );
+                            checkRemoteClusterVersions(
+                                datafeedConfigHolder.get(),
+                                remoteAliases,
+                                (cn) -> remoteClusterService.getConnection(cn).getVersion()
+                            );
+                            createDataExtractor(job, datafeedConfigHolder.get(), params, waitForTaskListener);
                         }
                     },
                         e -> listener.onFailure(

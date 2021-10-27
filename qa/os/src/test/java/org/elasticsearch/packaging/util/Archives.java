@@ -232,12 +232,13 @@ public class Archives {
             .forEach(configFile -> assertThat(es.config(configFile), file(File, owner, owner, p660)));
     }
 
-    public static Shell.Result startElasticsearch(Installation installation, Shell sh) {
-        return runElasticsearchStartCommand(installation, sh, null, true);
-    }
-
-    public static Shell.Result startElasticsearchWithTty(Installation installation, Shell sh, String keystorePassword, boolean daemonize)
-        throws Exception {
+    public static Shell.Result startElasticsearchWithTty(
+        Installation installation,
+        Shell sh,
+        String keystorePassword,
+        List<String> parameters,
+        boolean daemonize
+    ) throws Exception {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
         final Installation.Executables bin = installation.executables();
 
@@ -248,6 +249,9 @@ public class Archives {
             command.add("-d");
         }
         command.add("-v"); // verbose auto-configuration
+        if (parameters != null && parameters.isEmpty() == false) {
+            command.addAll(parameters);
+        }
         String script = String.format(
             Locale.ROOT,
             "expect -c \"$(cat<<EXPECT\n"
@@ -273,6 +277,7 @@ public class Archives {
         Installation installation,
         Shell sh,
         String keystorePassword,
+        List<String> parameters,
         boolean daemonize
     ) {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
@@ -302,6 +307,9 @@ public class Archives {
             command.add("-v"); // verbose auto-configuration
             command.add("-p");
             command.add(pidFile.toString());
+            if (parameters != null && parameters.isEmpty() == false) {
+                command.addAll(parameters);
+            }
             if (keystorePassword != null) {
                 command.add("<<<'" + keystorePassword + "'");
             }
@@ -324,6 +332,7 @@ public class Archives {
                 powerShellProcessUserSetup = "";
             }
             // this starts the server in the background. the -d flag is unsupported on windows
+            final String parameterString = parameters != null && parameters.isEmpty() == false ? String.join(" ", parameters) : "";
             return sh.run(
                 "$processInfo = New-Object System.Diagnostics.ProcessStartInfo; "
                     + "$processInfo.FileName = '"
@@ -331,6 +340,7 @@ public class Archives {
                     + "'; "
                     + "$processInfo.Arguments = '-v -p "
                     + installation.home.resolve("elasticsearch.pid")
+                    + parameterString
                     + "'; "
                     + powerShellProcessUserSetup
                     + "$processInfo.RedirectStandardOutput = $true; "
@@ -378,6 +388,9 @@ public class Archives {
             command.add("-v"); // verbose auto-configuration
             command.add("-p");
             command.add(installation.home.resolve("elasticsearch.pid").toString());
+            if (parameters != null && parameters.isEmpty() == false) {
+                command.addAll(parameters);
+            }
             return sh.runIgnoreExitCode(String.join(" ", command));
         }
     }

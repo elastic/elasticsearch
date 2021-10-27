@@ -33,7 +33,7 @@ public class UserFunctionTests extends ESTestCase {
                 Protocol.PAGE_TIMEOUT, null, null,
                 randomFrom(Mode.values()), randomAlphaOfLength(10),
                 null, null, randomAlphaOfLengthBetween(1, 15),
-                randomBoolean(), randomBoolean());
+                randomBoolean(), randomBoolean(), null, null);
         Analyzer analyzer = new Analyzer(
                 sqlConfig,
                 new SqlFunctionRegistry(),

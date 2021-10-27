@@ -12,8 +12,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.action.BasicFormatter;
-import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.Cursor;
+import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -59,8 +59,8 @@ public class TextFormatterCursor implements Cursor {
     }
 
     @Override
-    public void clear(SqlConfiguration cfg, Client client, ActionListener<Boolean> listener) {
-        delegate.clear(cfg, client, listener);
+    public void clear(Client client, ActionListener<Boolean> listener) {
+        delegate.clear(client, listener);
     }
 
     @Override

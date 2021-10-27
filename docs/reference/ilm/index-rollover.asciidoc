@@ -1,4 +1,5 @@
 [[index-rollover]]
+[testenv="basic"]
 === Rollover
 
 When indexing time series data like logs or metrics, you can't write to a single index indefinitely. 

@@ -138,7 +138,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
 
-        Mockito.verifyZeroInteractions(clusterService);
+        Mockito.verifyNoMoreInteractions(clusterService);
     }
 
     public void testRunPolicyPhaseCompletePolicyStep() {
@@ -156,7 +156,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
         runner.runPeriodicStep(policyName, Metadata.builder().put(indexMetadata, true).build(), indexMetadata);
 
-        Mockito.verifyZeroInteractions(clusterService);
+        Mockito.verifyNoMoreInteractions(clusterService);
     }
 
     public void testRunPolicyPhaseCompleteWithMoreStepsPolicyStep() {
@@ -208,7 +208,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
 
-        Mockito.verifyZeroInteractions(clusterService);
+        Mockito.verifyNoMoreInteractions(clusterService);
     }
 
     public void testRunPolicyErrorStepOnRetryableFailedStep() {
@@ -702,7 +702,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
 
         assertEquals(0, step.getExecuteCount());
-        Mockito.verifyZeroInteractions(clusterService);
+        Mockito.verifyNoMoreInteractions(clusterService);
     }
 
     public void testRunPolicyAsyncWaitStepClusterStateChangeIgnored() {
@@ -723,7 +723,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
 
         assertEquals(0, step.getExecuteCount());
-        Mockito.verifyZeroInteractions(clusterService);
+        Mockito.verifyNoMoreInteractions(clusterService);
     }
 
     public void testRunPolicyThatDoesntExist() {

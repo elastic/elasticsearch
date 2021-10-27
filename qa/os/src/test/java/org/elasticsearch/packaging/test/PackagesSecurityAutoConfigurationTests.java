@@ -165,7 +165,7 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
             true
         );
         assertThat(result.exitCode, equalTo(ExitCodes.IO_ERROR)); //
-        assertThat(result.stdout, containsString("Error was: Provided keystore password was incorrect"));
+        assertThat(result.stderr, containsString("Error was: Provided keystore password was incorrect"));
     }
 
     public void test71ReconfigureFailsWhenKeyStoreDoesNotContainExpectedSettings() throws Exception {
@@ -183,7 +183,7 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         Shell.Result result = installation.executables().nodeReconfigureTool.run("--enrollment-token a-token", "y", true);
         assertThat(result.exitCode, equalTo(ExitCodes.IO_ERROR));
         assertThat(
-            result.stdout,
+            result.stderr,
             containsString(
                 "elasticsearch.keystore did not contain expected setting [xpack.security.transport.ssl.keystore.secure_password]."
             )
@@ -204,7 +204,7 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
 
         Shell.Result result = installation.executables().nodeReconfigureTool.run("--enrollment-token a-token", "y", true);
         assertThat(result.exitCode, equalTo(ExitCodes.USAGE)); //
-        assertThat(result.stdout, containsString("Expected configuration is missing from elasticsearch.yml."));
+        assertThat(result.stderr, containsString("Expected configuration is missing from elasticsearch.yml."));
     }
 
     public void test72ReconfigureRetainsUserSettings() throws Exception {

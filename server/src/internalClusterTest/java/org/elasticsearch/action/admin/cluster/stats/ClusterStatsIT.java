@@ -18,13 +18,13 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -49,9 +49,10 @@ public class ClusterStatsIT extends ESIntegTestCase {
     }
 
     private void waitForNodes(int numNodes) {
-        ClusterHealthResponse actionGet = client().admin().cluster()
-                .health(Requests.clusterHealthRequest().waitForEvents(Priority.LANGUID)
-                    .waitForNodes(Integer.toString(numNodes))).actionGet();
+        ClusterHealthResponse actionGet = client().admin()
+            .cluster()
+            .health(Requests.clusterHealthRequest().waitForEvents(Priority.LANGUID).waitForNodes(Integer.toString(numNodes)))
+            .actionGet();
         assertThat(actionGet.isTimedOut(), is(false));
     }
 
@@ -255,12 +256,21 @@ public class ClusterStatsIT extends ESIntegTestCase {
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
         assertTrue(response.getIndicesStats().getMappings().getFieldTypeStats().isEmpty());
 
-        client().admin().indices().prepareCreate("test1").addMapping(MapperService.SINGLE_MAPPING_NAME,
-            "{\"properties\":{\"foo\":{\"type\": \"keyword\"}}}", XContentType.JSON).get();
-        client().admin().indices().prepareCreate("test2")
-            .addMapping(MapperService.SINGLE_MAPPING_NAME,
-                "{\"properties\":{\"foo\":{\"type\": \"keyword\"},\"bar\":{\"properties\":{\"baz\":{\"type\":\"keyword\"}," +
-                "\"eggplant\":{\"type\":\"integer\"}}}}}", XContentType.JSON).get();
+        client().admin()
+            .indices()
+            .prepareCreate("test1")
+            .addMapping(MapperService.SINGLE_MAPPING_NAME, "{\"properties\":{\"foo\":{\"type\": \"keyword\"}}}", XContentType.JSON)
+            .get();
+        client().admin()
+            .indices()
+            .prepareCreate("test2")
+            .addMapping(
+                MapperService.SINGLE_MAPPING_NAME,
+                "{\"properties\":{\"foo\":{\"type\": \"keyword\"},\"bar\":{\"properties\":{\"baz\":{\"type\":\"keyword\"},"
+                    + "\"eggplant\":{\"type\":\"integer\"}}}}}",
+                XContentType.JSON
+            )
+            .get();
         response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getIndicesStats().getMappings().getFieldTypeStats().size(), equalTo(3));
         Set<FieldStats> stats = response.getIndicesStats().getMappings().getFieldTypeStats();

@@ -28,16 +28,23 @@ public final class RestrictedIndicesNames {
     private static final Automaton ASYNC_SEARCH_AUTOMATON = Automatons.patterns(ASYNC_SEARCH_PREFIX + "*");
 
     // public for tests
-    public static final Set<String> RESTRICTED_NAMES = Collections.unmodifiableSet(Sets.newHashSet(SECURITY_MAIN_ALIAS,
-            INTERNAL_SECURITY_MAIN_INDEX_6, INTERNAL_SECURITY_MAIN_INDEX_7, INTERNAL_SECURITY_TOKENS_INDEX_7, SECURITY_TOKENS_ALIAS));
+    public static final Set<String> RESTRICTED_NAMES = Collections.unmodifiableSet(
+        Sets.newHashSet(
+            SECURITY_MAIN_ALIAS,
+            INTERNAL_SECURITY_MAIN_INDEX_6,
+            INTERNAL_SECURITY_MAIN_INDEX_7,
+            INTERNAL_SECURITY_TOKENS_INDEX_7,
+            SECURITY_TOKENS_ALIAS
+        )
+    );
 
     public static boolean isRestricted(String concreteIndexName) {
         return RESTRICTED_NAMES.contains(concreteIndexName) || concreteIndexName.startsWith(ASYNC_SEARCH_PREFIX);
     }
 
-    public static final Automaton NAMES_AUTOMATON = Automatons.unionAndMinimize(Arrays.asList(Automatons.patterns(RESTRICTED_NAMES),
-            ASYNC_SEARCH_AUTOMATON));
+    public static final Automaton NAMES_AUTOMATON = Automatons.unionAndMinimize(
+        Arrays.asList(Automatons.patterns(RESTRICTED_NAMES), ASYNC_SEARCH_AUTOMATON)
+    );
 
-    private RestrictedIndicesNames() {
-    }
+    private RestrictedIndicesNames() {}
 }

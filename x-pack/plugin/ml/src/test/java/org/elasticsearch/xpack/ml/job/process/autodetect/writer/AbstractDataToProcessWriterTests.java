@@ -11,12 +11,12 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
-import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
+import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
+import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.AbstractDataToProcessWriter.InputOutputMap;
@@ -61,8 +61,14 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
         AnalysisConfig ac = new AnalysisConfig.Builder(Collections.singletonList(detector.build())).build();
 
         boolean includeTokensFields = randomBoolean();
-        AbstractDataToProcessWriter writer =
-                new CsvDataToProcessWriter(true, includeTokensFields, autodetectProcess, dd.build(), ac, dataCountsReporter);
+        AbstractDataToProcessWriter writer = new CsvDataToProcessWriter(
+            true,
+            includeTokensFields,
+            autodetectProcess,
+            dd.build(),
+            ac,
+            dataCountsReporter
+        );
 
         writer.writeHeader();
 
@@ -112,26 +118,51 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
         CategorizationAnalyzerConfig defaultConfig = CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(null);
         try (CategorizationAnalyzer categorizationAnalyzer = new CategorizationAnalyzer(analysisRegistry, defaultConfig)) {
 
-            assertEquals("sol13m-8608.1.p2ps,Info,Source,AES_SERVICE2,on,has,shut,down",
-                    AbstractDataToProcessWriter.tokenizeForCategorization(categorizationAnalyzer, "p2ps",
-                            "<sol13m-8608.1.p2ps: Info: > Source AES_SERVICE2 on 33122:967 has shut down."));
+            assertEquals(
+                "sol13m-8608.1.p2ps,Info,Source,AES_SERVICE2,on,has,shut,down",
+                AbstractDataToProcessWriter.tokenizeForCategorization(
+                    categorizationAnalyzer,
+                    "p2ps",
+                    "<sol13m-8608.1.p2ps: Info: > Source AES_SERVICE2 on 33122:967 has shut down."
+                )
+            );
 
-            assertEquals("Vpxa,verbose,VpxaHalCnxHostagent,opID,WFU-ddeadb59,WaitForUpdatesDone,Received,callback",
-                    AbstractDataToProcessWriter.tokenizeForCategorization(categorizationAnalyzer, "vmware",
-                            "Vpxa: [49EC0B90 verbose 'VpxaHalCnxHostagent' opID=WFU-ddeadb59] [WaitForUpdatesDone] Received callback"));
+            assertEquals(
+                "Vpxa,verbose,VpxaHalCnxHostagent,opID,WFU-ddeadb59,WaitForUpdatesDone,Received,callback",
+                AbstractDataToProcessWriter.tokenizeForCategorization(
+                    categorizationAnalyzer,
+                    "vmware",
+                    "Vpxa: [49EC0B90 verbose 'VpxaHalCnxHostagent' opID=WFU-ddeadb59] [WaitForUpdatesDone] Received callback"
+                )
+            );
 
-            assertEquals("org.apache.coyote.http11.Http11BaseProtocol,destroy",
-                    AbstractDataToProcessWriter.tokenizeForCategorization(categorizationAnalyzer, "apache",
-                            "org.apache.coyote.http11.Http11BaseProtocol destroy"));
+            assertEquals(
+                "org.apache.coyote.http11.Http11BaseProtocol,destroy",
+                AbstractDataToProcessWriter.tokenizeForCategorization(
+                    categorizationAnalyzer,
+                    "apache",
+                    "org.apache.coyote.http11.Http11BaseProtocol destroy"
+                )
+            );
 
-            assertEquals("INFO,session,PROXY,Session,DESTROYED",
-                    AbstractDataToProcessWriter.tokenizeForCategorization(categorizationAnalyzer, "proxy",
-                            " [1111529792] INFO  session <45409105041220090733@62.218.251.123> - " +
-                                    "----------------- PROXY Session DESTROYED --------------------"));
+            assertEquals(
+                "INFO,session,PROXY,Session,DESTROYED",
+                AbstractDataToProcessWriter.tokenizeForCategorization(
+                    categorizationAnalyzer,
+                    "proxy",
+                    " [1111529792] INFO  session <45409105041220090733@62.218.251.123> - "
+                        + "----------------- PROXY Session DESTROYED --------------------"
+                )
+            );
 
-            assertEquals("PSYoungGen,total,used",
-                    AbstractDataToProcessWriter.tokenizeForCategorization(categorizationAnalyzer, "java",
-                            "PSYoungGen      total 2572800K, used 1759355K [0x0000000759500000, 0x0000000800000000, 0x0000000800000000)"));
+            assertEquals(
+                "PSYoungGen,total,used",
+                AbstractDataToProcessWriter.tokenizeForCategorization(
+                    categorizationAnalyzer,
+                    "java",
+                    "PSYoungGen      total 2572800K, used 1759355K [0x0000000759500000, 0x0000000800000000, 0x0000000800000000)"
+                )
+            );
         }
     }
 }

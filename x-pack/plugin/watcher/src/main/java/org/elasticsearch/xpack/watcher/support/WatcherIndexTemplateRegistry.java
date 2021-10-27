@@ -11,8 +11,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
@@ -33,40 +33,53 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
         WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME,
         "/watch-history.json",
         WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION,
-        WATCHER_TEMPLATE_VERSION_VARIABLE);
+        WATCHER_TEMPLATE_VERSION_VARIABLE
+    );
     public static final IndexTemplateConfig TEMPLATE_CONFIG_WATCH_HISTORY_10 = new IndexTemplateConfig(
         WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_10,
         "/watch-history-10.json",
         10,
-        WATCHER_TEMPLATE_VERSION_VARIABLE);
+        WATCHER_TEMPLATE_VERSION_VARIABLE
+    );
     public static final IndexTemplateConfig TEMPLATE_CONFIG_WATCH_HISTORY_11 = new IndexTemplateConfig(
         WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_11,
         "/watch-history-11.json",
         11,
-        WATCHER_TEMPLATE_VERSION_VARIABLE);
+        WATCHER_TEMPLATE_VERSION_VARIABLE
+    );
     public static final IndexTemplateConfig TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM = new IndexTemplateConfig(
         WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM,
         "/watch-history-no-ilm.json",
         WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION,
-        WATCHER_TEMPLATE_VERSION_VARIABLE);
+        WATCHER_TEMPLATE_VERSION_VARIABLE
+    );
     public static final IndexTemplateConfig TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM_10 = new IndexTemplateConfig(
         WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM_10,
         "/watch-history-no-ilm-10.json",
         10,
-        WATCHER_TEMPLATE_VERSION_VARIABLE);
+        WATCHER_TEMPLATE_VERSION_VARIABLE
+    );
     public static final IndexTemplateConfig TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM_11 = new IndexTemplateConfig(
         WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM_11,
         "/watch-history-no-ilm-11.json",
         11,
-        WATCHER_TEMPLATE_VERSION_VARIABLE);
+        WATCHER_TEMPLATE_VERSION_VARIABLE
+    );
 
-    public static final LifecyclePolicyConfig POLICY_WATCH_HISTORY = new LifecyclePolicyConfig("watch-history-ilm-policy",
-        "/watch-history-ilm-policy.json");
+    public static final LifecyclePolicyConfig POLICY_WATCH_HISTORY = new LifecyclePolicyConfig(
+        "watch-history-ilm-policy",
+        "/watch-history-ilm-policy.json"
+    );
 
     private final boolean ilmManagementEnabled;
 
-    public WatcherIndexTemplateRegistry(Settings nodeSettings, ClusterService clusterService, ThreadPool threadPool, Client client,
-                                        NamedXContentRegistry xContentRegistry) {
+    public WatcherIndexTemplateRegistry(
+        Settings nodeSettings,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        Client client,
+        NamedXContentRegistry xContentRegistry
+    ) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
         ilmManagementEnabled = Watcher.USE_ILM_INDEX_MANAGEMENT.get(nodeSettings);
     }
@@ -88,9 +101,7 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected List<IndexTemplateConfig> getComposableTemplateConfigs() {
-        return Collections.singletonList(
-            ilmManagementEnabled ? TEMPLATE_CONFIG_WATCH_HISTORY : TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM
-        );
+        return Collections.singletonList(ilmManagementEnabled ? TEMPLATE_CONFIG_WATCH_HISTORY : TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM);
     }
 
     /**
@@ -112,13 +123,14 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
     public static boolean validate(ClusterState state) {
         // A .watch-history should exist, whether it is a legacy or composable index template
         // that doesn't matter when deciding to start watcher.
-        final Stream<String> watcherHistoryTemplateIds = Stream.concat(state.getMetadata().templatesV2().keySet().stream(),
-            Arrays.stream(state.getMetadata().getTemplates().keys().toArray(String.class)));
+        final Stream<String> watcherHistoryTemplateIds = Stream.concat(
+            state.getMetadata().templatesV2().keySet().stream(),
+            Arrays.stream(state.getMetadata().getTemplates().keys().toArray(String.class))
+        );
         return watcherHistoryTemplateIds.filter(s -> s.startsWith(".watch-history-"))
             .map(s -> Integer.valueOf(s.substring(s.lastIndexOf('-') + 1)))
             .anyMatch(version -> version >= 9);
     }
-
 
     @Override
     protected boolean requiresMasterNode() {

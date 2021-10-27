@@ -7,10 +7,9 @@
 package org.elasticsearch.xpack.security.rest.action.user;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -18,6 +17,7 @@ import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
@@ -49,9 +49,9 @@ public class RestPutUserAction extends SecurityBaseRestHandler implements RestRe
     public List<Route> routes() {
         return org.elasticsearch.core.List.of(
             Route.builder(POST, "/_security/user/{username}")
-                .replaces(POST, "/_xpack/security/user/{username}", RestApiVersion.V_7).build(),
-            Route.builder(PUT, "/_security/user/{username}")
-                .replaces(PUT, "/_xpack/security/user/{username}", RestApiVersion.V_7).build()
+                .replaces(POST, "/_xpack/security/user/{username}", RestApiVersion.V_7)
+                .build(),
+            Route.builder(PUT, "/_security/user/{username}").replaces(PUT, "/_xpack/security/user/{username}", RestApiVersion.V_7).build()
         );
     }
 
@@ -62,9 +62,12 @@ public class RestPutUserAction extends SecurityBaseRestHandler implements RestRe
 
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        PutUserRequestBuilder requestBuilder = new SecurityClient(client)
-            .preparePutUser(request.param("username"), request.requiredContent(), request.getXContentType(), passwordHasher)
-                .setRefreshPolicy(request.param("refresh"));
+        PutUserRequestBuilder requestBuilder = new SecurityClient(client).preparePutUser(
+            request.param("username"),
+            request.requiredContent(),
+            request.getXContentType(),
+            passwordHasher
+        ).setRefreshPolicy(request.param("refresh"));
 
         return channel -> requestBuilder.execute(new RestBuilderListener<PutUserResponse>(channel) {
             @Override

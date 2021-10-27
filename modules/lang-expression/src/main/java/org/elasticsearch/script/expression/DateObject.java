@@ -21,44 +21,44 @@ final class DateObject {
     private DateObject() {}
 
     // supported variables
-    static final String CENTURY_OF_ERA_VARIABLE       = "centuryOfEra";
-    static final String DAY_OF_MONTH_VARIABLE         = "dayOfMonth";
-    static final String DAY_OF_WEEK_VARIABLE          = "dayOfWeek";
-    static final String DAY_OF_YEAR_VARIABLE          = "dayOfYear";
-    static final String ERA_VARIABLE                  = "era";
-    static final String HOUR_OF_DAY_VARIABLE          = "hourOfDay";
-    static final String MILLIS_OF_DAY_VARIABLE        = "millisOfDay";
-    static final String MILLIS_OF_SECOND_VARIABLE     = "millisOfSecond";
-    static final String MINUTE_OF_DAY_VARIABLE        = "minuteOfDay";
-    static final String MINUTE_OF_HOUR_VARIABLE       = "minuteOfHour";
-    static final String MONTH_OF_YEAR_VARIABLE        = "monthOfYear";
-    static final String SECOND_OF_DAY_VARIABLE        = "secondOfDay";
-    static final String SECOND_OF_MINUTE_VARIABLE     = "secondOfMinute";
-    static final String WEEK_OF_WEEK_YEAR_VARIABLE    = "weekOfWeekyear";
-    static final String WEEK_YEAR_VARIABLE            = "weekyear";
-    static final String YEAR_VARIABLE                 = "year";
-    static final String YEAR_OF_CENTURY_VARIABLE      = "yearOfCentury";
-    static final String YEAR_OF_ERA_VARIABLE          = "yearOfEra";
+    static final String CENTURY_OF_ERA_VARIABLE = "centuryOfEra";
+    static final String DAY_OF_MONTH_VARIABLE = "dayOfMonth";
+    static final String DAY_OF_WEEK_VARIABLE = "dayOfWeek";
+    static final String DAY_OF_YEAR_VARIABLE = "dayOfYear";
+    static final String ERA_VARIABLE = "era";
+    static final String HOUR_OF_DAY_VARIABLE = "hourOfDay";
+    static final String MILLIS_OF_DAY_VARIABLE = "millisOfDay";
+    static final String MILLIS_OF_SECOND_VARIABLE = "millisOfSecond";
+    static final String MINUTE_OF_DAY_VARIABLE = "minuteOfDay";
+    static final String MINUTE_OF_HOUR_VARIABLE = "minuteOfHour";
+    static final String MONTH_OF_YEAR_VARIABLE = "monthOfYear";
+    static final String SECOND_OF_DAY_VARIABLE = "secondOfDay";
+    static final String SECOND_OF_MINUTE_VARIABLE = "secondOfMinute";
+    static final String WEEK_OF_WEEK_YEAR_VARIABLE = "weekOfWeekyear";
+    static final String WEEK_YEAR_VARIABLE = "weekyear";
+    static final String YEAR_VARIABLE = "year";
+    static final String YEAR_OF_CENTURY_VARIABLE = "yearOfCentury";
+    static final String YEAR_OF_ERA_VARIABLE = "yearOfEra";
 
     // supported methods
-    static final String GETCENTURY_OF_ERA_METHOD      = "getCenturyOfEra";
-    static final String GETDAY_OF_MONTH_METHOD        = "getDayOfMonth";
-    static final String GETDAY_OF_WEEK_METHOD         = "getDayOfWeek";
-    static final String GETDAY_OF_YEAR_METHOD         = "getDayOfYear";
-    static final String GETERA_METHOD                 = "getEra";
-    static final String GETHOUR_OF_DAY_METHOD         = "getHourOfDay";
-    static final String GETMILLIS_OF_DAY_METHOD       = "getMillisOfDay";
-    static final String GETMILLIS_OF_SECOND_METHOD    = "getMillisOfSecond";
-    static final String GETMINUTE_OF_DAY_METHOD       = "getMinuteOfDay";
-    static final String GETMINUTE_OF_HOUR_METHOD      = "getMinuteOfHour";
-    static final String GETMONTH_OF_YEAR_METHOD       = "getMonthOfYear";
-    static final String GETSECOND_OF_DAY_METHOD       = "getSecondOfDay";
-    static final String GETSECOND_OF_MINUTE_METHOD    = "getSecondOfMinute";
-    static final String GETWEEK_OF_WEEK_YEAR_METHOD   = "getWeekOfWeekyear";
-    static final String GETWEEK_YEAR_METHOD           = "getWeekyear";
-    static final String GETYEAR_METHOD                = "getYear";
-    static final String GETYEAR_OF_CENTURY_METHOD     = "getYearOfCentury";
-    static final String GETYEAR_OF_ERA_METHOD         = "getYearOfEra";
+    static final String GETCENTURY_OF_ERA_METHOD = "getCenturyOfEra";
+    static final String GETDAY_OF_MONTH_METHOD = "getDayOfMonth";
+    static final String GETDAY_OF_WEEK_METHOD = "getDayOfWeek";
+    static final String GETDAY_OF_YEAR_METHOD = "getDayOfYear";
+    static final String GETERA_METHOD = "getEra";
+    static final String GETHOUR_OF_DAY_METHOD = "getHourOfDay";
+    static final String GETMILLIS_OF_DAY_METHOD = "getMillisOfDay";
+    static final String GETMILLIS_OF_SECOND_METHOD = "getMillisOfSecond";
+    static final String GETMINUTE_OF_DAY_METHOD = "getMinuteOfDay";
+    static final String GETMINUTE_OF_HOUR_METHOD = "getMinuteOfHour";
+    static final String GETMONTH_OF_YEAR_METHOD = "getMonthOfYear";
+    static final String GETSECOND_OF_DAY_METHOD = "getSecondOfDay";
+    static final String GETSECOND_OF_MINUTE_METHOD = "getSecondOfMinute";
+    static final String GETWEEK_OF_WEEK_YEAR_METHOD = "getWeekOfWeekyear";
+    static final String GETWEEK_YEAR_METHOD = "getWeekyear";
+    static final String GETYEAR_METHOD = "getYear";
+    static final String GETYEAR_OF_CENTURY_METHOD = "getYearOfCentury";
+    static final String GETYEAR_OF_ERA_METHOD = "getYearOfEra";
 
     static DoubleValuesSource getVariable(IndexFieldData<?> fieldData, String fieldName, String variable) {
         switch (variable) {
@@ -99,8 +99,9 @@ final class DateObject {
             case YEAR_OF_ERA_VARIABLE:
                 return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ReadableDateTime::getYearOfEra);
             default:
-                throw new IllegalArgumentException("Member variable [" + variable +
-                                                   "] does not exist for date object on field [" + fieldName + "].");
+                throw new IllegalArgumentException(
+                    "Member variable [" + variable + "] does not exist for date object on field [" + fieldName + "]."
+                );
         }
     }
 
@@ -143,8 +144,9 @@ final class DateObject {
             case GETYEAR_OF_ERA_METHOD:
                 return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ReadableDateTime::getYearOfEra);
             default:
-                throw new IllegalArgumentException("Member method [" + method +
-                                                   "] does not exist for date object on field [" + fieldName + "].");
+                throw new IllegalArgumentException(
+                    "Member method [" + method + "] does not exist for date object on field [" + fieldName + "]."
+                );
         }
     }
 }

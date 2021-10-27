@@ -7,13 +7,7 @@
 
 package org.elasticsearch.xpack.monitoring.rest.action;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
-
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
@@ -21,9 +15,15 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsAction;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsRequest;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsResponse;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -31,9 +31,7 @@ public class RestMonitoringMigrateAlertsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.singletonList(
-            new Route(POST, "/_monitoring/migrate/alerts")
-        );
+        return Collections.singletonList(new Route(POST, "/_monitoring/migrate/alerts"));
     }
 
     @Override

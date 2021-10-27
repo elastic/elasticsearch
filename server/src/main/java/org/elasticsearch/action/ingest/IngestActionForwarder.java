@@ -36,10 +36,14 @@ public final class IngestActionForwarder implements ClusterStateApplier {
         ingestNodes = new DiscoveryNode[0];
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public void forwardIngestRequest(ActionType<?> action, ActionRequest request, ActionListener<?> listener) {
-        transportService.sendRequest(randomIngestNode(), action.name(), request,
-            new ActionListenerResponseHandler(listener, action.getResponseReader()));
+        transportService.sendRequest(
+            randomIngestNode(),
+            action.name(),
+            request,
+            new ActionListenerResponseHandler(listener, action.getResponseReader())
+        );
     }
 
     private DiscoveryNode randomIngestNode() {

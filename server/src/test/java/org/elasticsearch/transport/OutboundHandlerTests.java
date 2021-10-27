@@ -21,14 +21,14 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -69,7 +69,7 @@ public class OutboundHandlerTests extends ESTestCase {
         channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address());
         TransportAddress transportAddress = buildNewFakeTransportAddress();
         node = new DiscoveryNode("", transportAddress, Version.CURRENT);
-        String[] features = {feature1, feature2};
+        String[] features = { feature1, feature2 };
         StatsTracker statsTracker = new StatsTracker();
         compressionScheme = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4);
         handler = new OutboundHandler("node", Version.CURRENT, features, statsTracker, threadPool, BigArrays.NON_RECYCLING_INSTANCE);
@@ -78,15 +78,14 @@ public class OutboundHandlerTests extends ESTestCase {
         final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
         final Supplier<CircuitBreaker> breaker = () -> new NoopCircuitBreaker("test");
         final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
-        pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator,
-            (c, m) -> {
-                try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
-                    Streams.copy(m.openOrGetStreamInput(), streamOutput);
-                    message.set(new Tuple<>(m.getHeader(), streamOutput.bytes()));
-                } catch (IOException e) {
-                    throw new AssertionError(e);
-                }
-            });
+        pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, (c, m) -> {
+            try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
+                Streams.copy(m.openOrGetStreamInput(), streamOutput);
+                message.set(new Tuple<>(m.getHeader(), streamOutput.bytes()));
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        });
     }
 
     @After
@@ -138,8 +137,13 @@ public class OutboundHandlerTests extends ESTestCase {
         AtomicReference<TransportRequest> requestRef = new AtomicReference<>();
         handler.setMessageListener(new TransportMessageListener() {
             @Override
-            public void onRequestSent(DiscoveryNode node, long requestId, String action, TransportRequest request,
-                                      TransportRequestOptions options) {
+            public void onRequestSent(
+                DiscoveryNode node,
+                long requestId,
+                String action,
+                TransportRequest request,
+                TransportRequestOptions options
+            ) {
                 nodeRef.set(node);
                 requestIdRef.set(requestId);
                 actionRef.set(action);
@@ -164,8 +168,7 @@ public class OutboundHandlerTests extends ESTestCase {
         assertEquals(action, actionRef.get());
         assertEquals(request, requestRef.get());
 
-        pipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {
-        }));
+        pipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {}));
         final Tuple<Header, BytesReference> tuple = message.get();
         final Header header = tuple.v1();
         final TestRequest message = new TestRequest(tuple.v2().streamInput());
@@ -231,8 +234,7 @@ public class OutboundHandlerTests extends ESTestCase {
         assertEquals(action, actionRef.get());
         assertEquals(response, responseRef.get());
 
-        pipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {
-        }));
+        pipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {}));
         final Tuple<Header, BytesReference> tuple = message.get();
         final Header header = tuple.v1();
         final TestResponse message = new TestResponse(tuple.v2().streamInput());
@@ -289,9 +291,7 @@ public class OutboundHandlerTests extends ESTestCase {
         assertEquals(action, actionRef.get());
         assertEquals(error, responseRef.get());
 
-
-        pipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {
-        }));
+        pipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {}));
         final Tuple<Header, BytesReference> tuple = message.get();
         final Header header = tuple.v1();
         assertEquals(version, header.getVersion());
@@ -315,11 +315,13 @@ public class OutboundHandlerTests extends ESTestCase {
         final MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                        "expected message",
-                        OutboundHandler.class.getCanonicalName(),
-                        Level.WARN,
-                        "sending transport message "));
+            new MockLogAppender.SeenEventExpectation(
+                "expected message",
+                OutboundHandler.class.getCanonicalName(),
+                Level.WARN,
+                "sending transport message "
+            )
+        );
         final Logger outboundHandlerLogger = LogManager.getLogger(OutboundHandler.class);
         Loggers.addAppender(outboundHandlerLogger, mockAppender);
         handler.setSlowLogThreshold(TimeValue.timeValueMillis(5L));

@@ -9,6 +9,7 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchTimeoutException;
@@ -22,10 +23,9 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -34,6 +34,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.DispatchingRestToXContentListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -55,8 +56,8 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 public class RestGetMappingAction extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(RestGetMappingAction.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get" +
-        " mapping requests is deprecated. The parameter will be removed in the next major version.";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get"
+        + " mapping requests is deprecated. The parameter will be removed in the next major version.";
 
     private final ThreadPool threadPool;
 
@@ -66,16 +67,19 @@ public class RestGetMappingAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_mapping"),
-            new Route(GET, "/_mappings"),
-            new Route(GET, "/{index}/{type}/_mapping"),
-            new Route(GET, "/{index}/_mapping"),
-            new Route(GET, "/{index}/_mappings"),
-            new Route(GET, "/{index}/_mappings/{type}"),
-            new Route(GET, "/{index}/_mapping/{type}"),
-            new Route(HEAD, "/{index}/_mapping/{type}"),
-            new Route(GET, "/_mapping/{type}")));
+        return unmodifiableList(
+            asList(
+                new Route(GET, "/_mapping"),
+                new Route(GET, "/_mappings"),
+                new Route(GET, "/{index}/{type}/_mapping"),
+                new Route(GET, "/{index}/_mapping"),
+                new Route(GET, "/{index}/_mappings"),
+                new Route(GET, "/{index}/_mappings/{type}"),
+                new Route(GET, "/{index}/_mapping/{type}"),
+                new Route(HEAD, "/{index}/_mapping/{type}"),
+                new Route(GET, "/_mapping/{type}")
+            )
+        );
     }
 
     @Override
@@ -90,11 +94,15 @@ public class RestGetMappingAction extends BaseRestHandler {
         boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
 
         if (request.method().equals(HEAD)) {
-            deprecationLogger.critical(DeprecationCategory.TYPES, "get_mapping_types_removal",
-                    "Type exists requests are deprecated, as types have been deprecated.");
+            deprecationLogger.critical(
+                DeprecationCategory.TYPES,
+                "get_mapping_types_removal",
+                "Type exists requests are deprecated, as types have been deprecated."
+            );
         } else if (includeTypeName == false && types.length > 0) {
-            throw new IllegalArgumentException("Types cannot be provided in get mapping requests, unless" +
-                    " include_type_name is set to true.");
+            throw new IllegalArgumentException(
+                "Types cannot be provided in get mapping requests, unless" + " include_type_name is set to true."
+            );
         }
         if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
             deprecationLogger.critical(DeprecationCategory.TYPES, "get_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
@@ -107,10 +115,19 @@ public class RestGetMappingAction extends BaseRestHandler {
         getMappingsRequest.masterNodeTimeout(timeout);
         getMappingsRequest.local(request.paramAsBoolean("local", getMappingsRequest.local()));
         final HttpChannel httpChannel = request.getHttpChannel();
-        return channel -> new RestCancellableNodeClient(client, httpChannel).admin().indices().getMappings(getMappingsRequest,
-                new DispatchingRestToXContentListener<>(threadPool.executor(ThreadPool.Names.MANAGEMENT), channel, request)
-                    .map(getMappingsResponse ->
-                        new RestGetMappingsResponse(types, getMappingsResponse, threadPool::relativeTimeInMillis, timeout)));
+        return channel -> new RestCancellableNodeClient(client, httpChannel).admin()
+            .indices()
+            .getMappings(
+                getMappingsRequest,
+                new DispatchingRestToXContentListener<>(threadPool.executor(ThreadPool.Names.MANAGEMENT), channel, request).map(
+                    getMappingsResponse -> new RestGetMappingsResponse(
+                        types,
+                        getMappingsResponse,
+                        threadPool::relativeTimeInMillis,
+                        timeout
+                    )
+                )
+            );
     }
 
     private static final class RestGetMappingsResponse implements StatusToXContentObject {
@@ -121,10 +138,7 @@ public class RestGetMappingAction extends BaseRestHandler {
         private final long startTimeMs;
         private final SortedSet<String> missingTypes;
 
-        RestGetMappingsResponse(String[] types,
-                                GetMappingsResponse response,
-                                LongSupplier relativeTimeSupplierMillis,
-                                TimeValue timeout) {
+        RestGetMappingsResponse(String[] types, GetMappingsResponse response, LongSupplier relativeTimeSupplierMillis, TimeValue timeout) {
             this.types = types;
             this.response = response;
             this.relativeTimeSupplierMillis = relativeTimeSupplierMillis;
@@ -153,8 +167,11 @@ public class RestGetMappingAction extends BaseRestHandler {
             builder.startObject();
             {
                 if (missingTypes.isEmpty() == false) {
-                    final String message = String.format(Locale.ROOT, "type" + (missingTypes.size() == 1 ? "" : "s") +
-                        " [%s] missing", Strings.collectionToCommaDelimitedString(missingTypes));
+                    final String message = String.format(
+                        Locale.ROOT,
+                        "type" + (missingTypes.size() == 1 ? "" : "s") + " [%s] missing",
+                        Strings.collectionToCommaDelimitedString(missingTypes)
+                    );
                     builder.field("error", message);
                     builder.field("status", status().getStatus());
                 }
@@ -165,8 +182,10 @@ public class RestGetMappingAction extends BaseRestHandler {
             return builder;
         }
 
-        private static SortedSet<String> getMissingTypes(String[] types,
-                                                   ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappingsByIndex) {
+        private static SortedSet<String> getMissingTypes(
+            String[] types,
+            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappingsByIndex
+        ) {
             if (mappingsByIndex.isEmpty() && types.length != 0) {
                 return Collections.emptySortedSet();
             }
@@ -177,13 +196,11 @@ public class RestGetMappingAction extends BaseRestHandler {
                 }
             }
 
-            final SortedSet<String> difference =
-                Sets.sortedDifference(Arrays.stream(types).collect(Collectors.toSet()), typeNames);
+            final SortedSet<String> difference = Sets.sortedDifference(Arrays.stream(types).collect(Collectors.toSet()), typeNames);
 
             // now remove requested aliases that contain wildcards that are simple matches
             final List<String> matches = new ArrayList<>();
-            outer:
-            for (final String pattern : difference) {
+            outer: for (final String pattern : difference) {
                 if (pattern.contains("*")) {
                     for (final String typeName : typeNames) {
                         if (Regex.simpleMatch(pattern, typeName)) {

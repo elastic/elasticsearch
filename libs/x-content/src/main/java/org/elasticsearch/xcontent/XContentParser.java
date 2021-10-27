@@ -106,7 +106,12 @@ public interface XContentParser extends Closeable {
     }
 
     enum NumberType {
-        INT, BIG_INTEGER, LONG, FLOAT, DOUBLE, BIG_DECIMAL
+        INT,
+        BIG_INTEGER,
+        LONG,
+        FLOAT,
+        DOUBLE,
+        BIG_DECIMAL
     }
 
     XContentType contentType();
@@ -136,8 +141,8 @@ public interface XContentParser extends Closeable {
      * @param <T> map value type
      * @return {@link Map} object
      */
-    <T> Map<String, T> map(
-        Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException;
+    <T> Map<String, T> map(Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser)
+        throws IOException;
 
     List<Object> list() throws IOException;
 

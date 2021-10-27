@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.results;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -42,8 +42,12 @@ public class WarningInferenceResults implements InferenceResults {
 
     @Override
     public boolean equals(Object object) {
-        if (object == this) { return true; }
-        if (object == null || getClass() != object.getClass()) { return false; }
+        if (object == this) {
+            return true;
+        }
+        if (object == null || getClass() != object.getClass()) {
+            return false;
+        }
         WarningInferenceResults that = (WarningInferenceResults) object;
         return Objects.equals(warning, that.warning);
     }

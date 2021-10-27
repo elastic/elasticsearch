@@ -73,7 +73,7 @@ public class CCRFeatureSetTests extends ESTestCase {
     }
 
     public void testNativeCodeInfo() {
-        CCRFeatureSet featureSet = new CCRFeatureSet (Settings.EMPTY, licenseState, clusterService);
+        CCRFeatureSet featureSet = new CCRFeatureSet(Settings.EMPTY, licenseState, clusterService);
         assertNull(featureSet.nativeCodeInfo());
     }
 

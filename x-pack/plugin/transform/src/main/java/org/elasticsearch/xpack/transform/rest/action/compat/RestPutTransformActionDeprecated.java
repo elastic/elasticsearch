@@ -31,7 +31,8 @@ public class RestPutTransformActionDeprecated extends BaseRestHandler {
     public List<Route> routes() {
         return org.elasticsearch.core.List.of(
             Route.builder(PUT, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED)
-                .deprecated(TransformMessages.REST_DEPRECATED_ENDPOINT, RestApiVersion.V_7).build()
+                .deprecated(TransformMessages.REST_DEPRECATED_ENDPOINT, RestApiVersion.V_7)
+                .build()
         );
     }
 

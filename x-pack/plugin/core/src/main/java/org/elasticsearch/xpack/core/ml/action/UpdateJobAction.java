@@ -58,8 +58,7 @@ public class UpdateJobAction extends ActionType<PutJobAction.Response> {
             }
         }
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -121,9 +120,7 @@ public class UpdateJobAction extends ActionType<PutJobAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             UpdateJobAction.Request that = (UpdateJobAction.Request) o;
-            return Objects.equals(jobId, that.jobId) &&
-                    Objects.equals(update, that.update) &&
-                    isInternal == that.isInternal;
+            return Objects.equals(jobId, that.jobId) && Objects.equals(update, that.update) && isInternal == that.isInternal;
         }
 
         @Override

@@ -11,10 +11,10 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -83,8 +83,7 @@ public class GetBucketsAction extends ActionType<GetBucketsAction.Response> {
         private String sort = Result.TIMESTAMP.getPreferredName();
         private boolean descending = false;
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -110,12 +109,21 @@ public class GetBucketsAction extends ActionType<GetBucketsAction.Response> {
 
         public void setTimestamp(String timestamp) {
             if (pageParams != null || start != null || end != null || anomalyScore != null) {
-                throw new IllegalArgumentException("Param [" + TIMESTAMP.getPreferredName() + "] is incompatible with ["
-                                + PageParams.FROM.getPreferredName() + ","
-                                + PageParams.SIZE.getPreferredName() + ","
-                                + START.getPreferredName() + ","
-                                + END.getPreferredName() + ","
-                                + ANOMALY_SCORE.getPreferredName() + "]");
+                throw new IllegalArgumentException(
+                    "Param ["
+                        + TIMESTAMP.getPreferredName()
+                        + "] is incompatible with ["
+                        + PageParams.FROM.getPreferredName()
+                        + ","
+                        + PageParams.SIZE.getPreferredName()
+                        + ","
+                        + START.getPreferredName()
+                        + ","
+                        + END.getPreferredName()
+                        + ","
+                        + ANOMALY_SCORE.getPreferredName()
+                        + "]"
+                );
             }
             this.timestamp = ExceptionsHelper.requireNonNull(timestamp, Result.TIMESTAMP.getPreferredName());
         }
@@ -146,8 +154,9 @@ public class GetBucketsAction extends ActionType<GetBucketsAction.Response> {
 
         public void setStart(String start) {
             if (timestamp != null) {
-                throw new IllegalArgumentException("Param [" + START.getPreferredName() + "] is incompatible with ["
-                        + TIMESTAMP.getPreferredName() + "].");
+                throw new IllegalArgumentException(
+                    "Param [" + START.getPreferredName() + "] is incompatible with [" + TIMESTAMP.getPreferredName() + "]."
+                );
             }
             this.start = start;
         }
@@ -158,8 +167,9 @@ public class GetBucketsAction extends ActionType<GetBucketsAction.Response> {
 
         public void setEnd(String end) {
             if (timestamp != null) {
-                throw new IllegalArgumentException("Param [" + END.getPreferredName() + "] is incompatible with ["
-                        + TIMESTAMP.getPreferredName() + "].");
+                throw new IllegalArgumentException(
+                    "Param [" + END.getPreferredName() + "] is incompatible with [" + TIMESTAMP.getPreferredName() + "]."
+                );
             }
             this.end = end;
         }
@@ -170,8 +180,15 @@ public class GetBucketsAction extends ActionType<GetBucketsAction.Response> {
 
         public void setPageParams(PageParams pageParams) {
             if (timestamp != null) {
-                throw new IllegalArgumentException("Param [" + PageParams.FROM.getPreferredName()
-                        + ", " + PageParams.SIZE.getPreferredName() + "] is incompatible with [" + TIMESTAMP.getPreferredName() + "].");
+                throw new IllegalArgumentException(
+                    "Param ["
+                        + PageParams.FROM.getPreferredName()
+                        + ", "
+                        + PageParams.SIZE.getPreferredName()
+                        + "] is incompatible with ["
+                        + TIMESTAMP.getPreferredName()
+                        + "]."
+                );
             }
             this.pageParams = ExceptionsHelper.requireNonNull(pageParams, PageParams.PAGE.getPreferredName());
         }
@@ -182,8 +199,9 @@ public class GetBucketsAction extends ActionType<GetBucketsAction.Response> {
 
         public void setAnomalyScore(double anomalyScore) {
             if (timestamp != null) {
-                throw new IllegalArgumentException("Param [" + ANOMALY_SCORE.getPreferredName() + "] is incompatible with ["
-                        + TIMESTAMP.getPreferredName() + "].");
+                throw new IllegalArgumentException(
+                    "Param [" + ANOMALY_SCORE.getPreferredName() + "] is incompatible with [" + TIMESTAMP.getPreferredName() + "]."
+                );
             }
             this.anomalyScore = anomalyScore;
         }
@@ -265,16 +283,16 @@ public class GetBucketsAction extends ActionType<GetBucketsAction.Response> {
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(jobId, other.jobId) &&
-                    Objects.equals(timestamp, other.timestamp) &&
-                    Objects.equals(expand, other.expand) &&
-                    Objects.equals(excludeInterim, other.excludeInterim) &&
-                    Objects.equals(anomalyScore, other.anomalyScore) &&
-                    Objects.equals(pageParams, other.pageParams) &&
-                    Objects.equals(start, other.start) &&
-                    Objects.equals(end, other.end) &&
-                    Objects.equals(sort, other.sort) &&
-                    Objects.equals(descending, other.descending);
+            return Objects.equals(jobId, other.jobId)
+                && Objects.equals(timestamp, other.timestamp)
+                && Objects.equals(expand, other.expand)
+                && Objects.equals(excludeInterim, other.excludeInterim)
+                && Objects.equals(anomalyScore, other.anomalyScore)
+                && Objects.equals(pageParams, other.pageParams)
+                && Objects.equals(start, other.start)
+                && Objects.equals(end, other.end)
+                && Objects.equals(sort, other.sort)
+                && Objects.equals(descending, other.descending);
         }
     }
 

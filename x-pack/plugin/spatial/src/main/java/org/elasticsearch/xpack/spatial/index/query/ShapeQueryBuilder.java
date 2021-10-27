@@ -9,20 +9,20 @@ package org.elasticsearch.xpack.spatial.index.query;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.GeometryParser;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractGeometryQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeQueryable;
 
 import java.io.IOException;
@@ -40,8 +40,8 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(GeoShapeQueryBuilder.class);
 
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Types are deprecated in [geo_shape] queries. " +
-        "The type should no longer be specified in the [indexed_shape] section.";
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Types are deprecated in [geo_shape] queries. "
+        + "The type should no longer be specified in the [indexed_shape] section.";
 
     /**
      * Creates a new ShapeQueryBuilder whose Query will be against the given
@@ -56,8 +56,12 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
         super(fieldName, shape);
     }
 
-    protected ShapeQueryBuilder(String fieldName, Supplier<Geometry> shapeSupplier, String indexedShapeId,
-                                @Nullable String indexedShapeType) {
+    protected ShapeQueryBuilder(
+        String fieldName,
+        Supplier<Geometry> shapeSupplier,
+        String indexedShapeId,
+        @Nullable String indexedShapeType
+    ) {
         super(fieldName, shapeSupplier, indexedShapeId, indexedShapeType);
     }
 
@@ -94,8 +98,12 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
     }
 
     @Override
-    protected ShapeQueryBuilder newShapeQueryBuilder(String fieldName, Supplier<Geometry> shapeSupplier, String indexedShapeId,
-                                                     String indexedShapeType) {
+    protected ShapeQueryBuilder newShapeQueryBuilder(
+        String fieldName,
+        Supplier<Geometry> shapeSupplier,
+        String indexedShapeId,
+        String indexedShapeType
+    ) {
         return new ShapeQueryBuilder(fieldName, shapeSupplier, indexedShapeId, indexedShapeType);
     }
 
@@ -103,8 +111,10 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
     @SuppressWarnings({ "rawtypes" })
     public Query buildShapeQuery(SearchExecutionContext context, MappedFieldType fieldType) {
         if ((fieldType instanceof ShapeQueryable) == false) {
-            throw new QueryShardException(context,
-                "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query");
+            throw new QueryShardException(
+                context,
+                "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query"
+            );
         }
         final ShapeQueryable ft = (ShapeQueryable) fieldType;
         return new ConstantScoreQuery(ft.shapeQuery(shape, fieldType.name(), relation, context));
@@ -117,12 +127,12 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
 
     @Override
     protected ShapeQueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        return (ShapeQueryBuilder)super.doRewrite(queryRewriteContext);
+        return (ShapeQueryBuilder) super.doRewrite(queryRewriteContext);
     }
 
     @Override
     protected boolean doEquals(ShapeQueryBuilder other) {
-        return super.doEquals((AbstractGeometryQueryBuilder)other);
+        return super.doEquals((AbstractGeometryQueryBuilder) other);
     }
 
     @Override
@@ -153,8 +163,10 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
     }
 
     public static ShapeQueryBuilder fromXContent(XContentParser parser) throws IOException {
-        ParsedShapeQueryParams pgsqb = (ParsedShapeQueryParams)AbstractGeometryQueryBuilder.parsedParamsFromXContent(parser,
-            new ParsedShapeQueryParams());
+        ParsedShapeQueryParams pgsqb = (ParsedShapeQueryParams) AbstractGeometryQueryBuilder.parsedParamsFromXContent(
+            parser,
+            new ParsedShapeQueryParams()
+        );
 
         ShapeQueryBuilder builder;
         if (pgsqb.type != null) {

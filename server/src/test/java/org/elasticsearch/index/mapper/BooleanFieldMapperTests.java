@@ -39,7 +39,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
 
     @Override
     protected String[] getParseMaximalWarnings() {
-        return new String[]{ "Parameter [boost] on field [field] is deprecated and will be removed in 8.0" };
+        return new String[] { "Parameter [boost] on field [field] is deprecated and will be removed in 8.0" };
     }
 
     protected void registerParameters(ParameterChecker checker) throws IOException {
@@ -100,26 +100,31 @@ public class BooleanFieldMapperTests extends MapperTestCase {
     public void testParsesBooleansStrict() throws IOException {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         // omit "false"/"true" here as they should still be parsed correctly
-        for (String value : new String[]{"off", "no", "0", "on", "yes", "1"}) {
-            MapperParsingException ex = expectThrows(MapperParsingException.class,
-                () -> defaultMapper.parse(source(b -> b.field("field", value))));
-            assertEquals("failed to parse field [field] of type [boolean] in document with id '1'. " +
-                "Preview of field's value: '" + value + "'", ex.getMessage());
+        for (String value : new String[] { "off", "no", "0", "on", "yes", "1" }) {
+            MapperParsingException ex = expectThrows(
+                MapperParsingException.class,
+                () -> defaultMapper.parse(source(b -> b.field("field", value)))
+            );
+            assertEquals(
+                "failed to parse field [field] of type [boolean] in document with id '1'. " + "Preview of field's value: '" + value + "'",
+                ex.getMessage()
+            );
         }
     }
 
     public void testParsesBooleansNestedStrict() throws IOException {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        MapperParsingException ex = expectThrows(MapperParsingException.class,
-                () -> defaultMapper.parse(source(b -> {
-                    b.startObject("field");
-                    {
-                        b.field("inner_field", "no");
-                    }
-                    b.endObject();
-                })));
-        assertEquals("failed to parse field [field] of type [boolean] in document with id '1'. " +
-            "Preview of field's value: '{inner_field=no}'", ex.getMessage());
+        MapperParsingException ex = expectThrows(MapperParsingException.class, () -> defaultMapper.parse(source(b -> {
+            b.startObject("field");
+            {
+                b.field("inner_field", "no");
+            }
+            b.endObject();
+        })));
+        assertEquals(
+            "failed to parse field [field] of type [boolean] in document with id '1'. " + "Preview of field's value: '{inner_field=no}'",
+            ex.getMessage()
+        );
     }
 
     public void testMultiFields() throws IOException {
@@ -205,7 +210,9 @@ public class BooleanFieldMapperTests extends MapperTestCase {
             b.field("script", "test");
             b.field("null_value", true);
         })));
-        assertThat(e.getMessage(),
-            equalTo("Failed to parse mapping [_doc]: Field [null_value] cannot be set in conjunction with field [script]"));
+        assertThat(
+            e.getMessage(),
+            equalTo("Failed to parse mapping [_doc]: Field [null_value] cannot be set in conjunction with field [script]")
+        );
     }
 }

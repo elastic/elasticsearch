@@ -35,13 +35,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
@@ -482,7 +482,6 @@ public class TransformContinuousIT extends ESRestTestCase {
                 .isAcknowledged()
         );
 
-
     }
 
     private GetTransformStatsResponse getTransformStats(String id) throws IOException {
@@ -547,7 +546,6 @@ public class TransformContinuousIT extends ESRestTestCase {
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             return restClient.transform().putTransform(new PutTransformRequest(config), RequestOptions.DEFAULT);
 
-
         }
     }
 
@@ -562,7 +560,6 @@ public class TransformContinuousIT extends ESRestTestCase {
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             return restClient.ingest().deletePipeline(new DeletePipelineRequest(id), RequestOptions.DEFAULT);
 
-
         }
     }
 
@@ -575,7 +572,6 @@ public class TransformContinuousIT extends ESRestTestCase {
     private StartTransformResponse startTransform(String id) throws IOException {
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             return restClient.transform().startTransform(new StartTransformRequest(id), RequestOptions.DEFAULT);
-
 
         }
     }

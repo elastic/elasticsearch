@@ -7,24 +7,21 @@
  */
 package org.elasticsearch.repositories.gcs;
 
+import fixture.gcs.FakeOAuth2HttpHandler;
+
 import com.google.api.gax.retrying.RetrySettings;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
 import com.sun.net.httpserver.HttpHandler;
-import fixture.gcs.FakeOAuth2HttpHandler;
+
 import org.apache.http.HttpStatus;
-import org.elasticsearch.jdk.JavaVersion;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
@@ -32,8 +29,13 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
@@ -84,10 +86,13 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
     }
 
     public static void assumeNotJava8() {
-        assumeFalse("This test is flaky on jdk8 - we suspect a JDK bug to trigger some assertion in the HttpServer implementation used " +
-            "to emulate the server side logic of Google Cloud Storage. See https://bugs.openjdk.java.net/browse/JDK-8180754, " +
-            "https://github.com/elastic/elasticsearch/pull/51933 and https://github.com/elastic/elasticsearch/issues/52906 " +
-            "for more background on this issue.", JavaVersion.current().equals(JavaVersion.parse("8")));
+        assumeFalse(
+            "This test is flaky on jdk8 - we suspect a JDK bug to trigger some assertion in the HttpServer implementation used "
+                + "to emulate the server side logic of Google Cloud Storage. See https://bugs.openjdk.java.net/browse/JDK-8180754, "
+                + "https://github.com/elastic/elasticsearch/pull/51933 and https://github.com/elastic/elasticsearch/issues/52906 "
+                + "for more background on this issue.",
+            JavaVersion.current().equals(JavaVersion.parse("8"))
+        );
     }
 
     @BeforeClass
@@ -111,10 +116,12 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
     }
 
     @Override
-    protected BlobContainer createBlobContainer(final @Nullable Integer maxRetries,
+    protected BlobContainer createBlobContainer(
+        final @Nullable Integer maxRetries,
         final @Nullable TimeValue readTimeout,
         final @Nullable Boolean disableChunkedEncoding,
-        final @Nullable ByteSizeValue bufferSize) {
+        final @Nullable ByteSizeValue bufferSize
+    ) {
         final Settings.Builder clientSettings = Settings.builder();
         final String client = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         clientSettings.put(ENDPOINT_SETTING.getConcreteSettingForNamespace(client).getKey(), httpServerUrl());
@@ -129,8 +136,10 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
 
         final GoogleCloudStorageService service = new GoogleCloudStorageService() {
             @Override
-            StorageOptions createStorageOptions(final GoogleCloudStorageClientSettings clientSettings,
-                                                final HttpTransportOptions httpTransportOptions) {
+            StorageOptions createStorageOptions(
+                final GoogleCloudStorageClientSettings clientSettings,
+                final HttpTransportOptions httpTransportOptions
+            ) {
                 StorageOptions options = super.createStorageOptions(clientSettings, httpTransportOptions);
                 RetrySettings.Builder retrySettingsBuilder = RetrySettings.newBuilder()
                     .setTotalTimeout(options.getRetrySettings().getTotalTimeout())
@@ -154,8 +163,14 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         service.refreshAndClearCache(GoogleCloudStorageClientSettings.load(clientSettings.build()));
 
         httpServer.createContext("/token", new FakeOAuth2HttpHandler());
-        final GoogleCloudStorageBlobStore blobStore = new GoogleCloudStorageBlobStore("bucket", client, "repo", service,
-            BigArrays.NON_RECYCLING_INSTANCE, randomIntBetween(1, 8) * 1024);
+        final GoogleCloudStorageBlobStore blobStore = new GoogleCloudStorageBlobStore(
+            "bucket",
+            client,
+            "repo",
+            service,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            randomIntBetween(1, 8) * 1024
+        );
 
         return new GoogleCloudStorageBlobContainer(randomBoolean() ? BlobPath.EMPTY : BlobPath.EMPTY.add("foo"), blobStore);
     }
@@ -263,8 +278,13 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         final byte[] data = randomBytes(defaultChunkSize * nbChunks + lastChunkSize);
         assertThat(data.length, greaterThan(GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE));
 
-        logger.debug("resumable upload is composed of [{}] total chunks ([{}] chunks of length [{}] and last chunk of length [{}]",
-            totalChunks, nbChunks, defaultChunkSize, lastChunkSize);
+        logger.debug(
+            "resumable upload is composed of [{}] total chunks ([{}] chunks of length [{}] and last chunk of length [{}]",
+            totalChunks,
+            nbChunks,
+            defaultChunkSize,
+            lastChunkSize
+        );
 
         final int nbErrors = 2; // we want all requests to fail at least once
         final AtomicInteger countInits = new AtomicInteger(nbErrors);
@@ -292,8 +312,11 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                 if (countInits.decrementAndGet() <= 0) {
                     byte[] response = requestBody.utf8ToString().getBytes(UTF_8);
                     exchange.getResponseHeaders().add("Content-Type", "application/json");
-                    exchange.getResponseHeaders().add("Location", httpServerUrl() +
-                        "/upload/storage/v1/b/bucket/o?uploadType=resumable&upload_id=" + sessionUploadId.get());
+                    exchange.getResponseHeaders()
+                        .add(
+                            "Location",
+                            httpServerUrl() + "/upload/storage/v1/b/bucket/o?uploadType=resumable&upload_id=" + sessionUploadId.get()
+                        );
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                     exchange.getResponseBody().write(response);
                     return;

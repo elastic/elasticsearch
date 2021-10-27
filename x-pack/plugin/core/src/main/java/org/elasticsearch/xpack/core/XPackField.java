@@ -82,8 +82,7 @@ public final class XPackField {
      */
     public static final String OPERATOR_PRIVILEGES = "operator_privileges";
 
-    private XPackField() {
-    }
+    private XPackField() {}
 
     public static String featureSettingPrefix(String featureName) {
         return XPackField.SETTINGS_NAME + "." + featureName;

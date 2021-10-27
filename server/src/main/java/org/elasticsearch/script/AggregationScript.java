@@ -28,21 +28,23 @@ public abstract class AggregationScript extends DocBasedScript implements Scorer
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("aggs", Factory.class);
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
-    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.elasticsearch.core.Map.of(
-            "doc", value -> {
-                deprecationLogger.critical(DeprecationCategory.SCRIPTING, "aggregation-script_doc",
-                        "Accessing variable [doc] via [params.doc] from within an aggregation-script "
-                                + "is deprecated in favor of directly accessing [doc].");
-                return value;
-            },
-            "_doc", value -> {
-                deprecationLogger.critical(DeprecationCategory.SCRIPTING, "aggregation-script__doc",
-                        "Accessing variable [doc] via [params._doc] from within an aggregation-script "
-                                + "is deprecated in favor of directly accessing [doc].");
-                return value;
-            },
-            "_source", value -> ((SourceLookup)value).source()
-    );
+    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.elasticsearch.core.Map.of("doc", value -> {
+        deprecationLogger.critical(
+            DeprecationCategory.SCRIPTING,
+            "aggregation-script_doc",
+            "Accessing variable [doc] via [params.doc] from within an aggregation-script "
+                + "is deprecated in favor of directly accessing [doc]."
+        );
+        return value;
+    }, "_doc", value -> {
+        deprecationLogger.critical(
+            DeprecationCategory.SCRIPTING,
+            "aggregation-script__doc",
+            "Accessing variable [doc] via [params._doc] from within an aggregation-script "
+                + "is deprecated in favor of directly accessing [doc]."
+        );
+        return value;
+    }, "_source", value -> ((SourceLookup) value).source());
 
     /**
      * The generic runtime parameters for the script.

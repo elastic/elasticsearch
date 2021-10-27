@@ -74,7 +74,7 @@ public class Wildcard extends BaseSurrogateFunction {
 
         int index = 1;
 
-        for (Expression p: patterns) {
+        for (Expression p : patterns) {
 
             lastResolution = isFoldable(p, sourceText(), TypeResolutions.ParamOrdinal.fromIndex(index));
             if (lastResolution.unresolved()) {
@@ -97,6 +97,7 @@ public class Wildcard extends BaseSurrogateFunction {
         return (ScalarFunction) Predicates.combineOr(
             patterns.stream()
                 .map(e -> new Like(source(), field, StringUtils.toLikePattern(e.fold().toString()), caseInsensitive))
-                .collect(toList()));
+                .collect(toList())
+        );
     }
 }

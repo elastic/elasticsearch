@@ -32,10 +32,10 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
@@ -78,7 +78,7 @@ import static org.mockito.Mockito.when;
 public class DestinationIndexTests extends ESTestCase {
 
     private static final String ANALYTICS_ID = "some-analytics-id";
-    private static final String[] SOURCE_INDEX = new String[] {"source-index"};
+    private static final String[] SOURCE_INDEX = new String[] { "source-index" };
     private static final String DEST_INDEX = "dest-index";
     private static final String NUMERICAL_FIELD = "numerical-field";
     private static final String OUTER_FIELD = "outer-field";
@@ -102,8 +102,8 @@ public class DestinationIndexTests extends ESTestCase {
         DataFrameAnalyticsConfig config = createConfig(analysis);
 
         ArgumentCaptor<CreateIndexRequest> createIndexRequestCaptor = ArgumentCaptor.forClass(CreateIndexRequest.class);
-        doAnswer(callListenerOnResponse(null))
-            .when(client).execute(eq(CreateIndexAction.INSTANCE), createIndexRequestCaptor.capture(), any());
+        doAnswer(callListenerOnResponse(null)).when(client)
+            .execute(eq(CreateIndexAction.INSTANCE), createIndexRequestCaptor.capture(), any());
 
         Settings index1Settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -127,8 +127,8 @@ public class DestinationIndexTests extends ESTestCase {
 
         GetSettingsResponse getSettingsResponse = new GetSettingsResponse(indexToSettings.build(), ImmutableOpenMap.of());
 
-        doAnswer(callListenerOnResponse(getSettingsResponse))
-            .when(client).execute(eq(GetSettingsAction.INSTANCE), getSettingsRequestCaptor.capture(), any());
+        doAnswer(callListenerOnResponse(getSettingsResponse)).when(client)
+            .execute(eq(GetSettingsAction.INSTANCE), getSettingsRequestCaptor.capture(), any());
 
         Map<String, Object> indexProperties = new HashMap<>();
         indexProperties.put("field_1", "field_1_mappings");
@@ -136,7 +136,8 @@ public class DestinationIndexTests extends ESTestCase {
         indexProperties.put(NUMERICAL_FIELD, Collections.singletonMap("type", "integer"));
         indexProperties.put(
             OUTER_FIELD,
-            Collections.singletonMap("properties", Collections.singletonMap(INNER_FIELD, Collections.singletonMap("type", "integer"))));
+            Collections.singletonMap("properties", Collections.singletonMap(INNER_FIELD, Collections.singletonMap("type", "integer")))
+        );
         Map<String, Object> aliasToNumericalFieldProperties = new HashMap<>();
         aliasToNumericalFieldProperties.put("type", "alias");
         aliasToNumericalFieldProperties.put("path", NUMERICAL_FIELD);
@@ -160,31 +161,25 @@ public class DestinationIndexTests extends ESTestCase {
 
         GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
 
-        doAnswer(callListenerOnResponse(getMappingsResponse))
-            .when(client).execute(eq(GetMappingsAction.INSTANCE), getMappingsRequestCaptor.capture(), any());
+        doAnswer(callListenerOnResponse(getMappingsResponse)).when(client)
+            .execute(eq(GetMappingsAction.INSTANCE), getMappingsRequestCaptor.capture(), any());
 
-        FieldCapabilitiesResponse fieldCapabilitiesResponse =
-            new FieldCapabilitiesResponse(
-                new String[0],
-                new HashMap<String, Map<String, FieldCapabilities>>() {{
+        FieldCapabilitiesResponse fieldCapabilitiesResponse = new FieldCapabilitiesResponse(
+            new String[0],
+            new HashMap<String, Map<String, FieldCapabilities>>() {
+                {
                     put(NUMERICAL_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
                     put(OUTER_FIELD + "." + INNER_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
                     put(ALIAS_TO_NUMERICAL_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
                     put(ALIAS_TO_NESTED_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
-                }});
-
-        doAnswer(callListenerOnResponse(fieldCapabilitiesResponse))
-            .when(client).execute(eq(FieldCapabilitiesAction.INSTANCE), fieldCapabilitiesRequestCaptor.capture(), any());
-
-        DestinationIndex.createDestinationIndex(
-            client,
-            clock,
-            config,
-            ActionListener.wrap(
-                response -> {},
-                e -> fail(e.getMessage())
-            )
+                }
+            }
         );
+
+        doAnswer(callListenerOnResponse(fieldCapabilitiesResponse)).when(client)
+            .execute(eq(FieldCapabilitiesAction.INSTANCE), fieldCapabilitiesRequestCaptor.capture(), any());
+
+        DestinationIndex.createDestinationIndex(client, clock, config, ActionListener.wrap(response -> {}, e -> fail(e.getMessage())));
 
         GetSettingsRequest capturedGetSettingsRequest = getSettingsRequestCaptor.getValue();
         assertThat(capturedGetSettingsRequest.indices(), equalTo(SOURCE_INDEX));
@@ -253,8 +248,10 @@ public class DestinationIndexTests extends ESTestCase {
 
         GetSettingsResponse getSettingsResponse = new GetSettingsResponse(ImmutableOpenMap.of(), ImmutableOpenMap.of());
 
-        MappingMetadata index1MappingMetadata =
-            new MappingMetadata("_doc", Collections.singletonMap("properties", Collections.singletonMap("ml", "some-mapping")));
+        MappingMetadata index1MappingMetadata = new MappingMetadata(
+            "_doc",
+            Collections.singletonMap("properties", Collections.singletonMap("ml", "some-mapping"))
+        );
         ImmutableOpenMap.Builder<String, MappingMetadata> index1MappingsMap = ImmutableOpenMap.builder();
         index1MappingsMap.put("_doc", index1MappingMetadata);
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetadata>> mappings = ImmutableOpenMap.builder();
@@ -272,7 +269,8 @@ public class DestinationIndexTests extends ESTestCase {
                 response -> fail("should not succeed"),
                 e -> assertThat(
                     e.getMessage(),
-                    equalTo("A field that matches the dest.results_field [ml] already exists; please set a different results_field"))
+                    equalTo("A field that matches the dest.results_field [ml] already exists; please set a different results_field")
+                )
             )
         );
     }
@@ -284,7 +282,8 @@ public class DestinationIndexTests extends ESTestCase {
         properties.put(NUMERICAL_FIELD, Collections.singletonMap("type", "integer"));
         properties.put(
             OUTER_FIELD,
-            Collections.singletonMap("properties", Collections.singletonMap(INNER_FIELD, Collections.singletonMap("type", "integer"))));
+            Collections.singletonMap("properties", Collections.singletonMap(INNER_FIELD, Collections.singletonMap("type", "integer")))
+        );
         Map<String, Object> aliasToNumericalFieldProperties = new HashMap<>();
         aliasToNumericalFieldProperties.put("type", "alias");
         aliasToNumericalFieldProperties.put("path", NUMERICAL_FIELD);
@@ -299,37 +298,41 @@ public class DestinationIndexTests extends ESTestCase {
         indexMappingsMap.put("_doc", indexMappingMetadata);
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetadata>> mappings = ImmutableOpenMap.builder();
         mappings.put(DEST_INDEX, indexMappingsMap.build());
-        GetIndexResponse getIndexResponse =
-            new GetIndexResponse(new String[] { DEST_INDEX }, mappings.build(), ImmutableOpenMap.of(), ImmutableOpenMap.of(),
-                ImmutableOpenMap.of(), ImmutableOpenMap.of());
+        GetIndexResponse getIndexResponse = new GetIndexResponse(
+            new String[] { DEST_INDEX },
+            mappings.build(),
+            ImmutableOpenMap.of(),
+            ImmutableOpenMap.of(),
+            ImmutableOpenMap.of(),
+            ImmutableOpenMap.of()
+        );
 
         ArgumentCaptor<PutMappingRequest> putMappingRequestCaptor = ArgumentCaptor.forClass(PutMappingRequest.class);
         ArgumentCaptor<FieldCapabilitiesRequest> fieldCapabilitiesRequestCaptor = ArgumentCaptor.forClass(FieldCapabilitiesRequest.class);
 
-        doAnswer(callListenerOnResponse(AcknowledgedResponse.TRUE))
-            .when(client).execute(eq(PutMappingAction.INSTANCE), putMappingRequestCaptor.capture(), any());
+        doAnswer(callListenerOnResponse(AcknowledgedResponse.TRUE)).when(client)
+            .execute(eq(PutMappingAction.INSTANCE), putMappingRequestCaptor.capture(), any());
 
-        FieldCapabilitiesResponse fieldCapabilitiesResponse =
-            new FieldCapabilitiesResponse(
-                new String[0],
-                new HashMap<String, Map<String, FieldCapabilities>>() {{
+        FieldCapabilitiesResponse fieldCapabilitiesResponse = new FieldCapabilitiesResponse(
+            new String[0],
+            new HashMap<String, Map<String, FieldCapabilities>>() {
+                {
                     put(NUMERICAL_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
                     put(OUTER_FIELD + "." + INNER_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
                     put(ALIAS_TO_NUMERICAL_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
                     put(ALIAS_TO_NESTED_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
-                }});
+                }
+            }
+        );
 
-        doAnswer(callListenerOnResponse(fieldCapabilitiesResponse))
-            .when(client).execute(eq(FieldCapabilitiesAction.INSTANCE), fieldCapabilitiesRequestCaptor.capture(), any());
+        doAnswer(callListenerOnResponse(fieldCapabilitiesResponse)).when(client)
+            .execute(eq(FieldCapabilitiesAction.INSTANCE), fieldCapabilitiesRequestCaptor.capture(), any());
 
         DestinationIndex.updateMappingsToDestIndex(
             client,
             config,
             getIndexResponse,
-            ActionListener.wrap(
-                response -> assertThat(response.isAcknowledged(), is(true)),
-                e -> fail(e.getMessage())
-            )
+            ActionListener.wrap(response -> assertThat(response.isAcknowledged(), is(true)), e -> fail(e.getMessage()))
         );
 
         verify(client, atLeastOnce()).threadPool();
@@ -382,24 +385,31 @@ public class DestinationIndexTests extends ESTestCase {
     public void testUpdateMappingsToDestIndex_ResultsFieldsExistsInSourceIndex() throws IOException {
         DataFrameAnalyticsConfig config = createConfig(new OutlierDetection.Builder().build());
 
-        MappingMetadata indexMappingMetadata =
-            new MappingMetadata("_doc", Collections.singletonMap("properties", Collections.singletonMap("ml", "some-mapping")));
+        MappingMetadata indexMappingMetadata = new MappingMetadata(
+            "_doc",
+            Collections.singletonMap("properties", Collections.singletonMap("ml", "some-mapping"))
+        );
         ImmutableOpenMap.Builder<String, MappingMetadata> indexMappingsMap = ImmutableOpenMap.builder();
         indexMappingsMap.put("_doc", indexMappingMetadata);
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetadata>> mappings = ImmutableOpenMap.builder();
         mappings.put(DEST_INDEX, indexMappingsMap.build());
-        GetIndexResponse getIndexResponse =
-            new GetIndexResponse(new String[] { DEST_INDEX }, mappings.build(), ImmutableOpenMap.of(), ImmutableOpenMap.of(),
-                ImmutableOpenMap.of(), ImmutableOpenMap.of());
+        GetIndexResponse getIndexResponse = new GetIndexResponse(
+            new String[] { DEST_INDEX },
+            mappings.build(),
+            ImmutableOpenMap.of(),
+            ImmutableOpenMap.of(),
+            ImmutableOpenMap.of(),
+            ImmutableOpenMap.of()
+        );
 
-        ElasticsearchStatusException e =
-            expectThrows(
-                ElasticsearchStatusException.class,
-                () -> DestinationIndex.updateMappingsToDestIndex(
-                    client, config, getIndexResponse, ActionListener.wrap(Assert::fail)));
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> DestinationIndex.updateMappingsToDestIndex(client, config, getIndexResponse, ActionListener.wrap(Assert::fail))
+        );
         assertThat(
             e.getMessage(),
-            equalTo("A field that matches the dest.results_field [ml] already exists; please set a different results_field"));
+            equalTo("A field that matches the dest.results_field [ml] already exists; please set a different results_field")
+        );
 
         verifyZeroInteractions(client);
     }
@@ -499,8 +509,7 @@ public class DestinationIndexTests extends ESTestCase {
     }
 
     private static DataFrameAnalyticsConfig createConfig(DataFrameAnalysis analysis) {
-        return new DataFrameAnalyticsConfig.Builder()
-            .setId(ANALYTICS_ID)
+        return new DataFrameAnalyticsConfig.Builder().setId(ANALYTICS_ID)
             .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null, null, null))
             .setDest(new DataFrameAnalyticsDest(DEST_INDEX, null))
             .setAnalysis(analysis)

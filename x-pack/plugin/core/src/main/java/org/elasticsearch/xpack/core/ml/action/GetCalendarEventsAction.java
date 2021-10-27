@@ -12,11 +12,11 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -68,8 +68,7 @@ public class GetCalendarEventsAction extends ActionType<GetCalendarEventsAction.
         private String jobId;
         private PageParams pageParams = PageParams.defaultParams();
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -95,6 +94,7 @@ public class GetCalendarEventsAction extends ActionType<GetCalendarEventsAction.
         public String getStart() {
             return start;
         }
+
         public void setStart(String start) {
             this.start = start;
         }
@@ -128,8 +128,16 @@ public class GetCalendarEventsAction extends ActionType<GetCalendarEventsAction.
             ActionRequestValidationException e = null;
 
             if (jobId != null && Strings.isAllOrWildcard(calendarId) == false) {
-                e = ValidateActions.addValidationError("If " + Job.ID.getPreferredName() + " is used " +
-                        Calendar.ID.getPreferredName() + " must be '" + GetCalendarsAction.Request.ALL + "' or '*'", e);
+                e = ValidateActions.addValidationError(
+                    "If "
+                        + Job.ID.getPreferredName()
+                        + " is used "
+                        + Calendar.ID.getPreferredName()
+                        + " must be '"
+                        + GetCalendarsAction.Request.ALL
+                        + "' or '*'",
+                    e
+                );
             }
             return e;
         }
@@ -158,9 +166,11 @@ public class GetCalendarEventsAction extends ActionType<GetCalendarEventsAction.
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(calendarId, other.calendarId) && Objects.equals(start, other.start)
-                    && Objects.equals(end, other.end) && Objects.equals(pageParams, other.pageParams)
-                    && Objects.equals(jobId, other.jobId);
+            return Objects.equals(calendarId, other.calendarId)
+                && Objects.equals(start, other.start)
+                && Objects.equals(end, other.end)
+                && Objects.equals(pageParams, other.pageParams)
+                && Objects.equals(jobId, other.jobId);
         }
 
         @Override

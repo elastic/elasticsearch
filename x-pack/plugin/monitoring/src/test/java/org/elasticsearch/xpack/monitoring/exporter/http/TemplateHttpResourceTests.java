@@ -26,18 +26,18 @@ public class TemplateHttpResourceTests extends AbstractPublishableHttpResourceTe
 
     private final String templateName = ".my_template";
 
-    //the internal representation has the type, the external representation should not
-    private final String templateValueInternal = "{\"order\":0,\"index_patterns\":[\".xyz-*\"],\"settings\":{},\"mappings\":{\"_doc\"" +
-        ":{\"properties\":{\"one\":{\"properties\":{\"two\":{\"properties\":{\"name\":{\"type\":\"keyword\"}}}}}}}},\"aliases\":{}}";
-    private final String templateValueExternal = "{\"order\":0,\"index_patterns\":[\".xyz-*\"],\"settings\":{},\"mappings\"" +
-        ":{\"properties\":{\"one\":{\"properties\":{\"two\":{\"properties\":{\"name\":{\"type\":\"keyword\"}}}}}}},\"aliases\":{}}";
+    // the internal representation has the type, the external representation should not
+    private final String templateValueInternal = "{\"order\":0,\"index_patterns\":[\".xyz-*\"],\"settings\":{},\"mappings\":{\"_doc\""
+        + ":{\"properties\":{\"one\":{\"properties\":{\"two\":{\"properties\":{\"name\":{\"type\":\"keyword\"}}}}}}}},\"aliases\":{}}";
+    private final String templateValueExternal = "{\"order\":0,\"index_patterns\":[\".xyz-*\"],\"settings\":{},\"mappings\""
+        + ":{\"properties\":{\"one\":{\"properties\":{\"two\":{\"properties\":{\"name\":{\"type\":\"keyword\"}}}}}}},\"aliases\":{}}";
     private final Supplier<String> template = () -> templateValueInternal;
     private final int minimumVersion = Math.min(MonitoringTemplateUtils.LAST_UPDATED_VERSION, Version.CURRENT.id);
 
     private final TemplateHttpResource resource = new TemplateHttpResource(owner, masterTimeout, templateName, template);
 
     public void testTemplateToHttpEntity() throws IOException {
-        //the internal representation is converted to the external representation for the resource
+        // the internal representation is converted to the external representation for the resource
         final byte[] templateValueBytes = templateValueExternal.getBytes(ContentType.APPLICATION_JSON.getCharset());
         final HttpEntity entity = resource.templateToHttpEntity();
 
@@ -48,7 +48,7 @@ public class TemplateHttpResourceTests extends AbstractPublishableHttpResourceTe
         assertThat(byteStream.available(), is(templateValueBytes.length));
 
         for (final byte templateByte : templateValueBytes) {
-            assertThat(templateByte, is((byte)byteStream.read()));
+            assertThat(templateByte, is((byte) byteStream.read()));
         }
 
         assertThat(byteStream.available(), is(0));

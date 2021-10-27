@@ -14,11 +14,11 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -56,11 +56,13 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
             }
             original.endObject();
 
-            try (XContentBuilder copy = JsonXContent.contentBuilder();
-                    XContentParser parser = createParser(original.contentType().xContent(), BytesReference.bytes(original))) {
+            try (
+                XContentBuilder copy = JsonXContent.contentBuilder();
+                XContentParser parser = createParser(original.contentType().xContent(), BytesReference.bytes(original))
+            ) {
                 parser.nextToken();
                 copy.generator().copyCurrentStructure(parser);
-                try (XContentBuilder copyShuffled = shuffleXContent(copy) ) {
+                try (XContentBuilder copyShuffled = shuffleXContent(copy)) {
                     assertToXContentEquivalent(BytesReference.bytes(original), BytesReference.bytes(copyShuffled), original.contentType());
                 }
             }
@@ -91,9 +93,10 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
                 otherBuilder.endObject();
             }
             otherBuilder.endObject();
-            AssertionError error = expectThrows(AssertionError.class,
-                    () -> assertToXContentEquivalent(BytesReference.bytes(builder), BytesReference.bytes(otherBuilder),
-                            builder.contentType()));
+            AssertionError error = expectThrows(
+                AssertionError.class,
+                () -> assertToXContentEquivalent(BytesReference.bytes(builder), BytesReference.bytes(otherBuilder), builder.contentType())
+            );
             assertThat(error.getMessage(), containsString("f2: expected [value2] but not found"));
         }
         {
@@ -120,9 +123,10 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
                 otherBuilder.endObject();
             }
             otherBuilder.endObject();
-            AssertionError error = expectThrows(AssertionError.class,
-                    () -> assertToXContentEquivalent(BytesReference.bytes(builder), BytesReference.bytes(otherBuilder),
-                            builder.contentType()));
+            AssertionError error = expectThrows(
+                AssertionError.class,
+                () -> assertToXContentEquivalent(BytesReference.bytes(builder), BytesReference.bytes(otherBuilder), builder.contentType())
+            );
             assertThat(error.getMessage(), containsString("f2: expected String [value2] but was String [differentValue2]"));
         }
         {
@@ -153,9 +157,10 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
             }
             otherBuilder.field("f1", "value");
             otherBuilder.endObject();
-            AssertionError error = expectThrows(AssertionError.class,
-                    () -> assertToXContentEquivalent(BytesReference.bytes(builder), BytesReference.bytes(otherBuilder),
-                            builder.contentType()));
+            AssertionError error = expectThrows(
+                AssertionError.class,
+                () -> assertToXContentEquivalent(BytesReference.bytes(builder), BytesReference.bytes(otherBuilder), builder.contentType())
+            );
             assertThat(error.getMessage(), containsString("2: expected String [three] but was String [four]"));
         }
         {
@@ -183,9 +188,10 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
                 otherBuilder.endArray();
             }
             otherBuilder.endObject();
-            AssertionError error = expectThrows(AssertionError.class,
-                    () -> assertToXContentEquivalent(BytesReference.bytes(builder), BytesReference.bytes(otherBuilder),
-                            builder.contentType()));
+            AssertionError error = expectThrows(
+                AssertionError.class,
+                () -> assertToXContentEquivalent(BytesReference.bytes(builder), BytesReference.bytes(otherBuilder), builder.contentType())
+            );
             assertThat(error.getMessage(), containsString("expected [1] more entries"));
         }
     }
@@ -194,20 +200,46 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
         Map<String, Set<ClusterBlock>> indexLevelBlocks = new HashMap<>();
 
         indexLevelBlocks.put("test", Collections.singleton(IndexMetadata.INDEX_READ_ONLY_BLOCK));
-        assertBlocked(new BroadcastResponse(1, 0, 1, Collections.singletonList(new DefaultShardOperationFailedException("test", 0,
-            new ClusterBlockException(indexLevelBlocks)))));
+        assertBlocked(
+            new BroadcastResponse(
+                1,
+                0,
+                1,
+                Collections.singletonList(new DefaultShardOperationFailedException("test", 0, new ClusterBlockException(indexLevelBlocks)))
+            )
+        );
 
         indexLevelBlocks.put("test", Collections.singleton(IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK));
-        assertBlocked(new BroadcastResponse(1, 0, 1, Collections.singletonList(new DefaultShardOperationFailedException("test", 0,
-            new ClusterBlockException(indexLevelBlocks)))));
+        assertBlocked(
+            new BroadcastResponse(
+                1,
+                0,
+                1,
+                Collections.singletonList(new DefaultShardOperationFailedException("test", 0, new ClusterBlockException(indexLevelBlocks)))
+            )
+        );
 
         indexLevelBlocks.put("test", new HashSet<>(Arrays.asList(IndexMetadata.INDEX_READ_BLOCK, IndexMetadata.INDEX_METADATA_BLOCK)));
-        assertBlocked(new BroadcastResponse(1, 0, 1, Collections.singletonList(new DefaultShardOperationFailedException("test", 0,
-            new ClusterBlockException(indexLevelBlocks)))));
+        assertBlocked(
+            new BroadcastResponse(
+                1,
+                0,
+                1,
+                Collections.singletonList(new DefaultShardOperationFailedException("test", 0, new ClusterBlockException(indexLevelBlocks)))
+            )
+        );
 
-        indexLevelBlocks.put("test",
-            new HashSet<>(Arrays.asList(IndexMetadata.INDEX_READ_ONLY_BLOCK, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)));
-        assertBlocked(new BroadcastResponse(1, 0, 1, Collections.singletonList(new DefaultShardOperationFailedException("test", 0,
-            new ClusterBlockException(indexLevelBlocks)))));
+        indexLevelBlocks.put(
+            "test",
+            new HashSet<>(Arrays.asList(IndexMetadata.INDEX_READ_ONLY_BLOCK, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
+        );
+        assertBlocked(
+            new BroadcastResponse(
+                1,
+                0,
+                1,
+                Collections.singletonList(new DefaultShardOperationFailedException("test", 0, new ClusterBlockException(indexLevelBlocks)))
+            )
+        );
     }
 }

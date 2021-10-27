@@ -53,22 +53,17 @@ public class ExpressionTermsSetQueryTests extends ESTestCase {
     }
 
     private TermsSetQueryScript.LeafFactory compile(String expression) {
-        TermsSetQueryScript.Factory factory =
-            service.compile(null, expression, TermsSetQueryScript.CONTEXT, Collections.emptyMap());
+        TermsSetQueryScript.Factory factory = service.compile(null, expression, TermsSetQueryScript.CONTEXT, Collections.emptyMap());
         return factory.newFactory(Collections.emptyMap(), lookup);
     }
 
     public void testCompileError() {
-        ScriptException e = expectThrows(ScriptException.class, () -> {
-            compile("doc['field'].value * *@#)(@$*@#$ + 4");
-        });
+        ScriptException e = expectThrows(ScriptException.class, () -> { compile("doc['field'].value * *@#)(@$*@#$ + 4"); });
         assertTrue(e.getCause() instanceof ParseException);
     }
 
     public void testLinkError() {
-        ScriptException e = expectThrows(ScriptException.class, () -> {
-            compile("doc['nonexistent'].value * 5");
-        });
+        ScriptException e = expectThrows(ScriptException.class, () -> { compile("doc['nonexistent'].value * 5"); });
         assertTrue(e.getCause() instanceof ParseException);
     }
 

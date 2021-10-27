@@ -13,12 +13,12 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderDocument;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderTestUtils;
 import org.hamcrest.MatcherAssert;
@@ -85,10 +85,17 @@ public class PutSamlServiceProviderRequestTests extends ESTestCase {
         final SamlServiceProviderDocument doc = SamlServiceProviderTestUtils.randomDocument();
         final PutSamlServiceProviderRequest request = new PutSamlServiceProviderRequest(doc, RefreshPolicy.NONE);
         final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_7_0, Version.CURRENT);
-        final PutSamlServiceProviderRequest read = copyWriteable(request, new NamedWriteableRegistry(Collections.emptyList()),
-            PutSamlServiceProviderRequest::new, version);
-        MatcherAssert.assertThat("Serialized request with version [" + version + "] does not match original object",
-            read, equalTo(request));
+        final PutSamlServiceProviderRequest read = copyWriteable(
+            request,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            PutSamlServiceProviderRequest::new,
+            version
+        );
+        MatcherAssert.assertThat(
+            "Serialized request with version [" + version + "] does not match original object",
+            read,
+            equalTo(request)
+        );
     }
 
     public void testParseRequestBodySuccessfully() throws Exception {

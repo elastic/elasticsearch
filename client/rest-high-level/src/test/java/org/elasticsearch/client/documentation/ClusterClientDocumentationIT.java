@@ -42,9 +42,9 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -451,7 +451,6 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         RemoteInfoRequest request = new RemoteInfoRequest();
         // end::remote-info-request
 
-
         // tag::remote-info-execute-listener
             ActionListener<RemoteInfoResponse> listener =
                 new ActionListener<RemoteInfoResponse>() {
@@ -483,8 +482,8 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         {
             Template template = new Template(Settings.builder().put("index.number_of_replicas", 3).build(), null, null);
             ComponentTemplate componentTemplate = new ComponentTemplate(template, null, null);
-            PutComponentTemplateRequest putComponentTemplateRequest =
-                new PutComponentTemplateRequest().name("ct1").componentTemplate(componentTemplate);
+            PutComponentTemplateRequest putComponentTemplateRequest = new PutComponentTemplateRequest().name("ct1")
+                .componentTemplate(componentTemplate);
             client.cluster().putComponentTemplate(putComponentTemplateRequest, RequestOptions.DEFAULT);
 
             assertTrue(client.cluster().putComponentTemplate(putComponentTemplateRequest, RequestOptions.DEFAULT).isAcknowledged());
@@ -626,20 +625,16 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
     public void testDeleteComponentTemplate() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
-            PutComponentTemplateRequest request = new PutComponentTemplateRequest()
-                .name("ct1");
+            PutComponentTemplateRequest request = new PutComponentTemplateRequest().name("ct1");
 
-            Settings settings = Settings.builder()
-                .put("index.number_of_shards", 3)
-                .put("index.number_of_replicas", 1)
-                .build();
-            String mappingJson = "{\n" +
-                "  \"properties\": {\n" +
-                "    \"message\": {\n" +
-                "      \"type\": \"text\"\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
+            Settings settings = Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 1).build();
+            String mappingJson = "{\n"
+                + "  \"properties\": {\n"
+                + "    \"message\": {\n"
+                + "      \"type\": \"text\"\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
             AliasMetadata twitterAlias = AliasMetadata.builder("twitter_alias").build();
             Map<String, AliasMetadata> aliases = new HashMap<>();
             aliases.put("twitter_alias", twitterAlias);
@@ -667,13 +662,9 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         assertThat(acknowledged, equalTo(true));
 
         {
-            PutComponentTemplateRequest request = new PutComponentTemplateRequest()
-                .name("ct1");
+            PutComponentTemplateRequest request = new PutComponentTemplateRequest().name("ct1");
 
-            Settings settings = Settings.builder()
-                .put("index.number_of_shards", 3)
-                .put("index.number_of_replicas", 1)
-                .build();
+            Settings settings = Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 1).build();
             Template template = new Template(settings, null, null);
             request.componentTemplate(new ComponentTemplate(template, null, null));
             assertTrue(client.cluster().putComponentTemplate(request, RequestOptions.DEFAULT).isAcknowledged());

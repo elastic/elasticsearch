@@ -9,12 +9,12 @@
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding.FeatureExtractor;
@@ -60,62 +60,58 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
         ConstructingObjectParser<CustomWordEmbedding, PreProcessorParseContext> parser = new ConstructingObjectParser<>(
             NAME.getPreferredName(),
             lenient,
-            (a, c) -> new CustomWordEmbedding((short[][])a[0], (byte[][])a[1], (String)a[2], (String)a[3]));
+            (a, c) -> new CustomWordEmbedding((short[][]) a[0], (byte[][]) a[1], (String) a[2], (String) a[3])
+        );
 
-        parser.declareField(ConstructingObjectParser.constructorArg(),
-            (p, c) -> {
-                List<List<Short>> listOfListOfShorts = parseArrays(EMBEDDING_QUANT_SCALES.getPreferredName(),
-                    XContentParser::shortValue,
-                    p);
-                short[][] primitiveShorts = new short[listOfListOfShorts.size()][];
-                int i = 0;
-                for (List<Short> shorts : listOfListOfShorts) {
-                    short[] innerShorts = new short[shorts.size()];
-                    for (int j = 0; j < shorts.size(); j++) {
-                        innerShorts[j] = shorts.get(j);
-                    }
-                    primitiveShorts[i++] = innerShorts;
+        parser.declareField(ConstructingObjectParser.constructorArg(), (p, c) -> {
+            List<List<Short>> listOfListOfShorts = parseArrays(EMBEDDING_QUANT_SCALES.getPreferredName(), XContentParser::shortValue, p);
+            short[][] primitiveShorts = new short[listOfListOfShorts.size()][];
+            int i = 0;
+            for (List<Short> shorts : listOfListOfShorts) {
+                short[] innerShorts = new short[shorts.size()];
+                for (int j = 0; j < shorts.size(); j++) {
+                    innerShorts[j] = shorts.get(j);
                 }
-                return primitiveShorts;
-            },
-            EMBEDDING_QUANT_SCALES,
-            ObjectParser.ValueType.VALUE_ARRAY);
-        parser.declareField(ConstructingObjectParser.constructorArg(),
-            (p, c) -> {
-                List<byte[]> values = new ArrayList<>();
-                while(p.nextToken() != XContentParser.Token.END_ARRAY) {
-                    values.add(p.binaryValue());
-                }
-                byte[][] primitiveBytes = new byte[values.size()][];
-                int i = 0;
-                for (byte[] bytes : values) {
-                    primitiveBytes[i++] = bytes;
-                }
-                return primitiveBytes;
-            },
-            EMBEDDING_WEIGHTS,
-            ObjectParser.ValueType.VALUE_ARRAY);
+                primitiveShorts[i++] = innerShorts;
+            }
+            return primitiveShorts;
+        }, EMBEDDING_QUANT_SCALES, ObjectParser.ValueType.VALUE_ARRAY);
+        parser.declareField(ConstructingObjectParser.constructorArg(), (p, c) -> {
+            List<byte[]> values = new ArrayList<>();
+            while (p.nextToken() != XContentParser.Token.END_ARRAY) {
+                values.add(p.binaryValue());
+            }
+            byte[][] primitiveBytes = new byte[values.size()][];
+            int i = 0;
+            for (byte[] bytes : values) {
+                primitiveBytes[i++] = bytes;
+            }
+            return primitiveBytes;
+        }, EMBEDDING_WEIGHTS, ObjectParser.ValueType.VALUE_ARRAY);
         parser.declareString(ConstructingObjectParser.constructorArg(), FIELD);
         parser.declareString(ConstructingObjectParser.constructorArg(), DEST_FIELD);
         return parser;
     }
 
-    private static <T> List<List<T>> parseArrays(String fieldName,
-                                                 CheckedFunction<XContentParser, T, IOException> fromParser,
-                                                 XContentParser p) throws IOException {
+    private static <T> List<List<T>> parseArrays(
+        String fieldName,
+        CheckedFunction<XContentParser, T, IOException> fromParser,
+        XContentParser p
+    ) throws IOException {
         if (p.currentToken() != XContentParser.Token.START_ARRAY) {
             throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for [" + fieldName + "]");
         }
         List<List<T>> values = new ArrayList<>();
-        while(p.nextToken() != XContentParser.Token.END_ARRAY) {
+        while (p.nextToken() != XContentParser.Token.END_ARRAY) {
             if (p.currentToken() != XContentParser.Token.START_ARRAY) {
                 throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for [" + fieldName + "]");
             }
             List<T> innerList = new ArrayList<>();
-            while(p.nextToken() != XContentParser.Token.END_ARRAY) {
-                if(p.currentToken().isValue() == false) {
-                    throw new IllegalStateException("expected non-null value but got [" + p.currentToken() + "] " +
-                        "for [" + fieldName + "]");
+            while (p.nextToken() != XContentParser.Token.END_ARRAY) {
+                if (p.currentToken().isValue() == false) {
+                    throw new IllegalStateException(
+                        "expected non-null value but got [" + p.currentToken() + "] " + "for [" + fieldName + "]"
+                    );
                 }
                 innerList.add(fromParser.apply(p));
             }
@@ -133,7 +129,7 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
     }
 
     private static final int CONCAT_LAYER_SIZE = 80;
-    private static final int[] EMBEDDING_DIMENSIONS = new int[]{16, 16, 8, 8, 16, 16};
+    private static final int[] EMBEDDING_DIMENSIONS = new int[] { 16, 16, 8, 8, 16, 16 };
 
     // Order matters
     private static final List<FeatureExtractor> FEATURE_EXTRACTORS = Arrays.asList(
@@ -238,7 +234,7 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
         if ((field instanceof String) == false) {
             return;
         }
-        String text = (String)field;
+        String text = (String) field;
         text = FeatureUtils.cleanAndLowerText(text);
         text = FeatureUtils.truncateToNumValidBytes(text, MAX_STRING_SIZE_IN_BYTES);
         String finalText = text;
@@ -266,10 +262,10 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
     @Override
     public long ramBytesUsed() {
         long size = SHALLOW_SIZE;
-        for(byte[] bytes : embeddingsWeights) {
+        for (byte[] bytes : embeddingsWeights) {
             size += RamUsageEstimator.sizeOf(bytes);
         }
-        for(short[] shorts : embeddingsQuantScales) {
+        for (short[] shorts : embeddingsQuantScales) {
             size += RamUsageEstimator.sizeOf(shorts);
         }
         return size;
@@ -287,7 +283,7 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
         out.writeArray(StreamOutput::writeByteArray, embeddingsWeights);
         out.writeArray((output, value) -> {
             output.writeVInt(value.length);
-            for(short s : value) {
+            for (short s : value) {
                 output.writeShort(s);
             }
         }, embeddingsQuantScales);

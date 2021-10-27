@@ -39,30 +39,36 @@ public class DateDiff extends ThreeArgsDateTimeFunction {
 
     public enum Part implements DateTimeField {
 
-        YEAR((start, end) ->  end.getYear() - start.getYear(), "years", "yyyy", "yy"),
-        QUARTER((start, end) -> QuarterProcessor.quarter(end) - QuarterProcessor.quarter(start) + (YEAR.diff(start, end) * 4),
-            "quarters", "qq", "q"),
-        MONTH((start, end) -> safeInt(end.getLong(ChronoField.PROLEPTIC_MONTH) - start.getLong(ChronoField.PROLEPTIC_MONTH)),
-            "months", "mm", "m"),
+        YEAR((start, end) -> end.getYear() - start.getYear(), "years", "yyyy", "yy"),
+        QUARTER(
+            (start, end) -> QuarterProcessor.quarter(end) - QuarterProcessor.quarter(start) + (YEAR.diff(start, end) * 4),
+            "quarters",
+            "qq",
+            "q"
+        ),
+        MONTH(
+            (start, end) -> safeInt(end.getLong(ChronoField.PROLEPTIC_MONTH) - start.getLong(ChronoField.PROLEPTIC_MONTH)),
+            "months",
+            "mm",
+            "m"
+        ),
         DAYOFYEAR((start, end) -> safeInt(diffInDays(start, end)), "dy", "y"),
         DAY(DAYOFYEAR::diff, "days", "dd", "d"),
         WEEK((start, end) -> {
-            long startInDays =  start.toInstant().toEpochMilli() / DAY_IN_MILLIS -
-                    DatePart.Part.WEEKDAY.extract(start.withZoneSameInstant(UTC));
-            long endInDays =  end.toInstant().toEpochMilli() / DAY_IN_MILLIS -
-                    DatePart.Part.WEEKDAY.extract(end.withZoneSameInstant(UTC));
+            long startInDays = start.toInstant().toEpochMilli() / DAY_IN_MILLIS - DatePart.Part.WEEKDAY.extract(
+                start.withZoneSameInstant(UTC)
+            );
+            long endInDays = end.toInstant().toEpochMilli() / DAY_IN_MILLIS - DatePart.Part.WEEKDAY.extract(end.withZoneSameInstant(UTC));
             return safeInt((endInDays - startInDays) / 7);
         }, "weeks", "wk", "ww"),
-        WEEKDAY(DAYOFYEAR::diff,  "weekdays", "dw"),
-        HOUR((start, end) -> safeInt(diffInHours(start, end)),  "hours", "hh"),
+        WEEKDAY(DAYOFYEAR::diff, "weekdays", "dw"),
+        HOUR((start, end) -> safeInt(diffInHours(start, end)), "hours", "hh"),
         MINUTE((start, end) -> safeInt(diffInMinutes(start, end)), "minutes", "mi", "n"),
         SECOND((start, end) -> safeInt(end.toEpochSecond() - start.toEpochSecond()), "seconds", "ss", "s"),
-        MILLISECOND((start, end) -> safeInt(end.toInstant().toEpochMilli() - start.toInstant().toEpochMilli()),
-            "milliseconds", "ms"),
+        MILLISECOND((start, end) -> safeInt(end.toInstant().toEpochMilli() - start.toInstant().toEpochMilli()), "milliseconds", "ms"),
         MICROSECOND((start, end) -> {
             long secondsDiff = diffInSeconds(start, end);
-            long microsDiff = end.toInstant().getLong(ChronoField.MICRO_OF_SECOND) -
-                start.toInstant().getLong(ChronoField.MICRO_OF_SECOND);
+            long microsDiff = end.toInstant().getLong(ChronoField.MICRO_OF_SECOND) - start.toInstant().getLong(ChronoField.MICRO_OF_SECOND);
             return safeInt(secondsDiff * 1_000_000L + microsDiff);
         }, "microseconds", "mcs"),
         NANOSECOND((start, end) -> {
@@ -110,8 +116,10 @@ public class DateDiff extends ThreeArgsDateTimeFunction {
 
         private static int safeInt(long diff) {
             if (diff > Integer.MAX_VALUE || diff < Integer.MIN_VALUE) {
-                throw new SqlIllegalArgumentException("The DATE_DIFF function resulted in an overflow; the number of units " +
-                    "separating two date/datetime instances is too large. Try to use DATE_DIFF with a less precise unit.");
+                throw new SqlIllegalArgumentException(
+                    "The DATE_DIFF function resulted in an overflow; the number of units "
+                        + "separating two date/datetime instances is too large. Try to use DATE_DIFF with a less precise unit."
+                );
             } else {
                 return Long.valueOf(diff).intValue();
             }
@@ -147,15 +155,25 @@ public class DateDiff extends ThreeArgsDateTimeFunction {
             if (datePartValue != null && resolveDateTimeField(datePartValue) == false) {
                 List<String> similar = findSimilarDateTimeFields(datePartValue);
                 if (similar.isEmpty()) {
-                    return new TypeResolution(format(null, "first argument of [{}] must be one of {} or their aliases; found value [{}]",
-                        sourceText(),
-                        validDateTimeFieldValues(),
-                        Expressions.name(first())));
+                    return new TypeResolution(
+                        format(
+                            null,
+                            "first argument of [{}] must be one of {} or their aliases; found value [{}]",
+                            sourceText(),
+                            validDateTimeFieldValues(),
+                            Expressions.name(first())
+                        )
+                    );
                 } else {
-                    return new TypeResolution(format(null, "Unknown value [{}] for first argument of [{}]; did you mean {}?",
-                        Expressions.name(first()),
-                        sourceText(),
-                        similar));
+                    return new TypeResolution(
+                        format(
+                            null,
+                            "Unknown value [{}] for first argument of [{}]; did you mean {}?",
+                            Expressions.name(first()),
+                            sourceText(),
+                            similar
+                        )
+                    );
                 }
             }
         }

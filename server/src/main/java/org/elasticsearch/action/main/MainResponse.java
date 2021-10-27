@@ -12,10 +12,10 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -60,7 +60,6 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
     public Version getVersion() {
         return version;
     }
-
 
     public ClusterName getClusterName() {
         return clusterName;
@@ -108,8 +107,11 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         return builder;
     }
 
-    private static final ObjectParser<MainResponse, Void> PARSER = new ObjectParser<>(MainResponse.class.getName(), true,
-            MainResponse::new);
+    private static final ObjectParser<MainResponse, Void> PARSER = new ObjectParser<>(
+        MainResponse.class.getName(),
+        true,
+        MainResponse::new
+    );
 
     static {
         PARSER.declareString((response, value) -> response.nodeName = value, new ParseField("name"));
@@ -119,23 +121,20 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         PARSER.declareObject((response, value) -> {
             final String buildFlavor = (String) value.get("build_flavor");
             final String buildType = (String) value.get("build_type");
-            response.build =
-                    new Build(
-                            /*
-                             * Be lenient when reading on the wire, the enumeration values from other versions might be different than what
-                             * we know.
-                             */
-                            buildFlavor == null ? Build.Flavor.UNKNOWN : Build.Flavor.fromDisplayName(buildFlavor, false),
-                            buildType == null ? Build.Type.UNKNOWN : Build.Type.fromDisplayName(buildType, false),
-                            (String) value.get("build_hash"),
-                            (String) value.get("build_date"),
-                            (boolean) value.get("build_snapshot"),
-                            (String) value.get("number")
-                    );
+            response.build = new Build(
+                /*
+                 * Be lenient when reading on the wire, the enumeration values from other versions might be different than what
+                 * we know.
+                 */
+                buildFlavor == null ? Build.Flavor.UNKNOWN : Build.Flavor.fromDisplayName(buildFlavor, false),
+                buildType == null ? Build.Type.UNKNOWN : Build.Type.fromDisplayName(buildType, false),
+                (String) value.get("build_hash"),
+                (String) value.get("build_date"),
+                (boolean) value.get("build_snapshot"),
+                (String) value.get("number")
+            );
             response.version = Version.fromString(
-                ((String) value.get("number"))
-                    .replace("-SNAPSHOT", "")
-                    .replaceFirst("-(alpha\\d+|beta\\d+|rc\\d+)", "")
+                ((String) value.get("number")).replace("-SNAPSHOT", "").replaceFirst("-(alpha\\d+|beta\\d+|rc\\d+)", "")
             );
         }, (parser, context) -> parser.map(), new ParseField("version"));
     }
@@ -153,11 +152,11 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
             return false;
         }
         MainResponse other = (MainResponse) o;
-        return Objects.equals(nodeName, other.nodeName) &&
-                Objects.equals(version, other.version) &&
-                Objects.equals(clusterUuid, other.clusterUuid) &&
-                Objects.equals(build, other.build) &&
-                Objects.equals(clusterName, other.clusterName);
+        return Objects.equals(nodeName, other.nodeName)
+            && Objects.equals(version, other.version)
+            && Objects.equals(clusterUuid, other.clusterUuid)
+            && Objects.equals(build, other.build)
+            && Objects.equals(clusterName, other.clusterName);
     }
 
     @Override
@@ -167,12 +166,19 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
 
     @Override
     public String toString() {
-        return "MainResponse{" +
-            "nodeName='" + nodeName + '\'' +
-            ", version=" + version +
-            ", clusterName=" + clusterName +
-            ", clusterUuid='" + clusterUuid + '\'' +
-            ", build=" + build +
-            '}';
+        return "MainResponse{"
+            + "nodeName='"
+            + nodeName
+            + '\''
+            + ", version="
+            + version
+            + ", clusterName="
+            + clusterName
+            + ", clusterUuid='"
+            + clusterUuid
+            + '\''
+            + ", build="
+            + build
+            + '}';
     }
 }

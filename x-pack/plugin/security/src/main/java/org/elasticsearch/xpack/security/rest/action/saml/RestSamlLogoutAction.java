@@ -7,18 +7,18 @@
 package org.elasticsearch.xpack.security.rest.action.saml;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutRequest;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutResponse;
@@ -50,8 +50,7 @@ public class RestSamlLogoutAction extends SamlBaseRestHandler {
     @Override
     public List<Route> routes() {
         return org.elasticsearch.core.List.of(
-            Route.builder(POST, "/_security/saml/logout")
-                .replaces(POST, "/_xpack/security/saml/logout", RestApiVersion.V_7).build()
+            Route.builder(POST, "/_security/saml/logout").replaces(POST, "/_xpack/security/saml/logout", RestApiVersion.V_7).build()
         );
     }
 
@@ -64,7 +63,9 @@ public class RestSamlLogoutAction extends SamlBaseRestHandler {
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
             final SamlLogoutRequest logoutRequest = PARSER.parse(parser, null);
-            return channel -> client.execute(SamlLogoutAction.INSTANCE, logoutRequest,
+            return channel -> client.execute(
+                SamlLogoutAction.INSTANCE,
+                logoutRequest,
                 new RestBuilderListener<SamlLogoutResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(SamlLogoutResponse response, XContentBuilder builder) throws Exception {
@@ -74,7 +75,8 @@ public class RestSamlLogoutAction extends SamlBaseRestHandler {
                         builder.endObject();
                         return new BytesRestResponse(RestStatus.OK, builder);
                     }
-                });
+                }
+            );
         }
     }
 }

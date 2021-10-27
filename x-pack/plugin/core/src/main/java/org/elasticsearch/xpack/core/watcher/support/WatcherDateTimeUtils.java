@@ -7,17 +7,17 @@
 package org.elasticsearch.xpack.core.watcher.support;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -28,14 +28,13 @@ import java.time.ZonedDateTime;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+
 public class WatcherDateTimeUtils {
 
     public static final DateFormatter dateTimeFormatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
     public static final DateMathParser dateMathParser = dateTimeFormatter.toDateMathParser();
 
-
-    private WatcherDateTimeUtils() {
-    }
+    private WatcherDateTimeUtils() {}
 
     public static ZonedDateTime convertToDate(Object value, Clock clock) {
         if (value instanceof ZonedDateTime) {
@@ -68,14 +67,16 @@ public class WatcherDateTimeUtils {
 
     public static ZonedDateTime parseDateMath(String fieldName, XContentParser parser, ZoneId timeZone, Clock clock) throws IOException {
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-            throw new ElasticsearchParseException("could not parse date/time expected date field [{}] to not be null but was null",
-                    fieldName);
+            throw new ElasticsearchParseException(
+                "could not parse date/time expected date field [{}] to not be null but was null",
+                fieldName
+            );
         }
         return parseDateMathOrNull(fieldName, parser, timeZone, clock);
     }
 
-    public static ZonedDateTime parseDateMathOrNull(String fieldName, XContentParser parser, ZoneId timeZone,
-                                               Clock clock) throws IOException {
+    public static ZonedDateTime parseDateMathOrNull(String fieldName, XContentParser parser, ZoneId timeZone, Clock clock)
+        throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_NUMBER) {
             return Instant.ofEpochMilli(parser.longValue()).atZone(timeZone);
@@ -84,15 +85,23 @@ public class WatcherDateTimeUtils {
             try {
                 return parseDateMath(parser.text(), timeZone, clock);
             } catch (ElasticsearchParseException epe) {
-                throw new ElasticsearchParseException("could not parse date/time. expected date field [{}] to be either a number or a " +
-                        "DateMath string but found [{}] instead", epe, fieldName, parser.text());
+                throw new ElasticsearchParseException(
+                    "could not parse date/time. expected date field [{}] to be either a number or a "
+                        + "DateMath string but found [{}] instead",
+                    epe,
+                    fieldName,
+                    parser.text()
+                );
             }
         }
         if (token == XContentParser.Token.VALUE_NULL) {
             return null;
         }
-        throw new ElasticsearchParseException("could not parse date/time. expected date field [{}] to be either a number or a string but " +
-                "found [{}] instead", fieldName, token);
+        throw new ElasticsearchParseException(
+            "could not parse date/time. expected date field [{}] to be either a number or a string but " + "found [{}] instead",
+            fieldName,
+            token
+        );
     }
 
     public static ZonedDateTime parseDateMath(String valueString, ZoneId timeZone, final Clock clock) {
@@ -110,8 +119,11 @@ public class WatcherDateTimeUtils {
         if (token == XContentParser.Token.VALUE_NULL) {
             return null;
         }
-        throw new ElasticsearchParseException("could not parse date/time. expected date field [{}] to be either a number or a string but " +
-                "found [{}] instead", fieldName, token);
+        throw new ElasticsearchParseException(
+            "could not parse date/time. expected date field [{}] to be either a number or a string but " + "found [{}] instead",
+            fieldName,
+            token
+        );
     }
 
     public static XContentBuilder writeDate(String fieldName, XContentBuilder builder, ZonedDateTime date) throws IOException {
@@ -155,8 +167,10 @@ public class WatcherDateTimeUtils {
             }
 
         }
-        throw new ElasticsearchParseException("could not parse time value. expected either a string or a null value but found [{}] " +
-                "instead", token);
+        throw new ElasticsearchParseException(
+            "could not parse time value. expected either a string or a null value but found [{}] " + "instead",
+            token
+        );
     }
 
     /**
@@ -192,8 +206,10 @@ public class WatcherDateTimeUtils {
                 millis = 0;
             } else {
                 throw new ElasticsearchParseException(
-                        "Failed to parse setting [{}] with value [{}] as a time value: unit is missing or unrecognized",
-                        settingName, sValue);
+                    "Failed to parse setting [{}] with value [{}] as a time value: unit is missing or unrecognized",
+                    settingName,
+                    sValue
+                );
             }
             return new TimeValue(millis, TimeUnit.MILLISECONDS);
         } catch (NumberFormatException e) {

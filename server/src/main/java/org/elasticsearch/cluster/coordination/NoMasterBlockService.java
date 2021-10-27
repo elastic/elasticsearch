@@ -19,19 +19,49 @@ import java.util.EnumSet;
 
 public class NoMasterBlockService {
     public static final int NO_MASTER_BLOCK_ID = 2;
-    public static final ClusterBlock NO_MASTER_BLOCK_WRITES = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, false, false,
-        RestStatus.SERVICE_UNAVAILABLE, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
-    public static final ClusterBlock NO_MASTER_BLOCK_ALL = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, true, false,
-        RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL);
-    public static final ClusterBlock NO_MASTER_BLOCK_METADATA_WRITES = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, false, false,
-        RestStatus.SERVICE_UNAVAILABLE, EnumSet.of(ClusterBlockLevel.METADATA_WRITE));
+    public static final ClusterBlock NO_MASTER_BLOCK_WRITES = new ClusterBlock(
+        NO_MASTER_BLOCK_ID,
+        "no master",
+        true,
+        false,
+        false,
+        RestStatus.SERVICE_UNAVAILABLE,
+        EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE)
+    );
+    public static final ClusterBlock NO_MASTER_BLOCK_ALL = new ClusterBlock(
+        NO_MASTER_BLOCK_ID,
+        "no master",
+        true,
+        true,
+        false,
+        RestStatus.SERVICE_UNAVAILABLE,
+        ClusterBlockLevel.ALL
+    );
+    public static final ClusterBlock NO_MASTER_BLOCK_METADATA_WRITES = new ClusterBlock(
+        NO_MASTER_BLOCK_ID,
+        "no master",
+        true,
+        false,
+        false,
+        RestStatus.SERVICE_UNAVAILABLE,
+        EnumSet.of(ClusterBlockLevel.METADATA_WRITE)
+    );
 
-    public static final Setting<ClusterBlock> LEGACY_NO_MASTER_BLOCK_SETTING =
-        new Setting<>("discovery.zen.no_master_block", "write", NoMasterBlockService::parseNoMasterBlock,
-            Property.Dynamic, Property.NodeScope, Property.Deprecated);
-    public static final Setting<ClusterBlock> NO_MASTER_BLOCK_SETTING =
-        new Setting<>("cluster.no_master_block", "write", NoMasterBlockService::parseNoMasterBlock,
-            Property.Dynamic, Property.NodeScope);
+    public static final Setting<ClusterBlock> LEGACY_NO_MASTER_BLOCK_SETTING = new Setting<>(
+        "discovery.zen.no_master_block",
+        "write",
+        NoMasterBlockService::parseNoMasterBlock,
+        Property.Dynamic,
+        Property.NodeScope,
+        Property.Deprecated
+    );
+    public static final Setting<ClusterBlock> NO_MASTER_BLOCK_SETTING = new Setting<>(
+        "cluster.no_master_block",
+        "write",
+        NoMasterBlockService::parseNoMasterBlock,
+        Property.Dynamic,
+        Property.NodeScope
+    );
 
     private volatile ClusterBlock noMasterBlock;
 

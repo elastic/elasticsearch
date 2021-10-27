@@ -12,11 +12,11 @@ import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.client.ml.inference.trainedmodel.tree.TreeTests;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 
 public class EnsembleTests extends AbstractXContentTestCase<Ensemble> {
 
@@ -50,9 +49,7 @@ public class EnsembleTests extends AbstractXContentTestCase<Ensemble> {
 
     public static Ensemble createRandom(TargetType targetType) {
         int numberOfFeatures = randomIntBetween(1, 10);
-        List<String> featureNames = Stream.generate(() -> randomAlphaOfLength(10))
-            .limit(numberOfFeatures)
-            .collect(Collectors.toList());
+        List<String> featureNames = Stream.generate(() -> randomAlphaOfLength(10)).limit(numberOfFeatures).collect(Collectors.toList());
         int numberOfModels = randomIntBetween(1, 10);
         List<TrainedModel> models = Stream.generate(() -> TreeTests.buildRandomTree(featureNames, 6, targetType))
             .limit(numberOfModels)
@@ -62,26 +59,27 @@ public class EnsembleTests extends AbstractXContentTestCase<Ensemble> {
             categoryLabels = randomList(2, randomIntBetween(3, 10), () -> randomAlphaOfLength(10));
         }
         List<Double> weights = Stream.generate(ESTestCase::randomDouble).limit(numberOfModels).collect(Collectors.toList());
-        OutputAggregator outputAggregator = targetType == TargetType.REGRESSION ?
-            randomFrom(new WeightedSum(weights), new Exponent(weights)) :
-            randomFrom(
-                new WeightedMode(
-                    categoryLabels != null ? categoryLabels.size() : randomIntBetween(2, 10),
-                    weights),
-                new LogisticRegression(weights));
-        double[] thresholds = randomBoolean() && targetType == TargetType.CLASSIFICATION  ?
-            Stream.generate(ESTestCase::randomDouble)
+        OutputAggregator outputAggregator = targetType == TargetType.REGRESSION
+            ? randomFrom(new WeightedSum(weights), new Exponent(weights))
+            : randomFrom(
+                new WeightedMode(categoryLabels != null ? categoryLabels.size() : randomIntBetween(2, 10), weights),
+                new LogisticRegression(weights)
+            );
+        double[] thresholds = randomBoolean() && targetType == TargetType.CLASSIFICATION
+            ? Stream.generate(ESTestCase::randomDouble)
                 .limit(categoryLabels == null ? randomIntBetween(1, 10) : categoryLabels.size())
                 .mapToDouble(Double::valueOf)
-                .toArray() :
-            null;
+                .toArray()
+            : null;
 
-        return new Ensemble(randomBoolean() ? featureNames : Collections.emptyList(),
+        return new Ensemble(
+            randomBoolean() ? featureNames : Collections.emptyList(),
             models,
             outputAggregator,
             targetType,
             categoryLabels,
-            thresholds);
+            thresholds
+        );
     }
 
     @Override

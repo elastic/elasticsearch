@@ -44,7 +44,6 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
         licenseService.stop();
     }
 
-
     public void testNotificationOnNewLicense() throws Exception {
         ClusterState oldState = ClusterState.builder(new ClusterName("a")).build();
         final License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(24));
@@ -67,7 +66,8 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
     public void testSelfGeneratedLicenseGeneration() throws Exception {
         DiscoveryNode master = new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         ClusterState oldState = ClusterState.builder(new ClusterName("a"))
-                .nodes(DiscoveryNodes.builder().masterNodeId(master.getId()).add(master)).build();
+            .nodes(DiscoveryNodes.builder().masterNodeId(master.getId()).add(master))
+            .build();
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(true);
         ClusterState newState = ClusterState.builder(oldState).nodes(discoveryNodes).build();
 

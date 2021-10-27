@@ -29,10 +29,6 @@ import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
-import javax.mail.MessagingException;
-import javax.mail.internet.MimeMessage;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -43,6 +39,11 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+
+import javax.mail.MessagingException;
+import javax.mail.internet.MimeMessage;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLException;
 
 import static org.hamcrest.Matchers.hasSize;
 
@@ -63,8 +64,12 @@ public class EmailSslTests extends ESTestCase {
         Files.copy(getDataPath("/org/elasticsearch/xpack/watcher/actions/email/test-smtp.pem"), keyPath);
         KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
         keyStore.load(null, keystorePassword);
-        keyStore.setKeyEntry("test-smtp", PemUtils.readPrivateKey(keyPath, keystorePassword::clone), keystorePassword,
-            CertParsingUtils.readCertificates(Collections.singletonList(certPath)));
+        keyStore.setKeyEntry(
+            "test-smtp",
+            PemUtils.readPrivateKey(keyPath, keystorePassword::clone),
+            keystorePassword,
+            CertParsingUtils.readCertificates(Collections.singletonList(certPath))
+        );
         final SSLContext sslContext = new SSLContextBuilder().loadKeyMaterial(keyStore, keystorePassword).build();
         server = EmailServer.localhost(logger, sslContext);
     }
@@ -82,8 +87,10 @@ public class EmailSslTests extends ESTestCase {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         final ExecutableEmailAction emailAction = buildEmailAction(settings, secureSettings);
         final WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
-        final MessagingException exception = expectThrows(MessagingException.class,
-            () -> emailAction.execute("my_action_id", ctx, Payload.EMPTY));
+        final MessagingException exception = expectThrows(
+            MessagingException.class,
+            () -> emailAction.execute("my_action_id", ctx, Payload.EMPTY)
+        );
         final List<Throwable> allCauses = getAllCauses(exception);
         assertThat(allCauses, Matchers.hasItem(Matchers.instanceOf(SSLException.class)));
     }
@@ -132,8 +139,7 @@ public class EmailSslTests extends ESTestCase {
         List<MimeMessage> messages = new ArrayList<>();
         server.addListener(messages::add);
         try {
-            final Settings.Builder settings = Settings.builder()
-                .put("xpack.notification.email.account.test.smtp.ssl.trust", "localhost");
+            final Settings.Builder settings = Settings.builder().put("xpack.notification.email.account.test.smtp.ssl.trust", "localhost");
             final MockSecureSettings secureSettings = new MockSecureSettings();
             ExecutableEmailAction emailAction = buildEmailAction(settings, secureSettings);
 
@@ -163,8 +169,10 @@ public class EmailSslTests extends ESTestCase {
             ExecutableEmailAction emailAction = buildEmailAction(settings, secureSettings);
 
             WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
-            final MessagingException exception = expectThrows(MessagingException.class,
-                () -> emailAction.execute("my_action_id", ctx, Payload.EMPTY));
+            final MessagingException exception = expectThrows(
+                MessagingException.class,
+                () -> emailAction.execute("my_action_id", ctx, Payload.EMPTY)
+            );
 
             final List<Throwable> allCauses = getAllCauses(exception);
             assertThat(allCauses, Matchers.hasItem(Matchers.instanceOf(SSLException.class)));
@@ -175,8 +183,7 @@ public class EmailSslTests extends ESTestCase {
 
     private ExecutableEmailAction buildEmailAction(Settings.Builder baseSettings, MockSecureSettings secureSettings) {
         secureSettings.setString("xpack.notification.email.account.test.smtp.secure_password", EmailServer.PASSWORD);
-        Settings settings = baseSettings
-            .put("path.home", createTempDir())
+        Settings settings = baseSettings.put("path.home", createTempDir())
             .put("xpack.notification.email.account.test.smtp.auth", true)
             .put("xpack.notification.email.account.test.smtp.user", EmailServer.USERNAME)
             .put("xpack.notification.email.account.test.smtp.port", server.port())
@@ -189,8 +196,12 @@ public class EmailSslTests extends ESTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(settings, registeredSettings);
         SSLService sslService = new SSLService(settings, TestEnvironment.newEnvironment(settings));
         final EmailService emailService = new EmailService(settings, null, sslService, clusterSettings);
-        EmailTemplate emailTemplate = EmailTemplate.builder().from("from@example.org").to("to@example.org")
-            .subject("subject").textBody("body").build();
+        EmailTemplate emailTemplate = EmailTemplate.builder()
+            .from("from@example.org")
+            .to("to@example.org")
+            .subject("subject")
+            .textBody("body")
+            .build();
         final EmailAction emailAction = new EmailAction(emailTemplate, null, null, null, null, null);
         return new ExecutableEmailAction(emailAction, logger, emailService, textTemplateEngine, htmlSanitizer, Collections.emptyMap());
     }
@@ -206,4 +217,3 @@ public class EmailSslTests extends ESTestCase {
     }
 
 }
-

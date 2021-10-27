@@ -39,16 +39,25 @@ public class ShardsMonitoringDocTests extends BaseFilteredMonitoringDocTestCase<
         stateUuid = randomAlphaOfLength(5);
         assignedToNode = randomBoolean();
         node = assignedToNode ? MonitoringTestUtils.randomMonitoringNode(random()) : null;
-        shardRouting = newShardRouting(randomAlphaOfLength(5),
-                randomIntBetween(0, 5),
-                assignedToNode ? node.getUUID() : null,
-                randomBoolean(),
-                assignedToNode ? INITIALIZING : UNASSIGNED);
+        shardRouting = newShardRouting(
+            randomAlphaOfLength(5),
+            randomIntBetween(0, 5),
+            assignedToNode ? node.getUUID() : null,
+            randomBoolean(),
+            assignedToNode ? INITIALIZING : UNASSIGNED
+        );
     }
 
     @Override
-    protected ShardMonitoringDoc createMonitoringDoc(String cluster, long timestamp, long interval, MonitoringDoc.Node node,
-                                                     MonitoredSystem system, String type, String id) {
+    protected ShardMonitoringDoc createMonitoringDoc(
+        String cluster,
+        long timestamp,
+        long interval,
+        MonitoringDoc.Node node,
+        MonitoredSystem system,
+        String type,
+        String id
+    ) {
         return new ShardMonitoringDoc(cluster, timestamp, interval, node, shardRouting, stateUuid);
     }
 
@@ -104,32 +113,41 @@ public class ShardsMonitoringDocTests extends BaseFilteredMonitoringDocTestCase<
     public void testToXContent() throws IOException {
         final ShardRouting shardRouting = newShardRouting("_index", 1, "_index_uuid", "_node_uuid", true, INITIALIZING);
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
-        final ShardMonitoringDoc doc =
-                new ShardMonitoringDoc("_cluster", 1502107402133L, 1506593717631L, node, shardRouting, "_state_uuid");
+        final ShardMonitoringDoc doc = new ShardMonitoringDoc(
+            "_cluster",
+            1502107402133L,
+            1506593717631L,
+            node,
+            shardRouting,
+            "_state_uuid"
+        );
 
         final BytesReference xContent = XContentHelper.toXContent(doc, XContentType.JSON, randomBoolean());
-        assertEquals("{"
-                    + "\"cluster_uuid\":\"_cluster\","
-                    + "\"timestamp\":\"2017-08-07T12:03:22.133Z\","
-                    + "\"interval_ms\":1506593717631,"
-                    + "\"type\":\"shards\","
-                    + "\"source_node\":{"
-                        + "\"uuid\":\"_uuid\","
-                        + "\"host\":\"_host\","
-                        + "\"transport_address\":\"_addr\","
-                        + "\"ip\":\"_ip\","
-                        + "\"name\":\"_name\","
-                        + "\"timestamp\":\"2017-08-31T08:46:30.855Z\""
-                    + "},"
-                    + "\"state_uuid\":\"_state_uuid\","
-                    + "\"shard\":{"
-                        + "\"state\":\"INITIALIZING\","
-                        + "\"primary\":true,"
-                        + "\"node\":\"_index_uuid\","
-                        + "\"relocating_node\":\"_node_uuid\","
-                        + "\"shard\":1,"
-                        + "\"index\":\"_index\""
-                        + "}"
-                    + "}" , xContent.utf8ToString());
+        assertEquals(
+            "{"
+                + "\"cluster_uuid\":\"_cluster\","
+                + "\"timestamp\":\"2017-08-07T12:03:22.133Z\","
+                + "\"interval_ms\":1506593717631,"
+                + "\"type\":\"shards\","
+                + "\"source_node\":{"
+                + "\"uuid\":\"_uuid\","
+                + "\"host\":\"_host\","
+                + "\"transport_address\":\"_addr\","
+                + "\"ip\":\"_ip\","
+                + "\"name\":\"_name\","
+                + "\"timestamp\":\"2017-08-31T08:46:30.855Z\""
+                + "},"
+                + "\"state_uuid\":\"_state_uuid\","
+                + "\"shard\":{"
+                + "\"state\":\"INITIALIZING\","
+                + "\"primary\":true,"
+                + "\"node\":\"_index_uuid\","
+                + "\"relocating_node\":\"_node_uuid\","
+                + "\"shard\":1,"
+                + "\"index\":\"_index\""
+                + "}"
+                + "}",
+            xContent.utf8ToString()
+        );
     }
 }

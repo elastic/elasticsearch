@@ -19,9 +19,11 @@ public final class MappingVisitor {
         visitMapping(mapping, "", fieldMappingConsumer);
     }
 
-    private static void visitMapping(final Map<String, ?> mapping,
-                                     final String path,
-                                     final BiConsumer<String, Map<String, ?>> fieldMappingConsumer) {
+    private static void visitMapping(
+        final Map<String, ?> mapping,
+        final String path,
+        final BiConsumer<String, Map<String, ?>> fieldMappingConsumer
+    ) {
         Object properties = mapping.get("properties");
         if (properties instanceof Map) {
             @SuppressWarnings("unchecked")

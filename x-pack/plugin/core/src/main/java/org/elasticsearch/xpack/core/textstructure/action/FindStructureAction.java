@@ -13,15 +13,15 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 
 import java.io.IOException;
@@ -117,8 +117,9 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
         public static final ParseField TIMESTAMP_FORMAT = new ParseField("timestamp_format");
         public static final ParseField TIMESTAMP_FIELD = TextStructure.TIMESTAMP_FIELD;
 
-        private static final String ARG_INCOMPATIBLE_WITH_FORMAT_TEMPLATE =
-            "[%s] may only be specified if [" + FORMAT.getPreferredName() + "] is [%s]";
+        private static final String ARG_INCOMPATIBLE_WITH_FORMAT_TEMPLATE = "[%s] may only be specified if ["
+            + FORMAT.getPreferredName()
+            + "] is [%s]";
 
         private Integer linesToSample;
         private Integer lineMergeSizeLimit;
@@ -135,8 +136,7 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
         private String timestampField;
         private BytesReference sample;
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -157,7 +157,6 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
             timestampField = in.readOptionalString();
             sample = in.readBytesReference();
         }
-
 
         public Integer getLinesToSample() {
             return linesToSample;
@@ -299,10 +298,15 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
             this.sample = sample;
         }
 
-        private static ActionRequestValidationException addIncompatibleArgError(ParseField arg, TextStructure.Format format,
-                                                                                ActionRequestValidationException validationException) {
-            return addValidationError(String.format(Locale.ROOT, ARG_INCOMPATIBLE_WITH_FORMAT_TEMPLATE, arg.getPreferredName(), format),
-                validationException);
+        private static ActionRequestValidationException addIncompatibleArgError(
+            ParseField arg,
+            TextStructure.Format format,
+            ActionRequestValidationException validationException
+        ) {
+            return addValidationError(
+                String.format(Locale.ROOT, ARG_INCOMPATIBLE_WITH_FORMAT_TEMPLATE, arg.getPreferredName(), format),
+                validationException
+            );
         }
 
         @Override
@@ -311,11 +315,14 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
             if (linesToSample != null && linesToSample < MIN_SAMPLE_LINE_COUNT) {
                 validationException = addValidationError(
                     "[" + LINES_TO_SAMPLE.getPreferredName() + "] must be at least [" + MIN_SAMPLE_LINE_COUNT + "] if specified",
-                    validationException);
+                    validationException
+                );
             }
             if (lineMergeSizeLimit != null && lineMergeSizeLimit <= 0) {
-                validationException = addValidationError("[" + LINE_MERGE_SIZE_LIMIT.getPreferredName() + "] must be positive if specified",
-                    validationException);
+                validationException = addValidationError(
+                    "[" + LINE_MERGE_SIZE_LIMIT.getPreferredName() + "] must be positive if specified",
+                    validationException
+                );
             }
             if (format != TextStructure.Format.DELIMITED) {
                 if (columnNames != null) {
@@ -336,8 +343,11 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
             }
             if (format != TextStructure.Format.SEMI_STRUCTURED_TEXT) {
                 if (grokPattern != null) {
-                    validationException =
-                        addIncompatibleArgError(GROK_PATTERN, TextStructure.Format.SEMI_STRUCTURED_TEXT, validationException);
+                    validationException = addIncompatibleArgError(
+                        GROK_PATTERN,
+                        TextStructure.Format.SEMI_STRUCTURED_TEXT,
+                        validationException
+                    );
                 }
             }
             if (sample == null || sample.length() == 0) {
@@ -389,8 +399,20 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
 
         @Override
         public int hashCode() {
-            return Objects.hash(linesToSample, lineMergeSizeLimit, timeout, charset, format, columnNames, hasHeaderRow, delimiter,
-                grokPattern, timestampFormat, timestampField, sample);
+            return Objects.hash(
+                linesToSample,
+                lineMergeSizeLimit,
+                timeout,
+                charset,
+                format,
+                columnNames,
+                hasHeaderRow,
+                delimiter,
+                grokPattern,
+                timestampFormat,
+                timestampField,
+                sample
+            );
         }
 
         @Override
@@ -405,18 +427,18 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
             }
 
             Request that = (Request) other;
-            return Objects.equals(this.linesToSample, that.linesToSample) &&
-                Objects.equals(this.lineMergeSizeLimit, that.lineMergeSizeLimit) &&
-                Objects.equals(this.timeout, that.timeout) &&
-                Objects.equals(this.charset, that.charset) &&
-                Objects.equals(this.format, that.format) &&
-                Objects.equals(this.columnNames, that.columnNames) &&
-                Objects.equals(this.hasHeaderRow, that.hasHeaderRow) &&
-                Objects.equals(this.delimiter, that.delimiter) &&
-                Objects.equals(this.grokPattern, that.grokPattern) &&
-                Objects.equals(this.timestampFormat, that.timestampFormat) &&
-                Objects.equals(this.timestampField, that.timestampField) &&
-                Objects.equals(this.sample, that.sample);
+            return Objects.equals(this.linesToSample, that.linesToSample)
+                && Objects.equals(this.lineMergeSizeLimit, that.lineMergeSizeLimit)
+                && Objects.equals(this.timeout, that.timeout)
+                && Objects.equals(this.charset, that.charset)
+                && Objects.equals(this.format, that.format)
+                && Objects.equals(this.columnNames, that.columnNames)
+                && Objects.equals(this.hasHeaderRow, that.hasHeaderRow)
+                && Objects.equals(this.delimiter, that.delimiter)
+                && Objects.equals(this.grokPattern, that.grokPattern)
+                && Objects.equals(this.timestampFormat, that.timestampFormat)
+                && Objects.equals(this.timestampField, that.timestampField)
+                && Objects.equals(this.sample, that.sample);
         }
     }
 }

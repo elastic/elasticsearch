@@ -68,18 +68,18 @@ public class CancellationTests extends ESTestCase {
         CountDownLatch countDownLatch = new CountDownLatch(1);
         SqlQueryRequest request = new SqlQueryRequestBuilder(client, SqlQueryAction.INSTANCE).query("SELECT foo FROM bar").request();
         TransportSqlQueryAction.operation(planExecutor, task, request, new ActionListener<SqlQueryResponse>() {
-                @Override
-                public void onResponse(SqlQueryResponse sqlSearchResponse) {
-                    fail("Shouldn't be here");
-                    countDownLatch.countDown();
-                }
+            @Override
+            public void onResponse(SqlQueryResponse sqlSearchResponse) {
+                fail("Shouldn't be here");
+                countDownLatch.countDown();
+            }
 
-                @Override
-                public void onFailure(Exception e) {
-                    assertThat(e, instanceOf(TaskCancelledException.class));
-                    countDownLatch.countDown();
-                }
-            }, "", mock(TransportService.class), mockClusterService);
+            @Override
+            public void onFailure(Exception e) {
+                assertThat(e, instanceOf(TaskCancelledException.class));
+                countDownLatch.countDown();
+            }
+        }, "", mock(TransportService.class), mockClusterService);
         countDownLatch.await();
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
@@ -87,12 +87,19 @@ public class CancellationTests extends ESTestCase {
     }
 
     private Map<String, Map<String, FieldCapabilities>> fields(String[] indices) {
-        FieldCapabilities fooField =
-            new FieldCapabilities("foo", "integer", false, true, true, indices, null, null, emptyMap());
-        FieldCapabilities categoryField =
-            new FieldCapabilities("event.category", "keyword", false, true, true, indices, null, null, emptyMap());
-        FieldCapabilities timestampField =
-            new FieldCapabilities("@timestamp", "date", false, true, true, indices, null, null, emptyMap());
+        FieldCapabilities fooField = new FieldCapabilities("foo", "integer", false, true, true, indices, null, null, emptyMap());
+        FieldCapabilities categoryField = new FieldCapabilities(
+            "event.category",
+            "keyword",
+            false,
+            true,
+            true,
+            indices,
+            null,
+            null,
+            emptyMap()
+        );
+        FieldCapabilities timestampField = new FieldCapabilities("@timestamp", "date", false, true, true, indices, null, null, emptyMap());
         Map<String, Map<String, FieldCapabilities>> fields = new HashMap<>();
         fields.put(fooField.getName(), singletonMap(fooField.getName(), fooField));
         fields.put(categoryField.getName(), singletonMap(categoryField.getName(), categoryField));
@@ -106,7 +113,7 @@ public class CancellationTests extends ESTestCase {
         SqlQueryTask task = randomTask();
         ClusterService mockClusterService = mockClusterService();
 
-        String[] indices = new String[]{"endgame"};
+        String[] indices = new String[] { "endgame" };
 
         FieldCapabilitiesResponse fieldCapabilitiesResponse = mock(FieldCapabilitiesResponse.class);
         when(fieldCapabilitiesResponse.getIndices()).thenReturn(indices);
@@ -119,12 +126,11 @@ public class CancellationTests extends ESTestCase {
             return null;
         }).when(client).fieldCaps(any(), any());
 
-
         IndexResolver indexResolver = indexResolver(client);
         PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, new NamedWriteableRegistry(Collections.emptyList()));
         CountDownLatch countDownLatch = new CountDownLatch(1);
-        SqlQueryRequest request = new SqlQueryRequestBuilder(client, SqlQueryAction.INSTANCE)
-            .query("SELECT foo FROM " + indices[0]).request();
+        SqlQueryRequest request = new SqlQueryRequestBuilder(client, SqlQueryAction.INSTANCE).query("SELECT foo FROM " + indices[0])
+            .request();
         TransportSqlQueryAction.operation(planExecutor, task, request, new ActionListener<SqlQueryResponse>() {
             @Override
             public void onResponse(SqlQueryResponse sqlSearchResponse) {
@@ -152,7 +158,7 @@ public class CancellationTests extends ESTestCase {
         String nodeId = randomAlphaOfLength(10);
         ClusterService mockClusterService = mockClusterService(nodeId);
 
-        String[] indices = new String[]{"endgame"};
+        String[] indices = new String[] { "endgame" };
 
         // Emulation of field capabilities
         FieldCapabilitiesResponse fieldCapabilitiesResponse = mock(FieldCapabilitiesResponse.class);
@@ -183,8 +189,8 @@ public class CancellationTests extends ESTestCase {
 
         IndexResolver indexResolver = indexResolver(client);
         PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, new NamedWriteableRegistry(Collections.emptyList()));
-        SqlQueryRequest request = new SqlQueryRequestBuilder(client, SqlQueryAction.INSTANCE)
-            .query("SELECT foo FROM " + indices[0]).request();
+        SqlQueryRequest request = new SqlQueryRequestBuilder(client, SqlQueryAction.INSTANCE).query("SELECT foo FROM " + indices[0])
+            .request();
         CountDownLatch countDownLatch = new CountDownLatch(1);
         TransportSqlQueryAction.operation(planExecutor, task, request, new ActionListener<SqlQueryResponse>() {
             @Override

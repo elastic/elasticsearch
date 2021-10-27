@@ -27,8 +27,10 @@ public class GetLifecyclePolicyRequestTests extends ESTestCase {
     }
 
     public void testNullPolicyNameShouldFail() {
-        expectThrows(IllegalArgumentException.class,
-            () -> new GetLifecyclePolicyRequest(randomAlphaOfLengthBetween(2,20), null, randomAlphaOfLengthBetween(2,20)));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new GetLifecyclePolicyRequest(randomAlphaOfLengthBetween(2, 20), null, randomAlphaOfLengthBetween(2, 20))
+        );
     }
 
 }

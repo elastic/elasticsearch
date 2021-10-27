@@ -11,11 +11,11 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -30,10 +30,9 @@ import static org.elasticsearch.cluster.routing.allocation.AbstractAllocationDec
  */
 public class NodeAllocationResult implements ToXContentObject, Writeable, Comparable<NodeAllocationResult> {
 
-    private static final Comparator<NodeAllocationResult> nodeResultComparator =
-        Comparator.comparing(NodeAllocationResult::getNodeDecision)
-            .thenComparingInt(NodeAllocationResult::getWeightRanking)
-            .thenComparing(r -> r.getNode().getId());
+    private static final Comparator<NodeAllocationResult> nodeResultComparator = Comparator.comparing(NodeAllocationResult::getNodeDecision)
+        .thenComparingInt(NodeAllocationResult::getWeightRanking)
+        .thenComparing(r -> r.getNode().getId());
 
     private final DiscoveryNode node;
     @Nullable

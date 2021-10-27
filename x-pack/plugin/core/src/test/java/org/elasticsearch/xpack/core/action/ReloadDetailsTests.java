@@ -20,9 +20,11 @@ public class ReloadDetailsTests extends AbstractWireSerializingTestCase<ReloadDe
 
     @Override
     protected ReloadDetails createTestInstance() {
-        return new ReloadDetails(randomAlphaOfLengthBetween(5, 10),
-                new HashSet<>(Arrays.asList(generateRandomStringArray(5, 5, false))),
-                new HashSet<>(Arrays.asList(generateRandomStringArray(5, 5, false))));
+        return new ReloadDetails(
+            randomAlphaOfLengthBetween(5, 10),
+            new HashSet<>(Arrays.asList(generateRandomStringArray(5, 5, false))),
+            new HashSet<>(Arrays.asList(generateRandomStringArray(5, 5, false)))
+        );
     }
 
     @Override
@@ -37,17 +39,17 @@ public class ReloadDetailsTests extends AbstractWireSerializingTestCase<ReloadDe
         Set<String> reloadedIndicesNodes = new HashSet<>(instance.getReloadedIndicesNodes());
         int mutate = randomIntBetween(0, 2);
         switch (mutate) {
-        case 0:
-            indexName = indexName + randomAlphaOfLength(2);
-            break;
-        case 1:
-            reloadedAnalyzers.add(randomAlphaOfLength(10));
-            break;
-        case 2:
-            reloadedIndicesNodes.add(randomAlphaOfLength(10));
-            break;
-        default:
-            throw new IllegalStateException("Requested to modify more than available parameters.");
+            case 0:
+                indexName = indexName + randomAlphaOfLength(2);
+                break;
+            case 1:
+                reloadedAnalyzers.add(randomAlphaOfLength(10));
+                break;
+            case 2:
+                reloadedIndicesNodes.add(randomAlphaOfLength(10));
+                break;
+            default:
+                throw new IllegalStateException("Requested to modify more than available parameters.");
         }
         return new ReloadDetails(indexName, reloadedIndicesNodes, reloadedAnalyzers);
     }

@@ -64,8 +64,14 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         tokenServiceMock = SecurityMocks.tokenService(true, threadPool);
         final ThreadContext threadContext = threadPool.getThreadContext();
 
-        action = new TransportGrantApiKeyAction(mock(TransportService.class), mock(ActionFilters.class), threadContext,
-            apiKeyGenerator, authenticationService, tokenServiceMock.tokenService);
+        action = new TransportGrantApiKeyAction(
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            threadContext,
+            apiKeyGenerator,
+            authenticationService,
+            tokenServiceMock.tokenService
+        );
     }
 
     @After
@@ -200,13 +206,16 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
     }
 
     private Authentication buildAuthentication(String username) {
-        return new Authentication(new User(username),
-            new Authentication.RealmRef("realm_name", "realm_type", "node_name"), null);
+        return new Authentication(new User(username), new Authentication.RealmRef("realm_name", "realm_type", "node_name"), null);
     }
 
     private CreateApiKeyResponse mockResponse(GrantApiKeyRequest request) {
-        return new CreateApiKeyResponse(request.getApiKeyRequest().getName(),
-            randomAlphaOfLength(12), new SecureString(randomAlphaOfLength(18).toCharArray()), null);
+        return new CreateApiKeyResponse(
+            request.getApiKeyRequest().getName(),
+            randomAlphaOfLength(12),
+            new SecureString(randomAlphaOfLength(18).toCharArray()),
+            null
+        );
     }
 
     private GrantApiKeyRequest mockRequest() {

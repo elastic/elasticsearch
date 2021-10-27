@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -90,6 +89,7 @@ public class ScrollCursor implements Cursor {
     int limit() {
         return limit;
     }
+
     @Override
     public void nextPage(SqlConfiguration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener) {
         if (log.isTraceEnabled()) {
@@ -98,22 +98,32 @@ public class ScrollCursor implements Cursor {
 
         SearchScrollRequest request = new SearchScrollRequest(scrollId).scroll(cfg.pageTimeout());
         client.searchScroll(request, wrap(response -> {
-            handle(response, () -> new SearchHitRowSet(extractors, mask, limit, response),
-                    p -> listener.onResponse(p),
-                    p -> clear(client, wrap(success -> listener.onResponse(p), listener::onFailure)),
-                    Schema.EMPTY);
+            handle(
+                response,
+                () -> new SearchHitRowSet(extractors, mask, limit, response),
+                p -> listener.onResponse(p),
+                p -> clear(client, wrap(success -> listener.onResponse(p), listener::onFailure)),
+                Schema.EMPTY
+            );
         }, listener::onFailure));
     }
 
     @Override
     public void clear(Client client, ActionListener<Boolean> listener) {
-        cleanCursor(client, scrollId, wrap(
-                        clearScrollResponse -> listener.onResponse(clearScrollResponse.isSucceeded()),
-                        listener::onFailure));
+        cleanCursor(
+            client,
+            scrollId,
+            wrap(clearScrollResponse -> listener.onResponse(clearScrollResponse.isSucceeded()), listener::onFailure)
+        );
     }
 
-    static void handle(SearchResponse response, Supplier<SearchHitRowSet> makeRowHit, Consumer<Page> onPage, Consumer<Page> clearScroll,
-            Schema schema) {
+    static void handle(
+        SearchResponse response,
+        Supplier<SearchHitRowSet> makeRowHit,
+        Consumer<Page> onPage,
+        Consumer<Page> clearScroll,
+        Schema schema
+    ) {
         if (log.isTraceEnabled()) {
             Querier.logSearchResponse(response, log);
         }
@@ -144,8 +154,8 @@ public class ScrollCursor implements Cursor {
         }
         ScrollCursor other = (ScrollCursor) obj;
         return Objects.equals(scrollId, other.scrollId)
-                && Objects.equals(extractors, other.extractors)
-                && Objects.equals(limit, other.limit);
+            && Objects.equals(extractors, other.extractors)
+            && Objects.equals(limit, other.limit);
     }
 
     @Override

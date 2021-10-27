@@ -56,8 +56,11 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
-        Authentication authentication = new Authentication(new User("john", "role"), new RealmRef(null, null, null),
-                new RealmRef(null, null, null));
+        Authentication authentication = new Authentication(
+            new User("john", "role"),
+            new RealmRef(null, null, null),
+            new RealmRef(null, null, null)
+        );
         final FieldPermissions fieldPermissions;
         final boolean useFls = randomBoolean();
         if (useFls) {
@@ -73,13 +76,20 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
             queries = null;
         }
         final String action = IndicesAliasesAction.NAME;
-        IndicesAccessControl accessControl = new IndicesAccessControl(true, Collections.singletonMap("foo",
-                new IndicesAccessControl.IndexAccessControl(true, fieldPermissions,
-                        (useDls) ? DocumentPermissions.filteredBy(queries) : DocumentPermissions.allowAll())));
+        IndicesAccessControl accessControl = new IndicesAccessControl(
+            true,
+            Collections.singletonMap(
+                "foo",
+                new IndicesAccessControl.IndexAccessControl(
+                    true,
+                    fieldPermissions,
+                    (useDls) ? DocumentPermissions.filteredBy(queries) : DocumentPermissions.allowAll()
+                )
+            )
+        );
         threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, accessControl);
 
-        IndicesAliasesRequestInterceptor interceptor =
-                new IndicesAliasesRequestInterceptor(threadContext, licenseState, auditTrailService);
+        IndicesAliasesRequestInterceptor interceptor = new IndicesAliasesRequestInterceptor(threadContext, licenseState, auditTrailService);
 
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
         if (randomBoolean()) {
@@ -96,15 +106,16 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
             ActionListener<AuthorizationResult> listener = (ActionListener<AuthorizationResult>) invocationOnMock.getArguments()[3];
             listener.onResponse(AuthorizationResult.deny());
             return null;
-        }).when(mockEngine).validateIndexPermissionsAreSubset(eq(requestInfo), eq(EmptyAuthorizationInfo.INSTANCE), anyMap(),
-            anyActionListener());
-        ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
-                () -> {
-                    interceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE, plainActionFuture);
-                    plainActionFuture.actionGet();
-                });
-        assertEquals("Alias requests are not allowed for users who have field or document level security enabled on one of the indices",
-                securityException.getMessage());
+        }).when(mockEngine)
+            .validateIndexPermissionsAreSubset(eq(requestInfo), eq(EmptyAuthorizationInfo.INSTANCE), anyMap(), anyActionListener());
+        ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class, () -> {
+            interceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE, plainActionFuture);
+            plainActionFuture.actionGet();
+        });
+        assertEquals(
+            "Alias requests are not allowed for users who have field or document level security enabled on one of the indices",
+            securityException.getMessage()
+        );
     }
 
     @SuppressWarnings("unchecked")
@@ -116,13 +127,15 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(randomBoolean());
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
-        Authentication authentication = new Authentication(new User("john", "role"), new RealmRef(null, null, null),
-                new RealmRef(null, null, null));
+        Authentication authentication = new Authentication(
+            new User("john", "role"),
+            new RealmRef(null, null, null),
+            new RealmRef(null, null, null)
+        );
         final String action = IndicesAliasesAction.NAME;
         IndicesAccessControl accessControl = new IndicesAccessControl(true, Collections.emptyMap());
         threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, accessControl);
-        IndicesAliasesRequestInterceptor interceptor =
-                new IndicesAliasesRequestInterceptor(threadContext, licenseState, auditTrailService);
+        IndicesAliasesRequestInterceptor interceptor = new IndicesAliasesRequestInterceptor(threadContext, licenseState, auditTrailService);
 
         final IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
         if (randomBoolean()) {
@@ -141,15 +154,21 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
                 ActionListener<AuthorizationResult> listener = (ActionListener<AuthorizationResult>) invocationOnMock.getArguments()[3];
                 listener.onResponse(AuthorizationResult.deny());
                 return null;
-            }).when(mockEngine).validateIndexPermissionsAreSubset(eq(requestInfo), eq(EmptyAuthorizationInfo.INSTANCE), any(Map.class),
-                anyActionListener());
-            ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
-                () -> {
-                    interceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE, plainActionFuture);
-                    plainActionFuture.actionGet();
-                });
-            assertEquals("Adding an alias is not allowed when the alias has more permissions than any of the indices",
-                securityException.getMessage());
+            }).when(mockEngine)
+                .validateIndexPermissionsAreSubset(
+                    eq(requestInfo),
+                    eq(EmptyAuthorizationInfo.INSTANCE),
+                    any(Map.class),
+                    anyActionListener()
+                );
+            ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class, () -> {
+                interceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE, plainActionFuture);
+                plainActionFuture.actionGet();
+            });
+            assertEquals(
+                "Adding an alias is not allowed when the alias has more permissions than any of the indices",
+                securityException.getMessage()
+            );
         }
 
         // swap target and source for success
@@ -169,8 +188,13 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
                 ActionListener<AuthorizationResult> listener = (ActionListener<AuthorizationResult>) invocationOnMock.getArguments()[3];
                 listener.onResponse(AuthorizationResult.granted());
                 return null;
-            }).when(mockEngine).validateIndexPermissionsAreSubset(eq(requestInfo), eq(EmptyAuthorizationInfo.INSTANCE), any(Map.class),
-                anyActionListener());
+            }).when(mockEngine)
+                .validateIndexPermissionsAreSubset(
+                    eq(requestInfo),
+                    eq(EmptyAuthorizationInfo.INSTANCE),
+                    any(Map.class),
+                    anyActionListener()
+                );
             interceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE, plainActionFuture);
             plainActionFuture.actionGet();
         }

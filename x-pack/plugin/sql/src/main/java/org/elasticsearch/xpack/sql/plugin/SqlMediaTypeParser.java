@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.proto.Mode;
 
@@ -58,6 +58,7 @@ public class SqlMediaTypeParser {
             return xContentType != null ? xContentType(xContentType) : textFormat(TextFormat.fromMediaTypeOrFormat(mediaType));
         }
     }
+
     /*
      * Since we support {@link TextFormat} <strong>and</strong>
      * {@link XContent} outputs we can't use {@link RestToXContentListener}
@@ -100,19 +101,24 @@ public class SqlMediaTypeParser {
         return SqlMediaType.fromMediaTypeOrFormat(request.param(URL_PARAM_FORMAT));
     }
 
-
     private static SqlMediaType validateColumnarRequest(boolean requestIsColumnar, SqlMediaType fromMediaType, RestRequest request) {
         if (requestIsColumnar && fromMediaType.isTextFormat()) {
-            throw new IllegalArgumentException("Invalid use of [columnar] argument: cannot be used in combination with "
-                + "txt, csv or tsv formats");
+            throw new IllegalArgumentException(
+                "Invalid use of [columnar] argument: cannot be used in combination with " + "txt, csv or tsv formats"
+            );
         }
         return checkNonNullMediaType(fromMediaType, request);
     }
 
     private static SqlMediaType checkNonNullMediaType(SqlMediaType mediaType, RestRequest request) {
         if (mediaType == null) {
-            String msg = String.format(Locale.ROOT, "Invalid request content type: Accept=[%s], Content-Type=[%s], format=[%s]",
-                request.header("Accept"), request.header("Content-Type"), request.param(URL_PARAM_FORMAT));
+            String msg = String.format(
+                Locale.ROOT,
+                "Invalid request content type: Accept=[%s], Content-Type=[%s], format=[%s]",
+                request.header("Accept"),
+                request.header("Content-Type"),
+                request.param(URL_PARAM_FORMAT)
+            );
             throw new IllegalArgumentException(msg);
         }
 
@@ -129,8 +135,7 @@ public class SqlMediaTypeParser {
         if (header == null || header.isEmpty()) {
             return null;
         } else if (header.size() > 1) {
-            throw new IllegalArgumentException("Incorrect header [" + headerName + "]. " +
-                "Only one value should be provided");
+            throw new IllegalArgumentException("Incorrect header [" + headerName + "]. " + "Only one value should be provided");
         }
         String rawContentType = header.get(0);
         if (Strings.hasText(rawContentType)) {

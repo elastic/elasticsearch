@@ -35,7 +35,14 @@ public class FieldCapabilitiesIndexRequestTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> copyWriteable(request, writableRegistry(), FieldCapabilitiesRequest::new, v)
         );
-        assertThat(e.getMessage(), equalTo("Versions before 7.12.0 don't support [runtime_mappings], but trying to send _field_caps "
-            + "request to a node with version [" + v + "]"));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Versions before 7.12.0 don't support [runtime_mappings], but trying to send _field_caps "
+                    + "request to a node with version ["
+                    + v
+                    + "]"
+            )
+        );
     }
 }

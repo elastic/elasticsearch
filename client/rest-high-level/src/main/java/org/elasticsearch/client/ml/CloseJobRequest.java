@@ -9,11 +9,11 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -37,12 +37,17 @@ public class CloseJobRequest extends ActionRequest implements ToXContentObject {
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<CloseJobRequest, Void> PARSER = new ConstructingObjectParser<>(
         "close_job_request",
-        true, a -> new CloseJobRequest((List<String>) a[0]));
+        true,
+        a -> new CloseJobRequest((List<String>) a[0])
+    );
 
     static {
-        PARSER.declareField(ConstructingObjectParser.constructorArg(),
+        PARSER.declareField(
+            ConstructingObjectParser.constructorArg(),
             p -> Arrays.asList(Strings.commaDelimitedListToStringArray(p.text())),
-            JOB_ID, ObjectParser.ValueType.STRING_ARRAY);
+            JOB_ID,
+            ObjectParser.ValueType.STRING_ARRAY
+        );
         PARSER.declareString((obj, val) -> obj.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
         PARSER.declareBoolean(CloseJobRequest::setForce, FORCE);
         PARSER.declareBoolean(CloseJobRequest::setAllowNoMatch, ALLOW_NO_MATCH);
@@ -60,7 +65,7 @@ public class CloseJobRequest extends ActionRequest implements ToXContentObject {
      *
      * @return a {@link CloseJobRequest} for all existing jobs
      */
-    public static CloseJobRequest closeAllJobsRequest(){
+    public static CloseJobRequest closeAllJobsRequest() {
         return new CloseJobRequest(ALL_JOBS);
     }
 
@@ -154,10 +159,10 @@ public class CloseJobRequest extends ActionRequest implements ToXContentObject {
         }
 
         CloseJobRequest that = (CloseJobRequest) other;
-        return Objects.equals(jobIds, that.jobIds) &&
-            Objects.equals(timeout, that.timeout) &&
-            Objects.equals(force, that.force) &&
-            Objects.equals(allowNoMatch, that.allowNoMatch);
+        return Objects.equals(jobIds, that.jobIds)
+            && Objects.equals(timeout, that.timeout)
+            && Objects.equals(force, that.force)
+            && Objects.equals(allowNoMatch, that.allowNoMatch);
     }
 
     @Override

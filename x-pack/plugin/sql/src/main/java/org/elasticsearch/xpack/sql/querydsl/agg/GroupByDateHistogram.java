@@ -10,8 +10,8 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSou
 import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.ql.querydsl.container.Sort.Missing;
 import org.elasticsearch.xpack.ql.querydsl.container.Sort.Direction;
+import org.elasticsearch.xpack.ql.querydsl.container.Sort.Missing;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.time.ZoneId;
@@ -42,8 +42,15 @@ public class GroupByDateHistogram extends GroupByKey {
         this(id, AggSource.of(script), null, null, -1L, calendarInterval, zoneId);
     }
 
-    private GroupByDateHistogram(String id, AggSource source, Direction direction, Missing missing, long fixedInterval,
-                                 String calendarInterval, ZoneId zoneId) {
+    private GroupByDateHistogram(
+        String id,
+        AggSource source,
+        Direction direction,
+        Missing missing,
+        long fixedInterval,
+        String calendarInterval,
+        ZoneId zoneId
+    ) {
         super(id, source, direction, missing);
         if (fixedInterval <= 0 && (calendarInterval == null || calendarInterval.trim().isEmpty())) {
             throw new SqlIllegalArgumentException("Either fixed interval or calendar interval needs to be specified");
@@ -61,8 +68,9 @@ public class GroupByDateHistogram extends GroupByKey {
     @Override
     protected CompositeValuesSourceBuilder<?> createSourceBuilder() {
         DateHistogramValuesSourceBuilder builder = new DateHistogramValuesSourceBuilder(id()).timeZone(zoneId);
-        return calendarInterval != null ? builder.calendarInterval(new DateHistogramInterval(calendarInterval))
-                                        : builder.fixedInterval(new DateHistogramInterval(fixedInterval + "ms"));
+        return calendarInterval != null
+            ? builder.calendarInterval(new DateHistogramInterval(calendarInterval))
+            : builder.fixedInterval(new DateHistogramInterval(fixedInterval + "ms"));
     }
 
     @Override
@@ -80,8 +88,8 @@ public class GroupByDateHistogram extends GroupByKey {
         if (super.equals(obj)) {
             GroupByDateHistogram other = (GroupByDateHistogram) obj;
             return Objects.equals(fixedInterval, other.fixedInterval)
-                    && Objects.equals(calendarInterval, other.calendarInterval)
-                    && Objects.equals(zoneId, other.zoneId);
+                && Objects.equals(calendarInterval, other.calendarInterval)
+                && Objects.equals(zoneId, other.zoneId);
         }
         return false;
     }

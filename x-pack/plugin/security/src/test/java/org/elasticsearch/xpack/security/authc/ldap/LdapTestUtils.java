@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc.ldap;
 import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPConnectionOptions;
 import com.unboundid.ldap.sdk.LDAPURL;
+
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -51,7 +52,15 @@ public class LdapTestUtils {
         options.setResponseTimeoutMillis(SessionFactorySettings.TIMEOUT_DEFAULT.millis());
 
         final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.authc.realms.ldap.foo.ssl");
-        return LdapUtils.privilegedConnect(() -> new LDAPConnection(sslService.sslSocketFactory(sslConfiguration), options,
-            ldapurl.getHost(), ldapurl.getPort(), bindDN, bindPassword));
+        return LdapUtils.privilegedConnect(
+            () -> new LDAPConnection(
+                sslService.sslSocketFactory(sslConfiguration),
+                options,
+                ldapurl.getHost(),
+                ldapurl.getPort(),
+                bindDN,
+                bindPassword
+            )
+        );
     }
 }

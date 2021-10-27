@@ -39,57 +39,49 @@ public class XPackLicenseState {
     static final Map<String, String[]> EXPIRATION_MESSAGES;
     static {
         Map<String, String[]> messages = new LinkedHashMap<>();
-        messages.put(XPackField.SECURITY, new String[] {
-            "Cluster health, cluster stats and indices stats operations are blocked",
-            "All data operations (read and write) continue to work"
-        });
-        messages.put(XPackField.WATCHER, new String[] {
-            "PUT / GET watch APIs are disabled, DELETE watch API continues to work",
-            "Watches execute and write to the history",
-            "The actions of the watches don't execute"
-        });
-        messages.put(XPackField.MONITORING, new String[] {
-            "The agent will stop collecting cluster and indices metrics"
-        });
-        messages.put(XPackField.GRAPH, new String[] {
-            "Graph explore APIs are disabled"
-        });
-        messages.put(XPackField.MACHINE_LEARNING, new String[] {
-            "Machine learning APIs are disabled"
-        });
-        messages.put(XPackField.LOGSTASH, new String[] {
-            "Logstash will continue to poll centrally-managed pipelines"
-        });
-        messages.put(XPackField.BEATS, new String[] {
-            "Beats will continue to poll centrally-managed configuration"
-        });
-        messages.put(XPackField.DEPRECATION, new String[] {
-            "Deprecation APIs are disabled"
-        });
-        messages.put(XPackField.UPGRADE, new String[] {
-            "Upgrade API is disabled"
-        });
-        messages.put(XPackField.SQL, new String[] {
-            "SQL support is disabled"
-        });
-        messages.put(XPackField.ROLLUP, new String[] {
-            "Creating and Starting rollup jobs will no longer be allowed.",
-            "Stopping/Deleting existing jobs, RollupCaps API and RollupSearch continue to function."
-        });
-        messages.put(XPackField.TRANSFORM, new String[] {
-            "Creating, starting, updating transforms will no longer be allowed.",
-            "Stopping/Deleting existing transforms continue to function."
-        });
-        messages.put(XPackField.ANALYTICS, new String[] {
-            "Aggregations provided by Analytics plugin are no longer usable."
-        });
-        messages.put(XPackField.CCR, new String[]{
-            "Creating new follower indices will be blocked",
-            "Configuring auto-follow patterns will be blocked",
-            "Auto-follow patterns will no longer discover new leader indices",
-            "The CCR monitoring endpoint will be blocked",
-            "Existing follower indices will continue to replicate data"
-        });
+        messages.put(
+            XPackField.SECURITY,
+            new String[] {
+                "Cluster health, cluster stats and indices stats operations are blocked",
+                "All data operations (read and write) continue to work" }
+        );
+        messages.put(
+            XPackField.WATCHER,
+            new String[] {
+                "PUT / GET watch APIs are disabled, DELETE watch API continues to work",
+                "Watches execute and write to the history",
+                "The actions of the watches don't execute" }
+        );
+        messages.put(XPackField.MONITORING, new String[] { "The agent will stop collecting cluster and indices metrics" });
+        messages.put(XPackField.GRAPH, new String[] { "Graph explore APIs are disabled" });
+        messages.put(XPackField.MACHINE_LEARNING, new String[] { "Machine learning APIs are disabled" });
+        messages.put(XPackField.LOGSTASH, new String[] { "Logstash will continue to poll centrally-managed pipelines" });
+        messages.put(XPackField.BEATS, new String[] { "Beats will continue to poll centrally-managed configuration" });
+        messages.put(XPackField.DEPRECATION, new String[] { "Deprecation APIs are disabled" });
+        messages.put(XPackField.UPGRADE, new String[] { "Upgrade API is disabled" });
+        messages.put(XPackField.SQL, new String[] { "SQL support is disabled" });
+        messages.put(
+            XPackField.ROLLUP,
+            new String[] {
+                "Creating and Starting rollup jobs will no longer be allowed.",
+                "Stopping/Deleting existing jobs, RollupCaps API and RollupSearch continue to function." }
+        );
+        messages.put(
+            XPackField.TRANSFORM,
+            new String[] {
+                "Creating, starting, updating transforms will no longer be allowed.",
+                "Stopping/Deleting existing transforms continue to function." }
+        );
+        messages.put(XPackField.ANALYTICS, new String[] { "Aggregations provided by Analytics plugin are no longer usable." });
+        messages.put(
+            XPackField.CCR,
+            new String[] {
+                "Creating new follower indices will be blocked",
+                "Configuring auto-follow patterns will be blocked",
+                "Auto-follow patterns will no longer discover new leader indices",
+                "The CCR monitoring endpoint will be blocked",
+                "Existing follower indices will continue to replicate data" }
+        );
         EXPIRATION_MESSAGES = Collections.unmodifiableMap(messages);
     }
 
@@ -118,8 +110,9 @@ public class XPackLicenseState {
                 switch (currentMode) {
                     case STANDARD:
                         return new String[] {
-                            "Security will default to disabled (set " + XPackSettings.SECURITY_ENABLED.getKey() + " to enable security).",
-                        };
+                            "Security will default to disabled (set "
+                                + XPackSettings.SECURITY_ENABLED.getKey()
+                                + " to enable security).", };
                     case TRIAL:
                     case GOLD:
                     case PLATINUM:
@@ -131,8 +124,7 @@ public class XPackLicenseState {
                             "IP filtering and auditing will be disabled.",
                             "Field and document level access control will be disabled.",
                             "Custom realms will be ignored.",
-                            "A custom authorization engine will be ignored."
-                        };
+                            "A custom authorization engine will be ignored." };
                 }
                 break;
             case GOLD:
@@ -146,8 +138,7 @@ public class XPackLicenseState {
                         return new String[] {
                             "Field and document level access control will be disabled.",
                             "Custom realms will be ignored.",
-                            "A custom authorization engine will be ignored."
-                        };
+                            "A custom authorization engine will be ignored." };
                 }
                 break;
             case STANDARD:
@@ -163,8 +154,7 @@ public class XPackLicenseState {
                             "IP filtering and auditing will be disabled.",
                             "Field and document level access control will be disabled.",
                             "Custom realms will be ignored.",
-                            "A custom authorization engine will be ignored."
-                        };
+                            "A custom authorization engine will be ignored." };
                 }
         }
         return Strings.EMPTY_ARRAY;
@@ -197,12 +187,14 @@ public class XPackLicenseState {
                     case ENTERPRISE:
                         return new String[] {
                             LoggerMessageFormat.format(
-                                "Multi-cluster support is disabled for clusters with [{}] license. If you are\n" +
-                                    "running multiple clusters, users won't be able to access the clusters with\n" +
-                                    "[{}] licenses from within a single X-Pack Kibana instance. You will have to deploy a\n" +
-                                    "separate and dedicated X-pack Kibana instance for each [{}] cluster you wish to monitor.",
-                                newMode, newMode, newMode)
-                        };
+                                "Multi-cluster support is disabled for clusters with [{}] license. If you are\n"
+                                    + "running multiple clusters, users won't be able to access the clusters with\n"
+                                    + "[{}] licenses from within a single X-Pack Kibana instance. You will have to deploy a\n"
+                                    + "separate and dedicated X-pack Kibana instance for each [{}] cluster you wish to monitor.",
+                                newMode,
+                                newMode,
+                                newMode
+                            ) };
                 }
                 break;
         }
@@ -273,7 +265,7 @@ public class XPackLicenseState {
                     case PLATINUM:
                     case ENTERPRISE:
                         return new String[] {
-                                "JDBC and ODBC support will be disabled, but you can continue to use SQL CLI and REST endpoint" };
+                            "JDBC and ODBC support will be disabled, but you can continue to use SQL CLI and REST endpoint" };
                 }
                 break;
         }
@@ -293,9 +285,7 @@ public class XPackLicenseState {
                     case STANDARD:
                     case GOLD:
                         // so CCR will be disabled
-                        return new String[]{
-                            "Cross-Cluster Replication will be disabled"
-                        };
+                        return new String[] { "Cross-Cluster Replication will be disabled" };
                 }
         }
         return Strings.EMPTY_ARRAY;
@@ -504,8 +494,11 @@ public class XPackLicenseState {
         }
     }
 
-    private static boolean isSecurityEnabled(final OperationMode mode, final boolean isSecurityExplicitlyEnabled,
-                                             final boolean isSecurityEnabled) {
+    private static boolean isSecurityEnabled(
+        final OperationMode mode,
+        final boolean isSecurityExplicitlyEnabled,
+        final boolean isSecurityEnabled
+    ) {
         switch (mode) {
             case TRIAL:
             case BASIC:
@@ -519,8 +512,7 @@ public class XPackLicenseState {
         return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM);
     }
 
-    public static boolean isAllowedByOperationMode(
-        final OperationMode operationMode, final OperationMode minimumMode) {
+    public static boolean isAllowedByOperationMode(final OperationMode operationMode, final OperationMode minimumMode) {
         if (OperationMode.TRIAL == operationMode) {
             return true;
         }
@@ -535,8 +527,9 @@ public class XPackLicenseState {
      * is needed for multiple interactions with the license state.
      */
     public XPackLicenseState copyCurrentLicenseState() {
-        return executeAgainstStatus(status ->
-            new XPackLicenseState(listeners, isSecurityEnabled, isSecurityExplicitlyEnabled, status, usage, epochMillisProvider));
+        return executeAgainstStatus(
+            status -> new XPackLicenseState(listeners, isSecurityEnabled, isSecurityExplicitlyEnabled, status, usage, epochMillisProvider)
+        );
     }
 
     /**

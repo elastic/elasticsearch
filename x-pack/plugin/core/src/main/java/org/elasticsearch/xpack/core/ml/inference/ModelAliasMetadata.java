@@ -14,10 +14,10 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -56,7 +56,7 @@ public class ModelAliasMetadata implements XPackPlugin.XPackMetadataCustom {
         NAME,
         // to protect BWC serialization
         true,
-        args -> new ModelAliasMetadata((Map<String, ModelAliasEntry>)args[0])
+        args -> new ModelAliasMetadata((Map<String, ModelAliasEntry>) args[0])
     );
 
     static {
@@ -140,8 +140,12 @@ public class ModelAliasMetadata implements XPackPlugin.XPackMetadataCustom {
         }
 
         ModelAliasMetadataDiff(StreamInput in) throws IOException {
-            this.modelAliasesDiff = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(),
-                ModelAliasEntry::new, ModelAliasEntry::readDiffFrom);
+            this.modelAliasesDiff = DiffableUtils.readJdkMapDiff(
+                in,
+                DiffableUtils.getStringKeySerializer(),
+                ModelAliasEntry::new,
+                ModelAliasEntry::readDiffFrom
+            );
         }
 
         @Override
@@ -165,7 +169,7 @@ public class ModelAliasMetadata implements XPackPlugin.XPackMetadataCustom {
             "model_alias_metadata_alias_entry",
             // to protect BWC serialization
             true,
-            args -> new ModelAliasEntry((String)args[0])
+            args -> new ModelAliasEntry((String) args[0])
         );
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), MODEL_ID);

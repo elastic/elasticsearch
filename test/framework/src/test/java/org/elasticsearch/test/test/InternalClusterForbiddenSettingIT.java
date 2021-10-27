@@ -9,7 +9,6 @@ package org.elasticsearch.test.test;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.test.ESIntegTestCase;
-
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.VersionUtils;
 
@@ -36,7 +35,6 @@ public class InternalClusterForbiddenSettingIT extends ESIntegTestCase {
         prepareCreate("test").setSettings(settings(version).build()).get();
         client().admin().indices().prepareDelete("test").get();
     }
-
 
     public void testRollingRestart() throws Exception {
         final Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);

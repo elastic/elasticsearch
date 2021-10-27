@@ -75,7 +75,7 @@ public abstract class AbstractFieldScript extends DocBasedScript {
 
         this.fieldName = fieldName;
         Map<String, Object> docAsMap = docAsMap();
-        this.sourceLookup = (SourceLookup)docAsMap.get("_source");
+        this.sourceLookup = (SourceLookup) docAsMap.get("_source");
         params = new HashMap<>(params);
         params.put("_source", sourceLookup);
         params.put("_fields", docAsMap.get("_fields"));

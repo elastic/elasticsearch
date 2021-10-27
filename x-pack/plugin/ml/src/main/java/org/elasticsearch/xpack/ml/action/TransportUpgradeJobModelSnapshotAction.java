@@ -53,7 +53,6 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.snapshot.upgrader.SnapshotUpgradePredicate;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
-
 public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeAction<Request, Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportUpgradeJobModelSnapshotAction.class);
@@ -67,14 +66,31 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
     private final Client client;
 
     @Inject
-    public TransportUpgradeJobModelSnapshotAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                                  XPackLicenseState licenseState, ClusterService clusterService,
-                                                  PersistentTasksService persistentTasksService, ActionFilters actionFilters,
-                                                  IndexNameExpressionResolver indexNameExpressionResolver,
-                                                  JobConfigProvider jobConfigProvider, MlMemoryTracker memoryTracker,
-                                                  JobResultsProvider jobResultsProvider, Client client) {
-        super(UpgradeJobModelSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new,
-            indexNameExpressionResolver, Response::new, ThreadPool.Names.SAME);
+    public TransportUpgradeJobModelSnapshotAction(
+        Settings settings,
+        TransportService transportService,
+        ThreadPool threadPool,
+        XPackLicenseState licenseState,
+        ClusterService clusterService,
+        PersistentTasksService persistentTasksService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        JobConfigProvider jobConfigProvider,
+        MlMemoryTracker memoryTracker,
+        JobResultsProvider jobResultsProvider,
+        Client client
+    ) {
+        super(
+            UpgradeJobModelSnapshotAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            Request::new,
+            indexNameExpressionResolver,
+            Response::new,
+            ThreadPool.Names.SAME
+        );
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
         this.jobConfigProvider = jobConfigProvider;
@@ -102,23 +118,31 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
         }
 
         if (state.nodes().getMaxNodeVersion().after(state.nodes().getMinNodeVersion())) {
-            listener.onFailure(ExceptionsHelper.conflictStatusException(
-                "Cannot upgrade job [{}] snapshot [{}] as not all nodes are on version {}. All nodes must be the same version",
-                request.getJobId(),
-                request.getSnapshotId(),
-                state.nodes().getMaxNodeVersion().toString()));
+            listener.onFailure(
+                ExceptionsHelper.conflictStatusException(
+                    "Cannot upgrade job [{}] snapshot [{}] as not all nodes are on version {}. All nodes must be the same version",
+                    request.getJobId(),
+                    request.getSnapshotId(),
+                    state.nodes().getMaxNodeVersion().toString()
+                )
+            );
             return;
         }
 
         PersistentTasksCustomMetadata customMetadata = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        if (customMetadata != null && (customMetadata.findTasks(
-            MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
-            t -> t.getParams() instanceof SnapshotUpgradeTaskParams
-                && ((SnapshotUpgradeTaskParams)t.getParams()).getJobId().equals(request.getJobId())).isEmpty() == false)) {
-            listener.onFailure(ExceptionsHelper.conflictStatusException(
-                "Cannot upgrade job [{}] snapshot [{}] as there is currently a snapshot for this job being upgraded",
-                request.getJobId(),
-                request.getSnapshotId()));
+        if (customMetadata != null
+            && (customMetadata.findTasks(
+                MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
+                t -> t.getParams() instanceof SnapshotUpgradeTaskParams
+                    && ((SnapshotUpgradeTaskParams) t.getParams()).getJobId().equals(request.getJobId())
+            ).isEmpty() == false)) {
+            listener.onFailure(
+                ExceptionsHelper.conflictStatusException(
+                    "Cannot upgrade job [{}] snapshot [{}] as there is currently a snapshot for this job being upgraded",
+                    request.getJobId(),
+                    request.getSnapshotId()
+                )
+            );
             return;
         }
 
@@ -132,23 +156,23 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
                         "Cannot upgrade job [{}] snapshot [{}] because upgrade is already in progress",
                         e,
                         request.getJobId(),
-                        request.getSnapshotId());
+                        request.getSnapshotId()
+                    );
                 }
                 listener.onFailure(e);
-            });
+            }
+        );
 
         // Start job task
-        ActionListener<Boolean> configIndexMappingUpdaterListener = ActionListener.wrap(
-            _unused -> {
-                logger.info("[{}] [{}] sending start upgrade request", params.getJobId(), params.getSnapshotId());
-                persistentTasksService.sendStartRequest(
-                    MlTasks.snapshotUpgradeTaskId(params.getJobId(), params.getSnapshotId()),
-                    MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
-                    params,
-                    waitForJobToStart);
-            },
-            listener::onFailure
-        );
+        ActionListener<Boolean> configIndexMappingUpdaterListener = ActionListener.wrap(_unused -> {
+            logger.info("[{}] [{}] sending start upgrade request", params.getJobId(), params.getSnapshotId());
+            persistentTasksService.sendStartRequest(
+                MlTasks.snapshotUpgradeTaskId(params.getJobId(), params.getSnapshotId()),
+                MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
+                params,
+                waitForJobToStart
+            );
+        }, listener::onFailure);
 
         // Update config index if necessary
         ActionListener<Long> memoryRequirementRefreshListener = ActionListener.wrap(
@@ -158,67 +182,75 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
                 client,
                 state,
                 request.masterNodeTimeout(),
-                configIndexMappingUpdaterListener),
+                configIndexMappingUpdaterListener
+            ),
             listener::onFailure
         );
 
         // Check that model snapshot exists and should actually be upgraded
         // Then refresh the memory
-        ActionListener<Result<ModelSnapshot>> getSnapshotHandler = ActionListener.wrap(
-            response -> {
-                if (response == null) {
-                    listener.onFailure(
-                        new ResourceNotFoundException(
-                            Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, request.getSnapshotId(), request.getJobId())));
-                    return;
-                }
-                if (Version.CURRENT.equals(response.result.getMinVersion())) {
-                    listener.onFailure(ExceptionsHelper.conflictStatusException(
+        ActionListener<Result<ModelSnapshot>> getSnapshotHandler = ActionListener.wrap(response -> {
+            if (response == null) {
+                listener.onFailure(
+                    new ResourceNotFoundException(
+                        Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, request.getSnapshotId(), request.getJobId())
+                    )
+                );
+                return;
+            }
+            if (Version.CURRENT.equals(response.result.getMinVersion())) {
+                listener.onFailure(
+                    ExceptionsHelper.conflictStatusException(
                         "Cannot upgrade job [{}] snapshot [{}] as it is already compatible with current version {}",
                         request.getJobId(),
                         request.getSnapshotId(),
-                        Version.CURRENT));
-                    return;
-                }
-                memoryTracker.refreshAnomalyDetectorJobMemoryAndAllOthers(params.getJobId(), memoryRequirementRefreshListener);
-            },
-            listener::onFailure
-        );
+                        Version.CURRENT
+                    )
+                );
+                return;
+            }
+            memoryTracker.refreshAnomalyDetectorJobMemoryAndAllOthers(params.getJobId(), memoryRequirementRefreshListener);
+        }, listener::onFailure);
 
-        ActionListener<Job> getJobHandler = ActionListener.wrap(
-            job -> {
-                if (request.getSnapshotId().equals(job.getModelSnapshotId())
-                    && (JobState.CLOSED.equals(MlTasks.getJobState(request.getJobId(), customMetadata)) == false)) {
-                    listener.onFailure(ExceptionsHelper.conflictStatusException(
+        ActionListener<Job> getJobHandler = ActionListener.wrap(job -> {
+            if (request.getSnapshotId().equals(job.getModelSnapshotId())
+                && (JobState.CLOSED.equals(MlTasks.getJobState(request.getJobId(), customMetadata)) == false)) {
+                listener.onFailure(
+                    ExceptionsHelper.conflictStatusException(
                         "Cannot upgrade snapshot [{}] for job [{}] as it is the current primary job snapshot and the job's state is [{}]",
                         request.getSnapshotId(),
                         request.getJobId(),
                         MlTasks.getJobState(request.getJobId(), customMetadata)
-                    ));
-                    return;
-                }
-                jobResultsProvider.getModelSnapshot(
-                    request.getJobId(),
-                    request.getSnapshotId(),
-                    getSnapshotHandler::onResponse,
-                    getSnapshotHandler::onFailure);
-            },
-            listener::onFailure
-        );
+                    )
+                );
+                return;
+            }
+            jobResultsProvider.getModelSnapshot(
+                request.getJobId(),
+                request.getSnapshotId(),
+                getSnapshotHandler::onResponse,
+                getSnapshotHandler::onFailure
+            );
+        }, listener::onFailure);
 
         // Get the job config to verify it exists
-        jobConfigProvider.getJob(request.getJobId(), ActionListener.wrap(
-            builder -> getJobHandler.onResponse(builder.build()),
-            listener::onFailure
-        ));
+        jobConfigProvider.getJob(
+            request.getJobId(),
+            ActionListener.wrap(builder -> getJobHandler.onResponse(builder.build()), listener::onFailure)
+        );
     }
 
-    private void waitForJobStarted(String taskId,
-                                   SnapshotUpgradeTaskParams params,
-                                   Request request,
-                                   ActionListener<UpgradeJobModelSnapshotAction.Response> listener) {
+    private void waitForJobStarted(
+        String taskId,
+        SnapshotUpgradeTaskParams params,
+        Request request,
+        ActionListener<UpgradeJobModelSnapshotAction.Response> listener
+    ) {
         SnapshotUpgradePredicate predicate = new SnapshotUpgradePredicate(request.isWaitForCompletion(), logger);
-        persistentTasksService.waitForPersistentTaskCondition(taskId, predicate, request.getTimeout(),
+        persistentTasksService.waitForPersistentTaskCondition(
+            taskId,
+            predicate,
+            request.getTimeout(),
             new PersistentTasksService.WaitForPersistentTaskListener<SnapshotUpgradeTaskParams>() {
                 @Override
                 public void onResponse(PersistentTask<SnapshotUpgradeTaskParams> persistentTask) {
@@ -232,43 +264,46 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
                         }
                     } else {
                         listener.onResponse(new Response(predicate.isCompleted(), predicate.getNode()));
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    listener.onFailure(
+                        new ElasticsearchException(
+                            "snapshot upgrader request [{}] [{}] timed out after [{}]",
+                            params.getJobId(),
+                            params.getSnapshotId(),
+                            timeout
+                        )
+                    );
                 }
             }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-
-            @Override
-            public void onTimeout(TimeValue timeout) {
-                listener.onFailure(new ElasticsearchException(
-                    "snapshot upgrader request [{}] [{}] timed out after [{}]",
-                    params.getJobId(),
-                    params.getSnapshotId(),
-                    timeout));
-            }
-        });
+        );
     }
 
-    private void cancelJobStart(PersistentTask<SnapshotUpgradeTaskParams> persistentTask,
-                                Exception exception,
-                                ActionListener<Response> listener) {
-        persistentTasksService.sendRemoveRequest(persistentTask.getId(),
-            ActionListener.wrap(
-                t -> listener.onFailure(exception),
-                e -> {
-                    logger.error(
-                        new ParameterizedMessage(
-                            "[{}] [{}] Failed to cancel persistent task that could not be assigned due to {}",
-                            persistentTask.getParams().getJobId(),
-                            persistentTask.getParams().getSnapshotId(),
-                            exception.getMessage()
-                        ),
-                        e);
-                    listener.onFailure(exception);
-                }
-            ));
+    private void cancelJobStart(
+        PersistentTask<SnapshotUpgradeTaskParams> persistentTask,
+        Exception exception,
+        ActionListener<Response> listener
+    ) {
+        persistentTasksService.sendRemoveRequest(persistentTask.getId(), ActionListener.wrap(t -> listener.onFailure(exception), e -> {
+            logger.error(
+                new ParameterizedMessage(
+                    "[{}] [{}] Failed to cancel persistent task that could not be assigned due to {}",
+                    persistentTask.getParams().getJobId(),
+                    persistentTask.getParams().getSnapshotId(),
+                    exception.getMessage()
+                ),
+                e
+            );
+            listener.onFailure(exception);
+        }));
     }
 
 }

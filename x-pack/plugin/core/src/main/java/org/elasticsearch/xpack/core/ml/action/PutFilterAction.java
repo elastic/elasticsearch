@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-
 public class PutFilterAction extends ActionType<PutFilterAction.Response> {
 
     public static final PutFilterAction INSTANCE = new PutFilterAction();
@@ -43,8 +42,9 @@ public class PutFilterAction extends ActionType<PutFilterAction.Response> {
                 filter.setId(filterId);
             } else if (Strings.isNullOrEmpty(filterId) == false && filterId.equals(filter.getId()) == false) {
                 // If we have both URI and body filter ID, they must be identical
-                throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, MlFilter.ID.getPreferredName(),
-                        filter.getId(), filterId));
+                throw new IllegalArgumentException(
+                    Messages.getMessage(Messages.INCONSISTENT_ID, MlFilter.ID.getPreferredName(), filter.getId(), filterId)
+                );
             }
             return new Request(filter.build());
         }
@@ -114,8 +114,7 @@ public class PutFilterAction extends ActionType<PutFilterAction.Response> {
 
         private MlFilter filter;
 
-        Response() {
-        }
+        Response() {}
 
         Response(StreamInput in) throws IOException {
             super(in);

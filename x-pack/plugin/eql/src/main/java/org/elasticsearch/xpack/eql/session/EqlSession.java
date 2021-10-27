@@ -41,9 +41,18 @@ public class EqlSession {
     private final Planner planner;
     private final CircuitBreaker circuitBreaker;
 
-    public EqlSession(Client client, EqlConfiguration cfg, IndexResolver indexResolver, PreAnalyzer preAnalyzer, PostAnalyzer postAnalyzer,
-                      FunctionRegistry functionRegistry, Verifier verifier, Optimizer optimizer, Planner planner,
-                      CircuitBreaker circuitBreaker) {
+    public EqlSession(
+        Client client,
+        EqlConfiguration cfg,
+        IndexResolver indexResolver,
+        PreAnalyzer preAnalyzer,
+        PostAnalyzer postAnalyzer,
+        FunctionRegistry functionRegistry,
+        Verifier verifier,
+        Optimizer optimizer,
+        Planner planner,
+        CircuitBreaker circuitBreaker
+    ) {
 
         this.client = new ParentTaskAssigningClient(client, cfg.getTaskId());
         this.configuration = cfg;
@@ -103,11 +112,14 @@ public class EqlSession {
 
     private <T> void preAnalyze(LogicalPlan parsed, ActionListener<LogicalPlan> listener) {
         String indexWildcard = configuration.indexAsWildcard();
-        if(configuration.isCancelled()){
+        if (configuration.isCancelled()) {
             listener.onFailure(new TaskCancelledException("cancelled"));
             return;
         }
-        indexResolver.resolveAsMergedMapping(indexWildcard, configuration.indicesOptions(), configuration.runtimeMappings(),
+        indexResolver.resolveAsMergedMapping(
+            indexWildcard,
+            configuration.indicesOptions(),
+            configuration.runtimeMappings(),
             map(listener, r -> preAnalyzer.preAnalyze(parsed, r))
         );
     }

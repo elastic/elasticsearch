@@ -52,14 +52,27 @@ public class TransportChangePasswordActionTests extends ESTestCase {
 
     public void testAnonymousUser() {
         final Hasher hasher = getFastStoredHashAlgoForTests();
-        Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "superuser")
-            .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), hasher.name()).build();
+        Settings settings = Settings.builder()
+            .put(AnonymousUser.ROLES_SETTING.getKey(), "superuser")
+            .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), hasher.name())
+            .build();
         AnonymousUser anonymousUser = new AnonymousUser(settings);
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
-        TransportChangePasswordAction action = new TransportChangePasswordAction(settings, transportService,
-            mock(ActionFilters.class), usersStore);
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
+        TransportChangePasswordAction action = new TransportChangePasswordAction(
+            settings,
+            transportService,
+            mock(ActionFilters.class),
+            usersStore
+        );
         // Request will fail before the request hashing algorithm is checked, but we use the same algorithm as in settings for consistency
         ChangePasswordRequest request = new ChangePasswordRequest();
         request.username(anonymousUser.principal());
@@ -88,16 +101,32 @@ public class TransportChangePasswordActionTests extends ESTestCase {
     public void testInternalUsers() {
         final Hasher hasher = getFastStoredHashAlgoForTests();
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        Settings passwordHashingSettings = Settings.builder().
-            put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), hasher.name()).build();
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
-        TransportChangePasswordAction action = new TransportChangePasswordAction(passwordHashingSettings, transportService,
-            mock(ActionFilters.class), usersStore);
+        Settings passwordHashingSettings = Settings.builder().put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), hasher.name()).build();
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
+        TransportChangePasswordAction action = new TransportChangePasswordAction(
+            passwordHashingSettings,
+            transportService,
+            mock(ActionFilters.class),
+            usersStore
+        );
         // Request will fail before the request hashing algorithm is checked, but we use the same algorithm as in settings for consistency
         ChangePasswordRequest request = new ChangePasswordRequest();
-        request.username(randomFrom(SystemUser.INSTANCE.principal(), XPackUser.INSTANCE.principal(),
-            XPackSecurityUser.INSTANCE.principal(), AsyncSearchUser.INSTANCE.principal()));
+        request.username(
+            randomFrom(
+                SystemUser.INSTANCE.principal(),
+                XPackUser.INSTANCE.principal(),
+                XPackSecurityUser.INSTANCE.principal(),
+                AsyncSearchUser.INSTANCE.principal()
+            )
+        );
         request.passwordHash(hasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
@@ -135,12 +164,22 @@ public class TransportChangePasswordActionTests extends ESTestCase {
             listener.onResponse(null);
             return null;
         }).when(usersStore).changePassword(eq(request), anyActionListener());
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
-        Settings passwordHashingSettings = Settings.builder().
-            put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), hasher.name()).build();
-        TransportChangePasswordAction action = new TransportChangePasswordAction(passwordHashingSettings, transportService,
-            mock(ActionFilters.class), usersStore);
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
+        Settings passwordHashingSettings = Settings.builder().put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), hasher.name()).build();
+        TransportChangePasswordAction action = new TransportChangePasswordAction(
+            passwordHashingSettings,
+            transportService,
+            mock(ActionFilters.class),
+            usersStore
+        );
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<ActionResponse.Empty> responseRef = new AtomicReference<>();
         action.doExecute(mock(Task.class), request, new ActionListener<ActionResponse.Empty>() {
@@ -170,14 +209,26 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         request.passwordHash(hasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<ActionResponse.Empty> responseRef = new AtomicReference<>();
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
         final String systemHash = randomValueOtherThan(
             hasher.name().toLowerCase(Locale.ROOT),
-            () -> randomFrom("pbkdf2_50000", "pbkdf2_100000", "bcrypt11", "bcrypt8", "bcrypt"));
+            () -> randomFrom("pbkdf2_50000", "pbkdf2_100000", "bcrypt11", "bcrypt8", "bcrypt")
+        );
         Settings passwordHashingSettings = Settings.builder().put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), systemHash).build();
-        TransportChangePasswordAction action = new TransportChangePasswordAction(passwordHashingSettings, transportService,
-            mock(ActionFilters.class), usersStore);
+        TransportChangePasswordAction action = new TransportChangePasswordAction(
+            passwordHashingSettings,
+            transportService,
+            mock(ActionFilters.class),
+            usersStore
+        );
         action.doExecute(mock(Task.class), request, new ActionListener<ActionResponse.Empty>() {
             @Override
             public void onResponse(ActionResponse.Empty changePasswordResponse) {
@@ -212,12 +263,22 @@ public class TransportChangePasswordActionTests extends ESTestCase {
             listener.onFailure(e);
             return null;
         }).when(usersStore).changePassword(eq(request), anyActionListener());
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
-        Settings passwordHashingSettings = Settings.builder().
-            put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), hasher.name()).build();
-        TransportChangePasswordAction action = new TransportChangePasswordAction(passwordHashingSettings, transportService,
-            mock(ActionFilters.class), usersStore);
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
+        Settings passwordHashingSettings = Settings.builder().put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), hasher.name()).build();
+        TransportChangePasswordAction action = new TransportChangePasswordAction(
+            passwordHashingSettings,
+            transportService,
+            mock(ActionFilters.class),
+            usersStore
+        );
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<ActionResponse.Empty> responseRef = new AtomicReference<>();
         action.doExecute(mock(Task.class), request, new ActionListener<ActionResponse.Empty>() {

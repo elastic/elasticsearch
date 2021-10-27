@@ -44,8 +44,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
@@ -344,51 +342,101 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTE
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_TOKENS_INDEX_FORMAT;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_VERSION_STRING;
 
-public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin,
-        DiscoveryPlugin, MapperPlugin, ExtensiblePlugin, SearchPlugin {
+public class Security extends Plugin
+    implements
+        SystemIndexPlugin,
+        IngestPlugin,
+        NetworkPlugin,
+        ClusterPlugin,
+        DiscoveryPlugin,
+        MapperPlugin,
+        ExtensiblePlugin,
+        SearchPlugin {
 
     public static final String SECURITY_CRYPTO_THREAD_POOL_NAME = XPackField.SECURITY + "-crypto";
     public static final Version FLATTENED_FIELD_TYPE_INTRODUCED = Version.V_7_3_0;
 
     // TODO: ip filtering does not actually track license usage yet
-    public static final LicensedFeature.Momentary IP_FILTERING_FEATURE =
-        LicensedFeature.momentaryLenient(null, "security-ip-filtering", License.OperationMode.GOLD);
-    public static final LicensedFeature.Momentary AUDITING_FEATURE =
-        LicensedFeature.momentaryLenient(null, "security-auditing", License.OperationMode.GOLD);
-    public static final LicensedFeature.Momentary TOKEN_SERVICE_FEATURE =
-        LicensedFeature.momentaryLenient(null, "security-token-service", License.OperationMode.STANDARD);
+    public static final LicensedFeature.Momentary IP_FILTERING_FEATURE = LicensedFeature.momentaryLenient(
+        null,
+        "security-ip-filtering",
+        License.OperationMode.GOLD
+    );
+    public static final LicensedFeature.Momentary AUDITING_FEATURE = LicensedFeature.momentaryLenient(
+        null,
+        "security-auditing",
+        License.OperationMode.GOLD
+    );
+    public static final LicensedFeature.Momentary TOKEN_SERVICE_FEATURE = LicensedFeature.momentaryLenient(
+        null,
+        "security-token-service",
+        License.OperationMode.STANDARD
+    );
 
     private static final String REALMS_FEATURE_FAMILY = "security-realms";
     // Builtin realms (file/native) realms are Basic licensed, so don't need to be checked or tracked
     // Some realms (LDAP, AD, PKI) are Gold+
-    public static final LicensedFeature.Persistent LDAP_REALM_FEATURE =
-        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "ldap", License.OperationMode.GOLD);
-    public static final LicensedFeature.Persistent AD_REALM_FEATURE =
-        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "active-directory", License.OperationMode.GOLD);
-    public static final LicensedFeature.Persistent PKI_REALM_FEATURE =
-        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "pki", License.OperationMode.GOLD);
+    public static final LicensedFeature.Persistent LDAP_REALM_FEATURE = LicensedFeature.persistentLenient(
+        REALMS_FEATURE_FAMILY,
+        "ldap",
+        License.OperationMode.GOLD
+    );
+    public static final LicensedFeature.Persistent AD_REALM_FEATURE = LicensedFeature.persistentLenient(
+        REALMS_FEATURE_FAMILY,
+        "active-directory",
+        License.OperationMode.GOLD
+    );
+    public static final LicensedFeature.Persistent PKI_REALM_FEATURE = LicensedFeature.persistentLenient(
+        REALMS_FEATURE_FAMILY,
+        "pki",
+        License.OperationMode.GOLD
+    );
     // SSO realms are Platinum+
-    public static final LicensedFeature.Persistent SAML_REALM_FEATURE =
-        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "saml", License.OperationMode.PLATINUM);
-    public static final LicensedFeature.Persistent OIDC_REALM_FEATURE =
-        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "oidc", License.OperationMode.PLATINUM);
-    public static final LicensedFeature.Persistent KERBEROS_REALM_FEATURE =
-        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "kerberos", License.OperationMode.PLATINUM);
+    public static final LicensedFeature.Persistent SAML_REALM_FEATURE = LicensedFeature.persistentLenient(
+        REALMS_FEATURE_FAMILY,
+        "saml",
+        License.OperationMode.PLATINUM
+    );
+    public static final LicensedFeature.Persistent OIDC_REALM_FEATURE = LicensedFeature.persistentLenient(
+        REALMS_FEATURE_FAMILY,
+        "oidc",
+        License.OperationMode.PLATINUM
+    );
+    public static final LicensedFeature.Persistent KERBEROS_REALM_FEATURE = LicensedFeature.persistentLenient(
+        REALMS_FEATURE_FAMILY,
+        "kerberos",
+        License.OperationMode.PLATINUM
+    );
     // Custom realms are Platinum+
-    public static final LicensedFeature.Persistent CUSTOM_REALMS_FEATURE =
-        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "custom", License.OperationMode.PLATINUM);
+    public static final LicensedFeature.Persistent CUSTOM_REALMS_FEATURE = LicensedFeature.persistentLenient(
+        REALMS_FEATURE_FAMILY,
+        "custom",
+        License.OperationMode.PLATINUM
+    );
 
-    public static final LicensedFeature.Momentary DELEGATED_AUTHORIZATION_FEATURE =
-        LicensedFeature.momentary(null, "security-delegated-authorization", License.OperationMode.PLATINUM);
-    public static final LicensedFeature.Momentary AUTHORIZATION_ENGINE_FEATURE =
-        LicensedFeature.momentary(null, "security-authorization-engine", License.OperationMode.PLATINUM);
+    public static final LicensedFeature.Momentary DELEGATED_AUTHORIZATION_FEATURE = LicensedFeature.momentary(
+        null,
+        "security-delegated-authorization",
+        License.OperationMode.PLATINUM
+    );
+    public static final LicensedFeature.Momentary AUTHORIZATION_ENGINE_FEATURE = LicensedFeature.momentary(
+        null,
+        "security-authorization-engine",
+        License.OperationMode.PLATINUM
+    );
 
     // Custom role providers are Platinum+
-    public static final LicensedFeature.Persistent CUSTOM_ROLE_PROVIDERS_FEATURE =
-        LicensedFeature.persistent(null, "security-roles-provider", License.OperationMode.PLATINUM);
+    public static final LicensedFeature.Persistent CUSTOM_ROLE_PROVIDERS_FEATURE = LicensedFeature.persistent(
+        null,
+        "security-roles-provider",
+        License.OperationMode.PLATINUM
+    );
 
-    public static final LicensedFeature.Momentary OPERATOR_PRIVILEGES_FEATURE =
-        LicensedFeature.momentary(null, "operator-privileges", License.OperationMode.ENTERPRISE);
+    public static final LicensedFeature.Momentary OPERATOR_PRIVILEGES_FEATURE = LicensedFeature.momentary(
+        null,
+        "operator-privileges",
+        License.OperationMode.ENTERPRISE
+    );
 
     private static final Logger logger = LogManager.getLogger(Security.class);
 
@@ -473,8 +521,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 b.bind(Realms.class).toProvider(Providers.of(null)); // for SecurityFeatureSet
                 b.bind(CompositeRolesStore.class).toProvider(Providers.of(null)); // for SecurityFeatureSet
                 b.bind(NativeRoleMappingStore.class).toProvider(Providers.of(null)); // for SecurityFeatureSet
-                b.bind(AuditTrailService.class)
-                    .toInstance(new AuditTrailService(Collections.emptyList(), getLicenseState()));
+                b.bind(AuditTrailService.class).toInstance(new AuditTrailService(Collections.emptyList(), getLicenseState()));
             });
             return modules;
         }
@@ -486,29 +533,56 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     protected Clock getClock() {
         return Clock.systemUTC();
     }
-    protected SSLService getSslService() { return XPackPlugin.getSharedSslService(); }
-    protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
+
+    protected SSLService getSslService() {
+        return XPackPlugin.getSharedSslService();
+    }
+
+    protected XPackLicenseState getLicenseState() {
+        return XPackPlugin.getSharedLicenseState();
+    }
 
     @Override
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                               NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver expressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver expressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
         try {
-            return createComponents(client, threadPool, clusterService, resourceWatcherService, scriptService, xContentRegistry,
-                environment, expressionResolver);
+            return createComponents(
+                client,
+                threadPool,
+                clusterService,
+                resourceWatcherService,
+                scriptService,
+                xContentRegistry,
+                environment,
+                expressionResolver
+            );
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
         }
     }
 
     // pkg private for testing - tests want to pass in their set of extensions hence we are not using the extension service directly
-    Collection<Object> createComponents(Client client, ThreadPool threadPool, ClusterService clusterService,
-                                        ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                        NamedXContentRegistry xContentRegistry, Environment environment,
-                                        IndexNameExpressionResolver expressionResolver) throws Exception {
+    Collection<Object> createComponents(
+        Client client,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        IndexNameExpressionResolver expressionResolver
+    ) throws Exception {
         if (enabled == false) {
             return Collections.emptyList();
         }
@@ -518,10 +592,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         // We need to construct the checks here while the secure settings are still available.
         // If we wait until #getBoostrapChecks the secure settings will have been cleared/closed.
         final List<BootstrapCheck> checks = new ArrayList<>();
-        checks.addAll(asList(
-            new TokenSSLBootstrapCheck(),
-            new PkiRealmBootstrapCheck(getSslService()),
-            new TLSLicenseBootstrapCheck()));
+        checks.addAll(asList(new TokenSSLBootstrapCheck(), new PkiRealmBootstrapCheck(getSslService()), new TLSLicenseBootstrapCheck()));
         checks.addAll(InternalRealms.getBootstrapChecks(settings, environment));
         this.bootstrapChecks.set(Collections.unmodifiableList(checks));
 
@@ -532,8 +603,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         // audit trail service construction
         final List<AuditTrail> auditTrails = XPackSettings.AUDIT_ENABLED.get(settings)
-                ? Collections.singletonList(new LoggingAuditTrail(settings, clusterService, threadPool))
-                : Collections.emptyList();
+            ? Collections.singletonList(new LoggingAuditTrail(settings, clusterService, threadPool))
+            : Collections.emptyList();
         final AuditTrailService auditTrailService = new AuditTrailService(auditTrails, getLicenseState());
         components.add(auditTrailService);
         this.auditTrailService.set(auditTrailService);
@@ -555,16 +626,39 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         // realms construction
         final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, securityIndex.get());
-        final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(settings, client, securityIndex.get(),
-            scriptService);
+        final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(
+            settings,
+            client,
+            securityIndex.get(),
+            scriptService
+        );
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         components.add(anonymousUser);
-        final ReservedRealm reservedRealm = new ReservedRealm(environment, settings, nativeUsersStore,
-                anonymousUser, securityIndex.get(), threadPool);
-        final SecurityExtension.SecurityComponents extensionComponents = new ExtensionComponents(environment, client, clusterService,
-            resourceWatcherService, nativeRoleMappingStore);
-        Map<String, Realm.Factory> realmFactories = new HashMap<>(InternalRealms.getFactories(threadPool, resourceWatcherService,
-                getSslService(), nativeUsersStore, nativeRoleMappingStore, securityIndex.get()));
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            environment,
+            settings,
+            nativeUsersStore,
+            anonymousUser,
+            securityIndex.get(),
+            threadPool
+        );
+        final SecurityExtension.SecurityComponents extensionComponents = new ExtensionComponents(
+            environment,
+            client,
+            clusterService,
+            resourceWatcherService,
+            nativeRoleMappingStore
+        );
+        Map<String, Realm.Factory> realmFactories = new HashMap<>(
+            InternalRealms.getFactories(
+                threadPool,
+                resourceWatcherService,
+                getSslService(),
+                nativeUsersStore,
+                nativeRoleMappingStore,
+                securityIndex.get()
+            )
+        );
         for (SecurityExtension extension : securityExtensions) {
             Map<String, Realm.Factory> newRealms = extension.getRealms(extensionComponents);
             for (Map.Entry<String, Realm.Factory> entry : newRealms.entrySet()) {
@@ -573,8 +667,14 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 }
             }
         }
-        final Realms realms =
-            new Realms(settings, environment, realmFactories, getLicenseState(), threadPool.getThreadContext(), reservedRealm);
+        final Realms realms = new Realms(
+            settings,
+            environment,
+            realmFactories,
+            getLicenseState(),
+            threadPool.getThreadContext(),
+            reservedRealm
+        );
         components.add(nativeUsersStore);
         components.add(nativeRoleMappingStore);
         components.add(realms);
@@ -583,19 +683,30 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         securityIndex.get().addStateListener(nativeRoleMappingStore::onSecurityIndexStateChange);
 
         final CacheInvalidatorRegistry cacheInvalidatorRegistry = new CacheInvalidatorRegistry();
-        cacheInvalidatorRegistry.registerAlias("service",
-            org.elasticsearch.core.Set.of("file_service_account_token", "index_service_account_token"));
+        cacheInvalidatorRegistry.registerAlias(
+            "service",
+            org.elasticsearch.core.Set.of("file_service_account_token", "index_service_account_token")
+        );
         components.add(cacheInvalidatorRegistry);
         securityIndex.get().addStateListener(cacheInvalidatorRegistry::onSecurityIndexStateChange);
 
-        final NativePrivilegeStore privilegeStore =
-            new NativePrivilegeStore(settings, client, securityIndex.get(), cacheInvalidatorRegistry);
+        final NativePrivilegeStore privilegeStore = new NativePrivilegeStore(
+            settings,
+            client,
+            securityIndex.get(),
+            cacheInvalidatorRegistry
+        );
         components.add(privilegeStore);
 
         dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings, threadPool));
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
-        final FileRolesStore fileRolesStore = new FileRolesStore(settings, environment, resourceWatcherService, getLicenseState(),
-            xContentRegistry);
+        final FileRolesStore fileRolesStore = new FileRolesStore(
+            settings,
+            environment,
+            resourceWatcherService,
+            getLicenseState(),
+            xContentRegistry
+        );
         final NativeRolesStore nativeRolesStore = new NativeRolesStore(settings, client, getLicenseState(), securityIndex.get());
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
 
@@ -609,16 +720,36 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             }
         }
 
-        final ApiKeyService apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, getLicenseState(), securityIndex.get(),
-            clusterService, cacheInvalidatorRegistry, threadPool);
+        final ApiKeyService apiKeyService = new ApiKeyService(
+            settings,
+            Clock.systemUTC(),
+            client,
+            getLicenseState(),
+            securityIndex.get(),
+            clusterService,
+            cacheInvalidatorRegistry,
+            threadPool
+        );
         components.add(apiKeyService);
 
         final IndexServiceAccountTokenStore indexServiceAccountTokenStore = new IndexServiceAccountTokenStore(
-            settings, threadPool, getClock(), client, securityIndex.get(), clusterService, cacheInvalidatorRegistry);
+            settings,
+            threadPool,
+            getClock(),
+            client,
+            securityIndex.get(),
+            clusterService,
+            cacheInvalidatorRegistry
+        );
         components.add(indexServiceAccountTokenStore);
 
-        final FileServiceAccountTokenStore fileServiceAccountTokenStore =
-            new FileServiceAccountTokenStore(environment, resourceWatcherService, threadPool, clusterService, cacheInvalidatorRegistry);
+        final FileServiceAccountTokenStore fileServiceAccountTokenStore = new FileServiceAccountTokenStore(
+            environment,
+            resourceWatcherService,
+            threadPool,
+            clusterService,
+            cacheInvalidatorRegistry
+        );
         components.add(fileServiceAccountTokenStore);
 
         final ServiceAccountService serviceAccountService = new ServiceAccountService(
@@ -635,10 +766,18 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             customRoleProviders,
             getLicenseState()
         );
-        final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, roleProviders,
-            privilegeStore, threadPool.getThreadContext(), getLicenseState(), fieldPermissionsCache, apiKeyService,
-            serviceAccountService, dlsBitsetCache.get(),
-            new DeprecationRoleDescriptorConsumer(clusterService, threadPool));
+        final CompositeRolesStore allRolesStore = new CompositeRolesStore(
+            settings,
+            roleProviders,
+            privilegeStore,
+            threadPool.getThreadContext(),
+            getLicenseState(),
+            fieldPermissionsCache,
+            apiKeyService,
+            serviceAccountService,
+            dlsBitsetCache.get(),
+            new DeprecationRoleDescriptorConsumer(clusterService, threadPool)
+        );
         securityIndex.get().addStateListener(allRolesStore::onSecurityIndexStateChange);
 
         // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be
@@ -651,34 +790,62 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         final boolean operatorPrivilegesEnabled = OPERATOR_PRIVILEGES_ENABLED.get(settings);
         if (operatorPrivilegesEnabled) {
             logger.info("operator privileges are enabled");
-            operatorPrivilegesService = new OperatorPrivileges.DefaultOperatorPrivilegesService(getLicenseState(),
+            operatorPrivilegesService = new OperatorPrivileges.DefaultOperatorPrivilegesService(
+                getLicenseState(),
                 new FileOperatorUsersStore(environment, resourceWatcherService),
-                new OperatorOnlyRegistry(clusterService.getClusterSettings()));
+                new OperatorOnlyRegistry(clusterService.getClusterSettings())
+            );
         } else {
             operatorPrivilegesService = OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE;
         }
-        authcService.set(new AuthenticationService(settings, realms, auditTrailService, failureHandler, threadPool,
-                anonymousUser, tokenService, apiKeyService, serviceAccountService, operatorPrivilegesService));
+        authcService.set(
+            new AuthenticationService(
+                settings,
+                realms,
+                auditTrailService,
+                failureHandler,
+                threadPool,
+                anonymousUser,
+                tokenService,
+                apiKeyService,
+                serviceAccountService,
+                operatorPrivilegesService
+            )
+        );
         components.add(authcService.get());
         securityIndex.get().addStateListener(authcService.get()::onSecurityIndexStateChange);
 
         Set<RequestInterceptor> requestInterceptors = Sets.newHashSet(
             new ResizeRequestInterceptor(threadPool, getLicenseState(), auditTrailService),
-            new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), getLicenseState(), auditTrailService));
+            new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), getLicenseState(), auditTrailService)
+        );
         if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
-            requestInterceptors.addAll(asList(
-                new SearchRequestInterceptor(threadPool, getLicenseState(), clusterService),
-                new ShardSearchRequestInterceptor(threadPool, getLicenseState(), clusterService),
-                new UpdateRequestInterceptor(threadPool, getLicenseState()),
-                new BulkShardRequestInterceptor(threadPool, getLicenseState()),
-                new DlsFlsLicenseRequestInterceptor(threadPool.getThreadContext(), getLicenseState())
-            ));
+            requestInterceptors.addAll(
+                asList(
+                    new SearchRequestInterceptor(threadPool, getLicenseState(), clusterService),
+                    new ShardSearchRequestInterceptor(threadPool, getLicenseState(), clusterService),
+                    new UpdateRequestInterceptor(threadPool, getLicenseState()),
+                    new BulkShardRequestInterceptor(threadPool, getLicenseState()),
+                    new DlsFlsLicenseRequestInterceptor(threadPool.getThreadContext(), getLicenseState())
+                )
+            );
         }
         requestInterceptors = Collections.unmodifiableSet(requestInterceptors);
 
-        final AuthorizationService authzService = new AuthorizationService(settings, allRolesStore, clusterService,
-            auditTrailService, failureHandler, threadPool, anonymousUser, getAuthorizationEngine(), requestInterceptors,
-            getLicenseState(), expressionResolver, operatorPrivilegesService);
+        final AuthorizationService authzService = new AuthorizationService(
+            settings,
+            allRolesStore,
+            clusterService,
+            auditTrailService,
+            failureHandler,
+            threadPool,
+            anonymousUser,
+            getAuthorizationEngine(),
+            requestInterceptors,
+            getLicenseState(),
+            expressionResolver,
+            operatorPrivilegesService
+        );
 
         components.add(nativeRolesStore); // used by roles actions
         components.add(reservedRolesStore); // used by roles actions
@@ -692,11 +859,31 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         ipFilter.set(new IPFilter(settings, auditTrailService, clusterService.getClusterSettings(), getLicenseState()));
         components.add(ipFilter.get());
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
-        securityInterceptor.set(new SecurityServerTransportInterceptor(settings, threadPool, authcService.get(),
-                authzService, getLicenseState(), getSslService(), securityContext.get(), destructiveOperations, clusterService));
+        securityInterceptor.set(
+            new SecurityServerTransportInterceptor(
+                settings,
+                threadPool,
+                authcService.get(),
+                authzService,
+                getLicenseState(),
+                getSslService(),
+                securityContext.get(),
+                destructiveOperations,
+                clusterService
+            )
+        );
 
-        securityActionFilter.set(new SecurityActionFilter(authcService.get(), authzService, auditTrailService, getLicenseState(),
-            threadPool, securityContext.get(), destructiveOperations));
+        securityActionFilter.set(
+            new SecurityActionFilter(
+                authcService.get(),
+                authzService,
+                auditTrailService,
+                getLicenseState(),
+                threadPool,
+                securityContext.get(),
+                destructiveOperations
+            )
+        );
 
         cacheInvalidatorRegistry.validate();
 
@@ -707,8 +894,10 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         return findValueFromExtensions("authorization engine", extension -> extension.getAuthorizationEngine(settings));
     }
 
-    private AuthenticationFailureHandler createAuthenticationFailureHandler(final Realms realms,
-                                                                            final SecurityExtension.SecurityComponents components) {
+    private AuthenticationFailureHandler createAuthenticationFailureHandler(
+        final Realms realms,
+        final SecurityExtension.SecurityComponents components
+    ) {
         AuthenticationFailureHandler failureHandler = findValueFromExtensions(
             "authentication failure handler",
             extension -> extension.getAuthenticationFailureHandler(components)
@@ -721,17 +910,17 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                     Map<String, List<String>> realmFailureHeaders = realm.getAuthenticationFailureHeaders();
                     realmFailureHeaders.entrySet().stream().forEach((e) -> {
                         String key = e.getKey();
-                        e.getValue().stream()
-                                .filter(v -> defaultFailureResponseHeaders.computeIfAbsent(key, x -> new ArrayList<>()).contains(v)
-                                    == false)
-                                .forEach(v -> defaultFailureResponseHeaders.get(key).add(v));
+                        e.getValue()
+                            .stream()
+                            .filter(v -> defaultFailureResponseHeaders.computeIfAbsent(key, x -> new ArrayList<>()).contains(v) == false)
+                            .forEach(v -> defaultFailureResponseHeaders.get(key).add(v));
                     });
                 });
 
                 if (TokenService.isTokenServiceEnabled(settings)) {
                     String bearerScheme = "Bearer realm=\"" + XPackField.SECURITY + "\"";
                     if (defaultFailureResponseHeaders.computeIfAbsent("WWW-Authenticate", x -> new ArrayList<>())
-                            .contains(bearerScheme) == false) {
+                        .contains(bearerScheme) == false) {
                         defaultFailureResponseHeaders.get("WWW-Authenticate").add(bearerScheme);
                     }
                 }
@@ -746,9 +935,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             };
             DefaultAuthenticationFailureHandler finalDefaultFailureHandler = new DefaultAuthenticationFailureHandler(headersSupplier.get());
             failureHandler = finalDefaultFailureHandler;
-            getLicenseState().addListener(() -> {
-                finalDefaultFailureHandler.setHeaders(headersSupplier.get());
-            });
+            getLicenseState().addListener(() -> { finalDefaultFailureHandler.setHeaders(headersSupplier.get()); });
         }
         return failureHandler;
     }
@@ -809,12 +996,13 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                     SecurityHttpSettings.overrideSettings(builder, settings);
                 } else {
                     final String message = String.format(
-                            Locale.ROOT,
-                            "http type setting [%s] must be [%s] or [%s] but is [%s]",
-                            NetworkModule.HTTP_TYPE_KEY,
-                            SecurityField.NAME4,
-                            SecurityField.NIO,
-                            httpType);
+                        Locale.ROOT,
+                        "http type setting [%s] must be [%s] or [%s] but is [%s]",
+                        NetworkModule.HTTP_TYPE_KEY,
+                        SecurityField.NAME4,
+                        SecurityField.NIO,
+                        httpType
+                    );
                     throw new IllegalArgumentException(message);
                 }
             } else {
@@ -834,9 +1022,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         return getSettings(transportClientMode, securityExtensions);
     }
 
-        /**
-         * Get the {@link Setting setting configuration} for all security components, including those defined in extensions.
-         */
+    /**
+     * Get the {@link Setting setting configuration} for all security components, including those defined in extensions.
+     */
     public static List<Setting<?>> getSettings(boolean transportClientMode, List<SecurityExtension> securityExtensions) {
         List<Setting<?>> settingsList = new ArrayList<>();
 
@@ -881,8 +1069,15 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         settingsList.add(CachingServiceAccountTokenStore.CACHE_MAX_TOKENS_SETTING);
 
         // hide settings
-        settingsList.add(Setting.listSetting(SecurityField.setting("hide_settings"), Collections.emptyList(), Function.identity(),
-                Property.NodeScope, Property.Filtered));
+        settingsList.add(
+            Setting.listSetting(
+                SecurityField.setting("hide_settings"),
+                Collections.emptyList(),
+                Function.identity(),
+                Property.NodeScope,
+                Property.Filtered
+            )
+        );
         return settingsList;
     }
 
@@ -914,7 +1109,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
     @Override
     public List<BootstrapCheck> getBootstrapChecks() {
-       return bootstrapChecks.get();
+        return bootstrapChecks.get();
     }
 
     @Override
@@ -923,43 +1118,46 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             assert getLicenseState() != null;
             if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
                 assert dlsBitsetCache.get() != null;
-                module.setReaderWrapper(indexService ->
-                        new SecurityIndexReaderWrapper(
-                                shardId -> indexService.newSearchExecutionContext(shardId.id(),
-                                0,
-                                // we pass a null index reader, which is legal and will disable rewrite optimizations
-                                // based on index statistics, which is probably safer...
-                                null,
-                                () -> {
-                                    throw new IllegalArgumentException("permission filters are not allowed to use the current timestamp");
+                module.setReaderWrapper(
+                    indexService -> new SecurityIndexReaderWrapper(
+                        shardId -> indexService.newSearchExecutionContext(
+                            shardId.id(),
+                            0,
+                            // we pass a null index reader, which is legal and will disable rewrite optimizations
+                            // based on index statistics, which is probably safer...
+                            null,
+                            () -> {
+                                throw new IllegalArgumentException("permission filters are not allowed to use the current timestamp");
 
-                                },
-                                null,
-                                // Don't use runtime mappings in the security query
-                                emptyMap()),
-                                dlsBitsetCache.get(),
-                                securityContext.get(),
-                                getLicenseState(),
-                                indexService.getScriptService()));
+                            },
+                            null,
+                            // Don't use runtime mappings in the security query
+                            emptyMap()
+                        ),
+                        dlsBitsetCache.get(),
+                        securityContext.get(),
+                        getLicenseState(),
+                        indexService.getScriptService()
+                    )
+                );
                 /*
                  * We need to forcefully overwrite the query cache implementation to use security's opt-out query cache implementation. This
                  * implementation disables the query cache if field level security is used for a particular request. We have to forcefully
                  * overwrite the query cache implementation to prevent data leakage to unauthorized users.
                  */
-                module.forceQueryCacheProvider(
-                        (settings, cache) -> {
-                            final OptOutQueryCache queryCache =
-                                    new OptOutQueryCache(settings, cache, threadContext.get(), getLicenseState());
-                            queryCache.listenForLicenseStateChanges();
-                            return queryCache;
-                        });
+                module.forceQueryCacheProvider((settings, cache) -> {
+                    final OptOutQueryCache queryCache = new OptOutQueryCache(settings, cache, threadContext.get(), getLicenseState());
+                    queryCache.listenForLicenseStateChanges();
+                    return queryCache;
+                });
             }
 
             // in order to prevent scroll ids from being maliciously crafted and/or guessed, a listener is added that
             // attaches information to the scroll context so that we can validate the user that created the scroll against
             // the user that is executing a scroll operation
             module.addSearchOperationListener(
-                    new SecuritySearchOperationListener(securityContext.get(), getLicenseState(), auditTrailService.get()));
+                new SecuritySearchOperationListener(securityContext.get(), getLicenseState(), auditTrailService.get())
+            );
         }
     }
 
@@ -969,54 +1167,52 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             return emptyList();
         }
         return asList(
-                new ActionHandler<>(ClearRealmCacheAction.INSTANCE, TransportClearRealmCacheAction.class),
-                new ActionHandler<>(ClearRolesCacheAction.INSTANCE, TransportClearRolesCacheAction.class),
-                new ActionHandler<>(ClearPrivilegesCacheAction.INSTANCE, TransportClearPrivilegesCacheAction.class),
-                new ActionHandler<>(ClearSecurityCacheAction.INSTANCE, TransportClearSecurityCacheAction.class),
-                new ActionHandler<>(GetUsersAction.INSTANCE, TransportGetUsersAction.class),
-                new ActionHandler<>(PutUserAction.INSTANCE, TransportPutUserAction.class),
-                new ActionHandler<>(DeleteUserAction.INSTANCE, TransportDeleteUserAction.class),
-                new ActionHandler<>(GetRolesAction.INSTANCE, TransportGetRolesAction.class),
-                new ActionHandler<>(PutRoleAction.INSTANCE, TransportPutRoleAction.class),
-                new ActionHandler<>(DeleteRoleAction.INSTANCE, TransportDeleteRoleAction.class),
-                new ActionHandler<>(ChangePasswordAction.INSTANCE, TransportChangePasswordAction.class),
-                new ActionHandler<>(AuthenticateAction.INSTANCE, TransportAuthenticateAction.class),
-                new ActionHandler<>(SetEnabledAction.INSTANCE, TransportSetEnabledAction.class),
-                new ActionHandler<>(HasPrivilegesAction.INSTANCE, TransportHasPrivilegesAction.class),
-                new ActionHandler<>(GetUserPrivilegesAction.INSTANCE, TransportGetUserPrivilegesAction.class),
-                new ActionHandler<>(GetRoleMappingsAction.INSTANCE, TransportGetRoleMappingsAction.class),
-                new ActionHandler<>(PutRoleMappingAction.INSTANCE, TransportPutRoleMappingAction.class),
-                new ActionHandler<>(DeleteRoleMappingAction.INSTANCE, TransportDeleteRoleMappingAction.class),
-                new ActionHandler<>(CreateTokenAction.INSTANCE, TransportCreateTokenAction.class),
-                new ActionHandler<>(InvalidateTokenAction.INSTANCE, TransportInvalidateTokenAction.class),
-                new ActionHandler<>(GetCertificateInfoAction.INSTANCE, TransportGetCertificateInfoAction.class),
-                new ActionHandler<>(RefreshTokenAction.INSTANCE, TransportRefreshTokenAction.class),
-                new ActionHandler<>(SamlPrepareAuthenticationAction.INSTANCE, TransportSamlPrepareAuthenticationAction.class),
-                new ActionHandler<>(SamlAuthenticateAction.INSTANCE, TransportSamlAuthenticateAction.class),
-                new ActionHandler<>(SamlLogoutAction.INSTANCE, TransportSamlLogoutAction.class),
-                new ActionHandler<>(SamlInvalidateSessionAction.INSTANCE, TransportSamlInvalidateSessionAction.class),
-                new ActionHandler<>(SamlCompleteLogoutAction.INSTANCE, TransportSamlCompleteLogoutAction.class),
-                new ActionHandler<>(SamlSpMetadataAction.INSTANCE, TransportSamlSpMetadataAction.class),
-                new ActionHandler<>(OpenIdConnectPrepareAuthenticationAction.INSTANCE,
-                    TransportOpenIdConnectPrepareAuthenticationAction.class),
-                new ActionHandler<>(OpenIdConnectAuthenticateAction.INSTANCE, TransportOpenIdConnectAuthenticateAction.class),
-                new ActionHandler<>(OpenIdConnectLogoutAction.INSTANCE, TransportOpenIdConnectLogoutAction.class),
-                new ActionHandler<>(GetBuiltinPrivilegesAction.INSTANCE, TransportGetBuiltinPrivilegesAction.class),
-                new ActionHandler<>(GetPrivilegesAction.INSTANCE, TransportGetPrivilegesAction.class),
-                new ActionHandler<>(PutPrivilegesAction.INSTANCE, TransportPutPrivilegesAction.class),
-                new ActionHandler<>(DeletePrivilegesAction.INSTANCE, TransportDeletePrivilegesAction.class),
-                new ActionHandler<>(CreateApiKeyAction.INSTANCE, TransportCreateApiKeyAction.class),
-                new ActionHandler<>(GrantApiKeyAction.INSTANCE, TransportGrantApiKeyAction.class),
-                new ActionHandler<>(InvalidateApiKeyAction.INSTANCE, TransportInvalidateApiKeyAction.class),
-                new ActionHandler<>(GetApiKeyAction.INSTANCE, TransportGetApiKeyAction.class),
-                new ActionHandler<>(QueryApiKeyAction.INSTANCE, TransportQueryApiKeyAction.class),
-                new ActionHandler<>(DelegatePkiAuthenticationAction.INSTANCE, TransportDelegatePkiAuthenticationAction.class),
-                new ActionHandler<>(CreateServiceAccountTokenAction.INSTANCE, TransportCreateServiceAccountTokenAction.class),
-                new ActionHandler<>(DeleteServiceAccountTokenAction.INSTANCE, TransportDeleteServiceAccountTokenAction.class),
-                new ActionHandler<>(GetServiceAccountCredentialsAction.INSTANCE, TransportGetServiceAccountCredentialsAction.class),
-                new ActionHandler<>(GetServiceAccountNodesCredentialsAction.INSTANCE,
-                    TransportGetServiceAccountNodesCredentialsAction.class),
-                new ActionHandler<>(GetServiceAccountAction.INSTANCE, TransportGetServiceAccountAction.class)
+            new ActionHandler<>(ClearRealmCacheAction.INSTANCE, TransportClearRealmCacheAction.class),
+            new ActionHandler<>(ClearRolesCacheAction.INSTANCE, TransportClearRolesCacheAction.class),
+            new ActionHandler<>(ClearPrivilegesCacheAction.INSTANCE, TransportClearPrivilegesCacheAction.class),
+            new ActionHandler<>(ClearSecurityCacheAction.INSTANCE, TransportClearSecurityCacheAction.class),
+            new ActionHandler<>(GetUsersAction.INSTANCE, TransportGetUsersAction.class),
+            new ActionHandler<>(PutUserAction.INSTANCE, TransportPutUserAction.class),
+            new ActionHandler<>(DeleteUserAction.INSTANCE, TransportDeleteUserAction.class),
+            new ActionHandler<>(GetRolesAction.INSTANCE, TransportGetRolesAction.class),
+            new ActionHandler<>(PutRoleAction.INSTANCE, TransportPutRoleAction.class),
+            new ActionHandler<>(DeleteRoleAction.INSTANCE, TransportDeleteRoleAction.class),
+            new ActionHandler<>(ChangePasswordAction.INSTANCE, TransportChangePasswordAction.class),
+            new ActionHandler<>(AuthenticateAction.INSTANCE, TransportAuthenticateAction.class),
+            new ActionHandler<>(SetEnabledAction.INSTANCE, TransportSetEnabledAction.class),
+            new ActionHandler<>(HasPrivilegesAction.INSTANCE, TransportHasPrivilegesAction.class),
+            new ActionHandler<>(GetUserPrivilegesAction.INSTANCE, TransportGetUserPrivilegesAction.class),
+            new ActionHandler<>(GetRoleMappingsAction.INSTANCE, TransportGetRoleMappingsAction.class),
+            new ActionHandler<>(PutRoleMappingAction.INSTANCE, TransportPutRoleMappingAction.class),
+            new ActionHandler<>(DeleteRoleMappingAction.INSTANCE, TransportDeleteRoleMappingAction.class),
+            new ActionHandler<>(CreateTokenAction.INSTANCE, TransportCreateTokenAction.class),
+            new ActionHandler<>(InvalidateTokenAction.INSTANCE, TransportInvalidateTokenAction.class),
+            new ActionHandler<>(GetCertificateInfoAction.INSTANCE, TransportGetCertificateInfoAction.class),
+            new ActionHandler<>(RefreshTokenAction.INSTANCE, TransportRefreshTokenAction.class),
+            new ActionHandler<>(SamlPrepareAuthenticationAction.INSTANCE, TransportSamlPrepareAuthenticationAction.class),
+            new ActionHandler<>(SamlAuthenticateAction.INSTANCE, TransportSamlAuthenticateAction.class),
+            new ActionHandler<>(SamlLogoutAction.INSTANCE, TransportSamlLogoutAction.class),
+            new ActionHandler<>(SamlInvalidateSessionAction.INSTANCE, TransportSamlInvalidateSessionAction.class),
+            new ActionHandler<>(SamlCompleteLogoutAction.INSTANCE, TransportSamlCompleteLogoutAction.class),
+            new ActionHandler<>(SamlSpMetadataAction.INSTANCE, TransportSamlSpMetadataAction.class),
+            new ActionHandler<>(OpenIdConnectPrepareAuthenticationAction.INSTANCE, TransportOpenIdConnectPrepareAuthenticationAction.class),
+            new ActionHandler<>(OpenIdConnectAuthenticateAction.INSTANCE, TransportOpenIdConnectAuthenticateAction.class),
+            new ActionHandler<>(OpenIdConnectLogoutAction.INSTANCE, TransportOpenIdConnectLogoutAction.class),
+            new ActionHandler<>(GetBuiltinPrivilegesAction.INSTANCE, TransportGetBuiltinPrivilegesAction.class),
+            new ActionHandler<>(GetPrivilegesAction.INSTANCE, TransportGetPrivilegesAction.class),
+            new ActionHandler<>(PutPrivilegesAction.INSTANCE, TransportPutPrivilegesAction.class),
+            new ActionHandler<>(DeletePrivilegesAction.INSTANCE, TransportDeletePrivilegesAction.class),
+            new ActionHandler<>(CreateApiKeyAction.INSTANCE, TransportCreateApiKeyAction.class),
+            new ActionHandler<>(GrantApiKeyAction.INSTANCE, TransportGrantApiKeyAction.class),
+            new ActionHandler<>(InvalidateApiKeyAction.INSTANCE, TransportInvalidateApiKeyAction.class),
+            new ActionHandler<>(GetApiKeyAction.INSTANCE, TransportGetApiKeyAction.class),
+            new ActionHandler<>(QueryApiKeyAction.INSTANCE, TransportQueryApiKeyAction.class),
+            new ActionHandler<>(DelegatePkiAuthenticationAction.INSTANCE, TransportDelegatePkiAuthenticationAction.class),
+            new ActionHandler<>(CreateServiceAccountTokenAction.INSTANCE, TransportCreateServiceAccountTokenAction.class),
+            new ActionHandler<>(DeleteServiceAccountTokenAction.INSTANCE, TransportDeleteServiceAccountTokenAction.class),
+            new ActionHandler<>(GetServiceAccountCredentialsAction.INSTANCE, TransportGetServiceAccountCredentialsAction.class),
+            new ActionHandler<>(GetServiceAccountNodesCredentialsAction.INSTANCE, TransportGetServiceAccountNodesCredentialsAction.class),
+            new ActionHandler<>(GetServiceAccountAction.INSTANCE, TransportGetServiceAccountAction.class)
         );
     }
 
@@ -1033,65 +1229,73 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-            IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
-            Supplier<DiscoveryNodes> nodesInCluster) {
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
         if (enabled == false) {
             return emptyList();
         }
         return asList(
-                new RestAuthenticateAction(settings, securityContext.get(), getLicenseState()),
-                new RestClearRealmCacheAction(settings, getLicenseState()),
-                new RestClearRolesCacheAction(settings, getLicenseState()),
-                new RestClearPrivilegesCacheAction(settings, getLicenseState()),
-                new RestClearApiKeyCacheAction(settings, getLicenseState()),
-                new RestClearServiceAccountTokenStoreCacheAction(settings, getLicenseState()),
-                new RestGetUsersAction(settings, getLicenseState()),
-                new RestPutUserAction(settings, getLicenseState()),
-                new RestDeleteUserAction(settings, getLicenseState()),
-                new RestGetRolesAction(settings, getLicenseState()),
-                new RestPutRoleAction(settings, getLicenseState()),
-                new RestDeleteRoleAction(settings, getLicenseState()),
-                new RestChangePasswordAction(settings, securityContext.get(), getLicenseState()),
-                new RestSetEnabledAction(settings, getLicenseState()),
-                new RestHasPrivilegesAction(settings, securityContext.get(), getLicenseState()),
-                new RestGetUserPrivilegesAction(settings, securityContext.get(), getLicenseState()),
-                new RestGetRoleMappingsAction(settings, getLicenseState()),
-                new RestPutRoleMappingAction(settings, getLicenseState()),
-                new RestDeleteRoleMappingAction(settings, getLicenseState()),
-                new RestGetTokenAction(settings, getLicenseState()),
-                new RestInvalidateTokenAction(settings, getLicenseState()),
-                new RestGetCertificateInfoAction(),
-                new RestSamlPrepareAuthenticationAction(settings, getLicenseState()),
-                new RestSamlAuthenticateAction(settings, getLicenseState()),
-                new RestSamlLogoutAction(settings, getLicenseState()),
-                new RestSamlInvalidateSessionAction(settings, getLicenseState()),
-                new RestSamlCompleteLogoutAction(settings, getLicenseState()),
-                new RestSamlSpMetadataAction(settings, getLicenseState()),
-                new RestOpenIdConnectPrepareAuthenticationAction(settings, getLicenseState()),
-                new RestOpenIdConnectAuthenticateAction(settings, getLicenseState()),
-                new RestOpenIdConnectLogoutAction(settings, getLicenseState()),
-                new RestGetBuiltinPrivilegesAction(settings, getLicenseState()),
-                new RestGetPrivilegesAction(settings, getLicenseState()),
-                new RestPutPrivilegesAction(settings, getLicenseState()),
-                new RestDeletePrivilegesAction(settings, getLicenseState()),
-                new RestCreateApiKeyAction(settings, getLicenseState()),
-                new RestGrantApiKeyAction(settings, getLicenseState()),
-                new RestInvalidateApiKeyAction(settings, getLicenseState()),
-                new RestGetApiKeyAction(settings, getLicenseState()),
-                new RestQueryApiKeyAction(settings, getLicenseState()),
-                new RestDelegatePkiAuthenticationAction(settings, getLicenseState()),
-                new RestCreateServiceAccountTokenAction(settings, getLicenseState()),
-                new RestDeleteServiceAccountTokenAction(settings, getLicenseState()),
-                new RestGetServiceAccountCredentialsAction(settings, getLicenseState()),
-                new RestGetServiceAccountAction(settings, getLicenseState())
+            new RestAuthenticateAction(settings, securityContext.get(), getLicenseState()),
+            new RestClearRealmCacheAction(settings, getLicenseState()),
+            new RestClearRolesCacheAction(settings, getLicenseState()),
+            new RestClearPrivilegesCacheAction(settings, getLicenseState()),
+            new RestClearApiKeyCacheAction(settings, getLicenseState()),
+            new RestClearServiceAccountTokenStoreCacheAction(settings, getLicenseState()),
+            new RestGetUsersAction(settings, getLicenseState()),
+            new RestPutUserAction(settings, getLicenseState()),
+            new RestDeleteUserAction(settings, getLicenseState()),
+            new RestGetRolesAction(settings, getLicenseState()),
+            new RestPutRoleAction(settings, getLicenseState()),
+            new RestDeleteRoleAction(settings, getLicenseState()),
+            new RestChangePasswordAction(settings, securityContext.get(), getLicenseState()),
+            new RestSetEnabledAction(settings, getLicenseState()),
+            new RestHasPrivilegesAction(settings, securityContext.get(), getLicenseState()),
+            new RestGetUserPrivilegesAction(settings, securityContext.get(), getLicenseState()),
+            new RestGetRoleMappingsAction(settings, getLicenseState()),
+            new RestPutRoleMappingAction(settings, getLicenseState()),
+            new RestDeleteRoleMappingAction(settings, getLicenseState()),
+            new RestGetTokenAction(settings, getLicenseState()),
+            new RestInvalidateTokenAction(settings, getLicenseState()),
+            new RestGetCertificateInfoAction(),
+            new RestSamlPrepareAuthenticationAction(settings, getLicenseState()),
+            new RestSamlAuthenticateAction(settings, getLicenseState()),
+            new RestSamlLogoutAction(settings, getLicenseState()),
+            new RestSamlInvalidateSessionAction(settings, getLicenseState()),
+            new RestSamlCompleteLogoutAction(settings, getLicenseState()),
+            new RestSamlSpMetadataAction(settings, getLicenseState()),
+            new RestOpenIdConnectPrepareAuthenticationAction(settings, getLicenseState()),
+            new RestOpenIdConnectAuthenticateAction(settings, getLicenseState()),
+            new RestOpenIdConnectLogoutAction(settings, getLicenseState()),
+            new RestGetBuiltinPrivilegesAction(settings, getLicenseState()),
+            new RestGetPrivilegesAction(settings, getLicenseState()),
+            new RestPutPrivilegesAction(settings, getLicenseState()),
+            new RestDeletePrivilegesAction(settings, getLicenseState()),
+            new RestCreateApiKeyAction(settings, getLicenseState()),
+            new RestGrantApiKeyAction(settings, getLicenseState()),
+            new RestInvalidateApiKeyAction(settings, getLicenseState()),
+            new RestGetApiKeyAction(settings, getLicenseState()),
+            new RestQueryApiKeyAction(settings, getLicenseState()),
+            new RestDelegatePkiAuthenticationAction(settings, getLicenseState()),
+            new RestCreateServiceAccountTokenAction(settings, getLicenseState()),
+            new RestDeleteServiceAccountTokenAction(settings, getLicenseState()),
+            new RestGetServiceAccountCredentialsAction(settings, getLicenseState()),
+            new RestGetServiceAccountAction(settings, getLicenseState())
         );
     }
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        return Collections.singletonMap(SetSecurityUserProcessor.TYPE,
-            new SetSecurityUserProcessor.Factory(securityContext::get, this::getLicenseState));
+        return Collections.singletonMap(
+            SetSecurityUserProcessor.TYPE,
+            new SetSecurityUserProcessor.Factory(securityContext::get, this::getLicenseState)
+        );
     }
 
     /**
@@ -1109,22 +1313,24 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
      * <em>unknown setting [xpack.security.authc.realms.file1.order]</em>. This validation method provides an error that is easier to
      * understand and take action on.
      */
-     static void validateRealmSettings(Settings settings) {
-        final Set<String> badRealmSettings = settings.keySet().stream()
-            .filter(k -> k.startsWith(RealmSettings.PREFIX))
-            .filter(key -> {
-                final String suffix = key.substring(RealmSettings.PREFIX.length());
-                // suffix-part, only contains a single '.'
-                return suffix.indexOf('.') == suffix.lastIndexOf('.');
-            })
-            .collect(Collectors.toSet());
+    static void validateRealmSettings(Settings settings) {
+        final Set<String> badRealmSettings = settings.keySet().stream().filter(k -> k.startsWith(RealmSettings.PREFIX)).filter(key -> {
+            final String suffix = key.substring(RealmSettings.PREFIX.length());
+            // suffix-part, only contains a single '.'
+            return suffix.indexOf('.') == suffix.lastIndexOf('.');
+        }).collect(Collectors.toSet());
         if (badRealmSettings.isEmpty() == false) {
             String sampleRealmSetting = RealmSettings.realmSettingPrefix(new RealmConfig.RealmIdentifier("file", "my_file")) + "order";
-            throw new IllegalArgumentException("Incorrect realm settings found. " +
-                "Realm settings have been changed to include the type as part of the setting key.\n" +
-                "For example '" + sampleRealmSetting + "'\n" +
-                "Found invalid config: " + Strings.collectionToDelimitedString(badRealmSettings, ", ") + "\n" +
-                "Please see the breaking changes documentation."
+            throw new IllegalArgumentException(
+                "Incorrect realm settings found. "
+                    + "Realm settings have been changed to include the type as part of the setting key.\n"
+                    + "For example '"
+                    + sampleRealmSetting
+                    + "'\n"
+                    + "Found invalid config: "
+                    + Strings.collectionToDelimitedString(badRealmSettings, ", ")
+                    + "\n"
+                    + "Please see the breaking changes documentation."
             );
         }
     }
@@ -1134,19 +1340,31 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         Settings keystoreTypeSettings = settings.filter(k -> k.endsWith("keystore.type"))
             .filter(k -> settings.get(k).equalsIgnoreCase("jks"));
         if (keystoreTypeSettings.isEmpty() == false) {
-            validationErrors.add("JKS Keystores cannot be used in a FIPS 140 compliant JVM. Please " +
-                "revisit [" + keystoreTypeSettings.toDelimitedString(',') + "] settings");
+            validationErrors.add(
+                "JKS Keystores cannot be used in a FIPS 140 compliant JVM. Please "
+                    + "revisit ["
+                    + keystoreTypeSettings.toDelimitedString(',')
+                    + "] settings"
+            );
         }
         Settings keystorePathSettings = settings.filter(k -> k.endsWith("keystore.path"))
             .filter(k -> settings.hasValue(k.replace(".path", ".type")) == false);
         if (keystorePathSettings.isEmpty() == false && SSLConfigurationSettings.inferKeyStoreType(null).equals("jks")) {
-            validationErrors.add("JKS Keystores cannot be used in a FIPS 140 compliant JVM. Please " +
-                "revisit [" + keystorePathSettings.toDelimitedString(',') + "] settings");
+            validationErrors.add(
+                "JKS Keystores cannot be used in a FIPS 140 compliant JVM. Please "
+                    + "revisit ["
+                    + keystorePathSettings.toDelimitedString(',')
+                    + "] settings"
+            );
         }
         final String selectedAlgorithm = XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings);
         if (selectedAlgorithm.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
-            validationErrors.add("Only PBKDF2 is allowed for password hashing in a FIPS 140 JVM. Please set the " +
-                "appropriate value for [ " + XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey() + " ] setting.");
+            validationErrors.add(
+                "Only PBKDF2 is allowed for password hashing in a FIPS 140 JVM. Please set the "
+                    + "appropriate value for [ "
+                    + XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey()
+                    + " ] setting."
+            );
         }
         if (validationErrors.isEmpty() == false) {
             final StringBuilder sb = new StringBuilder();
@@ -1165,11 +1383,14 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             // interceptors are not installed if we are running on the transport client
             return Collections.emptyList();
         }
-       return Collections.singletonList(new TransportInterceptor() {
+        return Collections.singletonList(new TransportInterceptor() {
             @Override
-            public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
-                                                                                            boolean forceExecution,
-                                                                                            TransportRequestHandler<T> actualHandler) {
+            public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
+                String action,
+                String executor,
+                boolean forceExecution,
+                TransportRequestHandler<T> actualHandler
+            ) {
                 assert securityInterceptor.get() != null;
                 return securityInterceptor.get().interceptHandler(action, executor, forceExecution, actualHandler);
             }
@@ -1183,9 +1404,14 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     }
 
     @Override
-    public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, PageCacheRecycler pageCacheRecycler,
-                                                          CircuitBreakerService circuitBreakerService,
-                                                          NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
+    public Map<String, Supplier<Transport>> getTransports(
+        Settings settings,
+        ThreadPool threadPool,
+        PageCacheRecycler pageCacheRecycler,
+        CircuitBreakerService circuitBreakerService,
+        NamedWriteableRegistry namedWriteableRegistry,
+        NetworkService networkService
+    ) {
         if (transportClientMode || enabled == false) { // don't register anything if we are not enabled, or in transport client mode
             return Collections.emptyMap();
         }
@@ -1194,15 +1420,37 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         Map<String, Supplier<Transport>> transports = new HashMap<>();
         transports.put(SecurityField.NAME4, () -> {
-            transportReference.set(new SecurityNetty4ServerTransport(settings, Version.CURRENT, threadPool,
-                networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, ipFilter, getSslService(),
-                getNettySharedGroupFactory(settings)));
+            transportReference.set(
+                new SecurityNetty4ServerTransport(
+                    settings,
+                    Version.CURRENT,
+                    threadPool,
+                    networkService,
+                    pageCacheRecycler,
+                    namedWriteableRegistry,
+                    circuitBreakerService,
+                    ipFilter,
+                    getSslService(),
+                    getNettySharedGroupFactory(settings)
+                )
+            );
             return transportReference.get();
         });
         transports.put(SecurityField.NIO, () -> {
-            transportReference.set(new SecurityNioTransport(settings, Version.CURRENT, threadPool, networkService,
-                pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, ipFilter, getSslService(),
-                getNioGroupFactory(settings)));
+            transportReference.set(
+                new SecurityNioTransport(
+                    settings,
+                    Version.CURRENT,
+                    threadPool,
+                    networkService,
+                    pageCacheRecycler,
+                    namedWriteableRegistry,
+                    circuitBreakerService,
+                    ipFilter,
+                    getSslService(),
+                    getNioGroupFactory(settings)
+                )
+            );
             return transportReference.get();
         });
 
@@ -1210,24 +1458,53 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     }
 
     @Override
-    public Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
-                                                                        PageCacheRecycler pageCacheRecycler,
-                                                                        CircuitBreakerService circuitBreakerService,
-                                                                        NamedXContentRegistry xContentRegistry,
-                                                                        NetworkService networkService,
-                                                                        HttpServerTransport.Dispatcher dispatcher,
-                                                                        ClusterSettings clusterSettings) {
+    public Map<String, Supplier<HttpServerTransport>> getHttpTransports(
+        Settings settings,
+        ThreadPool threadPool,
+        BigArrays bigArrays,
+        PageCacheRecycler pageCacheRecycler,
+        CircuitBreakerService circuitBreakerService,
+        NamedXContentRegistry xContentRegistry,
+        NetworkService networkService,
+        HttpServerTransport.Dispatcher dispatcher,
+        ClusterSettings clusterSettings
+    ) {
         if (enabled == false) { // don't register anything if we are not enabled
             return Collections.emptyMap();
         }
 
         Map<String, Supplier<HttpServerTransport>> httpTransports = new HashMap<>();
-        httpTransports.put(SecurityField.NAME4, () -> new SecurityNetty4HttpServerTransport(settings, networkService, bigArrays,
-            ipFilter.get(), getSslService(), threadPool, xContentRegistry, dispatcher, clusterSettings,
-            getNettySharedGroupFactory(settings)));
-        httpTransports.put(SecurityField.NIO, () -> new SecurityNioHttpServerTransport(settings, networkService, bigArrays,
-            pageCacheRecycler, threadPool, xContentRegistry, dispatcher, ipFilter.get(), getSslService(), getNioGroupFactory(settings),
-            clusterSettings));
+        httpTransports.put(
+            SecurityField.NAME4,
+            () -> new SecurityNetty4HttpServerTransport(
+                settings,
+                networkService,
+                bigArrays,
+                ipFilter.get(),
+                getSslService(),
+                threadPool,
+                xContentRegistry,
+                dispatcher,
+                clusterSettings,
+                getNettySharedGroupFactory(settings)
+            )
+        );
+        httpTransports.put(
+            SecurityField.NIO,
+            () -> new SecurityNioHttpServerTransport(
+                settings,
+                networkService,
+                bigArrays,
+                pageCacheRecycler,
+                threadPool,
+                xContentRegistry,
+                dispatcher,
+                ipFilter.get(),
+                getSslService(),
+                getNioGroupFactory(settings),
+                clusterSettings
+            )
+        );
 
         return httpTransports;
     }
@@ -1244,8 +1521,14 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         } else {
             extractClientCertificate = false;
         }
-        return handler -> new SecurityRestFilter(getLicenseState(), threadContext, authcService.get(), secondayAuthc.get(),
-            handler, extractClientCertificate);
+        return handler -> new SecurityRestFilter(
+            getLicenseState(),
+            threadContext,
+            authcService.get(),
+            secondayAuthc.get(),
+            handler,
+            extractClientCertificate
+        );
     }
 
     @Override
@@ -1253,11 +1536,15 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         if (enabled && transportClientMode == false) {
             final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
             return org.elasticsearch.core.List.of(
-                new FixedExecutorBuilder(settings, TokenService.THREAD_POOL_NAME, 1, 1000,
-                    "xpack.security.authc.token.thread_pool", false),
-                new FixedExecutorBuilder(settings, SECURITY_CRYPTO_THREAD_POOL_NAME,
-                    (allocatedProcessors + 1) / 2, 1000,
-                    "xpack.security.crypto.thread_pool", false)
+                new FixedExecutorBuilder(settings, TokenService.THREAD_POOL_NAME, 1, 1000, "xpack.security.authc.token.thread_pool", false),
+                new FixedExecutorBuilder(
+                    settings,
+                    SECURITY_CRYPTO_THREAD_POOL_NAME,
+                    (allocatedProcessors + 1) / 2,
+                    1000,
+                    "xpack.security.crypto.thread_pool",
+                    false
+                )
             );
         }
         return Collections.emptyList();
@@ -1280,8 +1567,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 if (licenseState.isSecurityEnabled() == false) {
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
                 }
-                IndicesAccessControl indicesAccessControl = threadContext.get().getTransient(
-                        AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+                IndicesAccessControl indicesAccessControl = threadContext.get()
+                    .getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
                 if (indicesAccessControl == null) {
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
                 }
@@ -1309,8 +1596,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     @Override
     public BiConsumer<DiscoveryNode, ClusterState> getJoinValidator() {
         if (enabled) {
-            return new ValidateUpgradedSecurityIndex()
-                .andThen(new ValidateLicenseForFIPS(XPackSettings.FIPS_MODE_ENABLED.get(settings)));
+            return new ValidateUpgradedSecurityIndex().andThen(new ValidateLicenseForFIPS(XPackSettings.FIPS_MODE_ENABLED.get(settings)));
         }
         return null;
     }
@@ -1321,8 +1607,12 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             if (state.getNodes().getMinNodeVersion().before(Version.V_7_0_0)) {
                 IndexMetadata indexMetadata = state.getMetadata().getIndices().get(SECURITY_MAIN_ALIAS);
                 if (indexMetadata != null && INDEX_FORMAT_SETTING.get(indexMetadata.getSettings()) < INTERNAL_MAIN_INDEX_FORMAT) {
-                    throw new IllegalStateException("Security index is not on the current version [" + INTERNAL_MAIN_INDEX_FORMAT + "] - " +
-                        "The Upgrade API must be run for 7.x nodes to join the cluster");
+                    throw new IllegalStateException(
+                        "Security index is not on the current version ["
+                            + INTERNAL_MAIN_INDEX_FORMAT
+                            + "] - "
+                            + "The Upgrade API must be run for 7.x nodes to join the cluster"
+                    );
                 }
             }
         }
@@ -1333,8 +1623,15 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         public void accept(DiscoveryNode node, ClusterState state) {
             License license = LicenseService.getLicense(state.metadata());
             if (license != null && license.version() >= License.VERSION_CRYPTO_ALGORITHMS && node.getVersion().before(Version.V_6_4_0)) {
-                throw new IllegalStateException("node " + node + " is on version [" + node.getVersion() +
-                    "] that cannot deserialize the license format [" + license.version() + "], upgrade node to at least 6.4.0");
+                throw new IllegalStateException(
+                    "node "
+                        + node
+                        + " is on version ["
+                        + node.getVersion()
+                        + "] that cannot deserialize the license format ["
+                        + license.version()
+                        + "], upgrade node to at least 6.4.0"
+                );
             }
         }
     }
@@ -1350,10 +1647,12 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         public void accept(DiscoveryNode node, ClusterState state) {
             if (inFipsMode) {
                 License license = LicenseService.getLicense(state.metadata());
-                if (license != null &&
-                    XPackLicenseState.isFipsAllowedForOperationMode(license.operationMode()) == false) {
-                    throw new IllegalStateException("FIPS mode cannot be used with a [" + license.operationMode() +
-                        "] license. It is only allowed with a Platinum or Trial license.");
+                if (license != null && XPackLicenseState.isFipsAllowedForOperationMode(license.operationMode()) == false) {
+                    throw new IllegalStateException(
+                        "FIPS mode cannot be used with a ["
+                            + license.operationMode()
+                            + "] license. It is only allowed with a Platinum or Trial license."
+                    );
 
                 }
             }
@@ -1366,14 +1665,15 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     }
 
     private synchronized NioGroupFactory getNioGroupFactory(Settings settings) {
-         if (nioGroupFactory.get() != null) {
-             assert nioGroupFactory.get().getSettings().equals(settings) : "Different settings than originally provided";
-             return nioGroupFactory.get();
-         } else {
+        if (nioGroupFactory.get() != null) {
+            assert nioGroupFactory.get().getSettings().equals(settings) : "Different settings than originally provided";
+            return nioGroupFactory.get();
+        } else {
             nioGroupFactory.set(new NioGroupFactory(settings, logger));
             return nioGroupFactory.get();
-         }
+        }
     }
+
     private synchronized SharedGroupFactory getNettySharedGroupFactory(Settings settings) {
         if (sharedGroupFactory.get() != null) {
             assert sharedGroupFactory.get().getSettings().equals(settings) : "Different settings than originally provided";
@@ -1382,52 +1682,54 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             sharedGroupFactory.set(new SharedGroupFactory(settings));
             return sharedGroupFactory.get();
         }
-     }
+    }
 
-     private static SystemIndexDescriptor getSecurityMainIndexDescriptor() {
-         return SystemIndexDescriptor.builder()
-             .setMinimumNodeVersion(FLATTENED_FIELD_TYPE_INTRODUCED)
-             // This can't just be `.security-*` because that would overlap with the tokens index pattern
-             .setIndexPattern(".security-[0-9]+*")
-             .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7)
-             .setDescription("Contains Security configuration")
-             .setMappings(getIndexMappings())
-             .setSettings(getIndexSettings())
-             .setAliasName(SECURITY_MAIN_ALIAS)
-             .setIndexFormat(INTERNAL_MAIN_INDEX_FORMAT)
-             .setVersionMetaKey("security-version")
-             .setOrigin(SECURITY_ORIGIN)
-             .setPriorSystemIndexDescriptors(org.elasticsearch.core.List.of(
-                 SystemIndexDescriptor.builder()
-                     .setIndexPattern(".security-[0-9]+*")
-                     .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7)
-                     .setDescription("Contains Security configuration")
-                     .setMappings(getIndexMappings(Version.V_7_12_0))
-                     .setSettings(getIndexSettings())
-                     .setAliasName(SECURITY_MAIN_ALIAS)
-                     .setIndexFormat(INTERNAL_MAIN_INDEX_FORMAT)
-                     .setVersionMetaKey("security-version")
-                     .setOrigin(SECURITY_ORIGIN)
-                     .build()
-             ))
-             .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
-             .build();
-     }
+    private static SystemIndexDescriptor getSecurityMainIndexDescriptor() {
+        return SystemIndexDescriptor.builder()
+            .setMinimumNodeVersion(FLATTENED_FIELD_TYPE_INTRODUCED)
+            // This can't just be `.security-*` because that would overlap with the tokens index pattern
+            .setIndexPattern(".security-[0-9]+*")
+            .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7)
+            .setDescription("Contains Security configuration")
+            .setMappings(getIndexMappings())
+            .setSettings(getIndexSettings())
+            .setAliasName(SECURITY_MAIN_ALIAS)
+            .setIndexFormat(INTERNAL_MAIN_INDEX_FORMAT)
+            .setVersionMetaKey("security-version")
+            .setOrigin(SECURITY_ORIGIN)
+            .setPriorSystemIndexDescriptors(
+                org.elasticsearch.core.List.of(
+                    SystemIndexDescriptor.builder()
+                        .setIndexPattern(".security-[0-9]+*")
+                        .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7)
+                        .setDescription("Contains Security configuration")
+                        .setMappings(getIndexMappings(Version.V_7_12_0))
+                        .setSettings(getIndexSettings())
+                        .setAliasName(SECURITY_MAIN_ALIAS)
+                        .setIndexFormat(INTERNAL_MAIN_INDEX_FORMAT)
+                        .setVersionMetaKey("security-version")
+                        .setOrigin(SECURITY_ORIGIN)
+                        .build()
+                )
+            )
+            .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
+            .build();
+    }
 
-     private static SystemIndexDescriptor getSecurityTokenIndexDescriptor() {
-         return SystemIndexDescriptor.builder()
-             .setIndexPattern(".security-tokens-[0-9]+*")
-             .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_TOKENS_INDEX_7)
-             .setDescription("Contains auth token data")
-             .setMappings(getTokenIndexMappings())
-             .setSettings(getTokenIndexSettings())
-             .setAliasName(SECURITY_TOKENS_ALIAS)
-             .setIndexFormat(INTERNAL_TOKENS_INDEX_FORMAT)
-             .setVersionMetaKey(SECURITY_VERSION_STRING)
-             .setOrigin(SECURITY_ORIGIN)
-             .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
-             .build();
-     }
+    private static SystemIndexDescriptor getSecurityTokenIndexDescriptor() {
+        return SystemIndexDescriptor.builder()
+            .setIndexPattern(".security-tokens-[0-9]+*")
+            .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_TOKENS_INDEX_7)
+            .setDescription("Contains auth token data")
+            .setMappings(getTokenIndexMappings())
+            .setSettings(getTokenIndexSettings())
+            .setAliasName(SECURITY_TOKENS_ALIAS)
+            .setIndexFormat(INTERNAL_TOKENS_INDEX_FORMAT)
+            .setVersionMetaKey(SECURITY_VERSION_STRING)
+            .setOrigin(SECURITY_ORIGIN)
+            .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
+            .build();
+    }
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
@@ -1451,7 +1753,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     }
 
     private static XContentBuilder getIndexMappings() {
-         return getIndexMappings(Version.CURRENT);
+        return getIndexMappings(Version.CURRENT);
     }
 
     private static XContentBuilder getIndexMappings(Version mappingVersion) {
@@ -1839,7 +2141,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         } catch (IOException e) {
             logger.fatal("Failed to build " + RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7 + " index mappings", e);
             throw new UncheckedIOException(
-                "Failed to build " + RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7 + " index mappings", e);
+                "Failed to build " + RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7 + " index mappings",
+                e
+            );
         }
     }
 
@@ -1853,7 +2157,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), INTERNAL_TOKENS_INDEX_FORMAT)
             .build();
     }
-
 
     private static XContentBuilder getTokenIndexMappings() {
         try {
@@ -2000,7 +2303,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             return builder;
         } catch (IOException e) {
             throw new UncheckedIOException(
-                "Failed to build " + RestrictedIndicesNames.INTERNAL_SECURITY_TOKENS_INDEX_7 + " index mappings", e);
+                "Failed to build " + RestrictedIndicesNames.INTERNAL_SECURITY_TOKENS_INDEX_7 + " index mappings",
+                e
+            );
         }
     }
 

@@ -17,13 +17,13 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -36,18 +36,20 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestValidateQueryAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestValidateQueryAction.class);
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
-        " Specifying types in validate query requests is deprecated.";
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" + " Specifying types in validate query requests is deprecated.";
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_validate/query"),
-            new Route(POST, "/_validate/query"),
-            new Route(GET, "/{index}/_validate/query"),
-            new Route(POST, "/{index}/_validate/query"),
-            new Route(GET, "/{index}/{type}/_validate/query"),
-            new Route(POST, "/{index}/{type}/_validate/query")));
+        return unmodifiableList(
+            asList(
+                new Route(GET, "/_validate/query"),
+                new Route(POST, "/_validate/query"),
+                new Route(GET, "/{index}/_validate/query"),
+                new Route(POST, "/{index}/_validate/query"),
+                new Route(GET, "/{index}/{type}/_validate/query"),
+                new Route(POST, "/{index}/{type}/_validate/query")
+            )
+        );
     }
 
     @Override

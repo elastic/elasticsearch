@@ -19,11 +19,23 @@ public class NativeMemoryUsageEstimationProcess extends AbstractNativeAnalyticsP
 
     private static final String NAME = "memory_usage_estimation";
 
-    protected NativeMemoryUsageEstimationProcess(String jobId, ProcessPipes processPipes,
-                                                 int numberOfFields, List<Path> filesToDelete,
-                                                 Consumer<String> onProcessCrash) {
-        super(NAME, MemoryUsageEstimationResult.PARSER, jobId, processPipes,
-            numberOfFields, filesToDelete, onProcessCrash, NamedXContentRegistry.EMPTY);
+    protected NativeMemoryUsageEstimationProcess(
+        String jobId,
+        ProcessPipes processPipes,
+        int numberOfFields,
+        List<Path> filesToDelete,
+        Consumer<String> onProcessCrash
+    ) {
+        super(
+            NAME,
+            MemoryUsageEstimationResult.PARSER,
+            jobId,
+            processPipes,
+            numberOfFields,
+            filesToDelete,
+            onProcessCrash,
+            NamedXContentRegistry.EMPTY
+        );
     }
 
     @Override

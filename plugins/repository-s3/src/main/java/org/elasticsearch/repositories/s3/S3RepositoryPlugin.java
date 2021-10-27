@@ -9,6 +9,7 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.util.json.Jackson;
+
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -72,16 +73,23 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final NamedXContentRegistry registry,
         final ClusterService clusterService,
         final BigArrays bigArrays,
-        final RecoverySettings recoverySettings) {
+        final RecoverySettings recoverySettings
+    ) {
         return new S3Repository(metadata, registry, service, clusterService, bigArrays, recoverySettings);
     }
 
     @Override
-    public Map<String, Repository.Factory> getRepositories(final Environment env, final NamedXContentRegistry registry,
-                                                           final ClusterService clusterService, final BigArrays bigArrays,
-                                                           final RecoverySettings recoverySettings) {
-        return Collections.singletonMap(S3Repository.TYPE, metadata -> createRepository(metadata, registry, clusterService, bigArrays,
-            recoverySettings));
+    public Map<String, Repository.Factory> getRepositories(
+        final Environment env,
+        final NamedXContentRegistry registry,
+        final ClusterService clusterService,
+        final BigArrays bigArrays,
+        final RecoverySettings recoverySettings
+    ) {
+        return Collections.singletonMap(
+            S3Repository.TYPE,
+            metadata -> createRepository(metadata, registry, clusterService, bigArrays, recoverySettings)
+        );
     }
 
     @Override
@@ -104,7 +112,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3Repository.ACCESS_KEY_SETTING,
             S3Repository.SECRET_KEY_SETTING,
             S3ClientSettings.SIGNER_OVERRIDE,
-            S3ClientSettings.REGION);
+            S3ClientSettings.REGION
+        );
     }
 
     @Override

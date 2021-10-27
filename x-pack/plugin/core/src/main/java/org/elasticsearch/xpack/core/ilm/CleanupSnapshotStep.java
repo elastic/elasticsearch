@@ -50,34 +50,57 @@ public class CleanupSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             listener.onResponse(null);
             return;
         }
-        getClient().admin().cluster().prepareDeleteSnapshot(repositoryName, snapshotName).setMasterNodeTimeout(TimeValue.MAX_VALUE)
-                .execute(new ActionListener<AcknowledgedResponse>() {
+        getClient().admin()
+            .cluster()
+            .prepareDeleteSnapshot(repositoryName, snapshotName)
+            .setMasterNodeTimeout(TimeValue.MAX_VALUE)
+            .execute(new ActionListener<AcknowledgedResponse>() {
 
-            @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                if (acknowledgedResponse.isAcknowledged() == false) {
-                    String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
-                    throw new ElasticsearchException("cleanup snapshot step request for repository [" + repositoryName + "] and snapshot " +
-                        "[" + snapshotName + "] policy [" + policyName + "] and index [" + indexName + "] failed to be acknowledged");
-                }
-                listener.onResponse(null);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (e instanceof SnapshotMissingException) {
-                    // during the happy flow we generate a snapshot name and that snapshot doesn't exist in the repository
-                    listener.onResponse(null);
-                } else {
-                    if (e instanceof RepositoryMissingException) {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    if (acknowledgedResponse.isAcknowledged() == false) {
                         String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
-                        listener.onFailure(new IllegalStateException("repository [" + repositoryName + "] is missing. [" + policyName +
-                            "] policy for index [" + indexName + "] cannot continue until the repository is created", e));
+                        throw new ElasticsearchException(
+                            "cleanup snapshot step request for repository ["
+                                + repositoryName
+                                + "] and snapshot "
+                                + "["
+                                + snapshotName
+                                + "] policy ["
+                                + policyName
+                                + "] and index ["
+                                + indexName
+                                + "] failed to be acknowledged"
+                        );
+                    }
+                    listener.onResponse(null);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (e instanceof SnapshotMissingException) {
+                        // during the happy flow we generate a snapshot name and that snapshot doesn't exist in the repository
+                        listener.onResponse(null);
                     } else {
-                        listener.onFailure(e);
+                        if (e instanceof RepositoryMissingException) {
+                            String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+                            listener.onFailure(
+                                new IllegalStateException(
+                                    "repository ["
+                                        + repositoryName
+                                        + "] is missing. ["
+                                        + policyName
+                                        + "] policy for index ["
+                                        + indexName
+                                        + "] cannot continue until the repository is created",
+                                    e
+                                )
+                            );
+                        } else {
+                            listener.onFailure(e);
+                        }
                     }
                 }
-            }
-        });
+            });
     }
 }

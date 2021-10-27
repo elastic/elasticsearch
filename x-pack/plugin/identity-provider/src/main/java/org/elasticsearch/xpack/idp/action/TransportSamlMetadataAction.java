@@ -22,8 +22,12 @@ public class TransportSamlMetadataAction extends HandledTransportAction<SamlMeta
     private final SamlFactory samlFactory;
 
     @Inject
-    public TransportSamlMetadataAction(TransportService transportService, ActionFilters actionFilters,
-                                       SamlIdentityProvider idp, SamlFactory factory) {
+    public TransportSamlMetadataAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        SamlIdentityProvider idp,
+        SamlFactory factory
+    ) {
         super(SamlMetadataAction.NAME, transportService, actionFilters, SamlMetadataRequest::new);
         this.identityProvider = idp;
         this.samlFactory = factory;

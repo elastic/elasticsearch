@@ -5,21 +5,19 @@
  * 2.0.
  */
 
-
 package org.elasticsearch.xpack.ml.aggs.heuristic;
-
 
 import org.apache.commons.math3.util.FastMath;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.bucket.terms.heuristic.NXYSignificanceHeuristic;
+import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.bucket.terms.heuristic.NXYSignificanceHeuristic;
-import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -40,7 +38,7 @@ public class PValueScore extends NXYSignificanceHeuristic {
     public static final ParseField NORMALIZE_ABOVE = new ParseField("normalize_above");
     public static final ConstructingObjectParser<PValueScore, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
         boolean backgroundIsSuperset = args[0] == null || (boolean) args[0];
-        return new PValueScore(backgroundIsSuperset, (Long)args[1]);
+        return new PValueScore(backgroundIsSuperset, (Long) args[1]);
     });
     static {
         PARSER.declareBoolean(optionalConstructorArg(), BACKGROUND_IS_SUPERSET);
@@ -154,19 +152,19 @@ public class PValueScore extends NXYSignificanceHeuristic {
         if (normalizeAbove > 0L) {
             if (allDocsInClass > normalizeAbove) {
                 double factor = (double) normalizeAbove / allDocsInClass;
-                allDocsInClass = (long)(allDocsInClass * factor);
-                docsContainTermInClass = (long)(docsContainTermInClass * factor);
+                allDocsInClass = (long) (allDocsInClass * factor);
+                docsContainTermInClass = (long) (docsContainTermInClass * factor);
             }
             if (allDocsNotInClass > normalizeAbove) {
                 double factor = (double) normalizeAbove / allDocsNotInClass;
-                allDocsNotInClass = (long)(allDocsNotInClass * factor);
-                docsContainTermNotInClass = (long)(docsContainTermNotInClass * factor);
+                allDocsNotInClass = (long) (allDocsNotInClass * factor);
+                docsContainTermNotInClass = (long) (docsContainTermNotInClass * factor);
             }
         }
 
         // casting to `long` to round down to nearest whole number
-        double epsAllDocsInClass = (long)eps(allDocsInClass);
-        double epsAllDocsNotInClass = (long)eps(allDocsNotInClass);
+        double epsAllDocsInClass = (long) eps(allDocsInClass);
+        double epsAllDocsNotInClass = (long) eps(allDocsNotInClass);
 
         docsContainTermInClass += epsAllDocsInClass;
         docsContainTermNotInClass += epsAllDocsNotInClass;
@@ -175,7 +173,7 @@ public class PValueScore extends NXYSignificanceHeuristic {
 
         // Adjust counts to ignore ratio changes which are less than 5%
         // casting to `long` to round down to nearest whole number
-        docsContainTermNotInClass = (long)(Math.min(
+        docsContainTermNotInClass = (long) (Math.min(
             1.05 * docsContainTermNotInClass,
             docsContainTermInClass / allDocsInClass * allDocsNotInClass
         ) + 0.5);
@@ -189,21 +187,19 @@ public class PValueScore extends NXYSignificanceHeuristic {
             );
         }
 
-        double v1 = new LongBinomialDistribution(
-            (long)allDocsInClass, docsContainTermInClass / allDocsInClass
-        ).logProbability((long)docsContainTermInClass);
+        double v1 = new LongBinomialDistribution((long) allDocsInClass, docsContainTermInClass / allDocsInClass).logProbability(
+            (long) docsContainTermInClass
+        );
 
-        double v2 = new LongBinomialDistribution(
-            (long)allDocsNotInClass, docsContainTermNotInClass / allDocsNotInClass
-        ).logProbability((long)docsContainTermNotInClass);
+        double v2 = new LongBinomialDistribution((long) allDocsNotInClass, docsContainTermNotInClass / allDocsNotInClass).logProbability(
+            (long) docsContainTermNotInClass
+        );
 
         double p2 = (docsContainTermInClass + docsContainTermNotInClass) / (allDocsInClass + allDocsNotInClass);
 
-        double v3 = new LongBinomialDistribution((long)allDocsInClass, p2)
-            .logProbability((long)docsContainTermInClass);
+        double v3 = new LongBinomialDistribution((long) allDocsInClass, p2).logProbability((long) docsContainTermInClass);
 
-        double v4 = new LongBinomialDistribution((long)allDocsNotInClass, p2)
-            .logProbability((long)docsContainTermNotInClass);
+        double v4 = new LongBinomialDistribution((long) allDocsNotInClass, p2).logProbability((long) docsContainTermNotInClass);
 
         double logLikelihoodRatio = v1 + v2 - v3 - v4;
         double pValue = CHI_SQUARED_DISTRIBUTION.survivalFunction(2.0 * logLikelihoodRatio);
@@ -239,4 +235,3 @@ public class PValueScore extends NXYSignificanceHeuristic {
         }
     }
 }
-

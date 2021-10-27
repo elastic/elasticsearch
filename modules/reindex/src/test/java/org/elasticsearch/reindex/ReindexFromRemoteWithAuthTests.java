@@ -28,7 +28,6 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpInfo;
@@ -46,6 +45,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -66,10 +66,7 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(
-            Netty4Plugin.class,
-            ReindexFromRemoteWithAuthTests.TestPlugin.class,
-            ReindexPlugin.class);
+        return Arrays.asList(Netty4Plugin.class, ReindexFromRemoteWithAuthTests.TestPlugin.class, ReindexPlugin.class);
     }
 
     @Override
@@ -101,28 +98,40 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
      * Build a {@link RemoteInfo}, defaulting values that we don't care about in this test to values that don't hurt anything.
      */
     private RemoteInfo newRemoteInfo(String username, String password, Map<String, String> headers) {
-        return new RemoteInfo("http", address.getAddress(), address.getPort(), null,
-            new BytesArray("{\"match_all\":{}}"), username, password, headers,
-            RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
+        return new RemoteInfo(
+            "http",
+            address.getAddress(),
+            address.getPort(),
+            null,
+            new BytesArray("{\"match_all\":{}}"),
+            username,
+            password,
+            headers,
+            RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+            RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+        );
     }
 
     public void testReindexFromRemoteWithAuthentication() throws Exception {
-        ReindexRequestBuilder request = new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source("source").destination("dest")
-                .setRemoteInfo(newRemoteInfo("Aladdin", "open sesame", emptyMap()));
+        ReindexRequestBuilder request = new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source("source")
+            .destination("dest")
+            .setRemoteInfo(newRemoteInfo("Aladdin", "open sesame", emptyMap()));
         assertThat(request.get(), matcher().created(1));
     }
 
     public void testReindexSendsHeaders() throws Exception {
-        ReindexRequestBuilder request = new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source("source").destination("dest")
-                .setRemoteInfo(newRemoteInfo(null, null, singletonMap(TestFilter.EXAMPLE_HEADER, "doesn't matter")));
+        ReindexRequestBuilder request = new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source("source")
+            .destination("dest")
+            .setRemoteInfo(newRemoteInfo(null, null, singletonMap(TestFilter.EXAMPLE_HEADER, "doesn't matter")));
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> request.get());
         assertEquals(RestStatus.BAD_REQUEST, e.status());
         assertThat(e.getMessage(), containsString("Hurray! Sent the header!"));
     }
 
     public void testReindexWithoutAuthenticationWhenRequired() throws Exception {
-        ReindexRequestBuilder request = new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source("source").destination("dest")
-                .setRemoteInfo(newRemoteInfo(null, null, emptyMap()));
+        ReindexRequestBuilder request = new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source("source")
+            .destination("dest")
+            .setRemoteInfo(newRemoteInfo(null, null, emptyMap()));
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> request.get());
         assertEquals(RestStatus.UNAUTHORIZED, e.status());
         assertThat(e.getMessage(), containsString("\"reason\":\"Authentication required\""));
@@ -130,8 +139,9 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
     }
 
     public void testReindexWithBadAuthentication() throws Exception {
-        ReindexRequestBuilder request = new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source("source").destination("dest")
-                .setRemoteInfo(newRemoteInfo("junk", "auth", emptyMap()));
+        ReindexRequestBuilder request = new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source("source")
+            .destination("dest")
+            .setRemoteInfo(newRemoteInfo("junk", "auth", emptyMap()));
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> request.get());
         assertThat(e.getMessage(), containsString("\"reason\":\"Bad Authorization\""));
     }
@@ -144,12 +154,19 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
         private final SetOnce<ReindexFromRemoteWithAuthTests.TestFilter> testFilter = new SetOnce<>();
 
         @Override
-        public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                                   ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                                   NamedXContentRegistry xContentRegistry, Environment environment,
-                                                   NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                                   IndexNameExpressionResolver expressionResolver,
-                                                   Supplier<RepositoriesService> repositoriesServiceSupplier) {
+        public Collection<Object> createComponents(
+            Client client,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            ResourceWatcherService resourceWatcherService,
+            ScriptService scriptService,
+            NamedXContentRegistry xContentRegistry,
+            Environment environment,
+            NodeEnvironment nodeEnvironment,
+            NamedWriteableRegistry namedWriteableRegistry,
+            IndexNameExpressionResolver expressionResolver,
+            Supplier<RepositoriesService> repositoriesServiceSupplier
+        ) {
             testFilter.set(new ReindexFromRemoteWithAuthTests.TestFilter(threadPool));
             return Collections.emptyList();
         }
@@ -161,8 +178,10 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
 
         @Override
         public Collection<RestHeaderDefinition> getRestHeaders() {
-            return Arrays.asList(new RestHeaderDefinition(TestFilter.AUTHORIZATION_HEADER, false),
-                new RestHeaderDefinition(TestFilter.EXAMPLE_HEADER, false));
+            return Arrays.asList(
+                new RestHeaderDefinition(TestFilter.AUTHORIZATION_HEADER, false),
+                new RestHeaderDefinition(TestFilter.EXAMPLE_HEADER, false)
+            );
         }
     }
 
@@ -189,8 +208,13 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public <Request extends ActionRequest, Response extends ActionResponse> void apply(Task task, String action,
-                Request request, ActionListener<Response> listener, ActionFilterChain<Request, Response> chain) {
+        public <Request extends ActionRequest, Response extends ActionResponse> void apply(
+            Task task,
+            String action,
+            Request request,
+            ActionListener<Response> listener,
+            ActionFilterChain<Request, Response> chain
+        ) {
             if (false == action.equals(SearchAction.NAME)) {
                 chain.proceed(task, action, request, listener);
                 return;
@@ -200,8 +224,7 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
             }
             String auth = context.getHeader(AUTHORIZATION_HEADER);
             if (auth == null) {
-                ElasticsearchSecurityException e = new ElasticsearchSecurityException("Authentication required",
-                        RestStatus.UNAUTHORIZED);
+                ElasticsearchSecurityException e = new ElasticsearchSecurityException("Authentication required", RestStatus.UNAUTHORIZED);
                 e.addHeader("WWW-Authenticate", "Basic realm=auth-realm");
                 throw e;
             }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc.esnative.tool;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.KeyStoreAwareCommand;
@@ -16,16 +17,16 @@ import org.elasticsearch.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.user.APMSystemUser;
@@ -38,7 +39,6 @@ import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.esnative.tool.HttpResponse.HttpResponseBuilder;
 
-import javax.net.ssl.SSLException;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -56,6 +56,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
+import javax.net.ssl.SSLException;
+
 import static java.util.Arrays.asList;
 
 /**
@@ -69,8 +71,15 @@ import static java.util.Arrays.asList;
 public class SetupPasswordTool extends LoggingAwareMultiCommand {
 
     private static final char[] CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789").toCharArray();
-    public static final List<String> USERS = asList(ElasticUser.NAME, APMSystemUser.NAME, KibanaUser.NAME, KibanaSystemUser.NAME,
-        LogstashSystemUser.NAME, BeatsSystemUser.NAME, RemoteMonitoringUser.NAME);
+    public static final List<String> USERS = asList(
+        ElasticUser.NAME,
+        APMSystemUser.NAME,
+        KibanaUser.NAME,
+        KibanaSystemUser.NAME,
+        LogstashSystemUser.NAME,
+        BeatsSystemUser.NAME,
+        RemoteMonitoringUser.NAME
+    );
 
     public static final Map<String, String> USERS_WITH_SHARED_PASSWORDS = Collections.unmodifiableMap(new HashMap<String, String>() {
         {
@@ -84,20 +93,22 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
     private CommandLineHttpClient client;
 
     SetupPasswordTool() {
-        this((environment, settings) -> {
-            return new CommandLineHttpClient(settings, environment);
-        }, (environment) -> {
+        this((environment, settings) -> { return new CommandLineHttpClient(settings, environment); }, (environment) -> {
             KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.load(environment.configFile());
             if (keyStoreWrapper == null) {
-                throw new UserException(ExitCodes.CONFIG,
-                        "Elasticsearch keystore file is missing [" + KeyStoreWrapper.keystorePath(environment.configFile()) + "]");
+                throw new UserException(
+                    ExitCodes.CONFIG,
+                    "Elasticsearch keystore file is missing [" + KeyStoreWrapper.keystorePath(environment.configFile()) + "]"
+                );
             }
             return keyStoreWrapper;
         });
     }
 
-    SetupPasswordTool(BiFunction<Environment, Settings, CommandLineHttpClient> clientFunction,
-            CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction) {
+    SetupPasswordTool(
+        BiFunction<Environment, Settings, CommandLineHttpClient> clientFunction,
+        CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction
+    ) {
         super("Sets the passwords for reserved users");
         subcommands.put("auto", newAutoSetup());
         subcommands.put("interactive", newInteractiveSetup());
@@ -150,8 +161,11 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             }
 
             SecureRandom secureRandom = new SecureRandom();
-            changePasswords((user) -> generatePassword(secureRandom, user),
-                    (user, password) -> changedPasswordCallback(terminal, user, password), terminal);
+            changePasswords(
+                (user) -> generatePassword(secureRandom, user),
+                (user, password) -> changedPasswordCallback(terminal, user, password),
+                terminal
+            );
         }
 
         private SecureString generatePassword(SecureRandom secureRandom, String user) {
@@ -195,8 +209,11 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
                 }
             }
 
-            changePasswords(user -> promptForPassword(terminal, user),
-                    (user, password) -> changedPasswordCallback(terminal, user, password), terminal);
+            changePasswords(
+                user -> promptForPassword(terminal, user),
+                (user, password) -> changedPasswordCallback(terminal, user, password),
+                terminal
+            );
         }
 
         private SecureString promptForPassword(Terminal terminal, String user) throws UserException {
@@ -280,8 +297,10 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
 
         private void setParser() {
             urlOption = parser.acceptsAll(asList("u", "url"), "The url for the change password request.").withRequiredArg();
-            noPromptOption = parser.acceptsAll(asList("b", "batch"),
-                    "If enabled, run the change password process without prompting the user.").withOptionalArg();
+            noPromptOption = parser.acceptsAll(
+                asList("b", "batch"),
+                "If enabled, run the change password process without prompting the user."
+            ).withOptionalArg();
         }
 
         private void setShouldPrompt(OptionSet options) {
@@ -305,8 +324,14 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             terminal.println(Verbosity.VERBOSE, "");
             terminal.println(Verbosity.VERBOSE, "Testing if bootstrap password is valid for " + route.toString());
             try {
-                final HttpResponse httpResponse = client.execute("GET", route, elasticUser, elasticUserPassword, () -> null,
-                        is -> responseBuilder(is, terminal));
+                final HttpResponse httpResponse = client.execute(
+                    "GET",
+                    route,
+                    elasticUser,
+                    elasticUserPassword,
+                    () -> null,
+                    is -> responseBuilder(is, terminal)
+                );
                 final int httpCode = httpResponse.getHttpStatus();
 
                 // keystore password is not valid
@@ -325,15 +350,17 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
                     XPackSecurityFeatureConfig xPackSecurityFeatureConfig = getXPackSecurityConfig(terminal);
                     if (xPackSecurityFeatureConfig.isAvailable == false) {
                         terminal.errorPrintln("It doesn't look like the X-Pack security feature is available on this Elasticsearch node.");
-                        terminal.errorPrintln("Please check if you have installed a license that allows access to " +
-                            "X-Pack Security feature.");
+                        terminal.errorPrintln(
+                            "Please check if you have installed a license that allows access to " + "X-Pack Security feature."
+                        );
                         terminal.errorPrintln("");
                         throw new UserException(ExitCodes.CONFIG, "X-Pack Security is not available.");
                     }
                     if (xPackSecurityFeatureConfig.isEnabled == false) {
                         terminal.errorPrintln("It doesn't look like the X-Pack security feature is enabled on this Elasticsearch node.");
-                        terminal.errorPrintln("Please check if you have enabled X-Pack security in your elasticsearch.yml " +
-                            "configuration file.");
+                        terminal.errorPrintln(
+                            "Please check if you have enabled X-Pack security in your elasticsearch.yml " + "configuration file."
+                        );
                         terminal.errorPrintln("");
                         throw new UserException(ExitCodes.CONFIG, "X-Pack Security is disabled by configuration.");
                     }
@@ -352,16 +379,22 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
                 terminal.errorPrintln(Verbosity.VERBOSE, "");
                 terminal.errorPrintln(Verbosity.VERBOSE, ExceptionsHelper.stackTrace(e));
                 terminal.errorPrintln("");
-                throw new UserException(ExitCodes.CONFIG,
-                        "Failed to establish SSL connection to elasticsearch at " + route.toString() + ". ", e);
+                throw new UserException(
+                    ExitCodes.CONFIG,
+                    "Failed to establish SSL connection to elasticsearch at " + route.toString() + ". ",
+                    e
+                );
             } catch (IOException e) {
                 terminal.errorPrintln("");
                 terminal.errorPrintln("Connection failure to: " + route.toString() + " failed: " + e.getMessage());
                 terminal.errorPrintln(Verbosity.VERBOSE, "");
                 terminal.errorPrintln(Verbosity.VERBOSE, ExceptionsHelper.stackTrace(e));
                 terminal.errorPrintln("");
-                throw new UserException(ExitCodes.CONFIG,
-                        "Failed to connect to elasticsearch at " + route.toString() + ". Is the URL correct and elasticsearch running?", e);
+                throw new UserException(
+                    ExitCodes.CONFIG,
+                    "Failed to connect to elasticsearch at " + route.toString() + ". Is the URL correct and elasticsearch running?",
+                    e
+                );
             }
         }
 
@@ -369,12 +402,19 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
         private XPackSecurityFeatureConfig getXPackSecurityConfig(Terminal terminal) throws Exception {
             // Get x-pack security info.
             URL route = createURL(url, "/_xpack", "?categories=features&human=false&pretty");
-            final HttpResponse httpResponse =
-                    client.execute("GET", route, elasticUser, elasticUserPassword, () -> null, is -> responseBuilder(is, terminal));
+            final HttpResponse httpResponse = client.execute(
+                "GET",
+                route,
+                elasticUser,
+                elasticUserPassword,
+                () -> null,
+                is -> responseBuilder(is, terminal)
+            );
             if (httpResponse.getHttpStatus() != HttpURLConnection.HTTP_OK) {
                 terminal.errorPrintln("");
-                terminal.errorPrintln("Unexpected response code [" + httpResponse.getHttpStatus() + "] from calling GET " +
-                    route.toString());
+                terminal.errorPrintln(
+                    "Unexpected response code [" + httpResponse.getHttpStatus() + "] from calling GET " + route.toString()
+                );
                 if (httpResponse.getHttpStatus() == HttpURLConnection.HTTP_BAD_REQUEST) {
                     terminal.errorPrintln("It doesn't look like the X-Pack is available on this Elasticsearch node.");
                     terminal.errorPrintln("Please check that you have followed all installation instructions and that this tool");
@@ -395,9 +435,10 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
                 if (features != null) {
                     Map<String, Object> featureInfo = (Map<String, Object>) features.get("security");
                     if (featureInfo != null) {
-                        xPackSecurityFeatureConfig =
-                                new XPackSecurityFeatureConfig(Boolean.parseBoolean(featureInfo.get("available").toString()),
-                                        Boolean.parseBoolean(featureInfo.get("enabled").toString()));
+                        xPackSecurityFeatureConfig = new XPackSecurityFeatureConfig(
+                            Boolean.parseBoolean(featureInfo.get("available").toString()),
+                            Boolean.parseBoolean(featureInfo.get("enabled").toString())
+                        );
                         return xPackSecurityFeatureConfig;
                     }
                 }
@@ -415,13 +456,20 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             URL route = createURL(url, "/_cluster/health", "?pretty");
             terminal.println(Verbosity.VERBOSE, "");
             terminal.println(Verbosity.VERBOSE, "Checking cluster health: " + route.toString());
-            final HttpResponse httpResponse = client.execute("GET", route, elasticUser, elasticUserPassword, () -> null,
-                    is -> responseBuilder(is, terminal));
+            final HttpResponse httpResponse = client.execute(
+                "GET",
+                route,
+                elasticUser,
+                elasticUserPassword,
+                () -> null,
+                is -> responseBuilder(is, terminal)
+            );
             if (httpResponse.getHttpStatus() != HttpURLConnection.HTTP_OK) {
                 terminal.errorPrintln("");
                 terminal.errorPrintln("Failed to determine the health of the cluster running at " + url);
-                terminal.errorPrintln("Unexpected response code [" + httpResponse.getHttpStatus() + "] from calling GET " +
-                    route.toString());
+                terminal.errorPrintln(
+                    "Unexpected response code [" + httpResponse.getHttpStatus() + "] from calling GET " + route.toString()
+                );
                 final String cause = getErrorCause(httpResponse);
                 if (cause != null) {
                     terminal.errorPrintln("Cause: " + cause);
@@ -443,7 +491,8 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             }
             terminal.errorPrintln("");
             terminal.errorPrintln(
-                    "It is recommended that you resolve the issues with your cluster before running elasticsearch-setup-passwords.");
+                "It is recommended that you resolve the issues with your cluster before running elasticsearch-setup-passwords."
+            );
             terminal.errorPrintln("It is very likely that the password changes will fail when run against an unhealthy cluster.");
             terminal.errorPrintln("");
             if (shouldPrompt) {
@@ -480,7 +529,8 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
                 if (httpResponse.getHttpStatus() != HttpURLConnection.HTTP_OK) {
                     terminal.errorPrintln("");
                     terminal.errorPrintln(
-                            "Unexpected response code [" + httpResponse.getHttpStatus() + "] from calling PUT " + route.toString());
+                        "Unexpected response code [" + httpResponse.getHttpStatus() + "] from calling PUT " + route.toString()
+                    );
                     String cause = getErrorCause(httpResponse);
                     if (cause != null) {
                         terminal.errorPrintln("Cause: " + cause);
@@ -511,8 +561,11 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
          * @param passwordFn      Function to generate or prompt for each user's password.
          * @param successCallback Callback for each successful operation
          */
-        void changePasswords(CheckedFunction<String, SecureString, UserException> passwordFn,
-                             CheckedBiConsumer<String, SecureString, Exception> successCallback, Terminal terminal) throws Exception {
+        void changePasswords(
+            CheckedFunction<String, SecureString, UserException> passwordFn,
+            CheckedBiConsumer<String, SecureString, Exception> successCallback,
+            Terminal terminal
+        ) throws Exception {
             Map<String, SecureString> passwordsMap = new LinkedHashMap<>(USERS.size());
             try {
                 for (String user : USERS) {

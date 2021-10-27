@@ -11,9 +11,9 @@ package org.elasticsearch.indices;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
@@ -78,8 +78,10 @@ public class TermsLookupTests extends ESTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setVersion(Version.V_6_7_0);
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> termsLookup.writeTo(output));
-            assertEquals("Typeless [terms] lookup queries are not supported if any " +
-                "node is running a version before 7.0.", e.getMessage());
+            assertEquals(
+                "Typeless [terms] lookup queries are not supported if any " + "node is running a version before 7.0.",
+                e.getMessage()
+            );
         }
     }
 
@@ -97,8 +99,10 @@ public class TermsLookupTests extends ESTestCase {
     }
 
     public void testXContentParsingWithType() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent,
-            "{ \"index\" : \"index\", \"id\" : \"id\", \"type\" : \"type\", \"path\" : \"path\", \"routing\" : \"routing\" }");
+        XContentParser parser = createParser(
+            JsonXContent.jsonXContent,
+            "{ \"index\" : \"index\", \"id\" : \"id\", \"type\" : \"type\", \"path\" : \"path\", \"routing\" : \"routing\" }"
+        );
 
         TermsLookup tl = TermsLookup.parseTermsLookup(parser);
         assertEquals("index", tl.index());
@@ -111,8 +115,10 @@ public class TermsLookupTests extends ESTestCase {
     }
 
     public void testXContentParsing() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent,
-            "{ \"index\" : \"index\", \"id\" : \"id\", \"path\" : \"path\", \"routing\" : \"routing\" }");
+        XContentParser parser = createParser(
+            JsonXContent.jsonXContent,
+            "{ \"index\" : \"index\", \"id\" : \"id\", \"path\" : \"path\", \"routing\" : \"routing\" }"
+        );
 
         TermsLookup tl = TermsLookup.parseTermsLookup(parser);
         assertEquals("index", tl.index());
@@ -123,19 +129,17 @@ public class TermsLookupTests extends ESTestCase {
     }
 
     public static TermsLookup randomTermsLookup() {
-        return new TermsLookup(
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10).replace('.', '_')
-        ).routing(randomBoolean() ? randomAlphaOfLength(10) : null);
+        return new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10).replace('.', '_')).routing(
+            randomBoolean() ? randomAlphaOfLength(10) : null
+        );
     }
 
     public static TermsLookup randomTermsLookupWithTypes() {
         return new TermsLookup(
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10).replace('.', '_')
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10).replace('.', '_')
         ).routing(randomBoolean() ? randomAlphaOfLength(10) : null);
     }
 }

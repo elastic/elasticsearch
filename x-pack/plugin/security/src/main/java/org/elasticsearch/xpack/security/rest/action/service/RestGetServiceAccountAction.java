@@ -46,7 +46,6 @@ public class RestGetServiceAccountAction extends SecurityBaseRestHandler {
         final String namespace = request.param("namespace");
         final String serviceName = request.param("service");
         final GetServiceAccountRequest getServiceAccountRequest = new GetServiceAccountRequest(namespace, serviceName);
-        return channel -> client.execute(GetServiceAccountAction.INSTANCE, getServiceAccountRequest,
-            new RestToXContentListener<>(channel));
+        return channel -> client.execute(GetServiceAccountAction.INSTANCE, getServiceAccountRequest, new RestToXContentListener<>(channel));
     }
 }

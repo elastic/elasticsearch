@@ -15,17 +15,13 @@ import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.Plugin;
@@ -34,6 +30,10 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -64,8 +64,7 @@ import static org.hamcrest.Matchers.instanceOf;
 @ESIntegTestCase.ClusterScope(scope = TEST)
 public class ClusterStateIT extends ESIntegTestCase {
 
-    public abstract static
-    class Custom implements Metadata.Custom {
+    public abstract static class Custom implements Metadata.Custom {
 
         private static final ParseField VALUE = new ParseField("value");
 
@@ -181,7 +180,10 @@ public class ClusterStateIT extends ESIntegTestCase {
         }
 
         protected <T extends Metadata.Custom> void registerMetadataCustom(
-                final String name, final Writeable.Reader<T> reader, final CheckedFunction<XContentParser, T, IOException> parser) {
+            final String name,
+            final Writeable.Reader<T> reader,
+            final CheckedFunction<XContentParser, T, IOException> parser
+        ) {
             namedWritables.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, name, reader));
             namedXContents.add(new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(name), parser));
         }
@@ -216,7 +218,8 @@ public class ClusterStateIT extends ESIntegTestCase {
             final NodeEnvironment nodeEnvironment,
             final NamedWriteableRegistry namedWriteableRegistry,
             final IndexNameExpressionResolver indexNameExpressionResolver,
-            final Supplier<RepositoriesService> repositoriesServiceSupplier) {
+            final Supplier<RepositoriesService> repositoriesServiceSupplier
+        ) {
             clusterService.addListener(event -> {
                 final ClusterState state = event.state();
                 if (state.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)) {
@@ -266,11 +269,10 @@ public class ClusterStateIT extends ESIntegTestCase {
         @Override
         protected void registerBuiltinWritables() {
             registerMetadataCustom(
-                    NodeCustom.TYPE,
-                    NodeCustom::new,
-                    parser -> {
-                        throw new IOException(new UnsupportedOperationException());
-                    });
+                NodeCustom.TYPE,
+                NodeCustom::new,
+                parser -> { throw new IOException(new UnsupportedOperationException()); }
+            );
         }
 
         @Override
@@ -297,11 +299,10 @@ public class ClusterStateIT extends ESIntegTestCase {
         @Override
         protected void registerBuiltinWritables() {
             registerMetadataCustom(
-                    NodeAndTransportClientCustom.TYPE,
-                    NodeAndTransportClientCustom::new,
-                    parser -> {
-                        throw new IOException(new UnsupportedOperationException());
-                    });
+                NodeAndTransportClientCustom.TYPE,
+                NodeAndTransportClientCustom::new,
+                parser -> { throw new IOException(new UnsupportedOperationException()); }
+            );
         }
 
         @Override
@@ -338,7 +339,7 @@ public class ClusterStateIT extends ESIntegTestCase {
         assertThat(keys, hasItem(NodeAndTransportClientCustom.TYPE));
         final Metadata.Custom actual = customs.get(NodeAndTransportClientCustom.TYPE);
         assertThat(actual, instanceOf(NodeAndTransportClientCustom.class));
-        assertThat(((NodeAndTransportClientCustom)actual).value(), equalTo(NodeAndTransportClientPlugin.VALUE));
+        assertThat(((NodeAndTransportClientCustom) actual).value(), equalTo(NodeAndTransportClientPlugin.VALUE));
     }
 
 }

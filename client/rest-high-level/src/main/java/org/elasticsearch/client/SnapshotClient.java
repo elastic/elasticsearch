@@ -61,10 +61,14 @@ public final class SnapshotClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public GetRepositoriesResponse getRepository(GetRepositoriesRequest getRepositoriesRequest, RequestOptions options)
-        throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(getRepositoriesRequest, SnapshotRequestConverters::getRepositories, options,
-            GetRepositoriesResponse::fromXContent, emptySet());
+    public GetRepositoriesResponse getRepository(GetRepositoriesRequest getRepositoriesRequest, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            getRepositoriesRequest,
+            SnapshotRequestConverters::getRepositories,
+            options,
+            GetRepositoriesResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -77,11 +81,19 @@ public final class SnapshotClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getRepositoryAsync(GetRepositoriesRequest getRepositoriesRequest, RequestOptions options,
-                                          ActionListener<GetRepositoriesResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(getRepositoriesRequest,
-            SnapshotRequestConverters::getRepositories, options,
-            GetRepositoriesResponse::fromXContent, listener, emptySet());
+    public Cancellable getRepositoryAsync(
+        GetRepositoriesRequest getRepositoriesRequest,
+        RequestOptions options,
+        ActionListener<GetRepositoriesResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            getRepositoriesRequest,
+            SnapshotRequestConverters::getRepositories,
+            options,
+            GetRepositoriesResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -94,8 +106,13 @@ public final class SnapshotClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public AcknowledgedResponse createRepository(PutRepositoryRequest putRepositoryRequest, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(putRepositoryRequest, SnapshotRequestConverters::createRepository, options,
-            AcknowledgedResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            putRepositoryRequest,
+            SnapshotRequestConverters::createRepository,
+            options,
+            AcknowledgedResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -107,11 +124,19 @@ public final class SnapshotClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable createRepositoryAsync(PutRepositoryRequest putRepositoryRequest, RequestOptions options,
-                                             ActionListener<AcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(putRepositoryRequest,
-            SnapshotRequestConverters::createRepository, options,
-            AcknowledgedResponse::fromXContent, listener, emptySet());
+    public Cancellable createRepositoryAsync(
+        PutRepositoryRequest putRepositoryRequest,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            putRepositoryRequest,
+            SnapshotRequestConverters::createRepository,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -125,8 +150,13 @@ public final class SnapshotClient {
      */
     public AcknowledgedResponse deleteRepository(DeleteRepositoryRequest deleteRepositoryRequest, RequestOptions options)
         throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(deleteRepositoryRequest, SnapshotRequestConverters::deleteRepository,
-            options, AcknowledgedResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            deleteRepositoryRequest,
+            SnapshotRequestConverters::deleteRepository,
+            options,
+            AcknowledgedResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -138,11 +168,19 @@ public final class SnapshotClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable deleteRepositoryAsync(DeleteRepositoryRequest deleteRepositoryRequest, RequestOptions options,
-                                             ActionListener<AcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(deleteRepositoryRequest,
-            SnapshotRequestConverters::deleteRepository, options,
-            AcknowledgedResponse::fromXContent, listener, emptySet());
+    public Cancellable deleteRepositoryAsync(
+        DeleteRepositoryRequest deleteRepositoryRequest,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            deleteRepositoryRequest,
+            SnapshotRequestConverters::deleteRepository,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -156,8 +194,13 @@ public final class SnapshotClient {
      */
     public VerifyRepositoryResponse verifyRepository(VerifyRepositoryRequest verifyRepositoryRequest, RequestOptions options)
         throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(verifyRepositoryRequest, SnapshotRequestConverters::verifyRepository,
-            options, VerifyRepositoryResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            verifyRepositoryRequest,
+            SnapshotRequestConverters::verifyRepository,
+            options,
+            VerifyRepositoryResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -169,11 +212,19 @@ public final class SnapshotClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable verifyRepositoryAsync(VerifyRepositoryRequest verifyRepositoryRequest, RequestOptions options,
-                                             ActionListener<VerifyRepositoryResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(verifyRepositoryRequest,
-            SnapshotRequestConverters::verifyRepository, options,
-            VerifyRepositoryResponse::fromXContent, listener, emptySet());
+    public Cancellable verifyRepositoryAsync(
+        VerifyRepositoryRequest verifyRepositoryRequest,
+        RequestOptions options,
+        ActionListener<VerifyRepositoryResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            verifyRepositoryRequest,
+            SnapshotRequestConverters::verifyRepository,
+            options,
+            VerifyRepositoryResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -187,8 +238,13 @@ public final class SnapshotClient {
      */
     public CleanupRepositoryResponse cleanupRepository(CleanupRepositoryRequest cleanupRepositoryRequest, RequestOptions options)
         throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(cleanupRepositoryRequest, SnapshotRequestConverters::cleanupRepository,
-            options, CleanupRepositoryResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            cleanupRepositoryRequest,
+            SnapshotRequestConverters::cleanupRepository,
+            options,
+            CleanupRepositoryResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -200,10 +256,19 @@ public final class SnapshotClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable cleanupRepositoryAsync(CleanupRepositoryRequest cleanupRepositoryRequest, RequestOptions options,
-                                       ActionListener<CleanupRepositoryResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(cleanupRepositoryRequest, SnapshotRequestConverters::cleanupRepository,
-            options, CleanupRepositoryResponse::fromXContent, listener, emptySet());
+    public Cancellable cleanupRepositoryAsync(
+        CleanupRepositoryRequest cleanupRepositoryRequest,
+        RequestOptions options,
+        ActionListener<CleanupRepositoryResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            cleanupRepositoryRequest,
+            SnapshotRequestConverters::cleanupRepository,
+            options,
+            CleanupRepositoryResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -212,10 +277,14 @@ public final class SnapshotClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
      * API on elastic.co</a>
      */
-    public CreateSnapshotResponse create(CreateSnapshotRequest createSnapshotRequest, RequestOptions options)
-        throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(createSnapshotRequest, SnapshotRequestConverters::createSnapshot, options,
-            CreateSnapshotResponse::fromXContent, emptySet());
+    public CreateSnapshotResponse create(CreateSnapshotRequest createSnapshotRequest, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            createSnapshotRequest,
+            SnapshotRequestConverters::createSnapshot,
+            options,
+            CreateSnapshotResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -225,11 +294,19 @@ public final class SnapshotClient {
      * API on elastic.co</a>
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable createAsync(CreateSnapshotRequest createSnapshotRequest, RequestOptions options,
-                                   ActionListener<CreateSnapshotResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(createSnapshotRequest,
-            SnapshotRequestConverters::createSnapshot, options,
-            CreateSnapshotResponse::fromXContent, listener, emptySet());
+    public Cancellable createAsync(
+        CreateSnapshotRequest createSnapshotRequest,
+        RequestOptions options,
+        ActionListener<CreateSnapshotResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            createSnapshotRequest,
+            SnapshotRequestConverters::createSnapshot,
+            options,
+            CreateSnapshotResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -238,10 +315,14 @@ public final class SnapshotClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
      * API on elastic.co</a>
      */
-    public AcknowledgedResponse clone(CloneSnapshotRequest cloneSnapshotRequest, RequestOptions options)
-            throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(cloneSnapshotRequest, SnapshotRequestConverters::cloneSnapshot, options,
-                AcknowledgedResponse::fromXContent, emptySet());
+    public AcknowledgedResponse clone(CloneSnapshotRequest cloneSnapshotRequest, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            cloneSnapshotRequest,
+            SnapshotRequestConverters::cloneSnapshot,
+            options,
+            AcknowledgedResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -251,11 +332,19 @@ public final class SnapshotClient {
      * API on elastic.co</a>
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable cloneAsync(CloneSnapshotRequest cloneSnapshotRequest, RequestOptions options,
-                                   ActionListener<AcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(cloneSnapshotRequest,
-                SnapshotRequestConverters::cloneSnapshot, options,
-                AcknowledgedResponse::fromXContent, listener, emptySet());
+    public Cancellable cloneAsync(
+        CloneSnapshotRequest cloneSnapshotRequest,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            cloneSnapshotRequest,
+            SnapshotRequestConverters::cloneSnapshot,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -269,8 +358,13 @@ public final class SnapshotClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public GetSnapshotsResponse get(GetSnapshotsRequest getSnapshotsRequest, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(getSnapshotsRequest, SnapshotRequestConverters::getSnapshots, options,
-            GetSnapshotsResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            getSnapshotsRequest,
+            SnapshotRequestConverters::getSnapshots,
+            options,
+            GetSnapshotsResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -282,11 +376,19 @@ public final class SnapshotClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getAsync(GetSnapshotsRequest getSnapshotsRequest, RequestOptions options,
-                                ActionListener<GetSnapshotsResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(getSnapshotsRequest,
-            SnapshotRequestConverters::getSnapshots, options,
-            GetSnapshotsResponse::fromXContent, listener, emptySet());
+    public Cancellable getAsync(
+        GetSnapshotsRequest getSnapshotsRequest,
+        RequestOptions options,
+        ActionListener<GetSnapshotsResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            getSnapshotsRequest,
+            SnapshotRequestConverters::getSnapshots,
+            options,
+            GetSnapshotsResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -298,10 +400,14 @@ public final class SnapshotClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public SnapshotsStatusResponse status(SnapshotsStatusRequest snapshotsStatusRequest, RequestOptions options)
-        throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(snapshotsStatusRequest, SnapshotRequestConverters::snapshotsStatus, options,
-            SnapshotsStatusResponse::fromXContent, emptySet());
+    public SnapshotsStatusResponse status(SnapshotsStatusRequest snapshotsStatusRequest, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            snapshotsStatusRequest,
+            SnapshotRequestConverters::snapshotsStatus,
+            options,
+            SnapshotsStatusResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -313,11 +419,19 @@ public final class SnapshotClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable statusAsync(SnapshotsStatusRequest snapshotsStatusRequest, RequestOptions options,
-                                   ActionListener<SnapshotsStatusResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(snapshotsStatusRequest,
-            SnapshotRequestConverters::snapshotsStatus, options,
-            SnapshotsStatusResponse::fromXContent, listener, emptySet());
+    public Cancellable statusAsync(
+        SnapshotsStatusRequest snapshotsStatusRequest,
+        RequestOptions options,
+        ActionListener<SnapshotsStatusResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            snapshotsStatusRequest,
+            SnapshotRequestConverters::snapshotsStatus,
+            options,
+            SnapshotsStatusResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -331,8 +445,13 @@ public final class SnapshotClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public RestoreSnapshotResponse restore(RestoreSnapshotRequest restoreSnapshotRequest, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(restoreSnapshotRequest, SnapshotRequestConverters::restoreSnapshot, options,
-            RestoreSnapshotResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            restoreSnapshotRequest,
+            SnapshotRequestConverters::restoreSnapshot,
+            options,
+            RestoreSnapshotResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -345,11 +464,19 @@ public final class SnapshotClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable restoreAsync(RestoreSnapshotRequest restoreSnapshotRequest, RequestOptions options,
-                                    ActionListener<RestoreSnapshotResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(restoreSnapshotRequest,
-            SnapshotRequestConverters::restoreSnapshot, options,
-            RestoreSnapshotResponse::fromXContent, listener, emptySet());
+    public Cancellable restoreAsync(
+        RestoreSnapshotRequest restoreSnapshotRequest,
+        RequestOptions options,
+        ActionListener<RestoreSnapshotResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            restoreSnapshotRequest,
+            SnapshotRequestConverters::restoreSnapshot,
+            options,
+            RestoreSnapshotResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -363,9 +490,13 @@ public final class SnapshotClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public AcknowledgedResponse delete(DeleteSnapshotRequest deleteSnapshotRequest, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(deleteSnapshotRequest,
-            SnapshotRequestConverters::deleteSnapshot, options,
-            AcknowledgedResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            deleteSnapshotRequest,
+            SnapshotRequestConverters::deleteSnapshot,
+            options,
+            AcknowledgedResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -378,10 +509,18 @@ public final class SnapshotClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable deleteAsync(DeleteSnapshotRequest deleteSnapshotRequest, RequestOptions options,
-                                   ActionListener<AcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(deleteSnapshotRequest,
-            SnapshotRequestConverters::deleteSnapshot, options,
-            AcknowledgedResponse::fromXContent, listener, emptySet());
+    public Cancellable deleteAsync(
+        DeleteSnapshotRequest deleteSnapshotRequest,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            deleteSnapshotRequest,
+            SnapshotRequestConverters::deleteSnapshot,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 }

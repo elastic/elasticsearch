@@ -33,17 +33,30 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
-public class TransportUpgradeStatusAction
-    extends TransportBroadcastByNodeAction<UpgradeStatusRequest, UpgradeStatusResponse, ShardUpgradeStatus> {
+public class TransportUpgradeStatusAction extends TransportBroadcastByNodeAction<
+    UpgradeStatusRequest,
+    UpgradeStatusResponse,
+    ShardUpgradeStatus> {
 
     private final IndicesService indicesService;
 
     @Inject
-    public TransportUpgradeStatusAction(ClusterService clusterService, TransportService transportService,
-                                        IndicesService indicesService, ActionFilters actionFilters,
-                                        IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(UpgradeStatusAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                UpgradeStatusRequest::new, ThreadPool.Names.MANAGEMENT);
+    public TransportUpgradeStatusAction(
+        ClusterService clusterService,
+        TransportService transportService,
+        IndicesService indicesService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            UpgradeStatusAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            indexNameExpressionResolver,
+            UpgradeStatusRequest::new,
+            ThreadPool.Names.MANAGEMENT
+        );
         this.indicesService = indicesService;
     }
 
@@ -71,11 +84,22 @@ public class TransportUpgradeStatusAction
     }
 
     @Override
-    protected UpgradeStatusResponse newResponse(UpgradeStatusRequest request, int totalShards, int successfulShards, int failedShards,
-                                                List<ShardUpgradeStatus> responses,
-                                                List<DefaultShardOperationFailedException> shardFailures, ClusterState clusterState) {
-        return new UpgradeStatusResponse(responses.toArray(new ShardUpgradeStatus[responses.size()]), totalShards, successfulShards,
-            failedShards, shardFailures);
+    protected UpgradeStatusResponse newResponse(
+        UpgradeStatusRequest request,
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<ShardUpgradeStatus> responses,
+        List<DefaultShardOperationFailedException> shardFailures,
+        ClusterState clusterState
+    ) {
+        return new UpgradeStatusResponse(
+            responses.toArray(new ShardUpgradeStatus[responses.size()]),
+            totalShards,
+            successfulShards,
+            failedShards,
+            shardFailures
+        );
     }
 
     @Override
@@ -84,8 +108,12 @@ public class TransportUpgradeStatusAction
     }
 
     @Override
-    protected void shardOperation(UpgradeStatusRequest request, ShardRouting shardRouting, Task task,
-                                  ActionListener<ShardUpgradeStatus> listener) {
+    protected void shardOperation(
+        UpgradeStatusRequest request,
+        ShardRouting shardRouting,
+        Task task,
+        ActionListener<ShardUpgradeStatus> listener
+    ) {
         ActionListener.completeWith(listener, () -> {
             IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
             IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());

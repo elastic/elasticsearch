@@ -20,16 +20,16 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -90,7 +90,7 @@ public abstract class MetadataStateFormat<T> {
     }
 
     private void writeStateToFirstLocation(final T state, Path stateLocation, Directory stateDir, String tmpFileName)
-            throws WriteStateException {
+        throws WriteStateException {
         try {
             deleteFileIfExists(stateLocation, stateDir, tmpFileName);
             try (IndexOutput out = stateDir.createOutput(tmpFileName, IOContext.DEFAULT)) {
@@ -112,13 +112,15 @@ public abstract class MetadataStateFormat<T> {
 
             stateDir.sync(Collections.singleton(tmpFileName));
         } catch (Exception e) {
-            throw new WriteStateException(false, "failed to write state to the first location tmp file " +
-                    stateLocation.resolve(tmpFileName), e);
+            throw new WriteStateException(
+                false,
+                "failed to write state to the first location tmp file " + stateLocation.resolve(tmpFileName),
+                e
+            );
         }
     }
 
-    private static void copyStateToExtraLocations(List<Tuple<Path, Directory>> stateDirs, String tmpFileName)
-            throws WriteStateException {
+    private static void copyStateToExtraLocations(List<Tuple<Path, Directory>> stateDirs, String tmpFileName) throws WriteStateException {
         Directory srcStateDir = stateDirs.get(0).v2();
         for (int i = 1; i < stateDirs.size(); i++) {
             Tuple<Path, Directory> extraStatePathAndDir = stateDirs.get(i);
@@ -134,14 +136,17 @@ public abstract class MetadataStateFormat<T> {
         }
     }
 
-    private static void performRenames(String tmpFileName, String fileName, final List<Tuple<Path, Directory>> stateDirectories) throws
-            WriteStateException {
+    private static void performRenames(String tmpFileName, String fileName, final List<Tuple<Path, Directory>> stateDirectories)
+        throws WriteStateException {
         Directory firstStateDirectory = stateDirectories.get(0).v2();
         try {
             firstStateDirectory.rename(tmpFileName, fileName);
         } catch (IOException e) {
-            throw new WriteStateException(false, "failed to rename tmp file to final name in the first state location " +
-                    stateDirectories.get(0).v1().resolve(tmpFileName), e);
+            throw new WriteStateException(
+                false,
+                "failed to rename tmp file to final name in the first state location " + stateDirectories.get(0).v1().resolve(tmpFileName),
+                e
+            );
         }
 
         for (int i = 1; i < stateDirectories.size(); i++) {
@@ -149,8 +154,11 @@ public abstract class MetadataStateFormat<T> {
             try {
                 extraStateDirectory.rename(tmpFileName, fileName);
             } catch (IOException e) {
-                throw new WriteStateException(true, "failed to rename tmp file to final name in extra state location " +
-                        stateDirectories.get(i).v1().resolve(tmpFileName), e);
+                throw new WriteStateException(
+                    true,
+                    "failed to rename tmp file to final name in extra state location " + stateDirectories.get(i).v1().resolve(tmpFileName),
+                    e
+                );
             }
         }
     }
@@ -252,7 +260,7 @@ public abstract class MetadataStateFormat<T> {
         return newGenerationId;
     }
 
-    protected XContentBuilder newXContentBuilder(XContentType type, OutputStream stream ) throws IOException {
+    protected XContentBuilder newXContentBuilder(XContentType type, OutputStream stream) throws IOException {
         return XContentFactory.contentBuilder(type, stream);
     }
 
@@ -285,13 +293,18 @@ public abstract class MetadataStateFormat<T> {
                 long filePointer = indexInput.getFilePointer();
                 long contentSize = indexInput.length() - CodecUtil.footerLength() - filePointer;
                 try (IndexInput slice = indexInput.slice("state_xcontent", filePointer, contentSize)) {
-                    try (XContentParser parser = XContentFactory.xContent(FORMAT)
-                            .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE,
-                                    new InputStreamIndexInput(slice, contentSize))) {
+                    try (
+                        XContentParser parser = XContentFactory.xContent(FORMAT)
+                            .createParser(
+                                namedXContentRegistry,
+                                LoggingDeprecationHandler.INSTANCE,
+                                new InputStreamIndexInput(slice, contentSize)
+                            )
+                    ) {
                         return fromXContent(parser);
                     }
                 }
-            } catch(CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
+            } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
                 // we trick this into a dedicated exception with the original stacktrace
                 throw new CorruptStateException(ex);
             }
@@ -301,7 +314,6 @@ public abstract class MetadataStateFormat<T> {
     protected Directory newDirectory(Path dir) throws IOException {
         return new NIOFSDirectory(dir);
     }
-
 
     /**
      * Clean ups all state files not matching passed generation.
@@ -334,7 +346,7 @@ public abstract class MetadataStateFormat<T> {
      * @return maximum id of state file or -1 if no such files are found
      * @throws IOException if IOException occurs
      */
-     long findMaxGenerationId(final String prefix, Path... locations) throws IOException {
+    long findMaxGenerationId(final String prefix, Path... locations) throws IOException {
         long maxId = -1;
         for (Path dataLocation : locations) {
             final Path resolve = dataLocation.resolve(STATE_DIR_NAME);
@@ -395,16 +407,17 @@ public abstract class MetadataStateFormat<T> {
                 return state;
             } catch (Exception e) {
                 exceptions.add(new IOException("failed to read " + stateFile, e));
-                logger.debug(() -> new ParameterizedMessage(
-                        "{}: failed to read [{}], ignoring...", stateFile, prefix), e);
+                logger.debug(() -> new ParameterizedMessage("{}: failed to read [{}], ignoring...", stateFile, prefix), e);
             }
         }
         // if we reach this something went wrong
         ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
         if (stateFiles.size() > 0) {
             // We have some state files but none of them gave us a usable state
-            throw new IllegalStateException("Could not find a state file to recover from among " +
-                    stateFiles.stream().map(Object::toString).collect(Collectors.joining(", ")));
+            throw new IllegalStateException(
+                "Could not find a state file to recover from among "
+                    + stateFiles.stream().map(Object::toString).collect(Collectors.joining(", "))
+            );
         }
         return null;
     }
@@ -417,7 +430,7 @@ public abstract class MetadataStateFormat<T> {
      * @return tuple of the latest state and generation. (null, -1) if no state is found.
      */
     public Tuple<T, Long> loadLatestStateWithGeneration(Logger logger, NamedXContentRegistry namedXContentRegistry, Path... dataLocations)
-            throws IOException {
+        throws IOException {
         long generation = findMaxGenerationId(prefix, dataLocations);
         T state = loadGeneration(logger, namedXContentRegistry, generation, dataLocations);
 
@@ -425,11 +438,13 @@ public abstract class MetadataStateFormat<T> {
         // call will throw ElasticsearchException. If there are no state files, we won't find a
         // generation.
         if (generation > -1 && state == null) {
-            throw new IllegalStateException("unable to find state files with generation id " + generation +
-                    " returned by findMaxGenerationId function, in data folders [" +
-                    Arrays.stream(dataLocations).
-                            map(Object::toString).collect(Collectors.joining(", ")) +
-                    "], concurrent writes?");
+            throw new IllegalStateException(
+                "unable to find state files with generation id "
+                    + generation
+                    + " returned by findMaxGenerationId function, in data folders ["
+                    + Arrays.stream(dataLocations).map(Object::toString).collect(Collectors.joining(", "))
+                    + "], concurrent writes?"
+            );
         }
         return Tuple.tuple(state, generation);
     }
@@ -441,8 +456,7 @@ public abstract class MetadataStateFormat<T> {
      * @param dataLocations the data-locations to try.
      * @return the latest state or <code>null</code> if no state was found.
      */
-    public T loadLatestState(Logger logger, NamedXContentRegistry namedXContentRegistry, Path... dataLocations) throws
-            IOException {
+    public T loadLatestState(Logger logger, NamedXContentRegistry namedXContentRegistry, Path... dataLocations) throws IOException {
         return loadLatestStateWithGeneration(logger, namedXContentRegistry, dataLocations).v1();
     }
 

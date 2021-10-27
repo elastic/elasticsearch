@@ -22,10 +22,10 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -33,10 +33,11 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
-public class TransportNodesListGatewayMetaState extends TransportNodesAction<TransportNodesListGatewayMetaState.Request,
-                                                                             TransportNodesListGatewayMetaState.NodesGatewayMetaState,
-                                                                             TransportNodesListGatewayMetaState.NodeRequest,
-                                                                             TransportNodesListGatewayMetaState.NodeGatewayMetaState> {
+public class TransportNodesListGatewayMetaState extends TransportNodesAction<
+    TransportNodesListGatewayMetaState.Request,
+    TransportNodesListGatewayMetaState.NodesGatewayMetaState,
+    TransportNodesListGatewayMetaState.NodeRequest,
+    TransportNodesListGatewayMetaState.NodeGatewayMetaState> {
 
     public static final String ACTION_NAME = "internal:gateway/local/meta_state";
     public static final ActionType<NodesGatewayMetaState> TYPE = new ActionType<>(ACTION_NAME, NodesGatewayMetaState::new);
@@ -44,10 +45,24 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
     private final GatewayMetaState metaState;
 
     @Inject
-    public TransportNodesListGatewayMetaState(ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                              ActionFilters actionFilters, GatewayMetaState metaState) {
-        super(ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
-            Request::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeGatewayMetaState.class);
+    public TransportNodesListGatewayMetaState(
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        GatewayMetaState metaState
+    ) {
+        super(
+            ACTION_NAME,
+            threadPool,
+            clusterService,
+            transportService,
+            actionFilters,
+            Request::new,
+            NodeRequest::new,
+            ThreadPool.Names.GENERIC,
+            NodeGatewayMetaState.class
+        );
         this.metaState = metaState;
     }
 
@@ -111,6 +126,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
 
     public static class NodeRequest extends BaseNodeRequest {
         NodeRequest() {}
+
         NodeRequest(StreamInput in) throws IOException {
             super(in);
         }

@@ -21,7 +21,7 @@ import java.util.Map;
 
 public class DenseVectorPlugin extends Plugin implements MapperPlugin {
 
-    public DenseVectorPlugin() { }
+    public DenseVectorPlugin() {}
 
     public Collection<Module> createGuiceModules() {
         return Collections.emptyList();

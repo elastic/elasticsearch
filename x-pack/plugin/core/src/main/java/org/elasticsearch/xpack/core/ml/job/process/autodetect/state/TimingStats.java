@@ -7,13 +7,13 @@
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -38,35 +38,38 @@ public class TimingStats implements ToXContentObject, Writeable {
     public static final ParseField MIN_BUCKET_PROCESSING_TIME_MS = new ParseField("minimum_bucket_processing_time_ms");
     public static final ParseField MAX_BUCKET_PROCESSING_TIME_MS = new ParseField("maximum_bucket_processing_time_ms");
     public static final ParseField AVG_BUCKET_PROCESSING_TIME_MS = new ParseField("average_bucket_processing_time_ms");
-    public static final ParseField EXPONENTIAL_AVG_BUCKET_PROCESSING_TIME_MS =
-        new ParseField("exponential_average_bucket_processing_time_ms");
+    public static final ParseField EXPONENTIAL_AVG_BUCKET_PROCESSING_TIME_MS = new ParseField(
+        "exponential_average_bucket_processing_time_ms"
+    );
     public static final ParseField EXPONENTIAL_AVG_CALCULATION_CONTEXT = new ParseField("exponential_average_calculation_context");
-    public static final ParseField EXPONENTIAL_AVG_BUCKET_PROCESSING_TIME_PER_HOUR_MS =
-        new ParseField("exponential_average_bucket_processing_time_per_hour_ms");
+    public static final ParseField EXPONENTIAL_AVG_BUCKET_PROCESSING_TIME_PER_HOUR_MS = new ParseField(
+        "exponential_average_bucket_processing_time_per_hour_ms"
+    );
 
     public static final ParseField TYPE = new ParseField("timing_stats");
 
-    public static final ConstructingObjectParser<TimingStats, Void> PARSER =
-        new ConstructingObjectParser<>(
-            TYPE.getPreferredName(),
-            true,
-            args -> {
-                String jobId = (String) args[0];
-                long bucketCount = (long) args[1];
-                Double minBucketProcessingTimeMs = (Double) args[2];
-                Double maxBucketProcessingTimeMs = (Double) args[3];
-                Double avgBucketProcessingTimeMs = (Double) args[4];
-                Double exponentialAvgBucketProcessingTimeMs = (Double) args[5];
-                ExponentialAverageCalculationContext exponentialAvgCalculationContext = (ExponentialAverageCalculationContext) args[6];
-                return new TimingStats(
-                    jobId,
-                    bucketCount,
-                    minBucketProcessingTimeMs,
-                    maxBucketProcessingTimeMs,
-                    avgBucketProcessingTimeMs,
-                    exponentialAvgBucketProcessingTimeMs,
-                    getOrDefault(exponentialAvgCalculationContext, new ExponentialAverageCalculationContext()));
-            });
+    public static final ConstructingObjectParser<TimingStats, Void> PARSER = new ConstructingObjectParser<>(
+        TYPE.getPreferredName(),
+        true,
+        args -> {
+            String jobId = (String) args[0];
+            long bucketCount = (long) args[1];
+            Double minBucketProcessingTimeMs = (Double) args[2];
+            Double maxBucketProcessingTimeMs = (Double) args[3];
+            Double avgBucketProcessingTimeMs = (Double) args[4];
+            Double exponentialAvgBucketProcessingTimeMs = (Double) args[5];
+            ExponentialAverageCalculationContext exponentialAvgCalculationContext = (ExponentialAverageCalculationContext) args[6];
+            return new TimingStats(
+                jobId,
+                bucketCount,
+                minBucketProcessingTimeMs,
+                maxBucketProcessingTimeMs,
+                avgBucketProcessingTimeMs,
+                exponentialAvgBucketProcessingTimeMs,
+                getOrDefault(exponentialAvgCalculationContext, new ExponentialAverageCalculationContext())
+            );
+        }
+    );
 
     static {
         PARSER.declareString(constructorArg(), Job.ID);
@@ -91,13 +94,14 @@ public class TimingStats implements ToXContentObject, Writeable {
     private final ExponentialAverageCalculationContext exponentialAvgCalculationContext;
 
     public TimingStats(
-            String jobId,
-            long bucketCount,
-            @Nullable Double minBucketProcessingTimeMs,
-            @Nullable Double maxBucketProcessingTimeMs,
-            @Nullable Double avgBucketProcessingTimeMs,
-            @Nullable Double exponentialAvgBucketProcessingTimeMs,
-            ExponentialAverageCalculationContext exponentialAvgCalculationContext) {
+        String jobId,
+        long bucketCount,
+        @Nullable Double minBucketProcessingTimeMs,
+        @Nullable Double maxBucketProcessingTimeMs,
+        @Nullable Double avgBucketProcessingTimeMs,
+        @Nullable Double exponentialAvgBucketProcessingTimeMs,
+        ExponentialAverageCalculationContext exponentialAvgCalculationContext
+    ) {
         this.jobId = Objects.requireNonNull(jobId);
         this.bucketCount = bucketCount;
         this.minBucketProcessingTimeMs = minBucketProcessingTimeMs;
@@ -119,7 +123,8 @@ public class TimingStats implements ToXContentObject, Writeable {
             lhs.maxBucketProcessingTimeMs,
             lhs.avgBucketProcessingTimeMs,
             lhs.exponentialAvgBucketProcessingTimeMs,
-            new ExponentialAverageCalculationContext(lhs.exponentialAvgCalculationContext));
+            new ExponentialAverageCalculationContext(lhs.exponentialAvgCalculationContext)
+        );
     }
 
     public TimingStats(StreamInput in) throws IOException {
@@ -146,9 +151,7 @@ public class TimingStats implements ToXContentObject, Writeable {
 
     /** Calculates total bucket processing time as a product of the all-time average bucket processing time and the number of buckets. */
     public double getTotalBucketProcessingTimeMs() {
-        return avgBucketProcessingTimeMs != null
-            ? bucketCount * avgBucketProcessingTimeMs
-            : 0.0;
+        return avgBucketProcessingTimeMs != null ? bucketCount * avgBucketProcessingTimeMs : 0.0;
     }
 
     public Double getMinBucketProcessingTimeMs() {
@@ -288,7 +291,8 @@ public class TimingStats implements ToXContentObject, Writeable {
             maxBucketProcessingTimeMs,
             avgBucketProcessingTimeMs,
             exponentialAvgBucketProcessingTimeMs,
-            exponentialAvgCalculationContext);
+            exponentialAvgCalculationContext
+        );
     }
 
     @Override

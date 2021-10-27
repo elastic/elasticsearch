@@ -31,15 +31,15 @@ public class IndexFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testIndexNotConfigurable() {
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-                () -> createMapperService(topMapping(b -> b.startObject("_index").endObject())));
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(topMapping(b -> b.startObject("_index").endObject()))
+        );
         assertThat(e.getMessage(), containsString("_index is not configurable"));
     }
 
     public void testFetchFieldValue() throws IOException {
-        MapperService mapperService = createMapperService(
-            fieldMapping(b -> b.field("type", "keyword"))
-        );
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword")));
         String index = mapperService.index().getName();
         withLuceneIndex(mapperService, iw -> {
             SourceToParse source = source(index, "id", b -> b.field("field", "value"), "", org.elasticsearch.core.Map.of());

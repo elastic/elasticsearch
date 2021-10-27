@@ -50,50 +50,50 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
     public void testWhenRetentionLeaseAlreadyExistsWeTryToRenewIt() {
         final RepositoryMetadata repositoryMetadata = mock(RepositoryMetadata.class);
         when(repositoryMetadata.name()).thenReturn(CcrRepository.NAME_PREFIX);
-        final Set<Setting<?>> settings =
-                Stream.concat(
-                        ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),
-                        CcrSettings.getSettings().stream().filter(Setting::hasNodeScope))
-                        .collect(Collectors.toSet());
+        final Set<Setting<?>> settings = Stream.concat(
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),
+            CcrSettings.getSettings().stream().filter(Setting::hasNodeScope)
+        ).collect(Collectors.toSet());
 
         final CcrRepository repository = new CcrRepository(
-                repositoryMetadata,
-                mock(Client.class),
-                new CcrLicenseChecker(() -> true, () -> true),
-                Settings.EMPTY,
-                new CcrSettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, settings)),
-                mock(ThreadPool.class));
+            repositoryMetadata,
+            mock(Client.class),
+            new CcrLicenseChecker(() -> true, () -> true),
+            Settings.EMPTY,
+            new CcrSettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, settings)),
+            mock(ThreadPool.class)
+        );
 
         final ShardId followerShardId = new ShardId(new Index("follower-index-name", "follower-index-uuid"), 0);
         final ShardId leaderShardId = new ShardId(new Index("leader-index-name", "leader-index-uuid"), 0);
 
-        final String retentionLeaseId =
-                retentionLeaseId("local-cluster", followerShardId.getIndex(), "remote-cluster", leaderShardId.getIndex());
+        final String retentionLeaseId = retentionLeaseId(
+            "local-cluster",
+            followerShardId.getIndex(),
+            "remote-cluster",
+            leaderShardId.getIndex()
+        );
 
         // simulate that the retention lease already exists on the leader, and verify that we attempt to renew it
         final Client remoteClient = mock(Client.class);
-        final ArgumentCaptor<RetentionLeaseActions.AddRequest> addRequestCaptor =
-                ArgumentCaptor.forClass(RetentionLeaseActions.AddRequest.class);
-        doAnswer(
-                invocationOnMock -> {
-                    @SuppressWarnings("unchecked") final ActionListener<ActionResponse.Empty> listener =
-                            (ActionListener<ActionResponse.Empty>) invocationOnMock.getArguments()[2];
-                    listener.onFailure(new RetentionLeaseAlreadyExistsException(retentionLeaseId));
-                    return null;
-                })
-                .when(remoteClient)
-                .execute(same(RetentionLeaseActions.Add.INSTANCE), addRequestCaptor.capture(), any());
-        final ArgumentCaptor<RetentionLeaseActions.RenewRequest> renewRequestCaptor =
-                ArgumentCaptor.forClass(RetentionLeaseActions.RenewRequest.class);
-        doAnswer(
-                invocationOnMock -> {
-                    @SuppressWarnings("unchecked") final ActionListener<ActionResponse.Empty> listener =
-                            (ActionListener<ActionResponse.Empty>) invocationOnMock.getArguments()[2];
-                    listener.onResponse(ActionResponse.Empty.INSTANCE);
-                    return null;
-                })
-                .when(remoteClient)
-                .execute(same(RetentionLeaseActions.Renew.INSTANCE), renewRequestCaptor.capture(), any());
+        final ArgumentCaptor<RetentionLeaseActions.AddRequest> addRequestCaptor = ArgumentCaptor.forClass(
+            RetentionLeaseActions.AddRequest.class
+        );
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<ActionResponse.Empty> listener = (ActionListener<ActionResponse.Empty>) invocationOnMock.getArguments()[2];
+            listener.onFailure(new RetentionLeaseAlreadyExistsException(retentionLeaseId));
+            return null;
+        }).when(remoteClient).execute(same(RetentionLeaseActions.Add.INSTANCE), addRequestCaptor.capture(), any());
+        final ArgumentCaptor<RetentionLeaseActions.RenewRequest> renewRequestCaptor = ArgumentCaptor.forClass(
+            RetentionLeaseActions.RenewRequest.class
+        );
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<ActionResponse.Empty> listener = (ActionListener<ActionResponse.Empty>) invocationOnMock.getArguments()[2];
+            listener.onResponse(ActionResponse.Empty.INSTANCE);
+            return null;
+        }).when(remoteClient).execute(same(RetentionLeaseActions.Renew.INSTANCE), renewRequestCaptor.capture(), any());
 
         repository.acquireRetentionLeaseOnLeader(followerShardId, retentionLeaseId, leaderShardId, remoteClient);
 
@@ -115,67 +115,72 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
     public void testWhenRetentionLeaseExpiresBeforeWeCanRenewIt() {
         final RepositoryMetadata repositoryMetadata = mock(RepositoryMetadata.class);
         when(repositoryMetadata.name()).thenReturn(CcrRepository.NAME_PREFIX);
-        final Set<Setting<?>> settings =
-                Stream.concat(
-                        ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),
-                        CcrSettings.getSettings().stream().filter(Setting::hasNodeScope))
-                        .collect(Collectors.toSet());
+        final Set<Setting<?>> settings = Stream.concat(
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),
+            CcrSettings.getSettings().stream().filter(Setting::hasNodeScope)
+        ).collect(Collectors.toSet());
 
         final CcrRepository repository = new CcrRepository(
-                repositoryMetadata,
-                mock(Client.class),
-                new CcrLicenseChecker(() -> true, () -> true),
-                Settings.EMPTY,
-                new CcrSettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, settings)),
-                mock(ThreadPool.class));
+            repositoryMetadata,
+            mock(Client.class),
+            new CcrLicenseChecker(() -> true, () -> true),
+            Settings.EMPTY,
+            new CcrSettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, settings)),
+            mock(ThreadPool.class)
+        );
 
         final ShardId followerShardId = new ShardId(new Index("follower-index-name", "follower-index-uuid"), 0);
         final ShardId leaderShardId = new ShardId(new Index("leader-index-name", "leader-index-uuid"), 0);
 
-        final String retentionLeaseId =
-                retentionLeaseId("local-cluster", followerShardId.getIndex(), "remote-cluster", leaderShardId.getIndex());
+        final String retentionLeaseId = retentionLeaseId(
+            "local-cluster",
+            followerShardId.getIndex(),
+            "remote-cluster",
+            leaderShardId.getIndex()
+        );
 
         // simulate that the retention lease already exists on the leader, expires before we renew, and verify that we attempt to add it
         final Client remoteClient = mock(Client.class);
-        final ArgumentCaptor<RetentionLeaseActions.AddRequest> addRequestCaptor =
-                ArgumentCaptor.forClass(RetentionLeaseActions.AddRequest.class);
+        final ArgumentCaptor<RetentionLeaseActions.AddRequest> addRequestCaptor = ArgumentCaptor.forClass(
+            RetentionLeaseActions.AddRequest.class
+        );
         final PlainActionFuture<ActionResponse.Empty> response = new PlainActionFuture<>();
         response.onResponse(ActionResponse.Empty.INSTANCE);
-        doAnswer(
-                new Answer<Void>() {
+        doAnswer(new Answer<Void>() {
 
-                    final AtomicBoolean firstInvocation = new AtomicBoolean(true);
+            final AtomicBoolean firstInvocation = new AtomicBoolean(true);
 
-                    @Override
-                    public Void answer(final InvocationOnMock invocationOnMock) {
-                        @SuppressWarnings("unchecked") final ActionListener<ActionResponse.Empty> listener =
-                                (ActionListener<ActionResponse.Empty>) invocationOnMock.getArguments()[2];
-                        if (firstInvocation.compareAndSet(true, false)) {
-                            listener.onFailure(new RetentionLeaseAlreadyExistsException(retentionLeaseId));
-                        } else {
-                            listener.onResponse(ActionResponse.Empty.INSTANCE);
-                        }
-                        return null;
-                    }
-
-                })
-                .when(remoteClient).execute(same(RetentionLeaseActions.Add.INSTANCE), addRequestCaptor.capture(), any());
-        final ArgumentCaptor<RetentionLeaseActions.RenewRequest> renewRequestCaptor =
-                ArgumentCaptor.forClass(RetentionLeaseActions.RenewRequest.class);
-        doAnswer(
-                invocationOnMock -> {
-                    @SuppressWarnings("unchecked") final ActionListener<ActionResponse.Empty> listener =
-                            (ActionListener<ActionResponse.Empty>) invocationOnMock.getArguments()[2];
-                    listener.onFailure(new RetentionLeaseNotFoundException(retentionLeaseId));
-                    return null;
+            @Override
+            public Void answer(final InvocationOnMock invocationOnMock) {
+                @SuppressWarnings("unchecked")
+                final ActionListener<ActionResponse.Empty> listener = (ActionListener<ActionResponse.Empty>) invocationOnMock
+                    .getArguments()[2];
+                if (firstInvocation.compareAndSet(true, false)) {
+                    listener.onFailure(new RetentionLeaseAlreadyExistsException(retentionLeaseId));
+                } else {
+                    listener.onResponse(ActionResponse.Empty.INSTANCE);
                 }
-        ).when(remoteClient)
-                .execute(same(RetentionLeaseActions.Renew.INSTANCE), renewRequestCaptor.capture(), any());
+                return null;
+            }
+
+        }).when(remoteClient).execute(same(RetentionLeaseActions.Add.INSTANCE), addRequestCaptor.capture(), any());
+        final ArgumentCaptor<RetentionLeaseActions.RenewRequest> renewRequestCaptor = ArgumentCaptor.forClass(
+            RetentionLeaseActions.RenewRequest.class
+        );
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<ActionResponse.Empty> listener = (ActionListener<ActionResponse.Empty>) invocationOnMock.getArguments()[2];
+            listener.onFailure(new RetentionLeaseNotFoundException(retentionLeaseId));
+            return null;
+        }).when(remoteClient).execute(same(RetentionLeaseActions.Renew.INSTANCE), renewRequestCaptor.capture(), any());
 
         repository.acquireRetentionLeaseOnLeader(followerShardId, retentionLeaseId, leaderShardId, remoteClient);
 
-        verify(remoteClient, times(2))
-                .execute(same(RetentionLeaseActions.Add.INSTANCE), any(RetentionLeaseActions.AddRequest.class), any());
+        verify(remoteClient, times(2)).execute(
+            same(RetentionLeaseActions.Add.INSTANCE),
+            any(RetentionLeaseActions.AddRequest.class),
+            any()
+        );
         assertThat(addRequestCaptor.getValue().getShardId(), equalTo(leaderShardId));
         assertThat(addRequestCaptor.getValue().getId(), equalTo(retentionLeaseId));
         assertThat(addRequestCaptor.getValue().getRetainingSequenceNumber(), equalTo(RETAIN_ALL));

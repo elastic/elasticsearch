@@ -26,19 +26,36 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class TransportNodesUsageAction
-        extends TransportNodesAction<NodesUsageRequest, NodesUsageResponse, TransportNodesUsageAction.NodeUsageRequest, NodeUsage> {
+public class TransportNodesUsageAction extends TransportNodesAction<
+    NodesUsageRequest,
+    NodesUsageResponse,
+    TransportNodesUsageAction.NodeUsageRequest,
+    NodeUsage> {
 
     private final UsageService restUsageService;
     private final AggregationUsageService aggregationUsageService;
     private final long sinceTime;
 
     @Inject
-    public TransportNodesUsageAction(ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                     ActionFilters actionFilters, UsageService restUsageService,
-                                     AggregationUsageService aggregationUsageService) {
-        super(NodesUsageAction.NAME, threadPool, clusterService, transportService, actionFilters,
-            NodesUsageRequest::new, NodeUsageRequest::new, ThreadPool.Names.MANAGEMENT, NodeUsage.class);
+    public TransportNodesUsageAction(
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        UsageService restUsageService,
+        AggregationUsageService aggregationUsageService
+    ) {
+        super(
+            NodesUsageAction.NAME,
+            threadPool,
+            clusterService,
+            transportService,
+            actionFilters,
+            NodesUsageRequest::new,
+            NodeUsageRequest::new,
+            ThreadPool.Names.MANAGEMENT,
+            NodeUsage.class
+        );
         this.restUsageService = restUsageService;
         this.aggregationUsageService = aggregationUsageService;
         this.sinceTime = System.currentTimeMillis();

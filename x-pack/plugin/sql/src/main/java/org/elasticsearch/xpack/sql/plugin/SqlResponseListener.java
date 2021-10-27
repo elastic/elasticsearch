@@ -7,14 +7,14 @@
 
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestResponseListener;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.plugin.SqlMediaTypeParser.SqlMediaType;
@@ -35,7 +35,6 @@ class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
     private final SqlMediaType mediaType;
     private final RestRequest request;
 
-
     SqlResponseListener(RestChannel channel, RestRequest request, SqlQueryRequest sqlRequest) {
         super(channel);
         this.request = request;
@@ -49,8 +48,11 @@ class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
          * parameter should only be checked for CSV, not always.
          */
         if (mediaType.textFormat() != TextFormat.CSV && request.hasParam(URL_PARAM_DELIMITER)) {
-            String message = String.format(Locale.ROOT, "request [%s] contains unrecognized parameter: [" + URL_PARAM_DELIMITER + "]",
-                request.path());
+            String message = String.format(
+                Locale.ROOT,
+                "request [%s] contains unrecognized parameter: [" + URL_PARAM_DELIMITER + "]",
+                request.path()
+            );
             throw new IllegalArgumentException(message);
         }
     }
@@ -75,8 +77,7 @@ class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
             TextFormat type = mediaType.textFormat();
             final String data = type.format(request, response);
 
-            restResponse = new BytesRestResponse(RestStatus.OK, type.contentType(request),
-                data.getBytes(StandardCharsets.UTF_8));
+            restResponse = new BytesRestResponse(RestStatus.OK, type.contentType(request), data.getBytes(StandardCharsets.UTF_8));
 
             if (response.hasCursor()) {
                 restResponse.addHeader(HEADER_NAME_CURSOR, response.cursor());

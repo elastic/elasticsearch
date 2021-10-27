@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.ilm;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
@@ -89,8 +89,10 @@ public class IndexLifecycleFeatureSet implements XPackFeatureSet {
                     }
                     String[] actionNames = actionStream.toArray(String[]::new);
                     phase.getActions().forEach((k, v) -> collectActionConfigurations(k, v, configurations));
-                    return new Tuple<>(phase.getName(), new IndexLifecycleFeatureSetUsage.PhaseStats(phase.getMinimumAge(), actionNames,
-                        configurations.build()));
+                    return new Tuple<>(
+                        phase.getName(),
+                        new IndexLifecycleFeatureSetUsage.PhaseStats(phase.getMinimumAge(), actionNames, configurations.build())
+                    );
                 }).collect(Collectors.toMap(Tuple::v1, Tuple::v2));
                 return new PolicyStats(phaseStats, policyUsage.getOrDefault(policy.getName(), 0));
             }).collect(Collectors.toList());

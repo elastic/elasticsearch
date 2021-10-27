@@ -8,7 +8,9 @@
 
 package org.elasticsearch.join.aggregations;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.join.query.ParentChildTestCase;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -17,9 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.join.query.ParentChildTestCase;
-import org.junit.Before;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 /**
  * Small base test-class which combines stuff used for Children and Parent aggregation tests
@@ -31,10 +31,16 @@ public abstract class AbstractParentChildTestCase extends ParentChildTestCase {
     @Before
     public void setupCluster() throws Exception {
         assertAcked(
-            prepareCreate("test")
-                .addMapping("doc",
-                    addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "article", "comment"),
-                        "commenter", "keyword", "category", "keyword"))
+            prepareCreate("test").addMapping(
+                "doc",
+                addFieldMappings(
+                    buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "article", "comment"),
+                    "commenter",
+                    "keyword",
+                    "category",
+                    "keyword"
+                )
+            )
         );
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
@@ -49,7 +55,7 @@ public abstract class AbstractParentChildTestCase extends ParentChildTestCase {
             String id = "article-" + i;
 
             // TODO: this array is always of length 1, and testChildrenAggs fails if this is changed
-            String[] categories = new String[randomIntBetween(1,1)];
+            String[] categories = new String[randomIntBetween(1, 1)];
             for (int j = 0; j < categories.length; j++) {
                 String category = categories[j] = uniqueCategories[catIndex++ % uniqueCategories.length];
                 Control control = categoryToControl.computeIfAbsent(category, Control::new);
@@ -79,24 +85,31 @@ public abstract class AbstractParentChildTestCase extends ParentChildTestCase {
 
                     articleToControl.get(articleId).commentIds.add(idValue);
 
-                    IndexRequestBuilder indexRequest = createIndexRequest("test", "comment", idValue,
-                        articleId, "commenter", commenter, "randomized", true);
+                    IndexRequestBuilder indexRequest = createIndexRequest(
+                        "test",
+                        "comment",
+                        idValue,
+                        articleId,
+                        "commenter",
+                        commenter,
+                        "randomized",
+                        true
+                    );
                     requests.add(indexRequest);
                 }
             }
         }
 
-        requests.add(createIndexRequest("test", "article", "a", null, "category", new String[]{"a"}, "randomized", false));
-        requests.add(createIndexRequest("test", "article", "b", null, "category", new String[]{"a", "b"}, "randomized", false));
-        requests.add(createIndexRequest("test", "article", "c", null, "category", new String[]{"a", "b", "c"}, "randomized", false));
-        requests.add(createIndexRequest("test", "article", "d", null, "category", new String[]{"c"}, "randomized", false));
+        requests.add(createIndexRequest("test", "article", "a", null, "category", new String[] { "a" }, "randomized", false));
+        requests.add(createIndexRequest("test", "article", "b", null, "category", new String[] { "a", "b" }, "randomized", false));
+        requests.add(createIndexRequest("test", "article", "c", null, "category", new String[] { "a", "b", "c" }, "randomized", false));
+        requests.add(createIndexRequest("test", "article", "d", null, "category", new String[] { "c" }, "randomized", false));
         requests.add(createIndexRequest("test", "comment", "e", "a"));
         requests.add(createIndexRequest("test", "comment", "f", "c"));
 
         indexRandom(true, requests);
         ensureSearchable("test");
     }
-
 
     protected static final class Control {
 

@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Metadata.Custom;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -28,12 +27,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Builder;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
@@ -41,6 +34,13 @@ import org.elasticsearch.persistent.TestPersistentTasksPlugin.State;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -71,8 +71,7 @@ public class PersistentTasksCustomMetadataTests extends AbstractDiffableSerializ
         PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder();
         for (int i = 0; i < numberOfTasks; i++) {
             String taskId = UUIDs.base64UUID();
-            tasks.addTask(taskId, TestPersistentTasksExecutor.NAME, new TestParams(randomAlphaOfLength(10)),
-                    randomAssignment());
+            tasks.addTask(taskId, TestPersistentTasksExecutor.NAME, new TestParams(randomAlphaOfLength(10)), randomAssignment());
             if (randomBoolean()) {
                 // From time to time update status
                 tasks.updateTaskState(taskId, new State(randomAlphaOfLength(10)));
@@ -88,12 +87,14 @@ public class PersistentTasksCustomMetadataTests extends AbstractDiffableSerializ
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(Arrays.asList(
+        return new NamedWriteableRegistry(
+            Arrays.asList(
                 new Entry(Metadata.Custom.class, PersistentTasksCustomMetadata.TYPE, PersistentTasksCustomMetadata::new),
                 new Entry(NamedDiff.class, PersistentTasksCustomMetadata.TYPE, PersistentTasksCustomMetadata::readDiffFrom),
                 new Entry(PersistentTaskParams.class, TestPersistentTasksExecutor.NAME, TestParams::new),
                 new Entry(PersistentTaskState.class, TestPersistentTasksExecutor.NAME, State::new)
-        ));
+            )
+        );
     }
 
     @Override
@@ -150,12 +151,20 @@ public class PersistentTasksCustomMetadataTests extends AbstractDiffableSerializ
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(Arrays.asList(
-                new NamedXContentRegistry.Entry(PersistentTaskParams.class,
-                    new ParseField(TestPersistentTasksExecutor.NAME), TestParams::fromXContent),
-                new NamedXContentRegistry.Entry(PersistentTaskState.class,
-                    new ParseField(TestPersistentTasksExecutor.NAME), State::fromXContent)
-        ));
+        return new NamedXContentRegistry(
+            Arrays.asList(
+                new NamedXContentRegistry.Entry(
+                    PersistentTaskParams.class,
+                    new ParseField(TestPersistentTasksExecutor.NAME),
+                    TestParams::fromXContent
+                ),
+                new NamedXContentRegistry.Entry(
+                    PersistentTaskState.class,
+                    new ParseField(TestPersistentTasksExecutor.NAME),
+                    State::fromXContent
+                )
+            )
+        );
     }
 
     @SuppressWarnings("unchecked")
@@ -166,7 +175,8 @@ public class PersistentTasksCustomMetadataTests extends AbstractDiffableSerializ
         }
 
         ToXContent.MapParams params = new ToXContent.MapParams(
-                Collections.singletonMap(Metadata.CONTEXT_MODE_PARAM, randomFrom(CONTEXT_MODE_SNAPSHOT, CONTEXT_MODE_GATEWAY)));
+            Collections.singletonMap(Metadata.CONTEXT_MODE_PARAM, randomFrom(CONTEXT_MODE_SNAPSHOT, CONTEXT_MODE_GATEWAY))
+        );
 
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference shuffled = toShuffledXContent(testInstance, xContentType, params, false);
@@ -250,14 +260,26 @@ public class PersistentTasksCustomMetadataTests extends AbstractDiffableSerializ
 
         Version minVersion = allReleasedVersions().stream().filter(Version::isRelease).findFirst().orElseThrow(NoSuchElementException::new);
         final Version streamVersion = randomVersionBetween(random(), minVersion, getPreviousVersion(Version.CURRENT));
-        tasks.addTask("test_compatible_version", TestPersistentTasksExecutor.NAME,
-            new TestParams(null, randomVersionBetween(random(), minVersion, streamVersion),
-                randomBoolean() ? Optional.empty() : Optional.of("test")),
-            randomAssignment());
-        tasks.addTask("test_incompatible_version", TestPersistentTasksExecutor.NAME,
-            new TestParams(null, randomVersionBetween(random(), compatibleFutureVersion(streamVersion), Version.CURRENT),
-                randomBoolean() ? Optional.empty() : Optional.of("test")),
-            randomAssignment());
+        tasks.addTask(
+            "test_compatible_version",
+            TestPersistentTasksExecutor.NAME,
+            new TestParams(
+                null,
+                randomVersionBetween(random(), minVersion, streamVersion),
+                randomBoolean() ? Optional.empty() : Optional.of("test")
+            ),
+            randomAssignment()
+        );
+        tasks.addTask(
+            "test_incompatible_version",
+            TestPersistentTasksExecutor.NAME,
+            new TestParams(
+                null,
+                randomVersionBetween(random(), compatibleFutureVersion(streamVersion), Version.CURRENT),
+                randomBoolean() ? Optional.empty() : Optional.of("test")
+            ),
+            randomAssignment()
+        );
         final BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(streamVersion);
         Set<String> features = new HashSet<>();
@@ -274,8 +296,9 @@ public class PersistentTasksCustomMetadataTests extends AbstractDiffableSerializ
 
         final StreamInput input = out.bytes().streamInput();
         input.setVersion(streamVersion);
-        PersistentTasksCustomMetadata read =
-            new PersistentTasksCustomMetadata(new NamedWriteableAwareStreamInput(input, getNamedWriteableRegistry()));
+        PersistentTasksCustomMetadata read = new PersistentTasksCustomMetadata(
+            new NamedWriteableAwareStreamInput(input, getNamedWriteableRegistry())
+        );
 
         assertThat(read.taskMap().keySet(), equalTo(Collections.singleton("test_compatible_version")));
     }
@@ -284,13 +307,22 @@ public class PersistentTasksCustomMetadataTests extends AbstractDiffableSerializ
         PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder();
 
         Version minVersion = getFirstVersion();
-        tasks.addTask("test_compatible", TestPersistentTasksExecutor.NAME,
-            new TestParams(null, randomVersionBetween(random(), minVersion, Version.CURRENT),
-                randomBoolean() ? Optional.empty() : Optional.of("existing")),
-            randomAssignment());
-        tasks.addTask("test_incompatible", TestPersistentTasksExecutor.NAME,
+        tasks.addTask(
+            "test_compatible",
+            TestPersistentTasksExecutor.NAME,
+            new TestParams(
+                null,
+                randomVersionBetween(random(), minVersion, Version.CURRENT),
+                randomBoolean() ? Optional.empty() : Optional.of("existing")
+            ),
+            randomAssignment()
+        );
+        tasks.addTask(
+            "test_incompatible",
+            TestPersistentTasksExecutor.NAME,
             new TestParams(null, randomVersionBetween(random(), minVersion, Version.CURRENT), Optional.of("non_existing")),
-            randomAssignment());
+            randomAssignment()
+        );
         final BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(Version.CURRENT);
         Set<String> features = new HashSet<>();
@@ -300,7 +332,8 @@ public class PersistentTasksCustomMetadataTests extends AbstractDiffableSerializ
         tasks.build().writeTo(out);
 
         PersistentTasksCustomMetadata read = new PersistentTasksCustomMetadata(
-            new NamedWriteableAwareStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry()));
+            new NamedWriteableAwareStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry())
+        );
         assertThat(read.taskMap().keySet(), equalTo(Collections.singleton("test_compatible")));
     }
 
@@ -312,20 +345,24 @@ public class PersistentTasksCustomMetadataTests extends AbstractDiffableSerializ
 
     public void testDisassociateDeadNodes_givenAssignedPersistentTask() {
         DiscoveryNodes nodes = DiscoveryNodes.builder()
-                .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
-                .localNodeId("node1")
-                .masterNodeId("node1")
-                .build();
+            .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
+            .localNodeId("node1")
+            .masterNodeId("node1")
+            .build();
 
         String taskName = "test/task";
-        PersistentTasksCustomMetadata.Builder tasksBuilder =  PersistentTasksCustomMetadata.builder()
-                .addTask("task-id", taskName, emptyTaskParams(taskName),
-                        new PersistentTasksCustomMetadata.Assignment("node1", "test assignment"));
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder()
+            .addTask(
+                "task-id",
+                taskName,
+                emptyTaskParams(taskName),
+                new PersistentTasksCustomMetadata.Assignment("node1", "test assignment")
+            );
 
         ClusterState originalState = ClusterState.builder(new ClusterName("persistent-tasks-tests"))
-                .nodes(nodes)
-                .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()))
-                .build();
+            .nodes(nodes)
+            .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()))
+            .build();
         ClusterState returnedState = PersistentTasksCustomMetadata.disassociateDeadNodes(originalState);
         assertThat(originalState, sameInstance(returnedState));
 
@@ -336,22 +373,30 @@ public class PersistentTasksCustomMetadataTests extends AbstractDiffableSerializ
 
     public void testDisassociateDeadNodes() {
         DiscoveryNodes nodes = DiscoveryNodes.builder()
-                .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
-                .localNodeId("node1")
-                .masterNodeId("node1")
-                .build();
+            .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
+            .localNodeId("node1")
+            .masterNodeId("node1")
+            .build();
 
         String taskName = "test/task";
-        PersistentTasksCustomMetadata.Builder tasksBuilder =  PersistentTasksCustomMetadata.builder()
-                .addTask("assigned-task", taskName, emptyTaskParams(taskName),
-                        new PersistentTasksCustomMetadata.Assignment("node1", "test assignment"))
-                .addTask("task-on-deceased-node", taskName, emptyTaskParams(taskName),
-                new PersistentTasksCustomMetadata.Assignment("left-the-cluster", "test assignment"));
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder()
+            .addTask(
+                "assigned-task",
+                taskName,
+                emptyTaskParams(taskName),
+                new PersistentTasksCustomMetadata.Assignment("node1", "test assignment")
+            )
+            .addTask(
+                "task-on-deceased-node",
+                taskName,
+                emptyTaskParams(taskName),
+                new PersistentTasksCustomMetadata.Assignment("left-the-cluster", "test assignment")
+            );
 
         ClusterState originalState = ClusterState.builder(new ClusterName("persistent-tasks-tests"))
-                .nodes(nodes)
-                .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()))
-                .build();
+            .nodes(nodes)
+            .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()))
+            .build();
         ClusterState returnedState = PersistentTasksCustomMetadata.disassociateDeadNodes(originalState);
         assertThat(originalState, not(sameInstance(returnedState)));
 

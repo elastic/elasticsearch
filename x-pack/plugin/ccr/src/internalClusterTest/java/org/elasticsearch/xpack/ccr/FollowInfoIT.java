@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.ccr;
 
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.CcrSingleNodeTestCase;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
@@ -28,8 +28,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class FollowInfoIT extends CcrSingleNodeTestCase {
 
     public void testFollowInfoApiFollowerIndexFiltering() throws Exception {
-        final String leaderIndexSettings = getIndexSettings(1, 0,
-            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        final String leaderIndexSettings = getIndexSettings(1, 0, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(client().admin().indices().prepareCreate("leader1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureGreen("leader1");
         assertAcked(client().admin().indices().prepareCreate("leader2").setSource(leaderIndexSettings, XContentType.JSON));
@@ -112,8 +111,7 @@ public class FollowInfoIT extends CcrSingleNodeTestCase {
     }
 
     public void testFollowInfoApiIndexMissing() throws Exception {
-        final String leaderIndexSettings = getIndexSettings(1, 0,
-            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        final String leaderIndexSettings = getIndexSettings(1, 0, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(client().admin().indices().prepareCreate("leader1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureGreen("leader1");
         assertAcked(client().admin().indices().prepareCreate("leader2").setSource(leaderIndexSettings, XContentType.JSON));

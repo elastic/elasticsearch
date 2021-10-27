@@ -5,7 +5,6 @@
  * 2.0.
  */
 
-
 package org.elasticsearch.xpack.vectors.mapper;
 
 import org.apache.lucene.document.BinaryDocValuesField;
@@ -16,7 +15,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -29,6 +27,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xpack.vectors.query.VectorIndexFieldData;
 
 import java.io.IOException;
@@ -49,8 +48,8 @@ public class SparseVectorFieldMapper extends FieldMapper {
     public static final String DEPRECATION_MESSAGE = "The [sparse_vector] field type is deprecated and will be removed in 8.0.";
 
     public static final String CONTENT_TYPE = "sparse_vector";
-    public static short MAX_DIMS_COUNT = 1024; //maximum allowed number of dimensions
-    public static int MAX_DIMS_NUMBER = 65535; //maximum allowed dimension's number
+    public static short MAX_DIMS_COUNT = 1024; // maximum allowed number of dimensions
+    public static int MAX_DIMS_NUMBER = 65535; // maximum allowed dimension's number
 
     public static class Builder extends FieldMapper.Builder {
 
@@ -71,8 +70,12 @@ public class SparseVectorFieldMapper extends FieldMapper {
         @Override
         public SparseVectorFieldMapper build(MapperBuilderContext context) {
             return new SparseVectorFieldMapper(
-                    name, new SparseVectorFieldType(context.buildFullName(name), indexCreatedVersion, meta.getValue()),
-                    multiFieldsBuilder.build(this, context), copyTo.build(), indexCreatedVersion);
+                name,
+                new SparseVectorFieldType(context.buildFullName(name), indexCreatedVersion, meta.getValue()),
+                multiFieldsBuilder.build(this, context),
+                copyTo.build(),
+                indexCreatedVersion
+            );
         }
     }
 
@@ -84,6 +87,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
     public static final class SparseVectorFieldType extends MappedFieldType {
 
         private final Version indexVersionCreated;
+
         public SparseVectorFieldType(String name, Version indexVersionCreated, Map<String, String> meta) {
             super(name, false, false, true, TextSearchInfo.NONE, meta);
             this.indexVersionCreated = indexVersionCreated;
@@ -97,7 +101,8 @@ public class SparseVectorFieldMapper extends FieldMapper {
         @Override
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
             throw new IllegalArgumentException(
-                "Field [" + name() + "] of type [" + typeName() + "] doesn't support docvalue_fields or aggregations");
+                "Field [" + name() + "] of type [" + typeName() + "] doesn't support docvalue_fields or aggregations"
+            );
         }
 
         @Override
@@ -130,15 +135,19 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            throw new IllegalArgumentException(
-                "Field [" + name() + "] of type [" + typeName() + "] doesn't support queries");
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support queries");
         }
     }
 
     private final Version indexCreatedVersion;
 
-    private SparseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType,
-                                    MultiFields multiFields, CopyTo copyTo, Version indexCreatedVersion) {
+    private SparseVectorFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        Version indexCreatedVersion
+    ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.indexCreatedVersion = indexCreatedVersion;
     }
@@ -161,12 +170,31 @@ public class SparseVectorFieldMapper extends FieldMapper {
                 try {
                     dim = Integer.parseInt(context.parser().currentName());
                     if (dim < 0 || dim > MAX_DIMS_NUMBER) {
-                        throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "]'s dimension number " +
-                            "must be a non-negative integer value not exceeding [" + MAX_DIMS_NUMBER + "], got [" + dim + "]");
+                        throw new IllegalArgumentException(
+                            "Field ["
+                                + name()
+                                + "] of type ["
+                                + typeName()
+                                + "]'s dimension number "
+                                + "must be a non-negative integer value not exceeding ["
+                                + MAX_DIMS_NUMBER
+                                + "], got ["
+                                + dim
+                                + "]"
+                        );
                     }
                 } catch (NumberFormatException e) {
-                    throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "]'s dimensions should be " +
-                        "integers represented as strings, but got [" + context.parser().currentName() + "]", e);
+                    throw new IllegalArgumentException(
+                        "Field ["
+                            + name()
+                            + "] of type ["
+                            + typeName()
+                            + "]'s dimensions should be "
+                            + "integers represented as strings, but got ["
+                            + context.parser().currentName()
+                            + "]",
+                        e
+                    );
                 }
             } else if (token == Token.VALUE_NUMBER) {
                 value = context.parser().floatValue(true);
@@ -177,12 +205,27 @@ public class SparseVectorFieldMapper extends FieldMapper {
                 dims[dimCount] = dim;
                 values[dimCount] = value;
                 if (dimCount++ >= MAX_DIMS_COUNT) {
-                    throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
-                        "] has exceeded the maximum allowed number of dimensions of [" + MAX_DIMS_COUNT + "]");
+                    throw new IllegalArgumentException(
+                        "Field ["
+                            + name()
+                            + "] of type ["
+                            + typeName()
+                            + "] has exceeded the maximum allowed number of dimensions of ["
+                            + MAX_DIMS_COUNT
+                            + "]"
+                    );
                 }
             } else {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
-                    "] takes an object that maps a dimension number to a float, " + "but got unexpected token [" + token + "]");
+                throw new IllegalArgumentException(
+                    "Field ["
+                        + name()
+                        + "] of type ["
+                        + typeName()
+                        + "] takes an object that maps a dimension number to a float, "
+                        + "but got unexpected token ["
+                        + token
+                        + "]"
+                );
             }
         }
 

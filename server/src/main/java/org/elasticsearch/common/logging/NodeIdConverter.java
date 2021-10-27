@@ -20,7 +20,7 @@ import org.apache.logging.log4j.core.pattern.PatternConverter;
  * This is used in `EcsJsonLayout`, which does not use {@link NodeAndClusterIdConverter}.
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "NodeIdConverter")
-@ConverterKeys({"node_id"})
+@ConverterKeys({ "node_id" })
 public final class NodeIdConverter extends LogEventPatternConverter {
     /**
      * Called by log4j2 to initialize this converter.

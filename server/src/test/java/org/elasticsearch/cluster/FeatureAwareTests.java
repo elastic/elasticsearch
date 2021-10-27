@@ -14,9 +14,9 @@ import org.elasticsearch.cluster.ClusterState.FeatureAware;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -109,8 +109,11 @@ public class FeatureAwareTests extends ESTestCase {
             }
             {
                 final BytesStreamOutput out = new BytesStreamOutput();
-                final Version beforeVersion =
-                        randomVersionBetween(random(), VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion(version));
+                final Version beforeVersion = randomVersionBetween(
+                    random(),
+                    VersionUtils.getFirstVersion(),
+                    VersionUtils.getPreviousVersion(version)
+                );
                 out.setVersion(beforeVersion);
                 if (custom.getRequiredFeature().isPresent() && randomBoolean()) {
                     out.setFeatures(Collections.singleton(custom.getRequiredFeature().get()));

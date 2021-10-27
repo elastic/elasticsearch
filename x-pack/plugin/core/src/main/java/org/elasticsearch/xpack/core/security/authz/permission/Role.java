@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -110,7 +110,6 @@ public class Role {
         return indices.check(action);
     }
 
-
     /**
      * For given index patterns and index privileges determines allowed privileges and creates an instance of {@link ResourcePrivilegesMap}
      * holding a map of resource to {@link ResourcePrivileges} where resource is index pattern and the map of index privilege to whether it
@@ -121,8 +120,11 @@ public class Role {
      * @param checkForPrivileges check permission grants for the set of index privileges
      * @return an instance of {@link ResourcePrivilegesMap}
      */
-    public ResourcePrivilegesMap checkIndicesPrivileges(Set<String> checkForIndexPatterns, boolean allowRestrictedIndices,
-                                                        Set<String> checkForPrivileges) {
+    public ResourcePrivilegesMap checkIndicesPrivileges(
+        Set<String> checkForIndexPatterns,
+        boolean allowRestrictedIndices,
+        Set<String> checkForPrivileges
+    ) {
         return indices.checkResourcePrivileges(checkForIndexPatterns, allowRestrictedIndices, checkForPrivileges);
     }
 
@@ -161,9 +163,12 @@ public class Role {
      * performed
      * @return an instance of {@link ResourcePrivilegesMap}
      */
-    public ResourcePrivilegesMap checkApplicationResourcePrivileges(final String applicationName, Set<String> checkForResources,
-                                                                    Set<String> checkForPrivilegeNames,
-                                                                    Collection<ApplicationPrivilegeDescriptor> storedPrivileges) {
+    public ResourcePrivilegesMap checkApplicationResourcePrivileges(
+        final String applicationName,
+        Set<String> checkForResources,
+        Set<String> checkForPrivilegeNames,
+        Collection<ApplicationPrivilegeDescriptor> storedPrivileges
+    ) {
         return application.checkResourcePrivileges(applicationName, checkForResources, checkForPrivilegeNames, storedPrivileges);
     }
 
@@ -172,9 +177,12 @@ public class Role {
      * specified action with the requested indices/aliases. At the same time if field and/or document level security
      * is configured for any group also the allowed fields and role queries are resolved.
      */
-    public IndicesAccessControl authorize(String action, Set<String> requestedIndicesOrAliases,
-                                          Map<String, IndexAbstraction> aliasAndIndexLookup,
-                                          FieldPermissionsCache fieldPermissionsCache) {
+    public IndicesAccessControl authorize(
+        String action,
+        Set<String> requestedIndicesOrAliases,
+        Map<String, IndexAbstraction> aliasAndIndexLookup,
+        FieldPermissionsCache fieldPermissionsCache
+    ) {
         return indices.authorize(action, requestedIndicesOrAliases, aliasAndIndexLookup, fieldPermissionsCache);
     }
 
@@ -253,8 +261,13 @@ public class Role {
             return this;
         }
 
-        public Builder add(FieldPermissions fieldPermissions, Set<BytesReference> query, IndexPrivilege privilege,
-                boolean allowRestrictedIndices, String... indices) {
+        public Builder add(
+            FieldPermissions fieldPermissions,
+            Set<BytesReference> query,
+            IndexPrivilege privilege,
+            boolean allowRestrictedIndices,
+            String... indices
+        ) {
             groups.add(new IndicesPermission.Group(privilege, fieldPermissions, query, allowRestrictedIndices, indices));
             return this;
         }
@@ -265,15 +278,19 @@ public class Role {
         }
 
         public Role build() {
-            IndicesPermission indices = groups.isEmpty() ? IndicesPermission.NONE :
-                new IndicesPermission(groups.toArray(new IndicesPermission.Group[groups.size()]));
-            final ApplicationPermission applicationPermission
-                = applicationPrivs.isEmpty() ? ApplicationPermission.NONE : new ApplicationPermission(applicationPrivs);
+            IndicesPermission indices = groups.isEmpty()
+                ? IndicesPermission.NONE
+                : new IndicesPermission(groups.toArray(new IndicesPermission.Group[groups.size()]));
+            final ApplicationPermission applicationPermission = applicationPrivs.isEmpty()
+                ? ApplicationPermission.NONE
+                : new ApplicationPermission(applicationPrivs);
             return new Role(names, cluster, indices, applicationPermission, runAs);
         }
 
-        static List<IndicesPermission.Group> convertFromIndicesPrivileges(RoleDescriptor.IndicesPrivileges[] indicesPrivileges,
-                                                                          @Nullable FieldPermissionsCache fieldPermissionsCache) {
+        static List<IndicesPermission.Group> convertFromIndicesPrivileges(
+            RoleDescriptor.IndicesPrivileges[] indicesPrivileges,
+            @Nullable FieldPermissionsCache fieldPermissionsCache
+        ) {
             List<IndicesPermission.Group> list = new ArrayList<>(indicesPrivileges.length);
             for (RoleDescriptor.IndicesPrivileges privilege : indicesPrivileges) {
                 final FieldPermissions fieldPermissions;
@@ -281,21 +298,32 @@ public class Role {
                     fieldPermissions = fieldPermissionsCache.getFieldPermissions(privilege.getGrantedFields(), privilege.getDeniedFields());
                 } else {
                     fieldPermissions = new FieldPermissions(
-                        new FieldPermissionsDefinition(privilege.getGrantedFields(), privilege.getDeniedFields()));
+                        new FieldPermissionsDefinition(privilege.getGrantedFields(), privilege.getDeniedFields())
+                    );
                 }
                 final Set<BytesReference> query = privilege.getQuery() == null ? null : Collections.singleton(privilege.getQuery());
-                list.add(new IndicesPermission.Group(IndexPrivilege.get(Sets.newHashSet(privilege.getPrivileges())), fieldPermissions,
-                        query, privilege.allowRestrictedIndices(), privilege.getIndices()));
+                list.add(
+                    new IndicesPermission.Group(
+                        IndexPrivilege.get(Sets.newHashSet(privilege.getPrivileges())),
+                        fieldPermissions,
+                        query,
+                        privilege.allowRestrictedIndices(),
+                        privilege.getIndices()
+                    )
+                );
             }
             return list;
         }
 
-        static Tuple<ApplicationPrivilege, Set<String>> convertApplicationPrivilege(String role, int index,
-                                                                                    RoleDescriptor.ApplicationResourcePrivileges arp) {
-            return new Tuple<>(new ApplicationPrivilege(arp.getApplication(),
-                Sets.newHashSet(arp.getPrivileges()),
-                arp.getPrivileges()
-            ), Sets.newHashSet(arp.getResources()));
+        static Tuple<ApplicationPrivilege, Set<String>> convertApplicationPrivilege(
+            String role,
+            int index,
+            RoleDescriptor.ApplicationResourcePrivileges arp
+        ) {
+            return new Tuple<>(
+                new ApplicationPrivilege(arp.getApplication(), Sets.newHashSet(arp.getPrivileges()), arp.getPrivileges()),
+                Sets.newHashSet(arp.getResources())
+            );
         }
     }
 

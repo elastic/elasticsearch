@@ -10,13 +10,13 @@ package org.elasticsearch.client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Map;
@@ -42,7 +42,8 @@ public abstract class AbstractResponseTestCase<S extends ToXContent, C> extends 
         final XContentParser parser = xContent.createParser(
             NamedXContentRegistry.EMPTY,
             LoggingDeprecationHandler.INSTANCE,
-            bytes.streamInput());
+            bytes.streamInput()
+        );
         final C clientInstance = doParseToClientInstance(parser);
         assertInstances(serverTestInstance, clientInstance);
     }

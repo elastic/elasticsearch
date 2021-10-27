@@ -7,18 +7,18 @@
 
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
 
@@ -36,10 +36,8 @@ public class RestPutWatchAction extends WatcherRestHandler implements RestReques
     @Override
     public List<Route> routes() {
         return org.elasticsearch.core.List.of(
-            Route.builder(POST, "/_watcher/watch/{id}")
-                .replaces(POST, URI_BASE + "/watcher/watch/{id}", RestApiVersion.V_7).build(),
-            Route.builder(PUT, "/_watcher/watch/{id}")
-                .replaces(PUT, URI_BASE + "/watcher/watch/{id}", RestApiVersion.V_7).build()
+            Route.builder(POST, "/_watcher/watch/{id}").replaces(POST, URI_BASE + "/watcher/watch/{id}", RestApiVersion.V_7).build(),
+            Route.builder(PUT, "/_watcher/watch/{id}").replaces(PUT, URI_BASE + "/watcher/watch/{id}", RestApiVersion.V_7).build()
         );
     }
 
@@ -50,8 +48,7 @@ public class RestPutWatchAction extends WatcherRestHandler implements RestReques
 
     @Override
     protected RestChannelConsumer doPrepareRequest(final RestRequest request, WatcherClient client) {
-        PutWatchRequest putWatchRequest =
-                new PutWatchRequest(request.param("id"), request.content(), request.getXContentType());
+        PutWatchRequest putWatchRequest = new PutWatchRequest(request.param("id"), request.content(), request.getXContentType());
         putWatchRequest.setVersion(request.paramAsLong("version", Versions.MATCH_ANY));
         putWatchRequest.setIfSeqNo(request.paramAsLong("if_seq_no", putWatchRequest.getIfSeqNo()));
         putWatchRequest.setIfPrimaryTerm(request.paramAsLong("if_primary_term", putWatchRequest.getIfPrimaryTerm()));
@@ -67,8 +64,13 @@ public class RestPutWatchAction extends WatcherRestHandler implements RestReques
     }
 
     private static final Set<String> FILTERED_FIELDS = Collections.unmodifiableSet(
-            Sets.newHashSet("input.http.request.auth.basic.password", "input.chain.inputs.*.http.request.auth.basic.password",
-                    "actions.*.email.attachments.*.reporting.auth.basic.password", "actions.*.webhook.auth.basic.password"));
+        Sets.newHashSet(
+            "input.http.request.auth.basic.password",
+            "input.chain.inputs.*.http.request.auth.basic.password",
+            "actions.*.email.attachments.*.reporting.auth.basic.password",
+            "actions.*.webhook.auth.basic.password"
+        )
+    );
 
     @Override
     public Set<String> getFilteredFields() {

@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.eql.action;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.index.query.MatchQueryBuilder;
-import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -25,36 +25,55 @@ import static org.hamcrest.Matchers.containsString;
 
 public class EqlRequestParserTests extends ESTestCase {
 
-    private static final NamedXContentRegistry REGISTRY =
-        new NamedXContentRegistry(new SearchModule(Settings.EMPTY, false, Collections.emptyList()).getNamedXContents());
+    private static final NamedXContentRegistry REGISTRY = new NamedXContentRegistry(
+        new SearchModule(Settings.EMPTY, false, Collections.emptyList()).getNamedXContents()
+    );
 
     public void testUnknownFieldParsingErrors() throws IOException {
         assertParsingErrorMessage("{\"key\" : \"value\"}", "unknown field [key]", EqlSearchRequest::fromXContent);
     }
 
     public void testSearchRequestParser() throws IOException {
-        assertParsingErrorMessage("{\"filter\" : 123}", "filter doesn't support values of type: VALUE_NUMBER",
-            EqlSearchRequest::fromXContent);
-        assertParsingErrorMessage("{\"timestamp_field\" : 123}", "timestamp_field doesn't support values of type: VALUE_NUMBER",
-            EqlSearchRequest::fromXContent);
-        assertParsingErrorMessage("{\"event_category_field\" : 123}", "event_category_field doesn't support values of type: VALUE_NUMBER",
-            EqlSearchRequest::fromXContent);
+        assertParsingErrorMessage(
+            "{\"filter\" : 123}",
+            "filter doesn't support values of type: VALUE_NUMBER",
+            EqlSearchRequest::fromXContent
+        );
+        assertParsingErrorMessage(
+            "{\"timestamp_field\" : 123}",
+            "timestamp_field doesn't support values of type: VALUE_NUMBER",
+            EqlSearchRequest::fromXContent
+        );
+        assertParsingErrorMessage(
+            "{\"event_category_field\" : 123}",
+            "event_category_field doesn't support values of type: VALUE_NUMBER",
+            EqlSearchRequest::fromXContent
+        );
         assertParsingErrorMessage("{\"size\" : \"foo\"}", "failed to parse field [size]", EqlSearchRequest::fromXContent);
-        assertParsingErrorMessage("{\"query\" : 123}", "query doesn't support values of type: VALUE_NUMBER",
-            EqlSearchRequest::fromXContent);
-        assertParsingErrorMessage("{\"query\" : \"whatever\", \"size\":\"abc\"}", "failed to parse field [size]",
-            EqlSearchRequest::fromXContent);
+        assertParsingErrorMessage(
+            "{\"query\" : 123}",
+            "query doesn't support values of type: VALUE_NUMBER",
+            EqlSearchRequest::fromXContent
+        );
+        assertParsingErrorMessage(
+            "{\"query\" : \"whatever\", \"size\":\"abc\"}",
+            "failed to parse field [size]",
+            EqlSearchRequest::fromXContent
+        );
 
-        EqlSearchRequest request = generateRequest("endgame-*", "{\"filter\" : {\"match\" : {\"foo\":\"bar\"}}, "
-            + "\"timestamp_field\" : \"tsf\", "
-            + "\"event_category_field\" : \"etf\","
-            + "\"size\" : \"101\","
-            + "\"query\" : \"file where user != 'SYSTEM' by file_path\"}"
-            , EqlSearchRequest::fromXContent);
-        assertArrayEquals(new String[]{"endgame-*"}, request.indices());
+        EqlSearchRequest request = generateRequest(
+            "endgame-*",
+            "{\"filter\" : {\"match\" : {\"foo\":\"bar\"}}, "
+                + "\"timestamp_field\" : \"tsf\", "
+                + "\"event_category_field\" : \"etf\","
+                + "\"size\" : \"101\","
+                + "\"query\" : \"file where user != 'SYSTEM' by file_path\"}",
+            EqlSearchRequest::fromXContent
+        );
+        assertArrayEquals(new String[] { "endgame-*" }, request.indices());
         assertNotNull(request.query());
         assertTrue(request.filter() instanceof MatchQueryBuilder);
-        MatchQueryBuilder filter = (MatchQueryBuilder)request.filter();
+        MatchQueryBuilder filter = (MatchQueryBuilder) request.filter();
         assertEquals("foo", filter.fieldName());
         assertEquals("bar", filter.value());
         assertEquals("tsf", request.timestampField());
@@ -65,7 +84,7 @@ public class EqlRequestParserTests extends ESTestCase {
     }
 
     private EqlSearchRequest generateRequest(String index, String json, Function<XContentParser, EqlSearchRequest> fromXContent)
-            throws IOException {
+        throws IOException {
         XContentParser parser = parser(json);
         return fromXContent.apply(parser).indices(index);
     }

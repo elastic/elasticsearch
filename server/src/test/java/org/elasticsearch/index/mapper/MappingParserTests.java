@@ -12,13 +12,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
@@ -35,20 +35,33 @@ public class MappingParserTests extends MapperServiceTestCase {
         IndexAnalyzers indexAnalyzers = createIndexAnalyzers();
         SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, Collections.emptyMap());
         MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
-        Supplier<MappingParserContext> parserContextSupplier =
-            () -> new MappingParserContext(similarityService::getSimilarity, mapperRegistry.getMapperParsers()::get,
-                mapperRegistry.getRuntimeFieldParsers()::get, indexSettings.getIndexVersionCreated(),
-                () -> {
-                    throw new UnsupportedOperationException();
-                }, null,
-                scriptService, indexAnalyzers, indexSettings, () -> false);
-        Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
-            mapperRegistry.getMetadataMapperParsers(indexSettings.getIndexVersionCreated());
+        Supplier<MappingParserContext> parserContextSupplier = () -> new MappingParserContext(
+            similarityService::getSimilarity,
+            mapperRegistry.getMapperParsers()::get,
+            mapperRegistry.getRuntimeFieldParsers()::get,
+            indexSettings.getIndexVersionCreated(),
+            () -> { throw new UnsupportedOperationException(); },
+            null,
+            scriptService,
+            indexAnalyzers,
+            indexSettings,
+            () -> false
+        );
+        Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
+            indexSettings.getIndexVersionCreated()
+        );
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
-        metadataMapperParsers.values().stream().map(parser -> parser.getDefault(parserContextSupplier.get()))
+        metadataMapperParsers.values()
+            .stream()
+            .map(parser -> parser.getDefault(parserContextSupplier.get()))
             .forEach(m -> metadataMappers.put(m.getClass(), m));
-        return new MappingParser(parserContextSupplier, metadataMapperParsers, s -> metadataMappers,
-            type -> MapperService.SINGLE_MAPPING_NAME, xContentRegistry);
+        return new MappingParser(
+            parserContextSupplier,
+            metadataMapperParsers,
+            s -> metadataMappers,
+            type -> MapperService.SINGLE_MAPPING_NAME,
+            xContentRegistry
+        );
     }
 
     public void testFieldNameWithDots() throws Exception {
@@ -56,8 +69,10 @@ public class MappingParserTests extends MapperServiceTestCase {
             b.startObject("foo.bar").field("type", "text").endObject();
             b.startObject("foo.baz").field("type", "keyword").endObject();
         });
-        Mapping mapping = createMappingParser(Settings.EMPTY, xContentRegistry())
-            .parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
+        Mapping mapping = createMappingParser(Settings.EMPTY, xContentRegistry()).parse(
+            "_doc",
+            new CompressedXContent(BytesReference.bytes(builder))
+        );
 
         Mapper object = mapping.getRoot().getMapper("foo");
         assertThat(object, CoreMatchers.instanceOf(ObjectMapper.class));
@@ -79,8 +94,10 @@ public class MappingParserTests extends MapperServiceTestCase {
             }
             b.endObject();
         });
-        Mapping mapping = createMappingParser(Settings.EMPTY, xContentRegistry())
-            .parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
+        Mapping mapping = createMappingParser(Settings.EMPTY, xContentRegistry()).parse(
+            "_doc",
+            new CompressedXContent(BytesReference.bytes(builder))
+        );
         MappingLookup mappingLookup = MappingLookup.fromMapping(mapping);
         assertNotNull(mappingLookup.getMapper("foo.bar"));
         assertNotNull(mappingLookup.getMapper("foo.baz.deep.field"));
@@ -93,8 +110,10 @@ public class MappingParserTests extends MapperServiceTestCase {
             b.startObject("foo.baz").field("type", "keyword").endObject();
         });
         MappingParser mappingParser = createMappingParser(Settings.EMPTY, xContentRegistry());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> mappingParser.parse("_doc", new CompressedXContent(BytesReference.bytes(builder))));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> mappingParser.parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
+        );
         assertTrue(e.getMessage(), e.getMessage().contains("mapper [foo] cannot be changed from type [text] to [ObjectMapper]"));
     }
 
@@ -118,8 +137,10 @@ public class MappingParserTests extends MapperServiceTestCase {
             b.startObject("other-field").field("type", "keyword").endObject();
         });
         MappingParser mappingParser = createMappingParser(Settings.EMPTY, xContentRegistry());
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-            () -> mappingParser.parse("_doc", new CompressedXContent(BytesReference.bytes(builder))));
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mappingParser.parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
+        );
         assertEquals("Type [alias] cannot be used in multi field", e.getMessage());
     }
 }

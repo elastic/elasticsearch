@@ -36,13 +36,13 @@ import org.junit.Before;
 import java.util.Collections;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
+import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -71,66 +71,66 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
 
     @Override
     protected String configRoles() {
-        return SecuritySettingsSource.TEST_ROLE + ":\n" +
-                "  cluster: [ all ]\n" +
-                "  indices:\n" +
-                "    - names: '*'\n" +
-                "      privileges: [manage]\n" +
-                "    - names: '/.*/'\n" +
-                "      privileges: [write]\n" +
-                "    - names: 'test'\n" +
-                "      privileges: [read]\n" +
-                "    - names: 'test1'\n" +
-                "      privileges: [read]\n" +
-                "\n" +
-                "role_a:\n" +
-                "  indices:\n" +
-                "    - names: 'a'\n" +
-                "      privileges: [all]\n" +
-                "    - names: 'alias1'\n" +
-                "      privileges: [read]\n" +
-                "\n" +
-                "role_monitor_all_unrestricted_indices:\n" +
-                "  cluster: [monitor]\n" +
-                "  indices:\n" +
-                "    - names: '*'\n" +
-                "      privileges: [monitor]\n" +
-                "\n" +
-                "role_b:\n" +
-                "  indices:\n" +
-                "    - names: 'b'\n" +
-                "      privileges: [all]\n";
+        return SecuritySettingsSource.TEST_ROLE
+            + ":\n"
+            + "  cluster: [ all ]\n"
+            + "  indices:\n"
+            + "    - names: '*'\n"
+            + "      privileges: [manage]\n"
+            + "    - names: '/.*/'\n"
+            + "      privileges: [write]\n"
+            + "    - names: 'test'\n"
+            + "      privileges: [read]\n"
+            + "    - names: 'test1'\n"
+            + "      privileges: [read]\n"
+            + "\n"
+            + "role_a:\n"
+            + "  indices:\n"
+            + "    - names: 'a'\n"
+            + "      privileges: [all]\n"
+            + "    - names: 'alias1'\n"
+            + "      privileges: [read]\n"
+            + "\n"
+            + "role_monitor_all_unrestricted_indices:\n"
+            + "  cluster: [monitor]\n"
+            + "  indices:\n"
+            + "    - names: '*'\n"
+            + "      privileges: [monitor]\n"
+            + "\n"
+            + "role_b:\n"
+            + "  indices:\n"
+            + "    - names: 'b'\n"
+            + "      privileges: [all]\n";
     }
 
     @Override
     protected String configUsers() {
         final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(USERS_PASSWD));
-        return SecuritySettingsSource.CONFIG_STANDARD_USER +
-            "user_a:" + usersPasswdHashed + "\n" +
-            "user_ab:" + usersPasswdHashed + "\n" +
-            "user_monitor:" + usersPasswdHashed + "\n";
+        return SecuritySettingsSource.CONFIG_STANDARD_USER
+            + "user_a:"
+            + usersPasswdHashed
+            + "\n"
+            + "user_ab:"
+            + usersPasswdHashed
+            + "\n"
+            + "user_monitor:"
+            + usersPasswdHashed
+            + "\n";
     }
 
     @Override
     protected String configUsersRoles() {
-        return SecuritySettingsSource.CONFIG_STANDARD_USER_ROLES +
-                "role_a:user_a,user_ab\n" +
-                "role_b:user_ab\n" +
-                "role_monitor_all_unrestricted_indices:user_monitor\n";
+        return SecuritySettingsSource.CONFIG_STANDARD_USER_ROLES
+            + "role_a:user_a,user_ab\n"
+            + "role_b:user_ab\n"
+            + "role_monitor_all_unrestricted_indices:user_monitor\n";
     }
 
     public void testSingleRole() throws Exception {
-        IndexResponse indexResponse = index("test", "type", jsonBuilder()
-                .startObject()
-                .field("name", "value")
-                .endObject());
+        IndexResponse indexResponse = index("test", "type", jsonBuilder().startObject().field("name", "value").endObject());
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
-
-        indexResponse = index("test1", "type", jsonBuilder()
-                .startObject()
-                .field("name", "value1")
-                .endObject());
+        indexResponse = index("test1", "type", jsonBuilder().startObject().field("name", "value1").endObject());
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
         refresh();
@@ -161,9 +161,9 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
         }
 
         MultiSearchResponse msearchResponse = client.prepareMultiSearch()
-                .add(client.prepareSearch("test"))
-                .add(client.prepareSearch("test1"))
-                .get();
+            .add(client.prepareSearch("test"))
+            .add(client.prepareSearch("test1"))
+            .get();
         MultiSearchResponse.Item[] items = msearchResponse.getResponses();
         assertThat(items.length, is(2));
         assertThat(items[0].isFailure(), is(false));
@@ -178,28 +178,20 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
 
     public void testMonitorRestrictedWildcards() throws Exception {
 
-        IndexResponse indexResponse = index("foo", "type", jsonBuilder()
-                .startObject()
-                .field("name", "value")
-                .endObject());
+        IndexResponse indexResponse = index("foo", "type", jsonBuilder().startObject().field("name", "value").endObject());
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
-        indexResponse = index("foobar", "type", jsonBuilder()
-                .startObject()
-                .field("name", "value")
-                .endObject());
+        indexResponse = index("foobar", "type", jsonBuilder().startObject().field("name", "value").endObject());
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
-        indexResponse = index("foobarfoo", "type", jsonBuilder()
-                .startObject()
-                .field("name", "value")
-                .endObject());
+        indexResponse = index("foobarfoo", "type", jsonBuilder().startObject().field("name", "value").endObject());
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
         refresh();
 
-        final Client client = client()
-                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_monitor", USERS_PASSWD)));
+        final Client client = client().filterWithHeader(
+            Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_monitor", USERS_PASSWD))
+        );
 
         final GetSettingsResponse getSettingsResponse = client.admin().indices().prepareGetSettings(randomFrom("*", "_all", "foo*")).get();
         assertThat(getSettingsResponse.getIndexToSettings().size(), is(3));
@@ -207,15 +199,20 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
         assertThat(getSettingsResponse.getIndexToSettings().containsKey("foobar"), is(true));
         assertThat(getSettingsResponse.getIndexToSettings().containsKey("foobarfoo"), is(true));
 
-        final IndicesShardStoresResponse indicesShardsStoresResponse = client.admin().indices()
-                .prepareShardStores(randomFrom("*", "_all", "foo*")).setShardStatuses("all").get();
+        final IndicesShardStoresResponse indicesShardsStoresResponse = client.admin()
+            .indices()
+            .prepareShardStores(randomFrom("*", "_all", "foo*"))
+            .setShardStatuses("all")
+            .get();
         assertThat(indicesShardsStoresResponse.getStoreStatuses().size(), is(3));
         assertThat(indicesShardsStoresResponse.getStoreStatuses().containsKey("foo"), is(true));
         assertThat(indicesShardsStoresResponse.getStoreStatuses().containsKey("foobar"), is(true));
         assertThat(indicesShardsStoresResponse.getStoreStatuses().containsKey("foobarfoo"), is(true));
 
-        final UpgradeStatusResponse upgradeStatusResponse = client.admin().indices().prepareUpgradeStatus(randomFrom("*", "_all", "foo*"))
-                .get();
+        final UpgradeStatusResponse upgradeStatusResponse = client.admin()
+            .indices()
+            .prepareUpgradeStatus(randomFrom("*", "_all", "foo*"))
+            .get();
         assertThat(upgradeStatusResponse.getIndices().size(), is(3));
         assertThat(upgradeStatusResponse.getIndices().keySet(), containsInAnyOrder("foo", "foobar", "foobarfoo"));
 
@@ -242,99 +239,93 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
     }
 
     public void testMultipleRoles() throws Exception {
-        IndexResponse indexResponse = index("a", "type", jsonBuilder()
-                .startObject()
-                .field("name", "value_a")
-                .endObject());
+        IndexResponse indexResponse = index("a", "type", jsonBuilder().startObject().field("name", "value_a").endObject());
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
-        indexResponse = index("b", "type", jsonBuilder()
-                .startObject()
-                .field("name", "value_b")
-                .endObject());
+        indexResponse = index("b", "type", jsonBuilder().startObject().field("name", "value_b").endObject());
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
         refresh();
 
         Client client = internalCluster().transportClient();
 
-        SearchResponse response = client
-            .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_a", USERS_PASSWD)))
-                .prepareSearch("a")
-                .get();
+        SearchResponse response = client.filterWithHeader(
+            Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_a", USERS_PASSWD))
+        ).prepareSearch("a").get();
         assertNoFailures(response);
         assertHitCount(response, 1);
 
-        String[] indices = randomDouble() < 0.3 ?
-                new String[] { "_all"} : randomBoolean() ?
-                new String[] { "*" } :
-                new String[] {};
-        response = client
-            .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_a", USERS_PASSWD)))
-                .prepareSearch(indices)
-                .get();
+        String[] indices = randomDouble() < 0.3 ? new String[] { "_all" } : randomBoolean() ? new String[] { "*" } : new String[] {};
+        response = client.filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_a", USERS_PASSWD)))
+            .prepareSearch(indices)
+            .get();
         assertNoFailures(response);
         assertHitCount(response, 1);
 
         try {
             indices = randomBoolean() ? new String[] { "a", "b" } : new String[] { "b", "a" };
-            client
-                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_a", USERS_PASSWD)))
-                    .prepareSearch(indices)
-                    .get();
-            fail("expected an authorization excpetion when trying to search on multiple indices where there are no search permissions on " +
-                    "one/some of them");
+            client.filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_a", USERS_PASSWD)))
+                .prepareSearch(indices)
+                .get();
+            fail(
+                "expected an authorization excpetion when trying to search on multiple indices where there are no search permissions on "
+                    + "one/some of them"
+            );
         } catch (ElasticsearchSecurityException e) {
             // expected
             assertThat(e.status(), is(RestStatus.FORBIDDEN));
         }
 
         response = client.filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_ab", USERS_PASSWD)))
-                .prepareSearch("b")
-                .get();
+            .prepareSearch("b")
+            .get();
         assertNoFailures(response);
         assertHitCount(response, 1);
 
         indices = randomBoolean() ? new String[] { "a", "b" } : new String[] { "b", "a" };
         response = client.filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_ab", USERS_PASSWD)))
-                .prepareSearch(indices)
-                .get();
+            .prepareSearch(indices)
+            .get();
         assertNoFailures(response);
         assertHitCount(response, 2);
 
-        indices = randomDouble() < 0.3 ?
-                new String[] { "_all"} : randomBoolean() ?
-                new String[] { "*" } :
-                new String[] {};
+        indices = randomDouble() < 0.3 ? new String[] { "_all" } : randomBoolean() ? new String[] { "*" } : new String[] {};
         response = client.filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_ab", USERS_PASSWD)))
-                .prepareSearch(indices)
-                .get();
+            .prepareSearch(indices)
+            .get();
         assertNoFailures(response);
         assertHitCount(response, 2);
     }
 
     public void testMultiNamesWorkCorrectly() {
-        assertAcked(client().admin().indices().prepareCreate("index1")
-            .addMapping("_doc","field1", "type=text")
-            .addAlias(new Alias("alias1").filter(QueryBuilders.termQuery("field1", "public")))
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("index1")
+                .addMapping("_doc", "field1", "type=text")
+                .addAlias(new Alias("alias1").filter(QueryBuilders.termQuery("field1", "public")))
         );
 
         client().prepareIndex("index1", "_doc").setId("1").setSource("field1", "private").setRefreshPolicy(IMMEDIATE).get();
 
-        final Client userAClient = client()
-            .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_a", USERS_PASSWD)));
+        final Client userAClient = client().filterWithHeader(
+            Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_a", USERS_PASSWD))
+        );
 
-        final SearchResponse searchResponse = userAClient
-            .prepareSearch("alias1").setSize(0).get();
+        final SearchResponse searchResponse = userAClient.prepareSearch("alias1").setSize(0).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
 
-        final ElasticsearchSecurityException e1 =
-            expectThrows(ElasticsearchSecurityException.class, () -> userAClient.prepareSearch("index1").get());
+        final ElasticsearchSecurityException e1 = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> userAClient.prepareSearch("index1").get()
+        );
         assertThat(e1.getMessage(), containsString("is unauthorized for user [user_a]"));
 
         // The request should fail because index1 is directly requested and is not authorized for user_a
-        final ElasticsearchSecurityException e2 =
-            expectThrows(ElasticsearchSecurityException.class, () -> userAClient.prepareSearch("index1", "alias1").get());
+        final ElasticsearchSecurityException e2 = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> userAClient.prepareSearch("index1", "alias1").get()
+        );
         assertThat(e2.getMessage(), containsString("is unauthorized for user [user_a]"));
     }
 }

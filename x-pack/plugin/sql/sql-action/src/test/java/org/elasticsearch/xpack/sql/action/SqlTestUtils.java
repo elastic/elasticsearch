@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.action;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 
@@ -35,8 +36,7 @@ public final class SqlTestUtils {
      * Returns a random QueryBuilder
      */
     public static QueryBuilder randomFilter(Random random) {
-        return new RangeQueryBuilder(RandomStrings.randomAsciiLettersOfLength(random, 10))
-                    .gt(random.nextInt());
+        return new RangeQueryBuilder(RandomStrings.randomAsciiLettersOfLength(random, 10)).gt(random.nextInt());
     }
 
 }

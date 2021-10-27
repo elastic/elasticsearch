@@ -111,8 +111,7 @@ public class XContentSource implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // EMPTY is safe here because we never use namedObject
-        try (InputStream stream = bytes.streamInput();
-             XContentParser parser = parser(NamedXContentRegistry.EMPTY, stream)) {
+        try (InputStream stream = bytes.streamInput(); XContentParser parser = parser(NamedXContentRegistry.EMPTY, stream)) {
             parser.nextToken();
             builder.generator().copyCurrentStructure(parser);
             return builder;
@@ -135,8 +134,7 @@ public class XContentSource implements ToXContent {
     private Object data() {
         if (data == null) {
             // EMPTY is safe here because we never use namedObject
-            try (InputStream stream = bytes.streamInput();
-                 XContentParser parser = parser(NamedXContentRegistry.EMPTY, stream)) {
+            try (InputStream stream = bytes.streamInput(); XContentParser parser = parser(NamedXContentRegistry.EMPTY, stream)) {
                 data = XContentUtils.readValue(parser, parser.nextToken());
             } catch (IOException ex) {
                 throw new ElasticsearchException("failed to read value", ex);

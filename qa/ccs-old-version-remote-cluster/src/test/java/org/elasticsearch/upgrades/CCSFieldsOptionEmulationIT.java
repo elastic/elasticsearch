@@ -45,14 +45,14 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.rest.AbstractCCSRestTestCase;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.List;
@@ -99,17 +99,18 @@ public class CCSFieldsOptionEmulationIT extends AbstractCCSRestTestCase {
     public void testFieldsOptionEmulation() throws Exception {
         String localIndex = "test_bwc_fields_index";
         String remoteIndex = "test_bwc_fields_remote_index";
-        try (RestHighLevelClient localClient = newLocalClient(LOGGER);
-             RestHighLevelClient remoteClient = newRemoteClient()) {
-            localClient.indices().create(new CreateIndexRequest(localIndex)
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))),
-                RequestOptions.DEFAULT);
+        try (RestHighLevelClient localClient = newLocalClient(LOGGER); RestHighLevelClient remoteClient = newRemoteClient()) {
+            localClient.indices()
+                .create(
+                    new CreateIndexRequest(localIndex).settings(
+                        Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
+                    ),
+                    RequestOptions.DEFAULT
+                );
             int localNumDocs = indexDocs(localClient, localIndex, between(10, 20), true);
 
             Builder remoteIndexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5));
-            remoteClient.indices().create(new CreateIndexRequest(remoteIndex)
-                    .settings(remoteIndexSettings),
-                RequestOptions.DEFAULT);
+            remoteClient.indices().create(new CreateIndexRequest(remoteIndex).settings(remoteIndexSettings), RequestOptions.DEFAULT);
             boolean expectRemoteIndexWarnings = UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_0_0);
             int remoteNumDocs = indexDocs(remoteClient, remoteIndex, between(10, 20), expectRemoteIndexWarnings);
             int expectedHitCount = localNumDocs + remoteNumDocs;

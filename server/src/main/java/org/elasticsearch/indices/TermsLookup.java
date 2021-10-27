@@ -9,16 +9,16 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.index.query.TermsQueryBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -36,7 +36,6 @@ public class TermsLookup implements Writeable, ToXContentFragment {
     private final String id;
     private final String path;
     private String routing;
-
 
     public TermsLookup(String index, String id, String path) {
         this(index, null, id, path);
@@ -91,8 +90,9 @@ public class TermsLookup implements Writeable, ToXContentFragment {
             out.writeOptionalString(type);
         } else {
             if (type == null) {
-                throw new IllegalArgumentException("Typeless [terms] lookup queries are not supported if any " +
-                    "node is running a version before 7.0.");
+                throw new IllegalArgumentException(
+                    "Typeless [terms] lookup queries are not supported if any " + "node is running a version before 7.0."
+                );
 
             }
             out.writeString(type);
@@ -136,14 +136,13 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         return this;
     }
 
-    private static final ConstructingObjectParser<TermsLookup, Void> PARSER = new ConstructingObjectParser<>("terms_lookup",
-        args -> {
-            String index = (String) args[0];
-            String type = (String) args[1];
-            String id = (String) args[2];
-            String path = (String) args[3];
-            return new TermsLookup(index, type, id, path);
-        });
+    private static final ConstructingObjectParser<TermsLookup, Void> PARSER = new ConstructingObjectParser<>("terms_lookup", args -> {
+        String index = (String) args[0];
+        String type = (String) args[1];
+        String id = (String) args[2];
+        String path = (String) args[3];
+        return new TermsLookup(index, type, id, path);
+    });
     static {
         PARSER.declareString(constructorArg(), new ParseField("index"));
         PARSER.declareString(optionalConstructorArg(), new ParseField("type").withAllDeprecated());
@@ -193,10 +192,10 @@ public class TermsLookup implements Writeable, ToXContentFragment {
             return false;
         }
         TermsLookup other = (TermsLookup) obj;
-        return Objects.equals(index, other.index) &&
-                Objects.equals(type, other.type) &&
-                Objects.equals(id, other.id) &&
-                Objects.equals(path, other.path) &&
-                Objects.equals(routing, other.routing);
+        return Objects.equals(index, other.index)
+            && Objects.equals(type, other.type)
+            && Objects.equals(id, other.id)
+            && Objects.equals(path, other.path)
+            && Objects.equals(routing, other.routing);
     }
 }

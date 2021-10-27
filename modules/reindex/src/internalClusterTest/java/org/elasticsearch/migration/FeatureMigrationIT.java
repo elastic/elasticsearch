@@ -115,12 +115,9 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         TestPlugin.postMigrationHook.set((clusterState, metadata) -> {
             assertThat(preUpgradeHookCalled.get(), is(true));
 
-            assertThat(
-                metadata,
-                hasEntry("stringKey", "stringValue")
-            );
+            assertThat(metadata, hasEntry("stringKey", "stringValue"));
             assertThat(metadata, hasEntry("intKey", 42));
-            assertThat(metadata, hasEntry("listKey", Arrays.asList(1,2,3,4)));
+            assertThat(metadata, hasEntry("listKey", Arrays.asList(1, 2, 3, 4)));
             assertThat(metadata, hasKey("mapKey"));
             @SuppressWarnings("unchecked")
             Map<String, Object> innerMap = (Map<String, Object>) metadata.get("mapKey");
@@ -202,7 +199,8 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         int settingsFlagValue,
         boolean isManaged,
         boolean isInternal,
-        Collection<String> aliasNames) {
+        Collection<String> aliasNames
+    ) {
         IndexMetadata imd = metadata.index(indexName);
         assertThat(imd.getSettings().get(FlAG_SETTING_KEY), equalTo(Integer.toString(settingsFlagValue)));
         final Map<String, Object> mapping = imd.mapping().getSourceAsMap();

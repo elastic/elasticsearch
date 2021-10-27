@@ -13,13 +13,13 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -35,10 +35,13 @@ import static org.mockito.Mockito.mock;
 
 public class GrokProcessorGetActionTests extends ESTestCase {
 
-    private static final Map<String, String> LEGACY_TEST_PATTERNS =
-        org.elasticsearch.core.Map.of("PATTERN2", "foo2", "PATTERN1", "foo1");
-    private static final Map<String, String> ECS_TEST_PATTERNS =
-        org.elasticsearch.core.Map.of("ECS_PATTERN2", "foo2", "ECS_PATTERN1", "foo1");
+    private static final Map<String, String> LEGACY_TEST_PATTERNS = org.elasticsearch.core.Map.of("PATTERN2", "foo2", "PATTERN1", "foo1");
+    private static final Map<String, String> ECS_TEST_PATTERNS = org.elasticsearch.core.Map.of(
+        "ECS_PATTERN2",
+        "foo2",
+        "ECS_PATTERN1",
+        "foo1"
+    );
 
     public void testRequest() throws Exception {
         GrokProcessorGetAction.Request request = new GrokProcessorGetAction.Request(false, GrokProcessor.DEFAULT_ECS_COMPATIBILITY_MODE);
@@ -75,13 +78,13 @@ public class GrokProcessorGetActionTests extends ESTestCase {
             new ActionListener<GrokProcessorGetAction.Response>() {
                 @Override
                 public void onResponse(GrokProcessorGetAction.Response response) {
-                receivedResponse[0] = response;
-            }
+                    receivedResponse[0] = response;
+                }
 
                 @Override
                 public void onFailure(Exception e) {
-                fail();
-            }
+                    fail();
+                }
             }
         );
         assertThat(receivedResponse[0], notNullValue());
@@ -94,13 +97,13 @@ public class GrokProcessorGetActionTests extends ESTestCase {
             new ActionListener<GrokProcessorGetAction.Response>() {
                 @Override
                 public void onResponse(GrokProcessorGetAction.Response response) {
-                receivedResponse[0] = response;
-            }
+                    receivedResponse[0] = response;
+                }
 
                 @Override
                 public void onFailure(Exception e) {
-                fail();
-            }
+                    fail();
+                }
             }
         );
         assertThat(receivedResponse[0], notNullValue());

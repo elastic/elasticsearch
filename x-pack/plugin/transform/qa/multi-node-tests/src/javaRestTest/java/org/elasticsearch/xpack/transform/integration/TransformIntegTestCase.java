@@ -46,15 +46,9 @@ import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.client.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestStatus;
@@ -65,6 +59,12 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -283,14 +283,9 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
         return new AggregationConfig(aggregations);
     }
 
-    protected PivotConfig createPivotConfig(
-        Map<String, SingleGroupSource> groups,
-        AggregatorFactories.Builder aggregations
-    ) throws Exception {
-        return PivotConfig.builder()
-            .setGroups(createGroupConfig(groups))
-            .setAggregationConfig(createAggConfig(aggregations))
-            .build();
+    protected PivotConfig createPivotConfig(Map<String, SingleGroupSource> groups, AggregatorFactories.Builder aggregations)
+        throws Exception {
+        return PivotConfig.builder().setGroups(createGroupConfig(groups)).setAggregationConfig(createAggConfig(aggregations)).build();
     }
 
     protected TransformConfig.Builder createTransformConfigBuilder(
@@ -320,11 +315,13 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
         }
     }
 
-    protected void createReviewsIndex(String indexName,
-                                      int numDocs,
-                                      int numUsers,
-                                      Function<Integer, Integer> userIdProvider,
-                                      Function<Integer, String> dateStringProvider) throws Exception {
+    protected void createReviewsIndex(
+        String indexName,
+        int numDocs,
+        int numUsers,
+        Function<Integer, Integer> userIdProvider,
+        Function<Integer, String> dateStringProvider
+    ) throws Exception {
         assert numUsers > 0;
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
 
@@ -380,14 +377,9 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
 
                 StringBuilder sourceBuilder = new StringBuilder().append("{");
                 if (user != null) {
-                    sourceBuilder
-                        .append("\"user_id\":\"")
-                        .append("user_")
-                        .append(user)
-                        .append("\",");
+                    sourceBuilder.append("\"user_id\":\"").append("user_").append(user).append("\",");
                 }
-                sourceBuilder
-                    .append("\"count\":")
+                sourceBuilder.append("\"count\":")
                     .append(i)
                     .append(",\"business_id\":\"")
                     .append("business_")

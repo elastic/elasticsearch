@@ -82,10 +82,8 @@ final class Hash32 {
     }
 
     private static int decodeFixed32(byte[] ptr, int offset) {
-        return Byte.toUnsignedInt(ptr[offset]) |
-            Byte.toUnsignedInt(ptr[offset + 1]) << 8 |
-            Byte.toUnsignedInt(ptr[offset + 2]) << 16 |
-            Byte.toUnsignedInt(ptr[offset + 3]) << 24;
+        return Byte.toUnsignedInt(ptr[offset]) | Byte.toUnsignedInt(ptr[offset + 1]) << 8 | Byte.toUnsignedInt(ptr[offset + 2]) << 16 | Byte
+            .toUnsignedInt(ptr[offset + 3]) << 24;
     }
 
 }

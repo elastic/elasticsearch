@@ -30,9 +30,9 @@ public class RestCreateSnapshotAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(PUT, "/_snapshot/{repository}/{snapshot}"),
-            new Route(POST, "/_snapshot/{repository}/{snapshot}")));
+        return unmodifiableList(
+            asList(new Route(PUT, "/_snapshot/{repository}/{snapshot}"), new Route(POST, "/_snapshot/{repository}/{snapshot}"))
+        );
     }
 
     @Override

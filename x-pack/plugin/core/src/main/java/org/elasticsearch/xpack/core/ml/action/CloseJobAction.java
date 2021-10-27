@@ -7,21 +7,21 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
@@ -48,8 +48,10 @@ public class CloseJobAction extends ActionType<CloseJobAction.Response> {
 
         static {
             PARSER.declareString(Request::setJobId, Job.ID);
-            PARSER.declareString((request, val) ->
-                    request.setCloseTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
+            PARSER.declareString(
+                (request, val) -> request.setCloseTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())),
+                TIMEOUT
+            );
             PARSER.declareBoolean(Request::setForce, FORCE);
             PARSER.declareBoolean(Request::setAllowNoMatch, ALLOW_NO_MATCH);
         }
@@ -65,7 +67,7 @@ public class CloseJobAction extends ActionType<CloseJobAction.Response> {
         private String jobId;
         private boolean force = false;
         private boolean allowNoMatch = true;
-        // A big state can take a while to persist.  For symmetry with the _open endpoint any
+        // A big state can take a while to persist. For symmetry with the _open endpoint any
         // changes here should be reflected there too.
         private TimeValue timeout = MachineLearningField.STATE_PERSIST_RESTORE_TIMEOUT;
 
@@ -143,14 +145,18 @@ public class CloseJobAction extends ActionType<CloseJobAction.Response> {
             return this;
         }
 
-        public boolean isLocal() { return local; }
+        public boolean isLocal() {
+            return local;
+        }
 
         public Request setLocal(boolean local) {
             this.local = local;
             return this;
         }
 
-        public String[] getOpenJobIds() { return openJobIds; }
+        public String[] getOpenJobIds() {
+            return openJobIds;
+        }
 
         public Request setOpenJobIds(String[] openJobIds) {
             this.openJobIds = openJobIds;
@@ -195,10 +201,10 @@ public class CloseJobAction extends ActionType<CloseJobAction.Response> {
             }
             Request other = (Request) obj;
             // openJobIds are excluded
-            return Objects.equals(jobId, other.jobId) &&
-                    Objects.equals(timeout, other.timeout) &&
-                    Objects.equals(force, other.force) &&
-                    Objects.equals(allowNoMatch, other.allowNoMatch);
+            return Objects.equals(jobId, other.jobId)
+                && Objects.equals(timeout, other.timeout)
+                && Objects.equals(force, other.force)
+                && Objects.equals(allowNoMatch, other.allowNoMatch);
         }
     }
 
@@ -256,4 +262,3 @@ public class CloseJobAction extends ActionType<CloseJobAction.Response> {
     }
 
 }
-

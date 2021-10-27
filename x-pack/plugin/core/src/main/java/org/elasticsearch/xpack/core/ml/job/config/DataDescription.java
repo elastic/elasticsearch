@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -57,8 +57,7 @@ public class DataDescription implements ToXContentObject, Writeable {
          */
         public static DataFormat forString(String value) {
             String valueUpperCase = value.toUpperCase(Locale.ROOT);
-            return DEPRECATED_DELINEATED.equals(valueUpperCase) ? DELIMITED : DataFormat
-                    .valueOf(valueUpperCase);
+            return DEPRECATED_DELINEATED.equals(valueUpperCase) ? DELIMITED : DataFormat.valueOf(valueUpperCase);
         }
 
         public static DataFormat readFromStream(StreamInput in) throws IOException {
@@ -126,8 +125,11 @@ public class DataDescription implements ToXContentObject, Writeable {
     public static final ObjectParser<Builder, Void> STRICT_PARSER = createParser(false);
 
     private static ObjectParser<Builder, Void> createParser(boolean ignoreUnknownFields) {
-        ObjectParser<Builder, Void> parser =
-            new ObjectParser<>(DATA_DESCRIPTION_FIELD.getPreferredName(), ignoreUnknownFields, Builder::new);
+        ObjectParser<Builder, Void> parser = new ObjectParser<>(
+            DATA_DESCRIPTION_FIELD.getPreferredName(),
+            ignoreUnknownFields,
+            Builder::new
+        );
 
         parser.declareString(Builder::setFormat, FORMAT_FIELD);
         parser.declareString(Builder::setTimeField, TIME_FIELD_NAME_FIELD);
@@ -138,8 +140,13 @@ public class DataDescription implements ToXContentObject, Writeable {
         return parser;
     }
 
-    public DataDescription(DataFormat dataFormat, String timeFieldName, String timeFormat, Character fieldDelimiter,
-                           Character quoteCharacter) {
+    public DataDescription(
+        DataFormat dataFormat,
+        String timeFieldName,
+        String timeFormat,
+        Character fieldDelimiter,
+        Character quoteCharacter
+    ) {
         this.dataFormat = dataFormat;
         this.timeFieldName = timeFieldName;
         this.timeFormat = timeFormat;
@@ -299,11 +306,11 @@ public class DataDescription implements ToXContentObject, Writeable {
 
         DataDescription that = (DataDescription) other;
 
-        return this.dataFormat == that.dataFormat &&
-                Objects.equals(this.quoteCharacter, that.quoteCharacter) &&
-                Objects.equals(this.timeFieldName, that.timeFieldName) &&
-                Objects.equals(this.timeFormat, that.timeFormat) &&
-                Objects.equals(this.fieldDelimiter, that.fieldDelimiter);
+        return this.dataFormat == that.dataFormat
+            && Objects.equals(this.quoteCharacter, that.quoteCharacter)
+            && Objects.equals(this.timeFieldName, that.timeFieldName)
+            && Objects.equals(this.timeFormat, that.timeFormat)
+            && Objects.equals(this.fieldDelimiter, that.fieldDelimiter);
     }
 
     @Override
@@ -345,7 +352,9 @@ public class DataDescription implements ToXContentObject, Writeable {
                         DateTimeFormatterTimestampConverter.ofPattern(format, ZoneOffset.UTC);
                     } catch (IllegalArgumentException e) {
                         throw ExceptionsHelper.badRequestException(
-                                    Messages.getMessage(Messages.JOB_CONFIG_INVALID_TIMEFORMAT, format), e.getCause());
+                            Messages.getMessage(Messages.JOB_CONFIG_INVALID_TIMEFORMAT, format),
+                            e.getCause()
+                        );
                     }
             }
             timeFormat = format;

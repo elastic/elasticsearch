@@ -10,6 +10,7 @@ package org.elasticsearch.tasks;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.ObjectIntMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -25,14 +26,14 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TaskTransportChannel;
 import org.elasticsearch.transport.TcpChannel;
@@ -78,8 +79,9 @@ public class TaskManager implements ClusterStateApplier {
 
     private final Map<Long, Task> tasks = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
-    private final CancellableTasksTracker<CancellableTaskHolder> cancellableTasks
-        = new CancellableTasksTracker<>(new CancellableTaskHolder[0]);
+    private final CancellableTasksTracker<CancellableTaskHolder> cancellableTasks = new CancellableTasksTracker<>(
+        new CancellableTaskHolder[0]
+    );
 
     private final AtomicLong taskIdGenerator = new AtomicLong();
 
@@ -299,7 +301,6 @@ public class TaskManager implements ClusterStateApplier {
         return Collections.unmodifiableMap(taskHashMap);
     }
 
-
     /**
      * Returns the list of currently running tasks on the node that can be cancelled
      */
@@ -464,8 +465,11 @@ public class TaskManager implements ClusterStateApplier {
                 while (banIterator.hasNext()) {
                     final Map.Entry<TaskId, Ban> ban = banIterator.next();
                     if (ban.getValue().perChannel == false && lastDiscoveryNodes.nodeExists(ban.getKey().getNodeId()) == false) {
-                        logger.debug("Removing ban for the parent [{}] on the node [{}], reason: the parent node is gone",
-                            ban.getKey(), event.state().getNodes().getLocalNode());
+                        logger.debug(
+                            "Removing ban for the parent [{}] on the node [{}], reason: the parent node is gone",
+                            ban.getKey(),
+                            event.state().getNodes().getLocalNode()
+                        );
                         banIterator.remove();
                     }
                 }
@@ -602,13 +606,14 @@ public class TaskManager implements ClusterStateApplier {
             final Runnable toRun;
             synchronized (this) {
                 assert reason != null;
-                //noinspection ConstantConditions just in case we get a null value with assertions disabled
+                // noinspection ConstantConditions just in case we get a null value with assertions disabled
                 banChildrenReason = reason == null ? "none" : reason;
                 if (childTasksPerConnection == null) {
                     pendingChildConnections = Collections.emptySet();
                 } else {
                     pendingChildConnections = StreamSupport.stream(childTasksPerConnection.spliterator(), false)
-                        .map(e -> e.key).collect(Collectors.toSet());
+                        .map(e -> e.key)
+                        .collect(Collectors.toSet());
                 }
                 if (pendingChildConnections.isEmpty()) {
                     assert childTaskCompletedListeners == null;
@@ -647,15 +652,11 @@ public class TaskManager implements ClusterStateApplier {
             return curr;
         });
         if (tracker.registered.compareAndSet(false, true)) {
-            channel.addCloseListener(ActionListener.wrap(
-                r -> {
-                    final ChannelPendingTaskTracker removedTracker = channelPendingTaskTrackers.remove(channel);
-                    assert removedTracker == tracker;
-                    onChannelClosed(tracker);
-                },
-                e -> {
-                    assert false : new AssertionError("must not be here", e);
-                }));
+            channel.addCloseListener(ActionListener.wrap(r -> {
+                final ChannelPendingTaskTracker removedTracker = channelPendingTaskTrackers.remove(channel);
+                assert removedTracker == tracker;
+                onChannelClosed(tracker);
+            }, e -> { assert false : new AssertionError("must not be here", e); }));
         }
         return tracker;
     }

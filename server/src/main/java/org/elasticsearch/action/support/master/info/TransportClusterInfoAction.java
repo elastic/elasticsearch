@@ -21,21 +21,36 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequest<Request>, Response extends ActionResponse>
-        extends TransportMasterNodeReadAction<Request, Response> {
+public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequest<Request>, Response extends ActionResponse> extends
+    TransportMasterNodeReadAction<Request, Response> {
 
-    public TransportClusterInfoAction(String actionName, TransportService transportService,
-                                      ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
-                                      Writeable.Reader<Request> request, IndexNameExpressionResolver indexNameExpressionResolver,
-                                      Writeable.Reader<Response> response) {
-        super(actionName, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver, response,
-            ThreadPool.Names.SAME);
+    public TransportClusterInfoAction(
+        String actionName,
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> request,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Writeable.Reader<Response> response
+    ) {
+        super(
+            actionName,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            request,
+            indexNameExpressionResolver,
+            response,
+            ThreadPool.Names.SAME
+        );
     }
 
     @Override
     protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ,
-            indexNameExpressionResolver.concreteIndexNames(state, request));
+        return state.blocks()
+            .indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override
@@ -49,6 +64,11 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
         doMasterOperation(task, request, concreteIndices, state, listener);
     }
 
-    protected abstract void doMasterOperation(Task task, Request request, String[] concreteIndices, ClusterState state,
-                                              ActionListener<Response> listener);
+    protected abstract void doMasterOperation(
+        Task task,
+        Request request,
+        String[] concreteIndices,
+        ClusterState state,
+        ActionListener<Response> listener
+    );
 }

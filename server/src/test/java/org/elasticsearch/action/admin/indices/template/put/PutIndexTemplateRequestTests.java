@@ -11,11 +11,11 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -52,34 +52,38 @@ public class PutIndexTemplateRequestTests extends AbstractXContentTestCase<PutIn
         PutIndexTemplateRequest request2 = new PutIndexTemplateRequest("bar");
         {
             XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-            builder.startObject().startObject("properties")
+            builder.startObject()
+                .startObject("properties")
                 .startObject("field1")
-                    .field("type", "text")
+                .field("type", "text")
                 .endObject()
                 .startObject("field2")
-                    .startObject("properties")
-                        .startObject("field21")
-                            .field("type", "keyword")
-                        .endObject()
-                    .endObject()
+                .startObject("properties")
+                .startObject("field21")
+                .field("type", "keyword")
                 .endObject()
-            .endObject().endObject();
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
             request1.mapping("type1", builder);
             builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-            builder.startObject().startObject("type1")
+            builder.startObject()
+                .startObject("type1")
                 .startObject("properties")
-                    .startObject("field1")
-                        .field("type", "text")
-                    .endObject()
-                    .startObject("field2")
-                        .startObject("properties")
-                            .startObject("field21")
-                                .field("type", "keyword")
-                            .endObject()
-                        .endObject()
-                    .endObject()
+                .startObject("field1")
+                .field("type", "text")
                 .endObject()
-            .endObject().endObject();
+                .startObject("field2")
+                .startObject("properties")
+                .startObject("field21")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
             request2.mapping("type1", builder);
             assertEquals(request1.mappings(), request2.mappings());
         }
@@ -94,14 +98,14 @@ public class PutIndexTemplateRequestTests extends AbstractXContentTestCase<PutIn
         {
             request1 = new PutIndexTemplateRequest("foo");
             request2 = new PutIndexTemplateRequest("bar");
-            Map<String , Object> nakedMapping = MapBuilder.<String, Object>newMapBuilder()
-                    .put("properties", MapBuilder.<String, Object>newMapBuilder()
-                            .put("bar", MapBuilder.<String, Object>newMapBuilder()
-                                    .put("type", "scaled_float")
-                                    .put("scaling_factor", 100)
-                            .map())
-                    .map())
-            .map();
+            Map<String, Object> nakedMapping = MapBuilder.<String, Object>newMapBuilder()
+                .put(
+                    "properties",
+                    MapBuilder.<String, Object>newMapBuilder()
+                        .put("bar", MapBuilder.<String, Object>newMapBuilder().put("type", "scaled_float").put("scaling_factor", 100).map())
+                        .map()
+                )
+                .map();
             request1.mapping("type3", nakedMapping);
             request2.mapping("type3", MapBuilder.<String, Object>newMapBuilder().put("type3", nakedMapping).map());
             assertEquals(request1.mappings(), request2.mappings());
@@ -134,10 +138,19 @@ public class PutIndexTemplateRequestTests extends AbstractXContentTestCase<PutIn
         }
         if (randomBoolean()) {
             try {
-                request.mapping("doc", XContentFactory.jsonBuilder().startObject()
-                    .startObject("doc").startObject("properties")
-                    .startObject("field-" + randomInt()).field("type", randomFrom("keyword", "text")).endObject()
-                    .endObject().endObject().endObject());
+                request.mapping(
+                    "doc",
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("doc")
+                        .startObject("properties")
+                        .startObject("field-" + randomInt())
+                        .field("type", randomFrom("keyword", "text"))
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                );
             } catch (IOException ex) {
                 throw new UncheckedIOException(ex);
             }

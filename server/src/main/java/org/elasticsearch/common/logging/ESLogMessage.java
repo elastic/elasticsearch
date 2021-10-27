@@ -37,21 +37,17 @@ public abstract class ESLogMessage extends ParameterizedMessage {
     }
 
     public static String inQuotes(String s) {
-        if (s == null)
-            return inQuotes("");
+        if (s == null) return inQuotes("");
         return "\"" + s + "\"";
     }
 
     public static String inQuotes(Object s) {
-        if (s == null)
-            return inQuotes("");
+        if (s == null) return inQuotes("");
         return inQuotes(s.toString());
     }
 
     public static String asJsonArray(Stream<String> stream) {
-        return "[" + stream
-            .map(ESLogMessage::inQuotes)
-            .collect(Collectors.joining(", ")) + "]";
+        return "[" + stream.map(ESLogMessage::inQuotes).collect(Collectors.joining(", ")) + "]";
     }
 
     public Object[] getArguments() {

@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.core.ccr;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -32,8 +32,9 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
 
     private static final ParseField NUMBER_OF_SUCCESSFUL_INDICES_AUTO_FOLLOWED = new ParseField("number_of_successful_follow_indices");
     private static final ParseField NUMBER_OF_FAILED_INDICES_AUTO_FOLLOWED = new ParseField("number_of_failed_follow_indices");
-    private static final ParseField NUMBER_OF_FAILED_REMOTE_CLUSTER_STATE_REQUESTS =
-        new ParseField("number_of_failed_remote_cluster_state_requests");
+    private static final ParseField NUMBER_OF_FAILED_REMOTE_CLUSTER_STATE_REQUESTS = new ParseField(
+        "number_of_failed_remote_cluster_state_requests"
+    );
     private static final ParseField RECENT_AUTO_FOLLOW_ERRORS = new ParseField("recent_auto_follow_errors");
     private static final ParseField LEADER_INDEX = new ParseField("leader_index");
     private static final ParseField AUTO_FOLLOW_EXCEPTION = new ParseField("auto_follow_exception");
@@ -44,30 +45,35 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
     private static final ParseField LAST_SEEN_METADATA_VERSION = new ParseField("last_seen_metadata_version");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<AutoFollowStats, Void> STATS_PARSER = new ConstructingObjectParser<>("auto_follow_stats",
+    private static final ConstructingObjectParser<AutoFollowStats, Void> STATS_PARSER = new ConstructingObjectParser<>(
+        "auto_follow_stats",
         args -> new AutoFollowStats(
             (Long) args[0],
             (Long) args[1],
             (Long) args[2],
             new TreeMap<>(
-                ((List<Map.Entry<String, Tuple<Long, ElasticsearchException>>>) args[3])
-                    .stream()
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))),
+                ((List<Map.Entry<String, Tuple<Long, ElasticsearchException>>>) args[3]).stream()
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+            ),
             new TreeMap<>(
-                ((List<Map.Entry<String, AutoFollowedCluster>>) args[4])
-                    .stream()
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))));
+                ((List<Map.Entry<String, AutoFollowedCluster>>) args[4]).stream()
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+            )
+        )
+    );
 
-    private static final ConstructingObjectParser<Map.Entry<String,
-        Tuple<Long, ElasticsearchException>>, Void> AUTO_FOLLOW_EXCEPTIONS_PARSER =
-        new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<
+        Map.Entry<String, Tuple<Long, ElasticsearchException>>,
+        Void> AUTO_FOLLOW_EXCEPTIONS_PARSER = new ConstructingObjectParser<>(
             "auto_follow_stats_errors",
-            args -> new AbstractMap.SimpleEntry<>((String) args[0], new Tuple<>((Long) args[1], (ElasticsearchException) args[2])));
+            args -> new AbstractMap.SimpleEntry<>((String) args[0], new Tuple<>((Long) args[1], (ElasticsearchException) args[2]))
+        );
 
     private static final ConstructingObjectParser<Map.Entry<String, AutoFollowedCluster>, Void> AUTO_FOLLOWED_CLUSTERS_PARSER =
         new ConstructingObjectParser<>(
             "auto_followed_clusters",
-            args -> new AbstractMap.SimpleEntry<>((String) args[0], new AutoFollowedCluster((Long) args[1], (Long) args[2])));
+            args -> new AbstractMap.SimpleEntry<>((String) args[0], new AutoFollowedCluster((Long) args[1], (Long) args[2]))
+        );
 
     static {
         AUTO_FOLLOW_EXCEPTIONS_PARSER.declareString(ConstructingObjectParser.constructorArg(), LEADER_INDEX);
@@ -75,7 +81,8 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
         AUTO_FOLLOW_EXCEPTIONS_PARSER.declareObject(
             ConstructingObjectParser.constructorArg(),
             (p, c) -> ElasticsearchException.fromXContent(p),
-            AUTO_FOLLOW_EXCEPTION);
+            AUTO_FOLLOW_EXCEPTION
+        );
         AUTO_FOLLOWED_CLUSTERS_PARSER.declareString(ConstructingObjectParser.constructorArg(), CLUSTER_NAME);
         AUTO_FOLLOWED_CLUSTERS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), TIME_SINCE_LAST_CHECK_MILLIS);
         AUTO_FOLLOWED_CLUSTERS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), LAST_SEEN_METADATA_VERSION);
@@ -83,10 +90,12 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
         STATS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_FAILED_INDICES_AUTO_FOLLOWED);
         STATS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_FAILED_REMOTE_CLUSTER_STATE_REQUESTS);
         STATS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_SUCCESSFUL_INDICES_AUTO_FOLLOWED);
-        STATS_PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), AUTO_FOLLOW_EXCEPTIONS_PARSER,
-            RECENT_AUTO_FOLLOW_ERRORS);
-        STATS_PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), AUTO_FOLLOWED_CLUSTERS_PARSER,
-            AUTO_FOLLOWED_CLUSTERS);
+        STATS_PARSER.declareObjectArray(
+            ConstructingObjectParser.constructorArg(),
+            AUTO_FOLLOW_EXCEPTIONS_PARSER,
+            RECENT_AUTO_FOLLOW_ERRORS
+        );
+        STATS_PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), AUTO_FOLLOWED_CLUSTERS_PARSER, AUTO_FOLLOWED_CLUSTERS);
     }
 
     public static AutoFollowStats fromXContent(final XContentParser parser) {
@@ -119,12 +128,20 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
         numberOfSuccessfulFollowIndices = in.readVLong();
         if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
             // note: the casts to the following Writeable.Reader<T> instances are needed by some IDEs (e.g. Eclipse 4.8) as a compiler help
-            recentAutoFollowErrors = new TreeMap<>(in.readMap((Writeable.Reader<String>) StreamInput::readString,
-                    (Writeable.Reader<Tuple<Long, ElasticsearchException>>) in1 -> new Tuple<>(in1.readZLong(), in1.readException())));
+            recentAutoFollowErrors = new TreeMap<>(
+                in.readMap(
+                    (Writeable.Reader<String>) StreamInput::readString,
+                    (Writeable.Reader<Tuple<Long, ElasticsearchException>>) in1 -> new Tuple<>(in1.readZLong(), in1.readException())
+                )
+            );
         } else {
             // note: the casts to the following Writeable.Reader<T> instances are needed by some IDEs (e.g. Eclipse 4.8) as a compiler help
-            recentAutoFollowErrors = new TreeMap<>(in.readMap((Writeable.Reader<String>) StreamInput::readString,
-                    (Writeable.Reader<Tuple<Long, ElasticsearchException>>) in1 -> new Tuple<>(-1L, in1.readException())));
+            recentAutoFollowErrors = new TreeMap<>(
+                in.readMap(
+                    (Writeable.Reader<String>) StreamInput::readString,
+                    (Writeable.Reader<Tuple<Long, ElasticsearchException>>) in1 -> new Tuple<>(-1L, in1.readException())
+                )
+            );
         }
         if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
             autoFollowedClusters = new TreeMap<>(in.readMap(StreamInput::readString, AutoFollowedCluster::new));
@@ -224,17 +241,18 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AutoFollowStats that = (AutoFollowStats) o;
-        return numberOfFailedFollowIndices == that.numberOfFailedFollowIndices &&
-            numberOfFailedRemoteClusterStateRequests == that.numberOfFailedRemoteClusterStateRequests &&
-            numberOfSuccessfulFollowIndices == that.numberOfSuccessfulFollowIndices &&
+        return numberOfFailedFollowIndices == that.numberOfFailedFollowIndices
+            && numberOfFailedRemoteClusterStateRequests == that.numberOfFailedRemoteClusterStateRequests
+            && numberOfSuccessfulFollowIndices == that.numberOfSuccessfulFollowIndices
+            &&
             /*
              * ElasticsearchException does not implement equals so we will assume the fetch exceptions are equal if they are equal
              * up to the key set and their messages.  Note that we are relying on the fact that the auto follow exceptions are ordered by
              * keys.
              */
-            recentAutoFollowErrors.keySet().equals(that.recentAutoFollowErrors.keySet()) &&
-            getFetchExceptionMessages(this).equals(getFetchExceptionMessages(that)) &&
-            Objects.equals(autoFollowedClusters, that.autoFollowedClusters);
+            recentAutoFollowErrors.keySet().equals(that.recentAutoFollowErrors.keySet())
+            && getFetchExceptionMessages(this).equals(getFetchExceptionMessages(that))
+            && Objects.equals(autoFollowedClusters, that.autoFollowedClusters);
     }
 
     @Override
@@ -254,7 +272,8 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
     }
 
     private static List<String> getFetchExceptionMessages(final AutoFollowStats status) {
-        return status.getRecentAutoFollowErrors().values()
+        return status.getRecentAutoFollowErrors()
+            .values()
             .stream()
             .map(Tuple::v2)
             .map(ElasticsearchException::getMessage)
@@ -263,13 +282,18 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        return "AutoFollowStats{" +
-            "numberOfFailedFollowIndices=" + numberOfFailedFollowIndices +
-            ", numberOfFailedRemoteClusterStateRequests=" + numberOfFailedRemoteClusterStateRequests +
-            ", numberOfSuccessfulFollowIndices=" + numberOfSuccessfulFollowIndices +
-            ", recentAutoFollowErrors=" + recentAutoFollowErrors +
-            ", autoFollowedClusters=" + autoFollowedClusters +
-            '}';
+        return "AutoFollowStats{"
+            + "numberOfFailedFollowIndices="
+            + numberOfFailedFollowIndices
+            + ", numberOfFailedRemoteClusterStateRequests="
+            + numberOfFailedRemoteClusterStateRequests
+            + ", numberOfSuccessfulFollowIndices="
+            + numberOfSuccessfulFollowIndices
+            + ", recentAutoFollowErrors="
+            + recentAutoFollowErrors
+            + ", autoFollowedClusters="
+            + autoFollowedClusters
+            + '}';
     }
 
     public static class AutoFollowedCluster implements Writeable {
@@ -305,8 +329,7 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             AutoFollowedCluster that = (AutoFollowedCluster) o;
-            return timeSinceLastCheckMillis == that.timeSinceLastCheckMillis &&
-                lastSeenMetadataVersion == that.lastSeenMetadataVersion;
+            return timeSinceLastCheckMillis == that.timeSinceLastCheckMillis && lastSeenMetadataVersion == that.lastSeenMetadataVersion;
         }
 
         @Override
@@ -316,10 +339,12 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
 
         @Override
         public String toString() {
-            return "AutoFollowedCluster{" +
-                "timeSinceLastCheckMillis=" + timeSinceLastCheckMillis +
-                ", lastSeenMetadataVersion=" + lastSeenMetadataVersion +
-                '}';
+            return "AutoFollowedCluster{"
+                + "timeSinceLastCheckMillis="
+                + timeSinceLastCheckMillis
+                + ", lastSeenMetadataVersion="
+                + lastSeenMetadataVersion
+                + '}';
         }
     }
 }

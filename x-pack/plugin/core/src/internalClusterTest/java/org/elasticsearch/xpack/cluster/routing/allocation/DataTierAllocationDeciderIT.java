@@ -15,12 +15,12 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Map;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.xpack.core.DataTiersFeatureSetUsage;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
@@ -56,8 +56,10 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         assertThat(DataTier.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo(DataTier.DATA_CONTENT));
 
         // index should be red
-        assertThat(client().admin().cluster().prepareHealth(index).get().getIndices().get(index).getStatus(),
-            equalTo(ClusterHealthStatus.RED));
+        assertThat(
+            client().admin().cluster().prepareHealth(index).get().getIndices().get(index).getStatus(),
+            equalTo(ClusterHealthStatus.RED)
+        );
 
         if (randomBoolean()) {
             logger.info("--> starting content node");
@@ -76,10 +78,11 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         startColdOnlyNode();
         ensureGreen();
 
-        client().admin().indices().prepareCreate(index)
+        client().admin()
+            .indices()
+            .prepareCreate(index)
             .setWaitForActiveShards(0)
-            .setSettings(Settings.builder()
-                .put(DataTier.TIER_PREFERENCE, DataTier.DATA_WARM))
+            .setSettings(Settings.builder().put(DataTier.TIER_PREFERENCE, DataTier.DATA_WARM))
             .get();
 
         Settings idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
@@ -96,10 +99,11 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         ensureGreen();
         enforceDefaultTierPreference(false);
 
-        client().admin().indices().prepareCreate(index)
+        client().admin()
+            .indices()
+            .prepareCreate(index)
             .setWaitForActiveShards(0)
-            .setSettings(Settings.builder()
-                .putNull(DataTier.TIER_PREFERENCE))
+            .setSettings(Settings.builder().putNull(DataTier.TIER_PREFERENCE))
             .get();
 
         Settings idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
@@ -114,10 +118,11 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         client().admin().indices().prepareDelete(index).get();
 
         // Now test it overriding the "require" setting, in which case the preference should be skipped
-        client().admin().indices().prepareCreate(index)
+        client().admin()
+            .indices()
+            .prepareCreate(index)
             .setWaitForActiveShards(0)
-            .setSettings(Settings.builder()
-                .put(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE, DataTier.DATA_COLD))
+            .setSettings(Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE, DataTier.DATA_COLD))
             .get();
 
         idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
@@ -136,10 +141,11 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         ensureGreen();
         enforceDefaultTierPreference(true);
 
-        client().admin().indices().prepareCreate(index)
+        client().admin()
+            .indices()
+            .prepareCreate(index)
             .setWaitForActiveShards(0)
-            .setSettings(Settings.builder()
-                .putNull(DataTier.TIER_PREFERENCE)) // will be overridden to data_content
+            .setSettings(Settings.builder().putNull(DataTier.TIER_PREFERENCE)) // will be overridden to data_content
             .get();
 
         Settings idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
@@ -158,33 +164,45 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         startWarmOnlyNode();
         startHotOnlyNode();
 
-        client().admin().indices().prepareCreate(index)
+        client().admin()
+            .indices()
+            .prepareCreate(index)
             .setWaitForActiveShards(0)
-            .setSettings(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(DataTier.TIER_PREFERENCE, "data_warm"))
+            .setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(DataTier.TIER_PREFERENCE, "data_warm")
+            )
             .get();
 
         client().admin().indices().prepareAddBlock(IndexMetadata.APIBlock.READ_ONLY, index).get();
-        client().admin().indices().prepareResizeIndex(index, index + "-shrunk")
+        client().admin()
+            .indices()
+            .prepareResizeIndex(index, index + "-shrunk")
             .setResizeType(ResizeType.SHRINK)
-            .setSettings(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .build()).get();
+            .setSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            )
+            .get();
 
         ensureGreen(index + "-shrunk");
 
-        Settings idxSettings = client().admin().indices().prepareGetIndex().addIndices(index + "-shrunk")
-            .get().getSettings().get(index + "-shrunk");
+        Settings idxSettings = client().admin()
+            .indices()
+            .prepareGetIndex()
+            .addIndices(index + "-shrunk")
+            .get()
+            .getSettings()
+            .get(index + "-shrunk");
         // It should inherit the setting of its originator
         assertThat(DataTier.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo(DataTier.DATA_WARM));
 
         // Required or else the test cleanup fails because it can't delete the indices
-        client().admin().indices().prepareUpdateSettings(index, index + "-shrunk")
-            .setSettings(Settings.builder()
-                .put("index.blocks.read_only", false))
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(index, index + "-shrunk")
+            .setSettings(Settings.builder().put("index.blocks.read_only", false))
             .get();
     }
 
@@ -192,14 +210,18 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         startWarmOnlyNode();
         enforceDefaultTierPreference(false);
 
-        Template t = new Template(Settings.builder()
-            .put(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE, DataTier.DATA_WARM)
-            .build(), null, null);
-        ComposableIndexTemplate ct = new ComposableIndexTemplate.Builder()
-            .indexPatterns(Collections.singletonList(index))
-            .template(t).build();
-        client().execute(PutComposableIndexTemplateAction.INSTANCE,
-            new PutComposableIndexTemplateAction.Request("template").indexTemplate(ct)).actionGet();
+        Template t = new Template(
+            Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE, DataTier.DATA_WARM).build(),
+            null,
+            null
+        );
+        ComposableIndexTemplate ct = new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList(index))
+            .template(t)
+            .build();
+        client().execute(
+            PutComposableIndexTemplateAction.INSTANCE,
+            new PutComposableIndexTemplateAction.Request("template").indexTemplate(ct)
+        ).actionGet();
 
         client().admin().indices().prepareCreate(index).setWaitForActiveShards(0).get();
 
@@ -211,13 +233,12 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
 
         client().admin().indices().prepareDelete(index).get();
 
-        t = new Template(Settings.builder()
-            .putNull(DataTier.TIER_PREFERENCE)
-            .build(), null, null);
-        ct = new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList(index))
-                 .template(t).build();
-        client().execute(PutComposableIndexTemplateAction.INSTANCE,
-            new PutComposableIndexTemplateAction.Request("template").indexTemplate(ct)).actionGet();
+        t = new Template(Settings.builder().putNull(DataTier.TIER_PREFERENCE).build(), null, null);
+        ct = new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList(index)).template(t).build();
+        client().execute(
+            PutComposableIndexTemplateAction.INSTANCE,
+            new PutComposableIndexTemplateAction.Request("template").indexTemplate(ct)
+        ).actionGet();
 
         client().admin().indices().prepareCreate(index).setWaitForActiveShards(0).get();
 
@@ -231,14 +252,14 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         startContentOnlyNode();
         enforceDefaultTierPreference(true);
 
-        Template t = new Template(Settings.builder()
-            .putNull(DataTier.TIER_PREFERENCE)
-            .build(), null, null);
-        ComposableIndexTemplate ct = new ComposableIndexTemplate.Builder()
-            .indexPatterns(Collections.singletonList(index))
-            .template(t).build();
-        client().execute(PutComposableIndexTemplateAction.INSTANCE,
-            new PutComposableIndexTemplateAction.Request("template").indexTemplate(ct)).actionGet();
+        Template t = new Template(Settings.builder().putNull(DataTier.TIER_PREFERENCE).build(), null, null);
+        ComposableIndexTemplate ct = new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList(index))
+            .template(t)
+            .build();
+        client().execute(
+            PutComposableIndexTemplateAction.INSTANCE,
+            new PutComposableIndexTemplateAction.Request("template").indexTemplate(ct)
+        ).actionGet();
 
         client().admin().indices().prepareCreate(index).setWaitForActiveShards(0).get();
 
@@ -254,18 +275,22 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         startContentOnlyNode();
         startHotOnlyNode();
 
-        client().admin().indices().prepareCreate(index)
-            .setSettings(Settings.builder()
-                .put(DataTier.TIER_PREFERENCE, "data_hot")
-                .put("index.number_of_shards", 2)
-                .put("index.number_of_replicas", 0))
+        client().admin()
+            .indices()
+            .prepareCreate(index)
+            .setSettings(
+                Settings.builder()
+                    .put(DataTier.TIER_PREFERENCE, "data_hot")
+                    .put("index.number_of_shards", 2)
+                    .put("index.number_of_replicas", 0)
+            )
             .setWaitForActiveShards(0)
             .get();
 
-        client().admin().indices().prepareCreate(index + "2")
-            .setSettings(Settings.builder()
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 1))
+        client().admin()
+            .indices()
+            .prepareCreate(index + "2")
+            .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1))
             .setWaitForActiveShards(0)
             .get();
 
@@ -300,17 +325,17 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         startHotOnlyNode();
 
         // Exclude all data_cold nodes
-        client().admin().cluster().prepareUpdateSettings()
-            .setTransientSettings(Settings.builder()
-                .put(DataTierAllocationDecider.CLUSTER_ROUTING_EXCLUDE, "data_cold")
-                .build())
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(DataTierAllocationDecider.CLUSTER_ROUTING_EXCLUDE, "data_cold").build())
             .get();
 
         // Create an index, which should be excluded just fine, ignored by the FilterAllocationDecider
-        client().admin().indices().prepareCreate(index)
-            .setSettings(Settings.builder()
-                .put("index.number_of_shards", 2)
-                .put("index.number_of_replicas", 0))
+        client().admin()
+            .indices()
+            .prepareCreate(index)
+            .setSettings(Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0))
             .setWaitForActiveShards(0)
             .get();
     }
@@ -318,20 +343,28 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
     public void testIllegalOnFrozen() {
         startDataNode();
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> createIndex(index, Settings.builder()
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 0)
-                .put(DataTier.TIER_PREFERENCE, DataTier.DATA_FROZEN)
-                .build()));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createIndex(
+                index,
+                Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .put(DataTier.TIER_PREFERENCE, DataTier.DATA_FROZEN)
+                    .build()
+            )
+        );
         assertThat(e.getMessage(), equalTo("[data_frozen] tier can only be used for partial searchable snapshots"));
 
         String initialTier = randomFrom(DataTier.DATA_HOT, DataTier.DATA_WARM, DataTier.DATA_COLD);
-        createIndex(index, Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put(DataTier.TIER_PREFERENCE, initialTier)
-            .build());
+        createIndex(
+            index,
+            Settings.builder()
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 0)
+                .put(DataTier.TIER_PREFERENCE, initialTier)
+                .build()
+        );
 
         IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, () -> updatePreference(DataTier.DATA_FROZEN));
         assertThat(e2.getMessage(), equalTo("[data_frozen] tier can only be used for partial searchable snapshots"));
@@ -340,13 +373,16 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
     }
 
     private void updatePreference(String tier) {
-        client().admin().indices().updateSettings(new UpdateSettingsRequest(index)
-            .settings(Map.of(DataTier.TIER_PREFERENCE, tier))).actionGet();
+        client().admin()
+            .indices()
+            .updateSettings(new UpdateSettingsRequest(index).settings(Map.of(DataTier.TIER_PREFERENCE, tier)))
+            .actionGet();
     }
 
     private DataTiersFeatureSetUsage getUsage() {
         XPackUsageResponse usages = new XPackUsageRequestBuilder(client()).execute().actionGet();
-        XPackFeatureSet.Usage dtUsage = usages.getUsages().stream()
+        XPackFeatureSet.Usage dtUsage = usages.getUsages()
+            .stream()
             .filter(u -> u instanceof DataTiersFeatureSetUsage)
             .collect(Collectors.toList())
             .get(0);
@@ -357,44 +393,32 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
     }
 
     public void startDataNode() {
-        Settings nodeSettings = Settings.builder()
-            .putList("node.roles", Arrays.asList("master", "data", "ingest"))
-            .build();
+        Settings nodeSettings = Settings.builder().putList("node.roles", Arrays.asList("master", "data", "ingest")).build();
         internalCluster().startNode(nodeSettings);
     }
 
     public void startContentOnlyNode() {
-        Settings nodeSettings = Settings.builder()
-            .putList("node.roles", Arrays.asList("master", "data_content", "ingest"))
-            .build();
+        Settings nodeSettings = Settings.builder().putList("node.roles", Arrays.asList("master", "data_content", "ingest")).build();
         internalCluster().startNode(nodeSettings);
     }
 
     public void startHotOnlyNode() {
-        Settings nodeSettings = Settings.builder()
-            .putList("node.roles", Arrays.asList("master", "data_hot", "ingest"))
-            .build();
+        Settings nodeSettings = Settings.builder().putList("node.roles", Arrays.asList("master", "data_hot", "ingest")).build();
         internalCluster().startNode(nodeSettings);
     }
 
     public void startWarmOnlyNode() {
-        Settings nodeSettings = Settings.builder()
-            .putList("node.roles", Arrays.asList("master", "data_warm", "ingest"))
-            .build();
+        Settings nodeSettings = Settings.builder().putList("node.roles", Arrays.asList("master", "data_warm", "ingest")).build();
         internalCluster().startNode(nodeSettings);
     }
 
     public void startColdOnlyNode() {
-        Settings nodeSettings = Settings.builder()
-            .putList("node.roles", Arrays.asList("master", "data_cold", "ingest"))
-            .build();
+        Settings nodeSettings = Settings.builder().putList("node.roles", Arrays.asList("master", "data_cold", "ingest")).build();
         internalCluster().startNode(nodeSettings);
     }
 
     public void startFrozenOnlyNode() {
-        Settings nodeSettings = Settings.builder()
-            .putList("node.roles", Arrays.asList("master", "data_frozen", "ingest"))
-            .build();
+        Settings nodeSettings = Settings.builder().putList("node.roles", Arrays.asList("master", "data_frozen", "ingest")).build();
         internalCluster().startNode(nodeSettings);
     }
 

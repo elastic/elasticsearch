@@ -7,9 +7,9 @@
  */
 package org.elasticsearch.env;
 
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.FileNotFoundException;
@@ -38,8 +38,11 @@ public class EnvironmentTests extends ESTestCase {
         Environment environment = newEnvironment();
         assertThat(environment.resolveRepoFile("/test/repos/repo1"), nullValue());
         assertThat(environment.resolveRepoFile("test/repos/repo1"), nullValue());
-        environment = newEnvironment(Settings.builder()
-                .putList(Environment.PATH_REPO_SETTING.getKey(), "/test/repos", "/another/repos", "/test/repos/../other").build());
+        environment = newEnvironment(
+            Settings.builder()
+                .putList(Environment.PATH_REPO_SETTING.getKey(), "/test/repos", "/another/repos", "/test/repos/../other")
+                .build()
+        );
         assertThat(environment.resolveRepoFile("/test/repos/repo1"), notNullValue());
         assertThat(environment.resolveRepoFile("test/repos/repo1"), notNullValue());
         assertThat(environment.resolveRepoFile("/another/repos/repo1"), notNullValue());
@@ -47,7 +50,6 @@ public class EnvironmentTests extends ESTestCase {
         assertThat(environment.resolveRepoFile("/test/repos/../repos/repo1"), notNullValue());
         assertThat(environment.resolveRepoFile("/somethingeles/repos/repo1"), nullValue());
         assertThat(environment.resolveRepoFile("/test/other/repo"), notNullValue());
-
 
         assertThat(environment.resolveRepoURL(new URL("file:///test/repos/repo1")), notNullValue());
         assertThat(environment.resolveRepoURL(new URL("file:/test/repos/repo1")), notNullValue());
@@ -66,7 +68,7 @@ public class EnvironmentTests extends ESTestCase {
         final Path pathHome = createTempDir().toAbsolutePath();
         final Settings settings = Settings.builder().put("path.home", pathHome).build();
         final Environment environment = new Environment(settings, null);
-        assertThat(environment.dataFiles(), equalTo(new Path[]{pathHome.resolve("data")}));
+        assertThat(environment.dataFiles(), equalTo(new Path[] { pathHome.resolve("data") }));
     }
 
     public void testPathDataNotSetInEnvironmentIfNotSet() {
@@ -115,12 +117,7 @@ public class EnvironmentTests extends ESTestCase {
 
     public void testNodeDoesNotRequireLocalStorage() {
         final Path pathHome = createTempDir().toAbsolutePath();
-        final Settings settings =
-                Settings.builder()
-                        .put("path.home", pathHome)
-                        .put("node.master", false)
-                        .put("node.data", false)
-                        .build();
+        final Settings settings = Settings.builder().put("path.home", pathHome).put("node.master", false).put("node.data", false).build();
         final Environment environment = new Environment(settings, null, false);
         assertThat(environment.dataFiles(), arrayWithSize(0));
     }
@@ -128,21 +125,18 @@ public class EnvironmentTests extends ESTestCase {
     public void testNodeDoesNotRequireLocalStorageButHasPathData() {
         final Path pathHome = createTempDir().toAbsolutePath();
         final Path pathData = pathHome.resolve("data");
-        final Settings settings =
-                Settings.builder()
-                        .put("path.home", pathHome)
-                        .put("path.data", pathData)
-                        .put("node.master", false)
-                        .put("node.data", false)
-                        .build();
+        final Settings settings = Settings.builder()
+            .put("path.home", pathHome)
+            .put("path.data", pathData)
+            .put("node.master", false)
+            .put("node.data", false)
+            .build();
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> new Environment(settings, null, false));
         assertThat(e, hasToString(containsString("node does not require local storage yet path.data is set to [" + pathData + "]")));
     }
 
     public void testNonExistentTempPathValidation() {
-        Settings build = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .build();
+        Settings build = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         Environment environment = new Environment(build, null, true, createTempDir().resolve("this_does_not_exist"));
         FileNotFoundException e = expectThrows(FileNotFoundException.class, environment::validateTmpFile);
         assertThat(e.getMessage(), startsWith("Temporary file directory ["));
@@ -150,9 +144,7 @@ public class EnvironmentTests extends ESTestCase {
     }
 
     public void testTempPathValidationWhenRegularFile() throws IOException {
-        Settings build = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .build();
+        Settings build = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         Environment environment = new Environment(build, null, true, createTempFile("something", ".test"));
         IOException e = expectThrows(IOException.class, environment::validateTmpFile);
         assertThat(e.getMessage(), startsWith("Configured temporary file directory ["));
@@ -215,47 +207,51 @@ public class EnvironmentTests extends ESTestCase {
         }
         {
             final Settings settings = Settings.builder()
-                .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString(), createTempDir().toString()).build();
+                .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString(), createTempDir().toString())
+                .build();
             assertThat(Environment.dataPathUsesList(settings), is(true));
         }
         {
             final Settings settings = Settings.builder()
-                .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString()).build();
+                .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString())
+                .build();
             assertThat(Environment.dataPathUsesList(settings), is(true));
         }
         {
             final Settings settings = Settings.builder()
-                .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString() + "," + createTempDir().toString()).build();
+                .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString() + "," + createTempDir().toString())
+                .build();
             assertThat(Environment.dataPathUsesList(settings), is(true));
         }
     }
 
     public void testLegacyDataPathListPropagation() {
         {
-            final Settings settings = Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .build();
+            final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
             Environment env = new Environment(settings, null);
             assertThat(Environment.dataPathUsesList(env.settings()), is(false));
         }
         {
             final Settings settings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString(), createTempDir().toString()).build();
+                .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString(), createTempDir().toString())
+                .build();
             Environment env = new Environment(settings, null);
             assertThat(Environment.dataPathUsesList(env.settings()), is(true));
         }
         {
             final Settings settings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString()).build();
+                .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString())
+                .build();
             Environment env = new Environment(settings, null);
             assertThat(Environment.dataPathUsesList(env.settings()), is(true));
         }
         {
             final Settings settings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString()).build();
+                .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString())
+                .build();
             Environment env = new Environment(settings, null);
             assertThat(Environment.dataPathUsesList(env.settings()), is(false));
         }

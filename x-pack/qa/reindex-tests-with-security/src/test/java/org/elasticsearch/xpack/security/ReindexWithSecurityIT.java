@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.security;
 
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequestBuilder;
 import org.elasticsearch.index.reindex.ReindexAction;
@@ -19,7 +19,6 @@ import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequestBuilder;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.security.SecurityField;
-
 
 @SuppressWarnings("removal")
 public class ReindexWithSecurityIT extends SecurityIntegTestCase {
@@ -44,38 +43,39 @@ public class ReindexWithSecurityIT extends SecurityIntegTestCase {
     public void testDeleteByQuery() {
         createIndicesWithRandomAliases("test1", "test2", "test3");
 
-        BulkByScrollResponse response = new DeleteByQueryRequestBuilder(client(), DeleteByQueryAction.INSTANCE)
-                .source("test1", "test2")
-                .filter(QueryBuilders.matchAllQuery())
-                .get();
+        BulkByScrollResponse response = new DeleteByQueryRequestBuilder(client(), DeleteByQueryAction.INSTANCE).source("test1", "test2")
+            .filter(QueryBuilders.matchAllQuery())
+            .get();
         assertNotNull(response);
 
-        response = new DeleteByQueryRequestBuilder(client(), DeleteByQueryAction.INSTANCE)
-                .source("test*")
-                .filter(QueryBuilders.matchAllQuery())
-                .get();
+        response = new DeleteByQueryRequestBuilder(client(), DeleteByQueryAction.INSTANCE).source("test*")
+            .filter(QueryBuilders.matchAllQuery())
+            .get();
         assertNotNull(response);
 
-        IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
-                () -> new DeleteByQueryRequestBuilder(client(), DeleteByQueryAction.INSTANCE)
-                        .source("test1", "index1")
-                        .filter(QueryBuilders.matchAllQuery())
-                        .get());
+        IndexNotFoundException e = expectThrows(
+            IndexNotFoundException.class,
+            () -> new DeleteByQueryRequestBuilder(client(), DeleteByQueryAction.INSTANCE).source("test1", "index1")
+                .filter(QueryBuilders.matchAllQuery())
+                .get()
+        );
         assertEquals("no such index [index1]", e.getMessage());
     }
 
     public void testUpdateByQuery() {
         createIndicesWithRandomAliases("test1", "test2", "test3");
 
-        BulkByScrollResponse response = new UpdateByQueryRequestBuilder(client(), UpdateByQueryAction.INSTANCE)
-            .source("test1", "test2").get();
+        BulkByScrollResponse response = new UpdateByQueryRequestBuilder(client(), UpdateByQueryAction.INSTANCE).source("test1", "test2")
+            .get();
         assertNotNull(response);
 
         response = new UpdateByQueryRequestBuilder(client(), UpdateByQueryAction.INSTANCE).source("test*").get();
         assertNotNull(response);
 
-        IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
-                () -> new UpdateByQueryRequestBuilder(client(), UpdateByQueryAction.INSTANCE).source("test1", "index1").get());
+        IndexNotFoundException e = expectThrows(
+            IndexNotFoundException.class,
+            () -> new UpdateByQueryRequestBuilder(client(), UpdateByQueryAction.INSTANCE).source("test1", "index1").get()
+        );
         assertEquals("no such index [index1]", e.getMessage());
     }
 
@@ -83,14 +83,17 @@ public class ReindexWithSecurityIT extends SecurityIntegTestCase {
         createIndicesWithRandomAliases("test1", "test2", "test3", "dest");
 
         BulkByScrollResponse response = new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source("test1", "test2")
-                .destination("dest").get();
+            .destination("dest")
+            .get();
         assertNotNull(response);
 
         response = new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source("test*").destination("dest").get();
         assertNotNull(response);
 
-        IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
-                () -> new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source("test1", "index1").destination("dest").get());
+        IndexNotFoundException e = expectThrows(
+            IndexNotFoundException.class,
+            () -> new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source("test1", "index1").destination("dest").get()
+        );
         assertEquals("no such index [index1]", e.getMessage());
     }
 }

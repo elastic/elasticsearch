@@ -45,7 +45,8 @@ public class LeafDocLookupTests extends ESTestCase {
         docLookup = new LeafDocLookup(
             field -> field.equals("field") || field.equals("alias") || field.equals("_type") ? fieldType : null,
             ignored -> fieldData,
-            null);
+            null
+        );
     }
 
     public void testBasicLookup() {
@@ -71,8 +72,7 @@ public class LeafDocLookupTests extends ESTestCase {
         ScriptDocValues<?> docValues2 = mock(ScriptDocValues.class);
         IndexFieldData<?> fieldData2 = createFieldData(docValues2);
 
-        FlattenedFieldMapper fieldMapper = new FlattenedFieldMapper.Builder("field")
-            .build(MapperBuilderContext.ROOT);
+        FlattenedFieldMapper fieldMapper = new FlattenedFieldMapper.Builder("field").build(MapperBuilderContext.ROOT);
         DynamicFieldType fieldType = fieldMapper.fieldType();
         MappedFieldType fieldType1 = fieldType.getChildFieldType("key1");
         MappedFieldType fieldType2 = fieldType.getChildFieldType("key2");

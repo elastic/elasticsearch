@@ -55,15 +55,19 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
     }
 
     public void testAuthenticate() {
-        final List<String> usernames = Arrays.asList(ElasticUser.NAME, KibanaUser.NAME, KibanaSystemUser.NAME,
-            LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMSystemUser.NAME, RemoteMonitoringUser.NAME);
+        final List<String> usernames = Arrays.asList(
+            ElasticUser.NAME,
+            KibanaUser.NAME,
+            KibanaSystemUser.NAME,
+            LogstashSystemUser.NAME,
+            BeatsSystemUser.NAME,
+            APMSystemUser.NAME,
+            RemoteMonitoringUser.NAME
+        );
         for (String username : usernames) {
-            ClusterHealthResponse response = client()
-                    .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword())))
-                    .admin()
-                    .cluster()
-                    .prepareHealth()
-                    .get();
+            ClusterHealthResponse response = client().filterWithHeader(
+                singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword()))
+            ).admin().cluster().prepareHealth().get();
 
             assertThat(response.getClusterName(), is(cluster().getClusterName()));
         }
@@ -75,86 +79,93 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
      */
     public void testAuthenticateAfterEnablingUser() {
         final SecurityClient c = securityClient();
-        final List<String> usernames = Arrays.asList(ElasticUser.NAME, KibanaUser.NAME, KibanaSystemUser.NAME,
-            LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMSystemUser.NAME, RemoteMonitoringUser.NAME);
+        final List<String> usernames = Arrays.asList(
+            ElasticUser.NAME,
+            KibanaUser.NAME,
+            KibanaSystemUser.NAME,
+            LogstashSystemUser.NAME,
+            BeatsSystemUser.NAME,
+            APMSystemUser.NAME,
+            RemoteMonitoringUser.NAME
+        );
         for (String username : usernames) {
             c.prepareSetEnabled(username, true).get();
-            ClusterHealthResponse response = client()
-                    .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword())))
-                    .admin()
-                    .cluster()
-                    .prepareHealth()
-                    .get();
+            ClusterHealthResponse response = client().filterWithHeader(
+                singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword()))
+            ).admin().cluster().prepareHealth().get();
 
             assertThat(response.getClusterName(), is(cluster().getClusterName()));
         }
     }
 
     public void testChangingPassword() {
-        String username = randomFrom(ElasticUser.NAME, KibanaUser.NAME, KibanaSystemUser.NAME,
-            LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMSystemUser.NAME, RemoteMonitoringUser.NAME);
+        String username = randomFrom(
+            ElasticUser.NAME,
+            KibanaUser.NAME,
+            KibanaSystemUser.NAME,
+            LogstashSystemUser.NAME,
+            BeatsSystemUser.NAME,
+            APMSystemUser.NAME,
+            RemoteMonitoringUser.NAME
+        );
         final char[] newPassword = "supersecretvalue".toCharArray();
 
         if (randomBoolean()) {
-            ClusterHealthResponse response = client()
-                    .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword())))
-                    .admin()
-                    .cluster()
-                    .prepareHealth()
-                    .get();
+            ClusterHealthResponse response = client().filterWithHeader(
+                singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword()))
+            ).admin().cluster().prepareHealth().get();
             assertThat(response.getClusterName(), is(cluster().getClusterName()));
         }
 
-        ActionResponse.Empty response = securityClient()
-            .prepareChangePassword(username, Arrays.copyOf(newPassword, newPassword.length), hasher)
-                .get();
+        ActionResponse.Empty response = securityClient().prepareChangePassword(
+            username,
+            Arrays.copyOf(newPassword, newPassword.length),
+            hasher
+        ).get();
         assertThat(response, notNullValue());
 
-        ElasticsearchSecurityException elasticsearchSecurityException = expectThrows(ElasticsearchSecurityException.class, () -> client()
-                    .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword())))
-                    .admin()
-                    .cluster()
-                    .prepareHealth()
-                    .get());
-        assertThat(elasticsearchSecurityException.getMessage(), containsString("authenticate"));
-
-        ClusterHealthResponse healthResponse = client()
-                .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(username, new SecureString(newPassword))))
+        ElasticsearchSecurityException elasticsearchSecurityException = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> client().filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword())))
                 .admin()
                 .cluster()
                 .prepareHealth()
-                .get();
+                .get()
+        );
+        assertThat(elasticsearchSecurityException.getMessage(), containsString("authenticate"));
+
+        ClusterHealthResponse healthResponse = client().filterWithHeader(
+            singletonMap("Authorization", basicAuthHeaderValue(username, new SecureString(newPassword)))
+        ).admin().cluster().prepareHealth().get();
         assertThat(healthResponse.getClusterName(), is(cluster().getClusterName()));
     }
 
     public void testDisablingUser() throws Exception {
         // validate the user works
-        ClusterHealthResponse response = client()
-                .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME, getReservedPassword())))
-                .admin()
-                .cluster()
-                .prepareHealth()
-                .get();
+        ClusterHealthResponse response = client().filterWithHeader(
+            singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME, getReservedPassword()))
+        ).admin().cluster().prepareHealth().get();
         assertThat(response.getClusterName(), is(cluster().getClusterName()));
 
         // disable user
         securityClient().prepareSetEnabled(ElasticUser.NAME, false).get();
-        ElasticsearchSecurityException elasticsearchSecurityException = expectThrows(ElasticsearchSecurityException.class, () -> client()
-                .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME, getReservedPassword())))
+        ElasticsearchSecurityException elasticsearchSecurityException = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> client().filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME, getReservedPassword())))
                 .admin()
                 .cluster()
                 .prepareHealth()
-                .get());
+                .get()
+        );
         assertThat(elasticsearchSecurityException.getMessage(), containsString("authenticate"));
 
-        //enable
+        // enable
         securityClient().prepareSetEnabled(ElasticUser.NAME, true).get();
-        response = client()
-                .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME, getReservedPassword())))
-                .admin()
-                .cluster()
-                .prepareHealth()
-                .get();
+        response = client().filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME, getReservedPassword())))
+            .admin()
+            .cluster()
+            .prepareHealth()
+            .get();
         assertThat(response.getClusterName(), is(cluster().getClusterName()));
     }
 }

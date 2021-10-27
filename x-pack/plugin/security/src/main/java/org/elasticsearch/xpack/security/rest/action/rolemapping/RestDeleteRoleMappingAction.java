@@ -7,15 +7,15 @@
 package org.elasticsearch.xpack.security.rest.action.rolemapping;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingResponse;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
@@ -38,7 +38,8 @@ public class RestDeleteRoleMappingAction extends SecurityBaseRestHandler {
     public List<Route> routes() {
         return org.elasticsearch.core.List.of(
             Route.builder(DELETE, "/_security/role_mapping/{name}")
-                .replaces(DELETE, "/_xpack/security/role_mapping/{name}", RestApiVersion.V_7).build()
+                .replaces(DELETE, "/_xpack/security/role_mapping/{name}", RestApiVersion.V_7)
+                .build()
         );
     }
 
@@ -53,13 +54,15 @@ public class RestDeleteRoleMappingAction extends SecurityBaseRestHandler {
         final String refresh = request.param("refresh");
 
         return channel -> new SecurityClient(client).prepareDeleteRoleMapping(name)
-                .setRefreshPolicy(refresh)
-                .execute(new RestBuilderListener<DeleteRoleMappingResponse>(channel) {
-                    @Override
-                    public RestResponse buildResponse(DeleteRoleMappingResponse response, XContentBuilder builder) throws Exception {
-                        return new BytesRestResponse(response.isFound() ? RestStatus.OK : RestStatus.NOT_FOUND,
-                                builder.startObject().field("found", response.isFound()).endObject());
-                    }
-                });
+            .setRefreshPolicy(refresh)
+            .execute(new RestBuilderListener<DeleteRoleMappingResponse>(channel) {
+                @Override
+                public RestResponse buildResponse(DeleteRoleMappingResponse response, XContentBuilder builder) throws Exception {
+                    return new BytesRestResponse(
+                        response.isFound() ? RestStatus.OK : RestStatus.NOT_FOUND,
+                        builder.startObject().field("found", response.isFound()).endObject()
+                    );
+                }
+            });
     }
 }

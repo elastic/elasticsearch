@@ -32,20 +32,18 @@ import java.util.stream.Stream;
  */
 public class DeprecationChecks {
 
-    public static final Setting<List<String>> SKIP_DEPRECATIONS_SETTING =
-        Setting.listSetting(
-            "deprecation.skip_deprecated_settings",
-            Collections.emptyList(),
-            Function.identity(),
-            Setting.Property.NodeScope,
-            Setting.Property.Dynamic
-        );
+    public static final Setting<List<String>> SKIP_DEPRECATIONS_SETTING = Setting.listSetting(
+        "deprecation.skip_deprecated_settings",
+        Collections.emptyList(),
+        Function.identity(),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
-    private DeprecationChecks() {
-    }
+    private DeprecationChecks() {}
 
-    static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS =
-        Collections.unmodifiableList(Arrays.asList(
+    static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS = Collections.unmodifiableList(
+        Arrays.asList(
             ClusterDeprecationChecks::checkUserAgentPipelines,
             ClusterDeprecationChecks::checkTemplatesWithTooManyFields,
             ClusterDeprecationChecks::checkPollIntervalTooLow,
@@ -56,128 +54,134 @@ public class DeprecationChecks {
             ClusterDeprecationChecks::checkSparseVectorTemplates,
             ClusterDeprecationChecks::checkILMFreezeActions,
             ClusterDeprecationChecks::checkTransientSettingsExistence
-        ));
+        )
+    );
 
-    static final List<NodeDeprecationCheck<Settings, PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue>>
-        NODE_SETTINGS_CHECKS;
+    static final List<
+        NodeDeprecationCheck<Settings, PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue>> NODE_SETTINGS_CHECKS;
 
-        static {
-            final Stream<NodeDeprecationCheck<Settings, PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue>>
-                legacyRoleSettings =
-                DiscoveryNode.getPossibleRoles().stream()
-                .filter(r -> r.legacySetting() != null)
-                .map(r -> (s, p, t, c) -> NodeDeprecationChecks.checkLegacyRoleSettings(r.legacySetting(), s, p));
-            NODE_SETTINGS_CHECKS = Stream.concat(
-                legacyRoleSettings,
-                Stream.of(
-                    NodeDeprecationChecks::javaVersionCheck,
-                    NodeDeprecationChecks::checkPidfile,
-                    NodeDeprecationChecks::checkProcessors,
-                    NodeDeprecationChecks::checkMissingRealmOrders,
-                    NodeDeprecationChecks::checkUniqueRealmOrders,
-                    NodeDeprecationChecks::checkImplicitlyDisabledBasicRealms,
-                    NodeDeprecationChecks::checkReservedPrefixedRealmNames,
-                    (settings, pluginsAndModules, clusterState, licenseState) ->
-                        NodeDeprecationChecks.checkThreadPoolListenerQueueSize(settings),
-                    (settings, pluginsAndModules, clusterState, licenseState) ->
-                        NodeDeprecationChecks.checkThreadPoolListenerSize(settings),
-                    NodeDeprecationChecks::checkClusterRemoteConnectSetting,
-                    NodeDeprecationChecks::checkNodeLocalStorageSetting,
-                    (settings, pluginsAndModules, clusterState, licenseState) ->
-                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.ENRICH_ENABLED_SETTING),
-                    (settings, pluginsAndModules, clusterState, licenseState) ->
-                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.FLATTENED_ENABLED),
-                    (settings, pluginsAndModules, clusterState, licenseState) ->
-                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.INDEX_LIFECYCLE_ENABLED),
-                    (settings, pluginsAndModules, clusterState, licenseState) ->
-                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.MONITORING_ENABLED),
-                    (settings, pluginsAndModules, clusterState, licenseState) ->
-                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.ROLLUP_ENABLED),
-                    (settings, pluginsAndModules, clusterState, licenseState) ->
-                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
-                            XPackSettings.SNAPSHOT_LIFECYCLE_ENABLED),
-                    (settings, pluginsAndModules, clusterState, licenseState) ->
-                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.SQL_ENABLED),
-                    (settings, pluginsAndModules, clusterState, licenseState) ->
-                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.TRANSFORM_ENABLED),
-                    (settings, pluginsAndModules, clusterState, licenseState) ->
-                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.VECTORS_ENABLED),
-                    NodeDeprecationChecks::checkMultipleDataPaths,
-                    NodeDeprecationChecks::checkDataPathsList,
-                    NodeDeprecationChecks::checkBootstrapSystemCallFilterSetting,
-                    NodeDeprecationChecks::checkSharedDataPathSetting,
-                    NodeDeprecationChecks::checkSingleDataNodeWatermarkSetting,
-                    NodeDeprecationChecks::checkImplicitlyDisabledSecurityOnBasicAndTrial,
-                    NodeDeprecationChecks::checkSearchRemoteSettings,
-                    NodeDeprecationChecks::checkMonitoringExporterPassword,
-                    NodeDeprecationChecks::checkFractionalByteValueSettings,
-                    NodeDeprecationChecks::checkFrozenCacheLeniency,
-                    NodeDeprecationChecks::checkSslServerEnabled,
-                    NodeDeprecationChecks::checkSslCertConfiguration,
-                    NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
-                    (settings, pluginsAndModules, clusterState, licenseState) ->
-                        NodeDeprecationChecks.checkNoPermitHandshakeFromIncompatibleBuilds(settings, pluginsAndModules, clusterState,
-                            licenseState, () -> System.getProperty(TransportService.PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY)),
-                    NodeDeprecationChecks::checkTransportClientProfilesFilterSetting,
-                    NodeDeprecationChecks::checkDelayClusterStateRecoverySettings,
-                    NodeDeprecationChecks::checkFixedAutoQueueSizeThreadpool,
-                    NodeDeprecationChecks::checkJoinTimeoutSetting,
-                    NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
-                    NodeDeprecationChecks::checkClusterRoutingRequireSetting,
-                    NodeDeprecationChecks::checkClusterRoutingIncludeSetting,
-                    NodeDeprecationChecks::checkClusterRoutingExcludeSetting,
-                    NodeDeprecationChecks::checkAcceptDefaultPasswordSetting,
-                    NodeDeprecationChecks::checkAcceptRolesCacheMaxSizeSetting,
-                    NodeDeprecationChecks::checkRolesCacheTTLSizeSetting,
-                    NodeDeprecationChecks::checkMaxLocalStorageNodesSetting,
-                    NodeDeprecationChecks::checkSamlNameIdFormatSetting,
-                    NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
-                    NodeDeprecationChecks::checkSingleDataNodeWatermarkSetting,
-                    NodeDeprecationChecks::checkExporterUseIngestPipelineSettings,
-                    NodeDeprecationChecks::checkExporterPipelineMasterTimeoutSetting,
-                    NodeDeprecationChecks::checkExporterCreateLegacyTemplateSetting,
-                    NodeDeprecationChecks::checkMonitoringSettingHistoryDuration,
-                    NodeDeprecationChecks::checkMonitoringSettingCollectIndexRecovery,
-                    NodeDeprecationChecks::checkMonitoringSettingCollectIndices,
-                    NodeDeprecationChecks::checkMonitoringSettingCollectCcrTimeout,
-                    NodeDeprecationChecks::checkMonitoringSettingCollectEnrichStatsTimeout,
-                    NodeDeprecationChecks::checkMonitoringSettingCollectIndexRecoveryStatsTimeout,
-                    NodeDeprecationChecks::checkMonitoringSettingCollectIndexStatsTimeout,
-                    NodeDeprecationChecks::checkMonitoringSettingCollectMlJobStatsTimeout,
-                    NodeDeprecationChecks::checkMonitoringSettingCollectNodeStatsTimeout,
-                    NodeDeprecationChecks::checkMonitoringSettingCollectClusterStatsTimeout,
-                    NodeDeprecationChecks::checkMonitoringSettingExportersHost,
-                    NodeDeprecationChecks::checkMonitoringSettingExportersBulkTimeout,
-                    NodeDeprecationChecks::checkMonitoringSettingExportersConnectionTimeout,
-                    NodeDeprecationChecks::checkMonitoringSettingExportersConnectionReadTimeout,
-                    NodeDeprecationChecks::checkMonitoringSettingExportersAuthUsername,
-                    NodeDeprecationChecks::checkMonitoringSettingExportersAuthPass,
-                    NodeDeprecationChecks::checkMonitoringSettingExportersSSL,
-                    NodeDeprecationChecks::checkMonitoringSettingExportersProxyBase,
-                    NodeDeprecationChecks::checkMonitoringSettingExportersSniffEnabled,
-                    NodeDeprecationChecks::checkMonitoringSettingExportersHeaders,
-                    NodeDeprecationChecks::checkMonitoringSettingExportersTemplateTimeout,
-                    NodeDeprecationChecks::checkMonitoringSettingExportersMasterTimeout,
-                    NodeDeprecationChecks::checkMonitoringSettingExportersEnabled,
-                    NodeDeprecationChecks::checkMonitoringSettingExportersType,
-                    NodeDeprecationChecks::checkMonitoringSettingExportersAlertsEnabled,
-                    NodeDeprecationChecks::checkMonitoringSettingExportersAlertsBlacklist,
-                    NodeDeprecationChecks::checkMonitoringSettingExportersIndexNameTimeFormat,
-                    NodeDeprecationChecks::checkMonitoringSettingDecommissionAlerts,
-                    NodeDeprecationChecks::checkMonitoringSettingEsCollectionEnabled,
-                    NodeDeprecationChecks::checkMonitoringSettingCollectionEnabled,
-                    NodeDeprecationChecks::checkMonitoringSettingCollectionInterval,
-                    NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
-                    NodeDeprecationChecks::checkScriptContextCache,
-                    NodeDeprecationChecks::checkScriptContextCompilationsRateLimitSetting,
-                    NodeDeprecationChecks::checkScriptContextCacheSizeSetting,
-                    NodeDeprecationChecks::checkScriptContextCacheExpirationSetting
-                )
-            ).collect(Collectors.toList());
-        }
+    static {
+        final Stream<
+            NodeDeprecationCheck<Settings, PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue>> legacyRoleSettings =
+                DiscoveryNode.getPossibleRoles()
+                    .stream()
+                    .filter(r -> r.legacySetting() != null)
+                    .map(r -> (s, p, t, c) -> NodeDeprecationChecks.checkLegacyRoleSettings(r.legacySetting(), s, p));
+        NODE_SETTINGS_CHECKS = Stream.concat(
+            legacyRoleSettings,
+            Stream.of(
+                NodeDeprecationChecks::javaVersionCheck,
+                NodeDeprecationChecks::checkPidfile,
+                NodeDeprecationChecks::checkProcessors,
+                NodeDeprecationChecks::checkMissingRealmOrders,
+                NodeDeprecationChecks::checkUniqueRealmOrders,
+                NodeDeprecationChecks::checkImplicitlyDisabledBasicRealms,
+                NodeDeprecationChecks::checkReservedPrefixedRealmNames,
+                (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks.checkThreadPoolListenerQueueSize(
+                    settings
+                ),
+                (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks.checkThreadPoolListenerSize(settings),
+                NodeDeprecationChecks::checkClusterRemoteConnectSetting,
+                NodeDeprecationChecks::checkNodeLocalStorageSetting,
+                (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks
+                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.ENRICH_ENABLED_SETTING),
+                (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks
+                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.FLATTENED_ENABLED),
+                (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks
+                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.INDEX_LIFECYCLE_ENABLED),
+                (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks
+                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.MONITORING_ENABLED),
+                (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks
+                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.ROLLUP_ENABLED),
+                (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks
+                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.SNAPSHOT_LIFECYCLE_ENABLED),
+                (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks
+                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.SQL_ENABLED),
+                (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks
+                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.TRANSFORM_ENABLED),
+                (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks
+                    .checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.VECTORS_ENABLED),
+                NodeDeprecationChecks::checkMultipleDataPaths,
+                NodeDeprecationChecks::checkDataPathsList,
+                NodeDeprecationChecks::checkBootstrapSystemCallFilterSetting,
+                NodeDeprecationChecks::checkSharedDataPathSetting,
+                NodeDeprecationChecks::checkSingleDataNodeWatermarkSetting,
+                NodeDeprecationChecks::checkImplicitlyDisabledSecurityOnBasicAndTrial,
+                NodeDeprecationChecks::checkSearchRemoteSettings,
+                NodeDeprecationChecks::checkMonitoringExporterPassword,
+                NodeDeprecationChecks::checkFractionalByteValueSettings,
+                NodeDeprecationChecks::checkFrozenCacheLeniency,
+                NodeDeprecationChecks::checkSslServerEnabled,
+                NodeDeprecationChecks::checkSslCertConfiguration,
+                NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
+                (settings, pluginsAndModules, clusterState, licenseState) -> NodeDeprecationChecks
+                    .checkNoPermitHandshakeFromIncompatibleBuilds(
+                        settings,
+                        pluginsAndModules,
+                        clusterState,
+                        licenseState,
+                        () -> System.getProperty(TransportService.PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY)
+                    ),
+                NodeDeprecationChecks::checkTransportClientProfilesFilterSetting,
+                NodeDeprecationChecks::checkDelayClusterStateRecoverySettings,
+                NodeDeprecationChecks::checkFixedAutoQueueSizeThreadpool,
+                NodeDeprecationChecks::checkJoinTimeoutSetting,
+                NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
+                NodeDeprecationChecks::checkClusterRoutingRequireSetting,
+                NodeDeprecationChecks::checkClusterRoutingIncludeSetting,
+                NodeDeprecationChecks::checkClusterRoutingExcludeSetting,
+                NodeDeprecationChecks::checkAcceptDefaultPasswordSetting,
+                NodeDeprecationChecks::checkAcceptRolesCacheMaxSizeSetting,
+                NodeDeprecationChecks::checkRolesCacheTTLSizeSetting,
+                NodeDeprecationChecks::checkMaxLocalStorageNodesSetting,
+                NodeDeprecationChecks::checkSamlNameIdFormatSetting,
+                NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
+                NodeDeprecationChecks::checkSingleDataNodeWatermarkSetting,
+                NodeDeprecationChecks::checkExporterUseIngestPipelineSettings,
+                NodeDeprecationChecks::checkExporterPipelineMasterTimeoutSetting,
+                NodeDeprecationChecks::checkExporterCreateLegacyTemplateSetting,
+                NodeDeprecationChecks::checkMonitoringSettingHistoryDuration,
+                NodeDeprecationChecks::checkMonitoringSettingCollectIndexRecovery,
+                NodeDeprecationChecks::checkMonitoringSettingCollectIndices,
+                NodeDeprecationChecks::checkMonitoringSettingCollectCcrTimeout,
+                NodeDeprecationChecks::checkMonitoringSettingCollectEnrichStatsTimeout,
+                NodeDeprecationChecks::checkMonitoringSettingCollectIndexRecoveryStatsTimeout,
+                NodeDeprecationChecks::checkMonitoringSettingCollectIndexStatsTimeout,
+                NodeDeprecationChecks::checkMonitoringSettingCollectMlJobStatsTimeout,
+                NodeDeprecationChecks::checkMonitoringSettingCollectNodeStatsTimeout,
+                NodeDeprecationChecks::checkMonitoringSettingCollectClusterStatsTimeout,
+                NodeDeprecationChecks::checkMonitoringSettingExportersHost,
+                NodeDeprecationChecks::checkMonitoringSettingExportersBulkTimeout,
+                NodeDeprecationChecks::checkMonitoringSettingExportersConnectionTimeout,
+                NodeDeprecationChecks::checkMonitoringSettingExportersConnectionReadTimeout,
+                NodeDeprecationChecks::checkMonitoringSettingExportersAuthUsername,
+                NodeDeprecationChecks::checkMonitoringSettingExportersAuthPass,
+                NodeDeprecationChecks::checkMonitoringSettingExportersSSL,
+                NodeDeprecationChecks::checkMonitoringSettingExportersProxyBase,
+                NodeDeprecationChecks::checkMonitoringSettingExportersSniffEnabled,
+                NodeDeprecationChecks::checkMonitoringSettingExportersHeaders,
+                NodeDeprecationChecks::checkMonitoringSettingExportersTemplateTimeout,
+                NodeDeprecationChecks::checkMonitoringSettingExportersMasterTimeout,
+                NodeDeprecationChecks::checkMonitoringSettingExportersEnabled,
+                NodeDeprecationChecks::checkMonitoringSettingExportersType,
+                NodeDeprecationChecks::checkMonitoringSettingExportersAlertsEnabled,
+                NodeDeprecationChecks::checkMonitoringSettingExportersAlertsBlacklist,
+                NodeDeprecationChecks::checkMonitoringSettingExportersIndexNameTimeFormat,
+                NodeDeprecationChecks::checkMonitoringSettingDecommissionAlerts,
+                NodeDeprecationChecks::checkMonitoringSettingEsCollectionEnabled,
+                NodeDeprecationChecks::checkMonitoringSettingCollectionEnabled,
+                NodeDeprecationChecks::checkMonitoringSettingCollectionInterval,
+                NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
+                NodeDeprecationChecks::checkScriptContextCache,
+                NodeDeprecationChecks::checkScriptContextCompilationsRateLimitSetting,
+                NodeDeprecationChecks::checkScriptContextCacheSizeSetting,
+                NodeDeprecationChecks::checkScriptContextCacheExpirationSetting
+            )
+        ).collect(Collectors.toList());
+    }
 
-    static List<BiFunction<ClusterState, IndexMetadata, DeprecationIssue>> INDEX_SETTINGS_CHECKS =
-        Collections.unmodifiableList(Arrays.asList(
+    static List<BiFunction<ClusterState, IndexMetadata, DeprecationIssue>> INDEX_SETTINGS_CHECKS = Collections.unmodifiableList(
+        Arrays.asList(
             (clusterState, indexMetadata) -> IndexDeprecationChecks.oldIndicesCheck(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.tooManyFieldsCheck(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.chainedMultiFieldsCheck(indexMetadata),
@@ -195,7 +199,8 @@ public class DeprecationChecks {
             (clusterState, indexMetadata) -> IndexDeprecationChecks.checkGeoShapeMappings(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.frozenIndexSettingCheck(indexMetadata),
             IndexDeprecationChecks::emptyDataTierPreferenceCheck
-        ));
+        )
+    );
 
     /**
      * helper utility function to reduce repeat of running a specific {@link List} of checks.

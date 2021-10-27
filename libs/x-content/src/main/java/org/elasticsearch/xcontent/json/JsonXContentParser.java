@@ -13,6 +13,7 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.filter.FilteringParserDelegate;
 
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentLocation;
@@ -20,7 +21,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.xcontent.support.filtering.FilterPath;
 import org.elasticsearch.xcontent.support.filtering.FilterPathBasedFilter;
-import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
 import java.nio.CharBuffer;
@@ -29,8 +29,7 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     final JsonParser parser;
 
-    public JsonXContentParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, JsonParser parser) {
+    public JsonXContentParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, JsonParser parser) {
         super(xContentRegistry, deprecationHandler);
         this.parser = parser;
     }

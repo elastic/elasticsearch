@@ -16,11 +16,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.repositories.RepositoryOperation;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -252,13 +252,25 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
             if (updatedSnapshots.addAll(newSnapshots) == false) {
                 return this;
             }
-            return new Entry(Collections.unmodifiableList(new ArrayList<>(updatedSnapshots)), repository(), startTime, repositoryStateId,
-                    State.WAITING, uuid);
+            return new Entry(
+                Collections.unmodifiableList(new ArrayList<>(updatedSnapshots)),
+                repository(),
+                startTime,
+                repositoryStateId,
+                State.WAITING,
+                uuid
+            );
         }
 
         public Entry withSnapshots(Collection<SnapshotId> snapshots) {
-            return new Entry(Collections.unmodifiableList(new ArrayList<>(snapshots)), repository(), startTime, repositoryStateId, state,
-                    uuid);
+            return new Entry(
+                Collections.unmodifiableList(new ArrayList<>(snapshots)),
+                repository(),
+                startTime,
+                repositoryStateId,
+                state,
+                uuid
+            );
         }
 
         public Entry withRepoGen(long repoGen) {
@@ -294,11 +306,11 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
             }
             Entry that = (Entry) o;
             return repoName.equals(that.repoName)
-                       && snapshots.equals(that.snapshots)
-                       && startTime == that.startTime
-                       && repositoryStateId == that.repositoryStateId
-                       && state == that.state
-                       && uuid.equals(that.uuid);
+                && snapshots.equals(that.snapshots)
+                && startTime == that.startTime
+                && repositoryStateId == that.repositoryStateId
+                && state == that.state
+                && uuid.equals(that.uuid);
         }
 
         @Override
@@ -312,8 +324,8 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
                 out.writeString(repoName);
                 out.writeCollection(snapshots);
             } else {
-                assert snapshots.size() == 1 : "Only single deletion allowed in mixed version cluster containing [" + out.getVersion() +
-                        "] but saw " + snapshots;
+                assert snapshots.size() == 1
+                    : "Only single deletion allowed in mixed version cluster containing [" + out.getVersion() + "] but saw " + snapshots;
                 new Snapshot(repoName, snapshots.get(0)).writeTo(out);
             }
             out.writeVLong(startTime);

@@ -129,5 +129,4 @@ public class GetJobsAction extends ActionType<GetJobsAction.Response> {
         }
     }
 
-
 }

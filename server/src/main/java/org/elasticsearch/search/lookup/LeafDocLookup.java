@@ -26,11 +26,10 @@ import java.util.Set;
 import java.util.function.Function;
 
 public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
-    
-    private static final DeprecationLogger DEPRECATION_LOGGER =  DeprecationLogger.getLogger(LeafDocLookup.class);
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(LeafDocLookup.class);
     static final String TYPES_DEPRECATION_KEY = "type-field-doc-lookup";
-    static final String TYPES_DEPRECATION_MESSAGE =
-            "[types removal] Looking up doc types [_type] in scripts is deprecated.";
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Looking up doc types [_type] in scripts is deprecated.";
 
     private final Map<String, DocValuesField> localCacheScriptFieldData = new HashMap<>(4);
     private final Map<String, ScriptDocValues<?>> localCacheFieldData = new HashMap<>(4);
@@ -41,8 +40,11 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     private int docId = -1;
 
-    LeafDocLookup(Function<String, MappedFieldType> fieldTypeLookup, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup,
-                  LeafReaderContext reader) {
+    LeafDocLookup(
+        Function<String, MappedFieldType> fieldTypeLookup,
+        Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup,
+        LeafReaderContext reader
+    ) {
         this.fieldTypeLookup = fieldTypeLookup;
         this.fieldDataLookup = fieldDataLookup;
         this.reader = reader;

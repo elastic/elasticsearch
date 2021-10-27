@@ -73,8 +73,8 @@ public abstract class FilterXContentParser implements XContentParser {
     }
 
     @Override
-    public <T> Map<String, T> map(
-        Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException {
+    public <T> Map<String, T> map(Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser)
+        throws IOException {
         return in.map(mapFactory, mapValueParser);
     }
 

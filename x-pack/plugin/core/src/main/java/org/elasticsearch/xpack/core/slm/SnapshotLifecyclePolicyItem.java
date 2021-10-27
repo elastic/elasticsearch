@@ -9,16 +9,16 @@ package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -45,9 +45,12 @@ public class SnapshotLifecyclePolicyItem implements ToXContentFragment, Writeabl
 
     @Nullable
     private final SnapshotInvocationRecord lastFailure;
-    public SnapshotLifecyclePolicyItem(SnapshotLifecyclePolicyMetadata policyMetadata,
-                                       @Nullable SnapshotInProgress snapshotInProgress,
-                                       @Nullable SnapshotLifecycleStats.SnapshotPolicyStats policyStats) {
+
+    public SnapshotLifecyclePolicyItem(
+        SnapshotLifecyclePolicyMetadata policyMetadata,
+        @Nullable SnapshotInProgress snapshotInProgress,
+        @Nullable SnapshotLifecycleStats.SnapshotPolicyStats policyStats
+    ) {
         this.policy = policyMetadata.getPolicy();
         this.version = policyMetadata.getVersion();
         this.modifiedDate = policyMetadata.getModifiedDate();
@@ -73,10 +76,15 @@ public class SnapshotLifecyclePolicyItem implements ToXContentFragment, Writeabl
 
     // For testing
 
-    SnapshotLifecyclePolicyItem(SnapshotLifecyclePolicy policy, long version, long modifiedDate,
-                                SnapshotInvocationRecord lastSuccess, SnapshotInvocationRecord lastFailure,
-                                @Nullable SnapshotInProgress snapshotInProgress,
-                                SnapshotLifecycleStats.SnapshotPolicyStats policyStats) {
+    SnapshotLifecyclePolicyItem(
+        SnapshotLifecyclePolicy policy,
+        long version,
+        long modifiedDate,
+        SnapshotInvocationRecord lastSuccess,
+        SnapshotInvocationRecord lastFailure,
+        @Nullable SnapshotInProgress snapshotInProgress,
+        SnapshotLifecycleStats.SnapshotPolicyStats policyStats
+    ) {
         this.policy = policy;
         this.version = version;
         this.modifiedDate = modifiedDate;
@@ -85,6 +93,7 @@ public class SnapshotLifecyclePolicyItem implements ToXContentFragment, Writeabl
         this.snapshotInProgress = snapshotInProgress;
         this.policyStats = policyStats;
     }
+
     public SnapshotLifecyclePolicy getPolicy() {
         return policy;
     }
@@ -141,21 +150,24 @@ public class SnapshotLifecyclePolicyItem implements ToXContentFragment, Writeabl
             return false;
         }
         SnapshotLifecyclePolicyItem other = (SnapshotLifecyclePolicyItem) obj;
-        return policy.equals(other.policy) &&
-            version == other.version &&
-            modifiedDate == other.modifiedDate &&
-            Objects.equals(lastSuccess, other.lastSuccess) &&
-            Objects.equals(lastFailure, other.lastFailure) &&
-            Objects.equals(snapshotInProgress, other.snapshotInProgress) &&
-            Objects.equals(policyStats, other.policyStats);
+        return policy.equals(other.policy)
+            && version == other.version
+            && modifiedDate == other.modifiedDate
+            && Objects.equals(lastSuccess, other.lastSuccess)
+            && Objects.equals(lastFailure, other.lastFailure)
+            && Objects.equals(snapshotInProgress, other.snapshotInProgress)
+            && Objects.equals(policyStats, other.policyStats);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(policy.getId());
         builder.field(SnapshotLifecyclePolicyMetadata.VERSION.getPreferredName(), version);
-        builder.timeField(SnapshotLifecyclePolicyMetadata.MODIFIED_DATE_MILLIS.getPreferredName(),
-            SnapshotLifecyclePolicyMetadata.MODIFIED_DATE.getPreferredName(), modifiedDate);
+        builder.timeField(
+            SnapshotLifecyclePolicyMetadata.MODIFIED_DATE_MILLIS.getPreferredName(),
+            SnapshotLifecyclePolicyMetadata.MODIFIED_DATE.getPreferredName(),
+            modifiedDate
+        );
         builder.field(SnapshotLifecyclePolicyMetadata.POLICY.getPreferredName(), policy);
         if (lastSuccess != null) {
             builder.field(SnapshotLifecyclePolicyMetadata.LAST_SUCCESS.getPreferredName(), lastSuccess);
@@ -163,8 +175,11 @@ public class SnapshotLifecyclePolicyItem implements ToXContentFragment, Writeabl
         if (lastFailure != null) {
             builder.field(SnapshotLifecyclePolicyMetadata.LAST_FAILURE.getPreferredName(), lastFailure);
         }
-        builder.timeField(SnapshotLifecyclePolicyMetadata.NEXT_EXECUTION_MILLIS.getPreferredName(),
-            SnapshotLifecyclePolicyMetadata.NEXT_EXECUTION.getPreferredName(), policy.calculateNextExecution());
+        builder.timeField(
+            SnapshotLifecyclePolicyMetadata.NEXT_EXECUTION_MILLIS.getPreferredName(),
+            SnapshotLifecyclePolicyMetadata.NEXT_EXECUTION.getPreferredName(),
+            policy.calculateNextExecution()
+        );
         if (snapshotInProgress != null) {
             builder.field(SNAPSHOT_IN_PROGRESS.getPreferredName(), snapshotInProgress);
         }
@@ -207,8 +222,7 @@ public class SnapshotLifecyclePolicyItem implements ToXContentFragment, Writeabl
         }
 
         public static SnapshotInProgress fromEntry(SnapshotsInProgress.Entry entry) {
-            return new SnapshotInProgress(entry.snapshot().getSnapshotId(),
-                entry.state(), entry.startTime(), entry.failure());
+            return new SnapshotInProgress(entry.snapshot().getSnapshotId(), entry.state(), entry.startTime(), entry.failure());
         }
 
         public SnapshotId getSnapshotId() {
@@ -264,10 +278,10 @@ public class SnapshotLifecyclePolicyItem implements ToXContentFragment, Writeabl
                 return false;
             }
             SnapshotInProgress other = (SnapshotInProgress) obj;
-            return Objects.equals(snapshotId, other.snapshotId) &&
-                Objects.equals(state, other.state) &&
-                startTime == other.startTime &&
-                Objects.equals(failure, other.failure);
+            return Objects.equals(snapshotId, other.snapshotId)
+                && Objects.equals(state, other.state)
+                && startTime == other.startTime
+                && Objects.equals(failure, other.failure);
         }
 
         @Override

@@ -39,7 +39,9 @@ import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
  * Request for an update index settings action
  */
 public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsRequest>
-        implements IndicesRequest.Replaceable, ToXContentObject {
+    implements
+        IndicesRequest.Replaceable,
+        ToXContentObject {
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, true);
     private static final Logger LOGGER = LogManager.getLogger(UpdateSettingsRequest.class);
@@ -61,8 +63,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         }
     }
 
-    public UpdateSettingsRequest() {
-    }
+    public UpdateSettingsRequest() {}
 
     /**
      * Constructs a new request to update settings for one or more indices
@@ -223,7 +224,8 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
     private static void checkMixedRequest(Map<String, Object> bodySettings) {
         assert bodySettings.containsKey("settings");
         if (bodySettings.size() > 1) {
-            Map<String, Object> map = bodySettings.entrySet().stream()
+            Map<String, Object> map = bodySettings.entrySet()
+                .stream()
                 .filter(k -> k.getKey().equals("settings") == false)
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
             Settings ignoredSettings = Settings.builder().loadFromMap(map).build();
@@ -246,11 +248,11 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         }
         UpdateSettingsRequest that = (UpdateSettingsRequest) o;
         return masterNodeTimeout.equals(that.masterNodeTimeout)
-                && timeout.equals(that.timeout)
-                && Objects.equals(settings, that.settings)
-                && Objects.equals(indicesOptions, that.indicesOptions)
-                && Objects.equals(preserveExisting, that.preserveExisting)
-                && Arrays.equals(indices, that.indices);
+            && timeout.equals(that.timeout)
+            && Objects.equals(settings, that.settings)
+            && Objects.equals(indicesOptions, that.indicesOptions)
+            && Objects.equals(preserveExisting, that.preserveExisting)
+            && Arrays.equals(indices, that.indices);
     }
 
     @Override

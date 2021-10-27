@@ -30,7 +30,8 @@ public class SnapshotUpgradeTaskParams implements XPackPlugin.XPackPersistentTas
     public static final ConstructingObjectParser<SnapshotUpgradeTaskParams, Void> PARSER = new ConstructingObjectParser<>(
         JOB_SNAPSHOT_UPGRADE_TASK_NAME,
         true,
-        a -> new SnapshotUpgradeTaskParams((String) a[0], (String) a[1]));
+        a -> new SnapshotUpgradeTaskParams((String) a[0], (String) a[1])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
@@ -94,8 +95,7 @@ public class SnapshotUpgradeTaskParams implements XPackPlugin.XPackPersistentTas
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SnapshotUpgradeTaskParams params = (SnapshotUpgradeTaskParams) o;
-        return Objects.equals(jobId, params.jobId) &&
-            Objects.equals(snapshotId, params.snapshotId);
+        return Objects.equals(jobId, params.jobId) && Objects.equals(snapshotId, params.snapshotId);
     }
 
     @Override
@@ -108,5 +108,3 @@ public class SnapshotUpgradeTaskParams implements XPackPlugin.XPackPersistentTas
         return jobId;
     }
 }
-
-

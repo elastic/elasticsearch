@@ -10,14 +10,14 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -29,58 +29,57 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
-
 public abstract class AbstractXContentTestCase<T extends ToXContent> extends ESTestCase {
     protected static final int NUMBER_OF_TEST_RUNS = 20;
 
     public static <T> XContentTester<T> xContentTester(
-            CheckedBiFunction<XContent, BytesReference, XContentParser, IOException> createParser,
-            Supplier<T> instanceSupplier,
-            CheckedBiConsumer<T, XContentBuilder, IOException> toXContent,
-            CheckedFunction<XContentParser, T, IOException> fromXContent) {
-        return new XContentTester<>(
-            createParser,
-            x -> instanceSupplier.get(),
-            (testInstance, xContentType) -> {
-                try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
-                    toXContent.accept(testInstance, builder);
-                    return BytesReference.bytes(builder);
-                }
-            },
-            fromXContent);
+        CheckedBiFunction<XContent, BytesReference, XContentParser, IOException> createParser,
+        Supplier<T> instanceSupplier,
+        CheckedBiConsumer<T, XContentBuilder, IOException> toXContent,
+        CheckedFunction<XContentParser, T, IOException> fromXContent
+    ) {
+        return new XContentTester<>(createParser, x -> instanceSupplier.get(), (testInstance, xContentType) -> {
+            try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+                toXContent.accept(testInstance, builder);
+                return BytesReference.bytes(builder);
+            }
+        }, fromXContent);
     }
 
     public static <T extends ToXContent> XContentTester<T> xContentTester(
-            CheckedBiFunction<XContent, BytesReference, XContentParser, IOException> createParser,
-            Supplier<T> instanceSupplier,
-            CheckedFunction<XContentParser, T, IOException> fromXContent) {
+        CheckedBiFunction<XContent, BytesReference, XContentParser, IOException> createParser,
+        Supplier<T> instanceSupplier,
+        CheckedFunction<XContentParser, T, IOException> fromXContent
+    ) {
         return xContentTester(createParser, instanceSupplier, ToXContent.EMPTY_PARAMS, fromXContent);
     }
 
     public static <T extends ToXContent> XContentTester<T> xContentTester(
-            CheckedBiFunction<XContent, BytesReference, XContentParser, IOException> createParser,
-            Supplier<T> instanceSupplier,
-            ToXContent.Params toXContentParams,
-            CheckedFunction<XContentParser, T, IOException> fromXContent) {
+        CheckedBiFunction<XContent, BytesReference, XContentParser, IOException> createParser,
+        Supplier<T> instanceSupplier,
+        ToXContent.Params toXContentParams,
+        CheckedFunction<XContentParser, T, IOException> fromXContent
+    ) {
         return new XContentTester<>(
             createParser,
             x -> instanceSupplier.get(),
-            (testInstance, xContentType) ->
-                XContentHelper.toXContent(testInstance, xContentType, toXContentParams, false),
-            fromXContent);
+            (testInstance, xContentType) -> XContentHelper.toXContent(testInstance, xContentType, toXContentParams, false),
+            fromXContent
+        );
     }
 
     public static <T extends ToXContent> XContentTester<T> xContentTester(
         CheckedBiFunction<XContent, BytesReference, XContentParser, IOException> createParser,
         Function<XContentType, T> instanceSupplier,
         ToXContent.Params toXContentParams,
-        CheckedFunction<XContentParser, T, IOException> fromXContent) {
+        CheckedFunction<XContentParser, T, IOException> fromXContent
+    ) {
         return new XContentTester<>(
             createParser,
             instanceSupplier,
-            (testInstance, xContentType) ->
-                XContentHelper.toXContent(testInstance, xContentType, toXContentParams, false),
-            fromXContent);
+            (testInstance, xContentType) -> XContentHelper.toXContent(testInstance, xContentType, toXContentParams, false),
+            fromXContent
+        );
     }
 
     /**
@@ -104,10 +103,11 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
         private boolean assertToXContentEquivalence = true;
 
         private XContentTester(
-                CheckedBiFunction<XContent, BytesReference, XContentParser, IOException> createParser,
-                Function<XContentType, T> instanceSupplier,
-                CheckedBiFunction<T, XContentType, BytesReference, IOException> toXContent,
-                CheckedFunction<XContentParser, T, IOException> fromXContent) {
+            CheckedBiFunction<XContent, BytesReference, XContentParser, IOException> createParser,
+            Function<XContentType, T> instanceSupplier,
+            CheckedBiFunction<T, XContentType, BytesReference, IOException> toXContent,
+            CheckedFunction<XContentParser, T, IOException> fromXContent
+        ) {
             this.createParser = createParser;
             this.instanceSupplier = instanceSupplier;
             this.toXContent = toXContent;
@@ -119,16 +119,23 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
                 XContentType xContentType = randomFrom(XContentType.values());
                 T testInstance = instanceSupplier.apply(xContentType);
                 BytesReference originalXContent = toXContent.apply(testInstance, xContentType);
-                BytesReference shuffledContent = insertRandomFieldsAndShuffle(originalXContent, xContentType, supportsUnknownFields,
-                        shuffleFieldsExceptions, randomFieldsExcludeFilter, createParser);
+                BytesReference shuffledContent = insertRandomFieldsAndShuffle(
+                    originalXContent,
+                    xContentType,
+                    supportsUnknownFields,
+                    shuffleFieldsExceptions,
+                    randomFieldsExcludeFilter,
+                    createParser
+                );
                 XContentParser parser = createParser.apply(XContentFactory.xContent(xContentType), shuffledContent);
                 T parsed = fromXContent.apply(parser);
                 assertEqualsConsumer.accept(testInstance, parsed);
                 if (assertToXContentEquivalence) {
                     assertToXContentEquivalent(
-                            toXContent.apply(testInstance, xContentType),
-                            toXContent.apply(parsed, xContentType),
-                            xContentType);
+                        toXContent.apply(testInstance, xContentType),
+                        toXContent.apply(parsed, xContentType),
+                        xContentType
+                    );
                 }
             }
         }
@@ -165,24 +172,24 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
     }
 
     public static <T extends ToXContent> void testFromXContent(
-            int numberOfTestRuns,
-            Supplier<T> instanceSupplier,
-            boolean supportsUnknownFields,
-            String[] shuffleFieldsExceptions,
-            Predicate<String> randomFieldsExcludeFilter,
-            CheckedBiFunction<XContent, BytesReference, XContentParser, IOException> createParserFunction,
-            CheckedFunction<XContentParser, T, IOException> fromXContent,
-            BiConsumer<T, T> assertEqualsConsumer,
-            boolean assertToXContentEquivalence,
-            ToXContent.Params toXContentParams) throws IOException {
-        xContentTester(createParserFunction, instanceSupplier, toXContentParams, fromXContent)
-                .numberOfTestRuns(numberOfTestRuns)
-                .supportsUnknownFields(supportsUnknownFields)
-                .shuffleFieldsExceptions(shuffleFieldsExceptions)
-                .randomFieldsExcludeFilter(randomFieldsExcludeFilter)
-                .assertEqualsConsumer(assertEqualsConsumer)
-                .assertToXContentEquivalence(assertToXContentEquivalence)
-                .test();
+        int numberOfTestRuns,
+        Supplier<T> instanceSupplier,
+        boolean supportsUnknownFields,
+        String[] shuffleFieldsExceptions,
+        Predicate<String> randomFieldsExcludeFilter,
+        CheckedBiFunction<XContent, BytesReference, XContentParser, IOException> createParserFunction,
+        CheckedFunction<XContentParser, T, IOException> fromXContent,
+        BiConsumer<T, T> assertEqualsConsumer,
+        boolean assertToXContentEquivalence,
+        ToXContent.Params toXContentParams
+    ) throws IOException {
+        xContentTester(createParserFunction, instanceSupplier, toXContentParams, fromXContent).numberOfTestRuns(numberOfTestRuns)
+            .supportsUnknownFields(supportsUnknownFields)
+            .shuffleFieldsExceptions(shuffleFieldsExceptions)
+            .randomFieldsExcludeFilter(randomFieldsExcludeFilter)
+            .assertEqualsConsumer(assertEqualsConsumer)
+            .assertToXContentEquivalence(assertToXContentEquivalence)
+            .test();
     }
 
     /**
@@ -190,9 +197,18 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
      * both for equality and asserts equality on the two queries.
      */
     public final void testFromXContent() throws IOException {
-        testFromXContent(NUMBER_OF_TEST_RUNS, this::createTestInstance, supportsUnknownFields(), getShuffleFieldsExceptions(),
-                getRandomFieldsExcludeFilter(), this::createParser, this::parseInstance, this::assertEqualInstances,
-                assertToXContentEquivalence(), getToXContentParams());
+        testFromXContent(
+            NUMBER_OF_TEST_RUNS,
+            this::createTestInstance,
+            supportsUnknownFields(),
+            getShuffleFieldsExceptions(),
+            getRandomFieldsExcludeFilter(),
+            this::createParser,
+            this::parseInstance,
+            this::assertEqualInstances,
+            assertToXContentEquivalence(),
+            getToXContentParams()
+        );
     }
 
     /**
@@ -250,9 +266,14 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
         return ToXContent.EMPTY_PARAMS;
     }
 
-    static BytesReference insertRandomFieldsAndShuffle(BytesReference xContent, XContentType xContentType,
-            boolean supportsUnknownFields, String[] shuffleFieldsExceptions, Predicate<String> randomFieldsExcludeFilter,
-            CheckedBiFunction<XContent, BytesReference, XContentParser, IOException> createParserFunction) throws IOException {
+    static BytesReference insertRandomFieldsAndShuffle(
+        BytesReference xContent,
+        XContentType xContentType,
+        boolean supportsUnknownFields,
+        String[] shuffleFieldsExceptions,
+        Predicate<String> randomFieldsExcludeFilter,
+        CheckedBiFunction<XContent, BytesReference, XContentParser, IOException> createParserFunction
+    ) throws IOException {
         BytesReference withRandomFields;
         if (supportsUnknownFields) {
             // add a few random fields to check that the parser is lenient on new fields

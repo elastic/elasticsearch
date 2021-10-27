@@ -46,8 +46,8 @@ public class RestoreInProgressAllocationDecider extends AllocationDecider {
             if (restoreInProgress != null) {
                 RestoreInProgress.ShardRestoreStatus shardRestoreStatus = restoreInProgress.shards().get(shardRouting.shardId());
                 if (shardRestoreStatus != null && shardRestoreStatus.state().completed() == false) {
-                    assert shardRestoreStatus.state() != RestoreInProgress.State.SUCCESS : "expected shard [" + shardRouting
-                        + "] to be in initializing state but got [" + shardRestoreStatus.state() + "]";
+                    assert shardRestoreStatus.state() != RestoreInProgress.State.SUCCESS
+                        : "expected shard [" + shardRouting + "] to be in initializing state but got [" + shardRestoreStatus.state() + "]";
                     return allocation.decision(Decision.YES, NAME, "shard is currently being restored");
                 }
             }

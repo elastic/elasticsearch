@@ -11,10 +11,10 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackFeatureSet.Usage;
 import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
@@ -98,7 +98,7 @@ public class MonitoringFeatureSetTests extends ESTestCase {
         for (XPackFeatureSet.Usage usage : Arrays.asList(monitoringUsage, serializedUsage)) {
             assertThat(usage.name(), is(featureSet.name()));
             assertThat(usage.enabled(), is(featureSet.enabled()));
-            ObjectPath  source;
+            ObjectPath source;
             try (XContentBuilder builder = jsonBuilder()) {
                 usage.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 source = ObjectPath.createFromXContent(builder.contentType().xContent(), BytesReference.bytes(builder));

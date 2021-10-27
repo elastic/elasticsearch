@@ -89,9 +89,7 @@ public class GeoPointScriptFieldDistanceFeatureQueryTests extends AbstractScript
     public void testMatches() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"location\": [34, 6]}"))));
-            iw.addDocument(
-                List.of(new StoredField("_source", new BytesRef("{\"location\": [-3.56, -45.98]}")))
-            );
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"location\": [-3.56, -45.98]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 SearchLookup searchLookup = new SearchLookup(null, null);

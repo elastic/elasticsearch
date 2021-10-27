@@ -8,10 +8,10 @@
 
 package org.elasticsearch;
 
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Booleans;
 
 import java.io.IOException;
 import java.net.URL;
@@ -125,10 +125,8 @@ public class Build {
         final String esPrefix = "elasticsearch-" + Version.CURRENT;
         final URL url = getElasticsearchCodeSourceLocation();
         final String urlStr = url == null ? "" : url.toString();
-        if (urlStr.startsWith("file:/") && (
-            urlStr.endsWith(esPrefix + ".jar") ||
-            urlStr.matches("(.*)" + esPrefix + "(-)?((alpha|beta|rc)[0-9]+)?(-SNAPSHOT)?.jar")
-        )) {
+        if (urlStr.startsWith("file:/")
+            && (urlStr.endsWith(esPrefix + ".jar") || urlStr.matches("(.*)" + esPrefix + "(-)?((alpha|beta|rc)[0-9]+)?(-SNAPSHOT)?.jar"))) {
             try (JarInputStream jar = new JarInputStream(FileSystemUtils.openFileURLStream(url))) {
                 Manifest manifest = jar.getManifest();
                 hash = manifest.getMainAttributes().getValue("Change");
@@ -157,16 +155,22 @@ public class Build {
             }
         }
         if (hash == null) {
-            throw new IllegalStateException("Error finding the build hash. " +
-                    "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug.");
+            throw new IllegalStateException(
+                "Error finding the build hash. "
+                    + "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug."
+            );
         }
         if (date == null) {
-            throw new IllegalStateException("Error finding the build date. " +
-                    "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug.");
+            throw new IllegalStateException(
+                "Error finding the build date. "
+                    + "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug."
+            );
         }
         if (version == null) {
-            throw new IllegalStateException("Error finding the build version. " +
-                "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug.");
+            throw new IllegalStateException(
+                "Error finding the build version. "
+                    + "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug."
+            );
         }
 
         CURRENT = new Build(flavor, type, hash, date, isSnapshot, version);
@@ -190,10 +194,7 @@ public class Build {
     private final String date;
     private final String version;
 
-    public Build(
-        final Flavor flavor, final Type type, final String hash, final String date, boolean isSnapshot,
-        String version
-    ) {
+    public Build(final Flavor flavor, final Type type, final String hash, final String date, boolean isSnapshot, String version) {
         this.flavor = flavor;
         this.type = type;
         this.hash = hash;
@@ -295,7 +296,7 @@ public class Build {
 
     @Override
     public String toString() {
-        return "[" + flavor.displayName() + "][" + type.displayName + "][" + hash + "][" + date + "][" + version +"]";
+        return "[" + flavor.displayName() + "][" + type.displayName + "][" + hash + "][" + date + "][" + version + "]";
     }
 
     @Override

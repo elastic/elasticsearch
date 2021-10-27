@@ -74,14 +74,18 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             }
         }
 
-        return issueListMap.entrySet().stream()
-            .map(entry -> {
-                DeprecationIssue issue = entry.getKey();
-                String details = issue.getDetails() != null ? issue.getDetails() + " " : "";
-                return new DeprecationIssue(issue.getLevel(), issue.getMessage(), issue.getUrl(),
-                    details + "(nodes impacted: " + entry.getValue() + ")", issue.isResolveDuringRollingUpgrade(),
-                    issue.getMeta());
-            }).collect(Collectors.toList());
+        return issueListMap.entrySet().stream().map(entry -> {
+            DeprecationIssue issue = entry.getKey();
+            String details = issue.getDetails() != null ? issue.getDetails() + " " : "";
+            return new DeprecationIssue(
+                issue.getLevel(),
+                issue.getMessage(),
+                issue.getUrl(),
+                details + "(nodes impacted: " + entry.getValue() + ")",
+                issue.isResolveDuringRollingUpgrade(),
+                issue.getMeta()
+            );
+        }).collect(Collectors.toList());
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
@@ -109,10 +113,12 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             }
         }
 
-        public Response(List<DeprecationIssue> clusterSettingsIssues,
-                        List<DeprecationIssue> nodeSettingsIssues,
-                        Map<String, List<DeprecationIssue>> indexSettingsIssues,
-                        Map<String, List<DeprecationIssue>> pluginSettingsIssues) {
+        public Response(
+            List<DeprecationIssue> clusterSettingsIssues,
+            List<DeprecationIssue> nodeSettingsIssues,
+            Map<String, List<DeprecationIssue>> indexSettingsIssues,
+            Map<String, List<DeprecationIssue>> pluginSettingsIssues
+        ) {
             this.clusterSettingsIssues = clusterSettingsIssues;
             this.nodeSettingsIssues = nodeSettingsIssues;
             this.indexSettingsIssues = indexSettingsIssues;
@@ -173,10 +179,10 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
-            return Objects.equals(clusterSettingsIssues, response.clusterSettingsIssues) &&
-                Objects.equals(nodeSettingsIssues, response.nodeSettingsIssues) &&
-                Objects.equals(indexSettingsIssues, response.indexSettingsIssues) &&
-                Objects.equals(pluginSettingsIssues, response.pluginSettingsIssues);
+            return Objects.equals(clusterSettingsIssues, response.clusterSettingsIssues)
+                && Objects.equals(nodeSettingsIssues, response.nodeSettingsIssues)
+                && Objects.equals(indexSettingsIssues, response.indexSettingsIssues)
+                && Objects.equals(pluginSettingsIssues, response.pluginSettingsIssues);
         }
 
         @Override
@@ -212,15 +218,16 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             // Allow system index access here to prevent deprecation warnings when we call this API
             String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, request);
             ClusterState stateWithSkippedSettingsRemoved = removeSkippedSettings(state, concreteIndexNames, skipTheseDeprecatedSettings);
-            List<DeprecationIssue> clusterSettingsIssues = filterChecks(clusterSettingsChecks,
-                (c) -> c.apply(stateWithSkippedSettingsRemoved));
+            List<DeprecationIssue> clusterSettingsIssues = filterChecks(
+                clusterSettingsChecks,
+                (c) -> c.apply(stateWithSkippedSettingsRemoved)
+            );
             List<DeprecationIssue> nodeSettingsIssues = mergeNodeIssues(nodeDeprecationResponse);
 
             Map<String, List<DeprecationIssue>> indexSettingsIssues = new HashMap<>();
             for (String concreteIndex : concreteIndexNames) {
                 IndexMetadata indexMetadata = stateWithSkippedSettingsRemoved.getMetadata().index(concreteIndex);
-                List<DeprecationIssue> singleIndexIssues = filterChecks(indexSettingsChecks,
-                    c -> c.apply(state, indexMetadata));
+                List<DeprecationIssue> singleIndexIssues = filterChecks(indexSettingsChecks, c -> c.apply(state, indexMetadata));
                 if (singleIndexIssues.size() > 0) {
                     indexSettingsIssues.put(concreteIndex, singleIndexIssues);
                 }
@@ -250,15 +257,17 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
         ClusterState.Builder clusterStateBuilder = new ClusterState.Builder(state);
         Metadata.Builder metadataBuilder = Metadata.builder(state.metadata());
         metadataBuilder.transientSettings(
-            metadataBuilder.transientSettings().filter(setting -> Regex.simpleMatch(skipTheseDeprecatedSettings, setting) == false));
+            metadataBuilder.transientSettings().filter(setting -> Regex.simpleMatch(skipTheseDeprecatedSettings, setting) == false)
+        );
         metadataBuilder.persistentSettings(
-            metadataBuilder.persistentSettings().filter(setting -> Regex.simpleMatch(skipTheseDeprecatedSettings, setting) == false));
+            metadataBuilder.persistentSettings().filter(setting -> Regex.simpleMatch(skipTheseDeprecatedSettings, setting) == false)
+        );
         ImmutableOpenMap.Builder<String, IndexMetadata> indicesBuilder = ImmutableOpenMap.builder(state.getMetadata().indices());
         for (String indexName : indexNames) {
             IndexMetadata indexMetadata = state.getMetadata().index(indexName);
             IndexMetadata.Builder filteredIndexMetadataBuilder = new IndexMetadata.Builder(indexMetadata);
-            Settings filteredSettings =
-                indexMetadata.getSettings().filter(setting -> Regex.simpleMatch(skipTheseDeprecatedSettings, setting) == false);
+            Settings filteredSettings = indexMetadata.getSettings()
+                .filter(setting -> Regex.simpleMatch(skipTheseDeprecatedSettings, setting) == false);
             filteredIndexMetadataBuilder.settings(filteredSettings);
             indicesBuilder.put(indexName, filteredIndexMetadataBuilder.build());
         }

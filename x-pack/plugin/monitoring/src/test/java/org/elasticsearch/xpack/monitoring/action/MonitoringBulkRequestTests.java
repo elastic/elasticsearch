@@ -12,11 +12,11 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkDoc;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkRequest;
@@ -183,8 +183,9 @@ public class MonitoringBulkRequestTests extends ESTestCase {
         }
 
         final MonitoringBulkRequest bulkRequest = new MonitoringBulkRequest();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            bulkRequest.add(randomFrom(MonitoredSystem.values()), content.bytes(), xContentType, 0L, 0L)
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> bulkRequest.add(randomFrom(MonitoredSystem.values()), content.bytes(), xContentType, 0L, 0L)
         );
 
         assertThat(e.getMessage(), containsString("source is missing for monitoring document [][doc][" + nbDocs + "]"));
@@ -220,8 +221,9 @@ public class MonitoringBulkRequestTests extends ESTestCase {
         }
 
         final MonitoringBulkRequest bulkRequest = new MonitoringBulkRequest();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-                bulkRequest.add(randomFrom(MonitoredSystem.values()), content.bytes(), xContentType, 0L, 0L)
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> bulkRequest.add(randomFrom(MonitoredSystem.values()), content.bytes(), xContentType, 0L, 0L)
         );
 
         assertThat(e.getMessage(), containsString("unrecognized index name [" + indexName + "]"));
@@ -245,8 +247,8 @@ public class MonitoringBulkRequestTests extends ESTestCase {
 
         assertThat(in.available(), equalTo(0));
 
-        final MonitoringBulkDoc[] originalBulkDocs = originalRequest.getDocs().toArray(new MonitoringBulkDoc[]{});
-        final MonitoringBulkDoc[] deserializedBulkDocs = deserializedRequest.getDocs().toArray(new MonitoringBulkDoc[]{});
+        final MonitoringBulkDoc[] originalBulkDocs = originalRequest.getDocs().toArray(new MonitoringBulkDoc[] {});
+        final MonitoringBulkDoc[] deserializedBulkDocs = deserializedRequest.getDocs().toArray(new MonitoringBulkDoc[] {});
 
         assertArrayEquals(originalBulkDocs, deserializedBulkDocs);
     }

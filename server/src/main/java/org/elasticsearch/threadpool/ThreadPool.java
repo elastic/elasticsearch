@@ -12,23 +12,23 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.ReportingService;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,7 +56,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     public static class Names {
         public static final String SAME = "same";
         public static final String GENERIC = "generic";
-        @Deprecated public static final String LISTENER = "listener";
+        @Deprecated
+        public static final String LISTENER = "listener";
         public static final String GET = "get";
         public static final String ANALYZE = "analyze";
         public static final String WRITE = "write";
@@ -164,27 +165,27 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     }
 
     public static final Setting<TimeValue> ESTIMATED_TIME_INTERVAL_SETTING = Setting.timeSetting(
-            "thread_pool.estimated_time_interval",
-            TimeValue.timeValueMillis(200),
-            TimeValue.ZERO,
-            Setting.Property.NodeScope
+        "thread_pool.estimated_time_interval",
+        TimeValue.timeValueMillis(200),
+        TimeValue.ZERO,
+        Setting.Property.NodeScope
     );
 
     public static final Setting<TimeValue> LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING = Setting.timeSetting(
-            "thread_pool.estimated_time_interval.warn_threshold",
-            TimeValue.timeValueSeconds(5),
-            TimeValue.ZERO,
-            Setting.Property.NodeScope
+        "thread_pool.estimated_time_interval.warn_threshold",
+        TimeValue.timeValueSeconds(5),
+        TimeValue.ZERO,
+        Setting.Property.NodeScope
     );
 
     public static final Setting<TimeValue> SLOW_SCHEDULER_TASK_WARN_THRESHOLD_SETTING = Setting.timeSetting(
-            "thread_pool.scheduler.warn_threshold",
-            TimeValue.timeValueSeconds(5),
-            TimeValue.ZERO,
-            Setting.Property.NodeScope
+        "thread_pool.scheduler.warn_threshold",
+        TimeValue.timeValueSeconds(5),
+        TimeValue.ZERO,
+        Setting.Property.NodeScope
     );
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public ThreadPool(final Settings settings, final ExecutorBuilder<?>... customBuilders) {
         assert Node.NODE_NAME_SETTING.exists(settings);
 
@@ -197,18 +198,24 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         builders.put(Names.WRITE, new FixedExecutorBuilder(settings, Names.WRITE, allocatedProcessors, 10000));
         builders.put(Names.GET, new FixedExecutorBuilder(settings, Names.GET, allocatedProcessors, 1000));
         builders.put(Names.ANALYZE, new FixedExecutorBuilder(settings, Names.ANALYZE, 1, 16));
-        builders.put(Names.SEARCH, new AutoQueueAdjustingExecutorBuilder(settings,
-                        Names.SEARCH, searchThreadPoolSize(allocatedProcessors), 1000, 1000, 1000, 2000));
+        builders.put(
+            Names.SEARCH,
+            new AutoQueueAdjustingExecutorBuilder(settings, Names.SEARCH, searchThreadPoolSize(allocatedProcessors), 1000, 1000, 1000, 2000)
+        );
         builders.put(Names.SEARCH_COORDINATION, new FixedExecutorBuilder(settings, Names.SEARCH_COORDINATION, halfProcMaxAt5, 1000, false));
-        builders.put(Names.SEARCH_THROTTLED, new AutoQueueAdjustingExecutorBuilder(settings,
-            Names.SEARCH_THROTTLED, 1, 100, 100, 100, 200));
+        builders.put(
+            Names.SEARCH_THROTTLED,
+            new AutoQueueAdjustingExecutorBuilder(settings, Names.SEARCH_THROTTLED, 1, 100, 100, 100, 200)
+        );
 
         builders.put(
             Names.AUTO_COMPLETE,
             new FixedExecutorBuilder(settings, Names.AUTO_COMPLETE, Math.max(allocatedProcessors / 4, 1), 100, true)
         );
-        builders.put(Names.MANAGEMENT,
-                new ScalingExecutorBuilder(Names.MANAGEMENT, 1, boundedBy(allocatedProcessors, 1, 5), TimeValue.timeValueMinutes(5)));
+        builders.put(
+            Names.MANAGEMENT,
+            new ScalingExecutorBuilder(Names.MANAGEMENT, 1, boundedBy(allocatedProcessors, 1, 5), TimeValue.timeValueMinutes(5))
+        );
         // no queue as this means clients will need to handle rejections on listener queue even if the operation succeeded
         // the assumption here is that the listeners should be very lightweight on the listeners side
         builders.put(Names.LISTENER, new FixedExecutorBuilder(settings, Names.LISTENER, halfProcMaxAt10, -1, true));
@@ -216,19 +223,29 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         builders.put(Names.REFRESH, new ScalingExecutorBuilder(Names.REFRESH, 1, halfProcMaxAt10, TimeValue.timeValueMinutes(5)));
         builders.put(Names.WARMER, new ScalingExecutorBuilder(Names.WARMER, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
         builders.put(Names.SNAPSHOT, new ScalingExecutorBuilder(Names.SNAPSHOT, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
-        builders.put(Names.SNAPSHOT_META, new ScalingExecutorBuilder(Names.SNAPSHOT_META, 1, Math.min(allocatedProcessors * 3, 50),
-                TimeValue.timeValueSeconds(30L)));
-        builders.put(Names.FETCH_SHARD_STARTED,
-                new ScalingExecutorBuilder(Names.FETCH_SHARD_STARTED, 1, 2 * allocatedProcessors, TimeValue.timeValueMinutes(5)));
+        builders.put(
+            Names.SNAPSHOT_META,
+            new ScalingExecutorBuilder(Names.SNAPSHOT_META, 1, Math.min(allocatedProcessors * 3, 50), TimeValue.timeValueSeconds(30L))
+        );
+        builders.put(
+            Names.FETCH_SHARD_STARTED,
+            new ScalingExecutorBuilder(Names.FETCH_SHARD_STARTED, 1, 2 * allocatedProcessors, TimeValue.timeValueMinutes(5))
+        );
         builders.put(Names.FORCE_MERGE, new FixedExecutorBuilder(settings, Names.FORCE_MERGE, 1, -1));
-        builders.put(Names.FETCH_SHARD_STORE,
-                new ScalingExecutorBuilder(Names.FETCH_SHARD_STORE, 1, 2 * allocatedProcessors, TimeValue.timeValueMinutes(5)));
+        builders.put(
+            Names.FETCH_SHARD_STORE,
+            new ScalingExecutorBuilder(Names.FETCH_SHARD_STORE, 1, 2 * allocatedProcessors, TimeValue.timeValueMinutes(5))
+        );
         builders.put(Names.SYSTEM_READ, new FixedExecutorBuilder(settings, Names.SYSTEM_READ, halfProcMaxAt5, 2000, false));
         builders.put(Names.SYSTEM_WRITE, new FixedExecutorBuilder(settings, Names.SYSTEM_WRITE, halfProcMaxAt5, 1000, false));
-        builders.put(Names.SYSTEM_CRITICAL_READ, new FixedExecutorBuilder(settings, Names.SYSTEM_CRITICAL_READ, halfProcMaxAt5, 2000,
-            false));
-        builders.put(Names.SYSTEM_CRITICAL_WRITE, new FixedExecutorBuilder(settings, Names.SYSTEM_CRITICAL_WRITE, halfProcMaxAt5, 1500,
-            false));
+        builders.put(
+            Names.SYSTEM_CRITICAL_READ,
+            new FixedExecutorBuilder(settings, Names.SYSTEM_CRITICAL_READ, halfProcMaxAt5, 2000, false)
+        );
+        builders.put(
+            Names.SYSTEM_CRITICAL_WRITE,
+            new FixedExecutorBuilder(settings, Names.SYSTEM_CRITICAL_WRITE, halfProcMaxAt5, 1500, false)
+        );
 
         for (final ExecutorBuilder<?> builder : customBuilders) {
             if (builders.containsKey(builder.name())) {
@@ -254,20 +271,19 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         executors.put(Names.SAME, new ExecutorHolder(EsExecutors.DIRECT_EXECUTOR_SERVICE, new Info(Names.SAME, ThreadPoolType.DIRECT)));
         this.executors = unmodifiableMap(executors);
 
-        final List<Info> infos =
-                executors
-                        .values()
-                        .stream()
-                        .filter(holder -> holder.info.getName().equals("same") == false)
-                        .map(holder -> holder.info)
-                        .collect(Collectors.toList());
+        final List<Info> infos = executors.values()
+            .stream()
+            .filter(holder -> holder.info.getName().equals("same") == false)
+            .map(holder -> holder.info)
+            .collect(Collectors.toList());
         this.threadPoolInfo = new ThreadPoolInfo(infos);
         this.scheduler = Scheduler.initScheduler(settings, "scheduler");
         this.slowSchedulerWarnThresholdNanos = SLOW_SCHEDULER_TASK_WARN_THRESHOLD_SETTING.get(settings).nanos();
         this.cachedTimeThread = new CachedTimeThread(
-                EsExecutors.threadName(settings, "[timer]"),
-                ESTIMATED_TIME_INTERVAL_SETTING.get(settings).millis(),
-                LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING.get(settings).millis());
+            EsExecutors.threadName(settings, "[timer]"),
+            ESTIMATED_TIME_INTERVAL_SETTING.get(settings).millis(),
+            LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING.get(settings).millis()
+        );
         this.cachedTimeThread.start();
     }
 
@@ -421,10 +437,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                         final long took = ThreadPool.this.relativeTimeInNanos() - startTime;
                         if (took > slowSchedulerWarnThresholdNanos) {
                             logger.warn(
-                                    "execution of [{}] took [{}ms] which is above the warn threshold of [{}ms]",
-                                    contextPreservingRunnable,
-                                    TimeUnit.NANOSECONDS.toMillis(took),
-                                    TimeUnit.NANOSECONDS.toMillis(slowSchedulerWarnThresholdNanos)
+                                "execution of [{}] took [{}ms] which is above the warn threshold of [{}ms]",
+                                contextPreservingRunnable,
+                                TimeUnit.NANOSECONDS.toMillis(took),
+                                TimeUnit.NANOSECONDS.toMillis(slowSchedulerWarnThresholdNanos)
                             );
                         }
                     }
@@ -446,8 +462,15 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             schedule(command, delay, executor);
         } catch (EsRejectedExecutionException e) {
             if (e.isExecutorShutdown()) {
-                logger.debug(new ParameterizedMessage("could not schedule execution of [{}] after [{}] on [{}] as executor is shut down",
-                    command, delay, executor), e);
+                logger.debug(
+                    new ParameterizedMessage(
+                        "could not schedule execution of [{}] after [{}] on [{}] as executor is shut down",
+                        command,
+                        delay,
+                        executor
+                    ),
+                    e
+                );
             } else {
                 throw e;
             }
@@ -456,15 +479,16 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     @Override
     public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String executor) {
-        return new ReschedulingRunnable(command, interval, executor, this,
-                (e) -> {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug(() -> new ParameterizedMessage("scheduled task [{}] was rejected on thread pool [{}]",
-                                command, executor), e);
-                    }
-                },
-                (e) -> logger.warn(() -> new ParameterizedMessage("failed to run scheduled task [{}] on thread pool [{}]",
-                        command, executor), e));
+        return new ReschedulingRunnable(command, interval, executor, this, (e) -> {
+            if (logger.isDebugEnabled()) {
+                logger.debug(() -> new ParameterizedMessage("scheduled task [{}] was rejected on thread pool [{}]", command, executor), e);
+            }
+        },
+            (e) -> logger.warn(
+                () -> new ParameterizedMessage("failed to run scheduled task [{}] on thread pool [{}]", command, executor),
+                e
+            )
+        );
     }
 
     protected final void stopCachedTimeThread() {
@@ -588,8 +612,14 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 executor.execute(runnable);
             } catch (EsRejectedExecutionException e) {
                 if (e.isExecutorShutdown()) {
-                    logger.debug(new ParameterizedMessage("could not schedule execution of [{}] on [{}] as executor is shut down",
-                        runnable, executor), e);
+                    logger.debug(
+                        new ParameterizedMessage(
+                            "could not schedule execution of [{}] on [{}] as executor is shut down",
+                            runnable,
+                            executor
+                        ),
+                        e
+                    );
                 } else {
                     throw e;
                 }
@@ -706,29 +736,29 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 final long deltaMillis = newAbsoluteMillis - absoluteMillis;
                 if (deltaMillis > thresholdMillis) {
                     final TimeValue delta = TimeValue.timeValueMillis(deltaMillis);
-                    logger.warn("timer thread slept for [{}/{}ms] on absolute clock which is above the warn threshold of [{}ms]",
-                            delta,
-                            deltaMillis,
-                            thresholdMillis);
+                    logger.warn(
+                        "timer thread slept for [{}/{}ms] on absolute clock which is above the warn threshold of [{}ms]",
+                        delta,
+                        deltaMillis,
+                        thresholdMillis
+                    );
                 } else if (deltaMillis < 0) {
                     final TimeValue delta = TimeValue.timeValueMillis(-deltaMillis);
-                    logger.warn("absolute clock went backwards by [{}/{}ms] while timer thread was sleeping",
-                            delta,
-                            -deltaMillis);
+                    logger.warn("absolute clock went backwards by [{}/{}ms] while timer thread was sleeping", delta, -deltaMillis);
                 }
 
                 final long deltaNanos = newRelativeNanos - relativeNanos;
                 if (deltaNanos > thresholdNanos) {
                     final TimeValue delta = TimeValue.timeValueNanos(deltaNanos);
-                    logger.warn("timer thread slept for [{}/{}ns] on relative clock which is above the warn threshold of [{}ms]",
-                            delta,
-                            deltaNanos,
-                            thresholdMillis);
+                    logger.warn(
+                        "timer thread slept for [{}/{}ns] on relative clock which is above the warn threshold of [{}ms]",
+                        delta,
+                        deltaNanos,
+                        thresholdMillis
+                    );
                 } else if (deltaNanos < 0) {
                     final TimeValue delta = TimeValue.timeValueNanos(-deltaNanos);
-                    logger.error("relative clock went backwards by [{}/{}ns] while timer thread was sleeping",
-                            delta,
-                            -deltaNanos);
+                    logger.error("relative clock went backwards by [{}/{}ns] while timer thread was sleeping", delta, -deltaNanos);
                     assert false : "System::nanoTime time should be monotonic";
                 }
             } finally {
@@ -791,8 +821,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
-            if (type == ThreadPoolType.FIXED_AUTO_QUEUE_SIZE &&
-                    out.getVersion().before(Version.V_6_0_0_alpha1)) {
+            if (type == ThreadPoolType.FIXED_AUTO_QUEUE_SIZE && out.getVersion().before(Version.V_6_0_0_alpha1)) {
                 // 5.x doesn't know about the "fixed_auto_queue_size" thread pool type, just write fixed.
                 out.writeString(ThreadPoolType.FIXED.getType());
             } else {
@@ -872,10 +901,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         return false;
     }
 
-    private static boolean awaitTermination(
-            final ExecutorService service,
-            final long timeout,
-            final TimeUnit timeUnit) {
+    private static boolean awaitTermination(final ExecutorService service, final long timeout, final TimeUnit timeUnit) {
         try {
             if (service.awaitTermination(timeout, timeUnit)) {
                 return true;
@@ -904,10 +930,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         return false;
     }
 
-    private static boolean awaitTermination(
-            final ThreadPool threadPool,
-            final long timeout,
-            final TimeUnit timeUnit) {
+    private static boolean awaitTermination(final ThreadPool threadPool, final long timeout, final TimeUnit timeUnit) {
         try {
             if (threadPool.awaitTermination(timeout, timeUnit)) {
                 return true;
@@ -923,8 +946,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     }
 
     public static boolean assertNotScheduleThread(String reason) {
-        assert Thread.currentThread().getName().contains("scheduler") == false :
-            "Expected current thread [" + Thread.currentThread() + "] to not be the scheduler thread. Reason: [" + reason + "]";
+        assert Thread.currentThread().getName().contains("scheduler") == false
+            : "Expected current thread [" + Thread.currentThread() + "] to not be the scheduler thread. Reason: [" + reason + "]";
         return true;
     }
 
@@ -936,8 +959,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         final StackTraceElement testingMethod = stackTraceElements[2];
         for (int i = 3; i < stackTraceElements.length; i++) {
             assert stackTraceElements[i].getClassName().equals(testingMethod.getClassName()) == false
-                || stackTraceElements[i].getMethodName().equals(testingMethod.getMethodName()) == false :
-                testingMethod.getClassName() + "#" + testingMethod.getMethodName() + " is called recursively";
+                || stackTraceElements[i].getMethodName().equals(testingMethod.getMethodName()) == false
+                : testingMethod.getClassName() + "#" + testingMethod.getMethodName() + " is called recursively";
         }
         return true;
     }

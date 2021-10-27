@@ -15,15 +15,15 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -72,8 +72,7 @@ public class OpenJobAction extends ActionType<NodeAcknowledgedResponse> {
             jobParams = new JobParams(in);
         }
 
-        public Request() {
-        }
+        public Request() {}
 
         public JobParams getJobParams() {
             return jobParams;
@@ -127,8 +126,7 @@ public class OpenJobAction extends ActionType<NodeAcknowledgedResponse> {
         public static final ObjectParser<JobParams, Void> PARSER = new ObjectParser<>(MlTasks.JOB_TASK_NAME, true, JobParams::new);
         static {
             PARSER.declareString(JobParams::setJobId, Job.ID);
-            PARSER.declareString((params, val) ->
-                    params.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
+            PARSER.declareString((params, val) -> params.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
             PARSER.declareObject(JobParams::setJob, (p, c) -> Job.LENIENT_PARSER.apply(p, c).build(), JOB);
         }
 
@@ -145,13 +143,12 @@ public class OpenJobAction extends ActionType<NodeAcknowledgedResponse> {
         }
 
         private String jobId;
-        // A big state can take a while to restore.  For symmetry with the _close endpoint any
+        // A big state can take a while to restore. For symmetry with the _close endpoint any
         // changes here should be reflected there too.
         private TimeValue timeout = MachineLearningField.STATE_PERSIST_RESTORE_TIMEOUT;
         private Job job;
 
-        JobParams() {
-        }
+        JobParams() {}
 
         public JobParams(String jobId) {
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
@@ -231,9 +228,7 @@ public class OpenJobAction extends ActionType<NodeAcknowledgedResponse> {
                 return false;
             }
             OpenJobAction.JobParams other = (OpenJobAction.JobParams) obj;
-            return Objects.equals(jobId, other.jobId) &&
-                    Objects.equals(timeout, other.timeout) &&
-                    Objects.equals(job, other.job);
+            return Objects.equals(jobId, other.jobId) && Objects.equals(timeout, other.timeout) && Objects.equals(job, other.job);
         }
 
         @Override

@@ -616,9 +616,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
 
         assertThat(
             failureMessage.get(),
-            matchesRegex(
-                "task encountered irrecoverable failure: ElasticsearchParseException\\[failed to parse date field\\].*"
-            )
+            matchesRegex("task encountered irrecoverable failure: ElasticsearchParseException\\[failed to parse date field\\].*")
         );
     }
 

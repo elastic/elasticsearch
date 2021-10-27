@@ -24,16 +24,29 @@ import org.elasticsearch.transport.TransportService;
 public class GetPipelineTransportAction extends TransportMasterNodeReadAction<GetPipelineRequest, GetPipelineResponse> {
 
     @Inject
-    public GetPipelineTransportAction(ThreadPool threadPool, ClusterService clusterService,
-                                      TransportService transportService, ActionFilters actionFilters,
-                                      IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(GetPipelineAction.NAME, transportService, clusterService, threadPool, actionFilters, GetPipelineRequest::new,
-                indexNameExpressionResolver, GetPipelineResponse::new, ThreadPool.Names.SAME);
+    public GetPipelineTransportAction(
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            GetPipelineAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            GetPipelineRequest::new,
+            indexNameExpressionResolver,
+            GetPipelineResponse::new,
+            ThreadPool.Names.SAME
+        );
     }
 
     @Override
     protected void masterOperation(GetPipelineRequest request, ClusterState state, ActionListener<GetPipelineResponse> listener)
-            throws Exception {
+        throws Exception {
         listener.onResponse(new GetPipelineResponse(IngestService.getPipelines(state, request.getIds()), request.isSummary()));
     }
 

@@ -40,10 +40,12 @@ public final class SourceIntervalsSource extends IntervalsSource {
     private final Function<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider;
     private final Analyzer indexAnalyzer;
 
-    public SourceIntervalsSource(IntervalsSource in,
-            Query approximation,
-            Function<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider,
-            Analyzer indexAnalyzer) {
+    public SourceIntervalsSource(
+        IntervalsSource in,
+        Query approximation,
+        Function<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider,
+        Analyzer indexAnalyzer
+    ) {
         this.in = Objects.requireNonNull(in);
         this.approximation = Objects.requireNonNull(approximation);
         this.valueFetcherProvider = Objects.requireNonNull(valueFetcherProvider);

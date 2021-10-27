@@ -8,15 +8,15 @@
 package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
-import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
-import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
 
 import java.util.List;
@@ -31,8 +31,8 @@ public class RestDeleteWatchAction extends WatcherRestHandler {
     @Override
     public List<Route> routes() {
         return singletonList(
-            Route.builder(DELETE, "/_watcher/watch/{id}")
-                .replaces(DELETE, URI_BASE + "/watcher/watch/{id}", RestApiVersion.V_7).build());
+            Route.builder(DELETE, "/_watcher/watch/{id}").replaces(DELETE, URI_BASE + "/watcher/watch/{id}", RestApiVersion.V_7).build()
+        );
     }
 
     @Override
@@ -47,10 +47,10 @@ public class RestDeleteWatchAction extends WatcherRestHandler {
             @Override
             public RestResponse buildResponse(DeleteWatchResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject()
-                        .field("_id", response.getId())
-                        .field("_version", response.getVersion())
-                        .field("found", response.isFound())
-                        .endObject();
+                    .field("_id", response.getId())
+                    .field("_version", response.getVersion())
+                    .field("found", response.isFound())
+                    .endObject();
                 RestStatus status = response.isFound() ? OK : NOT_FOUND;
                 return new BytesRestResponse(status, builder);
             }

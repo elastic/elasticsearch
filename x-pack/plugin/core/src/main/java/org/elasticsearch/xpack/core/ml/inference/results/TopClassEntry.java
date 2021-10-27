@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -35,8 +35,10 @@ public class TopClassEntry implements Writeable, ToXContentObject {
 
     public static final String NAME = "top_class";
 
-    private static final ConstructingObjectParser<TopClassEntry, Void> PARSER =
-        new ConstructingObjectParser<>(NAME, a -> new TopClassEntry(a[0], (Double) a[1], (Double) a[2]));
+    private static final ConstructingObjectParser<TopClassEntry, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        a -> new TopClassEntry(a[0], (Double) a[1], (Double) a[2])
+    );
 
     static {
         PARSER.declareField(constructorArg(), (p, n) -> {
@@ -49,9 +51,10 @@ public class TopClassEntry implements Writeable, ToXContentObject {
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 o = p.doubleValue();
             } else {
-                throw new XContentParseException(p.getTokenLocation(),
-                    "[" + NAME + "] failed to parse field [" + CLASS_NAME + "] value [" + token
-                    + "] is not a string, boolean or number");
+                throw new XContentParseException(
+                    p.getTokenLocation(),
+                    "[" + NAME + "] failed to parse field [" + CLASS_NAME + "] value [" + token + "] is not a string, boolean or number"
+                );
             }
             return o;
         }, CLASS_NAME, ObjectParser.ValueType.VALUE);
@@ -126,8 +129,12 @@ public class TopClassEntry implements Writeable, ToXContentObject {
 
     @Override
     public boolean equals(Object object) {
-        if (object == this) { return true; }
-        if (object == null || getClass() != object.getClass()) { return false; }
+        if (object == this) {
+            return true;
+        }
+        if (object == null || getClass() != object.getClass()) {
+            return false;
+        }
         TopClassEntry that = (TopClassEntry) object;
         return Objects.equals(classification, that.classification) && probability == that.probability && score == that.score;
     }

@@ -7,15 +7,15 @@
 package org.elasticsearch.xpack.security.rest.action.role;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleResponse;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
@@ -37,8 +37,7 @@ public class RestDeleteRoleAction extends SecurityBaseRestHandler {
     @Override
     public List<Route> routes() {
         return org.elasticsearch.core.List.of(
-            Route.builder(DELETE, "/_security/role/{name}")
-                .replaces(DELETE, "/_xpack/security/role/{name}", RestApiVersion.V_7).build()
+            Route.builder(DELETE, "/_security/role/{name}").replaces(DELETE, "/_xpack/security/role/{name}", RestApiVersion.V_7).build()
         );
     }
 
@@ -53,14 +52,15 @@ public class RestDeleteRoleAction extends SecurityBaseRestHandler {
         final String refresh = request.param("refresh");
 
         return channel -> new SecurityClient(client).prepareDeleteRole(name)
-                .setRefreshPolicy(refresh)
-                .execute(new RestBuilderListener<DeleteRoleResponse>(channel) {
-                    @Override
-                    public RestResponse buildResponse(DeleteRoleResponse response, XContentBuilder builder) throws Exception {
-                        return new BytesRestResponse(
-                                response.found() ? RestStatus.OK : RestStatus.NOT_FOUND,
-                                builder.startObject().field("found", response.found()).endObject());
-                    }
-                });
+            .setRefreshPolicy(refresh)
+            .execute(new RestBuilderListener<DeleteRoleResponse>(channel) {
+                @Override
+                public RestResponse buildResponse(DeleteRoleResponse response, XContentBuilder builder) throws Exception {
+                    return new BytesRestResponse(
+                        response.found() ? RestStatus.OK : RestStatus.NOT_FOUND,
+                        builder.startObject().field("found", response.found()).endObject()
+                    );
+                }
+            });
     }
 }

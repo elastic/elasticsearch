@@ -10,10 +10,10 @@ package org.elasticsearch.action.admin.indices.forcemerge;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -133,10 +133,15 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
 
     @Override
     public String getDescription() {
-        return "Force-merge indices " + Arrays.toString(indices()) +
-            ", maxSegments[" + maxNumSegments +
-            "], onlyExpungeDeletes[" + onlyExpungeDeletes +
-            "], flush[" + flush + "]";
+        return "Force-merge indices "
+            + Arrays.toString(indices())
+            + ", maxSegments["
+            + maxNumSegments
+            + "], onlyExpungeDeletes["
+            + onlyExpungeDeletes
+            + "], flush["
+            + flush
+            + "]";
     }
 
     @Override
@@ -152,10 +157,13 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
 
     @Override
     public String toString() {
-        return "ForceMergeRequest{" +
-                "maxNumSegments=" + maxNumSegments +
-                ", onlyExpungeDeletes=" + onlyExpungeDeletes +
-                ", flush=" + flush +
-                '}';
+        return "ForceMergeRequest{"
+            + "maxNumSegments="
+            + maxNumSegments
+            + ", onlyExpungeDeletes="
+            + onlyExpungeDeletes
+            + ", flush="
+            + flush
+            + '}';
     }
 }

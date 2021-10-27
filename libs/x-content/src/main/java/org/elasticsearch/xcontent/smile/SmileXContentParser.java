@@ -18,8 +18,7 @@ import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
 public class SmileXContentParser extends JsonXContentParser {
 
-    public SmileXContentParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, JsonParser parser) {
+    public SmileXContentParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, JsonParser parser) {
         super(xContentRegistry, deprecationHandler, parser);
     }
 

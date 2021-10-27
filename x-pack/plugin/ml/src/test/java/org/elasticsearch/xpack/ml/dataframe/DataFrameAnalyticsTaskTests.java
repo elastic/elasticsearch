@@ -16,12 +16,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
@@ -30,6 +26,10 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
@@ -67,10 +67,12 @@ import static org.mockito.Mockito.when;
 public class DataFrameAnalyticsTaskTests extends ESTestCase {
 
     public void testDetermineStartingState_GivenZeroProgress() {
-        List<PhaseProgress> progress = Arrays.asList(new PhaseProgress("reindexing", 0),
+        List<PhaseProgress> progress = Arrays.asList(
+            new PhaseProgress("reindexing", 0),
             new PhaseProgress("loading_data", 0),
             new PhaseProgress("analyzing", 0),
-            new PhaseProgress("writing_results", 0));
+            new PhaseProgress("writing_results", 0)
+        );
 
         StartingState startingState = DataFrameAnalyticsTask.determineStartingState("foo", progress);
 
@@ -78,10 +80,12 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
     }
 
     public void testDetermineStartingState_GivenReindexingIsIncomplete() {
-        List<PhaseProgress> progress = Arrays.asList(new PhaseProgress("reindexing", 99),
+        List<PhaseProgress> progress = Arrays.asList(
+            new PhaseProgress("reindexing", 99),
             new PhaseProgress("loading_data", 0),
             new PhaseProgress("analyzing", 0),
-            new PhaseProgress("writing_results", 0));
+            new PhaseProgress("writing_results", 0)
+        );
 
         StartingState startingState = DataFrameAnalyticsTask.determineStartingState("foo", progress);
 
@@ -89,10 +93,12 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
     }
 
     public void testDetermineStartingState_GivenLoadingDataIsIncomplete() {
-        List<PhaseProgress> progress = Arrays.asList(new PhaseProgress("reindexing", 100),
+        List<PhaseProgress> progress = Arrays.asList(
+            new PhaseProgress("reindexing", 100),
             new PhaseProgress("loading_data", 1),
             new PhaseProgress("analyzing", 0),
-            new PhaseProgress("writing_results", 0));
+            new PhaseProgress("writing_results", 0)
+        );
 
         StartingState startingState = DataFrameAnalyticsTask.determineStartingState("foo", progress);
 
@@ -100,10 +106,12 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
     }
 
     public void testDetermineStartingState_GivenAnalyzingIsIncomplete() {
-        List<PhaseProgress> progress = Arrays.asList(new PhaseProgress("reindexing", 100),
+        List<PhaseProgress> progress = Arrays.asList(
+            new PhaseProgress("reindexing", 100),
             new PhaseProgress("loading_data", 100),
             new PhaseProgress("analyzing", 99),
-            new PhaseProgress("writing_results", 0));
+            new PhaseProgress("writing_results", 0)
+        );
 
         StartingState startingState = DataFrameAnalyticsTask.determineStartingState("foo", progress);
 
@@ -111,10 +119,12 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
     }
 
     public void testDetermineStartingState_GivenWritingResultsIsIncomplete() {
-        List<PhaseProgress> progress = Arrays.asList(new PhaseProgress("reindexing", 100),
+        List<PhaseProgress> progress = Arrays.asList(
+            new PhaseProgress("reindexing", 100),
             new PhaseProgress("loading_data", 100),
             new PhaseProgress("analyzing", 100),
-            new PhaseProgress("writing_results", 1));
+            new PhaseProgress("writing_results", 1)
+        );
 
         StartingState startingState = DataFrameAnalyticsTask.determineStartingState("foo", progress);
 
@@ -122,11 +132,13 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
     }
 
     public void testDetermineStartingState_GivenInferenceIsIncomplete() {
-        List<PhaseProgress> progress = Arrays.asList(new PhaseProgress("reindexing", 100),
+        List<PhaseProgress> progress = Arrays.asList(
+            new PhaseProgress("reindexing", 100),
             new PhaseProgress("loading_data", 100),
             new PhaseProgress("analyzing", 100),
             new PhaseProgress("writing_results", 100),
-            new PhaseProgress("inference", 40));
+            new PhaseProgress("inference", 40)
+        );
 
         StartingState startingState = DataFrameAnalyticsTask.determineStartingState("foo", progress);
 
@@ -134,10 +146,12 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
     }
 
     public void testDetermineStartingState_GivenFinished() {
-        List<PhaseProgress> progress = Arrays.asList(new PhaseProgress("reindexing", 100),
+        List<PhaseProgress> progress = Arrays.asList(
+            new PhaseProgress("reindexing", 100),
             new PhaseProgress("loading_data", 100),
             new PhaseProgress("analyzing", 100),
-            new PhaseProgress("writing_results", 100));
+            new PhaseProgress("writing_results", 100)
+        );
 
         StartingState startingState = DataFrameAnalyticsTask.determineStartingState("foo", progress);
 
@@ -164,10 +178,14 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
         List<PhaseProgress> progress = Arrays.asList(
             new PhaseProgress(ProgressTracker.REINDEXING, 100),
             new PhaseProgress(ProgressTracker.LOADING_DATA, 50),
-            new PhaseProgress(ProgressTracker.WRITING_RESULTS, 0));
+            new PhaseProgress(ProgressTracker.WRITING_RESULTS, 0)
+        );
 
         StartDataFrameAnalyticsAction.TaskParams taskParams = new StartDataFrameAnalyticsAction.TaskParams(
-            "task_id", Version.CURRENT, false);
+            "task_id",
+            Version.CURRENT,
+            false
+        );
 
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.getHits()).thenReturn(searchHits);
@@ -180,19 +198,18 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
 
         Runnable runnable = mock(Runnable.class);
 
-        DataFrameAnalyticsTask task =
-            new DataFrameAnalyticsTask(
-                123, 
-                "type", 
-                "action", 
-                null, 
-                Collections.emptyMap(), 
-                client, 
-                analyticsManager, 
-                auditor, 
-                taskParams, 
-                mock(XPackLicenseState.class)
-            );
+        DataFrameAnalyticsTask task = new DataFrameAnalyticsTask(
+            123,
+            "type",
+            "action",
+            null,
+            Collections.emptyMap(),
+            client,
+            analyticsManager,
+            auditor,
+            taskParams,
+            mock(XPackLicenseState.class)
+        );
         task.init(persistentTasksService, taskManager, "task-id", 42);
         task.setStatsHolder(new StatsHolder(progress, null, null, new DataCounts("test_job")));
 
@@ -211,8 +228,13 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
         assertThat(indexRequest.isRequireAlias(), equalTo(".ml-state-write".equals(expectedIndexOrAlias)));
         assertThat(indexRequest.id(), equalTo("data_frame_analytics-task_id-progress"));
 
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(
-                NamedXContentRegistry.EMPTY, DeprecationHandler.IGNORE_DEPRECATIONS, indexRequest.source().utf8ToString())) {
+        try (
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.IGNORE_DEPRECATIONS,
+                indexRequest.source().utf8ToString()
+            )
+        ) {
             StoredProgress parsedProgress = StoredProgress.PARSER.apply(parser, null);
             assertThat(parsedProgress.get(), equalTo(progress));
         }
@@ -224,8 +246,9 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
 
     public void testPersistProgress_ProgressDocumentUpdated() throws IOException {
         testPersistProgress(
-            new SearchHits(new SearchHit[]{ SearchHit.createFromMap(Collections.singletonMap("_index", ".ml-state-dummy")) }, null, 0.0f),
-            ".ml-state-dummy");
+            new SearchHits(new SearchHit[] { SearchHit.createFromMap(Collections.singletonMap("_index", ".ml-state-dummy")) }, null, 0.0f),
+            ".ml-state-dummy"
+        );
     }
 
     public void testSetFailed() throws IOException {
@@ -253,13 +276,14 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
         List<PhaseProgress> progress = Arrays.asList(
             new PhaseProgress(ProgressTracker.REINDEXING, 0),
             new PhaseProgress(ProgressTracker.LOADING_DATA, 100),
-            new PhaseProgress(ProgressTracker.WRITING_RESULTS, 30));
+            new PhaseProgress(ProgressTracker.WRITING_RESULTS, 30)
+        );
 
-        StartDataFrameAnalyticsAction.TaskParams taskParams =
-            new StartDataFrameAnalyticsAction.TaskParams(
-                "job-id",
-                Version.CURRENT,
-                false);
+        StartDataFrameAnalyticsAction.TaskParams taskParams = new StartDataFrameAnalyticsAction.TaskParams(
+            "job-id",
+            Version.CURRENT,
+            false
+        );
 
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.getHits()).thenReturn(SearchHits.empty());
@@ -268,19 +292,18 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
         IndexResponse indexResponse = mock(IndexResponse.class);
         doAnswer(withResponse(indexResponse)).when(client).execute(eq(IndexAction.INSTANCE), any(), any());
 
-        DataFrameAnalyticsTask task =
-            new DataFrameAnalyticsTask(
-                123, 
-                "type",
-                "action",
-                null, 
-                Collections.emptyMap(),
-                client, 
-                analyticsManager, 
-                auditor, 
-                taskParams, 
-                mock(XPackLicenseState.class)
-            );
+        DataFrameAnalyticsTask task = new DataFrameAnalyticsTask(
+            123,
+            "type",
+            "action",
+            null,
+            Collections.emptyMap(),
+            client,
+            analyticsManager,
+            auditor,
+            taskParams,
+            mock(XPackLicenseState.class)
+        );
         task.init(persistentTasksService, taskManager, "task-id", 42);
         task.setStatsHolder(new StatsHolder(progress, null, null, new DataCounts("test_job")));
         task.setStep(new StubReindexingStep(task.getStatsHolder().getProgressTracker()));
@@ -302,8 +325,13 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
             assertThat(indexRequest.index(), equalTo(AnomalyDetectorsIndex.jobStateIndexWriteAlias()));
             assertThat(indexRequest.id(), equalTo("data_frame_analytics-job-id-progress"));
 
-            try (XContentParser parser = JsonXContent.jsonXContent.createParser(
-                NamedXContentRegistry.EMPTY, DeprecationHandler.IGNORE_DEPRECATIONS, indexRequest.source().utf8ToString())) {
+            try (
+                XContentParser parser = JsonXContent.jsonXContent.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.IGNORE_DEPRECATIONS,
+                    indexRequest.source().utf8ToString()
+                )
+            ) {
                 StoredProgress parsedProgress = StoredProgress.PARSER.apply(parser, null);
                 assertThat(parsedProgress.get(), hasSize(3));
                 assertThat(parsedProgress.get().get(0), equalTo(new PhaseProgress("reindexing", 100)));
@@ -311,9 +339,15 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
 
             verify(client).execute(
                 same(UpdatePersistentTaskStatusAction.INSTANCE),
-                eq(new UpdatePersistentTaskStatusAction.Request(
-                    "task-id", 42, new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.FAILED, 42, "some exception"))),
-                any());
+                eq(
+                    new UpdatePersistentTaskStatusAction.Request(
+                        "task-id",
+                        42,
+                        new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.FAILED, 42, "some exception")
+                    )
+                ),
+                any()
+            );
         }
         verifyNoMoreInteractions(client, analyticsManager, auditor, taskManager);
     }
@@ -341,12 +375,10 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
         }
 
         @Override
-        public void execute(ActionListener<StepResponse> listener) {
-        }
+        public void execute(ActionListener<StepResponse> listener) {}
 
         @Override
-        public void cancel(String reason, TimeValue timeout) {
-        }
+        public void cancel(String reason, TimeValue timeout) {}
 
         @Override
         public void updateProgress(ActionListener<Void> listener) {

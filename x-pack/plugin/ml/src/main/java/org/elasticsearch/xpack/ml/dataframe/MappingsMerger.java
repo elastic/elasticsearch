@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.dataframe;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
@@ -36,8 +37,12 @@ public final class MappingsMerger {
 
     private MappingsMerger() {}
 
-    public static void mergeMappings(Client client, Map<String, String> headers, DataFrameAnalyticsSource source,
-                                     ActionListener<ImmutableOpenMap<String, MappingMetadata>> listener) {
+    public static void mergeMappings(
+        Client client,
+        Map<String, String> headers,
+        DataFrameAnalyticsSource source,
+        ActionListener<ImmutableOpenMap<String, MappingMetadata>> listener
+    ) {
         ActionListener<GetMappingsResponse> mappingsListener = ActionListener.wrap(
             getMappingsResponse -> listener.onResponse(MappingsMerger.mergeMappings(source, getMappingsResponse)),
             listener::onFailure
@@ -48,8 +53,10 @@ public final class MappingsMerger {
         ClientHelper.executeWithHeadersAsync(headers, ML_ORIGIN, client, GetMappingsAction.INSTANCE, getMappingsRequest, mappingsListener);
     }
 
-    static ImmutableOpenMap<String, MappingMetadata> mergeMappings(DataFrameAnalyticsSource source,
-                                                                   GetMappingsResponse getMappingsResponse) {
+    static ImmutableOpenMap<String, MappingMetadata> mergeMappings(
+        DataFrameAnalyticsSource source,
+        GetMappingsResponse getMappingsResponse
+    ) {
         Map<String, Object> mappings = new HashMap<>();
         mappings.put("dynamic", false);
 
@@ -57,8 +64,10 @@ public final class MappingsMerger {
         for (MappingsType mappingsType : MappingsType.values()) {
             Map<String, IndexAndMapping> mergedMappingsForType = mergeAcrossIndices(source, indexToMappings, mappingsType);
             if (mergedMappingsForType.isEmpty() == false) {
-                mappings.put(mappingsType.type,
-                    mergedMappingsForType.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().mapping)));
+                mappings.put(
+                    mappingsType.type,
+                    mergedMappingsForType.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().mapping))
+                );
             }
         }
 
@@ -72,9 +81,10 @@ public final class MappingsMerger {
     }
 
     private static Map<String, IndexAndMapping> mergeAcrossIndices(
-            DataFrameAnalyticsSource source,
-            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> indexToMappings,
-            MappingsType mappingsType) {
+        DataFrameAnalyticsSource source,
+        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> indexToMappings,
+        MappingsType mappingsType
+    ) {
 
         Map<String, IndexAndMapping> mergedMappings = new HashMap<>();
 
@@ -97,9 +107,15 @@ public final class MappingsMerger {
                                 IndexAndMapping existingIndexAndMapping = mergedMappings.get(field);
                                 if (existingIndexAndMapping.mapping.equals(fieldMapping.getValue()) == false) {
                                     throw ExceptionsHelper.badRequestException(
-                                        "cannot merge [{}] mappings because of differences for field [{}]; mapped as [{}] in index [{}]; " +
-                                        "mapped as [{}] in index [{}]", mappingsType.type, field, fieldMapping.getValue(),
-                                        indexMappings.key, existingIndexAndMapping.mapping, existingIndexAndMapping.index);
+                                        "cannot merge [{}] mappings because of differences for field [{}]; mapped as [{}] in index [{}]; "
+                                            + "mapped as [{}] in index [{}]",
+                                        mappingsType.type,
+                                        field,
+                                        fieldMapping.getValue(),
+                                        indexMappings.key,
+                                        existingIndexAndMapping.mapping,
+                                        existingIndexAndMapping.index
+                                    );
 
                                 }
                             } else {

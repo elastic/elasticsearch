@@ -13,8 +13,8 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
 import java.io.IOException;

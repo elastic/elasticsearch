@@ -57,9 +57,9 @@ public class SnapshotUpgradePredicate implements Predicate<PersistentTasksCustom
             return true;
         }
         SnapshotUpgradeTaskState snapshotUpgradeTaskState = (SnapshotUpgradeTaskState) persistentTask.getState();
-        SnapshotUpgradeState snapshotUpgradeState = snapshotUpgradeTaskState == null ?
-            SnapshotUpgradeState.STOPPED :
-            snapshotUpgradeTaskState.getState();
+        SnapshotUpgradeState snapshotUpgradeState = snapshotUpgradeTaskState == null
+            ? SnapshotUpgradeState.STOPPED
+            : snapshotUpgradeTaskState.getState();
         String reason = snapshotUpgradeTaskState == null ? "" : snapshotUpgradeTaskState.getReason();
         PersistentTasksCustomMetadata.Assignment assignment = persistentTask.getAssignment();
         // This logic is only appropriate when opening a job, not when reallocating following a failure,
@@ -72,8 +72,13 @@ public class SnapshotUpgradePredicate implements Predicate<PersistentTasksCustom
             return true;
         }
         if (snapshotUpgradeState == SnapshotUpgradeState.FAILED) {
-            exception = ExceptionsHelper.serverError("Unexpected state [" + snapshotUpgradeState
-                + "] while waiting for to be assigned to a node; recorded reason [" + reason + "]");
+            exception = ExceptionsHelper.serverError(
+                "Unexpected state ["
+                    + snapshotUpgradeState
+                    + "] while waiting for to be assigned to a node; recorded reason ["
+                    + reason
+                    + "]"
+            );
             shouldCancel = true;
             return true;
         }

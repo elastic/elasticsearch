@@ -75,8 +75,10 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
 
     @Override
     protected void masterOperation(
-        GetFeatureUpgradeStatusRequest request, ClusterState state,
-                                   ActionListener<GetFeatureUpgradeStatusResponse> listener) throws Exception {
+        GetFeatureUpgradeStatusRequest request,
+        ClusterState state,
+        ActionListener<GetFeatureUpgradeStatusResponse> listener
+    ) throws Exception {
 
         List<GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus> features = systemIndices.getFeatures()
             .values()
@@ -96,10 +98,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
         listener.onResponse(new GetFeatureUpgradeStatusResponse(features, status));
     }
 
-    static GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus getFeatureUpgradeStatus(
-        ClusterState state,
-        SystemIndices.Feature feature
-    ) {
+    static GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus getFeatureUpgradeStatus(ClusterState state, SystemIndices.Feature feature) {
         String featureName = feature.getName();
 
         final String currentFeature = Optional.ofNullable(

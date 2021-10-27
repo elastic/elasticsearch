@@ -13,7 +13,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.test.ESTestCase;
-
 import org.junit.Before;
 import org.mockito.InOrder;
 
@@ -42,15 +41,19 @@ public class DeprecationRestHandlerTests extends ESTestCase {
     }
 
     public void testNullHandler() {
-        expectThrows(NullPointerException.class, () -> new DeprecationRestHandler(null, METHOD, PATH, deprecationMessage,
-            deprecationLogger));
+        expectThrows(
+            NullPointerException.class,
+            () -> new DeprecationRestHandler(null, METHOD, PATH, deprecationMessage, deprecationLogger)
+        );
     }
 
     public void testInvalidDeprecationMessageThrowsException() {
         String invalidDeprecationMessage = randomFrom("", null, "     ");
 
-        expectThrows(IllegalArgumentException.class,
-                     () -> new DeprecationRestHandler(handler, METHOD, PATH, invalidDeprecationMessage, deprecationLogger));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new DeprecationRestHandler(handler, METHOD, PATH, invalidDeprecationMessage, deprecationLogger)
+        );
     }
 
     public void testNullDeprecationLogger() {
@@ -70,7 +73,7 @@ public class DeprecationRestHandlerTests extends ESTestCase {
         InOrder inOrder = inOrder(handler, request, channel, deprecationLogger);
 
         // log, then forward
-        inOrder.verify(deprecationLogger).critical(DeprecationCategory.API,"deprecated_route_GET_/some/path", deprecationMessage);
+        inOrder.verify(deprecationLogger).critical(DeprecationCategory.API, "deprecated_route_GET_/some/path", deprecationMessage);
         inOrder.verify(handler).handleRequest(request, channel, client);
         inOrder.verifyNoMoreInteractions();
     }
@@ -92,9 +95,14 @@ public class DeprecationRestHandlerTests extends ESTestCase {
 
     public void testInvalidHeaderValue() {
         ASCIIHeaderGenerator generator = new ASCIIHeaderGenerator();
-        String value = generator.ofCodeUnitsLength(random(), 0, 25) +
-                       randomFrom('\t', '\0', '\n', (char)27 /* ESC */, (char)31 /* unit separator*/, (char)127 /* DEL */) +
-                       generator.ofCodeUnitsLength(random(), 0, 25);
+        String value = generator.ofCodeUnitsLength(random(), 0, 25) + randomFrom(
+            '\t',
+            '\0',
+            '\n',
+            (char) 27 /* ESC */,
+            (char) 31 /* unit separator*/,
+            (char) 127 /* DEL */
+        ) + generator.ofCodeUnitsLength(random(), 0, 25);
 
         assertFalse(DeprecationRestHandler.validHeaderValue(value));
 
@@ -140,7 +148,7 @@ public class DeprecationRestHandlerTests extends ESTestCase {
             char[] chars = new char[to - from + 1];
 
             for (int i = from; i <= to; ++i) {
-                chars[i - from] = (char)i;
+                chars[i - from] = (char) i;
             }
 
             return chars;

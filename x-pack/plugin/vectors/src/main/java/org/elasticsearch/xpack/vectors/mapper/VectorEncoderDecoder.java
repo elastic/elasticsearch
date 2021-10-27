@@ -5,7 +5,6 @@
  * 2.0.
  */
 
-
 package org.elasticsearch.xpack.vectors.mapper;
 
 import org.apache.lucene.util.BytesRef;
@@ -18,7 +17,7 @@ public final class VectorEncoderDecoder {
     static final byte INT_BYTES = 4;
     static final byte SHORT_BYTES = 2;
 
-    private VectorEncoderDecoder() { }
+    private VectorEncoderDecoder() {}
 
     /**
      * Encodes a sparse array represented by values, dims and dimCount into a bytes array - BytesRef
@@ -36,8 +35,9 @@ public final class VectorEncoderDecoder {
 
         // 2. Encode dimensions
         // as each dimension is a positive value that doesn't exceed 65535, 2 bytes is enough for encoding it
-        byte[] bytes = indexVersion.onOrAfter(Version.V_7_5_0) ? new byte[dimCount * (INT_BYTES + SHORT_BYTES) + INT_BYTES] :
-            new byte[dimCount * (INT_BYTES + SHORT_BYTES)];
+        byte[] bytes = indexVersion.onOrAfter(Version.V_7_5_0)
+            ? new byte[dimCount * (INT_BYTES + SHORT_BYTES) + INT_BYTES]
+            : new byte[dimCount * (INT_BYTES + SHORT_BYTES)];
         ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
 
         for (int dim = 0; dim < dimCount; dim++) {
@@ -90,7 +90,7 @@ public final class VectorEncoderDecoder {
         int dimCount = indexVersion.onOrAfter(Version.V_7_5_0)
             ? (vectorBR.length - INT_BYTES) / (INT_BYTES + SHORT_BYTES)
             : vectorBR.length / (INT_BYTES + SHORT_BYTES);
-        int offset =  vectorBR.offset + SHORT_BYTES * dimCount;
+        int offset = vectorBR.offset + SHORT_BYTES * dimCount;
         float[] vector = new float[dimCount];
 
         ByteBuffer byteBuffer = ByteBuffer.wrap(vectorBR.bytes, offset, dimCount * INT_BYTES);
@@ -157,9 +157,7 @@ public final class VectorEncoderDecoder {
     }
 
     public static int denseVectorLength(Version indexVersion, BytesRef vectorBR) {
-        return indexVersion.onOrAfter(Version.V_7_5_0)
-            ? (vectorBR.length - INT_BYTES) / INT_BYTES
-            : vectorBR.length / INT_BYTES;
+        return indexVersion.onOrAfter(Version.V_7_5_0) ? (vectorBR.length - INT_BYTES) / INT_BYTES : vectorBR.length / INT_BYTES;
     }
 
     /**

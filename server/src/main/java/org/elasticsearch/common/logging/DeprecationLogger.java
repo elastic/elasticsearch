@@ -33,7 +33,6 @@ public class DeprecationLogger {
      */
     public static Level CRITICAL = Level.forName("CRITICAL", Level.WARN.intLevel() - 1);
 
-
     private final Logger logger;
 
     /**
@@ -78,11 +77,7 @@ public class DeprecationLogger {
      * The message is also sent to the header warning logger,
      * so that it can be returned to the client.
      */
-    public DeprecationLogger critical(
-        final DeprecationCategory category,
-        final String key,
-        final String msg,
-        final Object... params) {
+    public DeprecationLogger critical(final DeprecationCategory category, final String key, final String msg, final Object... params) {
         return logDeprecation(CRITICAL, category, key, msg, params);
     }
 
@@ -92,11 +87,7 @@ public class DeprecationLogger {
      * The message is also sent to the header warning logger,
      * so that it can be returned to the client.
      */
-    public DeprecationLogger warn(
-        final DeprecationCategory category,
-        final String key,
-        final String msg,
-        final Object... params) {
+    public DeprecationLogger warn(final DeprecationCategory category, final String key, final String msg, final Object... params) {
         return logDeprecation(Level.WARN, category, key, msg, params);
     }
 
@@ -105,6 +96,5 @@ public class DeprecationLogger {
         logger.log(level, deprecationMessage);
         return this;
     }
-
 
 }

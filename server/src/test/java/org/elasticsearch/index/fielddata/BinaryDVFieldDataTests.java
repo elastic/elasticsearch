@@ -13,13 +13,13 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,14 +31,19 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
     }
 
     public void testDocValue() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("test")
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("test")
                 .startObject("properties")
                 .startObject("field")
                 .field("type", "binary")
                 .field("doc_values", true)
                 .endObject()
                 .endObject()
-                .endObject().endObject());
+                .endObject()
+                .endObject()
+        );
 
         DocumentMapper mapper = mapperService.merge("test", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         List<BytesRef> bytesList1 = new ArrayList<>(2);

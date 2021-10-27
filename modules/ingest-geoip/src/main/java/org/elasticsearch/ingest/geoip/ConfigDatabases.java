@@ -11,8 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -58,11 +58,12 @@ final class ConfigDatabases implements Closeable {
             // Therefore, we have to copy these database files ourselves. To do this, we need the ability to specify where
             // those database files would go. We do this by adding a plugin that registers ingest.geoip.database_path as an
             // actual setting. Otherwise, in production code, this setting is not registered and the database path is not configurable.
-            environment.settings().get("ingest.geoip.database_path") != null ?
-                getGeoipConfigDirectory(environment) :
-                environment.modulesFile().resolve("ingest-geoip"),
+            environment.settings().get("ingest.geoip.database_path") != null
+                ? getGeoipConfigDirectory(environment)
+                : environment.modulesFile().resolve("ingest-geoip"),
             environment.configFile().resolve("ingest-geoip"),
-            cache);
+            cache
+        );
     }
 
     ConfigDatabases(Path geoipModuleDir, Path geoipConfigDir, GeoIpCache cache) {
@@ -79,8 +80,12 @@ final class ConfigDatabases implements Closeable {
         watcher.addListener(new GeoipDirectoryListener());
         resourceWatcher.add(watcher, ResourceWatcherService.Frequency.HIGH);
 
-        LOGGER.info("initialized default databases [{}], config databases [{}] and watching [{}] for changes",
-            defaultDatabases.keySet(), configDatabases.keySet(), geoipConfigDir);
+        LOGGER.info(
+            "initialized default databases [{}], config databases [{}] and watching [{}] for changes",
+            defaultDatabases.keySet(),
+            configDatabases.keySet(),
+            geoipConfigDir
+        );
     }
 
     DatabaseReaderLazyLoader getDatabase(String name, boolean fallbackUsingDefaultDatabases) {

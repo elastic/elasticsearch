@@ -13,8 +13,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -58,11 +58,8 @@ public class NestedObjectMapper extends ObjectMapper {
 
     public static class TypeParser extends ObjectMapper.TypeParser {
         @Override
-        public Mapper.Builder parse(
-            String name,
-            Map<String, Object> node,
-            MappingParserContext parserContext
-        ) throws MapperParsingException {
+        public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
+            throws MapperParsingException {
             NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(name, parserContext.indexVersionCreated());
             parseNested(name, node, builder);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -97,12 +94,7 @@ public class NestedObjectMapper extends ObjectMapper {
     private final String nestedTypePath;
     private final Query nestedTypeFilter;
 
-    NestedObjectMapper(
-        String name,
-        String fullPath,
-        Map<String, Mapper> mappers,
-        Builder builder
-    ) {
+    NestedObjectMapper(String name, String fullPath, Map<String, Mapper> mappers, Builder builder) {
         super(name, fullPath, builder.enabled, builder.dynamic, mappers);
         this.nestedTypePath = "__" + fullPath;
         this.nestedTypeFilter = new TermQuery(new Term(TypeFieldMapper.NAME, nestedTypePath));

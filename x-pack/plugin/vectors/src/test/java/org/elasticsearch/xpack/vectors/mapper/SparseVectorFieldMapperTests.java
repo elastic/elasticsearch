@@ -5,20 +5,19 @@
  * 2.0.
  */
 
-
 package org.elasticsearch.xpack.vectors.mapper;
 
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.vectors.DenseVectorPlugin;
 import org.hamcrest.Matchers;
 
@@ -38,7 +37,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
 
     @Override
     protected String[] getParseMinimalWarnings() {
-        return new String[]{ "The [sparse_vector] field type is deprecated and will be removed in 8.0." };
+        return new String[] { "The [sparse_vector] field type is deprecated and will be removed in 8.0." };
     }
 
     @Override
@@ -73,8 +72,8 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
 
     public void testDefaults() throws Exception {
         Version indexVersion = Version.CURRENT;
-        int[] indexedDims = {65535, 50, 2};
-        float[] indexedValues = {0.5f, 1800f, -34567.11f};
+        int[] indexedDims = { 65535, 50, 2 };
+        float[] indexedValues = { 0.5f, 1800f, -34567.11f };
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc1 = mapper.parse(source(b -> {
             b.startObject("field");
@@ -88,10 +87,10 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         assertThat(fields[0], Matchers.instanceOf(BinaryDocValuesField.class));
 
         // assert that after decoding the indexed values are equal to expected
-        int[] expectedDims = {2, 50, 65535}; //the same as indexed but sorted
-        float[] expectedValues = {-34567.11f, 1800f, 0.5f}; //the same as indexed but sorted by their dimensions
+        int[] expectedDims = { 2, 50, 65535 }; // the same as indexed but sorted
+        float[] expectedValues = { -34567.11f, 1800f, 0.5f }; // the same as indexed but sorted by their dimensions
         double dotProduct = 0.0f;
-        for (float value: expectedValues) {
+        for (float value : expectedValues) {
             dotProduct += value * value;
         }
         float expectedMagnitude = (float) Math.sqrt(dotProduct);
@@ -99,18 +98,9 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         // assert that after decoded magnitude, dims and values are equal to expected
         BytesRef vectorBR = fields[0].binaryValue();
         int[] decodedDims = VectorEncoderDecoder.decodeSparseVectorDims(indexVersion, vectorBR);
-        assertArrayEquals(
-            "Decoded sparse vector dimensions are not equal to the indexed ones.",
-            expectedDims,
-            decodedDims
-        );
+        assertArrayEquals("Decoded sparse vector dimensions are not equal to the indexed ones.", expectedDims, decodedDims);
         float[] decodedValues = VectorEncoderDecoder.decodeSparseVector(indexVersion, vectorBR);
-        assertArrayEquals(
-            "Decoded sparse vector values are not equal to the indexed ones.",
-            expectedValues,
-            decodedValues,
-            0.001f
-        );
+        assertArrayEquals("Decoded sparse vector values are not equal to the indexed ones.", expectedValues, decodedValues, 0.001f);
         float decodedMagnitude = VectorEncoderDecoder.decodeMagnitude(indexVersion, vectorBR);
         assertEquals(expectedMagnitude, decodedMagnitude, 0.001f);
 
@@ -121,8 +111,8 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         Version indexVersion = Version.V_7_4_0;
         DocumentMapper mapper = createDocumentMapper(indexVersion, fieldMapping(this::minimalMapping));
 
-        int[] indexedDims = {65535, 50, 2};
-        float[] indexedValues = {0.5f, 1800f, -34567.11f};
+        int[] indexedDims = { 65535, 50, 2 };
+        float[] indexedValues = { 0.5f, 1800f, -34567.11f };
         ParsedDocument doc1 = mapper.parse(source(b -> {
             b.startObject("field");
             b.field(Integer.toString(indexedDims[0]), indexedValues[0]);
@@ -135,24 +125,15 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         assertThat(fields[0], Matchers.instanceOf(BinaryDocValuesField.class));
 
         // assert that after decoding the indexed values are equal to expected
-        int[] expectedDims = {2, 50, 65535}; //the same as indexed but sorted
-        float[] expectedValues = {-34567.11f, 1800f, 0.5f}; //the same as indexed but sorted by their dimensions
+        int[] expectedDims = { 2, 50, 65535 }; // the same as indexed but sorted
+        float[] expectedValues = { -34567.11f, 1800f, 0.5f }; // the same as indexed but sorted by their dimensions
 
         // assert that after decoded magnitude, dims and values are equal to expected
         BytesRef vectorBR = fields[0].binaryValue();
         int[] decodedDims = VectorEncoderDecoder.decodeSparseVectorDims(indexVersion, vectorBR);
-        assertArrayEquals(
-            "Decoded sparse vector dimensions are not equal to the indexed ones.",
-            expectedDims,
-            decodedDims
-        );
+        assertArrayEquals("Decoded sparse vector dimensions are not equal to the indexed ones.", expectedDims, decodedDims);
         float[] decodedValues = VectorEncoderDecoder.decodeSparseVector(indexVersion, vectorBR);
-        assertArrayEquals(
-            "Decoded sparse vector values are not equal to the indexed ones.",
-            expectedValues,
-            decodedValues,
-            0.001f
-        );
+        assertArrayEquals("Decoded sparse vector values are not equal to the indexed ones.", expectedValues, decodedValues, 0.001f);
 
         assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
     }
@@ -168,8 +149,10 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             }));
         });
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(e.getCause().getMessage(), containsString(
-            "dimension number must be a non-negative integer value not exceeding [65535], got [-50]"));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("dimension number must be a non-negative integer value not exceeding [65535], got [-50]")
+        );
 
         // 2. test for an error on a dimension greater than MAX_DIMS_NUMBER
         e = expectThrows(MapperParsingException.class, () -> {
@@ -180,8 +163,10 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             }));
         });
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(e.getCause().getMessage(), containsString(
-            "dimension number must be a non-negative integer value not exceeding [65535], got [70000]"));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("dimension number must be a non-negative integer value not exceeding [65535], got [70000]")
+        );
 
         // 3. test for an error on a wrong formatted dimension
         e = expectThrows(MapperParsingException.class, () -> {
@@ -192,10 +177,12 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             }));
         });
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(e.getCause().getMessage(), containsString(
-            "dimensions should be integers represented as strings, but got [WrongDim123]"));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("dimensions should be integers represented as strings, but got [WrongDim123]")
+        );
 
-         // 4. test for an error on a wrong format for the map of dims to values
+        // 4. test for an error on a wrong format for the map of dims to values
         e = expectThrows(MapperParsingException.class, () -> {
             mapper.parse(source(b -> {
                 b.startObject("field");
@@ -204,13 +191,15 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             }));
         });
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(e.getCause().getMessage(), containsString(
-            "takes an object that maps a dimension number to a float, but got unexpected token [START_ARRAY]"));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("takes an object that maps a dimension number to a float, but got unexpected token [START_ARRAY]")
+        );
 
         assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
     }
 
-      public void testDimensionLimit() throws IOException {
+    public void testDimensionLimit() throws IOException {
         Map<String, Object> validVector = IntStream.range(0, SparseVectorFieldMapper.MAX_DIMS_COUNT)
             .boxed()
             .collect(Collectors.toMap(String::valueOf, Function.identity()));
@@ -220,11 +209,13 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         mapper.parse(source(b -> b.field("field", validVector)));
 
         Map<String, Object> invalidVector = IntStream.range(0, SparseVectorFieldMapper.MAX_DIMS_COUNT + 1)
-          .boxed()
-          .collect(Collectors.toMap(String::valueOf, Function.identity()));
+            .boxed()
+            .collect(Collectors.toMap(String::valueOf, Function.identity()));
 
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-            () -> mapper.parse(source(b -> b.field("field", invalidVector))));
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", invalidVector)))
+        );
         assertThat(e.getDetailedMessage(), containsString("has exceeded the maximum allowed number of dimensions"));
 
         assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);

@@ -38,13 +38,20 @@ public class TokenCountFieldMapper extends FieldMapper {
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> store = Parameter.storeParam(m -> toType(m).store, false);
 
-        private final Parameter<NamedAnalyzer> analyzer
-            = Parameter.analyzerParam("analyzer", true, m -> toType(m).analyzer, () -> null);
+        private final Parameter<NamedAnalyzer> analyzer = Parameter.analyzerParam("analyzer", true, m -> toType(m).analyzer, () -> null);
         private final Parameter<Integer> nullValue = new Parameter<>(
-            "null_value", false, () -> null,
-            (n, c, o) -> o == null ? null : nodeIntegerValue(o), m -> toType(m).nullValue).acceptsNull();
-        private final Parameter<Boolean> enablePositionIncrements
-            = Parameter.boolParam("enable_position_increments", false, m -> toType(m).enablePositionIncrements, true);
+            "null_value",
+            false,
+            () -> null,
+            (n, c, o) -> o == null ? null : nodeIntegerValue(o),
+            m -> toType(m).nullValue
+        ).acceptsNull();
+        private final Parameter<Boolean> enablePositionIncrements = Parameter.boolParam(
+            "enable_position_increments",
+            false,
+            m -> toType(m).enablePositionIncrements,
+            true
+        );
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -68,7 +75,8 @@ public class TokenCountFieldMapper extends FieldMapper {
                 store.getValue(),
                 hasDocValues.getValue(),
                 nullValue.getValue(),
-                meta.getValue());
+                meta.getValue()
+            );
             return new TokenCountFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
@@ -116,8 +124,13 @@ public class TokenCountFieldMapper extends FieldMapper {
     private final boolean enablePositionIncrements;
     private final Integer nullValue;
 
-    protected TokenCountFieldMapper(String simpleName, MappedFieldType defaultFieldType,
-                                    MultiFields multiFields, CopyTo copyTo, Builder builder) {
+    protected TokenCountFieldMapper(
+        String simpleName,
+        MappedFieldType defaultFieldType,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        Builder builder
+    ) {
         super(simpleName, defaultFieldType, multiFields, copyTo);
         this.analyzer = builder.analyzer.getValue();
         this.enablePositionIncrements = builder.enablePositionIncrements.getValue();
@@ -142,9 +155,7 @@ public class TokenCountFieldMapper extends FieldMapper {
             tokenCount = countPositions(analyzer, name(), value, enablePositionIncrements);
         }
 
-        context.doc().addAll(
-            NumberFieldMapper.NumberType.INTEGER.createFields(fieldType().name(), tokenCount, index, hasDocValues, store)
-        );
+        context.doc().addAll(NumberFieldMapper.NumberType.INTEGER.createFields(fieldType().name(), tokenCount, index, hasDocValues, store));
     }
 
     /**

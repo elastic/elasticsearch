@@ -32,15 +32,13 @@ public class RestDeleteActionTests extends RestActionTestCase {
             return response;
         });
 
-        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(Method.DELETE)
+        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(Method.DELETE)
             .withPath("/some_index/some_type/some_id")
             .build();
         dispatchRequest(deprecatedRequest);
         assertWarnings(RestDeleteAction.TYPES_DEPRECATION_MESSAGE);
 
-        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(Method.DELETE)
+        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(Method.DELETE)
             .withPath("/some_index/_doc/some_id")
             .build();
         dispatchRequest(validRequest);

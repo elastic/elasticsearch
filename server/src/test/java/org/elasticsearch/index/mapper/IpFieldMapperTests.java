@@ -17,8 +17,8 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.termvectors.TermVectorsService;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -44,8 +44,7 @@ public class IpFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", "::1"));
-        checker.registerUpdateCheck(b -> b.field("ignore_malformed", false),
-            m -> assertFalse(((IpFieldMapper) m).ignoreMalformed()));
+        checker.registerUpdateCheck(b -> b.field("ignore_malformed", false), m -> assertFalse(((IpFieldMapper) m).ignoreMalformed()));
 
         registerDimensionChecks(checker);
     }
@@ -131,8 +130,7 @@ public class IpFieldMapperTests extends MapperTestCase {
         assertEquals(DocValuesType.SORTED_SET, dvField.fieldType().docValuesType());
         IndexableField storedField = fields[2];
         assertTrue(storedField.fieldType().stored());
-        assertEquals(new BytesRef(InetAddressPoint.encode(InetAddress.getByName("::1"))),
-                storedField.binaryValue());
+        assertEquals(new BytesRef(InetAddressPoint.encode(InetAddress.getByName("::1"))), storedField.binaryValue());
     }
 
     public void testIgnoreMalformed() throws Exception {
@@ -245,10 +243,11 @@ public class IpFieldMapperTests extends MapperTestCase {
             b.field("time_series_dimension", true);
         }));
 
-        Exception e = expectThrows(MapperParsingException.class,
-            () -> mapper.parse(source(b -> b.array("field", "192.168.1.1", "192.168.1.1"))));
-        assertThat(e.getCause().getMessage(),
-            containsString("Dimension field [field] cannot be a multi-valued field"));
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", "192.168.1.1", "192.168.1.1")))
+        );
+        assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be a multi-valued field"));
     }
 
     @Override
@@ -268,8 +267,10 @@ public class IpFieldMapperTests extends MapperTestCase {
                 b.field("script", "test");
                 b.field("null_value", 7);
             })));
-            assertThat(e.getMessage(),
-                equalTo("Failed to parse mapping [_doc]: Field [null_value] cannot be set in conjunction with field [script]"));
+            assertThat(
+                e.getMessage(),
+                equalTo("Failed to parse mapping [_doc]: Field [null_value] cannot be set in conjunction with field [script]")
+            );
         }
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
@@ -277,8 +278,10 @@ public class IpFieldMapperTests extends MapperTestCase {
                 b.field("script", "test");
                 b.field("ignore_malformed", "true");
             })));
-            assertThat(e.getMessage(),
-                equalTo("Failed to parse mapping [_doc]: Field [ignore_malformed] cannot be set in conjunction with field [script]"));
+            assertThat(
+                e.getMessage(),
+                equalTo("Failed to parse mapping [_doc]: Field [ignore_malformed] cannot be set in conjunction with field [script]")
+            );
         }
     }
 }

@@ -17,9 +17,9 @@ import org.junit.Before;
 
 import java.util.concurrent.ExecutorService;
 
-import static org.mockito.Mockito.doAnswer;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -55,15 +55,25 @@ public class MlInitializationServiceTests extends ESTestCase {
     }
 
     public void testInitialize() {
-        MlInitializationService initializationService =
-            new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client, mlAssignmentNotifier);
+        MlInitializationService initializationService = new MlInitializationService(
+            Settings.EMPTY,
+            threadPool,
+            clusterService,
+            client,
+            mlAssignmentNotifier
+        );
         initializationService.onMaster();
         assertThat(initializationService.getDailyMaintenanceService().isStarted(), is(true));
     }
 
     public void testInitialize_noMasterNode() {
-        MlInitializationService initializationService =
-            new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client, mlAssignmentNotifier);
+        MlInitializationService initializationService = new MlInitializationService(
+            Settings.EMPTY,
+            threadPool,
+            clusterService,
+            client,
+            mlAssignmentNotifier
+        );
         initializationService.offMaster();
         assertThat(initializationService.getDailyMaintenanceService().isStarted(), is(false));
     }

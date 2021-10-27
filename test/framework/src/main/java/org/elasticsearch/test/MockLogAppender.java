@@ -150,12 +150,13 @@ public class MockLogAppender extends AbstractAppender {
         private final String exceptionMessage;
 
         public ExceptionSeenEventExpectation(
-                final String name,
-                final String logger,
-                final Level level,
-                final String message,
-                final Class<? extends Exception> clazz,
-                final String exceptionMessage) {
+            final String name,
+            final String logger,
+            final Level level,
+            final String message,
+            final Class<? extends Exception> clazz,
+            final String exceptionMessage
+        ) {
             super(name, logger, level, message);
             this.clazz = clazz;
             this.exceptionMessage = exceptionMessage;
@@ -164,8 +165,8 @@ public class MockLogAppender extends AbstractAppender {
         @Override
         public boolean innerMatch(final LogEvent event) {
             return event.getThrown() != null
-                    && event.getThrown().getClass() == clazz
-                    && event.getThrown().getMessage().equals(exceptionMessage);
+                && event.getThrown().getClass() == clazz
+                && event.getThrown().getMessage().equals(exceptionMessage);
         }
 
     }

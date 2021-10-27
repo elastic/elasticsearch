@@ -34,49 +34,68 @@ public final class ResizeRequestInterceptor implements RequestInterceptor {
     private final XPackLicenseState licenseState;
     private final AuditTrailService auditTrailService;
 
-    public ResizeRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState,
-                                    AuditTrailService auditTrailService) {
+    public ResizeRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState, AuditTrailService auditTrailService) {
         this.threadContext = threadPool.getThreadContext();
         this.licenseState = licenseState;
         this.auditTrailService = auditTrailService;
     }
 
     @Override
-    public void intercept(RequestInfo requestInfo, AuthorizationEngine authorizationEngine, AuthorizationInfo authorizationInfo,
-                          ActionListener<Void> listener) {
+    public void intercept(
+        RequestInfo requestInfo,
+        AuthorizationEngine authorizationEngine,
+        AuthorizationInfo authorizationInfo,
+        ActionListener<Void> listener
+    ) {
         if (requestInfo.getRequest() instanceof ResizeRequest) {
             final ResizeRequest request = (ResizeRequest) requestInfo.getRequest();
             final XPackLicenseState frozenLicenseState = licenseState.copyCurrentLicenseState();
             final AuditTrail auditTrail = auditTrailService.get();
             if (frozenLicenseState.isSecurityEnabled()) {
-                IndicesAccessControl indicesAccessControl =
-                    threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
-                IndicesAccessControl.IndexAccessControl indexAccessControl =
-                    indicesAccessControl.getIndexPermissions(request.getSourceIndex());
+                IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+                IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(
+                    request.getSourceIndex()
+                );
                 if (indexAccessControl != null) {
                     final boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
                     final boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
                     if ((fls || dls) && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(frozenLicenseState)) {
-                        listener.onFailure(new ElasticsearchSecurityException("Resize requests are not allowed for users when " +
-                            "field or document level security is enabled on the source index", RestStatus.BAD_REQUEST));
+                        listener.onFailure(
+                            new ElasticsearchSecurityException(
+                                "Resize requests are not allowed for users when "
+                                    + "field or document level security is enabled on the source index",
+                                RestStatus.BAD_REQUEST
+                            )
+                        );
                         return;
                     }
                 }
 
-                authorizationEngine.validateIndexPermissionsAreSubset(requestInfo, authorizationInfo,
+                authorizationEngine.validateIndexPermissionsAreSubset(
+                    requestInfo,
+                    authorizationInfo,
                     Collections.singletonMap(request.getSourceIndex(), Collections.singletonList(request.getTargetIndexRequest().index())),
                     wrapPreservingContext(ActionListener.wrap(authzResult -> {
                         if (authzResult.isGranted()) {
                             listener.onResponse(null);
                         } else {
                             if (authzResult.isAuditable()) {
-                                auditTrail.accessDenied(extractRequestId(threadContext), requestInfo.getAuthentication(),
-                                    requestInfo.getAction(), request, authorizationInfo);
+                                auditTrail.accessDenied(
+                                    extractRequestId(threadContext),
+                                    requestInfo.getAuthentication(),
+                                    requestInfo.getAction(),
+                                    request,
+                                    authorizationInfo
+                                );
                             }
-                            listener.onFailure(Exceptions.authorizationError("Resizing an index is not allowed when the target index " +
-                                "has more permissions than the source index"));
+                            listener.onFailure(
+                                Exceptions.authorizationError(
+                                    "Resizing an index is not allowed when the target index " + "has more permissions than the source index"
+                                )
+                            );
                         }
-                    }, listener::onFailure), threadContext));
+                    }, listener::onFailure), threadContext)
+                );
             } else {
                 listener.onResponse(null);
             }

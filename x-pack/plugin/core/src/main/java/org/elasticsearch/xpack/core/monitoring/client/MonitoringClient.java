@@ -26,7 +26,6 @@ public class MonitoringClient {
         this.client = client;
     }
 
-
     /**
      * Creates a request builder that bulk index monitoring documents.
      *

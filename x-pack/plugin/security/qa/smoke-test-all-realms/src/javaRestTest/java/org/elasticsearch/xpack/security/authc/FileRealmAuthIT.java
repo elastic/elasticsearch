@@ -26,8 +26,7 @@ public class FileRealmAuthIT extends SecurityRealmSmokeTestCase {
 
     public void testAuthenticationUsingFileRealm() throws IOException {
         Map<String, Object> authenticate = super.authenticate(
-            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization",
-                UsernamePasswordToken.basicAuthHeaderValue(USERNAME, PASSWORD))
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(USERNAME, PASSWORD))
         );
 
         assertUsername(authenticate, USERNAME);

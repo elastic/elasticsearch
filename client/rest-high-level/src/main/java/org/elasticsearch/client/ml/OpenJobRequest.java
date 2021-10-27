@@ -10,10 +10,10 @@ package org.elasticsearch.client.ml;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -28,7 +28,10 @@ public class OpenJobRequest extends ActionRequest implements ToXContentObject {
 
     public static final ParseField TIMEOUT = new ParseField("timeout");
     public static final ConstructingObjectParser<OpenJobRequest, Void> PARSER = new ConstructingObjectParser<>(
-        "open_job_request", true, a -> new OpenJobRequest((String) a[0]));
+        "open_job_request",
+        true,
+        a -> new OpenJobRequest((String) a[0])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);

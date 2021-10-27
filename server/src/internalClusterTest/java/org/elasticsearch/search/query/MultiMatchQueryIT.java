@@ -14,8 +14,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
@@ -28,6 +26,8 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockKeywordPlugin;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -72,7 +72,8 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
 
     @Before
     public void init() throws Exception {
-        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
+        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(
+            Settings.builder()
                 .put(indexSettings())
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
@@ -87,51 +88,111 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         ensureGreen();
         int numDocs = scaledRandomIntBetween(50, 100);
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex("test", "test", "theone").setSource(
-                "id", "theone",
-                "full_name", "Captain America",
-                "first_name", "Captain",
-                "last_name", "America",
-                "category", "marvel hero",
-                "skill", 15,
-                "int-field", 25));
-        builders.add(client().prepareIndex("test", "test", "theother").setSource(
-                "id", "theother",
-                "full_name", "marvel hero",
-                "first_name", "marvel",
-                "last_name", "hero",
-                "category", "bogus",
-                "skill", 5));
+        builders.add(
+            client().prepareIndex("test", "test", "theone")
+                .setSource(
+                    "id",
+                    "theone",
+                    "full_name",
+                    "Captain America",
+                    "first_name",
+                    "Captain",
+                    "last_name",
+                    "America",
+                    "category",
+                    "marvel hero",
+                    "skill",
+                    15,
+                    "int-field",
+                    25
+                )
+        );
+        builders.add(
+            client().prepareIndex("test", "test", "theother")
+                .setSource(
+                    "id",
+                    "theother",
+                    "full_name",
+                    "marvel hero",
+                    "first_name",
+                    "marvel",
+                    "last_name",
+                    "hero",
+                    "category",
+                    "bogus",
+                    "skill",
+                    5
+                )
+        );
 
-        builders.add(client().prepareIndex("test", "test", "ultimate1").setSource(
-                "id", "ultimate1",
-                "full_name", "Alpha the Ultimate Mutant",
-                "first_name", "Alpha the",
-                "last_name", "Ultimate Mutant",
-                "category", "marvel hero",
-                "skill", 1));
-        builders.add(client().prepareIndex("test", "test", "ultimate2").setSource(
-                "full_name", "Man the Ultimate Ninja",
-                "first_name", "Man the Ultimate",
-                "last_name", "Ninja",
-                "category", "marvel hero",
-                "skill", 3));
+        builders.add(
+            client().prepareIndex("test", "test", "ultimate1")
+                .setSource(
+                    "id",
+                    "ultimate1",
+                    "full_name",
+                    "Alpha the Ultimate Mutant",
+                    "first_name",
+                    "Alpha the",
+                    "last_name",
+                    "Ultimate Mutant",
+                    "category",
+                    "marvel hero",
+                    "skill",
+                    1
+                )
+        );
+        builders.add(
+            client().prepareIndex("test", "test", "ultimate2")
+                .setSource(
+                    "full_name",
+                    "Man the Ultimate Ninja",
+                    "first_name",
+                    "Man the Ultimate",
+                    "last_name",
+                    "Ninja",
+                    "category",
+                    "marvel hero",
+                    "skill",
+                    3
+                )
+        );
 
-        builders.add(client().prepareIndex("test", "test", "anotherhero").setSource(
-                "id", "anotherhero",
-                "full_name", "ultimate",
-                "first_name", "wolferine",
-                "last_name", "",
-                "category", "marvel hero",
-                "skill", 1));
+        builders.add(
+            client().prepareIndex("test", "test", "anotherhero")
+                .setSource(
+                    "id",
+                    "anotherhero",
+                    "full_name",
+                    "ultimate",
+                    "first_name",
+                    "wolferine",
+                    "last_name",
+                    "",
+                    "category",
+                    "marvel hero",
+                    "skill",
+                    1
+                )
+        );
 
-        builders.add(client().prepareIndex("test", "test", "nowHero").setSource(
-                "id", "nowHero",
-                "full_name", "now sort of",
-                "first_name", "now",
-                "last_name", "",
-                "category", "marvel hero",
-                "skill", 1));
+        builders.add(
+            client().prepareIndex("test", "test", "nowHero")
+                .setSource(
+                    "id",
+                    "nowHero",
+                    "full_name",
+                    "now sort of",
+                    "first_name",
+                    "now",
+                    "last_name",
+                    "",
+                    "category",
+                    "marvel hero",
+                    "skill",
+                    1
+                )
+        );
         List<String> firstNames = new ArrayList<>();
         fill(firstNames, "Captain", between(15, 25));
         fill(firstNames, "Ultimate", between(5, 10));
@@ -142,54 +203,71 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             String first = RandomPicks.randomFrom(random(), firstNames);
             String last = randomPickExcept(lastNames, first);
-            builders.add(client().prepareIndex("test", "test", "" + i).setSource(
-                    "id", i,
-                    "full_name", first + " " + last,
-                    "first_name", first,
-                    "last_name", last,
-                    "category", randomBoolean() ? "marvel hero" : "bogus",
-                    "skill", between(1, 3)));
+            builders.add(
+                client().prepareIndex("test", "test", "" + i)
+                    .setSource(
+                        "id",
+                        i,
+                        "full_name",
+                        first + " " + last,
+                        "first_name",
+                        first,
+                        "last_name",
+                        last,
+                        "category",
+                        randomBoolean() ? "marvel hero" : "bogus",
+                        "skill",
+                        between(1, 3)
+                    )
+            );
         }
         indexRandom(true, false, builders);
     }
 
     private XContentBuilder createMapping() throws IOException {
-        return XContentFactory.jsonBuilder().startObject().startObject("test")
-                .startObject("properties")
-                .startObject("id")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("full_name")
-                .field("type", "text")
-                .field("copy_to", "full_name_phrase")
-                .field("analyzer", "perfect_match")
-                .endObject()
-                .startObject("category")
-                .field("type", "text")
-                .field("analyzer", "category")
-                .endObject()
-                .startObject("first_name")
-                .field("type", "text")
-                .field("norms", false)
-                .field("copy_to", "first_name_phrase")
-                .endObject()
-                .startObject("last_name")
-                .field("type", "text")
-                .field("norms", false)
-                .field("copy_to", "last_name_phrase")
-                .endObject()
-                .startObject("date")
-                .field("type", "date")
-                .endObject()
-                .endObject()
-                .endObject().endObject();
+        return XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("test")
+            .startObject("properties")
+            .startObject("id")
+            .field("type", "keyword")
+            .endObject()
+            .startObject("full_name")
+            .field("type", "text")
+            .field("copy_to", "full_name_phrase")
+            .field("analyzer", "perfect_match")
+            .endObject()
+            .startObject("category")
+            .field("type", "text")
+            .field("analyzer", "category")
+            .endObject()
+            .startObject("first_name")
+            .field("type", "text")
+            .field("norms", false)
+            .field("copy_to", "first_name_phrase")
+            .endObject()
+            .startObject("last_name")
+            .field("type", "text")
+            .field("norms", false)
+            .field("copy_to", "last_name_phrase")
+            .endObject()
+            .startObject("date")
+            .field("type", "date")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
     }
 
     public void testDefaults() throws ExecutionException, InterruptedException {
         MatchQueryParser.Type type = MatchQueryParser.Type.BOOLEAN;
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("marvel hero captain america", "full_name", "first_name", "last_name", "category")
-                        .operator(Operator.OR))).get();
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("marvel hero captain america", "full_name", "first_name", "last_name", "category").operator(Operator.OR)
+                )
+            )
+            .get();
         Set<String> topNIds = Sets.newHashSet("theone", "theother");
         for (int i = 0; i < searchResponse.getHits().getHits().length; i++) {
             topNIds.remove(searchResponse.getHits().getAt(i).getId());
@@ -200,68 +278,119 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits()[0].getScore(), greaterThan(searchResponse.getHits().getHits()[1].getScore()));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("marvel hero captain america", "full_name", "first_name", "last_name", "category")
-                        .operator(Operator.OR).type(type))).get();
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("marvel hero captain america", "full_name", "first_name", "last_name", "category").operator(Operator.OR)
+                        .type(type)
+                )
+            )
+            .get();
         assertFirstHit(searchResponse, anyOf(hasId("theone"), hasId("theother")));
         assertThat(searchResponse.getHits().getHits()[0].getScore(), greaterThan(searchResponse.getHits().getHits()[1].getScore()));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("marvel hero", "full_name", "first_name", "last_name", "category")
-                        .operator(Operator.OR).type(type))).get();
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("marvel hero", "full_name", "first_name", "last_name", "category").operator(Operator.OR).type(type)
+                )
+            )
+            .get();
         assertFirstHit(searchResponse, hasId("theother"));
 
-
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("captain america", "full_name", "first_name", "last_name", "category")
-                        .operator(Operator.AND).type(type))).get();
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("captain america", "full_name", "first_name", "last_name", "category").operator(Operator.AND).type(type)
+                )
+            )
+            .get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("theone"));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("captain america", "full_name", "first_name", "last_name", "category")
-                        .operator(Operator.AND).type(type))).get();
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("captain america", "full_name", "first_name", "last_name", "category").operator(Operator.AND).type(type)
+                )
+            )
+            .get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("theone"));
     }
 
     public void testPhraseType() {
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("Man the Ultimate", "full_name_phrase", "first_name_phrase", "last_name_phrase",
-                        "category_phrase")
-                        .operator(Operator.OR).type(MatchQueryParser.Type.PHRASE))).get();
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("Man the Ultimate", "full_name_phrase", "first_name_phrase", "last_name_phrase", "category_phrase")
+                        .operator(Operator.OR)
+                        .type(MatchQueryParser.Type.PHRASE)
+                )
+            )
+            .get();
         assertFirstHit(searchResponse, hasId("ultimate2"));
         assertHitCount(searchResponse, 1L);
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("Captain", "full_name_phrase", "first_name_phrase", "last_name_phrase",
-                        "category_phrase")
-                        .operator(Operator.OR).type(MatchQueryParser.Type.PHRASE))).get();
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("Captain", "full_name_phrase", "first_name_phrase", "last_name_phrase", "category_phrase").operator(
+                        Operator.OR
+                    ).type(MatchQueryParser.Type.PHRASE)
+                )
+            )
+            .get();
         assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(1L));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("the Ul", "full_name_phrase", "first_name_phrase", "last_name_phrase",
-                        "category_phrase")
-                        .operator(Operator.OR).type(MatchQueryParser.Type.PHRASE_PREFIX))).get();
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("the Ul", "full_name_phrase", "first_name_phrase", "last_name_phrase", "category_phrase").operator(
+                        Operator.OR
+                    ).type(MatchQueryParser.Type.PHRASE_PREFIX)
+                )
+            )
+            .get();
         assertSearchHits(searchResponse, "ultimate2", "ultimate1");
         assertHitCount(searchResponse, 2L);
     }
 
     public void testSingleField() throws NoSuchFieldException, IllegalAccessException {
-        SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("15", "skill"))).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(randomizeType(multiMatchQuery("15", "skill"))).get();
         assertNoFailures(searchResponse);
         assertFirstHit(searchResponse, hasId("theone"));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("15", "skill", "int-field")).analyzer("category")).get();
+            .setQuery(randomizeType(multiMatchQuery("15", "skill", "int-field")).analyzer("category"))
+            .get();
         assertNoFailures(searchResponse);
         assertFirstHit(searchResponse, hasId("theone"));
 
-        String[] fields = { "full_name", "first_name", "last_name", "last_name_phrase", "first_name_phrase", "category_phrase", "category",
-                "missing_field", "missing_fields*" };
+        String[] fields = {
+            "full_name",
+            "first_name",
+            "last_name",
+            "last_name_phrase",
+            "first_name_phrase",
+            "category_phrase",
+            "category",
+            "missing_field",
+            "missing_fields*" };
 
-        String[] query = {"marvel","hero", "captain",  "america", "15", "17", "1", "5", "ultimate", "Man",
-                "marvel", "wolferine", "ninja"};
+        String[] query = {
+            "marvel",
+            "hero",
+            "captain",
+            "america",
+            "15",
+            "17",
+            "1",
+            "5",
+            "ultimate",
+            "Man",
+            "marvel",
+            "wolferine",
+            "ninja" };
 
         // check if it's equivalent to a match query.
         int numIters = scaledRandomIntBetween(10, 100);
@@ -274,20 +403,25 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
             }
             MultiMatchQueryBuilder multiMatchQueryBuilder = randomizeType(multiMatchQuery(builder.toString(), field));
             SearchResponse multiMatchResp = client().prepareSearch("test")
-                    // id sort field is a tie, in case hits have the same score,
-                    // the hits will be sorted the same consistently
-                    .addSort("_score", SortOrder.DESC)
-                    .addSort("id", SortOrder.ASC)
-                    .setQuery(multiMatchQueryBuilder).get();
+                // id sort field is a tie, in case hits have the same score,
+                // the hits will be sorted the same consistently
+                .addSort("_score", SortOrder.DESC)
+                .addSort("id", SortOrder.ASC)
+                .setQuery(multiMatchQueryBuilder)
+                .get();
             MatchQueryBuilder matchQueryBuilder = QueryBuilders.matchQuery(field, builder.toString());
 
             SearchResponse matchResp = client().prepareSearch("test")
-                    // id tie sort
-                    .addSort("_score", SortOrder.DESC)
-                    .addSort("id", SortOrder.ASC)
-                    .setQuery(matchQueryBuilder).get();
-            assertThat("field: " + field + " query: " + builder.toString(), multiMatchResp.getHits().getTotalHits().value,
-                    equalTo(matchResp.getHits().getTotalHits().value));
+                // id tie sort
+                .addSort("_score", SortOrder.DESC)
+                .addSort("id", SortOrder.ASC)
+                .setQuery(matchQueryBuilder)
+                .get();
+            assertThat(
+                "field: " + field + " query: " + builder.toString(),
+                multiMatchResp.getHits().getTotalHits().value,
+                equalTo(matchResp.getHits().getTotalHits().value)
+            );
             SearchHits hits = multiMatchResp.getHits();
             if (field.startsWith("missing")) {
                 assertEquals(0, hits.getHits().length);
@@ -301,13 +435,17 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
     }
 
     public void testCutoffFreq() throws ExecutionException, InterruptedException {
-        final long numDocs = client().prepareSearch("test").setSize(0)
-                .setQuery(matchAllQuery()).get().getHits().getTotalHits().value;
+        final long numDocs = client().prepareSearch("test").setSize(0).setQuery(matchAllQuery()).get().getHits().getTotalHits().value;
         MatchQueryParser.Type type = MatchQueryParser.Type.BOOLEAN;
         Float cutoffFrequency = randomBoolean() ? Math.min(1, numDocs * 1.f / between(10, 20)) : 1.f / between(10, 20);
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("marvel hero captain america", "full_name", "first_name", "last_name", "category")
-                        .operator(Operator.OR).cutoffFrequency(cutoffFrequency))).get();
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("marvel hero captain america", "full_name", "first_name", "last_name", "category").operator(Operator.OR)
+                        .cutoffFrequency(cutoffFrequency)
+                )
+            )
+            .get();
         Set<String> topNIds = Sets.newHashSet("theone", "theother");
         for (int i = 0; i < searchResponse.getHits().getHits().length; i++) {
             topNIds.remove(searchResponse.getHits().getAt(i).getId());
@@ -315,75 +453,114 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
             // the doc id is the tie-breaker
         }
         assertThat(topNIds, empty());
-        assertThat(searchResponse.getHits().getHits()[0].getScore(),
-                greaterThanOrEqualTo(searchResponse.getHits().getHits()[1].getScore()));
+        assertThat(
+            searchResponse.getHits().getHits()[0].getScore(),
+            greaterThanOrEqualTo(searchResponse.getHits().getHits()[1].getScore())
+        );
 
         cutoffFrequency = randomBoolean() ? Math.min(1, numDocs * 1.f / between(10, 20)) : 1.f / between(10, 20);
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("marvel hero captain america", "full_name", "first_name", "last_name", "category")
-                        .operator(Operator.OR).cutoffFrequency(cutoffFrequency).type(type))).get();
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("marvel hero captain america", "full_name", "first_name", "last_name", "category").operator(Operator.OR)
+                        .cutoffFrequency(cutoffFrequency)
+                        .type(type)
+                )
+            )
+            .get();
         assertFirstHit(searchResponse, anyOf(hasId("theone"), hasId("theother")));
         assertThat(searchResponse.getHits().getHits()[0].getScore(), greaterThan(searchResponse.getHits().getHits()[1].getScore()));
         long size = searchResponse.getHits().getTotalHits().value;
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("marvel hero captain america", "full_name", "first_name", "last_name", "category")
-                        .operator(Operator.OR).type(type))).get();
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("marvel hero captain america", "full_name", "first_name", "last_name", "category").operator(Operator.OR)
+                        .type(type)
+                )
+            )
+            .get();
         assertFirstHit(searchResponse, anyOf(hasId("theone"), hasId("theother")));
         assertThat("common terms expected to be a way smaller result set", size, lessThan(searchResponse.getHits().getTotalHits().value));
 
         cutoffFrequency = randomBoolean() ? Math.min(1, numDocs * 1.f / between(10, 20)) : 1.f / between(10, 20);
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("marvel hero", "full_name", "first_name", "last_name", "category")
-                        .operator(Operator.OR).cutoffFrequency(cutoffFrequency).type(type))).get();
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("marvel hero", "full_name", "first_name", "last_name", "category").operator(Operator.OR)
+                        .cutoffFrequency(cutoffFrequency)
+                        .type(type)
+                )
+            )
+            .get();
         assertFirstHit(searchResponse, hasId("theother"));
 
-
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("captain america", "full_name", "first_name", "last_name", "category")
-                        .operator(Operator.AND).cutoffFrequency(cutoffFrequency).type(type))).get();
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("captain america", "full_name", "first_name", "last_name", "category").operator(Operator.AND)
+                        .cutoffFrequency(cutoffFrequency)
+                        .type(type)
+                )
+            )
+            .get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("theone"));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("captain america", "full_name", "first_name", "last_name", "category")
-                        .operator(Operator.AND).cutoffFrequency(cutoffFrequency).type(type))).get();
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("captain america", "full_name", "first_name", "last_name", "category").operator(Operator.AND)
+                        .cutoffFrequency(cutoffFrequency)
+                        .type(type)
+                )
+            )
+            .get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("theone"));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("marvel hero", "first_name", "last_name", "category")
-                        .operator(Operator.AND).cutoffFrequency(cutoffFrequency)
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("marvel hero", "first_name", "last_name", "category").operator(Operator.AND)
+                        .cutoffFrequency(cutoffFrequency)
                         .analyzer("category")
-                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS))).get();
+                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
+                )
+            )
+            .get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("theother"));
     }
 
     public void testEquivalence() {
 
-        final int numDocs = (int) client().prepareSearch("test").setSize(0)
-                .setQuery(matchAllQuery()).get().getHits().getTotalHits().value;
+        final int numDocs = (int) client().prepareSearch("test").setSize(0).setQuery(matchAllQuery()).get().getHits().getTotalHits().value;
         int numIters = scaledRandomIntBetween(5, 10);
         for (int i = 0; i < numIters; i++) {
             {
                 MatchQueryParser.Type type = MatchQueryParser.Type.BOOLEAN;
-                MultiMatchQueryBuilder multiMatchQueryBuilder = randomBoolean() ?
-                        multiMatchQuery("marvel hero captain america", "full_name", "first_name", "last_name", "category") :
-                        multiMatchQuery("marvel hero captain america", "*_name", randomBoolean() ? "category" : "categ*");
-                SearchResponse left = client().prepareSearch("test").setSize(numDocs)
-                        .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("id"))
-                        .setQuery(randomizeType(multiMatchQueryBuilder
-                                .operator(Operator.OR).type(type))).get();
+                MultiMatchQueryBuilder multiMatchQueryBuilder = randomBoolean()
+                    ? multiMatchQuery("marvel hero captain america", "full_name", "first_name", "last_name", "category")
+                    : multiMatchQuery("marvel hero captain america", "*_name", randomBoolean() ? "category" : "categ*");
+                SearchResponse left = client().prepareSearch("test")
+                    .setSize(numDocs)
+                    .addSort(SortBuilders.scoreSort())
+                    .addSort(SortBuilders.fieldSort("id"))
+                    .setQuery(randomizeType(multiMatchQueryBuilder.operator(Operator.OR).type(type)))
+                    .get();
 
-                SearchResponse right = client().prepareSearch("test").setSize(numDocs)
-                        .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("id"))
-                        .setQuery(disMaxQuery().
-                                add(matchQuery("full_name", "marvel hero captain america"))
-                                .add(matchQuery("first_name", "marvel hero captain america"))
-                                .add(matchQuery("last_name", "marvel hero captain america"))
-                                .add(matchQuery("category", "marvel hero captain america"))
-                        ).get();
+                SearchResponse right = client().prepareSearch("test")
+                    .setSize(numDocs)
+                    .addSort(SortBuilders.scoreSort())
+                    .addSort(SortBuilders.fieldSort("id"))
+                    .setQuery(
+                        disMaxQuery().add(matchQuery("full_name", "marvel hero captain america"))
+                            .add(matchQuery("first_name", "marvel hero captain america"))
+                            .add(matchQuery("last_name", "marvel hero captain america"))
+                            .add(matchQuery("category", "marvel hero captain america"))
+                    )
+                    .get();
                 assertEquivalent("marvel hero captain america", left, right);
             }
 
@@ -391,65 +568,108 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 MatchQueryParser.Type type = MatchQueryParser.Type.BOOLEAN;
                 String minShouldMatch = randomBoolean() ? null : "" + between(0, 1);
                 Operator op = randomBoolean() ? Operator.AND : Operator.OR;
-                MultiMatchQueryBuilder multiMatchQueryBuilder = randomBoolean() ?
-                        multiMatchQuery("captain america", "full_name", "first_name", "last_name", "category") :
-                        multiMatchQuery("captain america", "*_name", randomBoolean() ? "category" : "categ*");
-                SearchResponse left = client().prepareSearch("test").setSize(numDocs)
-                        .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("id"))
-                        .setQuery(randomizeType(multiMatchQueryBuilder
-                                .operator(op).tieBreaker(1.0f).minimumShouldMatch(minShouldMatch).type(type))).get();
+                MultiMatchQueryBuilder multiMatchQueryBuilder = randomBoolean()
+                    ? multiMatchQuery("captain america", "full_name", "first_name", "last_name", "category")
+                    : multiMatchQuery("captain america", "*_name", randomBoolean() ? "category" : "categ*");
+                SearchResponse left = client().prepareSearch("test")
+                    .setSize(numDocs)
+                    .addSort(SortBuilders.scoreSort())
+                    .addSort(SortBuilders.fieldSort("id"))
+                    .setQuery(
+                        randomizeType(multiMatchQueryBuilder.operator(op).tieBreaker(1.0f).minimumShouldMatch(minShouldMatch).type(type))
+                    )
+                    .get();
 
-                SearchResponse right = client().prepareSearch("test").setSize(numDocs)
-                        .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("id"))
-                        .setQuery(boolQuery().minimumShouldMatch(minShouldMatch)
-                                .should(randomBoolean() ? termQuery("full_name", "captain america") :
-                                    matchQuery("full_name", "captain america").operator(op))
-                                .should(matchQuery("first_name", "captain america").operator(op))
-                                .should(matchQuery("last_name", "captain america").operator(op))
-                                .should(matchQuery("category", "captain america").operator(op))
-                        ).get();
+                SearchResponse right = client().prepareSearch("test")
+                    .setSize(numDocs)
+                    .addSort(SortBuilders.scoreSort())
+                    .addSort(SortBuilders.fieldSort("id"))
+                    .setQuery(
+                        boolQuery().minimumShouldMatch(minShouldMatch)
+                            .should(
+                                randomBoolean()
+                                    ? termQuery("full_name", "captain america")
+                                    : matchQuery("full_name", "captain america").operator(op)
+                            )
+                            .should(matchQuery("first_name", "captain america").operator(op))
+                            .should(matchQuery("last_name", "captain america").operator(op))
+                            .should(matchQuery("category", "captain america").operator(op))
+                    )
+                    .get();
                 assertEquivalent("captain america", left, right);
             }
 
             {
                 String minShouldMatch = randomBoolean() ? null : "" + between(0, 1);
-                SearchResponse left = client().prepareSearch("test").setSize(numDocs)
-                        .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("id"))
-                        .setQuery(randomizeType(multiMatchQuery("capta", "full_name", "first_name", "last_name", "category")
-                                .type(MatchQueryParser.Type.PHRASE_PREFIX).tieBreaker(1.0f).minimumShouldMatch(minShouldMatch))).get();
+                SearchResponse left = client().prepareSearch("test")
+                    .setSize(numDocs)
+                    .addSort(SortBuilders.scoreSort())
+                    .addSort(SortBuilders.fieldSort("id"))
+                    .setQuery(
+                        randomizeType(
+                            multiMatchQuery("capta", "full_name", "first_name", "last_name", "category").type(
+                                MatchQueryParser.Type.PHRASE_PREFIX
+                            ).tieBreaker(1.0f).minimumShouldMatch(minShouldMatch)
+                        )
+                    )
+                    .get();
 
-                SearchResponse right = client().prepareSearch("test").setSize(numDocs)
-                        .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("id"))
-                        .setQuery(boolQuery().minimumShouldMatch(minShouldMatch)
-                                .should(matchPhrasePrefixQuery("full_name", "capta"))
-                                .should(matchPhrasePrefixQuery("first_name", "capta"))
-                                .should(matchPhrasePrefixQuery("last_name", "capta"))
-                                .should(matchPhrasePrefixQuery("category", "capta"))
-                        ).get();
+                SearchResponse right = client().prepareSearch("test")
+                    .setSize(numDocs)
+                    .addSort(SortBuilders.scoreSort())
+                    .addSort(SortBuilders.fieldSort("id"))
+                    .setQuery(
+                        boolQuery().minimumShouldMatch(minShouldMatch)
+                            .should(matchPhrasePrefixQuery("full_name", "capta"))
+                            .should(matchPhrasePrefixQuery("first_name", "capta"))
+                            .should(matchPhrasePrefixQuery("last_name", "capta"))
+                            .should(matchPhrasePrefixQuery("category", "capta"))
+                    )
+                    .get();
                 assertEquivalent("capta", left, right);
             }
             {
                 String minShouldMatch = randomBoolean() ? null : "" + between(0, 1);
                 SearchResponse left;
                 if (randomBoolean()) {
-                    left = client().prepareSearch("test").setSize(numDocs)
-                            .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("id"))
-                            .setQuery(randomizeType(multiMatchQuery("captain america", "full_name", "first_name", "last_name", "category")
-                                    .type(MatchQueryParser.Type.PHRASE).minimumShouldMatch(minShouldMatch))).get();
+                    left = client().prepareSearch("test")
+                        .setSize(numDocs)
+                        .addSort(SortBuilders.scoreSort())
+                        .addSort(SortBuilders.fieldSort("id"))
+                        .setQuery(
+                            randomizeType(
+                                multiMatchQuery("captain america", "full_name", "first_name", "last_name", "category").type(
+                                    MatchQueryParser.Type.PHRASE
+                                ).minimumShouldMatch(minShouldMatch)
+                            )
+                        )
+                        .get();
                 } else {
-                    left = client().prepareSearch("test").setSize(numDocs)
-                            .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("id"))
-                            .setQuery(randomizeType(multiMatchQuery("captain america", "full_name", "first_name", "last_name", "category")
-                                    .type(MatchQueryParser.Type.PHRASE).tieBreaker(1.0f).minimumShouldMatch(minShouldMatch))).get();
+                    left = client().prepareSearch("test")
+                        .setSize(numDocs)
+                        .addSort(SortBuilders.scoreSort())
+                        .addSort(SortBuilders.fieldSort("id"))
+                        .setQuery(
+                            randomizeType(
+                                multiMatchQuery("captain america", "full_name", "first_name", "last_name", "category").type(
+                                    MatchQueryParser.Type.PHRASE
+                                ).tieBreaker(1.0f).minimumShouldMatch(minShouldMatch)
+                            )
+                        )
+                        .get();
                 }
-                SearchResponse right = client().prepareSearch("test").setSize(numDocs)
-                        .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("id"))
-                        .setQuery(boolQuery().minimumShouldMatch(minShouldMatch)
-                                .should(matchPhraseQuery("full_name", "captain america"))
-                                .should(matchPhraseQuery("first_name", "captain america"))
-                                .should(matchPhraseQuery("last_name", "captain america"))
-                                .should(matchPhraseQuery("category", "captain america"))
-                        ).get();
+                SearchResponse right = client().prepareSearch("test")
+                    .setSize(numDocs)
+                    .addSort(SortBuilders.scoreSort())
+                    .addSort(SortBuilders.fieldSort("id"))
+                    .setQuery(
+                        boolQuery().minimumShouldMatch(minShouldMatch)
+                            .should(matchPhraseQuery("full_name", "captain america"))
+                            .should(matchPhraseQuery("first_name", "captain america"))
+                            .should(matchPhraseQuery("last_name", "captain america"))
+                            .should(matchPhraseQuery("category", "captain america"))
+                    )
+                    .get();
                 assertEquivalent("captain america", left, right);
             }
         }
@@ -457,150 +677,218 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
 
     public void testCrossFieldMode() throws ExecutionException, InterruptedException {
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("captain america", "full_name", "first_name", "last_name")
-                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
-                        .operator(Operator.OR))).get();
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("captain america", "full_name", "first_name", "last_name").type(
+                        MultiMatchQueryBuilder.Type.CROSS_FIELDS
+                    ).operator(Operator.OR)
+                )
+            )
+            .get();
         assertFirstHit(searchResponse, hasId("theone"));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("marvel hero captain america", "full_name", "first_name", "last_name", "category")
-                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
-                        .operator(Operator.OR))).get();
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("marvel hero captain america", "full_name", "first_name", "last_name", "category").type(
+                        MultiMatchQueryBuilder.Type.CROSS_FIELDS
+                    ).operator(Operator.OR)
+                )
+            )
+            .get();
         assertFirstHit(searchResponse, hasId("theother"));
         assertSecondHit(searchResponse, hasId("theone"));
         assertThat(searchResponse.getHits().getHits()[0].getScore(), greaterThan(searchResponse.getHits().getHits()[1].getScore()));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("marvel hero", "full_name", "first_name", "last_name", "category")
-                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
-                        .operator(Operator.OR))).get();
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("marvel hero", "full_name", "first_name", "last_name", "category").type(
+                        MultiMatchQueryBuilder.Type.CROSS_FIELDS
+                    ).operator(Operator.OR)
+                )
+            )
+            .get();
         assertFirstHit(searchResponse, hasId("theother"));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("captain america", "full_name", "first_name", "last_name", "category")
-                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
-                        .operator(Operator.AND))).get();
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("captain america", "full_name", "first_name", "last_name", "category").type(
+                        MultiMatchQueryBuilder.Type.CROSS_FIELDS
+                    ).operator(Operator.AND)
+                )
+            )
+            .get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("theone"));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("captain america 15", "full_name", "first_name", "last_name", "category", "skill")
-                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
-                        .analyzer("category")
-                        .lenient(true)
-                        .operator(Operator.AND))).get();
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("captain america 15", "full_name", "first_name", "last_name", "category", "skill").type(
+                        MultiMatchQueryBuilder.Type.CROSS_FIELDS
+                    ).analyzer("category").lenient(true).operator(Operator.AND)
+                )
+            )
+            .get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("theone"));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("captain america 15", "full_name", "first_name", "last_name", "category", "skill",
-                        "int-field")
-                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
-                        .analyzer("category")
-                        .lenient(true)
-                        .operator(Operator.AND))).get();
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("captain america 15", "full_name", "first_name", "last_name", "category", "skill", "int-field").type(
+                        MultiMatchQueryBuilder.Type.CROSS_FIELDS
+                    ).analyzer("category").lenient(true).operator(Operator.AND)
+                )
+            )
+            .get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("theone"));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("captain america 15", "skill", "full_name", "first_name", "last_name", "category",
-                        "int-field")
-                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
-                        .analyzer("category")
-                        .lenient(true)
-                        .operator(Operator.AND))).get();
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("captain america 15", "skill", "full_name", "first_name", "last_name", "category", "int-field").type(
+                        MultiMatchQueryBuilder.Type.CROSS_FIELDS
+                    ).analyzer("category").lenient(true).operator(Operator.AND)
+                )
+            )
+            .get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("theone"));
 
-
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("captain america 15", "first_name", "last_name", "skill")
-                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("captain america 15", "first_name", "last_name", "skill").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
                         .lenient(true)
-                        .analyzer("category"))).get();
-        assertFirstHit(searchResponse, hasId("theone"));
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("15", "skill")
-                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
-                        .analyzer("category"))).get();
-        assertFirstHit(searchResponse, hasId("theone"));
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("25 15", "skill")
-                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
-                        .analyzer("category"))).get();
-        assertFirstHit(searchResponse, hasId("theone"));
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("25 15", "int-field", "skill")
-                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
-                        .analyzer("category"))).get();
-        assertFirstHit(searchResponse, hasId("theone"));
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("25 15", "first_name", "int-field", "skill")
-                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
-                        .analyzer("category"))).get();
-        assertFirstHit(searchResponse, hasId("theone"));
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("25 15", "int-field", "skill", "first_name")
-                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
-                        .analyzer("category"))).get();
-        assertFirstHit(searchResponse, hasId("theone"));
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("25 15", "int-field", "first_name", "skill")
-                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
-                        .analyzer("category"))).get();
-        assertFirstHit(searchResponse, hasId("theone"));
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("captain america marvel hero", "first_name", "last_name", "category")
-                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
-                        .cutoffFrequency(0.1f)
                         .analyzer("category")
-                        .operator(Operator.OR))).get();
+                )
+            )
+            .get();
+        assertFirstHit(searchResponse, hasId("theone"));
+
+        searchResponse = client().prepareSearch("test")
+            .setQuery(randomizeType(multiMatchQuery("15", "skill").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS).analyzer("category")))
+            .get();
+        assertFirstHit(searchResponse, hasId("theone"));
+
+        searchResponse = client().prepareSearch("test")
+            .setQuery(randomizeType(multiMatchQuery("25 15", "skill").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS).analyzer("category")))
+            .get();
+        assertFirstHit(searchResponse, hasId("theone"));
+
+        searchResponse = client().prepareSearch("test")
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("25 15", "int-field", "skill").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS).analyzer("category")
+                )
+            )
+            .get();
+        assertFirstHit(searchResponse, hasId("theone"));
+
+        searchResponse = client().prepareSearch("test")
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("25 15", "first_name", "int-field", "skill").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
+                        .analyzer("category")
+                )
+            )
+            .get();
+        assertFirstHit(searchResponse, hasId("theone"));
+
+        searchResponse = client().prepareSearch("test")
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("25 15", "int-field", "skill", "first_name").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
+                        .analyzer("category")
+                )
+            )
+            .get();
+        assertFirstHit(searchResponse, hasId("theone"));
+
+        searchResponse = client().prepareSearch("test")
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("25 15", "int-field", "first_name", "skill").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
+                        .analyzer("category")
+                )
+            )
+            .get();
+        assertFirstHit(searchResponse, hasId("theone"));
+
+        searchResponse = client().prepareSearch("test")
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("captain america marvel hero", "first_name", "last_name", "category").type(
+                        MultiMatchQueryBuilder.Type.CROSS_FIELDS
+                    ).cutoffFrequency(0.1f).analyzer("category").operator(Operator.OR)
+                )
+            )
+            .get();
         assertFirstHit(searchResponse, anyOf(hasId("theother"), hasId("theone")));
         long numResults = searchResponse.getHits().getTotalHits().value;
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("captain america marvel hero", "first_name", "last_name", "category")
-                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
-                        .analyzer("category")
-                        .operator(Operator.OR))).get();
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("captain america marvel hero", "first_name", "last_name", "category").type(
+                        MultiMatchQueryBuilder.Type.CROSS_FIELDS
+                    ).analyzer("category").operator(Operator.OR)
+                )
+            )
+            .get();
         assertThat(numResults, lessThan(searchResponse.getHits().getTotalHits().value));
         assertFirstHit(searchResponse, hasId("theone"));
 
-
         // test group based on analyzer -- all fields are grouped into a cross field search
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("captain america marvel hero", "first_name", "last_name", "category")
-                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
-                        .analyzer("category")
-                        .operator(Operator.AND))).get();
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("captain america marvel hero", "first_name", "last_name", "category").type(
+                        MultiMatchQueryBuilder.Type.CROSS_FIELDS
+                    ).analyzer("category").operator(Operator.AND)
+                )
+            )
+            .get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("theone"));
         // counter example
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("captain america marvel hero", "first_name", "last_name", "category")
-                        .type(randomBoolean() ? MultiMatchQueryBuilder.Type.CROSS_FIELDS : MultiMatchQueryBuilder.DEFAULT_TYPE)
-                        .operator(Operator.AND))).get();
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("captain america marvel hero", "first_name", "last_name", "category").type(
+                        randomBoolean() ? MultiMatchQueryBuilder.Type.CROSS_FIELDS : MultiMatchQueryBuilder.DEFAULT_TYPE
+                    ).operator(Operator.AND)
+                )
+            )
+            .get();
         assertHitCount(searchResponse, 0L);
 
         // counter example
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("captain america marvel hero", "first_name", "last_name", "category")
-                        .type(randomBoolean() ? MultiMatchQueryBuilder.Type.CROSS_FIELDS : MultiMatchQueryBuilder.DEFAULT_TYPE)
-                        .operator(Operator.AND))).get();
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("captain america marvel hero", "first_name", "last_name", "category").type(
+                        randomBoolean() ? MultiMatchQueryBuilder.Type.CROSS_FIELDS : MultiMatchQueryBuilder.DEFAULT_TYPE
+                    ).operator(Operator.AND)
+                )
+            )
+            .get();
         assertHitCount(searchResponse, 0L);
 
         // test if boosts work
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("the ultimate", "full_name", "first_name", "category").field("last_name", 10)
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("the ultimate", "full_name", "first_name", "category").field("last_name", 10)
                         .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
-                        .operator(Operator.AND))).get();
+                        .operator(Operator.AND)
+                )
+            )
+            .get();
         assertHitCount(searchResponse, 2L);
         assertFirstHit(searchResponse, hasId("ultimate1"));   // has ultimate in the last_name and that is boosted
         assertSecondHit(searchResponse, hasId("ultimate2"));
@@ -609,9 +897,14 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         // since we try to treat the matching fields as one field scores are very similar but we have a small bias towards the
         // more frequent field that acts as a tie-breaker internally
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("the ultimate", "full_name", "first_name", "last_name", "category")
-                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
-                        .operator(Operator.AND))).get();
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("the ultimate", "full_name", "first_name", "last_name", "category").type(
+                        MultiMatchQueryBuilder.Type.CROSS_FIELDS
+                    ).operator(Operator.AND)
+                )
+            )
+            .get();
         assertHitCount(searchResponse, 2L);
         assertFirstHit(searchResponse, hasId("ultimate2"));
         assertSecondHit(searchResponse, hasId("ultimate1"));
@@ -619,34 +912,39 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
 
         // Test group based on numeric fields
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("15", "skill")
-                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS))).get();
+            .setQuery(randomizeType(multiMatchQuery("15", "skill").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)))
+            .get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("theone"));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("15", "skill", "first_name")
-                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS))).get();
+            .setQuery(randomizeType(multiMatchQuery("15", "skill", "first_name").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)))
+            .get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("theone"));
 
         // Two numeric fields together caused trouble at one point!
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("15", "int-field", "skill")
-                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS))).get();
+            .setQuery(randomizeType(multiMatchQuery("15", "int-field", "skill").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)))
+            .get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("theone"));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("15", "int-field", "first_name", "skill")
-                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS))).get();
+            .setQuery(
+                randomizeType(multiMatchQuery("15", "int-field", "first_name", "skill").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS))
+            )
+            .get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("theone"));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("alpha 15", "first_name", "skill")
-                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
-                        .lenient(true))).get();
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("alpha 15", "first_name", "skill").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS).lenient(true)
+                )
+            )
+            .get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("ultimate1"));
         /*
@@ -657,18 +955,20 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
 
         // Lenient wasn't always properly lenient with two numeric fields
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("alpha 15", "int-field", "first_name", "skill")
-                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
-                        .lenient(true))).get();
+            .setQuery(
+                randomizeType(
+                    multiMatchQuery("alpha 15", "int-field", "first_name", "skill").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
+                        .lenient(true)
+                )
+            )
+            .get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("ultimate1"));
 
-
         // Check that cross fields works with date fields
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("now", "f*", "date")
-                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)).lenient(true))
-                .get();
+            .setQuery(randomizeType(multiMatchQuery("now", "f*", "date").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)).lenient(true))
+            .get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("nowHero"));
     }
@@ -682,27 +982,20 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
      */
     public void testFuzzyFieldLevelBoosting() throws InterruptedException, ExecutionException {
         String idx = "test18710";
-        CreateIndexRequestBuilder builder = prepareCreate(idx).setSettings(Settings.builder()
-                .put(indexSettings())
-                .put(SETTING_NUMBER_OF_SHARDS, 3)
-                .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                );
+        CreateIndexRequestBuilder builder = prepareCreate(idx).setSettings(
+            Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 3).put(SETTING_NUMBER_OF_REPLICAS, 0)
+        );
         assertAcked(builder.addMapping("type", "title", "type=text", "body", "type=text"));
         ensureGreen();
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex(idx, "type", "1").setSource(
-                "title", "foo",
-                "body", "bar"));
-        builders.add(client().prepareIndex(idx, "type", "2").setSource(
-                "title", "bar",
-                "body", "foo"));
+        builders.add(client().prepareIndex(idx, "type", "1").setSource("title", "foo", "body", "bar"));
+        builders.add(client().prepareIndex(idx, "type", "2").setSource("title", "bar", "body", "foo"));
         indexRandom(true, false, builders);
 
         SearchResponse searchResponse = client().prepareSearch(idx)
-                .setExplain(true)
-                .setQuery(multiMatchQuery("foo").field("title", 100).field("body")
-                        .fuzziness(0)
-                        ).get();
+            .setExplain(true)
+            .setQuery(multiMatchQuery("foo").field("title", 100).field("body").fuzziness(0))
+            .get();
         SearchHit[] hits = searchResponse.getHits().getHits();
         assertNotEquals("both documents should be on different shards", hits[0].getShard().getShardId(), hits[1].getShard().getShardId());
         assertEquals("1", hits[0].getId());

@@ -26,7 +26,6 @@ import java.util.TreeSet;
 
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArgument;
 
-
 /**
  * THIS CLASS IS A FORK OF
  * <a href="https://fisheye.terracotta.org/browse/Quartz/trunk/quartz-core/src/main/java/org/quartz/CronExpression.java?r=2426">
@@ -311,7 +310,7 @@ public class Cron implements ToXContentFragment {
         // loop until we've computed the next time, or we've past the endTime
         while (gotOne == false) {
 
-            if(cl.get(Calendar.YEAR) > 2999) { // prevent endless loop...
+            if (cl.get(Calendar.YEAR) > 2999) { // prevent endless loop...
                 return -1;
             }
 
@@ -388,13 +387,13 @@ public class Cron implements ToXContentFragment {
             if (dayOfMSpec && dayOfWSpec == false) { // get day by day of month rule
                 st = daysOfMonth.tailSet(day);
                 if (lastdayOfMonth) {
-                    if(nearestWeekday == false) {
+                    if (nearestWeekday == false) {
                         t = day;
                         day = getLastDayOfMonth(mon, cl.get(Calendar.YEAR));
                         day -= lastdayOffset;
-                        if(t > day) {
+                        if (t > day) {
                             mon++;
-                            if(mon > 12) {
+                            if (mon > 12) {
                                 mon = 1;
                                 tmon = 3333; // ensure test of mon != tmon further below fails
                                 cl.add(Calendar.YEAR, 1);
@@ -417,13 +416,13 @@ public class Cron implements ToXContentFragment {
                         int ldom = getLastDayOfMonth(mon, cl.get(Calendar.YEAR));
                         int dow = tcal.get(Calendar.DAY_OF_WEEK);
 
-                        if(dow == Calendar.SATURDAY && day == 1) {
+                        if (dow == Calendar.SATURDAY && day == 1) {
                             day += 2;
-                        } else if(dow == Calendar.SATURDAY) {
+                        } else if (dow == Calendar.SATURDAY) {
                             day -= 1;
-                        } else if(dow == Calendar.SUNDAY && day == ldom) {
+                        } else if (dow == Calendar.SUNDAY && day == ldom) {
                             day -= 2;
-                        } else if(dow == Calendar.SUNDAY) {
+                        } else if (dow == Calendar.SUNDAY) {
                             day += 1;
                         }
 
@@ -433,12 +432,12 @@ public class Cron implements ToXContentFragment {
                         tcal.set(Calendar.DAY_OF_MONTH, day);
                         tcal.set(Calendar.MONTH, mon - 1);
                         long nTime = tcal.getTimeInMillis();
-                        if(nTime < afterTime) {
+                        if (nTime < afterTime) {
                             day = 1;
                             mon++;
                         }
                     }
-                } else if(nearestWeekday) {
+                } else if (nearestWeekday) {
                     t = day;
                     day = daysOfMonth.first();
 
@@ -453,16 +452,15 @@ public class Cron implements ToXContentFragment {
                     int ldom = getLastDayOfMonth(mon, cl.get(Calendar.YEAR));
                     int dow = tcal.get(Calendar.DAY_OF_WEEK);
 
-                    if(dow == Calendar.SATURDAY && day == 1) {
+                    if (dow == Calendar.SATURDAY && day == 1) {
                         day += 2;
-                    } else if(dow == Calendar.SATURDAY) {
+                    } else if (dow == Calendar.SATURDAY) {
                         day -= 1;
-                    } else if(dow == Calendar.SUNDAY && day == ldom) {
+                    } else if (dow == Calendar.SUNDAY && day == ldom) {
                         day -= 2;
-                    } else if(dow == Calendar.SUNDAY) {
+                    } else if (dow == Calendar.SUNDAY) {
                         day += 1;
                     }
-
 
                     tcal.set(Calendar.SECOND, sec);
                     tcal.set(Calendar.MINUTE, min);
@@ -470,7 +468,7 @@ public class Cron implements ToXContentFragment {
                     tcal.set(Calendar.DAY_OF_MONTH, day);
                     tcal.set(Calendar.MONTH, mon - 1);
                     long nTime = tcal.getTimeInMillis();
-                    if(nTime < afterTime) {
+                    if (nTime < afterTime) {
                         day = daysOfMonth.first();
                         mon++;
                     }
@@ -567,9 +565,7 @@ public class Cron implements ToXContentFragment {
 
                     daysToAdd = (nthdayOfWeek - weekOfMonth) * 7;
                     day += daysToAdd;
-                    if (daysToAdd < 0
-                            || day > getLastDayOfMonth(mon, cl
-                            .get(Calendar.YEAR))) {
+                    if (daysToAdd < 0 || day > getLastDayOfMonth(mon, cl.get(Calendar.YEAR))) {
                         cl.set(Calendar.SECOND, 0);
                         cl.set(Calendar.MINUTE, 0);
                         cl.set(Calendar.HOUR_OF_DAY, 0);
@@ -627,8 +623,8 @@ public class Cron implements ToXContentFragment {
                 }
             } else { // dayOfWSpec && dayOfMSpec == false
                 return -1;
-//                throw new UnsupportedOperationException(
-//                        "Support for specifying both a day-of-week AND a day-of-month parameter is not implemented.");
+                // throw new UnsupportedOperationException(
+                // "Support for specifying both a day-of-week AND a day-of-month parameter is not implemented.");
             }
             cl.set(Calendar.DAY_OF_MONTH, day);
 
@@ -642,7 +638,7 @@ public class Cron implements ToXContentFragment {
             // but keep looping...
             if (year > MAX_YEAR) {
                 return -1;
-//                throw new ElasticsearchIllegalArgumentException("given time is not supported by cron [" + formatter.print(time) + "]");
+                // throw new ElasticsearchIllegalArgumentException("given time is not supported by cron [" + formatter.print(time) + "]");
             }
 
             // get month...................................................
@@ -679,7 +675,7 @@ public class Cron implements ToXContentFragment {
                 year = st.first();
             } else {
                 return -1;
-//                throw new ElasticsearchIllegalArgumentException("given time is not supported by cron [" + formatter.print(time) + "]");
+                // throw new ElasticsearchIllegalArgumentException("given time is not supported by cron [" + formatter.print(time) + "]");
             }
 
             if (year != t) {
@@ -793,7 +789,6 @@ public class Cron implements ToXContentFragment {
         new Cron(expression);
     }
 
-
     ////////////////////////////////////////////////////////////////////////////
     //
     // Expression Parsing Functions
@@ -828,21 +823,20 @@ public class Cron implements ToXContentFragment {
 
             int exprOn = SECOND;
 
-            StringTokenizer exprsTok = new StringTokenizer(expression, " \t",
-                    false);
+            StringTokenizer exprsTok = new StringTokenizer(expression, " \t", false);
 
             while (exprsTok.hasMoreTokens() && exprOn <= YEAR) {
                 String expr = exprsTok.nextToken().trim();
 
                 // throw an exception if L is used with other days of the month
-                if(exprOn == DAY_OF_MONTH && expr.indexOf('L') != -1 && expr.length() > 1 && expr.contains(",")) {
+                if (exprOn == DAY_OF_MONTH && expr.indexOf('L') != -1 && expr.length() > 1 && expr.contains(",")) {
                     throw illegalArgument("support for specifying 'L' and 'LW' with other days of the month is not implemented");
                 }
                 // throw an exception if L is used with other days of the week
-                if(exprOn == DAY_OF_WEEK && expr.indexOf('L') != -1 && expr.length() > 1  && expr.contains(",")) {
+                if (exprOn == DAY_OF_WEEK && expr.indexOf('L') != -1 && expr.length() > 1 && expr.contains(",")) {
                     throw illegalArgument("support for specifying 'L' with other days of the week is not implemented");
                 }
-                if(exprOn == DAY_OF_WEEK && expr.indexOf('#') != -1 && expr.indexOf('#', expr.indexOf('#') +1) != -1) {
+                if (exprOn == DAY_OF_WEEK && expr.indexOf('#') != -1 && expr.indexOf('#', expr.indexOf('#') + 1) != -1) {
                     throw illegalArgument("support for specifying multiple \"nth\" days is not implemented.");
                 }
 
@@ -950,8 +944,7 @@ public class Cron implements ToXContentFragment {
 
         if (c == '?') {
             i++;
-            if ((i + 1) < s.length()
-                    && (s.charAt(i) != ' ' && s.charAt(i + 1) != '\t')) {
+            if ((i + 1) < s.length() && (s.charAt(i) != ' ' && s.charAt(i + 1) != '\t')) {
                 throw illegalArgument("illegal character [{}] after '?' at pos [{}]", s.charAt(i), i);
             }
             if (type != DAY_OF_WEEK && type != DAY_OF_MONTH) {
@@ -972,9 +965,7 @@ public class Cron implements ToXContentFragment {
             if (c == '*' && (i + 1) >= s.length()) {
                 addToSet(ALL_SPEC_INT, -1, incr, type);
                 return i + 1;
-            } else if (c == '/'
-                    && ((i + 1) >= s.length() || s.charAt(i + 1) == ' ' || s
-                    .charAt(i + 1) == '\t')) {
+            } else if (c == '/' && ((i + 1) >= s.length() || s.charAt(i + 1) == ' ' || s.charAt(i + 1) == '\t')) {
                 throw illegalArgument("'/' must be followed by an integer. at pos [{}]", i);
             } else if (c == '*') {
                 i++;
@@ -1017,18 +1008,17 @@ public class Cron implements ToXContentFragment {
             if (type == DAY_OF_WEEK) {
                 addToSet(7, 7, 0, type);
             }
-            if(type == DAY_OF_MONTH && s.length() > i) {
+            if (type == DAY_OF_MONTH && s.length() > i) {
                 c = s.charAt(i);
-                if(c == '-') {
-                    ValueSet vs = getValue(0, s, i+1);
+                if (c == '-') {
+                    ValueSet vs = getValue(0, s, i + 1);
                     lastdayOffset = vs.value;
-                    if(lastdayOffset > 30)
-                        throw illegalArgument("offset from last day must be <= 30 at pos [{}]", i + 1);
+                    if (lastdayOffset > 30) throw illegalArgument("offset from last day must be <= 30 at pos [{}]", i + 1);
                     i = vs.pos;
                 }
-                if(s.length() > i) {
+                if (s.length() > i) {
                     c = s.charAt(i);
-                    if(c == 'W') {
+                    if (c == 'W') {
                         nearestWeekday = true;
                         i++;
                     }
@@ -1071,8 +1061,7 @@ public class Cron implements ToXContentFragment {
 
         if (c == 'L') {
             if (type == DAY_OF_WEEK) {
-                if(val < 1 || val > 7)
-                    throw illegalArgument("Day-of-Week values must be between 1 and 7");
+                if (val < 1 || val > 7) throw illegalArgument("Day-of-Week values must be between 1 and 7");
                 lastdayOfWeek = true;
             } else {
                 throw illegalArgument("'L' option is not valid here. at pos [{}]", i);
@@ -1089,9 +1078,10 @@ public class Cron implements ToXContentFragment {
             } else {
                 throw illegalArgument("'W' option is not valid here. at pos [{}]", i);
             }
-            if(val > 31)
-                throw illegalArgument("the 'W' option does not make sense with values larger than 31 (max number of days in a month) at " +
-                        "pos [{}]", i);
+            if (val > 31) throw illegalArgument(
+                "the 'W' option does not make sense with values larger than 31 (max number of days in a month) at " + "pos [{}]",
+                i
+            );
             TreeSet<Integer> set = getSet(type);
             set.add(val);
             i++;
@@ -1241,8 +1231,7 @@ public class Cron implements ToXContentFragment {
                 throw illegalArgument("Hour values must be between 0 and 23");
             }
         } else if (type == DAY_OF_MONTH) {
-            if ((val < 1 || val > 31 || end > 31) && (val != ALL_SPEC_INT)
-                    && (val != NO_SPEC_INT)) {
+            if ((val < 1 || val > 31 || end > 31) && (val != ALL_SPEC_INT) && (val != NO_SPEC_INT)) {
                 throw illegalArgument("Day of month values must be between 1 and 31");
             }
         } else if (type == MONTH) {
@@ -1250,8 +1239,7 @@ public class Cron implements ToXContentFragment {
                 throw illegalArgument("Month values must be between 1 and 12");
             }
         } else if (type == DAY_OF_WEEK) {
-            if ((val == 0 || val > 7 || end > 7) && (val != ALL_SPEC_INT)
-                    && (val != NO_SPEC_INT)) {
+            if ((val == 0 || val > 7 || end > 7) && (val != ALL_SPEC_INT) && (val != NO_SPEC_INT)) {
                 throw illegalArgument("Day-of-Week values must be between 1 and 7");
             }
         }
@@ -1359,7 +1347,7 @@ public class Cron implements ToXContentFragment {
                 int i2 = i % max;
 
                 // 1-indexed ranges should not include 0, and should include their max
-                if (i2 == 0 && (type == MONTH || type == DAY_OF_WEEK || type == DAY_OF_MONTH) ) {
+                if (i2 == 0 && (type == MONTH || type == DAY_OF_WEEK || type == DAY_OF_MONTH)) {
                     i2 = max;
                 }
 
@@ -1479,8 +1467,7 @@ public class Cron implements ToXContentFragment {
             case 12:
                 return 31;
             default:
-                throw new IllegalArgumentException("Illegal month number: "
-                        + monthNum);
+                throw new IllegalArgumentException("Illegal month number: " + monthNum);
         }
     }
 

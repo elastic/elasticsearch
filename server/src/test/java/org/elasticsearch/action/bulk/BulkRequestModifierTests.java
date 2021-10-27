@@ -12,9 +12,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -98,15 +98,21 @@ public class BulkRequestModifierTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(Exception e) {
-            }
+            public void onFailure(Exception e) {}
         });
 
         List<BulkItemResponse> originalResponses = new ArrayList<>();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests()) {
             IndexRequest indexRequest = (IndexRequest) actionRequest;
-            IndexResponse indexResponse = new IndexResponse(new ShardId("index", "_na_", 0), indexRequest.type(),
-                                                               indexRequest.id(), 1, 17, 1, true);
+            IndexResponse indexResponse = new IndexResponse(
+                new ShardId("index", "_na_", 0),
+                indexRequest.type(),
+                indexRequest.id(),
+                1,
+                17,
+                1,
+                true
+            );
             originalResponses.add(BulkItemResponse.success(Integer.parseInt(indexRequest.id()), indexRequest.opType(), indexResponse));
         }
         bulkResponseListener.onResponse(new BulkResponse(originalResponses.toArray(new BulkItemResponse[originalResponses.size()]), 0));
@@ -144,8 +150,7 @@ public class BulkRequestModifierTests extends ESTestCase {
         }
 
         @Override
-        public void onFailure(Exception e) {
-        }
+        public void onFailure(Exception e) {}
 
         public BulkResponse getResponse() {
             return response;

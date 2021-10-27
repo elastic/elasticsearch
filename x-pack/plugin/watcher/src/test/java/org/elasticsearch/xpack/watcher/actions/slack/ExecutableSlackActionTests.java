@@ -54,11 +54,10 @@ public class ExecutableSlackActionTests extends ESTestCase {
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
 
         Wid wid = new Wid(randomAlphaOfLength(5), now);
-        WatchExecutionContext ctx = mockExecutionContextBuilder(wid.watchId())
-                .wid(wid)
-                .payload(new Payload.Simple())
-                .time(wid.watchId(), now)
-                .buildMock();
+        WatchExecutionContext ctx = mockExecutionContextBuilder(wid.watchId()).wid(wid)
+            .payload(new Payload.Simple())
+            .time(wid.watchId(), now)
+            .buildMock();
 
         ExecutableSlackAction executable = new ExecutableSlackAction(action, logger, service, new MockTextTemplateEngine());
         executable.execute("foo", ctx, new Payload.Simple());

@@ -30,10 +30,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.SystemIndices;
@@ -51,6 +50,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.Closeable;
 import java.util.ArrayList;
@@ -83,35 +83,51 @@ import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 @Deprecated
 public abstract class TransportClient extends AbstractClient {
 
-    public static final Setting<TimeValue> CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL =
-        Setting.positiveTimeSetting("client.transport.nodes_sampler_interval", timeValueSeconds(5), Setting.Property.NodeScope);
-    public static final Setting<TimeValue> CLIENT_TRANSPORT_PING_TIMEOUT =
-        Setting.positiveTimeSetting("client.transport.ping_timeout", timeValueSeconds(5), Setting.Property.NodeScope);
-    public static final Setting<Boolean> CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME =
-        Setting.boolSetting("client.transport.ignore_cluster_name", false, Setting.Property.NodeScope);
-    public static final Setting<Boolean> CLIENT_TRANSPORT_SNIFF =
-        Setting.boolSetting("client.transport.sniff", false, Setting.Property.NodeScope);
+    public static final Setting<TimeValue> CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL = Setting.positiveTimeSetting(
+        "client.transport.nodes_sampler_interval",
+        timeValueSeconds(5),
+        Setting.Property.NodeScope
+    );
+    public static final Setting<TimeValue> CLIENT_TRANSPORT_PING_TIMEOUT = Setting.positiveTimeSetting(
+        "client.transport.ping_timeout",
+        timeValueSeconds(5),
+        Setting.Property.NodeScope
+    );
+    public static final Setting<Boolean> CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME = Setting.boolSetting(
+        "client.transport.ignore_cluster_name",
+        false,
+        Setting.Property.NodeScope
+    );
+    public static final Setting<Boolean> CLIENT_TRANSPORT_SNIFF = Setting.boolSetting(
+        "client.transport.sniff",
+        false,
+        Setting.Property.NodeScope
+    );
 
     public static final String TRANSPORT_CLIENT_FEATURE = "transport_client";
 
     private static PluginsService newPluginService(final Settings settings, Collection<Class<? extends Plugin>> plugins) {
         final Settings.Builder settingsBuilder = Settings.builder()
-                .put(TransportSettings.PING_SCHEDULE.getKey(), "5s") // enable by default the transport schedule ping interval
-                .put(InternalSettingsPreparer.prepareSettings(settings))
-                .put(NetworkService.NETWORK_SERVER.getKey(), false)
-                .put(CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE);
+            .put(TransportSettings.PING_SCHEDULE.getKey(), "5s") // enable by default the transport schedule ping interval
+            .put(InternalSettingsPreparer.prepareSettings(settings))
+            .put(NetworkService.NETWORK_SERVER.getKey(), false)
+            .put(CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE);
         return new PluginsService(settingsBuilder.build(), null, null, null, plugins);
     }
 
     @SafeVarargs
     @SuppressWarnings("varargs")
-    protected static Collection<Class<? extends Plugin>> addPlugins(Collection<Class<? extends Plugin>> collection,
-                                                                    Class<? extends Plugin>... plugins) {
+    protected static Collection<Class<? extends Plugin>> addPlugins(
+        Collection<Class<? extends Plugin>> collection,
+        Class<? extends Plugin>... plugins
+    ) {
         return addPlugins(collection, Arrays.asList(plugins));
     }
 
-    protected static Collection<Class<? extends Plugin>> addPlugins(Collection<Class<? extends Plugin>> collection,
-            Collection<Class<? extends Plugin>> plugins) {
+    protected static Collection<Class<? extends Plugin>> addPlugins(
+        Collection<Class<? extends Plugin>> collection,
+        Collection<Class<? extends Plugin>> plugins
+    ) {
         ArrayList<Class<? extends Plugin>> list = new ArrayList<>(collection);
         for (Class<? extends Plugin> p : plugins) {
             if (list.contains(p)) {
@@ -122,19 +138,22 @@ public abstract class TransportClient extends AbstractClient {
         return list;
     }
 
-    private static ClientTemplate buildTemplate(Settings providedSettings, Settings defaultSettings,
-                                                Collection<Class<? extends Plugin>> plugins, HostFailureListener failureListner) {
+    private static ClientTemplate buildTemplate(
+        Settings providedSettings,
+        Settings defaultSettings,
+        Collection<Class<? extends Plugin>> plugins,
+        HostFailureListener failureListner
+    ) {
         if (Node.NODE_NAME_SETTING.exists(providedSettings) == false) {
             providedSettings = Settings.builder().put(providedSettings).put(Node.NODE_NAME_SETTING.getKey(), "_client_").build();
         }
         final PluginsService pluginsService = newPluginService(providedSettings, plugins);
         final List<Closeable> resourcesToClose = new ArrayList<>();
-        final Settings settings =
-            Settings.builder()
-                .put(defaultSettings)
-                .put(pluginsService.updatedSettings())
-                .put(TransportSettings.FEATURE_PREFIX + "." + TRANSPORT_CLIENT_FEATURE, true)
-                .build();
+        final Settings settings = Settings.builder()
+            .put(defaultSettings)
+            .put(pluginsService.updatedSettings())
+            .put(TransportSettings.FEATURE_PREFIX + "." + TRANSPORT_CLIENT_FEATURE, true)
+            .build();
         final ThreadPool threadPool = new ThreadPool(settings);
         resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
         final NetworkService networkService = new NetworkService(emptyList());
@@ -144,8 +163,7 @@ public abstract class TransportClient extends AbstractClient {
             for (final ExecutorBuilder<?> builder : threadPool.builders()) {
                 additionalSettings.addAll(builder.getRegisteredSettings());
             }
-            SettingsModule settingsModule =
-                    new SettingsModule(settings, additionalSettings, additionalSettingsFilter, emptySet());
+            SettingsModule settingsModule = new SettingsModule(settings, additionalSettings, additionalSettingsFilter, emptySet());
 
             SearchModule searchModule = new SearchModule(settings, true, pluginsService.filterPlugins(SearchPlugin.class));
             IndicesModule indicesModule = new IndicesModule(emptyList());
@@ -154,15 +172,19 @@ public abstract class TransportClient extends AbstractClient {
             entries.addAll(searchModule.getNamedWriteables());
             entries.addAll(indicesModule.getNamedWriteables());
             entries.addAll(ClusterModule.getNamedWriteables());
-            entries.addAll(pluginsService.filterPlugins(Plugin.class).stream()
-                                         .flatMap(p -> p.getNamedWriteables().stream())
-                                         .collect(Collectors.toList()));
+            entries.addAll(
+                pluginsService.filterPlugins(Plugin.class)
+                    .stream()
+                    .flatMap(p -> p.getNamedWriteables().stream())
+                    .collect(Collectors.toList())
+            );
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);
-            NamedXContentRegistry xContentRegistry = new NamedXContentRegistry(Stream.of(
+            NamedXContentRegistry xContentRegistry = new NamedXContentRegistry(
+                Stream.of(
                     searchModule.getNamedXContents().stream(),
-                    pluginsService.filterPlugins(Plugin.class).stream()
-                            .flatMap(p -> p.getNamedXContent().stream())
-                    ).flatMap(Function.identity()).collect(toList()));
+                    pluginsService.filterPlugins(Plugin.class).stream().flatMap(p -> p.getNamedXContent().stream())
+                ).flatMap(Function.identity()).collect(toList())
+            );
 
             ModulesBuilder modules = new ModulesBuilder();
             // plugin modules must be added here, before others or we can get crazy injection errors...
@@ -170,26 +192,59 @@ public abstract class TransportClient extends AbstractClient {
                 modules.add(pluginModule);
             }
             modules.add(b -> b.bind(ThreadPool.class).toInstance(threadPool));
-            ActionModule actionModule = new ActionModule(true, settings, null, settingsModule.getIndexScopedSettings(),
-                    settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(), threadPool,
-                    pluginsService.filterPlugins(ActionPlugin.class), null, null, null, new SystemIndices(emptyMap()));
+            ActionModule actionModule = new ActionModule(
+                true,
+                settings,
+                null,
+                settingsModule.getIndexScopedSettings(),
+                settingsModule.getClusterSettings(),
+                settingsModule.getSettingsFilter(),
+                threadPool,
+                pluginsService.filterPlugins(ActionPlugin.class),
+                null,
+                null,
+                null,
+                new SystemIndices(emptyMap())
+            );
             modules.add(actionModule);
 
-            CircuitBreakerService circuitBreakerService = Node.createCircuitBreakerService(settingsModule.getSettings(),
+            CircuitBreakerService circuitBreakerService = Node.createCircuitBreakerService(
+                settingsModule.getSettings(),
                 emptyList(),
-                settingsModule.getClusterSettings());
+                settingsModule.getClusterSettings()
+            );
             resourcesToClose.add(circuitBreakerService);
             PageCacheRecycler pageCacheRecycler = new PageCacheRecycler(settings);
             BigArrays bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.REQUEST);
             modules.add(settingsModule);
-            NetworkModule networkModule = new NetworkModule(settings, true, pluginsService.filterPlugins(NetworkPlugin.class), threadPool,
-                bigArrays, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, xContentRegistry, networkService, null,
-                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+            NetworkModule networkModule = new NetworkModule(
+                settings,
+                true,
+                pluginsService.filterPlugins(NetworkPlugin.class),
+                threadPool,
+                bigArrays,
+                pageCacheRecycler,
+                circuitBreakerService,
+                namedWriteableRegistry,
+                xContentRegistry,
+                networkService,
+                null,
+                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            );
             final Transport transport = networkModule.getTransportSupplier().get();
-            final TransportService transportService = new TransportService(settings, transport, threadPool,
+            final TransportService transportService = new TransportService(
+                settings,
+                transport,
+                threadPool,
                 networkModule.getTransportInterceptor(),
-                boundTransportAddress -> DiscoveryNode.createLocal(settings, new TransportAddress(TransportAddress.META_ADDRESS, 0),
-                    UUIDs.randomBase64UUID()), null, emptySet());
+                boundTransportAddress -> DiscoveryNode.createLocal(
+                    settings,
+                    new TransportAddress(TransportAddress.META_ADDRESS, 0),
+                    UUIDs.randomBase64UUID()
+                ),
+                null,
+                emptySet()
+            );
             modules.add((b -> {
                 b.bind(BigArrays.class).toInstance(bigArrays);
                 b.bind(PageCacheRecycler.class).toInstance(pageCacheRecycler);
@@ -202,29 +257,42 @@ public abstract class TransportClient extends AbstractClient {
             }));
 
             Injector injector = modules.createInjector();
-            final TransportClientNodesService nodesService =
-                new TransportClientNodesService(settings, transportService, threadPool, failureListner == null
-                    ? (t, e) -> {} : failureListner);
+            final TransportClientNodesService nodesService = new TransportClientNodesService(
+                settings,
+                transportService,
+                threadPool,
+                failureListner == null ? (t, e) -> {} : failureListner
+            );
 
             // construct the list of client actions
             final List<ActionPlugin> actionPlugins = pluginsService.filterPlugins(ActionPlugin.class);
-            final List<ActionType<?>> clientActions =
-                    actionPlugins.stream().flatMap(p -> p.getClientActions().stream()).collect(Collectors.toList());
+            final List<ActionType<?>> clientActions = actionPlugins.stream()
+                .flatMap(p -> p.getClientActions().stream())
+                .collect(Collectors.toList());
             // add all the base actions
-            final List<? extends ActionType<?>> baseActions =
-                    actionModule.getActions().values().stream().map(ActionPlugin.ActionHandler::getAction).collect(Collectors.toList());
+            final List<? extends ActionType<?>> baseActions = actionModule.getActions()
+                .values()
+                .stream()
+                .map(ActionPlugin.ActionHandler::getAction)
+                .collect(Collectors.toList());
             clientActions.addAll(baseActions);
             final TransportProxyClient proxy = new TransportProxyClient(transportService, nodesService, clientActions);
 
-            List<LifecycleComponent> pluginLifecycleComponents = new ArrayList<>(pluginsService.getGuiceServiceClasses().stream()
-                .map(injector::getInstance).collect(Collectors.toList()));
+            List<LifecycleComponent> pluginLifecycleComponents = new ArrayList<>(
+                pluginsService.getGuiceServiceClasses().stream().map(injector::getInstance).collect(Collectors.toList())
+            );
             resourcesToClose.addAll(pluginLifecycleComponents);
 
             transportService.start();
             transportService.acceptIncomingRequests();
 
-            ClientTemplate transportClient = new ClientTemplate(injector, pluginLifecycleComponents, nodesService, proxy,
-                namedWriteableRegistry);
+            ClientTemplate transportClient = new ClientTemplate(
+                injector,
+                pluginLifecycleComponents,
+                nodesService,
+                proxy,
+                namedWriteableRegistry
+            );
             resourcesToClose.clear();
             return transportClient;
         } finally {
@@ -239,8 +307,13 @@ public abstract class TransportClient extends AbstractClient {
         private final TransportProxyClient proxy;
         private final NamedWriteableRegistry namedWriteableRegistry;
 
-        private ClientTemplate(Injector injector, List<LifecycleComponent> pluginLifecycleComponents,
-                TransportClientNodesService nodesService, TransportProxyClient proxy, NamedWriteableRegistry namedWriteableRegistry) {
+        private ClientTemplate(
+            Injector injector,
+            List<LifecycleComponent> pluginLifecycleComponents,
+            TransportClientNodesService nodesService,
+            TransportProxyClient proxy,
+            NamedWriteableRegistry namedWriteableRegistry
+        ) {
             this.injector = injector;
             this.pluginLifecycleComponents = pluginLifecycleComponents;
             this.nodesService = nodesService;
@@ -279,8 +352,12 @@ public abstract class TransportClient extends AbstractClient {
      * @param defaultSettings default settings that are merged after the plugins have added it's additional settings.
      * @param plugins the client plugins
      */
-    protected TransportClient(Settings settings, Settings defaultSettings, Collection<Class<? extends Plugin>> plugins,
-                              HostFailureListener hostFailureListener) {
+    protected TransportClient(
+        Settings settings,
+        Settings defaultSettings,
+        Collection<Class<? extends Plugin>> plugins,
+        HostFailureListener hostFailureListener
+    ) {
         this(buildTemplate(settings, defaultSettings, plugins, hostFailureListener));
     }
 
@@ -377,8 +454,11 @@ public abstract class TransportClient extends AbstractClient {
     }
 
     @Override
-    protected <Request extends ActionRequest, Response extends ActionResponse>
-    void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+    protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+        ActionType<Response> action,
+        Request request,
+        ActionListener<Response> listener
+    ) {
         proxy.execute(action, request, listener);
     }
 

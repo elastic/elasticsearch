@@ -57,9 +57,11 @@ import java.util.stream.Stream;
 /**
  * Stops the persistent task for running data frame analytics.
  */
-public class TransportStopDataFrameAnalyticsAction
-    extends TransportTasksAction<DataFrameAnalyticsTask, StopDataFrameAnalyticsAction.Request,
-        StopDataFrameAnalyticsAction.Response, StopDataFrameAnalyticsAction.Response> {
+public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
+    DataFrameAnalyticsTask,
+    StopDataFrameAnalyticsAction.Request,
+    StopDataFrameAnalyticsAction.Response,
+    StopDataFrameAnalyticsAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportStopDataFrameAnalyticsAction.class);
 
@@ -69,13 +71,25 @@ public class TransportStopDataFrameAnalyticsAction
     private final DataFrameAnalyticsAuditor auditor;
 
     @Inject
-    public TransportStopDataFrameAnalyticsAction(TransportService transportService, ActionFilters actionFilters,
-                                                 ClusterService clusterService, ThreadPool threadPool,
-                                                 PersistentTasksService persistentTasksService,
-                                                 DataFrameAnalyticsConfigProvider configProvider,
-                                                 DataFrameAnalyticsAuditor auditor) {
-        super(StopDataFrameAnalyticsAction.NAME, clusterService, transportService, actionFilters, StopDataFrameAnalyticsAction.Request::new,
-            StopDataFrameAnalyticsAction.Response::new, StopDataFrameAnalyticsAction.Response::new, ThreadPool.Names.SAME);
+    public TransportStopDataFrameAnalyticsAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        PersistentTasksService persistentTasksService,
+        DataFrameAnalyticsConfigProvider configProvider,
+        DataFrameAnalyticsAuditor auditor
+    ) {
+        super(
+            StopDataFrameAnalyticsAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            StopDataFrameAnalyticsAction.Request::new,
+            StopDataFrameAnalyticsAction.Response::new,
+            StopDataFrameAnalyticsAction.Response::new,
+            ThreadPool.Names.SAME
+        );
         this.threadPool = threadPool;
         this.persistentTasksService = persistentTasksService;
         this.configProvider = configProvider;
@@ -83,8 +97,11 @@ public class TransportStopDataFrameAnalyticsAction
     }
 
     @Override
-    protected void doExecute(Task task, StopDataFrameAnalyticsAction.Request request,
-                             ActionListener<StopDataFrameAnalyticsAction.Response> listener) {
+    protected void doExecute(
+        Task task,
+        StopDataFrameAnalyticsAction.Request request,
+        ActionListener<StopDataFrameAnalyticsAction.Response> listener
+    ) {
         ClusterState state = clusterService.state();
         DiscoveryNodes nodes = state.nodes();
         if (nodes.isLocalNodeElectedMaster() == false) {
@@ -94,63 +111,71 @@ public class TransportStopDataFrameAnalyticsAction
 
         logger.debug("Received request to stop data frame analytics [{}]", request.getId());
 
-        ActionListener<Set<String>> expandedIdsListener = ActionListener.wrap(
-            idsToStop -> {
-                logger.debug("Resolved data frame analytics to stop: {}", idsToStop);
+        ActionListener<Set<String>> expandedIdsListener = ActionListener.wrap(idsToStop -> {
+            logger.debug("Resolved data frame analytics to stop: {}", idsToStop);
 
-                PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-                AnalyticsByTaskState analyticsByTaskState = AnalyticsByTaskState.build(idsToStop, tasks);
+            PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            AnalyticsByTaskState analyticsByTaskState = AnalyticsByTaskState.build(idsToStop, tasks);
 
-                if (analyticsByTaskState.isEmpty()) {
-                    listener.onResponse(new StopDataFrameAnalyticsAction.Response(true));
-                    return;
-                }
+            if (analyticsByTaskState.isEmpty()) {
+                listener.onResponse(new StopDataFrameAnalyticsAction.Response(true));
+                return;
+            }
 
-                if (request.isForce()) {
-                    forceStop(request, listener, tasks, analyticsByTaskState.getNonStopped());
-                } else {
-                    normalStop(task, request, listener, tasks, analyticsByTaskState);
-                }
-            },
-            listener::onFailure
-        );
+            if (request.isForce()) {
+                forceStop(request, listener, tasks, analyticsByTaskState.getNonStopped());
+            } else {
+                normalStop(task, request, listener, tasks, analyticsByTaskState);
+            }
+        }, listener::onFailure);
 
         findIdsToStop(state, request, expandedIdsListener);
     }
 
-    private void findIdsToStop(ClusterState clusterState, StopDataFrameAnalyticsAction.Request request,
-                               ActionListener<Set<String>> expandedIdsListener) {
+    private void findIdsToStop(
+        ClusterState clusterState,
+        StopDataFrameAnalyticsAction.Request request,
+        ActionListener<Set<String>> expandedIdsListener
+    ) {
         Set<String> startedIds = getAllStartedIds(clusterState);
 
-        ActionListener<Set<String>> matchingIdsListener = ActionListener.wrap(
-            matchingIds -> {
-                startedIds.retainAll(matchingIds);
-                expandedIdsListener.onResponse(startedIds);
-            },
-            expandedIdsListener::onFailure
-        );
+        ActionListener<Set<String>> matchingIdsListener = ActionListener.wrap(matchingIds -> {
+            startedIds.retainAll(matchingIds);
+            expandedIdsListener.onResponse(startedIds);
+        }, expandedIdsListener::onFailure);
 
         if (request.isForce()) {
             matchAllStartedIds(request, startedIds, matchingIdsListener);
         } else {
-            configProvider.getMultiple(request.getId(), request.allowNoMatch(), ActionListener.wrap(
-                configs -> matchingIdsListener.onResponse(
-                    configs.stream().map(DataFrameAnalyticsConfig::getId).collect(Collectors.toSet())),
-                matchingIdsListener::onFailure
-            ));
+            configProvider.getMultiple(
+                request.getId(),
+                request.allowNoMatch(),
+                ActionListener.wrap(
+                    configs -> matchingIdsListener.onResponse(
+                        configs.stream().map(DataFrameAnalyticsConfig::getId).collect(Collectors.toSet())
+                    ),
+                    matchingIdsListener::onFailure
+                )
+            );
         }
     }
 
     private static Set<String> getAllStartedIds(ClusterState clusterState) {
         PersistentTasksCustomMetadata tasksMetadata = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        return tasksMetadata == null ? Collections.emptySet() : tasksMetadata.tasks().stream()
-            .filter(t -> t.getId().startsWith(MlTasks.DATA_FRAME_ANALYTICS_TASK_ID_PREFIX))
-            .map(t -> t.getId().replaceFirst(MlTasks.DATA_FRAME_ANALYTICS_TASK_ID_PREFIX, ""))
-            .collect(Collectors.toSet());
+        return tasksMetadata == null
+            ? Collections.emptySet()
+            : tasksMetadata.tasks()
+                .stream()
+                .filter(t -> t.getId().startsWith(MlTasks.DATA_FRAME_ANALYTICS_TASK_ID_PREFIX))
+                .map(t -> t.getId().replaceFirst(MlTasks.DATA_FRAME_ANALYTICS_TASK_ID_PREFIX, ""))
+                .collect(Collectors.toSet());
     }
 
-    private void matchAllStartedIds(StopDataFrameAnalyticsAction.Request request, Set<String> startedIds,
-                                    ActionListener<Set<String>> matchingIdsListener) {
+    private void matchAllStartedIds(
+        StopDataFrameAnalyticsAction.Request request,
+        Set<String> startedIds,
+        ActionListener<Set<String>> matchingIdsListener
+    ) {
         String[] tokens = ExpandedIdsMatcher.tokenizeExpression(request.getId());
         ExpandedIdsMatcher expandedIdsMatcher = new ExpandedIdsMatcher(tokens, request.allowNoMatch());
         expandedIdsMatcher.filterMatchedIds(startedIds);
@@ -158,23 +183,33 @@ public class TransportStopDataFrameAnalyticsAction
             // There are expressions that did not match any started task.
             // If there are no configs for those either, we should error.
             // We check this by trying a get with the unmatched expressions.
-            configProvider.getMultiple(expandedIdsMatcher.unmatchedIdsString(), request.allowNoMatch(), ActionListener.wrap(
-                configs -> matchingIdsListener.onResponse(MlStrings.findMatching(tokens, startedIds)),
-                matchingIdsListener::onFailure
-            ));
+            configProvider.getMultiple(
+                expandedIdsMatcher.unmatchedIdsString(),
+                request.allowNoMatch(),
+                ActionListener.wrap(
+                    configs -> matchingIdsListener.onResponse(MlStrings.findMatching(tokens, startedIds)),
+                    matchingIdsListener::onFailure
+                )
+            );
         } else {
             matchingIdsListener.onResponse(MlStrings.findMatching(tokens, startedIds));
         }
     }
 
-    private void normalStop(Task task, StopDataFrameAnalyticsAction.Request request,
-                            ActionListener<StopDataFrameAnalyticsAction.Response> listener,
-                            PersistentTasksCustomMetadata tasks, AnalyticsByTaskState analyticsByTaskState) {
+    private void normalStop(
+        Task task,
+        StopDataFrameAnalyticsAction.Request request,
+        ActionListener<StopDataFrameAnalyticsAction.Response> listener,
+        PersistentTasksCustomMetadata tasks,
+        AnalyticsByTaskState analyticsByTaskState
+    ) {
         if (analyticsByTaskState.failed.isEmpty() == false) {
-            ElasticsearchStatusException e = analyticsByTaskState.failed.size() == 1 ? ExceptionsHelper.conflictStatusException(
-                "cannot close data frame analytics [{}] because it failed, use force stop instead",
-                analyticsByTaskState.failed.iterator().next()) :
-                ExceptionsHelper.conflictStatusException("one or more data frame analytics are in failed state, use force stop instead");
+            ElasticsearchStatusException e = analyticsByTaskState.failed.size() == 1
+                ? ExceptionsHelper.conflictStatusException(
+                    "cannot close data frame analytics [{}] because it failed, use force stop instead",
+                    analyticsByTaskState.failed.iterator().next()
+                )
+                : ExceptionsHelper.conflictStatusException("one or more data frame analytics are in failed state, use force stop instead");
             listener.onFailure(e);
             return;
         }
@@ -184,9 +219,9 @@ public class TransportStopDataFrameAnalyticsAction
 
         // Wait for started and stopping analytics
         Set<String> allAnalyticsToWaitFor = Stream.concat(
-                analyticsByTaskState.started.stream().map(MlTasks::dataFrameAnalyticsTaskId),
-                analyticsByTaskState.stopping.stream().map(MlTasks::dataFrameAnalyticsTaskId)
-            ).collect(Collectors.toSet());
+            analyticsByTaskState.started.stream().map(MlTasks::dataFrameAnalyticsTaskId),
+            analyticsByTaskState.stopping.stream().map(MlTasks::dataFrameAnalyticsTaskId)
+        ).collect(Collectors.toSet());
 
         ActionListener<StopDataFrameAnalyticsAction.Response> finalListener = ActionListener.wrap(
             r -> waitForTaskRemoved(allAnalyticsToWaitFor, request, r, listener),
@@ -207,8 +242,12 @@ public class TransportStopDataFrameAnalyticsAction
         super.doExecute(task, request, finalListener);
     }
 
-    private void forceStop(StopDataFrameAnalyticsAction.Request request, ActionListener<StopDataFrameAnalyticsAction.Response> listener,
-                           PersistentTasksCustomMetadata tasks, List<String> nonStoppedAnalytics) {
+    private void forceStop(
+        StopDataFrameAnalyticsAction.Request request,
+        ActionListener<StopDataFrameAnalyticsAction.Response> listener,
+        PersistentTasksCustomMetadata tasks,
+        List<String> nonStoppedAnalytics
+    ) {
 
         final AtomicInteger counter = new AtomicInteger();
         final AtomicArray<Exception> failures = new AtomicArray<>(nonStoppedAnalytics.size());
@@ -216,26 +255,23 @@ public class TransportStopDataFrameAnalyticsAction
         for (String analyticsId : nonStoppedAnalytics) {
             PersistentTasksCustomMetadata.PersistentTask<?> analyticsTask = MlTasks.getDataFrameAnalyticsTask(analyticsId, tasks);
             if (analyticsTask != null) {
-                persistentTasksService.sendRemoveRequest(analyticsTask.getId(), ActionListener.wrap(
-                    removedTask -> {
-                        auditor.info(analyticsId, Messages.DATA_FRAME_ANALYTICS_AUDIT_FORCE_STOPPED);
-                        if (counter.incrementAndGet() == nonStoppedAnalytics.size()) {
-                            sendResponseOrFailure(request.getId(), listener, failures);
-                        }
-                    },
-                    e -> {
-                        final int slot = counter.incrementAndGet();
-                        // We validated that the analytics ids supplied in the request existed when we started processing the action.
-                        // If the related tasks don't exist at this point then they must have been stopped by a simultaneous stop request.
-                        // This is not an error.
-                        if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException == false) {
-                            failures.set(slot - 1, e);
-                        }
-                        if (slot == nonStoppedAnalytics.size()) {
-                            sendResponseOrFailure(request.getId(), listener, failures);
-                        }
+                persistentTasksService.sendRemoveRequest(analyticsTask.getId(), ActionListener.wrap(removedTask -> {
+                    auditor.info(analyticsId, Messages.DATA_FRAME_ANALYTICS_AUDIT_FORCE_STOPPED);
+                    if (counter.incrementAndGet() == nonStoppedAnalytics.size()) {
+                        sendResponseOrFailure(request.getId(), listener, failures);
                     }
-                ));
+                }, e -> {
+                    final int slot = counter.incrementAndGet();
+                    // We validated that the analytics ids supplied in the request existed when we started processing the action.
+                    // If the related tasks don't exist at this point then they must have been stopped by a simultaneous stop request.
+                    // This is not an error.
+                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException == false) {
+                        failures.set(slot - 1, e);
+                    }
+                    if (slot == nonStoppedAnalytics.size()) {
+                        sendResponseOrFailure(request.getId(), listener, failures);
+                    }
+                }));
             } else {
                 // This should not happen, because nonStoppedAnalytics
                 // were derived from the same tasks that were passed to this method
@@ -251,15 +287,21 @@ public class TransportStopDataFrameAnalyticsAction
         }
     }
 
-    private void sendResponseOrFailure(String analyticsId, ActionListener<StopDataFrameAnalyticsAction.Response> listener,
-                                       AtomicArray<Exception> failures) {
+    private void sendResponseOrFailure(
+        String analyticsId,
+        ActionListener<StopDataFrameAnalyticsAction.Response> listener,
+        AtomicArray<Exception> failures
+    ) {
         List<Exception> caughtExceptions = failures.asList();
         if (caughtExceptions.size() == 0) {
             listener.onResponse(new StopDataFrameAnalyticsAction.Response(true));
             return;
         }
 
-        String msg = "Failed to stop data frame analytics [" + analyticsId + "] with [" + caughtExceptions.size()
+        String msg = "Failed to stop data frame analytics ["
+            + analyticsId
+            + "] with ["
+            + caughtExceptions.size()
             + "] failures, rethrowing last, all Exceptions: ["
             + caughtExceptions.stream().map(Exception::getMessage).collect(Collectors.joining(", "))
             + "]";
@@ -288,21 +330,30 @@ public class TransportStopDataFrameAnalyticsAction
         return nodes.toArray(new String[0]);
     }
 
-    private void redirectToMasterNode(DiscoveryNode masterNode, StopDataFrameAnalyticsAction.Request request,
-                                      ActionListener<StopDataFrameAnalyticsAction.Response> listener) {
+    private void redirectToMasterNode(
+        DiscoveryNode masterNode,
+        StopDataFrameAnalyticsAction.Request request,
+        ActionListener<StopDataFrameAnalyticsAction.Response> listener
+    ) {
         if (masterNode == null) {
             listener.onFailure(new MasterNotDiscoveredException("no known master node"));
         } else {
-            transportService.sendRequest(masterNode, actionName, request,
-                new ActionListenerResponseHandler<>(listener, StopDataFrameAnalyticsAction.Response::new));
+            transportService.sendRequest(
+                masterNode,
+                actionName,
+                request,
+                new ActionListenerResponseHandler<>(listener, StopDataFrameAnalyticsAction.Response::new)
+            );
         }
     }
 
     @Override
-    protected StopDataFrameAnalyticsAction.Response newResponse(StopDataFrameAnalyticsAction.Request request,
-                                                                List<StopDataFrameAnalyticsAction.Response> tasks,
-                                                                List<TaskOperationFailure> taskOperationFailures,
-                                                                List<FailedNodeException> failedNodeExceptions) {
+    protected StopDataFrameAnalyticsAction.Response newResponse(
+        StopDataFrameAnalyticsAction.Request request,
+        List<StopDataFrameAnalyticsAction.Response> tasks,
+        List<TaskOperationFailure> taskOperationFailures,
+        List<FailedNodeException> failedNodeExceptions
+    ) {
         if (request.getExpandedIds().size() != tasks.size()) {
             if (taskOperationFailures.isEmpty() == false) {
                 throw org.elasticsearch.ExceptionsHelper.convertToElastic(taskOperationFailures.get(0).getCause());
@@ -318,48 +369,55 @@ public class TransportStopDataFrameAnalyticsAction
     }
 
     @Override
-    protected void taskOperation(StopDataFrameAnalyticsAction.Request request,
-                                 DataFrameAnalyticsTask task,
-                                 ActionListener<StopDataFrameAnalyticsAction.Response> listener) {
-        DataFrameAnalyticsTaskState stoppingState =
-            new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.STOPPING, task.getAllocationId(), null);
+    protected void taskOperation(
+        StopDataFrameAnalyticsAction.Request request,
+        DataFrameAnalyticsTask task,
+        ActionListener<StopDataFrameAnalyticsAction.Response> listener
+    ) {
+        DataFrameAnalyticsTaskState stoppingState = new DataFrameAnalyticsTaskState(
+            DataFrameAnalyticsState.STOPPING,
+            task.getAllocationId(),
+            null
+        );
         task.updatePersistentTaskState(stoppingState, ActionListener.wrap(pTask -> {
-                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
-
-                    @Override
-                    protected void doRun() {
-                        logger.info("[{}] Stopping task with force [{}]", task.getParams().getId(), request.isForce());
-                        task.stop("stop_data_frame_analytics (api)", request.getTimeout());
-                        listener.onResponse(new StopDataFrameAnalyticsAction.Response(true));
-                    }
-                });
-            },
-            e -> {
-                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
-                    // the task has disappeared so must have stopped
-                    listener.onResponse(new StopDataFrameAnalyticsAction.Response(true));
-                } else {
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
-            }));
+
+                @Override
+                protected void doRun() {
+                    logger.info("[{}] Stopping task with force [{}]", task.getParams().getId(), request.isForce());
+                    task.stop("stop_data_frame_analytics (api)", request.getTimeout());
+                    listener.onResponse(new StopDataFrameAnalyticsAction.Response(true));
+                }
+            });
+        }, e -> {
+            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                // the task has disappeared so must have stopped
+                listener.onResponse(new StopDataFrameAnalyticsAction.Response(true));
+            } else {
+                listener.onFailure(e);
+            }
+        }));
     }
 
-    void waitForTaskRemoved(Set<String> taskIds, StopDataFrameAnalyticsAction.Request request,
-                            StopDataFrameAnalyticsAction.Response response,
-                            ActionListener<StopDataFrameAnalyticsAction.Response> listener) {
-        persistentTasksService.waitForPersistentTasksCondition(persistentTasks ->
-                persistentTasks.findTasks(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, t -> taskIds.contains(t.getId())).isEmpty(),
-            request.getTimeout(), ActionListener.wrap(
-                booleanResponse -> {
-                    auditor.info(request.getId(), Messages.DATA_FRAME_ANALYTICS_AUDIT_STOPPED);
-                    listener.onResponse(response);
-                },
-                listener::onFailure
-            ));
+    void waitForTaskRemoved(
+        Set<String> taskIds,
+        StopDataFrameAnalyticsAction.Request request,
+        StopDataFrameAnalyticsAction.Response response,
+        ActionListener<StopDataFrameAnalyticsAction.Response> listener
+    ) {
+        persistentTasksService.waitForPersistentTasksCondition(
+            persistentTasks -> persistentTasks.findTasks(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, t -> taskIds.contains(t.getId()))
+                .isEmpty(),
+            request.getTimeout(),
+            ActionListener.wrap(booleanResponse -> {
+                auditor.info(request.getId(), Messages.DATA_FRAME_ANALYTICS_AUDIT_STOPPED);
+                listener.onResponse(response);
+            }, listener::onFailure)
+        );
     }
 
     // Visible for testing

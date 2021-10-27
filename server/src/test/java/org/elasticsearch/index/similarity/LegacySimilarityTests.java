@@ -14,10 +14,10 @@ import org.apache.lucene.search.similarity.LegacyBM25Similarity;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 
@@ -33,13 +33,15 @@ public class LegacySimilarityTests extends ESSingleNodeTestCase {
 
     public void testResolveDefaultSimilaritiesOn6xIndex() {
         final Settings indexSettings = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_6_3_0) // otherwise classic is forbidden
-                .build();
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_6_3_0) // otherwise classic is forbidden
+            .build();
         final SimilarityService similarityService = createIndex("foo", indexSettings).similarityService();
         assertThat(similarityService.getSimilarity("classic").get(), instanceOf(ClassicSimilarity.class));
-        assertWarnings("The [classic] similarity is now deprecated in favour of BM25, which is generally "
+        assertWarnings(
+            "The [classic] similarity is now deprecated in favour of BM25, which is generally "
                 + "accepted as a better alternative. Use the [BM25] similarity or build a custom [scripted] similarity "
-                + "instead.");
+                + "instead."
+        );
         assertThat(similarityService.getSimilarity("BM25").get(), instanceOf(LegacyBM25Similarity.class));
         assertThat(similarityService.getSimilarity("boolean").get(), instanceOf(BooleanSimilarity.class));
         assertThat(similarityService.getSimilarity("default"), equalTo(null));
@@ -67,16 +69,17 @@ public class LegacySimilarityTests extends ESSingleNodeTestCase {
             mapping.endObject();
 
             final Settings indexSettings = Settings.builder()
-                    .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.V_6_3_0) // otherwise classic is forbidden
-                    .put("index.similarity.my_similarity.type", "classic")
-                    .put("index.similarity.my_similarity.discount_overlaps", false)
-                    .build();
+                .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.V_6_3_0) // otherwise classic is forbidden
+                .put("index.similarity.my_similarity.type", "classic")
+                .put("index.similarity.my_similarity.discount_overlaps", false)
+                .build();
             final MapperService mapperService = createIndex("foo", indexSettings, "type", mapping).mapperService();
-            assertThat(mapperService.fieldType("field1").getTextSearchInfo().getSimilarity().get(),
-                instanceOf(ClassicSimilarity.class));
+            assertThat(mapperService.fieldType("field1").getTextSearchInfo().getSimilarity().get(), instanceOf(ClassicSimilarity.class));
 
-            final ClassicSimilarity similarity
-                = (ClassicSimilarity) mapperService.fieldType("field1").getTextSearchInfo().getSimilarity().get();
+            final ClassicSimilarity similarity = (ClassicSimilarity) mapperService.fieldType("field1")
+                .getTextSearchInfo()
+                .getSimilarity()
+                .get();
             assertThat(similarity.getDiscountOverlaps(), equalTo(false));
         }
     }

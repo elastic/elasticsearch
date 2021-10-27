@@ -8,16 +8,16 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.util.ArrayList;
@@ -71,15 +71,17 @@ public interface Evaluation extends ToXContentObject, NamedWriteable {
             String fieldDescriptor = requiredField.v1();
             String field = requiredField.v2();
             if (field == null) {
-                String metricNamesString =
-                    metrics.stream()
-                        .filter(m -> m.getRequiredFields().contains(fieldDescriptor))
-                        .map(EvaluationMetric::getName)
-                        .collect(joining(", "));
+                String metricNamesString = metrics.stream()
+                    .filter(m -> m.getRequiredFields().contains(fieldDescriptor))
+                    .map(EvaluationMetric::getName)
+                    .collect(joining(", "));
                 if (metricNamesString.isEmpty() == false) {
                     throw ExceptionsHelper.badRequestException(
                         "[{}] must define [{}] as required by the following metrics [{}]",
-                        getName(), fieldDescriptor, metricNamesString);
+                        getName(),
+                        fieldDescriptor,
+                        metricNamesString
+                    );
                 }
             }
         }
@@ -107,7 +109,8 @@ public interface Evaluation extends ToXContentObject, NamedWriteable {
             QueryBuilder predictedClassFieldExistsQuery = QueryBuilders.existsQuery(getFields().getPredictedClassField());
             boolQuery.filter(
                 QueryBuilders.nestedQuery(getFields().getTopClassesField(), predictedClassFieldExistsQuery, ScoreMode.None)
-                    .ignoreUnmapped(true));
+                    .ignoreUnmapped(true)
+            );
         }
         if (getFields().getPredictedProbabilityField() != null && requiredFields.contains(getFields().getPredictedProbabilityField())) {
             // Verify existence of the predicted probability field if required
@@ -118,7 +121,8 @@ public interface Evaluation extends ToXContentObject, NamedWriteable {
                 assert getFields().getTopClassesField() != null;
                 boolQuery.filter(
                     QueryBuilders.nestedQuery(getFields().getTopClassesField(), predictedProbabilityFieldExistsQuery, ScoreMode.None)
-                        .ignoreUnmapped(true));
+                        .ignoreUnmapped(true)
+                );
             } else {
                 boolQuery.filter(predictedProbabilityFieldExistsQuery);
             }
@@ -154,16 +158,15 @@ public interface Evaluation extends ToXContentObject, NamedWriteable {
      * @return list of fields which are required by at least one of the metrics
      */
     default List<String> getRequiredFields() {
-        Set<String> requiredFieldDescriptors =
-            getMetrics().stream()
-                .map(EvaluationMetric::getRequiredFields)
-                .flatMap(Set::stream)
-                .collect(toSet());
-        List<String> requiredFields =
-            getFields().listPotentiallyRequiredFields().stream()
-                .filter(f -> requiredFieldDescriptors.contains(f.v1()))
-                .map(Tuple::v2)
-                .collect(toList());
+        Set<String> requiredFieldDescriptors = getMetrics().stream()
+            .map(EvaluationMetric::getRequiredFields)
+            .flatMap(Set::stream)
+            .collect(toSet());
+        List<String> requiredFields = getFields().listPotentiallyRequiredFields()
+            .stream()
+            .filter(f -> requiredFieldDescriptors.contains(f.v1()))
+            .map(Tuple::v2)
+            .collect(toList());
         return requiredFields;
     }
 
@@ -179,10 +182,6 @@ public interface Evaluation extends ToXContentObject, NamedWriteable {
      * @return list of evaluation results
      */
     default List<EvaluationMetricResult> getResults() {
-        return getMetrics().stream()
-            .map(EvaluationMetric::getResult)
-            .filter(Optional::isPresent)
-            .map(Optional::get)
-            .collect(toList());
+        return getMetrics().stream().map(EvaluationMetric::getResult).filter(Optional::isPresent).map(Optional::get).collect(toList());
     }
 }

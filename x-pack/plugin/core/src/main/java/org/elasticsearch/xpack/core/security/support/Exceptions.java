@@ -12,8 +12,7 @@ import org.elasticsearch.xpack.core.XPackField;
 
 public class Exceptions {
 
-    private Exceptions() {
-    }
+    private Exceptions() {}
 
     public static ElasticsearchSecurityException authenticationError(String msg, Throwable cause, Object... args) {
         ElasticsearchSecurityException e = new ElasticsearchSecurityException(msg, RestStatus.UNAUTHORIZED, cause, args);

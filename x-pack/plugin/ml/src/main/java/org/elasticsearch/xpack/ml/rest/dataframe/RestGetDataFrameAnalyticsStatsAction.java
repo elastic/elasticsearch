@@ -46,12 +46,16 @@ public class RestGetDataFrameAnalyticsStatsAction extends BaseRestHandler {
             request.setId(id);
         }
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
-            request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
-                    restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
+            request.setPageParams(
+                new PageParams(
+                    restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
+                    restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)
+                )
+            );
         }
         request.setAllowNoMatch(
-            restRequest.paramAsBoolean(
-                GetDataFrameAnalyticsStatsAction.Request.ALLOW_NO_MATCH.getPreferredName(), request.isAllowNoMatch()));
+            restRequest.paramAsBoolean(GetDataFrameAnalyticsStatsAction.Request.ALLOW_NO_MATCH.getPreferredName(), request.isAllowNoMatch())
+        );
 
         return channel -> client.execute(GetDataFrameAnalyticsStatsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

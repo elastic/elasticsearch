@@ -10,8 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.ml.process.logging.CppLogMessageHandler;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 
@@ -29,7 +29,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeoutException;
-
 
 /**
  * Maintains the connection to the native controller daemon that can start other processes.
@@ -66,9 +65,9 @@ public class NativeController {
     private final NamedXContentRegistry xContentRegistry;
     private final Map<Integer, ResponseTracker> responseTrackers = new ConcurrentHashMap<>();
     // The response iterator cannot be constructed until something is expected to be in the stream it's reading from,
-    // otherwise it will block while it tries to read a few bytes to determine the character set.  It could be created
+    // otherwise it will block while it tries to read a few bytes to determine the character set. It could be created
     // immediately in a dedicated thread, but that's wasteful as we can reuse the threads that are sending the commands
-    // to the controller to read the responses.  So we create it in the first thread that wants to know the response to
+    // to the controller to read the responses. So we create it in the first thread that wants to know the response to
     // a command.
     private final SetOnce<Iterator<ControllerResponse>> responseIteratorHolder = new SetOnce<>();
     private int nextCommandId = 1; // synchronized on commandStream so doesn't need to be volatile
@@ -76,8 +75,19 @@ public class NativeController {
     NativeController(String localNodeName, Environment env, NamedPipeHelper namedPipeHelper, NamedXContentRegistry xContentRegistry)
         throws IOException {
         this.localNodeName = localNodeName;
-        ProcessPipes processPipes = new ProcessPipes(env, namedPipeHelper, CONTROLLER_CONNECT_TIMEOUT, CONTROLLER, null, null,
-                true, false, true, false, false);
+        ProcessPipes processPipes = new ProcessPipes(
+            env,
+            namedPipeHelper,
+            CONTROLLER_CONNECT_TIMEOUT,
+            CONTROLLER,
+            null,
+            null,
+            true,
+            false,
+            true,
+            false,
+            false
+        );
         processPipes.connectLogStream();
         this.cppLogHandler = processPipes.getLogStreamHandler();
         tailLogsInThread(cppLogHandler);
@@ -88,16 +98,14 @@ public class NativeController {
     }
 
     static void tailLogsInThread(CppLogMessageHandler cppLogHandler) {
-        final Thread logTailThread = new Thread(
-                () -> {
-                    try (CppLogMessageHandler h = cppLogHandler) {
-                        h.tailStream();
-                    } catch (IOException e) {
-                        LOGGER.error("Error tailing C++ controller logs", e);
-                    }
-                    LOGGER.info("Native controller process has stopped - no new native processes can be started");
-                },
-                "ml-cpp-log-tail-thread");
+        final Thread logTailThread = new Thread(() -> {
+            try (CppLogMessageHandler h = cppLogHandler) {
+                h.tailStream();
+            } catch (IOException e) {
+                LOGGER.error("Error tailing C++ controller logs", e);
+            }
+            LOGGER.info("Native controller process has stopped - no new native processes can be started");
+        }, "ml-cpp-log-tail-thread");
         /*
          * This thread is created on the main thread so would default to being a user thread which could prevent the JVM from exiting if
          * this thread were to still be running during shutdown. As such, we mark it as a daemon thread.
@@ -130,8 +138,11 @@ public class NativeController {
         }
 
         if (cppLogHandler.hasLogStreamEnded()) {
-            String msg = "Cannot start process [" + command.get(0) + "]: native controller process has stopped on node ["
-                + localNodeName + "]";
+            String msg = "Cannot start process ["
+                + command.get(0)
+                + "]: native controller process has stopped on node ["
+                + localNodeName
+                + "]";
             LOGGER.error(msg);
             throw new ElasticsearchException(msg);
         }
@@ -167,8 +178,11 @@ public class NativeController {
         }
 
         if (cppLogHandler.hasLogStreamEnded()) {
-            String msg = "Cannot kill process with PID [" + pid + "]: native controller process has stopped on node ["
-                + localNodeName + "]";
+            String msg = "Cannot kill process with PID ["
+                + pid
+                + "]: native controller process has stopped on node ["
+                + localNodeName
+                + "]";
             LOGGER.error(msg);
             throw new ElasticsearchException(msg);
         }
@@ -221,7 +235,7 @@ public class NativeController {
 
         // If our response has not been seen already (by another thread), parse messages under lock until it is seen.
         // This approach means that of all the threads waiting for controller responses, one is parsing the messages
-        // on behalf of all of them, and the others are blocked.  When the thread that is parsing gets the response
+        // on behalf of all of them, and the others are blocked. When the thread that is parsing gets the response
         // it needs another thread will pick up the parsing.
         if (ourResponseTracker.hasResponded() == false) {
             synchronized (responseIteratorHolder) {
@@ -233,8 +247,9 @@ public class NativeController {
                 }
                 while (ourResponseTracker.hasResponded() == false) {
                     if (responseIterator.hasNext() == false) {
-                        throw new IOException("ML controller response stream ended while awaiting response for command [" +
-                            commandId + "]");
+                        throw new IOException(
+                            "ML controller response stream ended while awaiting response for command [" + commandId + "]"
+                        );
                     }
                     ControllerResponse response = responseIterator.next();
                     ResponseTracker respondedTracker = responseTrackers.get(response.getCommandId());

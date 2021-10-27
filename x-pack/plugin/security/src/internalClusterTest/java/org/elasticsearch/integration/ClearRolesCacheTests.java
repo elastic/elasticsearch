@@ -29,7 +29,6 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-
 /**
  * Test for the clear roles API
  */
@@ -52,9 +51,9 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
         // create roles
         for (String role : roles) {
             c.preparePutRole(role)
-                    .cluster("none")
-                    .addIndices(new String[] { "*" }, new String[] { "ALL" }, null, null, null, randomBoolean())
-                    .get();
+                .cluster("none")
+                .addIndices(new String[] { "*" }, new String[] { "ALL" }, null, null, null, randomBoolean())
+                .get();
             logger.debug("--> created role [{}]", role);
         }
 
@@ -84,11 +83,11 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
         logger.debug("--> modifying roles {} to have run_as", toModify);
         for (String role : toModify) {
             PutRoleResponse response = securityClient.preparePutRole(role)
-                    .cluster("none")
-                    .addIndices(new String[] { "*" }, new String[] { "ALL" }, null, null, null, randomBoolean())
-                    .runAs(role)
-                    .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE)
-                    .get();
+                .cluster("none")
+                .addIndices(new String[] { "*" }, new String[] { "ALL" }, null, null, null, randomBoolean())
+                .runAs(role)
+                .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE)
+                .get();
             assertThat(response.isCreated(), is(false));
             logger.debug("--> updated role [{}] with run_as", role);
         }
@@ -119,8 +118,11 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
                 assertThat("role [" + role + "] should be modified and have run as", runAs == null || runAs.length == 0, is(false));
                 assertThat(Arrays.asList(runAs).contains(role), is(true));
             } else {
-                assertThat("role [" + role + "] should be cached and not have run as set but does!", runAs == null || runAs.length == 0,
-                        is(true));
+                assertThat(
+                    "role [" + role + "] should be cached and not have run as set but does!",
+                    runAs == null || runAs.length == 0,
+                    is(true)
+                );
             }
         }
     }

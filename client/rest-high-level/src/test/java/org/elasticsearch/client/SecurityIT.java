@@ -44,11 +44,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.nullValue;
 
 @SuppressWarnings("removal")
@@ -98,51 +98,68 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
 
         // authenticate correctly
         final String basicAuthHeader = basicAuthHeader(putUserRequest.getUser().getUsername(), putUserRequest.getPassword());
-        final AuthenticateResponse authenticateResponse = execute(securityClient::authenticate, securityClient::authenticateAsync,
-                authorizationRequestOptions(basicAuthHeader));
+        final AuthenticateResponse authenticateResponse = execute(
+            securityClient::authenticate,
+            securityClient::authenticateAsync,
+            authorizationRequestOptions(basicAuthHeader)
+        );
 
         assertThat(authenticateResponse.getUser(), is(putUserRequest.getUser()));
         assertThat(authenticateResponse.enabled(), is(true));
         assertThat(authenticateResponse.getAuthenticationType(), is("realm"));
 
         // get user
-        final GetUsersRequest getUsersRequest =
-            new GetUsersRequest(putUserRequest.getUser().getUsername());
-        final GetUsersResponse getUsersResponse =
-            execute(getUsersRequest, securityClient::getUsers, securityClient::getUsersAsync);
+        final GetUsersRequest getUsersRequest = new GetUsersRequest(putUserRequest.getUser().getUsername());
+        final GetUsersResponse getUsersResponse = execute(getUsersRequest, securityClient::getUsers, securityClient::getUsersAsync);
         ArrayList<User> users = new ArrayList<>();
         users.addAll(getUsersResponse.getUsers());
         assertThat(users.get(0), is(putUserRequest.getUser()));
 
         // delete user
-        final DeleteUserRequest deleteUserRequest =
-            new DeleteUserRequest(putUserRequest.getUser().getUsername(), putUserRequest.getRefreshPolicy());
+        final DeleteUserRequest deleteUserRequest = new DeleteUserRequest(
+            putUserRequest.getUser().getUsername(),
+            putUserRequest.getRefreshPolicy()
+        );
 
-        final DeleteUserResponse deleteUserResponse =
-            execute(deleteUserRequest, securityClient::deleteUser, securityClient::deleteUserAsync);
+        final DeleteUserResponse deleteUserResponse = execute(
+            deleteUserRequest,
+            securityClient::deleteUser,
+            securityClient::deleteUserAsync
+        );
         assertThat(deleteUserResponse.isAcknowledged(), is(true));
 
         // authentication no longer works
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> execute(securityClient::authenticate,
-                securityClient::authenticateAsync, authorizationRequestOptions(basicAuthHeader)));
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> execute(securityClient::authenticate, securityClient::authenticateAsync, authorizationRequestOptions(basicAuthHeader))
+        );
         assertThat(e.getMessage(), containsString("unable to authenticate user [" + putUserRequest.getUser().getUsername() + "]"));
 
         // delete non-existing user
-        final DeleteUserResponse deleteUserResponse2 =
-            execute(deleteUserRequest, securityClient::deleteUser, securityClient::deleteUserAsync);
+        final DeleteUserResponse deleteUserResponse2 = execute(
+            deleteUserRequest,
+            securityClient::deleteUser,
+            securityClient::deleteUserAsync
+        );
         assertThat(deleteUserResponse2.isAcknowledged(), is(false));
 
         // Test the authenticate response for a service token
         {
             RestHighLevelClient client = highLevelClient();
-            CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
-                new CreateServiceAccountTokenRequest("elastic", "fleet-server", "token1");
-            CreateServiceAccountTokenResponse createServiceAccountTokenResponse =
-                client.security().createServiceAccountToken(createServiceAccountTokenRequest, RequestOptions.DEFAULT);
+            CreateServiceAccountTokenRequest createServiceAccountTokenRequest = new CreateServiceAccountTokenRequest(
+                "elastic",
+                "fleet-server",
+                "token1"
+            );
+            CreateServiceAccountTokenResponse createServiceAccountTokenResponse = client.security()
+                .createServiceAccountToken(createServiceAccountTokenRequest, RequestOptions.DEFAULT);
 
-            AuthenticateResponse response = client.security().authenticate(
-                RequestOptions.DEFAULT.toBuilder().addHeader(
-                    "Authorization", "Bearer " + createServiceAccountTokenResponse.getValue().toString()).build());
+            AuthenticateResponse response = client.security()
+                .authenticate(
+                    RequestOptions.DEFAULT.toBuilder()
+                        .addHeader("Authorization", "Bearer " + createServiceAccountTokenResponse.getValue().toString())
+                        .build()
+                );
 
             User user = response.getUser();
             boolean enabled = response.enabled();
@@ -226,13 +243,19 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
 
     private static Role randomRole(String roleName) {
         final Role.Builder roleBuilder = Role.builder()
-                .name(roleName)
-                .clusterPrivileges(randomSubsetOf(randomInt(3), Role.ClusterPrivilegeName.ALL_ARRAY))
-                .indicesPrivileges(
-                        randomArray(3, IndicesPrivileges[]::new, () -> IndicesPrivilegesTests.createNewRandom("{\"match_all\": {}}")))
-                .applicationResourcePrivileges(randomArray(3, ApplicationResourcePrivileges[]::new,
-                        () -> ApplicationResourcePrivilegesTests.createNewRandom(randomAlphaOfLength(3).toLowerCase(Locale.ROOT))))
-                .runAsPrivilege(randomArray(3, String[]::new, () -> randomAlphaOfLength(3)));
+            .name(roleName)
+            .clusterPrivileges(randomSubsetOf(randomInt(3), Role.ClusterPrivilegeName.ALL_ARRAY))
+            .indicesPrivileges(
+                randomArray(3, IndicesPrivileges[]::new, () -> IndicesPrivilegesTests.createNewRandom("{\"match_all\": {}}"))
+            )
+            .applicationResourcePrivileges(
+                randomArray(
+                    3,
+                    ApplicationResourcePrivileges[]::new,
+                    () -> ApplicationResourcePrivilegesTests.createNewRandom(randomAlphaOfLength(3).toLowerCase(Locale.ROOT))
+                )
+            )
+            .runAsPrivilege(randomArray(3, String[]::new, () -> randomAlphaOfLength(3)));
         if (randomBoolean()) {
             roleBuilder.globalApplicationPrivileges(GlobalPrivilegesTests.buildRandomManageApplicationPrivilege());
         }

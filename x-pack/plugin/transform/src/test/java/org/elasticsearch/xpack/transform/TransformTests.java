@@ -49,10 +49,7 @@ public class TransformTests extends ESTestCase {
         builder.put("node.attr.some_other_attrib", "value");
         Transform transform = createTransform(builder.build());
         assertNotNull(transform.additionalSettings());
-        assertEquals(
-            transformEnabled,
-            Boolean.parseBoolean(transform.additionalSettings().get("node.attr.transform.node"))
-        );
+        assertEquals(transformEnabled, Boolean.parseBoolean(transform.additionalSettings().get("node.attr.transform.node")));
         if (useExplicitSetting && useLegacySetting) {
             assertSettingDeprecationsAndWarnings(getDeprecatedSettingsForSettingNames("node.transform"));
         }
@@ -82,8 +79,9 @@ public class TransformTests extends ESTestCase {
     }
 
     private Setting<?>[] getDeprecatedSettingsForSettingNames(String... settingNames) {
-        return Arrays.stream(settingNames).map(settingName -> Setting.intSetting(settingName, randomInt(),
-            Setting.Property.Deprecated)).toArray(Setting[]::new);
+        return Arrays.stream(settingNames)
+            .map(settingName -> Setting.intSetting(settingName, randomInt(), Setting.Property.Deprecated))
+            .toArray(Setting[]::new);
     }
 
 }

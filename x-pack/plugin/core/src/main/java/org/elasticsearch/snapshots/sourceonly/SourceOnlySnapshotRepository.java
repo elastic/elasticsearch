@@ -7,6 +7,7 @@
 package org.elasticsearch.snapshots.sourceonly;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -75,10 +76,19 @@ import java.util.function.Supplier;
  * match_all scroll searches in order to reindex the data.
  */
 public final class SourceOnlySnapshotRepository extends FilterRepository {
-    private static final Setting<String> DELEGATE_TYPE = new Setting<>("delegate_type", "", Function.identity(), Setting.Property
-        .NodeScope);
-    public static final Setting<Boolean> SOURCE_ONLY = Setting.boolSetting("index.source_only", false, Setting
-        .Property.IndexScope, Setting.Property.Final, Setting.Property.PrivateIndex);
+    private static final Setting<String> DELEGATE_TYPE = new Setting<>(
+        "delegate_type",
+        "",
+        Function.identity(),
+        Setting.Property.NodeScope
+    );
+    public static final Setting<Boolean> SOURCE_ONLY = Setting.boolSetting(
+        "index.source_only",
+        false,
+        Setting.Property.IndexScope,
+        Setting.Property.Final,
+        Setting.Property.PrivateIndex
+    );
 
     private static final Logger logger = LogManager.getLogger(SourceOnlySnapshotRepository.class);
 
@@ -137,19 +147,17 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             while (iterator.hasNext()) {
                 ObjectObjectCursor<String, MappingMetadata> next = iterator.next();
                 // we don't need to obey any routing here stuff is read-only anyway and get is disabled
-                final String mapping = "{ \"" + next.key + "\": { \"enabled\": false, \"_meta\": " + next.value.source().string()
-                    + " } }";
+                final String mapping = "{ \"" + next.key + "\": { \"enabled\": false, \"_meta\": " + next.value.source().string() + " } }";
                 indexMetadataBuilder.putMapping(next.key, mapping);
             }
-            indexMetadataBuilder.settings(Settings.builder().put(index.getSettings())
-                .put(SOURCE_ONLY.getKey(), true)
-                .put("index.blocks.write", true)); // read-only!
+            indexMetadataBuilder.settings(
+                Settings.builder().put(index.getSettings()).put(SOURCE_ONLY.getKey(), true).put("index.blocks.write", true)
+            ); // read-only!
             indexMetadataBuilder.settingsVersion(1 + indexMetadataBuilder.settingsVersion());
             builder.put(indexMetadataBuilder);
         }
         return builder.build();
     }
-
 
     @Override
     public void snapshotShard(SnapshotShardContext context) {
@@ -157,8 +165,10 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         if (mapperService.documentMapper() != null // if there is no mapping this is null
             && mapperService.documentMapper().sourceMapper().isComplete() == false) {
             context.onFailure(
-                new IllegalStateException("Can't snapshot _source only on an index that has incomplete source ie. has _source disabled " +
-                    "or filters the source"));
+                new IllegalStateException(
+                    "Can't snapshot _source only on an index that has incomplete source ie. has _source disabled " + "or filters the source"
+                )
+            );
             return;
         }
         final Store store = context.store();
@@ -171,8 +181,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         Path snapPath = dataPath.resolve(SNAPSHOT_DIR_NAME);
         final List<Closeable> toClose = new ArrayList<>(3);
         try {
-            SourceOnlySnapshot.LinkedFilesDirectory overlayDir = new SourceOnlySnapshot.LinkedFilesDirectory(
-                new NIOFSDirectory(snapPath));
+            SourceOnlySnapshot.LinkedFilesDirectory overlayDir = new SourceOnlySnapshot.LinkedFilesDirectory(new NIOFSDirectory(snapPath));
             toClose.add(overlayDir);
             Store tempStore = new Store(store.shardId(), store.indexSettings(), overlayDir, new ShardLock(store.shardId()) {
                 @Override
@@ -188,8 +197,13 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             try {
                 snapshot.syncSnapshot(snapshotIndexCommit);
             } catch (NoSuchFileException | CorruptIndexException | FileAlreadyExistsException e) {
-                logger.warn(() -> new ParameterizedMessage(
-                        "Existing staging directory [{}] appears corrupted and will be pruned and recreated.", snapPath), e);
+                logger.warn(
+                    () -> new ParameterizedMessage(
+                        "Existing staging directory [{}] appears corrupted and will be pruned and recreated.",
+                        snapPath
+                    ),
+                    e
+                );
                 Lucene.cleanLuceneIndex(overlayDir);
                 snapshot.syncSnapshot(snapshotIndexCommit);
             }
@@ -202,9 +216,20 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             DirectoryReader reader = DirectoryReader.open(tempStore.directory());
             toClose.add(reader);
             IndexCommit indexCommit = reader.getIndexCommit();
-            super.snapshotShard(new SnapshotShardContext(tempStore, mapperService, context.snapshotId(), context.indexId(),
-                    new Engine.IndexCommitRef(indexCommit, () -> IOUtils.close(toClose)), context.stateIdentifier(),
-                    context.status(), context.getRepositoryMetaVersion(), context.userMetadata(), context));
+            super.snapshotShard(
+                new SnapshotShardContext(
+                    tempStore,
+                    mapperService,
+                    context.snapshotId(),
+                    context.indexId(),
+                    new Engine.IndexCommitRef(indexCommit, () -> IOUtils.close(toClose)),
+                    context.stateIdentifier(),
+                    context.status(),
+                    context.getRepositoryMetaVersion(),
+                    context.userMetadata(),
+                    context
+                )
+            );
         } catch (IOException e) {
             try {
                 IOUtils.close(toClose);
@@ -219,8 +244,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
      * Returns an {@link EngineFactory} for the source only snapshots.
      */
     public static EngineFactory getEngineFactory() {
-        return config -> new ReadOnlyEngine(config, null, new TranslogStats(0, 0, 0, 0, 0), true,
-            readerWrapper(config), true, false);
+        return config -> new ReadOnlyEngine(config, null, new TranslogStats(0, 0, 0, 0, 0), true, readerWrapper(config), true, false);
     }
 
     public static Function<DirectoryReader, DirectoryReader> readerWrapper(EngineConfig engineConfig) {
@@ -251,8 +275,9 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                     throw new IllegalArgumentException(DELEGATE_TYPE.getKey() + " must be set");
                 }
                 Repository.Factory factory = typeLookup.apply(delegateType);
-                return new SourceOnlySnapshotRepository(factory.create(new RepositoryMetadata(metadata.name(),
-                    delegateType, metadata.settings()), typeLookup));
+                return new SourceOnlySnapshotRepository(
+                    factory.create(new RepositoryMetadata(metadata.name(), delegateType, metadata.settings()), typeLookup)
+                );
             }
         };
     }

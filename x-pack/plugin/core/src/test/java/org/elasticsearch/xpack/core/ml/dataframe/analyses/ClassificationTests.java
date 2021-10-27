@@ -15,18 +15,18 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncodingTests;
@@ -93,26 +93,37 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
         String dependentVariableName = randomAlphaOfLength(10);
         BoostedTreeParams boostedTreeParams = BoostedTreeParamsTests.createRandom();
         String predictionFieldName = randomBoolean() ? null : randomAlphaOfLength(10);
-        Classification.ClassAssignmentObjective classAssignmentObjective = randomBoolean() ?
-            null : randomFrom(Classification.ClassAssignmentObjective.values());
+        Classification.ClassAssignmentObjective classAssignmentObjective = randomBoolean()
+            ? null
+            : randomFrom(Classification.ClassAssignmentObjective.values());
         Integer numTopClasses = randomBoolean() ? null : randomIntBetween(-1, 1000);
         Double trainingPercent = randomBoolean() ? null : randomDoubleBetween(0.0, 100.0, false);
         Long randomizeSeed = randomBoolean() ? null : randomLong();
         Boolean earlyStoppingEnabled = randomBoolean() ? null : randomBoolean();
-        return new Classification(dependentVariableName, boostedTreeParams, predictionFieldName, classAssignmentObjective,
-            numTopClasses, trainingPercent, randomizeSeed,
-            randomBoolean() ?
-                null :
-                Stream.generate(() -> randomFrom(FrequencyEncodingTests.createRandom(true),
-                    OneHotEncodingTests.createRandom(true),
-                    TargetMeanEncodingTests.createRandom(true)))
-                    .limit(randomIntBetween(0, 5))
-                    .collect(Collectors.toList()),
-            earlyStoppingEnabled);
+        return new Classification(
+            dependentVariableName,
+            boostedTreeParams,
+            predictionFieldName,
+            classAssignmentObjective,
+            numTopClasses,
+            trainingPercent,
+            randomizeSeed,
+            randomBoolean()
+                ? null
+                : Stream.generate(
+                    () -> randomFrom(
+                        FrequencyEncodingTests.createRandom(true),
+                        OneHotEncodingTests.createRandom(true),
+                        TargetMeanEncodingTests.createRandom(true)
+                    )
+                ).limit(randomIntBetween(0, 5)).collect(Collectors.toList()),
+            earlyStoppingEnabled
+        );
     }
 
     public static Classification mutateForVersion(Classification instance, Version version) {
-        return new Classification(instance.getDependentVariable(),
+        return new Classification(
+            instance.getDependentVariable(),
             BoostedTreeParamsTests.mutateForVersion(instance.getBoostedTreeParams(), version),
             instance.getPredictionFieldName(),
             version.onOrAfter(Version.V_7_7_0) ? instance.getClassAssignmentObjective() : null,
@@ -120,7 +131,8 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
             instance.getTrainingPercent(),
             instance.getRandomizeSeed(),
             version.onOrAfter(Version.V_7_10_0) ? instance.getFeatureProcessors() : Collections.emptyList(),
-            version.onOrAfter(Version.V_7_12_0) ? instance.getEarlyStoppingEnabled() : null);
+            version.onOrAfter(Version.V_7_12_0) ? instance.getEarlyStoppingEnabled() : null
+        );
     }
 
     @Override
@@ -130,7 +142,8 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
             return;
         }
 
-        Classification newBwc = new Classification(bwcSerializedObject.getDependentVariable(),
+        Classification newBwc = new Classification(
+            bwcSerializedObject.getDependentVariable(),
             bwcSerializedObject.getBoostedTreeParams(),
             bwcSerializedObject.getPredictionFieldName(),
             bwcSerializedObject.getClassAssignmentObjective(),
@@ -138,8 +151,10 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
             bwcSerializedObject.getTrainingPercent(),
             42L,
             bwcSerializedObject.getFeatureProcessors(),
-            bwcSerializedObject.getEarlyStoppingEnabled());
-        Classification newInstance = new Classification(testInstance.getDependentVariable(),
+            bwcSerializedObject.getEarlyStoppingEnabled()
+        );
+        Classification newInstance = new Classification(
+            testInstance.getDependentVariable(),
             testInstance.getBoostedTreeParams(),
             testInstance.getPredictionFieldName(),
             testInstance.getClassAssignmentObjective(),
@@ -147,7 +162,8 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
             testInstance.getTrainingPercent(),
             42L,
             testInstance.getFeatureProcessors(),
-            testInstance.getEarlyStoppingEnabled());
+            testInstance.getEarlyStoppingEnabled()
+        );
         super.assertOnBWCObject(newBwc, newInstance, version);
     }
 
@@ -157,47 +173,51 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
     }
 
     public void testDeserialization() throws IOException {
-        String toDeserialize = "{\n" +
-            "      \"dependent_variable\": \"FlightDelayMin\",\n" +
-            "      \"feature_processors\": [\n" +
-            "        {\n" +
-            "          \"one_hot_encoding\": {\n" +
-            "            \"field\": \"OriginWeather\",\n" +
-            "            \"hot_map\": {\n" +
-            "              \"sunny_col\": \"Sunny\",\n" +
-            "              \"clear_col\": \"Clear\",\n" +
-            "              \"rainy_col\": \"Rain\"\n" +
-            "            }\n" +
-            "          }\n" +
-            "        },\n" +
-            "        {\n" +
-            "          \"one_hot_encoding\": {\n" +
-            "            \"field\": \"DestWeather\",\n" +
-            "            \"hot_map\": {\n" +
-            "              \"dest_sunny_col\": \"Sunny\",\n" +
-            "              \"dest_clear_col\": \"Clear\",\n" +
-            "              \"dest_rainy_col\": \"Rain\"\n" +
-            "            }\n" +
-            "          }\n" +
-            "        },\n" +
-            "        {\n" +
-            "          \"frequency_encoding\": {\n" +
-            "            \"field\": \"OriginWeather\",\n" +
-            "            \"feature_name\": \"mean\",\n" +
-            "            \"frequency_map\": {\n" +
-            "              \"Sunny\": 0.8,\n" +
-            "              \"Rain\": 0.2\n" +
-            "            }\n" +
-            "          }\n" +
-            "        }\n" +
-            "      ]\n" +
-            "    }" +
-            "";
+        String toDeserialize = "{\n"
+            + "      \"dependent_variable\": \"FlightDelayMin\",\n"
+            + "      \"feature_processors\": [\n"
+            + "        {\n"
+            + "          \"one_hot_encoding\": {\n"
+            + "            \"field\": \"OriginWeather\",\n"
+            + "            \"hot_map\": {\n"
+            + "              \"sunny_col\": \"Sunny\",\n"
+            + "              \"clear_col\": \"Clear\",\n"
+            + "              \"rainy_col\": \"Rain\"\n"
+            + "            }\n"
+            + "          }\n"
+            + "        },\n"
+            + "        {\n"
+            + "          \"one_hot_encoding\": {\n"
+            + "            \"field\": \"DestWeather\",\n"
+            + "            \"hot_map\": {\n"
+            + "              \"dest_sunny_col\": \"Sunny\",\n"
+            + "              \"dest_clear_col\": \"Clear\",\n"
+            + "              \"dest_rainy_col\": \"Rain\"\n"
+            + "            }\n"
+            + "          }\n"
+            + "        },\n"
+            + "        {\n"
+            + "          \"frequency_encoding\": {\n"
+            + "            \"field\": \"OriginWeather\",\n"
+            + "            \"feature_name\": \"mean\",\n"
+            + "            \"frequency_map\": {\n"
+            + "              \"Sunny\": 0.8,\n"
+            + "              \"Rain\": 0.2\n"
+            + "            }\n"
+            + "          }\n"
+            + "        }\n"
+            + "      ]\n"
+            + "    }"
+            + "";
 
-        try(XContentParser parser = XContentHelper.createParser(xContentRegistry(),
-            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-            new BytesArray(toDeserialize),
-            XContentType.JSON)) {
+        try (
+            XContentParser parser = XContentHelper.createParser(
+                xContentRegistry(),
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                new BytesArray(toDeserialize),
+                XContentType.JSON
+            )
+        ) {
             Classification parsed = Classification.fromXContent(parser, false);
             assertThat(parsed.getDependentVariable(), equalTo("FlightDelayMin"));
             for (PreProcessor preProcessor : parsed.getFeatureProcessors()) {
@@ -207,36 +227,46 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
     }
 
     public void testConstructor_GivenTrainingPercentIsZero() {
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new Classification("foo", BOOSTED_TREE_PARAMS, "result", null, 3, 0.0, randomLong(), null, null));
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> new Classification("foo", BOOSTED_TREE_PARAMS, "result", null, 3, 0.0, randomLong(), null, null)
+        );
 
         assertThat(e.getMessage(), equalTo("[training_percent] must be a positive double in (0, 100]"));
     }
 
     public void testConstructor_GivenTrainingPercentIsLessThanZero() {
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new Classification("foo", BOOSTED_TREE_PARAMS, "result", null, 3, -1.0, randomLong(), null, null));
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> new Classification("foo", BOOSTED_TREE_PARAMS, "result", null, 3, -1.0, randomLong(), null, null)
+        );
 
         assertThat(e.getMessage(), equalTo("[training_percent] must be a positive double in (0, 100]"));
     }
 
     public void testConstructor_GivenTrainingPercentIsGreaterThan100() {
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new Classification("foo", BOOSTED_TREE_PARAMS, "result", null, 3, 100.0001, randomLong(), null, null));
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> new Classification("foo", BOOSTED_TREE_PARAMS, "result", null, 3, 100.0001, randomLong(), null, null)
+        );
 
         assertThat(e.getMessage(), equalTo("[training_percent] must be a positive double in (0, 100]"));
     }
 
     public void testConstructor_GivenNumTopClassesIsLessThanMinusOne() {
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new Classification("foo", BOOSTED_TREE_PARAMS, "result", null, -2, 1.0, randomLong(), null, null));
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> new Classification("foo", BOOSTED_TREE_PARAMS, "result", null, -2, 1.0, randomLong(), null, null)
+        );
 
         assertThat(e.getMessage(), equalTo("[num_top_classes] must be an integer in [0, 1000] or a special value -1"));
     }
 
     public void testConstructor_GivenNumTopClassesIsGreaterThan1000() {
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new Classification("foo", BOOSTED_TREE_PARAMS, "result", null, 1001, 1.0, randomLong(), null, null));
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> new Classification("foo", BOOSTED_TREE_PARAMS, "result", null, 1001, 1.0, randomLong(), null, null)
+        );
 
         assertThat(e.getMessage(), equalTo("[num_top_classes] must be an integer in [0, 1000] or a special value -1"));
     }
@@ -250,12 +280,30 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
     }
 
     public void testClassAssignmentObjective() {
-        Classification classification = new Classification("foo", BOOSTED_TREE_PARAMS, "result",
-            Classification.ClassAssignmentObjective.MAXIMIZE_ACCURACY, 7, 1.0, randomLong(), null, null);
+        Classification classification = new Classification(
+            "foo",
+            BOOSTED_TREE_PARAMS,
+            "result",
+            Classification.ClassAssignmentObjective.MAXIMIZE_ACCURACY,
+            7,
+            1.0,
+            randomLong(),
+            null,
+            null
+        );
         assertThat(classification.getClassAssignmentObjective(), equalTo(Classification.ClassAssignmentObjective.MAXIMIZE_ACCURACY));
 
-        classification = new Classification("foo", BOOSTED_TREE_PARAMS, "result",
-        Classification.ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL, 7, 1.0, randomLong(), null, null);
+        classification = new Classification(
+            "foo",
+            BOOSTED_TREE_PARAMS,
+            "result",
+            Classification.ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL,
+            7,
+            1.0,
+            randomLong(),
+            null,
+            null
+        );
         assertThat(classification.getClassAssignmentObjective(), equalTo(Classification.ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL));
 
         // class_assignment_objective == null, default applied
@@ -318,46 +366,71 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
             new Classification("foo").getParams(fieldInfo),
             equalTo(
                 org.elasticsearch.core.Map.of(
-                    "dependent_variable", "foo",
-                    "class_assignment_objective", Classification.ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL,
-                    "num_top_classes", 2,
-                    "prediction_field_name", "foo_prediction",
-                    "prediction_field_type", "bool",
-                    "num_classes", 10L,
-                    "training_percent", 100.0,
-                    "early_stopping_enabled", true)));
+                    "dependent_variable",
+                    "foo",
+                    "class_assignment_objective",
+                    Classification.ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL,
+                    "num_top_classes",
+                    2,
+                    "prediction_field_name",
+                    "foo_prediction",
+                    "prediction_field_type",
+                    "bool",
+                    "num_classes",
+                    10L,
+                    "training_percent",
+                    100.0,
+                    "early_stopping_enabled",
+                    true
+                )
+            )
+        );
         assertThat(
             new Classification("bar").getParams(fieldInfo),
             equalTo(
                 org.elasticsearch.core.Map.of(
-                    "dependent_variable", "bar",
-                    "class_assignment_objective", Classification.ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL,
-                    "num_top_classes", 2,
-                    "prediction_field_name", "bar_prediction",
-                    "prediction_field_type", "int",
-                    "num_classes", 20L,
-                    "training_percent", 100.0,
-                    "early_stopping_enabled", true)));
+                    "dependent_variable",
+                    "bar",
+                    "class_assignment_objective",
+                    Classification.ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL,
+                    "num_top_classes",
+                    2,
+                    "prediction_field_name",
+                    "bar_prediction",
+                    "prediction_field_type",
+                    "int",
+                    "num_classes",
+                    20L,
+                    "training_percent",
+                    100.0,
+                    "early_stopping_enabled",
+                    true
+                )
+            )
+        );
         assertThat(
-            new Classification("baz",
-                BoostedTreeParams.builder().build() ,
-                null,
-                null,
-                null,
-                50.0,
-                null,
-                null,
-                null).getParams(fieldInfo),
+            new Classification("baz", BoostedTreeParams.builder().build(), null, null, null, 50.0, null, null, null).getParams(fieldInfo),
             equalTo(
                 org.elasticsearch.core.Map.of(
-                    "dependent_variable", "baz",
-                    "class_assignment_objective", Classification.ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL,
-                    "num_top_classes", 2,
-                    "prediction_field_name", "baz_prediction",
-                    "prediction_field_type", "string",
-                    "num_classes", 30L,
-                    "training_percent", 50.0,
-                    "early_stopping_enabled", true)));
+                    "dependent_variable",
+                    "baz",
+                    "class_assignment_objective",
+                    Classification.ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL,
+                    "num_top_classes",
+                    2,
+                    "prediction_field_name",
+                    "baz_prediction",
+                    "prediction_field_type",
+                    "string",
+                    "num_classes",
+                    30L,
+                    "training_percent",
+                    50.0,
+                    "early_stopping_enabled",
+                    true
+                )
+            )
+        );
     }
 
     public void testRequiredFieldsIsNonEmpty() {
@@ -376,33 +449,42 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
 
     public void testGetResultMappings_DependentVariableMappingIsAbsent() {
         FieldCapabilitiesResponse fieldCapabilitiesResponse = new FieldCapabilitiesResponse(new String[0], Collections.emptyMap());
-        expectThrows(ElasticsearchStatusException.class,
-            () -> new Classification("foo").getResultMappings("results", fieldCapabilitiesResponse));
+        expectThrows(
+            ElasticsearchStatusException.class,
+            () -> new Classification("foo").getResultMappings("results", fieldCapabilitiesResponse)
+        );
     }
 
     public void testGetResultMappings_DependentVariableMappingHasNoTypes() {
-        FieldCapabilitiesResponse fieldCapabilitiesResponse =
-            new FieldCapabilitiesResponse(new String[0], Collections.singletonMap("foo", Collections.emptyMap()));
-        expectThrows(ElasticsearchStatusException.class,
-            () -> new Classification("foo").getResultMappings("results", fieldCapabilitiesResponse));
+        FieldCapabilitiesResponse fieldCapabilitiesResponse = new FieldCapabilitiesResponse(
+            new String[0],
+            Collections.singletonMap("foo", Collections.emptyMap())
+        );
+        expectThrows(
+            ElasticsearchStatusException.class,
+            () -> new Classification("foo").getResultMappings("results", fieldCapabilitiesResponse)
+        );
     }
 
     public void testGetResultMappings_DependentVariableMappingIsPresent() {
-        Map<String, Object> expectedTopClassesMapping = new HashMap<String, Object>() {{
-            put("type", "nested");
-            put("properties", new HashMap<String, Object>() {{
-                put("class_name", singletonMap("type", "dummy"));
-                put("class_probability", singletonMap("type", "double"));
-                put("class_score", singletonMap("type", "double"));
-            }});
-        }};
-        FieldCapabilitiesResponse fieldCapabilitiesResponse =
-            new FieldCapabilitiesResponse(
-                new String[0],
-                Collections.singletonMap("foo", Collections.singletonMap("dummy", createFieldCapabilities("foo", "dummy"))));
+        Map<String, Object> expectedTopClassesMapping = new HashMap<String, Object>() {
+            {
+                put("type", "nested");
+                put("properties", new HashMap<String, Object>() {
+                    {
+                        put("class_name", singletonMap("type", "dummy"));
+                        put("class_probability", singletonMap("type", "double"));
+                        put("class_score", singletonMap("type", "double"));
+                    }
+                });
+            }
+        };
+        FieldCapabilitiesResponse fieldCapabilitiesResponse = new FieldCapabilitiesResponse(
+            new String[0],
+            Collections.singletonMap("foo", Collections.singletonMap("dummy", createFieldCapabilities("foo", "dummy")))
+        );
 
-        Map<String, Object> resultMappings =
-            new Classification("foo").getResultMappings("results", fieldCapabilitiesResponse);
+        Map<String, Object> resultMappings = new Classification("foo").getResultMappings("results", fieldCapabilitiesResponse);
 
         assertThat(resultMappings, hasEntry("results.foo_prediction", singletonMap("type", "dummy")));
         assertThat(resultMappings, hasEntry("results.prediction_probability", singletonMap("type", "double")));
@@ -487,8 +569,9 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
         ClassificationConfig classificationConfig = (ClassificationConfig) inferenceConfig;
         assertThat(classificationConfig.getResultsField(), equalTo(classification.getPredictionFieldName()));
         assertThat(classificationConfig.getNumTopClasses(), equalTo(classification.getNumTopClasses()));
-        Integer expectedNumTopFeatureImportanceValues = classification.getBoostedTreeParams().getNumTopFeatureImportanceValues() == null ?
-            0 : classification.getBoostedTreeParams().getNumTopFeatureImportanceValues();
+        Integer expectedNumTopFeatureImportanceValues = classification.getBoostedTreeParams().getNumTopFeatureImportanceValues() == null
+            ? 0
+            : classification.getBoostedTreeParams().getNumTopFeatureImportanceValues();
         assertThat(classificationConfig.getNumTopFeatureImportanceValues(), equalTo(expectedNumTopFeatureImportanceValues));
         assertThat(classificationConfig.getPredictionFieldType(), equalTo(PredictionFieldType.STRING));
     }

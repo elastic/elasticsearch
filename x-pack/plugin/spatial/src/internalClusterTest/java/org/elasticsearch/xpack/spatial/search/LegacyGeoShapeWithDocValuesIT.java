@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.spatial.search;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.geo.GeoShapeIntegTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 
 import java.io.IOException;
@@ -50,21 +50,23 @@ public class LegacyGeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
 
     public void testMappingUpdate() {
         // create index
-        assertAcked(client().admin().indices().prepareCreate("test")
-            .addMapping("shape", "shape", "type=geo_shape,strategy=recursive").get());
+        assertAcked(
+            client().admin().indices().prepareCreate("test").addMapping("shape", "shape", "type=geo_shape,strategy=recursive").get()
+        );
         ensureGreen();
 
-        String update ="{\n" +
-            "  \"properties\": {\n" +
-            "    \"shape\": {\n" +
-            "      \"type\": \"geo_shape\"" +
-            "    }\n" +
-            "  }\n" +
-            "}";
+        String update = "{\n"
+            + "  \"properties\": {\n"
+            + "    \"shape\": {\n"
+            + "      \"type\": \"geo_shape\""
+            + "    }\n"
+            + "  }\n"
+            + "}";
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().indices()
-            .preparePutMapping("test").setType("shape")
-            .setSource(update, XContentType.JSON).get());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin().indices().preparePutMapping("test").setType("shape").setSource(update, XContentType.JSON).get()
+        );
         assertThat(e.getMessage(), containsString("mapper [shape] of type [geo_shape] cannot change strategy from [recursive] to [BKD]"));
     }
 
@@ -73,21 +75,23 @@ public class LegacyGeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
      */
     public void testLegacyCircle() throws Exception {
         // create index
-        assertAcked(prepareCreate("test")
-            .addMapping("shape", "shape", "type=geo_shape,strategy=recursive,tree=geohash").get());
+        assertAcked(prepareCreate("test").addMapping("shape", "shape", "type=geo_shape,strategy=recursive,tree=geohash").get());
         ensureGreen();
 
         indexRandom(true, client().prepareIndex("test", "shape").setId("0").setSource("shape", (ToXContent) (builder, params) -> {
-            builder.startObject().field("type", "circle")
-                .startArray("coordinates").value(30).value(50).endArray()
-                .field("radius","77km")
+            builder.startObject()
+                .field("type", "circle")
+                .startArray("coordinates")
+                .value(30)
+                .value(50)
+                .endArray()
+                .field("radius", "77km")
                 .endObject();
             return builder;
         }));
 
         // test self crossing of circles
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(geoShapeQuery("shape",
-            new Circle(30, 50, 77000))).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(geoShapeQuery("shape", new Circle(30, 50, 77000))).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
     }
 }

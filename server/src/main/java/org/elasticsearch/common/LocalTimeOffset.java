@@ -124,6 +124,7 @@ public abstract class LocalTimeOffset {
      * have mercy on your soul.
      */
     public abstract long localToUtc(long localMillis, Strategy strat);
+
     public interface Strategy {
         /**
          * Handle a local time that never actually happened because a "gap"
@@ -133,12 +134,14 @@ public abstract class LocalTimeOffset {
          * @return the time in utc representing the local time
          */
         long inGap(long localMillis, Gap gap);
+
         /**
          * Handle a local time that happened before the start of a gap.
          *
          * @return the time in utc representing the local time
          */
         long beforeGap(long localMillis, Gap gap);
+
         /**
          * Handle a local time that happened twice because an "overlap"
          * jumped behind it. This happens in many time zones when folks wind
@@ -147,6 +150,7 @@ public abstract class LocalTimeOffset {
          * @return the time in utc representing the local time
          */
         long inOverlap(long localMillis, Overlap overlap);
+
         /**
          * Handle a local time that happened before the start of an overlap.
          *
@@ -176,6 +180,7 @@ public abstract class LocalTimeOffset {
     public String toString() {
         return toString(millis);
     }
+
     protected abstract String toString(long millis);
 
     /**
@@ -500,8 +505,13 @@ public abstract class LocalTimeOffset {
 
         @Override
         public String toString() {
-            return String.format(Locale.ROOT, "TransitionArrayLookup[for %s between %s and %s]",
-                    zone, Instant.ofEpochMilli(minUtcMillis), Instant.ofEpochMilli(maxUtcMillis));
+            return String.format(
+                Locale.ROOT,
+                "TransitionArrayLookup[for %s between %s and %s]",
+                zone,
+                Instant.ofEpochMilli(minUtcMillis),
+                Instant.ofEpochMilli(maxUtcMillis)
+            );
         }
     }
 
@@ -539,10 +549,10 @@ public abstract class LocalTimeOffset {
             long utcStart = transition.toEpochSecond() * 1000;
             long offsetBeforeMillis = transition.getOffsetBefore().getTotalSeconds() * 1000;
             long offsetAfterMillis = transition.getOffsetAfter().getTotalSeconds() * 1000;
-            assert (false == previous instanceof Transition) || ((Transition) previous).startUtcMillis < utcStart :
-                    "transition list out of order at [" + previous + "] and [" + transition + "]";
-            assert previous.millis != offsetAfterMillis :
-                    "transition list is has a duplicate at [" + previous + "] and [" + transition + "]";
+            assert (false == previous instanceof Transition) || ((Transition) previous).startUtcMillis < utcStart
+                : "transition list out of order at [" + previous + "] and [" + transition + "]";
+            assert previous.millis != offsetAfterMillis
+                : "transition list is has a duplicate at [" + previous + "] and [" + transition + "]";
             if (transition.isGap()) {
                 long firstMissingLocalTime = utcStart + offsetBeforeMillis;
                 long firstLocalTimeAfterGap = utcStart + offsetAfterMillis;
@@ -623,7 +633,8 @@ public abstract class LocalTimeOffset {
         ZoneOffsetTransition t = null;
         Iterator<ZoneOffsetTransition> itr = rules.getTransitions().iterator();
         // Skip all transitions that are before our start time
-        while (itr.hasNext() && (t = itr.next()).toEpochSecond() < minSecond) {}
+        while (itr.hasNext() && (t = itr.next()).toEpochSecond() < minSecond) {
+        }
         if (false == itr.hasNext()) {
             if (minSecond < t.toEpochSecond() && t.toEpochSecond() < maxSecond) {
                 transitions.add(t);
@@ -662,8 +673,13 @@ public abstract class LocalTimeOffset {
      * Build transitions for every year in our range from the rules
      * stored in {@link ZoneRules#getTransitionRules()}.
      */
-    private static List<ZoneOffsetTransition> buildTransitionsFromRules(List<ZoneOffsetTransition> transitions,
-            ZoneId zone, ZoneRules rules, long minSecond, long maxSecond) {
+    private static List<ZoneOffsetTransition> buildTransitionsFromRules(
+        List<ZoneOffsetTransition> transitions,
+        ZoneId zone,
+        ZoneRules rules,
+        long minSecond,
+        long maxSecond
+    ) {
         List<ZoneOffsetTransitionRule> transitionRules = rules.getTransitionRules();
         if (transitionRules.isEmpty()) {
             /*

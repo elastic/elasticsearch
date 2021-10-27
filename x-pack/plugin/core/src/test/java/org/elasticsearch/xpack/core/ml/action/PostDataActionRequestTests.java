@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription.DataFormat;
 
@@ -24,9 +24,15 @@ public class PostDataActionRequestTests extends AbstractWireSerializingTestCase<
             request.setResetEnd(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
-            request.setDataDescription(new DataDescription(randomFrom(DataFormat.values()),
-                    randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20),
-                    randomAlphaOfLength(1).charAt(0), randomAlphaOfLength(1).charAt(0)));
+            request.setDataDescription(
+                new DataDescription(
+                    randomFrom(DataFormat.values()),
+                    randomAlphaOfLengthBetween(1, 20),
+                    randomAlphaOfLengthBetween(1, 20),
+                    randomAlphaOfLength(1).charAt(0),
+                    randomAlphaOfLength(1).charAt(0)
+                )
+            );
         }
         if (randomBoolean()) {
             request.setContent(new BytesArray(new byte[0]), randomFrom(XContentType.values()));

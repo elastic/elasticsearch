@@ -30,7 +30,7 @@ public class RejectedExecutionTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
     protected boolean timeWarped() {
-        //need to use the real scheduler
+        // need to use the real scheduler
         return false;
     }
 
@@ -41,12 +41,12 @@ public class RejectedExecutionTests extends AbstractWatcherIntegrationTestCase {
         refresh();
         WatcherSearchTemplateRequest request = templateRequest(searchSource().query(termQuery("field", "a")), "idx");
         watcherClient.preparePutWatch(randomAlphaOfLength(5))
-            .setSource(watchBuilder()
-                .trigger(schedule(interval(1, IntervalSchedule.Interval.Unit.SECONDS)))
-                .input(searchInput(request))
-                .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L))
-                .addAction("_logger", loggingAction("_logging")
-                    .setCategory("_category")))
+            .setSource(
+                watchBuilder().trigger(schedule(interval(1, IntervalSchedule.Interval.Unit.SECONDS)))
+                    .input(searchInput(request))
+                    .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L))
+                    .addAction("_logger", loggingAction("_logging").setCategory("_category"))
+            )
             .get();
 
         assertBusy(() -> {
@@ -69,6 +69,5 @@ public class RejectedExecutionTests extends AbstractWatcherIntegrationTestCase {
             .put("xpack.watcher.thread_pool.queue_size", 0)
             .build();
     }
-
 
 }

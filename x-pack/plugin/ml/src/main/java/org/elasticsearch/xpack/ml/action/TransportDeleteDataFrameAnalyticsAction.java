@@ -46,8 +46,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  * state in order to determine whether there is a persistent task for the analytics
  * to delete.
  */
-public class TransportDeleteDataFrameAnalyticsAction
-    extends AcknowledgedTransportMasterNodeAction<DeleteDataFrameAnalyticsAction.Request> {
+public class TransportDeleteDataFrameAnalyticsAction extends AcknowledgedTransportMasterNodeAction<DeleteDataFrameAnalyticsAction.Request> {
 
     private static final Logger logger = LogManager.getLogger(TransportDeleteDataFrameAnalyticsAction.class);
 
@@ -57,13 +56,27 @@ public class TransportDeleteDataFrameAnalyticsAction
     private final DataFrameAnalyticsAuditor auditor;
 
     @Inject
-    public TransportDeleteDataFrameAnalyticsAction(TransportService transportService, ClusterService clusterService,
-                                                   ThreadPool threadPool, ActionFilters actionFilters,
-                                                   IndexNameExpressionResolver indexNameExpressionResolver, Client client,
-                                                   MlMemoryTracker memoryTracker, DataFrameAnalyticsConfigProvider configProvider,
-                                                   DataFrameAnalyticsAuditor auditor) {
-        super(DeleteDataFrameAnalyticsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            DeleteDataFrameAnalyticsAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
+    public TransportDeleteDataFrameAnalyticsAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Client client,
+        MlMemoryTracker memoryTracker,
+        DataFrameAnalyticsConfigProvider configProvider,
+        DataFrameAnalyticsAuditor auditor
+    ) {
+        super(
+            DeleteDataFrameAnalyticsAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            DeleteDataFrameAnalyticsAction.Request::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
         this.client = client;
         this.memoryTracker = memoryTracker;
         this.configProvider = configProvider;
@@ -71,14 +84,21 @@ public class TransportDeleteDataFrameAnalyticsAction
     }
 
     @Override
-    protected void masterOperation(DeleteDataFrameAnalyticsAction.Request request, ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(
+        DeleteDataFrameAnalyticsAction.Request request,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         throw new UnsupportedOperationException("The task parameter is required");
     }
 
     @Override
-    protected void masterOperation(Task task, DeleteDataFrameAnalyticsAction.Request request, ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        DeleteDataFrameAnalyticsAction.Request request,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
         ParentTaskAssigningClient parentTaskClient = new ParentTaskAssigningClient(client, taskId);
 
@@ -89,8 +109,11 @@ public class TransportDeleteDataFrameAnalyticsAction
         }
     }
 
-    private void forceDelete(ParentTaskAssigningClient parentTaskClient, DeleteDataFrameAnalyticsAction.Request request,
-                             ActionListener<AcknowledgedResponse> listener) {
+    private void forceDelete(
+        ParentTaskAssigningClient parentTaskClient,
+        DeleteDataFrameAnalyticsAction.Request request,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         logger.debug("[{}] Force deleting data frame analytics job", request.getId());
 
         ActionListener<StopDataFrameAnalyticsAction.Response> stopListener = ActionListener.wrap(
@@ -101,8 +124,11 @@ public class TransportDeleteDataFrameAnalyticsAction
         stopJob(parentTaskClient, request, stopListener);
     }
 
-    private void stopJob(ParentTaskAssigningClient parentTaskClient, DeleteDataFrameAnalyticsAction.Request request,
-                         ActionListener<StopDataFrameAnalyticsAction.Response> listener) {
+    private void stopJob(
+        ParentTaskAssigningClient parentTaskClient,
+        DeleteDataFrameAnalyticsAction.Request request,
+        ActionListener<StopDataFrameAnalyticsAction.Response> listener
+    ) {
         // We first try to stop the job normally. Normal stop returns after the job was stopped.
         // If that fails then we proceed to force stopping which returns as soon as the persistent task is removed.
         // If we just did force stopping, then there is a chance we proceed to delete the config while it's
@@ -115,41 +141,46 @@ public class TransportDeleteDataFrameAnalyticsAction
             listener::onResponse,
             normalStopFailure -> {
                 stopRequest.setForce(true);
-                executeAsyncWithOrigin(parentTaskClient, ML_ORIGIN, StopDataFrameAnalyticsAction.INSTANCE, stopRequest, ActionListener.wrap(
-                    listener::onResponse,
-                    forceStopFailure -> {
+                executeAsyncWithOrigin(
+                    parentTaskClient,
+                    ML_ORIGIN,
+                    StopDataFrameAnalyticsAction.INSTANCE,
+                    stopRequest,
+                    ActionListener.wrap(listener::onResponse, forceStopFailure -> {
                         logger.error(new ParameterizedMessage("[{}] Failed to stop normally", request.getId()), normalStopFailure);
                         logger.error(new ParameterizedMessage("[{}] Failed to stop forcefully", request.getId()), forceStopFailure);
                         listener.onFailure(forceStopFailure);
-                    }
-                ));
+                    })
+                );
             }
         );
 
         executeAsyncWithOrigin(parentTaskClient, ML_ORIGIN, StopDataFrameAnalyticsAction.INSTANCE, stopRequest, normalStopListener);
     }
 
-    private void normalDelete(ParentTaskAssigningClient parentTaskClient, ClusterState state,
-                              DeleteDataFrameAnalyticsAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+    private void normalDelete(
+        ParentTaskAssigningClient parentTaskClient,
+        ClusterState state,
+        DeleteDataFrameAnalyticsAction.Request request,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         String id = request.getId();
         PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         DataFrameAnalyticsState taskState = MlTasks.getDataFrameAnalyticsState(id, tasks);
         if (taskState != DataFrameAnalyticsState.STOPPED) {
-            listener.onFailure(ExceptionsHelper.conflictStatusException("Cannot delete data frame analytics [{}] while its status is [{}]",
-                id, taskState));
+            listener.onFailure(
+                ExceptionsHelper.conflictStatusException("Cannot delete data frame analytics [{}] while its status is [{}]", id, taskState)
+            );
             return;
         }
 
         // We clean up the memory tracker on delete because there is no stop; the task stops by itself
         memoryTracker.removeDataFrameAnalyticsJob(id);
 
-        configProvider.get(id, ActionListener.wrap(
-            config -> {
-                DataFrameAnalyticsDeleter deleter = new DataFrameAnalyticsDeleter(parentTaskClient, auditor);
-                deleter.deleteAllDocuments(config, request.timeout(), listener);
-            },
-            listener::onFailure
-        ));
+        configProvider.get(id, ActionListener.wrap(config -> {
+            DataFrameAnalyticsDeleter deleter = new DataFrameAnalyticsDeleter(parentTaskClient, auditor);
+            deleter.deleteAllDocuments(config, request.timeout(), listener);
+        }, listener::onFailure));
     }
 
     @Override

@@ -18,15 +18,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -44,11 +44,11 @@ import static org.elasticsearch.core.TimeValue.timeValueMillis;
  * because the version constants have been removed.
  */
 final class RemoteRequestBuilders {
-    private static final DeprecationLogger DEPRECATION_LOGGER =  DeprecationLogger.getLogger(RemoteRequestBuilders.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RemoteRequestBuilders.class);
 
     static final String DEPRECATED_URL_ENCODED_INDEX_WARNING =
-        "Specifying index name using URL escaped index names for reindex from remote is deprecated. " +
-        "Instead specify index name without URL escaping.";
+        "Specifying index name using URL escaped index names for reindex from remote is deprecated. "
+            + "Instead specify index name without URL escaping.";
 
     private RemoteRequestBuilders() {}
 
@@ -129,12 +129,14 @@ final class RemoteRequestBuilders {
         }
 
         // EMPTY is safe here because we're not calling namedObject
-        try (XContentBuilder entity = JsonXContent.contentBuilder();
-                XContentParser queryParser = XContentHelper
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, query)) {
+        try (
+            XContentBuilder entity = JsonXContent.contentBuilder();
+            XContentParser queryParser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, query)
+        ) {
             entity.startObject();
 
-            entity.field("query"); {
+            entity.field("query");
+            {
                 /* We're intentionally a bit paranoid here - copying the query
                  * as xcontent rather than writing a raw field. We don't want
                  * poorly written queries to escape. Ever. */
@@ -142,7 +144,8 @@ final class RemoteRequestBuilders {
                 XContentParser.Token shouldBeEof = queryParser.nextToken();
                 if (shouldBeEof != null) {
                     throw new ElasticsearchException(
-                            "query was more than a single object. This first token after the object is [" + shouldBeEof + "]");
+                        "query was more than a single object. This first token after the object is [" + shouldBeEof + "]"
+                    );
                 }
             }
 
@@ -230,9 +233,7 @@ final class RemoteRequestBuilders {
         }
 
         try (XContentBuilder entity = JsonXContent.contentBuilder()) {
-            entity.startObject()
-                    .field("scroll_id", scroll)
-                .endObject();
+            entity.startObject().field("scroll_id", scroll).endObject();
             request.setJsonEntity(Strings.toString(entity));
         } catch (IOException e) {
             throw new ElasticsearchException("failed to build scroll entity", e);
@@ -249,9 +250,7 @@ final class RemoteRequestBuilders {
             return request;
         }
         try (XContentBuilder entity = JsonXContent.contentBuilder()) {
-            entity.startObject()
-                    .array("scroll_id", scroll)
-                .endObject();
+            entity.startObject().array("scroll_id", scroll).endObject();
             request.setJsonEntity(Strings.toString(entity));
         } catch (IOException e) {
             throw new ElasticsearchException("failed to build clear scroll entity", e);

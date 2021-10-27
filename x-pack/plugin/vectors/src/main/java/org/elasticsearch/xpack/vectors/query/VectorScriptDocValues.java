@@ -5,7 +5,6 @@
  * 2.0.
  */
 
-
 package org.elasticsearch.xpack.vectors.query;
 
 import org.apache.lucene.index.BinaryDocValues;
@@ -71,8 +70,9 @@ public abstract class VectorScriptDocValues extends ScriptDocValues<BytesRef> {
 
         @Override
         public BytesRef get(int index) {
-            throw new UnsupportedOperationException("accessing a vector field's value through 'get' or 'value' is not supported!" +
-                "Use 'vectorValue' or 'magnitude' instead!'");
+            throw new UnsupportedOperationException(
+                "accessing a vector field's value through 'get' or 'value' is not supported!" + "Use 'vectorValue' or 'magnitude' instead!'"
+            );
         }
 
         // package private access only for {@link ScoreScriptUtils}

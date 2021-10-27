@@ -12,18 +12,18 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser.Settings;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -91,18 +91,17 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
     private static final ParseField ANALYZE_WILDCARD_FIELD = new ParseField("analyze_wildcard");
     private static final ParseField LENIENT_FIELD = new ParseField("lenient");
-    private static final ParseField LOWERCASE_EXPANDED_TERMS_FIELD = new ParseField("lowercase_expanded_terms")
-            .withAllDeprecated("Decision is now made by the analyzer");
-    private static final ParseField LOCALE_FIELD = new ParseField("locale")
-            .withAllDeprecated("Decision is now made by the analyzer");
+    private static final ParseField LOWERCASE_EXPANDED_TERMS_FIELD = new ParseField("lowercase_expanded_terms").withAllDeprecated(
+        "Decision is now made by the analyzer"
+    );
+    private static final ParseField LOCALE_FIELD = new ParseField("locale").withAllDeprecated("Decision is now made by the analyzer");
     private static final ParseField FLAGS_FIELD = new ParseField("flags");
     private static final ParseField DEFAULT_OPERATOR_FIELD = new ParseField("default_operator");
     private static final ParseField ANALYZER_FIELD = new ParseField("analyzer");
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField FIELDS_FIELD = new ParseField("fields");
     private static final ParseField QUOTE_FIELD_SUFFIX_FIELD = new ParseField("quote_field_suffix");
-    private static final ParseField ALL_FIELDS_FIELD = new ParseField("all_fields")
-            .withAllDeprecated("Set [fields] to `*` instead");
+    private static final ParseField ALL_FIELDS_FIELD = new ParseField("all_fields").withAllDeprecated("Set [fields] to `*` instead");
     private static final ParseField GENERATE_SYNONYMS_PHRASE_QUERY = new ParseField("auto_generate_synonyms_phrase_query");
     private static final ParseField FUZZY_PREFIX_LENGTH_FIELD = new ParseField("fuzzy_prefix_length");
     private static final ParseField FUZZY_MAX_EXPANSIONS_FIELD = new ParseField("fuzzy_max_expansions");
@@ -399,8 +398,10 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
             isAllField = QueryParserHelper.hasAllFieldsWildcard(fieldsAndWeights.keySet());
         } else {
             List<String> defaultFields = context.defaultFields();
-            resolvedFieldsAndWeights = QueryParserHelper.resolveMappingFields(context,
-                QueryParserHelper.parseFieldsAndWeights(defaultFields));
+            resolvedFieldsAndWeights = QueryParserHelper.resolveMappingFields(
+                context,
+                QueryParserHelper.parseFieldsAndWeights(defaultFields)
+            );
             isAllField = QueryParserHelper.hasAllFieldsWildcard(defaultFields);
         }
 
@@ -414,8 +415,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         } else {
             Analyzer luceneAnalyzer = context.getIndexAnalyzers().get(analyzer);
             if (luceneAnalyzer == null) {
-                throw new QueryShardException(context, "[" + SimpleQueryStringBuilder.NAME + "] analyzer [" + analyzer
-                        + "] not found");
+                throw new QueryShardException(context, "[" + SimpleQueryStringBuilder.NAME + "] analyzer [" + analyzer + "] not found");
             }
             sqp = new SimpleQueryStringQueryParser(luceneAnalyzer, resolvedFieldsAndWeights, flags, newSettings, context);
         }
@@ -493,8 +493,10 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
                     }
                     fieldsAndWeights = QueryParserHelper.parseFieldsAndWeights(fields);
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME +
-                            "] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[" + SimpleQueryStringBuilder.NAME + "] query does not support [" + currentFieldName + "]"
+                    );
                 }
             } else if (token.isValue()) {
                 if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -541,12 +543,16 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
                 } else if (FUZZY_TRANSPOSITIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     fuzzyTranspositions = parser.booleanValue();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME +
-                            "] unsupported field [" + parser.currentName() + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[" + SimpleQueryStringBuilder.NAME + "] unsupported field [" + parser.currentName() + "]"
+                    );
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME +
-                        "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "[" + SimpleQueryStringBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]"
+                );
             }
         }
 
@@ -584,10 +590,12 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
     @Override
     protected boolean doEquals(SimpleQueryStringBuilder other) {
-        return Objects.equals(fieldsAndWeights, other.fieldsAndWeights) && Objects.equals(analyzer, other.analyzer)
-                && Objects.equals(defaultOperator, other.defaultOperator) && Objects.equals(queryText, other.queryText)
-                && Objects.equals(minimumShouldMatch, other.minimumShouldMatch)
-                && Objects.equals(settings, other.settings)
-                && (flags == other.flags);
+        return Objects.equals(fieldsAndWeights, other.fieldsAndWeights)
+            && Objects.equals(analyzer, other.analyzer)
+            && Objects.equals(defaultOperator, other.defaultOperator)
+            && Objects.equals(queryText, other.queryText)
+            && Objects.equals(minimumShouldMatch, other.minimumShouldMatch)
+            && Objects.equals(settings, other.settings)
+            && (flags == other.flags);
     }
 }

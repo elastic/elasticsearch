@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesRequest;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -25,7 +25,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-
 
 public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Response> {
 
@@ -73,7 +72,8 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
                 throw ExceptionsHelper.badRequestException(
                     "unknown [include] parameters {}. Valid options are {}",
                     unknownIncludes,
-                    KNOWN_INCLUDES);
+                    KNOWN_INCLUDES
+                );
             }
         }
 
@@ -204,13 +204,18 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
 
         @Override
         public String toString() {
-            return "Request{" +
-                "includes=" + includes +
-                ", tags=" + tags +
-                ", page=" + getPageParams() +
-                ", id=" + getResourceId() +
-                ", allow_missing=" + isAllowNoResources() +
-                '}';
+            return "Request{"
+                + "includes="
+                + includes
+                + ", tags="
+                + tags
+                + ", page="
+                + getPageParams()
+                + ", id="
+                + getResourceId()
+                + ", allow_missing="
+                + isAllowNoResources()
+                + '}';
         }
     }
 
@@ -240,8 +245,7 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
             private long totalCount;
             private List<TrainedModelConfig> configs = Collections.emptyList();
 
-            private Builder() {
-            }
+            private Builder() {}
 
             public Builder setTotalCount(long totalCount) {
                 this.totalCount = totalCount;

@@ -118,8 +118,9 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         final String[] indexNames = indicesMetadata.keySet().toArray(new String[0]);
         when(metadata.getConcreteAllIndices()).thenReturn(indexNames);
 
-        final IndicesStatsRequestBuilder indicesStatsRequestBuilder =
-                spy(new IndicesStatsRequestBuilder(mock(ElasticsearchClient.class), IndicesStatsAction.INSTANCE));
+        final IndicesStatsRequestBuilder indicesStatsRequestBuilder = spy(
+            new IndicesStatsRequestBuilder(mock(ElasticsearchClient.class), IndicesStatsAction.INSTANCE)
+        );
         doReturn(indicesStatsResponse).when(indicesStatsRequestBuilder).get();
 
         final IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
@@ -163,7 +164,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
             } else {
                 assertThat(document.getType(), equalTo(IndexStatsMonitoringDoc.TYPE));
 
-                final IndexStatsMonitoringDoc indexStatsDocument = (IndexStatsMonitoringDoc)document;
+                final IndexStatsMonitoringDoc indexStatsDocument = (IndexStatsMonitoringDoc) document;
                 final String index = indexStatsDocument.getIndexStats().getIndex();
 
                 assertThat(indexStatsDocument.getIndexStats(), is(indicesStats.get(index)));
@@ -172,8 +173,11 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
             }
         }
 
-        assertWarnings(Level.WARN, "[xpack.monitoring.collection.index.stats.timeout] setting was deprecated in Elasticsearch and " +
-            "will be removed in a future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(
+            Level.WARN,
+            "[xpack.monitoring.collection.index.stats.timeout] setting was deprecated in Elasticsearch and "
+                + "will be removed in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testDoCollectThrowsTimeoutException() throws Exception {
@@ -185,13 +189,18 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         final IndicesStatsResponse indicesStatsResponse = mock(IndicesStatsResponse.class);
         final MonitoringDoc.Node node = randomMonitoringNode(random());
 
-        when(indicesStatsResponse.getShardFailures()).thenReturn(new DefaultShardOperationFailedException[] {
-                new DefaultShardOperationFailedException("test", 0,
-                        new FailedNodeException(node.getUUID(), "msg", new ElasticsearchTimeoutException("test timeout")))
-        });
+        when(indicesStatsResponse.getShardFailures()).thenReturn(
+            new DefaultShardOperationFailedException[] {
+                new DefaultShardOperationFailedException(
+                    "test",
+                    0,
+                    new FailedNodeException(node.getUUID(), "msg", new ElasticsearchTimeoutException("test timeout"))
+                ) }
+        );
 
-        final IndicesStatsRequestBuilder indicesStatsRequestBuilder =
-                spy(new IndicesStatsRequestBuilder(mock(ElasticsearchClient.class), IndicesStatsAction.INSTANCE));
+        final IndicesStatsRequestBuilder indicesStatsRequestBuilder = spy(
+            new IndicesStatsRequestBuilder(mock(ElasticsearchClient.class), IndicesStatsAction.INSTANCE)
+        );
         doReturn(indicesStatsResponse).when(indicesStatsRequestBuilder).get();
 
         final IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
@@ -208,8 +217,11 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
 
         expectThrows(ElasticsearchTimeoutException.class, () -> collector.doCollect(node, interval, clusterState));
 
-        assertWarnings(Level.WARN, "[xpack.monitoring.collection.index.stats.timeout] setting was deprecated in Elasticsearch and will " +
-            "be removed in a future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(
+            Level.WARN,
+            "[xpack.monitoring.collection.index.stats.timeout] setting was deprecated in Elasticsearch and will "
+                + "be removed in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
 }

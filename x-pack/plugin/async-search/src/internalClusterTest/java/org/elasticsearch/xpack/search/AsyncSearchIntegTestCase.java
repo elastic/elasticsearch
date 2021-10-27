@@ -22,11 +22,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
@@ -34,6 +33,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xpack.async.AsyncResultsIndexPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
@@ -76,22 +76,28 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         @Override
         public List<QuerySpec<?>> getQueries() {
             return Arrays.asList(
-                new QuerySpec<>(BlockingQueryBuilder.NAME, BlockingQueryBuilder::new,
-                    p -> {
-                    throw new IllegalStateException("not implemented");
-                }),
-                new QuerySpec<>(ThrowingQueryBuilder.NAME, ThrowingQueryBuilder::new,
-                p -> {
-                    throw new IllegalStateException("not implemented");
-                }));
+                new QuerySpec<>(
+                    BlockingQueryBuilder.NAME,
+                    BlockingQueryBuilder::new,
+                    p -> { throw new IllegalStateException("not implemented"); }
+                ),
+                new QuerySpec<>(
+                    ThrowingQueryBuilder.NAME,
+                    ThrowingQueryBuilder::new,
+                    p -> { throw new IllegalStateException("not implemented"); }
+                )
+            );
         }
 
         @Override
         public List<AggregationSpec> getAggregations() {
-            return Collections.singletonList(new AggregationSpec(CancellingAggregationBuilder.NAME, CancellingAggregationBuilder::new,
-                (ContextParser<String, CancellingAggregationBuilder>) (p, c) -> {
-                    throw new IllegalStateException("not implemented");
-                }).addResultReader(InternalFilter::new));
+            return Collections.singletonList(
+                new AggregationSpec(
+                    CancellingAggregationBuilder.NAME,
+                    CancellingAggregationBuilder::new,
+                    (ContextParser<String, CancellingAggregationBuilder>) (p, c) -> { throw new IllegalStateException("not implemented"); }
+                ).addResultReader(InternalFilter::new)
+            );
         }
     }
 
@@ -121,8 +127,13 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateCompositeXPackPlugin.class, AsyncSearch.class, AsyncResultsIndexPlugin.class,
-            SearchTestPlugin.class, ReindexPlugin.class);
+        return Arrays.asList(
+            LocalStateCompositeXPackPlugin.class,
+            AsyncSearch.class,
+            AsyncResultsIndexPlugin.class,
+            SearchTestPlugin.class,
+            ReindexPlugin.class
+        );
     }
 
     @Override
@@ -132,8 +143,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
 
     @Override
     public Settings transportClientSettings() {
-        return Settings.builder().put(super.transportClientSettings())
-            .put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
+        return Settings.builder().put(super.transportClientSettings()).put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
     }
 
     @Override
@@ -149,11 +159,11 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
      */
     protected void restartTaskNode(String id, String indexName) throws Exception {
         AsyncExecutionId searchId = AsyncExecutionId.decode(id);
-        final ClusterStateResponse clusterState = client().admin().cluster()
-            .prepareState().clear().setNodes(true).get();
+        final ClusterStateResponse clusterState = client().admin().cluster().prepareState().clear().setNodes(true).get();
         DiscoveryNode node = clusterState.getState().nodes().get(searchId.getTaskId().getNodeId());
         stopMaintenanceService();
-        internalCluster().restartNode(node.getName(), new InternalTestCluster.RestartCallback() {});
+        internalCluster().restartNode(node.getName(), new InternalTestCluster.RestartCallback() {
+        });
         startMaintenanceService();
         ensureYellow(ASYNC_RESULTS_INDEX, indexName);
     }
@@ -184,10 +194,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
     protected void ensureTaskRemoval(String id) throws Exception {
         AsyncExecutionId searchId = AsyncExecutionId.decode(id);
         assertBusy(() -> {
-            GetResponse resp = client().prepareGet()
-                .setIndex(ASYNC_RESULTS_INDEX)
-                .setId(searchId.getDocId())
-                .get();
+            GetResponse resp = client().prepareGet().setIndex(ASYNC_RESULTS_INDEX).setId(searchId.getDocId()).get();
             assertFalse(resp.isExists());
         });
     }
@@ -212,8 +219,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         assertBusy(() -> {
             TaskId taskId = AsyncExecutionId.decode(id).getTaskId();
             try {
-                GetTaskResponse resp = client().admin().cluster()
-                    .prepareGetTask(taskId).get();
+                GetTaskResponse resp = client().admin().cluster().prepareGetTask(taskId).get();
                 assertNull(resp.getTask());
             } catch (Exception exc) {
                 if (exc.getCause() instanceof ResourceNotFoundException == false) {
@@ -228,11 +234,13 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
      * until {@link SearchResponseIterator#next()} is called. That allows to randomly
      * generate partial results that can be consumed in order.
      */
-    protected SearchResponseIterator assertBlockingIterator(String indexName,
-                                                            int numShards,
-                                                            SearchSourceBuilder source,
-                                                            int numFailures,
-                                                            int progressStep) throws Exception {
+    protected SearchResponseIterator assertBlockingIterator(
+        String indexName,
+        int numShards,
+        SearchSourceBuilder source,
+        int numFailures,
+        int progressStep
+    ) throws Exception {
         final String pitId;
         final SubmitAsyncSearchRequest request;
         if (randomBoolean()) {
@@ -285,9 +293,10 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                     return response;
                 }
                 queryLatch.countDownAndReset();
-                AsyncSearchResponse newResponse = client().execute(GetAsyncSearchAction.INSTANCE,
-                    new GetAsyncResultRequest(response.getId())
-                        .setWaitForCompletionTimeout(TimeValue.timeValueMillis(10))).get();
+                AsyncSearchResponse newResponse = client().execute(
+                    GetAsyncSearchAction.INSTANCE,
+                    new GetAsyncResultRequest(response.getId()).setWaitForCompletionTimeout(TimeValue.timeValueMillis(10))
+                ).get();
 
                 if (newResponse.isRunning()) {
                     assertThat(newResponse.status(), equalTo(RestStatus.OK));
@@ -307,8 +316,10 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                     assertNull(newResponse.getSearchResponse().getAggregations());
                     assertNotNull(newResponse.getSearchResponse().getHits().getTotalHits());
                     assertThat(newResponse.getSearchResponse().getHits().getTotalHits().value, equalTo(0L));
-                    assertThat(newResponse.getSearchResponse().getHits().getTotalHits().relation,
-                        equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
+                    assertThat(
+                        newResponse.getSearchResponse().getHits().getTotalHits().relation,
+                        equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO)
+                    );
                 } else {
                     assertThat(newResponse.status(), equalTo(RestStatus.OK));
                     assertNotNull(newResponse.getSearchResponse());
@@ -316,8 +327,10 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                     assertThat(newResponse.status(), equalTo(RestStatus.OK));
                     assertThat(newResponse.getSearchResponse().getTotalShards(), equalTo(numShards));
                     assertThat(newResponse.getSearchResponse().getShardFailures().length, equalTo(numFailures));
-                    assertThat(newResponse.getSearchResponse().getSuccessfulShards(),
-                        equalTo(numShards - newResponse.getSearchResponse().getShardFailures().length));
+                    assertThat(
+                        newResponse.getSearchResponse().getSuccessfulShards(),
+                        equalTo(numShards - newResponse.getSearchResponse().getShardFailures().length)
+                    );
                 }
                 return response = newResponse;
             }

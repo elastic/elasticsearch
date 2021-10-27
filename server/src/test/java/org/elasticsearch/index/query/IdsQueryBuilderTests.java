@@ -8,15 +8,14 @@
 
 package org.elasticsearch.index.query;
 
-
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -59,14 +58,12 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
 
     @Override
     protected void doAssertLuceneQuery(IdsQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
-        boolean allTypes = queryBuilder.types().length == 0 ||
-                queryBuilder.types().length == 1 && "_all".equals(queryBuilder.types()[0]);
+        boolean allTypes = queryBuilder.types().length == 0 || queryBuilder.types().length == 1 && "_all".equals(queryBuilder.types()[0]);
         if (queryBuilder.ids().size() == 0
             // no types
             || context.getFieldType(IdFieldMapper.NAME) == null
             // there are types, but disjoint from the query
-            || (allTypes == false &&
-            Arrays.asList(queryBuilder.types()).indexOf(context.getType()) == -1)) {
+            || (allTypes == false && Arrays.asList(queryBuilder.types()).indexOf(context.getType()) == -1)) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else {
             assertThat(query, instanceOf(TermInSetQuery.class));
@@ -90,55 +87,46 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
     }
 
     public void testFromJson() throws IOException {
-        String json =
-                "{\n" +
-                "  \"ids\" : {\n" +
-                "    \"type\" : [ \"my_type\" ],\n" +
-                "    \"values\" : [ \"1\", \"100\", \"4\" ],\n" +
-                "    \"boost\" : 1.0\n" +
-                "  }\n" +
-                "}";
+        String json = "{\n"
+            + "  \"ids\" : {\n"
+            + "    \"type\" : [ \"my_type\" ],\n"
+            + "    \"values\" : [ \"1\", \"100\", \"4\" ],\n"
+            + "    \"boost\" : 1.0\n"
+            + "  }\n"
+            + "}";
         IdsQueryBuilder parsed = (IdsQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
-        assertThat(parsed.ids(), contains("1","100","4"));
+        assertThat(parsed.ids(), contains("1", "100", "4"));
         assertEquals(json, "my_type", parsed.types()[0]);
 
         // check that type that is not an array and also ids that are numbers are parsed
-        json =
-                "{\n" +
-                "  \"ids\" : {\n" +
-                "    \"type\" : \"my_type\",\n" +
-                "    \"values\" : [ 1, 100, 4 ],\n" +
-                "    \"boost\" : 1.0\n" +
-                "  }\n" +
-                "}";
+        json = "{\n"
+            + "  \"ids\" : {\n"
+            + "    \"type\" : \"my_type\",\n"
+            + "    \"values\" : [ 1, 100, 4 ],\n"
+            + "    \"boost\" : 1.0\n"
+            + "  }\n"
+            + "}";
         parsed = (IdsQueryBuilder) parseQuery(json);
-        assertThat(parsed.ids(), contains("1","100","4"));
+        assertThat(parsed.ids(), contains("1", "100", "4"));
         assertEquals(json, "my_type", parsed.types()[0]);
 
         // check with empty type array
-        json =
-                "{\n" +
-                "  \"ids\" : {\n" +
-                "    \"type\" : [ ],\n" +
-                "    \"values\" : [ \"1\", \"100\", \"4\" ],\n" +
-                "    \"boost\" : 1.0\n" +
-                "  }\n" +
-                "}";
+        json = "{\n"
+            + "  \"ids\" : {\n"
+            + "    \"type\" : [ ],\n"
+            + "    \"values\" : [ \"1\", \"100\", \"4\" ],\n"
+            + "    \"boost\" : 1.0\n"
+            + "  }\n"
+            + "}";
         parsed = (IdsQueryBuilder) parseQuery(json);
-        assertThat(parsed.ids(), contains("1","100","4"));
+        assertThat(parsed.ids(), contains("1", "100", "4"));
         assertEquals(json, 0, parsed.types().length);
 
         // check without type
-        json =
-                "{\n" +
-                "  \"ids\" : {\n" +
-                "    \"values\" : [ \"1\", \"100\", \"4\" ],\n" +
-                "    \"boost\" : 1.0\n" +
-                "  }\n" +
-                "}";
+        json = "{\n" + "  \"ids\" : {\n" + "    \"values\" : [ \"1\", \"100\", \"4\" ],\n" + "    \"boost\" : 1.0\n" + "  }\n" + "}";
         parsed = (IdsQueryBuilder) parseQuery(json);
-        assertThat(parsed.ids(), contains("1","100","4"));
+        assertThat(parsed.ids(), contains("1", "100", "4"));
         assertEquals(json, 0, parsed.types().length);
     }
 
@@ -159,8 +147,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
         SearchExecutionContext context = createShardContextWithNoType();
         context.setAllowUnmappedFields(true);
         IdsQueryBuilder queryBuilder = createTestQueryBuilder();
-        IllegalStateException e = expectThrows(IllegalStateException.class,
-                () -> queryBuilder.toQuery(context));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> queryBuilder.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
     }
 }

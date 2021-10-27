@@ -41,4 +41,3 @@ public abstract class AbstractSqlIntegTestCase extends ESIntegTestCase {
         return nodePlugins();
     }
 }
-

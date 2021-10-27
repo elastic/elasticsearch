@@ -44,8 +44,9 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
                 jobBuilder.setId(jobId);
             } else if (Strings.isNullOrEmpty(jobId) == false && jobId.equals(jobBuilder.getId()) == false) {
                 // If we have both URI and body jobBuilder ID, they must be identical
-                throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, Job.ID.getPreferredName(),
-                        jobBuilder.getId(), jobId));
+                throw new IllegalArgumentException(
+                    Messages.getMessage(Messages.INCONSISTENT_ID, Job.ID.getPreferredName(), jobBuilder.getId(), jobId)
+                );
             }
             jobBuilder.setDatafeedIndicesOptionsIfRequired(indicesOptions);
             return new Request(jobBuilder);
@@ -64,15 +65,15 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
             // Some fields cannot be set at create time
             List<String> invalidJobCreationSettings = jobBuilder.invalidCreateTimeSettings();
             if (invalidJobCreationSettings.isEmpty() == false) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_INVALID_CREATE_SETTINGS,
-                        String.join(",", invalidJobCreationSettings)));
+                throw new IllegalArgumentException(
+                    Messages.getMessage(Messages.JOB_CONFIG_INVALID_CREATE_SETTINGS, String.join(",", invalidJobCreationSettings))
+                );
             }
 
             this.jobBuilder = jobBuilder;
         }
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -126,7 +127,7 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
         public Response(StreamInput in) throws IOException {
             super(in);
             if (in.getVersion().before(Version.V_6_3_0)) {
-                //the acknowledged flag was removed
+                // the acknowledged flag was removed
                 in.readBoolean();
             }
             job = new Job(in);
@@ -139,7 +140,7 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             if (out.getVersion().before(Version.V_6_3_0)) {
-                //the acknowledged flag is no longer supported
+                // the acknowledged flag is no longer supported
                 out.writeBoolean(true);
             }
             job.writeTo(out);

@@ -13,8 +13,8 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -29,8 +29,10 @@ public class GetCalendarEventsRequest extends ActionRequest implements ToXConten
     public static final ParseField START = new ParseField("start");
     public static final ParseField END = new ParseField("end");
 
-    public static final ConstructingObjectParser<GetCalendarEventsRequest, Void> PARSER =
-            new ConstructingObjectParser<>("get_calendar_events_request", a -> new GetCalendarEventsRequest((String)a[0]));
+    public static final ConstructingObjectParser<GetCalendarEventsRequest, Void> PARSER = new ConstructingObjectParser<>(
+        "get_calendar_events_request",
+        a -> new GetCalendarEventsRequest((String) a[0])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Calendar.ID);

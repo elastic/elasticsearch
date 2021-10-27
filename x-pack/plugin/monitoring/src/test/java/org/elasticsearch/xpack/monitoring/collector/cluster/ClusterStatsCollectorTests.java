@@ -71,17 +71,27 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
     }
 
     public void testShouldCollectReturnsFalseIfNotMaster() {
-        final ClusterStatsCollector collector =
-                new ClusterStatsCollector(Settings.EMPTY, clusterService, licenseState, client, licenseService,
-                    TestIndexNameExpressionResolver.newInstance());
+        final ClusterStatsCollector collector = new ClusterStatsCollector(
+            Settings.EMPTY,
+            clusterService,
+            licenseState,
+            client,
+            licenseService,
+            TestIndexNameExpressionResolver.newInstance()
+        );
 
         assertThat(collector.shouldCollect(false), is(false));
     }
 
     public void testShouldCollectReturnsTrue() {
-        final ClusterStatsCollector collector =
-                new ClusterStatsCollector(Settings.EMPTY, clusterService, licenseState, client, licenseService,
-                    TestIndexNameExpressionResolver.newInstance());
+        final ClusterStatsCollector collector = new ClusterStatsCollector(
+            Settings.EMPTY,
+            clusterService,
+            licenseState,
+            client,
+            licenseService,
+            TestIndexNameExpressionResolver.newInstance()
+        );
 
         assertThat(collector.shouldCollect(true), is(true));
     }
@@ -92,8 +102,14 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         final IndexNameExpressionResolver resolver = mock(IndexNameExpressionResolver.class);
         when(resolver.concreteIndices(clusterState, IndicesOptions.lenientExpandOpen(), "apm-*")).thenReturn(indices);
 
-        final ClusterStatsCollector collector =
-                new ClusterStatsCollector(Settings.EMPTY, clusterService, licenseState, client, licenseService, resolver);
+        final ClusterStatsCollector collector = new ClusterStatsCollector(
+            Settings.EMPTY,
+            clusterService,
+            licenseState,
+            client,
+            licenseService,
+            resolver
+        );
 
         assertThat(collector.doAPMIndicesExist(clusterState), is(apmIndicesExist));
     }
@@ -103,8 +119,14 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         final IndexNameExpressionResolver resolver = mock(IndexNameExpressionResolver.class);
         when(resolver.concreteIndices(clusterState, IndicesOptions.lenientExpandOpen(), "apm-*")).thenThrow(exception);
 
-        final ClusterStatsCollector collector =
-                new ClusterStatsCollector(Settings.EMPTY, clusterService, licenseState, client, licenseService, resolver);
+        final ClusterStatsCollector collector = new ClusterStatsCollector(
+            Settings.EMPTY,
+            clusterService,
+            licenseState,
+            client,
+            licenseService,
+            resolver
+        );
 
         assertThat(collector.doAPMIndicesExist(clusterState), is(false));
     }
@@ -114,16 +136,24 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         final IndexNameExpressionResolver resolver = mock(IndexNameExpressionResolver.class);
         when(resolver.concreteIndices(clusterState, IndicesOptions.lenientExpandOpen(), "apm-*")).thenThrow(exception);
 
-        final ClusterStatsCollector collector =
-                new ClusterStatsCollector(Settings.EMPTY, clusterService, licenseState, client, licenseService, resolver);
+        final ClusterStatsCollector collector = new ClusterStatsCollector(
+            Settings.EMPTY,
+            clusterService,
+            licenseState,
+            client,
+            licenseService,
+            resolver
+        );
 
         expectThrows(RuntimeException.class, () -> collector.doAPMIndicesExist(clusterState));
     }
 
     public void testDoCollect() throws Exception {
         final Settings.Builder settings = Settings.builder();
-        final License.OperationMode mode =
-                randomValueOtherThan(License.OperationMode.MISSING, () -> randomFrom(License.OperationMode.values()));
+        final License.OperationMode mode = randomValueOtherThan(
+            License.OperationMode.MISSING,
+            () -> randomFrom(License.OperationMode.values())
+        );
         final boolean securityEnabled = randomBoolean();
         final boolean transportTLSEnabled;
 
@@ -169,15 +199,15 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         final MonitoringDoc.Node node = MonitoringTestUtils.randomMonitoringNode(random());
 
         final License license = License.builder()
-                .uid(UUID.randomUUID().toString())
-                .type(mode.name().toLowerCase(Locale.ROOT))
-                .issuer("elasticsearch")
-                .issuedTo("elastic")
-                .issueDate(System.currentTimeMillis())
-                .expiryDate(System.currentTimeMillis() + TimeValue.timeValueHours(24L).getMillis())
-                .maxNodes(License.OperationMode.ENTERPRISE == mode ? -1 : randomIntBetween(1, 10))
-                .maxResourceUnits(License.OperationMode.ENTERPRISE == mode ? randomIntBetween(10, 99) : -1)
-                .build();
+            .uid(UUID.randomUUID().toString())
+            .type(mode.name().toLowerCase(Locale.ROOT))
+            .issuer("elasticsearch")
+            .issuedTo("elastic")
+            .issueDate(System.currentTimeMillis())
+            .expiryDate(System.currentTimeMillis() + TimeValue.timeValueHours(24L).getMillis())
+            .maxNodes(License.OperationMode.ENTERPRISE == mode ? -1 : randomIntBetween(1, 10))
+            .maxResourceUnits(License.OperationMode.ENTERPRISE == mode ? randomIntBetween(10, 99) : -1)
+            .build();
         when(licenseService.getLicense()).thenReturn(license);
 
         final ClusterStatsResponse mockClusterStatsResponse = mock(ClusterStatsResponse.class);
@@ -208,20 +238,23 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         final IndexNameExpressionResolver indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
         final boolean apmIndicesExist = randomBoolean();
         final Index[] indices = new Index[apmIndicesExist ? randomIntBetween(1, 5) : 0];
-        when(indexNameExpressionResolver.concreteIndices(clusterState, IndicesOptions.lenientExpandOpen(), "apm-*"))
-            .thenReturn(indices);
+        when(indexNameExpressionResolver.concreteIndices(clusterState, IndicesOptions.lenientExpandOpen(), "apm-*")).thenReturn(indices);
 
-        final XPackUsageResponse xPackUsageResponse = new XPackUsageResponse(
-            singletonList(new MonitoringFeatureSetUsage(false, null)));
+        final XPackUsageResponse xPackUsageResponse = new XPackUsageResponse(singletonList(new MonitoringFeatureSetUsage(false, null)));
 
         @SuppressWarnings("unchecked")
         final ActionFuture<XPackUsageResponse> xPackUsageFuture = (ActionFuture<XPackUsageResponse>) mock(ActionFuture.class);
         when(client.execute(same(XPackUsageAction.INSTANCE), any(XPackUsageRequest.class))).thenReturn(xPackUsageFuture);
         when(xPackUsageFuture.actionGet()).thenReturn(xPackUsageResponse);
 
-        final ClusterStatsCollector collector =
-                new ClusterStatsCollector(settings.build(), clusterService, licenseState,
-                                          client, licenseService, indexNameExpressionResolver);
+        final ClusterStatsCollector collector = new ClusterStatsCollector(
+            settings.build(),
+            clusterService,
+            licenseState,
+            client,
+            licenseService,
+            indexNameExpressionResolver
+        );
 
         Assert.assertEquals(timeout, collector.getCollectionTimeout());
 
@@ -248,9 +281,10 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         assertThat(document.getStatus(), equalTo(clusterStatus));
 
         final boolean securitySettingDefined = settings.build().hasValue(XPackSettings.SECURITY_ENABLED.getKey());
-        assertThat(document.getClusterNeedsTLSEnabled(),
-                   equalTo(mode == License.OperationMode.TRIAL && securitySettingDefined && securityEnabled
-                           && transportTLSEnabled == false));
+        assertThat(
+            document.getClusterNeedsTLSEnabled(),
+            equalTo(mode == License.OperationMode.TRIAL && securitySettingDefined && securityEnabled && transportTLSEnabled == false)
+        );
 
         assertThat(document.getClusterStats(), notNullValue());
         assertThat(document.getClusterStats().getStatus(), equalTo(clusterStatus));
@@ -270,8 +304,11 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         verify(clusterAdminClient).prepareClusterStats();
         verify(client).execute(same(XPackUsageAction.INSTANCE), any(XPackUsageRequest.class));
 
-        assertWarnings(Level.WARN, "[xpack.monitoring.collection.cluster.stats.timeout] setting was deprecated in Elasticsearch and will " +
-            "be removed in a future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(
+            Level.WARN,
+            "[xpack.monitoring.collection.cluster.stats.timeout] setting was deprecated in Elasticsearch and will "
+                + "be removed in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testDoCollectNoLicense() throws Exception {
@@ -287,8 +324,9 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         final IndexNameExpressionResolver indexNameExpressionResolver;
         {
             indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
-            when(indexNameExpressionResolver.concreteIndices(clusterState, IndicesOptions.lenientExpandOpen(), "apm-*"))
-                .thenReturn(Index.EMPTY_ARRAY);
+            when(indexNameExpressionResolver.concreteIndices(clusterState, IndicesOptions.lenientExpandOpen(), "apm-*")).thenReturn(
+                Index.EMPTY_ARRAY
+            );
         }
 
         final Client client = mock(Client.class);
@@ -314,8 +352,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
             when(adminClient.cluster()).thenReturn(clusterAdminClient);
             when(client.admin()).thenReturn(adminClient);
 
-            final XPackUsageResponse xPackUsageResponse = new XPackUsageResponse(
-                singletonList(new MonitoringFeatureSetUsage(false, null)));
+            final XPackUsageResponse xPackUsageResponse = new XPackUsageResponse(singletonList(new MonitoringFeatureSetUsage(false, null)));
             @SuppressWarnings("unchecked")
             final ActionFuture<XPackUsageResponse> xPackUsageFuture = (ActionFuture<XPackUsageResponse>) mock(ActionFuture.class);
             when(client.execute(same(XPackUsageAction.INSTANCE), any(XPackUsageRequest.class))).thenReturn(xPackUsageFuture);
@@ -326,16 +363,24 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         final Settings.Builder settings = Settings.builder();
         final MonitoringDoc.Node node = MonitoringTestUtils.randomMonitoringNode(random());
 
-        final ClusterStatsCollector collector =
-            new ClusterStatsCollector(settings.build(), clusterService, licenseState,
-                client, licenseService, indexNameExpressionResolver);
+        final ClusterStatsCollector collector = new ClusterStatsCollector(
+            settings.build(),
+            clusterService,
+            licenseState,
+            client,
+            licenseService,
+            indexNameExpressionResolver
+        );
         final Collection<MonitoringDoc> results = collector.doCollect(node, interval, clusterState);
         assertEquals(1, results.size());
         final ClusterStatsMonitoringDoc doc = (ClusterStatsMonitoringDoc) results.iterator().next();
         assertThat(doc.getLicense(), nullValue());
 
-        assertWarnings(Level.WARN, "[xpack.monitoring.collection.cluster.stats.timeout] setting was deprecated in Elasticsearch and will " +
-            "be removed in a future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(
+            Level.WARN,
+            "[xpack.monitoring.collection.cluster.stats.timeout] setting was deprecated in Elasticsearch and will "
+                + "be removed in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testDoCollectThrowsTimeoutException() throws Exception {
@@ -351,8 +396,9 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         final IndexNameExpressionResolver indexNameExpressionResolver;
         {
             indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
-            when(indexNameExpressionResolver.concreteIndices(clusterState, IndicesOptions.lenientExpandOpen(), "apm-*"))
-                    .thenReturn(Index.EMPTY_ARRAY);
+            when(indexNameExpressionResolver.concreteIndices(clusterState, IndicesOptions.lenientExpandOpen(), "apm-*")).thenReturn(
+                Index.EMPTY_ARRAY
+            );
         }
 
         final Client client = mock(Client.class);
@@ -361,8 +407,9 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
             final ClusterHealthStatus clusterStatus = randomFrom(ClusterHealthStatus.values());
             when(mockClusterStatsResponse.getStatus()).thenReturn(clusterStatus);
             when(mockClusterStatsResponse.getNodesStats()).thenReturn(mock(ClusterStatsNodes.class));
-            when(mockClusterStatsResponse.failures()).thenReturn(singletonList(new FailedNodeException("node", "msg",
-                    new ElasticsearchTimeoutException("timed out"))));
+            when(mockClusterStatsResponse.failures()).thenReturn(
+                singletonList(new FailedNodeException("node", "msg", new ElasticsearchTimeoutException("timed out")))
+            );
 
             final ClusterStatsIndices mockClusterStatsIndices = mock(ClusterStatsIndices.class);
 
@@ -385,13 +432,21 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         final Settings.Builder settings = Settings.builder();
         final MonitoringDoc.Node node = MonitoringTestUtils.randomMonitoringNode(random());
 
-        final ClusterStatsCollector collector =
-                new ClusterStatsCollector(settings.build(), clusterService, licenseState,
-                        client, licenseService, indexNameExpressionResolver);
+        final ClusterStatsCollector collector = new ClusterStatsCollector(
+            settings.build(),
+            clusterService,
+            licenseState,
+            client,
+            licenseService,
+            indexNameExpressionResolver
+        );
         expectThrows(ElasticsearchTimeoutException.class, () -> collector.doCollect(node, interval, clusterState));
 
-        assertWarnings(Level.WARN, "[xpack.monitoring.collection.cluster.stats.timeout] setting was deprecated in Elasticsearch and will " +
-            "be removed in a future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(
+            Level.WARN,
+            "[xpack.monitoring.collection.cluster.stats.timeout] setting was deprecated in Elasticsearch and will "
+                + "be removed in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
 }

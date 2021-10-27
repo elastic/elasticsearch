@@ -101,8 +101,7 @@ public final class SecurityMocks {
     }
 
     public static void mockGetRequest(Client client, String indexAliasName, String documentId, BytesReference source) {
-        GetResult result = new GetResult(indexAliasName, SINGLE_MAPPING_NAME, documentId, 0, 1, 1, true, source,
-            emptyMap(), emptyMap());
+        GetResult result = new GetResult(indexAliasName, SINGLE_MAPPING_NAME, documentId, 0, 1, 1, true, source, emptyMap(), emptyMap());
         mockGetRequest(client, indexAliasName, documentId, result);
     }
 
@@ -148,9 +147,7 @@ public final class SecurityMocks {
             final Object requestType = args[1];
             Assert.assertThat(requestIndex, instanceOf(String.class));
             Assert.assertThat(requestType, equalTo(SINGLE_MAPPING_NAME));
-            return new IndexRequestBuilder(client, IndexAction.INSTANCE)
-                .setIndex((String) requestIndex)
-                .setType((String) requestType);
+            return new IndexRequestBuilder(client, IndexAction.INSTANCE).setIndex((String) requestIndex).setType((String) requestType);
         }).when(client).prepareIndex(anyString(), anyString());
         doAnswer(inv -> {
             final Object[] args = inv.getArguments();
@@ -161,8 +158,7 @@ public final class SecurityMocks {
             Assert.assertThat(requestIndex, instanceOf(String.class));
             Assert.assertThat(requestType, equalTo(SINGLE_MAPPING_NAME));
             Assert.assertThat(requestId, instanceOf(String.class));
-            return new IndexRequestBuilder(client, IndexAction.INSTANCE)
-                .setIndex((String) requestIndex)
+            return new IndexRequestBuilder(client, IndexAction.INSTANCE).setIndex((String) requestIndex)
                 .setType((String) requestType)
                 .setId((String) requestId);
         }).when(client).prepareIndex(anyString(), anyString(), anyString());
@@ -194,8 +190,16 @@ public final class SecurityMocks {
         final ClusterService clusterService = mock(ClusterService.class);
 
         final SecurityContext securityContext = new SecurityContext(settings, threadPool.getThreadContext());
-        final TokenService service = new TokenService(settings, clock, client, licenseState, securityContext,
-            mockSecurityIndexManager(SECURITY_MAIN_ALIAS), mockSecurityIndexManager(SECURITY_TOKENS_ALIAS), clusterService);
+        final TokenService service = new TokenService(
+            settings,
+            clock,
+            client,
+            licenseState,
+            securityContext,
+            mockSecurityIndexManager(SECURITY_MAIN_ALIAS),
+            mockSecurityIndexManager(SECURITY_TOKENS_ALIAS),
+            clusterService
+        );
         return new TokenServiceMock(service, client);
     }
 

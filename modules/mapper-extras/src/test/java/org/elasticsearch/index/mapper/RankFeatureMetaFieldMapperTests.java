@@ -27,9 +27,18 @@ public class RankFeatureMetaFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testBasics() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "rank_feature").endObject().endObject()
-                .endObject().endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("type")
+                .startObject("properties")
+                .startObject("field")
+                .field("type", "rank_feature")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
         Mapping parsedMapping = createMapperService("type", mapping).parseMapping("type", new CompressedXContent(mapping), false);
         assertEquals(mapping, parsedMapping.toCompressedXContent().toString());
@@ -49,9 +58,13 @@ public class RankFeatureMetaFieldMapperTests extends MapperServiceTestCase {
         );
         String rfMetaField = RankFeatureMetaFieldMapper.CONTENT_TYPE;
         BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field(rfMetaField, 0).endObject());
-        MapperParsingException e = expectThrows(MapperParsingException.class, () ->
-            mapper.parse(new SourceToParse("test", "_doc", "1", bytes, XContentType.JSON)));
-        assertThat(e.getCause().getMessage(),
-            CoreMatchers.containsString("Field ["+ rfMetaField + "] is a metadata field and cannot be added inside a document."));
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(new SourceToParse("test", "_doc", "1", bytes, XContentType.JSON))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            CoreMatchers.containsString("Field [" + rfMetaField + "] is a metadata field and cannot be added inside a document.")
+        );
     }
 }

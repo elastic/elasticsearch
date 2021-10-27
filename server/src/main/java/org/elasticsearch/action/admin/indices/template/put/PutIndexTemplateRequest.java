@@ -25,17 +25,17 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -110,8 +110,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         version = in.readOptionalVInt();
     }
 
-    public PutIndexTemplateRequest() {
-    }
+    public PutIndexTemplateRequest() {}
 
     /**
      * Constructs a new put index template request with the provided name.
@@ -324,13 +323,16 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             String name = entry.getKey();
             if (name.equals("template")) {
                 // This is needed to allow for bwc (beats, logstash) with pre-5.0 templates (#21009)
-                if(entry.getValue() instanceof String) {
-                    deprecationLogger.critical(DeprecationCategory.API, "put_index_template_field",
-                        "Deprecated field [template] used, replaced by [index_patterns]");
+                if (entry.getValue() instanceof String) {
+                    deprecationLogger.critical(
+                        DeprecationCategory.API,
+                        "put_index_template_field",
+                        "Deprecated field [template] used, replaced by [index_patterns]"
+                    );
                     patterns(Collections.singletonList((String) entry.getValue()));
                 }
             } else if (name.equals("index_patterns")) {
-                if(entry.getValue() instanceof String) {
+                if (entry.getValue() instanceof String) {
                     patterns(Collections.singletonList((String) entry.getValue()));
                 } else if (entry.getValue() instanceof List) {
                     List<String> elements = ((List<?>) entry.getValue()).stream().map(Object::toString).collect(Collectors.toList());
@@ -344,7 +346,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
                 if ((entry.getValue() instanceof Integer) == false) {
                     throw new IllegalArgumentException("Malformed [version] value, should be an integer");
                 }
-                version((Integer)entry.getValue());
+                version((Integer) entry.getValue());
             } else if (name.equals("settings")) {
                 if ((entry.getValue() instanceof Map) == false) {
                     throw new IllegalArgumentException("Malformed [settings] section, should include an inner object");
@@ -355,8 +357,10 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
                 for (Map.Entry<String, Object> entry1 : mappings.entrySet()) {
                     if ((entry1.getValue() instanceof Map) == false) {
                         throw new IllegalArgumentException(
-                            "Malformed [mappings] section for type [" + entry1.getKey() +
-                                "], should include an inner object describing the mapping");
+                            "Malformed [mappings] section for type ["
+                                + entry1.getKey()
+                                + "], should include an inner object describing the mapping"
+                        );
                     }
                     mapping(entry1.getKey(), (Map<String, Object>) entry1.getValue());
                 }
@@ -433,15 +437,14 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      */
     public PutIndexTemplateRequest aliases(BytesReference source) {
         // EMPTY is safe here because we never call namedObject
-        try (XContentParser parser = XContentHelper
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)) {
-            //move to the first alias
+        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)) {
+            // move to the first alias
             parser.nextToken();
             while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 alias(Alias.fromXContent(parser));
             }
             return this;
-        } catch(IOException e) {
+        } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse aliases", e);
         }
     }
@@ -512,8 +515,13 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             builder.startObject("mappings");
             for (Map.Entry<String, String> entry : mappings.entrySet()) {
                 builder.field(entry.getKey());
-                try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION, entry.getValue())) {
+                try (
+                    XContentParser parser = JsonXContent.jsonXContent.createParser(
+                        NamedXContentRegistry.EMPTY,
+                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                        entry.getValue()
+                    )
+                ) {
                     builder.copyCurrentStructure(parser);
                 }
             }

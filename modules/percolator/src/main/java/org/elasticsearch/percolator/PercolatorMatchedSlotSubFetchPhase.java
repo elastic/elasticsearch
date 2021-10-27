@@ -123,8 +123,7 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
         Query filterNestedDocs(Query in) {
             if (rootDocsBySlot != null) {
                 // Ensures that we filter out nested documents
-                return new BooleanQuery.Builder()
-                    .add(in, BooleanClause.Occur.MUST)
+                return new BooleanQuery.Builder().add(in, BooleanClause.Occur.MUST)
                     .add(Queries.newNonNestedFilter(Version.CURRENT), BooleanClause.Occur.FILTER)
                     .build();
             }
@@ -133,8 +132,7 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
     }
 
     static IntStream convertTopDocsToSlots(TopDocs topDocs, int[] rootDocsBySlot) {
-        IntStream stream = Arrays.stream(topDocs.scoreDocs)
-            .mapToInt(scoreDoc -> scoreDoc.doc);
+        IntStream stream = Arrays.stream(topDocs.scoreDocs).mapToInt(scoreDoc -> scoreDoc.doc);
         if (rootDocsBySlot != null) {
             stream = stream.map(docId -> Arrays.binarySearch(rootDocsBySlot, docId));
         }

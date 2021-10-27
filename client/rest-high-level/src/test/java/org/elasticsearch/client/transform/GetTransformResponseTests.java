@@ -11,10 +11,10 @@ package org.elasticsearch.client.transform;
 import org.elasticsearch.client.transform.transforms.TransformConfig;
 import org.elasticsearch.client.transform.transforms.TransformConfigTests;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,18 +27,18 @@ import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 public class GetTransformResponseTests extends ESTestCase {
 
     public void testXContentParser() throws IOException {
-        xContentTester(this::createParser,
-                GetTransformResponseTests::createTestInstance,
-                GetTransformResponseTests::toXContent,
-                GetTransformResponse::fromXContent)
-                .supportsUnknownFields(false)
-                .test();
+        xContentTester(
+            this::createParser,
+            GetTransformResponseTests::createTestInstance,
+            GetTransformResponseTests::toXContent,
+            GetTransformResponse::fromXContent
+        ).supportsUnknownFields(false).test();
     }
 
     private static GetTransformResponse createTestInstance() {
         int numTransforms = randomIntBetween(0, 3);
         List<TransformConfig> transforms = new ArrayList<>();
-        for (int i=0; i<numTransforms; i++) {
+        for (int i = 0; i < numTransforms; i++) {
             transforms.add(TransformConfigTests.randomTransformConfig());
         }
         GetTransformResponse.InvalidTransforms invalidTransforms = null;

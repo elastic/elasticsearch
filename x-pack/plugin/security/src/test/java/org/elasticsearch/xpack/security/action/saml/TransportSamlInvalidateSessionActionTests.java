@@ -147,14 +147,24 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         final Client client = new NoOpClient(threadPool) {
             @Override
             @SuppressWarnings("unchecked")
-            protected <Request extends ActionRequest, Response extends ActionResponse>
-            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
                 if (IndexAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(IndexRequest.class));
                     IndexRequest indexRequest = (IndexRequest) request;
                     indexRequests.add(indexRequest);
                     final IndexResponse response = new IndexResponse(
-                        new ShardId("test", "test", 0), indexRequest.type(), indexRequest.id(), 1, 1, 1, true);
+                        new ShardId("test", "test", 0),
+                        indexRequest.type(),
+                        indexRequest.id(),
+                        1,
+                        1,
+                        1,
+                        true
+                    );
                     listener.onResponse((Response) response);
                 } else if (BulkAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(BulkRequest.class));
@@ -167,16 +177,46 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     searchRequests.add(searchRequest);
                     final SearchHit[] hits = searchFunction.apply(searchRequest);
                     final SearchResponse response = new SearchResponse(
-                        new SearchResponseSections(new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
-                            null, null, false, false, null, 1), "_scrollId1", 1, 1, 0, 1, null, null);
+                        new SearchResponseSections(
+                            new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
+                            null,
+                            null,
+                            false,
+                            false,
+                            null,
+                            1
+                        ),
+                        "_scrollId1",
+                        1,
+                        1,
+                        0,
+                        1,
+                        null,
+                        null
+                    );
                     listener.onResponse((Response) response);
-                } else if (SearchScrollAction.NAME.equals(action.name())){
+                } else if (SearchScrollAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(SearchScrollRequest.class));
                     SearchScrollRequest searchScrollRequest = (SearchScrollRequest) request;
                     final SearchHit[] hits = searchScrollFunction.apply(searchScrollRequest);
                     final SearchResponse response = new SearchResponse(
-                        new SearchResponseSections(new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
-                            null, null, false, false, null, 1), "_scrollId1", 1, 1, 0, 1, null, null);
+                        new SearchResponseSections(
+                            new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
+                            null,
+                            null,
+                            false,
+                            false,
+                            null,
+                            1
+                        ),
+                        "_scrollId1",
+                        1,
+                        1,
+                        0,
+                        1,
+                        null,
+                        null
+                    );
                     listener.onResponse((Response) response);
                 } else if (ClearScrollAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(ClearScrollRequest.class));
@@ -212,30 +252,42 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
 
         final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         final SecurityContext securityContext = new SecurityContext(settings, threadContext);
-        tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, securityContext, securityIndex, securityIndex,
-            clusterService);
+        tokenService = new TokenService(
+            settings,
+            Clock.systemUTC(),
+            client,
+            licenseState,
+            securityContext,
+            securityIndex,
+            securityIndex,
+            clusterService
+        );
 
-        final TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-                TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
+        final TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
         final Realms realms = mock(Realms.class);
-        action = new TransportSamlInvalidateSessionAction(transportService, mock(ActionFilters.class),tokenService, realms);
+        action = new TransportSamlInvalidateSessionAction(transportService, mock(ActionFilters.class), tokenService, realms);
 
         final Environment env = TestEnvironment.newEnvironment(settings);
 
         final RealmIdentifier realmId = new RealmIdentifier("saml", REALM_NAME);
-        final RealmConfig realmConfig = new RealmConfig(
-                realmId,
-            settings,
-                env, threadContext);
+        final RealmConfig realmConfig = new RealmConfig(realmId, settings, env, threadContext);
         samlRealm = SamlRealmTestHelper.buildRealm(realmConfig, null);
         when(realms.realm(realmConfig.name())).thenReturn(samlRealm);
         when(realms.stream()).thenAnswer(i -> Stream.of(samlRealm));
 
         logoutRequest = new SamlLogoutRequestHandler.Result(
-                randomAlphaOfLengthBetween(8, 24),
-                new SamlNameId(NameID.TRANSIENT, randomAlphaOfLengthBetween(8, 24), null, null, null),
-                randomAlphaOfLengthBetween(12, 16),
-                null
+            randomAlphaOfLengthBetween(8, 24),
+            new SamlNameId(NameID.TRANSIENT, randomAlphaOfLengthBetween(8, 24), null, null, null),
+            randomAlphaOfLengthBetween(12, 16),
+            null
         );
         when(samlRealm.getLogoutHandler().parseFromQueryString(anyString())).thenReturn(logoutRequest);
     }
@@ -243,7 +295,8 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
     private SearchHit tokenHit(int idx, BytesReference source) {
         try {
             final Map<String, Object> sourceMap = XContentType.JSON.xContent()
-                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, source.streamInput()).map();
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, source.streamInput())
+                .map();
             @SuppressWarnings("unchecked")
             final Map<String, Object> accessToken = (Map<String, Object>) sourceMap.get("access_token");
             @SuppressWarnings("unchecked")
@@ -267,8 +320,12 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         final String userTokenId2 = UUIDs.randomBase64UUID();
         final String refreshToken2 = UUIDs.randomBase64UUID();
         storeToken(logoutRequest.getNameId(), randomAlphaOfLength(10));
-        final TokenService.CreateTokenResult tokenToInvalidate1 = storeToken(userTokenId1, refreshToken1, logoutRequest.getNameId(),
-            logoutRequest.getSession());
+        final TokenService.CreateTokenResult tokenToInvalidate1 = storeToken(
+            userTokenId1,
+            refreshToken1,
+            logoutRequest.getNameId(),
+            logoutRequest.getSession()
+        );
         storeToken(userTokenId2, refreshToken2, logoutRequest.getNameId(), logoutRequest.getSession());
         storeToken(new SamlNameId(NameID.PERSISTENT, randomAlphaOfLength(16), null, null, null), logoutRequest.getSession());
 
@@ -276,10 +333,10 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
 
         final AtomicInteger counter = new AtomicInteger();
         final SearchHit[] searchHits = indexRequests.stream()
-                .filter(r -> r.id().startsWith("token"))
-                .map(r -> tokenHit(counter.incrementAndGet(), r.source()))
-                .collect(Collectors.toList())
-                .toArray(new SearchHit[0]);
+            .filter(r -> r.id().startsWith("token"))
+            .map(r -> tokenHit(counter.incrementAndGet(), r.source()))
+            .collect(Collectors.toList())
+            .toArray(new SearchHit[0]);
         assertThat(searchHits.length, equalTo(4));
         searchFunction = req1 -> {
             searchFunction = findTokenByRefreshToken(searchHits);
@@ -330,11 +387,15 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
 
         assertThat(filter1.get(1), instanceOf(TermQueryBuilder.class));
         assertThat(((TermQueryBuilder) filter1.get(1)).fieldName(), equalTo("refresh_token.token"));
-        assertThat(((TermQueryBuilder) filter1.get(1)).value(),
-            equalTo(TokenService.hashTokenString(TokenService.unpackVersionAndPayload(tokenToInvalidate1.getRefreshToken()).v2())));
+        assertThat(
+            ((TermQueryBuilder) filter1.get(1)).value(),
+            equalTo(TokenService.hashTokenString(TokenService.unpackVersionAndPayload(tokenToInvalidate1.getRefreshToken()).v2()))
+        );
 
-        assertThat(tokenToInvalidate1.getAuthentication(), equalTo(new Authentication(new User("bob"),
-            new RealmRef("native", NativeRealmSettings.TYPE, "node01"), null)));
+        assertThat(
+            tokenToInvalidate1.getAuthentication(),
+            equalTo(new Authentication(new User("bob"), new RealmRef("native", NativeRealmSettings.TYPE, "node01"), null))
+        );
 
         assertThat(bulkRequests, hasSize(4)); // 4 updates (refresh-token + access-token)
         // Invalidate refresh token 1
@@ -371,7 +432,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                 @SuppressWarnings("unchecked")
                 final Map<String, Object> refreshToken = (Map<String, Object>) hit.getSourceAsMap().get("refresh_token");
                 if (termQuery.value().equals(refreshToken.get("token"))) {
-                    return new SearchHit[]{hit};
+                    return new SearchHit[] { hit };
                 }
             }
             return new SearchHit[0];
@@ -379,8 +440,11 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
     }
 
     private TokenService.CreateTokenResult storeToken(String userTokenId, String refreshToken, SamlNameId nameId, String session) {
-        Authentication authentication = new Authentication(new User("bob"),
-                new RealmRef("native", NativeRealmSettings.TYPE, "node01"), null);
+        Authentication authentication = new Authentication(
+            new User("bob"),
+            new RealmRef("native", NativeRealmSettings.TYPE, "node01"),
+            null
+        );
         final Map<String, Object> metadata = samlRealm.createTokenMetadata(nameId, session);
         final PlainActionFuture<TokenService.CreateTokenResult> future = new PlainActionFuture<>();
         tokenService.createOAuth2Tokens(userTokenId, refreshToken, authentication, authentication, metadata, future);

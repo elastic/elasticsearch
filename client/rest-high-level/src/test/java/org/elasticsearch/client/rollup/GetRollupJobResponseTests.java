@@ -14,9 +14,9 @@ import org.elasticsearch.client.rollup.GetRollupJobResponse.JobWrapper;
 import org.elasticsearch.client.rollup.GetRollupJobResponse.RollupIndexerJobStats;
 import org.elasticsearch.client.rollup.GetRollupJobResponse.RollupJobStatus;
 import org.elasticsearch.client.rollup.job.config.RollupJobConfigTests;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,34 +28,36 @@ import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
 public class GetRollupJobResponseTests extends ESTestCase {
     public void testFromXContent() throws IOException {
-        xContentTester(
-                this::createParser,
-                this::createTestInstance,
-                this::toXContent,
-                GetRollupJobResponse::fromXContent)
-                .supportsUnknownFields(false)
-                .randomFieldsExcludeFilter(field ->
-                        field.endsWith("status.current_position"))
-                .test();
+        xContentTester(this::createParser, this::createTestInstance, this::toXContent, GetRollupJobResponse::fromXContent)
+            .supportsUnknownFields(false)
+            .randomFieldsExcludeFilter(field -> field.endsWith("status.current_position"))
+            .test();
     }
 
     private GetRollupJobResponse createTestInstance() {
         int jobCount = between(1, 5);
         List<JobWrapper> jobs = new ArrayList<>();
         for (int j = 0; j < jobCount; j++) {
-            jobs.add(new JobWrapper(
-                    RollupJobConfigTests.randomRollupJobConfig(randomAlphaOfLength(5)),
-                    randomStats(),
-                    randomStatus()));
+            jobs.add(new JobWrapper(RollupJobConfigTests.randomRollupJobConfig(randomAlphaOfLength(5)), randomStats(), randomStatus()));
         }
         return new GetRollupJobResponse(jobs);
     }
 
     private RollupIndexerJobStats randomStats() {
-        return new RollupIndexerJobStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
-            randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
-            randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
-            randomNonNegativeLong());
+        return new RollupIndexerJobStats(
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
     }
 
     private RollupJobStatus randomStatus() {
@@ -64,10 +66,7 @@ public class GetRollupJobResponseTests extends ESTestCase {
         while (currentPosition.size() < positions) {
             currentPosition.put(randomAlphaOfLength(2), randomAlphaOfLength(2));
         }
-        return new RollupJobStatus(
-            randomFrom(IndexerState.values()),
-            currentPosition,
-            randomBoolean());
+        return new RollupJobStatus(randomFrom(IndexerState.values()), currentPosition, randomBoolean());
     }
 
     private void toXContent(GetRollupJobResponse response, XContentBuilder builder) throws IOException {

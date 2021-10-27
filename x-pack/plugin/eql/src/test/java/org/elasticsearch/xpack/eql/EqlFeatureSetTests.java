@@ -14,9 +14,9 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xpack.core.eql.EqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.eql.plugin.EqlStatsAction;
@@ -61,8 +61,7 @@ public class EqlFeatureSetTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testUsageStats() throws Exception {
         doAnswer(mock -> {
-            ActionListener<EqlStatsResponse> listener =
-                    (ActionListener<EqlStatsResponse>) mock.getArguments()[2];
+            ActionListener<EqlStatsResponse> listener = (ActionListener<EqlStatsResponse>) mock.getArguments()[2];
 
             List<EqlStatsResponse.NodeStatsResponse> nodes = new ArrayList<>();
             DiscoveryNode first = new DiscoveryNode("first", buildNewFakeTransportAddress(), Version.CURRENT);

@@ -37,8 +37,8 @@ import java.util.concurrent.ExecutionException;
  */
 public final class DocumentSubsetReader extends SequentialStoredFieldsLeafReader {
 
-    public static DocumentSubsetDirectoryReader wrap(DirectoryReader in, DocumentSubsetBitsetCache bitsetCache,
-            Query roleQuery) throws IOException {
+    public static DocumentSubsetDirectoryReader wrap(DirectoryReader in, DocumentSubsetBitsetCache bitsetCache, Query roleQuery)
+        throws IOException {
         return new DocumentSubsetDirectoryReader(in, bitsetCache, roleQuery);
     }
 
@@ -90,16 +90,15 @@ public final class DocumentSubsetReader extends SequentialStoredFieldsLeafReader
             return computeNumDocs(reader, roleQueryBits);
         }
         final boolean[] added = new boolean[] { false };
-        Cache<Query, Integer> perReaderCache = NUM_DOCS_CACHE.computeIfAbsent(cacheHelper.getKey(),
-                key -> {
-                    added[0] = true;
-                    return CacheBuilder.<Query, Integer>builder()
-                            // Not configurable, this limit only exists so that if a role query is updated
-                            // then we won't risk OOME because of old role queries that are not used anymore
-                            .setMaximumWeight(1000)
-                            .weigher((k, v) -> 1) // just count
-                            .build();
-                });
+        Cache<Query, Integer> perReaderCache = NUM_DOCS_CACHE.computeIfAbsent(cacheHelper.getKey(), key -> {
+            added[0] = true;
+            return CacheBuilder.<Query, Integer>builder()
+                // Not configurable, this limit only exists so that if a role query is updated
+                // then we won't risk OOME because of old role queries that are not used anymore
+                .setMaximumWeight(1000)
+                .weigher((k, v) -> 1) // just count
+                .build();
+        });
         if (added[0]) {
             IndexReader.ClosedListener closedListener = NUM_DOCS_CACHE::remove;
             try {
@@ -117,8 +116,8 @@ public final class DocumentSubsetReader extends SequentialStoredFieldsLeafReader
         private final Query roleQuery;
         private final DocumentSubsetBitsetCache bitsetCache;
 
-        DocumentSubsetDirectoryReader(final DirectoryReader in, final DocumentSubsetBitsetCache bitsetCache,
-                                      final Query roleQuery) throws IOException {
+        DocumentSubsetDirectoryReader(final DirectoryReader in, final DocumentSubsetBitsetCache bitsetCache, final Query roleQuery)
+            throws IOException {
             super(in, new SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
@@ -144,8 +143,9 @@ public final class DocumentSubsetReader extends SequentialStoredFieldsLeafReader
             if (reader instanceof FilterDirectoryReader) {
                 FilterDirectoryReader filterDirectoryReader = (FilterDirectoryReader) reader;
                 if (filterDirectoryReader instanceof DocumentSubsetDirectoryReader) {
-                    throw new IllegalArgumentException(LoggerMessageFormat.format("Can't wrap [{}] twice",
-                            DocumentSubsetDirectoryReader.class));
+                    throw new IllegalArgumentException(
+                        LoggerMessageFormat.format("Can't wrap [{}] twice", DocumentSubsetDirectoryReader.class)
+                    );
                 } else {
                     verifyNoOtherDocumentSubsetDirectoryReaderIsWrapped(filterDirectoryReader.getDelegate());
                 }

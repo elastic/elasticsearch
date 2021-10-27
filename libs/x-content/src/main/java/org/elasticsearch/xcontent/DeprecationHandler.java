@@ -25,32 +25,61 @@ public interface DeprecationHandler {
         @Override
         public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith) {
             if (parserName != null) {
-                throw new UnsupportedOperationException("deprecated fields not supported in [" + parserName + "] but got ["
-                    + usedName + "] at [" + location.get() + "] which is a deprecated name for [" + replacedWith + "]");
+                throw new UnsupportedOperationException(
+                    "deprecated fields not supported in ["
+                        + parserName
+                        + "] but got ["
+                        + usedName
+                        + "] at ["
+                        + location.get()
+                        + "] which is a deprecated name for ["
+                        + replacedWith
+                        + "]"
+                );
             } else {
-                throw new UnsupportedOperationException("deprecated fields not supported here but got ["
-                    + usedName + "] which is a deprecated name for [" + replacedWith + "]");
+                throw new UnsupportedOperationException(
+                    "deprecated fields not supported here but got [" + usedName + "] which is a deprecated name for [" + replacedWith + "]"
+                );
             }
         }
+
         @Override
         public void usedDeprecatedName(String parserName, Supplier<XContentLocation> location, String usedName, String modernName) {
             if (parserName != null) {
-                throw new UnsupportedOperationException("deprecated fields not supported in [" + parserName + "] but got ["
-                    + usedName + "] at [" + location.get() + "] which has been replaced with [" + modernName + "]");
+                throw new UnsupportedOperationException(
+                    "deprecated fields not supported in ["
+                        + parserName
+                        + "] but got ["
+                        + usedName
+                        + "] at ["
+                        + location.get()
+                        + "] which has been replaced with ["
+                        + modernName
+                        + "]"
+                );
             } else {
-                throw new UnsupportedOperationException("deprecated fields not supported here but got ["
-                    + usedName + "] which has been replaced with [" + modernName + "]");
+                throw new UnsupportedOperationException(
+                    "deprecated fields not supported here but got [" + usedName + "] which has been replaced with [" + modernName + "]"
+                );
             }
         }
 
         @Override
         public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName) {
             if (parserName != null) {
-                throw new UnsupportedOperationException("deprecated fields not supported in [" + parserName + "] but got ["
-                    + usedName + "] at [" + location.get() + "] which has been deprecated entirely");
+                throw new UnsupportedOperationException(
+                    "deprecated fields not supported in ["
+                        + parserName
+                        + "] but got ["
+                        + usedName
+                        + "] at ["
+                        + location.get()
+                        + "] which has been deprecated entirely"
+                );
             } else {
-                throw new UnsupportedOperationException("deprecated fields not supported here but got ["
-                    + usedName + "] which has been deprecated entirely");
+                throw new UnsupportedOperationException(
+                    "deprecated fields not supported here but got [" + usedName + "] which has been deprecated entirely"
+                );
             }
         }
     };

@@ -12,17 +12,17 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
-import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription.DataFormat;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
+import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.junit.Before;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
@@ -86,8 +86,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         dataDescription.setTimeFormat(DataDescription.EPOCH);
 
         Detector detector = new Detector.Builder("metric", "value").build();
-        analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector))
-            .setBucketSpan(TimeValue.timeValueSeconds(1))
+        analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector)).setBucketSpan(TimeValue.timeValueSeconds(1))
             .build();
     }
 
@@ -127,8 +126,12 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         InputStream inputStream = createInputStream(input.toString());
         CsvDataToProcessWriter writer = createWriter();
         writer.writeHeader();
-        try (CategorizationAnalyzer categorizationAnalyzer =
-                     new CategorizationAnalyzer(analysisRegistry, analysisConfig.getCategorizationAnalyzerConfig())) {
+        try (
+            CategorizationAnalyzer categorizationAnalyzer = new CategorizationAnalyzer(
+                analysisRegistry,
+                analysisConfig.getCategorizationAnalyzerConfig()
+            )
+        ) {
             writer.write(inputStream, categorizationAnalyzer, null, (r, e) -> {});
         }
         verify(dataCountsReporter, times(1)).startNewIncrementalCount();
@@ -136,13 +139,13 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         List<String[]> expectedRecords = new ArrayList<>();
         // The "." field is the control field; "..." is the pre-tokenized tokens field
         if (MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA) {
-            expectedRecords.add(new String[]{"time", "message", "...", "."});
-            expectedRecords.add(new String[]{"1", "Node 1 started", "Node,started", ""});
-            expectedRecords.add(new String[]{"2", "Node 2 started", "Node,started", ""});
+            expectedRecords.add(new String[] { "time", "message", "...", "." });
+            expectedRecords.add(new String[] { "1", "Node 1 started", "Node,started", "" });
+            expectedRecords.add(new String[] { "2", "Node 2 started", "Node,started", "" });
         } else {
-            expectedRecords.add(new String[]{"time", "message", "."});
-            expectedRecords.add(new String[]{"1", "Node 1 started", ""});
-            expectedRecords.add(new String[]{"2", "Node 2 started", ""});
+            expectedRecords.add(new String[] { "time", "message", "." });
+            expectedRecords.add(new String[] { "1", "Node 1 started", "" });
+            expectedRecords.add(new String[] { "2", "Node 2 started", "" });
         }
         assertWrittenRecordsEqualTo(expectedRecords);
 
@@ -197,13 +200,9 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
     }
 
     public void testWrite_GivenTimeFormatIsEpochAndSomeTimestampsWithinLatencySomeOutOfOrder() throws IOException {
-        analysisConfig = new AnalysisConfig.Builder(
-            Collections.singletonList(
-                new Detector.Builder("metric", "value").build()
-            ))
-            .setLatency(TimeValue.timeValueSeconds(2))
-            .setBucketSpan(TimeValue.timeValueSeconds(1))
-            .build();
+        analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder("metric", "value").build())).setLatency(
+            TimeValue.timeValueSeconds(2)
+        ).setBucketSpan(TimeValue.timeValueSeconds(1)).build();
 
         StringBuilder input = new StringBuilder();
         input.append("time,metric,value\n");
@@ -234,10 +233,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
     }
 
     public void testWrite_GivenTimeFormatIsEpochAndSomeTimestampsOutOfOrderWithinBucketSpan() throws Exception {
-        analysisConfig = new AnalysisConfig.Builder(
-            Collections.singletonList(
-                new Detector.Builder("metric", "value").build()
-            ))
+        analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder("metric", "value").build()))
             .setBucketSpan(TimeValue.timeValueSeconds(10))
             .build();
 
@@ -274,8 +270,9 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
     }
 
     public void testWrite_NullByte() throws IOException {
-        AnalysisConfig.Builder builder =
-                new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder("metric", "value").build()));
+        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(
+            Collections.singletonList(new Detector.Builder("metric", "value").build())
+        );
         builder.setLatency(TimeValue.ZERO);
         analysisConfig = builder.build();
 
@@ -313,8 +310,9 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testWrite_EmptyInput() throws IOException {
-        AnalysisConfig.Builder builder =
-                new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder("metric", "value").build()));
+        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(
+            Collections.singletonList(new Detector.Builder("metric", "value").build())
+        );
         builder.setLatency(TimeValue.ZERO);
         analysisConfig = builder.build();
 
@@ -349,12 +347,17 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         CsvDataToProcessWriter writer = createWriter();
         writer.writeHeader();
 
-        SuperCsvException e = ESTestCase.expectThrows(SuperCsvException.class,
-                () -> writer.write(inputStream, null, null, (response, error) -> {}));
+        SuperCsvException e = ESTestCase.expectThrows(
+            SuperCsvException.class,
+            () -> writer.write(inputStream, null, null, (response, error) -> {})
+        );
         // Expected line numbers are 2 and 10001, but SuperCSV may print the
         // numbers using a different locale's digit characters
-        assertTrue(e.getMessage(), e.getMessage().matches(
-                "max number of lines to read exceeded while reading quoted column beginning on line . and ending on line ....."));
+        assertTrue(
+            e.getMessage(),
+            e.getMessage()
+                .matches("max number of lines to read exceeded while reading quoted column beginning on line . and ending on line .....")
+        );
     }
 
     private static InputStream createInputStream(String input) {
@@ -362,10 +365,16 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
     }
 
     private CsvDataToProcessWriter createWriter() {
-        boolean includeTokensField = MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA &&
-                analysisConfig.getCategorizationFieldName() != null;
-        return new CsvDataToProcessWriter(true, includeTokensField, autodetectProcess, dataDescription.build(), analysisConfig,
-                dataCountsReporter);
+        boolean includeTokensField = MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA
+            && analysisConfig.getCategorizationFieldName() != null;
+        return new CsvDataToProcessWriter(
+            true,
+            includeTokensField,
+            autodetectProcess,
+            dataDescription.build(),
+            analysisConfig,
+            dataCountsReporter
+        );
     }
 
     private void assertWrittenRecordsEqualTo(List<String[]> expectedRecords) {

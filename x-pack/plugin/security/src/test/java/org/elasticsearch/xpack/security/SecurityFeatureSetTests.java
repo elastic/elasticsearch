@@ -73,14 +73,12 @@ public class SecurityFeatureSetTests extends ESTestCase {
     }
 
     public void testEnabled() {
-        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms,
-                rolesStore, roleMappingStore, ipFilter);
+        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms, rolesStore, roleMappingStore, ipFilter);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
         assertThat(featureSet.enabled(), is(true));
 
         when(licenseState.isSecurityEnabled()).thenReturn(false);
-        featureSet = new SecurityFeatureSet(settings, licenseState, realms,
-                rolesStore, roleMappingStore, ipFilter);
+        featureSet = new SecurityFeatureSet(settings, licenseState, realms, rolesStore, roleMappingStore, ipFilter);
         assertThat(featureSet.enabled(), is(false));
     }
 
@@ -123,12 +121,12 @@ public class SecurityFeatureSetTests extends ESTestCase {
         settings.put(XPackSettings.AUDIT_ENABLED.getKey(), auditingEnabled);
         final boolean httpIpFilterEnabled = randomBoolean();
         final boolean transportIPFilterEnabled = randomBoolean();
-        when(ipFilter.usageStats())
-                .thenReturn(MapBuilder.<String, Object>newMapBuilder()
-                        .put("http", Collections.singletonMap("enabled", httpIpFilterEnabled))
-                        .put("transport", Collections.singletonMap("enabled", transportIPFilterEnabled))
-                        .map());
-
+        when(ipFilter.usageStats()).thenReturn(
+            MapBuilder.<String, Object>newMapBuilder()
+                .put("http", Collections.singletonMap("enabled", httpIpFilterEnabled))
+                .put("transport", Collections.singletonMap("enabled", transportIPFilterEnabled))
+                .map()
+        );
 
         final boolean rolesStoreEnabled = randomBoolean();
         configureRoleStoreUsage(rolesStoreEnabled);
@@ -159,8 +157,14 @@ public class SecurityFeatureSetTests extends ESTestCase {
             settings.put("xpack.security.operator_privileges.enabled", true);
         }
 
-        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings.build(), licenseState,
-                realms, rolesStore, roleMappingStore, ipFilter);
+        SecurityFeatureSet featureSet = new SecurityFeatureSet(
+            settings.build(),
+            licenseState,
+            realms,
+            rolesStore,
+            roleMappingStore,
+            ipFilter
+        );
         PlainActionFuture<XPackFeatureSet.Usage> future = new PlainActionFuture<>();
         featureSet.usage(future);
         XPackFeatureSet.Usage securityUsage = future.get();
@@ -282,8 +286,14 @@ public class SecurityFeatureSetTests extends ESTestCase {
 
         configureRealmsUsage(Collections.emptyMap());
 
-        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings.build(), licenseState,
-                realms, rolesStore, roleMappingStore, ipFilter);
+        SecurityFeatureSet featureSet = new SecurityFeatureSet(
+            settings.build(),
+            licenseState,
+            realms,
+            rolesStore,
+            roleMappingStore,
+            ipFilter
+        );
         PlainActionFuture<XPackFeatureSet.Usage> future = new PlainActionFuture<>();
         featureSet.usage(future);
         XPackFeatureSet.Usage securityUsage = future.get();

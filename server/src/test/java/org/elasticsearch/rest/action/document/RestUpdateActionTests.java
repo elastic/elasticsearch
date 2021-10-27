@@ -12,13 +12,13 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.util.HashMap;
@@ -43,15 +43,13 @@ public class RestUpdateActionTests extends RestActionTestCase {
             (arg1, arg2) -> new UpdateResponse(new ShardId("index", "uuid", 0), "_doc", "id", 0, 1, 1, UpdateResponse.Result.UPDATED)
         );
 
-        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(Method.POST)
+        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(Method.POST)
             .withPath("/some_index/some_type/some_id/_update")
             .build();
         dispatchRequest(deprecatedRequest);
         assertWarnings(RestUpdateAction.TYPES_DEPRECATION_MESSAGE);
 
-        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(Method.POST)
+        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(Method.POST)
             .withPath("/some_index/_update/some_id")
             .build();
         dispatchRequest(validRequest);
@@ -67,21 +65,22 @@ public class RestUpdateActionTests extends RestActionTestCase {
         } else {
             params.put("version_type", randomFrom(VersionType.values()).name());
         }
-        String content =
-            "{\n" +
-                "    \"doc\" : {\n" +
-                "        \"name\" : \"new_name\"\n" +
-                "    }\n" +
-                "}";
-        FakeRestRequest updateRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.POST)
+        String content = "{\n" + "    \"doc\" : {\n" + "        \"name\" : \"new_name\"\n" + "    }\n" + "}";
+        FakeRestRequest updateRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("test/_update/1")
             .withParams(params)
             .withContent(new BytesArray(content), XContentType.JSON)
             .build();
-        ActionRequestValidationException e = expectThrows(ActionRequestValidationException.class,
-            () -> action.prepareRequest(updateRequest, mock(NodeClient.class)));
-        assertThat(e.getMessage(), containsString("internal versioning can not be used for optimistic concurrency control. " +
-            "Please use `if_seq_no` and `if_primary_term` instead"));
+        ActionRequestValidationException e = expectThrows(
+            ActionRequestValidationException.class,
+            () -> action.prepareRequest(updateRequest, mock(NodeClient.class))
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "internal versioning can not be used for optimistic concurrency control. "
+                    + "Please use `if_seq_no` and `if_primary_term` instead"
+            )
+        );
     }
 }

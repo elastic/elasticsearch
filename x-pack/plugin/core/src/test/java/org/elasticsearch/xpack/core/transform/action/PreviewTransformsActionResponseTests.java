@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettingsTests;
 
@@ -25,8 +25,7 @@ public class PreviewTransformsActionResponseTests extends AbstractSerializingTes
         int size = randomIntBetween(0, 10);
         List<Map<String, Object>> data = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            data.add(Collections.singletonMap(randomAlphaOfLength(10),
-                     Collections.singletonMap("value1", randomIntBetween(1, 100))));
+            data.add(Collections.singletonMap(randomAlphaOfLength(10), Collections.singletonMap("value1", randomIntBetween(1, 100))));
         }
 
         return new Response(data, TransformDestIndexSettingsTests.randomDestIndexSettings());

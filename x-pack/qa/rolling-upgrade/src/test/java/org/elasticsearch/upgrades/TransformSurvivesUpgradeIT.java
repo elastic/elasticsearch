@@ -24,19 +24,19 @@ import org.elasticsearch.client.transform.transforms.TransformStats;
 import org.elasticsearch.client.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -70,10 +70,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
     private static final String TRANSFORM_ENDPOINT_DEPRECATED = "/_data_frame/transforms/";
     private static final String CONTINUOUS_TRANSFORM_ID = "continuous-transform-upgrade-job";
     private static final String CONTINUOUS_TRANSFORM_SOURCE = "transform-upgrade-continuous-source";
-    private static final List<String> ENTITIES = Stream.iterate(1, n -> n + 1)
-        .limit(5)
-        .map(v -> "user_" + v)
-        .collect(Collectors.toList());
+    private static final List<String> ENTITIES = Stream.iterate(1, n -> n + 1).limit(5).map(v -> "user_" + v).collect(Collectors.toList());
     private static final List<TimeValue> BUCKETS = Stream.iterate(1, n -> n + 1)
         .limit(5)
         .map(TimeValue::timeValueMinutes)
@@ -93,13 +90,13 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             final SortedSet<String> templates = new TreeSet<>(Streams.readAllLines(catResponse.getEntity().getContent()));
 
             // match notifications index templates, independent of the version, at least 1 should exist
-            SortedSet<String> notificationsDeprecated = templates
-                    .tailSet(TRANSFORM_NOTIFICATIONS_INDEX_PREFIX_DEPRECATED);
+            SortedSet<String> notificationsDeprecated = templates.tailSet(TRANSFORM_NOTIFICATIONS_INDEX_PREFIX_DEPRECATED);
             SortedSet<String> notifications = templates.tailSet(TRANSFORM_NOTIFICATIONS_INDEX_PREFIX);
 
             int foundTemplates = 0;
             foundTemplates += notificationsDeprecated.isEmpty() ? 0
-                    : notificationsDeprecated.first().startsWith(TRANSFORM_NOTIFICATIONS_INDEX_PREFIX_DEPRECATED) ? 1 : 0;
+                : notificationsDeprecated.first().startsWith(TRANSFORM_NOTIFICATIONS_INDEX_PREFIX_DEPRECATED) ? 1
+                : 0;
             foundTemplates += notifications.isEmpty() ? 0 : notifications.first().startsWith(TRANSFORM_NOTIFICATIONS_INDEX_PREFIX) ? 1 : 0;
 
             if (foundTemplates < 1) {
@@ -128,11 +125,12 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         assumeTrue("Continuous transform time sync not fixed until 7.4", UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_4_0));
         Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
         adjustLoggingLevels.setJsonEntity(
-            "{\"persistent\": {" +
-                "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"trace\"," +
-                "\"logger.org.elasticsearch.xpack.dataframe\": \"trace\"," +
-                "\"logger.org.elasticsearch.xpack.transform\": \"trace\"" +
-                "}}");
+            "{\"persistent\": {"
+                + "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"trace\","
+                + "\"logger.org.elasticsearch.xpack.dataframe\": \"trace\","
+                + "\"logger.org.elasticsearch.xpack.transform\": \"trace\""
+                + "}}"
+        );
         client().performRequest(adjustLoggingLevels);
         Request waitForYellow = new Request("GET", "/_cluster/health");
         waitForYellow.addParameter("wait_for_nodes", "3");
@@ -177,10 +175,12 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         long totalDocsWritten = totalDocsWrittenSum;
         TransformConfig config = TransformConfig.builder()
             .setSyncConfig(TimeSyncConfig.builder().setField("timestamp").setDelay(TimeValue.timeValueSeconds(1)).build())
-            .setPivotConfig(PivotConfig.builder()
-                .setAggregations(new AggregatorFactories.Builder().addAggregator(AggregationBuilders.avg("stars").field("stars")))
-                .setGroups(GroupConfig.builder().groupBy("user_id", TermsGroupSource.builder().setField("user_id").build()).build())
-                .build())
+            .setPivotConfig(
+                PivotConfig.builder()
+                    .setAggregations(new AggregatorFactories.Builder().addAggregator(AggregationBuilders.avg("stars").field("stars")))
+                    .setGroups(GroupConfig.builder().groupBy("user_id", TermsGroupSource.builder().setField("user_id").build()).build())
+                    .build()
+            )
             .setDest(DestConfig.builder().setIndex(CONTINUOUS_TRANSFORM_ID + "_idx").build())
             .setSource(SourceConfig.builder().setIndex(CONTINUOUS_TRANSFORM_SOURCE).build())
             .setId(CONTINUOUS_TRANSFORM_ID)
@@ -193,13 +193,12 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
 
         assertBusy(() -> {
             TransformStats stateAndStats = getTransformStats(CONTINUOUS_TRANSFORM_ID);
-            assertThat(stateAndStats.getIndexerStats().getDocumentsIndexed(), equalTo((long)ENTITIES.size()));
+            assertThat(stateAndStats.getIndexerStats().getDocumentsIndexed(), equalTo((long) ENTITIES.size()));
             assertThat(stateAndStats.getIndexerStats().getDocumentsProcessed(), equalTo(totalDocsWritten));
             // Even if we get back to started, we may periodically get set back to `indexing` when triggered.
             // Though short lived due to no changes on the source indices, it could result in flaky test behavior
             assertThat(stateAndStats.getState(), oneOf(TransformStats.State.STARTED, TransformStats.State.INDEXING));
         }, 120, TimeUnit.SECONDS);
-
 
         // We want to make sure our latest state is written before we turn the node off, this makes the testing more reliable
         awaitWrittenIndexerState(CONTINUOUS_TRANSFORM_ID, IndexerState.STARTED.value());
@@ -213,9 +212,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         assertBusy(() -> {
             TransformStats stateAndStats = getTransformStats(CONTINUOUS_TRANSFORM_ID);
             assertThat(stateAndStats.getState(), oneOf(TransformStats.State.STARTED, TransformStats.State.INDEXING));
-        },
-        120,
-        TimeUnit.SECONDS);
+        }, 120, TimeUnit.SECONDS);
 
         TransformStats previousStateAndStats = getTransformStats(CONTINUOUS_TRANSFORM_ID);
 
@@ -231,50 +228,61 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
 
         waitUntilAfterCheckpoint(CONTINUOUS_TRANSFORM_ID, expectedLastCheckpoint);
 
-        assertBusy(() -> assertThat(
-            getTransformStats(CONTINUOUS_TRANSFORM_ID).getIndexerStats().getDocumentsProcessed(),
-            greaterThanOrEqualTo(docs + previousStateAndStats.getIndexerStats().getDocumentsProcessed())),
+        assertBusy(
+            () -> assertThat(
+                getTransformStats(CONTINUOUS_TRANSFORM_ID).getIndexerStats().getDocumentsProcessed(),
+                greaterThanOrEqualTo(docs + previousStateAndStats.getIndexerStats().getDocumentsProcessed())
+            ),
             120,
-            TimeUnit.SECONDS);
+            TimeUnit.SECONDS
+        );
         TransformStats stateAndStats = getTransformStats(CONTINUOUS_TRANSFORM_ID);
 
-        assertThat(stateAndStats.getState(),
-            oneOf(TransformStats.State.STARTED, TransformStats.State.INDEXING));
+        assertThat(stateAndStats.getState(), oneOf(TransformStats.State.STARTED, TransformStats.State.INDEXING));
         awaitWrittenIndexerState(CONTINUOUS_TRANSFORM_ID, (responseBody) -> {
-            Map<String, Object> indexerStats = (Map<String,Object>)((List<?>)XContentMapValues.extractValue("hits.hits._source.stats",
-                responseBody))
-                .get(0);
-            assertThat((Integer)indexerStats.get("documents_indexed"),
-                greaterThan(Long.valueOf(previousStateAndStats.getIndexerStats().getDocumentsIndexed()).intValue()));
-            assertThat((Integer)indexerStats.get("documents_processed"),
-                greaterThan(Long.valueOf(previousStateAndStats.getIndexerStats().getDocumentsProcessed()).intValue()));
+            Map<String, Object> indexerStats = (Map<String, Object>) ((List<?>) XContentMapValues.extractValue(
+                "hits.hits._source.stats",
+                responseBody
+            )).get(0);
+            assertThat(
+                (Integer) indexerStats.get("documents_indexed"),
+                greaterThan(Long.valueOf(previousStateAndStats.getIndexerStats().getDocumentsIndexed()).intValue())
+            );
+            assertThat(
+                (Integer) indexerStats.get("documents_processed"),
+                greaterThan(Long.valueOf(previousStateAndStats.getIndexerStats().getDocumentsProcessed()).intValue())
+            );
         });
     }
 
     private void awaitWrittenIndexerState(String id, Consumer<Map<?, ?>> responseAssertion) throws Exception {
-        Request getStatsDocsRequest = new Request("GET",
-            TRANSFORM_INTERNAL_INDEX_PREFIX + "*," +
-            TRANSFORM_INTERNAL_INDEX_PREFIX_DEPRECATED + "*" +
-            "/_search");
+        Request getStatsDocsRequest = new Request(
+            "GET",
+            TRANSFORM_INTERNAL_INDEX_PREFIX + "*," + TRANSFORM_INTERNAL_INDEX_PREFIX_DEPRECATED + "*" + "/_search"
+        );
 
-        getStatsDocsRequest.setJsonEntity("{\n" +
-            "  \"query\": {\n" +
-            "    \"bool\": {\n" +
-            "      \"filter\": \n" +
-            "        {\"term\": {\n" +
-            "          \"_id\": \"data_frame_transform_state_and_stats-" + id + "\"\n" +
-            "        }}\n" +
-            "    }\n" +
-            "  },\n" +
-            "  \"sort\": [\n" +
-            "    {\n" +
-            "      \"_index\": {\n" +
-            "        \"order\": \"desc\"\n" +
-            "      }\n" +
-            "    }\n" +
-            "  ],\n" +
-            "  \"size\": 1\n" +
-            "}");
+        getStatsDocsRequest.setJsonEntity(
+            "{\n"
+                + "  \"query\": {\n"
+                + "    \"bool\": {\n"
+                + "      \"filter\": \n"
+                + "        {\"term\": {\n"
+                + "          \"_id\": \"data_frame_transform_state_and_stats-"
+                + id
+                + "\"\n"
+                + "        }}\n"
+                + "    }\n"
+                + "  },\n"
+                + "  \"sort\": [\n"
+                + "    {\n"
+                + "      \"_index\": {\n"
+                + "        \"order\": \"desc\"\n"
+                + "      }\n"
+                + "    }\n"
+                + "  ],\n"
+                + "  \"size\": 1\n"
+                + "}"
+        );
         assertBusy(() -> {
             // Want to make sure we get the latest docs
             client().performRequest(new Request("POST", TRANSFORM_INTERNAL_INDEX_PREFIX + "*/_refresh"));
@@ -289,8 +297,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
 
     private void awaitWrittenIndexerState(String id, String indexerState) throws Exception {
         awaitWrittenIndexerState(id, (responseBody) -> {
-            String storedState = ((List<?>)XContentMapValues.extractValue("hits.hits._source.state.indexer_state", responseBody))
-                .get(0)
+            String storedState = ((List<?>) XContentMapValues.extractValue("hits.hits._source.state.indexer_state", responseBody)).get(0)
                 .toString();
             assertThat(storedState, equalTo(indexerState));
         });
@@ -312,15 +319,14 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
-    private void startTransform(String id) throws IOException  {
+    private void startTransform(String id) throws IOException {
         final Request startDataframeTransformRequest = new Request("POST", getTransformEndpoint() + id + "/_start");
         Response response = client().performRequest(startDataframeTransformRequest);
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
-    private void stopTransform(String id) throws IOException  {
-        final Request stopDataframeTransformRequest = new Request("POST",
-            getTransformEndpoint() + id + "/_stop?wait_for_completion=true");
+    private void stopTransform(String id) throws IOException {
+        final Request stopDataframeTransformRequest = new Request("POST", getTransformEndpoint() + id + "/_stop?wait_for_completion=true");
         Response response = client().performRequest(stopDataframeTransformRequest);
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
@@ -330,9 +336,14 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         Response response = client().performRequest(getStats);
         assertEquals(200, response.getStatusLine().getStatusCode());
         XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
-        try (XContentParser parser = xContentType.xContent().createParser(
-            NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-            response.getEntity().getContent())) {
+        try (
+            XContentParser parser = xContentType.xContent()
+                .createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    response.getEntity().getContent()
+                )
+        ) {
             GetTransformStatsResponse resp = GetTransformStatsResponse.fromXContent(parser);
             assertThat(resp.getTransformsStats(), hasSize(1));
             return resp.getTransformsStats().get(0);
@@ -340,8 +351,11 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private void waitUntilAfterCheckpoint(String id, long currentCheckpoint) throws Exception {
-        assertBusy(() -> assertThat(getTransformStats(id).getCheckpointingInfo().getLast().getCheckpoint(), greaterThan(currentCheckpoint)),
-            60, TimeUnit.SECONDS);
+        assertBusy(
+            () -> assertThat(getTransformStats(id).getCheckpointingInfo().getLast().getCheckpoint(), greaterThan(currentCheckpoint)),
+            60,
+            TimeUnit.SECONDS
+        );
     }
 
     private void createIndex(String indexName) throws IOException {

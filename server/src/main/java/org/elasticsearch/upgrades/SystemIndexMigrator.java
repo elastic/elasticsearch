@@ -171,7 +171,8 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                 // This should never, ever happen in testing mode, but could conceivably happen if there are different sets of plugins
                 // installed on the previous node vs. this one.
                 assert nextMigrationInfo.getFeatureName().equals(stateFeatureName)
-                    && nextMigrationInfo.getCurrentIndexName().equals(stateIndexName) : "index name ["
+                    && nextMigrationInfo.getCurrentIndexName().equals(stateIndexName)
+                    : "index name ["
                         + stateIndexName
                         + "] or feature name ["
                         + stateFeatureName
@@ -253,9 +254,8 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         // The BulkByScroll response is validated in #migrateSingleIndex, it's just here to satisfy the ActionListener type
         assert bulkResponse.isTimedOut() == false
             && (bulkResponse.getBulkFailures() == null || bulkResponse.getBulkFailures().isEmpty())
-            && (bulkResponse.getSearchFailures() == null
-                || bulkResponse.getSearchFailures()
-                    .isEmpty()) : "If this assertion gets triggered it means the validation in migrateSingleIndex isn't working right";
+            && (bulkResponse.getSearchFailures() == null || bulkResponse.getSearchFailures().isEmpty())
+            : "If this assertion gets triggered it means the validation in migrateSingleIndex isn't working right";
         SystemIndexMigrationInfo lastMigrationInfo = currentMigrationInfo();
         logger.info(
             "finished migrating old index [{}] from feature [{}] to new index [{}]",

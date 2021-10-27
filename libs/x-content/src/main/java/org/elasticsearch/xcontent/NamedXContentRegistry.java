@@ -50,6 +50,7 @@ public class NamedXContentRegistry {
             this.name = Objects.requireNonNull(name);
             this.parser = Objects.requireNonNull((p, c) -> parser.apply(p));
         }
+
         /**
          * Creates a new entry which can be stored by the registry.
          * Prefer {@link Entry#Entry(Class, ParseField, CheckedFunction)} unless you need a context to carry around while parsing.
@@ -87,9 +88,19 @@ public class NamedXContentRegistry {
             for (String name : entry.name.getAllNamesIncludedDeprecated()) {
                 Object old = parsers.put(name, entry);
                 if (old != null) {
-                    throw new IllegalArgumentException("NamedXContent [" + currentCategory.getName() + "][" + entry.name + "]" +
-                        " is already registered for [" + old.getClass().getName() + "]," +
-                        " cannot register [" + entry.parser.getClass().getName() + "]");
+                    throw new IllegalArgumentException(
+                        "NamedXContent ["
+                            + currentCategory.getName()
+                            + "]["
+                            + entry.name
+                            + "]"
+                            + " is already registered for ["
+                            + old.getClass().getName()
+                            + "],"
+                            + " cannot register ["
+                            + entry.parser.getClass().getName()
+                            + "]"
+                    );
                 }
             }
         }
@@ -122,8 +133,10 @@ public class NamedXContentRegistry {
         if (false == entry.name.match(name, parser.getDeprecationHandler())) {
             /* Note that this shouldn't happen because we already looked up the entry using the names but we need to call `match` anyway
              * because it is responsible for logging deprecation warnings. */
-            throw new XContentParseException(parser.getTokenLocation(),
-                    "unable to parse " + categoryClass.getSimpleName() + " with name [" + name + "]: parser didn't match");
+            throw new XContentParseException(
+                parser.getTokenLocation(),
+                "unable to parse " + categoryClass.getSimpleName() + " with name [" + name + "]: parser didn't match"
+            );
         }
         return categoryClass.cast(entry.parser.parse(parser, context));
     }

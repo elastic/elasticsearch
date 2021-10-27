@@ -48,29 +48,31 @@ public class SearchTimeoutIT extends ESIntegTestCase {
         }
         refresh("test");
 
-        SearchResponse searchResponse = client().prepareSearch("test").setTimeout(new TimeValue(10, TimeUnit.MILLISECONDS))
-                .setQuery(scriptQuery(
-                    new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
-                .setAllowPartialSearchResults(true)
-                .get();
+        SearchResponse searchResponse = client().prepareSearch("test")
+            .setTimeout(new TimeValue(10, TimeUnit.MILLISECONDS))
+            .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
+            .setAllowPartialSearchResults(true)
+            .get();
         assertThat(searchResponse.isTimedOut(), equalTo(true));
     }
 
     public void testPartialResultsIntolerantTimeout() throws Exception {
         client().prepareIndex("test", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class, () ->
-            client().prepareSearch("test").setTimeout(new TimeValue(10, TimeUnit.MILLISECONDS))
-                .setQuery(scriptQuery(
-                        new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
-                    .setAllowPartialSearchResults(false) // this line causes timeouts to report failures
-                    .get()
-                );
+        ElasticsearchException ex = expectThrows(
+            ElasticsearchException.class,
+            () -> client().prepareSearch("test")
+                .setTimeout(new TimeValue(10, TimeUnit.MILLISECONDS))
+                .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
+                .setAllowPartialSearchResults(false) // this line causes timeouts to report failures
+                .get()
+        );
         assertTrue(ex.toString().contains("Time exceeded"));
     }
 
     public static class ScriptedTimeoutPlugin extends MockScriptPlugin {
         static final String SCRIPT_NAME = "search_timeout";
+
         @Override
         public Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             return Collections.singletonMap(SCRIPT_NAME, params -> {

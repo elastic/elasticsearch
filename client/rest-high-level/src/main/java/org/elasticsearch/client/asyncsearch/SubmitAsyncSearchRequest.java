@@ -6,7 +6,6 @@
  * Side Public License, v 1.
  */
 
-
 package org.elasticsearch.client.asyncsearch;
 
 import org.elasticsearch.action.search.SearchRequest;
@@ -47,7 +46,6 @@ public class SubmitAsyncSearchRequest implements Validatable {
     public String[] getIndices() {
         return this.searchRequest.indices();
     }
-
 
     /**
      * Get the minimum time that the request should wait before returning a partial result (defaults to 1 second).
@@ -255,9 +253,9 @@ public class SubmitAsyncSearchRequest implements Validatable {
         }
         SubmitAsyncSearchRequest request = (SubmitAsyncSearchRequest) o;
         return Objects.equals(searchRequest, request.searchRequest)
-                && Objects.equals(getKeepAlive(), request.getKeepAlive())
-                && Objects.equals(getWaitForCompletionTimeout(), request.getWaitForCompletionTimeout())
-                && Objects.equals(isKeepOnCompletion(), request.isKeepOnCompletion());
+            && Objects.equals(getKeepAlive(), request.getKeepAlive())
+            && Objects.equals(getWaitForCompletionTimeout(), request.getWaitForCompletionTimeout())
+            && Objects.equals(isKeepOnCompletion(), request.isKeepOnCompletion());
     }
 
     @Override

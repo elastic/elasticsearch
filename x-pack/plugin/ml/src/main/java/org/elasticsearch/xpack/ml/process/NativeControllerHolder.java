@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.process;
 
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 
@@ -22,8 +22,7 @@ public class NativeControllerHolder {
     private static final Object lock = new Object();
     private static NativeController nativeController;
 
-    private NativeControllerHolder() {
-    }
+    private NativeControllerHolder() {}
 
     /**
      * Get a reference to the singleton native process controller.

@@ -36,23 +36,19 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("test_ccr", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @Override
     protected Settings restAdminSettings() {
         String token = basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     public void testFollowIndex() throws Exception {
         final int numDocs = 16;
         final String allowedIndex = "allowed-index";
-        final String unallowedIndex  = "unallowed-index";
+        final String unallowedIndex = "unallowed-index";
         if ("leader".equals(targetCluster)) {
             logger.info("Running against leader cluster");
             createIndex(allowedIndex, Settings.EMPTY);
@@ -99,8 +95,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
 
             // User does not have manage_follow_index index privilege for 'unallowedIndex':
             e = expectThrows(ResponseException.class, () -> followIndex(client(), "leader_cluster", unallowedIndex, unallowedIndex));
-            assertThat(e.getMessage(),
-                containsString("action [indices:admin/xpack/ccr/put_follow] is unauthorized for user [test_ccr]"));
+            assertThat(e.getMessage(), containsString("action [indices:admin/xpack/ccr/put_follow] is unauthorized for user [test_ccr]"));
             // Verify that the follow index has not been created and no node tasks are running
             assertThat(indexExists(unallowedIndex), is(false));
             assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
@@ -108,9 +103,14 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             // User does have manage_follow_index index privilege on 'allowed' index,
             // but not read / monitor roles on 'disallowed' index:
             e = expectThrows(ResponseException.class, () -> followIndex(client(), "leader_cluster", unallowedIndex, allowedIndex));
-            assertThat(e.getMessage(), containsString("insufficient privileges to follow index [unallowed-index], " +
-                "privilege for action [indices:monitor/stats] is missing, " +
-                "privilege for action [indices:data/read/xpack/ccr/shard_changes] is missing"));
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "insufficient privileges to follow index [unallowed-index], "
+                        + "privilege for action [indices:monitor/stats] is missing, "
+                        + "privilege for action [indices:data/read/xpack/ccr/shard_changes] is missing"
+                )
+            );
             // Verify that the follow index has not been created and no node tasks are running
             assertThat(indexExists(unallowedIndex), is(false));
             assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
@@ -119,13 +119,20 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             pauseFollow(adminClient(), unallowedIndex);
 
             e = expectThrows(ResponseException.class, () -> resumeFollow(unallowedIndex));
-            assertThat(e.getMessage(), containsString("insufficient privileges to follow index [unallowed-index], " +
-                "privilege for action [indices:monitor/stats] is missing, " +
-                "privilege for action [indices:data/read/xpack/ccr/shard_changes] is missing"));
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "insufficient privileges to follow index [unallowed-index], "
+                        + "privilege for action [indices:monitor/stats] is missing, "
+                        + "privilege for action [indices:data/read/xpack/ccr/shard_changes] is missing"
+                )
+            );
             assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
 
-            e = expectThrows(ResponseException.class,
-                () -> client().performRequest(new Request("POST", "/" + unallowedIndex + "/_ccr/unfollow")));
+            e = expectThrows(
+                ResponseException.class,
+                () -> client().performRequest(new Request("POST", "/" + unallowedIndex + "/_ccr/unfollow"))
+            );
             assertThat(e.getMessage(), containsString("action [indices:admin/xpack/ccr/unfollow] is unauthorized for user [test_ccr]"));
             final Request closeIndexRequest = new Request("POST", "/" + unallowedIndex + "/_close");
             closeIndexRequest.addParameter("wait_for_active_shards", "0");
@@ -152,7 +159,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         assertOK(client().performRequest(request));
 
         try (RestClient leaderClient = buildLeaderClient()) {
-            for (String index : new String[]{allowedIndex, disallowedIndex}) {
+            for (String index : new String[] { allowedIndex, disallowedIndex }) {
                 String requestBody = "{\"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}";
                 request = new Request("PUT", "/" + index);
                 request.setJsonEntity(requestBody);
@@ -199,12 +206,16 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
 
             try (RestClient leaderClient = buildLeaderClient(restAdminSettings())) {
                 final Request request = new Request("POST", "/" + forgetLeader + "/_ccr/forget_follower");
-                final String requestBody = "{" +
-                        "\"follower_cluster\":\"follow-cluster\"," +
-                        "\"follower_index\":\"" +  forgetFollower + "\"," +
-                        "\"follower_index_uuid\":\"" + followerIndexUUID + "\"," +
-                        "\"leader_remote_cluster\":\"leader_cluster\"" +
-                        "}";
+                final String requestBody = "{"
+                    + "\"follower_cluster\":\"follow-cluster\","
+                    + "\"follower_index\":\""
+                    + forgetFollower
+                    + "\","
+                    + "\"follower_index_uuid\":\""
+                    + followerIndexUUID
+                    + "\","
+                    + "\"leader_remote_cluster\":\"leader_cluster\""
+                    + "}";
                 request.setJsonEntity(requestBody);
                 final Response forgetFollowerResponse = leaderClient.performRequest(request);
                 assertOK(forgetFollowerResponse);
@@ -217,8 +228,8 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
                 final Request retentionLeasesRequest = new Request("GET", "/" + forgetLeader + "/_stats");
                 retentionLeasesRequest.addParameter("level", "shards");
                 final Response retentionLeasesResponse = leaderClient.performRequest(retentionLeasesRequest);
-                final ArrayList<Object> shardsStats =
-                        ObjectPath.createFromResponse(retentionLeasesResponse).evaluate("indices." + forgetLeader + ".shards.0");
+                final ArrayList<Object> shardsStats = ObjectPath.createFromResponse(retentionLeasesResponse)
+                    .evaluate("indices." + forgetLeader + ".shards.0");
                 assertThat(shardsStats, hasSize(1));
                 final Map<?, ?> shardStatsAsMap = (Map<?, ?>) shardsStats.get(0);
                 final Map<?, ?> retentionLeasesStats = (Map<?, ?>) shardStatsAsMap.get("retention_leases");
@@ -294,7 +305,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             Request promoteRequest = new Request("POST", "/_data_stream/_promote/" + dataStreamName);
             assertOK(client().performRequest(promoteRequest));
             // Now that the data stream is a non replicated data stream, rollover.
-            Request rolloverRequest = new Request("POST", "/" +  dataStreamName + "/_rollover");
+            Request rolloverRequest = new Request("POST", "/" + dataStreamName + "/_rollover");
             assertOK(client().performRequest(rolloverRequest));
             // Unfollow .ds-logs-eu-monitor1-000001,
             // which is now possible because this index can now be closed as it is no longer the write index.

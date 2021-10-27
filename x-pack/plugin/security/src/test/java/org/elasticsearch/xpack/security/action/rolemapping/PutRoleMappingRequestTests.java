@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.security.action.rolemapping;
 
-import java.util.Collections;
-
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
@@ -17,6 +15,8 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRe
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
 import org.junit.Before;
 import org.mockito.Mockito;
+
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
@@ -32,36 +32,26 @@ public class PutRoleMappingRequestTests extends ESTestCase {
     }
 
     public void testValidateMissingName() throws Exception {
-        final PutRoleMappingRequest request = builder
-                .roles("superuser")
-                .expression(Mockito.mock(RoleMapperExpression.class))
-                .request();
+        final PutRoleMappingRequest request = builder.roles("superuser").expression(Mockito.mock(RoleMapperExpression.class)).request();
         assertValidationFailure(request, "name");
     }
 
     public void testValidateMissingRoles() throws Exception {
-        final PutRoleMappingRequest request = builder
-                .name("test")
-                .expression(Mockito.mock(RoleMapperExpression.class))
-                .request();
+        final PutRoleMappingRequest request = builder.name("test").expression(Mockito.mock(RoleMapperExpression.class)).request();
         assertValidationFailure(request, "roles");
     }
 
     public void testValidateMissingRules() throws Exception {
-        final PutRoleMappingRequest request = builder
-                .name("test")
-                .roles("superuser")
-                .request();
+        final PutRoleMappingRequest request = builder.name("test").roles("superuser").request();
         assertValidationFailure(request, "rules");
     }
 
     public void testValidateMetadataKeys() throws Exception {
-        final PutRoleMappingRequest request = builder
-                .name("test")
-                .roles("superuser")
-                .expression(Mockito.mock(RoleMapperExpression.class))
-                .metadata(Collections.singletonMap("_secret", false))
-                .request();
+        final PutRoleMappingRequest request = builder.name("test")
+            .roles("superuser")
+            .expression(Mockito.mock(RoleMapperExpression.class))
+            .metadata(Collections.singletonMap("_secret", false))
+            .request();
         assertValidationFailure(request, "metadata key");
     }
 

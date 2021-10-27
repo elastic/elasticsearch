@@ -23,8 +23,16 @@ public class RetryRequestTests extends AbstractWireSerializingTestCase<Request> 
             request.indices(generateRandomStringArray(20, 20, false));
         }
         if (randomBoolean()) {
-            IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
-                randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+            IndicesOptions indicesOptions = IndicesOptions.fromOptions(
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean()
+            );
             request.indicesOptions(indicesOptions);
         }
         return request;
@@ -41,12 +49,25 @@ public class RetryRequestTests extends AbstractWireSerializingTestCase<Request> 
         IndicesOptions indicesOptions = instance.indicesOptions();
         switch (between(0, 1)) {
             case 0:
-                indices = randomValueOtherThanMany(i -> Arrays.equals(i, instance.indices()),
-                    () -> generateRandomStringArray(20, 10, false, true));
+                indices = randomValueOtherThanMany(
+                    i -> Arrays.equals(i, instance.indices()),
+                    () -> generateRandomStringArray(20, 10, false, true)
+                );
                 break;
             case 1:
-                indicesOptions = randomValueOtherThan(indicesOptions, () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(),
-                    randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+                indicesOptions = randomValueOtherThan(
+                    indicesOptions,
+                    () -> IndicesOptions.fromOptions(
+                        randomBoolean(),
+                        randomBoolean(),
+                        randomBoolean(),
+                        randomBoolean(),
+                        randomBoolean(),
+                        randomBoolean(),
+                        randomBoolean(),
+                        randomBoolean()
+                    )
+                );
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");

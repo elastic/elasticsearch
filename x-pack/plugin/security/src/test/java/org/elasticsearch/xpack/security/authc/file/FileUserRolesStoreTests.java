@@ -54,10 +54,7 @@ public class FileUserRolesStoreTests extends ESTestCase {
 
     @Before
     public void init() {
-        settings = Settings.builder()
-                .put("resource.reload.interval.high", "100ms")
-                .put("path.home", createTempDir())
-                .build();
+        settings = Settings.builder().put("resource.reload.interval.high", "100ms").put("path.home", createTempDir()).build();
         env = TestEnvironment.newEnvironment(settings);
         threadPool = new TestThreadPool("test");
     }
@@ -217,9 +214,9 @@ public class FileUserRolesStoreTests extends ESTestCase {
             Path usersRoles = writeUsersRoles("role1:admin");
 
             Settings settings = Settings.builder()
-                    .put(XPackSettings.WATCHER_ENABLED.getKey(), "false")
-                    .put("path.home", createTempDir())
-                    .build();
+                .put(XPackSettings.WATCHER_ENABLED.getKey(), "false")
+                .put("path.home", createTempDir())
+                .build();
 
             Environment env = TestEnvironment.newEnvironment(settings);
             final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("file", "file-test");

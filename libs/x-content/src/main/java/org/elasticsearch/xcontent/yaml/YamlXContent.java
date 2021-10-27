@@ -46,8 +46,7 @@ public class YamlXContent implements XContent {
         yamlXContent = new YamlXContent();
     }
 
-    private YamlXContent() {
-    }
+    private YamlXContent() {}
 
     @Override
     public XContentType type() {
@@ -65,14 +64,14 @@ public class YamlXContent implements XContent {
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, String content) throws IOException {
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, String content)
+        throws IOException {
         return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(content));
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, InputStream is) throws IOException {
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, InputStream is)
+        throws IOException {
         return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(is));
     }
 
@@ -84,31 +83,33 @@ public class YamlXContent implements XContent {
         FilterPath[] includes,
         FilterPath[] excludes
     ) throws IOException {
-        return new YamlXContentParser(
-            xContentRegistry,
-            deprecationHandler,
-            yamlFactory.createParser(is),
-            includes,
-            excludes
-        );
+        return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(is), includes, excludes);
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, byte[] data) throws IOException {
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, byte[] data)
+        throws IOException {
         return createParser(xContentRegistry, deprecationHandler, data, 0, data.length);
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, byte[] data, int offset, int length) throws IOException {
-        return new YamlXContentParser(xContentRegistry, deprecationHandler,
-            yamlFactory.createParser(new ByteArrayInputStream(data, offset, length)));
+    public XContentParser createParser(
+        NamedXContentRegistry xContentRegistry,
+        DeprecationHandler deprecationHandler,
+        byte[] data,
+        int offset,
+        int length
+    ) throws IOException {
+        return new YamlXContentParser(
+            xContentRegistry,
+            deprecationHandler,
+            yamlFactory.createParser(new ByteArrayInputStream(data, offset, length))
+        );
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, Reader reader) throws IOException {
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, Reader reader)
+        throws IOException {
         return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(reader));
     }
 }

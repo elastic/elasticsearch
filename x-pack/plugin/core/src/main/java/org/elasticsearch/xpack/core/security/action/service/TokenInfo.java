@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.core.security.action.service;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.core.Map;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -53,10 +53,8 @@ public class TokenInfo implements Writeable, ToXContentObject, Comparable<TokenI
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         TokenInfo tokenInfo = (TokenInfo) o;
         return Objects.equals(name, tokenInfo.name) && Objects.equals(nodeNames, tokenInfo.nodeNames);
     }
@@ -106,6 +104,7 @@ public class TokenInfo implements Writeable, ToXContentObject, Comparable<TokenI
     }
 
     public enum TokenSource {
-        INDEX, FILE;
+        INDEX,
+        FILE;
     }
 }

@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.ml.inference.persistence;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -41,9 +41,11 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
     public static final ObjectParser<TrainedModelDefinitionDoc.Builder, Void> STRICT_PARSER = createParser(false);
 
     private static ObjectParser<TrainedModelDefinitionDoc.Builder, Void> createParser(boolean ignoreUnknownFields) {
-        ObjectParser<TrainedModelDefinitionDoc.Builder, Void> parser = new ObjectParser<>(NAME,
+        ObjectParser<TrainedModelDefinitionDoc.Builder, Void> parser = new ObjectParser<>(
+            NAME,
             ignoreUnknownFields,
-            TrainedModelDefinitionDoc.Builder::new);
+            TrainedModelDefinitionDoc.Builder::new
+        );
         parser.declareString(TrainedModelDefinitionDoc.Builder::setModelId, TrainedModelConfig.MODEL_ID);
         parser.declareString(TrainedModelDefinitionDoc.Builder::setCompressedString, DEFINITION);
         parser.declareInt(TrainedModelDefinitionDoc.Builder::setDocNum, DOC_NUM);
@@ -72,13 +74,15 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
     private final int compressionVersion;
     private final boolean eos;
 
-    private TrainedModelDefinitionDoc(String compressedString,
-                                      String modelId,
-                                      int docNum,
-                                      Long totalDefinitionLength,
-                                      long definitionLength,
-                                      int compressionVersion,
-                                      boolean eos) {
+    private TrainedModelDefinitionDoc(
+        String compressedString,
+        String modelId,
+        int docNum,
+        Long totalDefinitionLength,
+        long definitionLength,
+        int compressionVersion,
+        boolean eos
+    ) {
         this.compressedString = ExceptionsHelper.requireNonNull(compressedString, DEFINITION);
         this.modelId = ExceptionsHelper.requireNonNull(modelId, TrainedModelConfig.MODEL_ID);
         if (docNum < 0) {
@@ -153,13 +157,13 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TrainedModelDefinitionDoc that = (TrainedModelDefinitionDoc) o;
-        return Objects.equals(modelId, that.modelId) &&
-            Objects.equals(docNum, that.docNum) &&
-            Objects.equals(definitionLength, that.definitionLength) &&
-            Objects.equals(totalDefinitionLength, that.totalDefinitionLength) &&
-            Objects.equals(compressionVersion, that.compressionVersion) &&
-            Objects.equals(eos, that.eos) &&
-            Objects.equals(compressedString, that.compressedString);
+        return Objects.equals(modelId, that.modelId)
+            && Objects.equals(docNum, that.docNum)
+            && Objects.equals(definitionLength, that.definitionLength)
+            && Objects.equals(totalDefinitionLength, that.totalDefinitionLength)
+            && Objects.equals(compressionVersion, that.compressionVersion)
+            && Objects.equals(eos, that.eos)
+            && Objects.equals(compressedString, that.compressedString);
     }
 
     @Override
@@ -220,7 +224,8 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
                 this.totalDefinitionLength,
                 this.definitionLength,
                 this.compressionVersion,
-                this.eos);
+                this.eos
+            );
         }
     }
 

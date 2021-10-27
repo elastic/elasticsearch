@@ -76,11 +76,11 @@ public class RestRecoveryActionTests extends ESTestCase {
             when(index.totalFileCount()).thenReturn(randomIntBetween(totalRecoveredFiles, 2 * totalRecoveredFiles));
 
             final int totalRecoveredBytes = randomIntBetween(1, 1 << 24);
-            when(index.totalRecoverBytes()).thenReturn((long)totalRecoveredBytes);
+            when(index.totalRecoverBytes()).thenReturn((long) totalRecoveredBytes);
             final int recoveredBytes = randomIntBetween(0, totalRecoveredBytes);
-            when(index.recoveredBytes()).thenReturn((long)recoveredBytes);
+            when(index.recoveredBytes()).thenReturn((long) recoveredBytes);
             when(index.recoveredBytesPercent()).thenReturn((100f * recoveredBytes) / totalRecoveredBytes);
-            when(index.totalRecoverBytes()).thenReturn((long)randomIntBetween(totalRecoveredBytes, 2 * totalRecoveredBytes));
+            when(index.totalRecoverBytes()).thenReturn((long) randomIntBetween(totalRecoveredBytes, 2 * totalRecoveredBytes));
             when(state.getIndex()).thenReturn(index);
 
             final RecoveryState.Translog translog = mock(RecoveryState.Translog.class);
@@ -100,11 +100,12 @@ public class RestRecoveryActionTests extends ESTestCase {
 
         final List<DefaultShardOperationFailedException> shardFailures = new ArrayList<>();
         final RecoveryResponse response = new RecoveryResponse(
-                totalShards,
-                successfulShards,
-                failedShards,
-                shardRecoveryStates,
-                shardFailures);
+            totalShards,
+            successfulShards,
+            failedShards,
+            shardRecoveryStates,
+            shardFailures
+        );
         final Table table = action.buildRecoveryTable(null, response);
 
         assertNotNull(table);
@@ -112,32 +113,33 @@ public class RestRecoveryActionTests extends ESTestCase {
         List<Table.Cell> headers = table.getHeaders();
 
         final List<String> expectedHeaders = Arrays.asList(
-                "index",
-                "shard",
-                "start_time",
-                "start_time_millis",
-                "stop_time",
-                "stop_time_millis",
-                "time",
-                "type",
-                "stage",
-                "source_host",
-                "source_node",
-                "target_host",
-                "target_node",
-                "repository",
-                "snapshot",
-                "files",
-                "files_recovered",
-                "files_percent",
-                "files_total",
-                "bytes",
-                "bytes_recovered",
-                "bytes_percent",
-                "bytes_total",
-                "translog_ops",
-                "translog_ops_recovered",
-                "translog_ops_percent");
+            "index",
+            "shard",
+            "start_time",
+            "start_time_millis",
+            "stop_time",
+            "stop_time_millis",
+            "time",
+            "type",
+            "stage",
+            "source_host",
+            "source_node",
+            "target_host",
+            "target_node",
+            "repository",
+            "snapshot",
+            "files",
+            "files_recovered",
+            "files_percent",
+            "files_total",
+            "bytes",
+            "bytes_recovered",
+            "bytes_percent",
+            "bytes_total",
+            "translog_ops",
+            "translog_ops_recovered",
+            "translog_ops_percent"
+        );
 
         for (int i = 0; i < expectedHeaders.size(); i++) {
             assertThat(headers.get(i).value, equalTo(expectedHeaders.get(i)));
@@ -148,36 +150,37 @@ public class RestRecoveryActionTests extends ESTestCase {
         for (int i = 0; i < successfulShards; i++) {
             final RecoveryState state = recoveryStates.get(i);
             final List<Object> expectedValues = Arrays.asList(
-                    "index",
-                    i,
-                    XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().startTime()),
-                    state.getTimer().startTime(),
-                    XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().stopTime()),
-                    state.getTimer().stopTime(),
-                    new TimeValue(state.getTimer().time()),
-                    state.getRecoverySource().getType().name().toLowerCase(Locale.ROOT),
-                    state.getStage().name().toLowerCase(Locale.ROOT),
-                    state.getSourceNode() == null ? "n/a" : state.getSourceNode().getHostName(),
-                    state.getSourceNode() == null ? "n/a" : state.getSourceNode().getName(),
-                    state.getTargetNode().getHostName(),
-                    state.getTargetNode().getName(),
-                    state.getRecoverySource() == null || state.getRecoverySource().getType() != RecoverySource.Type.SNAPSHOT ?
-                            "n/a" :
-                            ((SnapshotRecoverySource) state.getRecoverySource()).snapshot().getRepository(),
-                    state.getRecoverySource() == null || state.getRecoverySource().getType() != RecoverySource.Type.SNAPSHOT ?
-                            "n/a" :
-                            ((SnapshotRecoverySource) state.getRecoverySource()).snapshot().getSnapshotId().getName(),
-                    state.getIndex().totalRecoverFiles(),
-                    state.getIndex().recoveredFileCount(),
-                    percent(state.getIndex().recoveredFilesPercent()),
-                    state.getIndex().totalFileCount(),
-                    state.getIndex().totalRecoverBytes(),
-                    state.getIndex().recoveredBytes(),
-                    percent(state.getIndex().recoveredBytesPercent()),
-                    state.getIndex().totalBytes(),
-                    state.getTranslog().totalOperations(),
-                    state.getTranslog().recoveredOperations(),
-                    percent(state.getTranslog().recoveredPercent()));
+                "index",
+                i,
+                XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().startTime()),
+                state.getTimer().startTime(),
+                XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().stopTime()),
+                state.getTimer().stopTime(),
+                new TimeValue(state.getTimer().time()),
+                state.getRecoverySource().getType().name().toLowerCase(Locale.ROOT),
+                state.getStage().name().toLowerCase(Locale.ROOT),
+                state.getSourceNode() == null ? "n/a" : state.getSourceNode().getHostName(),
+                state.getSourceNode() == null ? "n/a" : state.getSourceNode().getName(),
+                state.getTargetNode().getHostName(),
+                state.getTargetNode().getName(),
+                state.getRecoverySource() == null || state.getRecoverySource().getType() != RecoverySource.Type.SNAPSHOT
+                    ? "n/a"
+                    : ((SnapshotRecoverySource) state.getRecoverySource()).snapshot().getRepository(),
+                state.getRecoverySource() == null || state.getRecoverySource().getType() != RecoverySource.Type.SNAPSHOT
+                    ? "n/a"
+                    : ((SnapshotRecoverySource) state.getRecoverySource()).snapshot().getSnapshotId().getName(),
+                state.getIndex().totalRecoverFiles(),
+                state.getIndex().recoveredFileCount(),
+                percent(state.getIndex().recoveredFilesPercent()),
+                state.getIndex().totalFileCount(),
+                state.getIndex().totalRecoverBytes(),
+                state.getIndex().recoveredBytes(),
+                percent(state.getIndex().recoveredBytesPercent()),
+                state.getIndex().totalBytes(),
+                state.getTranslog().totalOperations(),
+                state.getTranslog().recoveredOperations(),
+                percent(state.getTranslog().recoveredPercent())
+            );
 
             final List<Table.Cell> cells = table.getRows().get(i);
             for (int j = 0; j < expectedValues.size(); j++) {

@@ -31,20 +31,21 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.core.Map;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemIndexManager.UpgradeStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -105,9 +106,14 @@ public class SystemIndexManagerTests extends ESTestCase {
             .setOrigin("FAKE_ORIGIN")
             .build();
 
-        SystemIndices systemIndices = new SystemIndices(Map.of(
-            "index 1", new SystemIndices.Feature("index 1", "index 1 feature", org.elasticsearch.core.List.of(d1)),
-            "index 2", new SystemIndices.Feature("index 2", "index 2 feature", org.elasticsearch.core.List.of(d2))));
+        SystemIndices systemIndices = new SystemIndices(
+            Map.of(
+                "index 1",
+                new SystemIndices.Feature("index 1", "index 1 feature", org.elasticsearch.core.List.of(d1)),
+                "index 2",
+                new SystemIndices.Feature("index 2", "index 2 feature", org.elasticsearch.core.List.of(d2))
+            )
+        );
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final List<SystemIndexDescriptor> eligibleDescriptors = manager.getEligibleDescriptors(
@@ -143,9 +149,15 @@ public class SystemIndexManagerTests extends ESTestCase {
             .setOrigin("FAKE_ORIGIN")
             .build();
 
-        SystemIndices systemIndices = new SystemIndices(Map.of(
-            "index 1", new SystemIndices.Feature("index 1", "index 1 feature", org.elasticsearch.core.List.of(d1)),
-            "index 2", new SystemIndices.Feature("index 2", "index 2 feature", org.elasticsearch.core.List.of(d2))));;
+        SystemIndices systemIndices = new SystemIndices(
+            Map.of(
+                "index 1",
+                new SystemIndices.Feature("index 1", "index 1 feature", org.elasticsearch.core.List.of(d1)),
+                "index 2",
+                new SystemIndices.Feature("index 2", "index 2 feature", org.elasticsearch.core.List.of(d2))
+            )
+        );
+        ;
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final List<SystemIndexDescriptor> eligibleDescriptors = manager.getEligibleDescriptors(
@@ -197,8 +209,10 @@ public class SystemIndexManagerTests extends ESTestCase {
         SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
-        assertThat(manager.getUpgradeStatus(markShardsAvailable(createClusterState("doc", DESCRIPTOR.getMappings())), DESCRIPTOR),
-            equalTo(UpgradeStatus.NEEDS_UPGRADE));
+        assertThat(
+            manager.getUpgradeStatus(markShardsAvailable(createClusterState("doc", DESCRIPTOR.getMappings())), DESCRIPTOR),
+            equalTo(UpgradeStatus.NEEDS_UPGRADE)
+        );
     }
 
     /**

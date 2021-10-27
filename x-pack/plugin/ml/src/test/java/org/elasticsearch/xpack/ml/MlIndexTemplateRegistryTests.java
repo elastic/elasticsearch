@@ -21,14 +21,14 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
@@ -37,8 +37,6 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
 
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
@@ -46,6 +44,8 @@ import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class MlIndexTemplateRegistryTests extends ESTestCase {
 
@@ -74,22 +74,35 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
 
         clusterService = mock(ClusterService.class);
 
-        xContentRegistry = new NamedXContentRegistry(CollectionUtils.appendToCopy(ClusterModule.getNamedXWriteables(),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse)));
+        xContentRegistry = new NamedXContentRegistry(
+            CollectionUtils.appendToCopy(
+                ClusterModule.getNamedXWriteables(),
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse)
+            )
+        );
 
         putIndexTemplateRequestCaptor = ArgumentCaptor.forClass(PutComposableIndexTemplateAction.Request.class);
     }
 
     public void testStateTemplate() {
-        MlIndexTemplateRegistry registry =
-            new MlIndexTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry);
+        MlIndexTemplateRegistry registry = new MlIndexTemplateRegistry(
+            Settings.EMPTY,
+            clusterService,
+            threadPool,
+            client,
+            xContentRegistry
+        );
 
         registry.clusterChanged(createClusterChangedEvent(nodes));
 
-        verify(client, times(4))
-            .execute(same(PutComposableIndexTemplateAction.INSTANCE), putIndexTemplateRequestCaptor.capture(), anyObject());
+        verify(client, times(4)).execute(
+            same(PutComposableIndexTemplateAction.INSTANCE),
+            putIndexTemplateRequestCaptor.capture(),
+            anyObject()
+        );
 
-        PutComposableIndexTemplateAction.Request req = putIndexTemplateRequestCaptor.getAllValues().stream()
+        PutComposableIndexTemplateAction.Request req = putIndexTemplateRequestCaptor.getAllValues()
+            .stream()
             .filter(r -> r.name().equals(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX))
             .findFirst()
             .orElseThrow(() -> new AssertionError("expected the ml state index template to be put"));
@@ -99,15 +112,24 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testStatsTemplate() {
-        MlIndexTemplateRegistry registry =
-            new MlIndexTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry);
+        MlIndexTemplateRegistry registry = new MlIndexTemplateRegistry(
+            Settings.EMPTY,
+            clusterService,
+            threadPool,
+            client,
+            xContentRegistry
+        );
 
         registry.clusterChanged(createClusterChangedEvent(nodes));
 
-        verify(client, times(4))
-            .execute(same(PutComposableIndexTemplateAction.INSTANCE), putIndexTemplateRequestCaptor.capture(), anyObject());
+        verify(client, times(4)).execute(
+            same(PutComposableIndexTemplateAction.INSTANCE),
+            putIndexTemplateRequestCaptor.capture(),
+            anyObject()
+        );
 
-        PutComposableIndexTemplateAction.Request req = putIndexTemplateRequestCaptor.getAllValues().stream()
+        PutComposableIndexTemplateAction.Request req = putIndexTemplateRequestCaptor.getAllValues()
+            .stream()
             .filter(r -> r.name().equals(MlStatsIndex.TEMPLATE_NAME))
             .findFirst()
             .orElseThrow(() -> new AssertionError("expected the ml stats index template to be put"));
@@ -129,6 +151,7 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
         return new ClusterChangedEvent(
             "created-from-test",
             ClusterState.builder(new ClusterName("test")).nodes(nodes).build(),
-            ClusterState.builder(new ClusterName("test")).build());
+            ClusterState.builder(new ClusterName("test")).build()
+        );
     }
 }

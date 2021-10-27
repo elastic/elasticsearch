@@ -41,8 +41,7 @@ public class DocumentPermissionsTests extends ESTestCase {
         assertThat(documentPermissions1.filter(null, null, null, null), is(nullValue()));
 
         Set<BytesReference> queries = Collections.singleton(new BytesArray("{\"match_all\" : {}}"));
-        final DocumentPermissions documentPermissions2 = DocumentPermissions
-                .filteredBy(queries);
+        final DocumentPermissions documentPermissions2 = DocumentPermissions.filteredBy(queries);
         assertThat(documentPermissions2, is(notNullValue()));
         assertThat(documentPermissions2.hasDocumentLevelPermissions(), is(true));
         assertThat(documentPermissions2.getQueries(), equalTo(queries));
@@ -54,12 +53,14 @@ public class DocumentPermissionsTests extends ESTestCase {
         assertThat(documentPermissions3.getLimitedByQueries(), equalTo(queries));
 
         final DocumentPermissions documentPermissions4 = DocumentPermissions.allowAll()
-                .limitDocumentPermissions(DocumentPermissions.allowAll());
+            .limitDocumentPermissions(DocumentPermissions.allowAll());
         assertThat(documentPermissions4, is(notNullValue()));
         assertThat(documentPermissions4.hasDocumentLevelPermissions(), is(false));
 
-        AssertionError ae = expectThrows(AssertionError.class,
-                () -> DocumentPermissions.allowAll().limitDocumentPermissions(documentPermissions3));
+        AssertionError ae = expectThrows(
+            AssertionError.class,
+            () -> DocumentPermissions.allowAll().limitDocumentPermissions(documentPermissions3)
+        );
         assertThat(ae.getMessage(), containsString("nested scoping for document permissions is not permitted"));
     }
 
@@ -67,46 +68,50 @@ public class DocumentPermissionsTests extends ESTestCase {
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
         final long nowInMillis = randomNonNegativeLong();
-        QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), client,
-                () -> nowInMillis);
+        QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), client, () -> nowInMillis);
         QueryBuilder queryBuilder1 = new TermsQueryBuilder("field", "val1", "val2");
         DocumentPermissions.failIfQueryUsesClient(queryBuilder1, context);
 
         QueryBuilder queryBuilder2 = new TermsQueryBuilder("field", new TermsLookup("_index", "_type", "_id", "_path"));
-        Exception e = expectThrows(IllegalStateException.class,
-                () -> DocumentPermissions.failIfQueryUsesClient(queryBuilder2, context));
+        Exception e = expectThrows(IllegalStateException.class, () -> DocumentPermissions.failIfQueryUsesClient(queryBuilder2, context));
         assertThat(e.getMessage(), equalTo("role queries are not allowed to execute additional requests"));
     }
 
     public void testWriteCacheKeyWillDistinguishBetweenQueriesAndLimitedByQueries() throws IOException {
         final BytesStreamOutput out0 = new BytesStreamOutput();
-        final DocumentPermissions documentPermissions0 =
-            new DocumentPermissions(
-                org.elasticsearch.core.Set.of(new BytesArray("{\"term\":{\"q1\":\"v1\"}}"),
-                    new BytesArray("{\"term\":{\"q2\":\"v2\"}}"), new BytesArray("{\"term\":{\"q3\":\"v3\"}}")),
-                null);
+        final DocumentPermissions documentPermissions0 = new DocumentPermissions(
+            org.elasticsearch.core.Set.of(
+                new BytesArray("{\"term\":{\"q1\":\"v1\"}}"),
+                new BytesArray("{\"term\":{\"q2\":\"v2\"}}"),
+                new BytesArray("{\"term\":{\"q3\":\"v3\"}}")
+            ),
+            null
+        );
         documentPermissions0.buildCacheKey(out0, BytesReference::utf8ToString);
 
         final BytesStreamOutput out1 = new BytesStreamOutput();
-        final DocumentPermissions documentPermissions1 =
-            new DocumentPermissions(
-                org.elasticsearch.core.Set.of(new BytesArray("{\"term\":{\"q1\":\"v1\"}}"), new BytesArray("{\"term\":{\"q2\":\"v2\"}}")),
-                org.elasticsearch.core.Set.of(new BytesArray("{\"term\":{\"q3\":\"v3\"}}")));
+        final DocumentPermissions documentPermissions1 = new DocumentPermissions(
+            org.elasticsearch.core.Set.of(new BytesArray("{\"term\":{\"q1\":\"v1\"}}"), new BytesArray("{\"term\":{\"q2\":\"v2\"}}")),
+            org.elasticsearch.core.Set.of(new BytesArray("{\"term\":{\"q3\":\"v3\"}}"))
+        );
         documentPermissions1.buildCacheKey(out1, BytesReference::utf8ToString);
 
         final BytesStreamOutput out2 = new BytesStreamOutput();
-        final DocumentPermissions documentPermissions2 =
-            new DocumentPermissions(
-                org.elasticsearch.core.Set.of(new BytesArray("{\"term\":{\"q1\":\"v1\"}}")),
-                org.elasticsearch.core.Set.of(new BytesArray("{\"term\":{\"q2\":\"v2\"}}"), new BytesArray("{\"term\":{\"q3\":\"v3\"}}")));
+        final DocumentPermissions documentPermissions2 = new DocumentPermissions(
+            org.elasticsearch.core.Set.of(new BytesArray("{\"term\":{\"q1\":\"v1\"}}")),
+            org.elasticsearch.core.Set.of(new BytesArray("{\"term\":{\"q2\":\"v2\"}}"), new BytesArray("{\"term\":{\"q3\":\"v3\"}}"))
+        );
         documentPermissions2.buildCacheKey(out2, BytesReference::utf8ToString);
 
         final BytesStreamOutput out3 = new BytesStreamOutput();
-        final DocumentPermissions documentPermissions3 =
-            new DocumentPermissions(
-                null,
-                org.elasticsearch.core.Set.of(new BytesArray("{\"term\":{\"q1\":\"v1\"}}"),
-                    new BytesArray("{\"term\":{\"q2\":\"v2\"}}"), new BytesArray("{\"term\":{\"q3\":\"v3\"}}")));
+        final DocumentPermissions documentPermissions3 = new DocumentPermissions(
+            null,
+            org.elasticsearch.core.Set.of(
+                new BytesArray("{\"term\":{\"q1\":\"v1\"}}"),
+                new BytesArray("{\"term\":{\"q2\":\"v2\"}}"),
+                new BytesArray("{\"term\":{\"q3\":\"v3\"}}")
+            )
+        );
         documentPermissions3.buildCacheKey(out3, BytesReference::utf8ToString);
 
         assertThat(Arrays.equals(BytesReference.toBytes(out0.bytes()), BytesReference.toBytes(out1.bytes())), is(false));
@@ -126,8 +131,9 @@ public class DocumentPermissionsTests extends ESTestCase {
         if (hasStoredScript) {
             queries.add(new BytesArray("{\"template\":{\"id\":\"my-script\"}}"));
         }
-        final DocumentPermissions documentPermissions0 =
-            randomBoolean() ? new DocumentPermissions(queries, null) : new DocumentPermissions(null, queries);
+        final DocumentPermissions documentPermissions0 = randomBoolean()
+            ? new DocumentPermissions(queries, null)
+            : new DocumentPermissions(null, queries);
         assertThat(documentPermissions0.hasStoredScript(), is(hasStoredScript));
     }
 }

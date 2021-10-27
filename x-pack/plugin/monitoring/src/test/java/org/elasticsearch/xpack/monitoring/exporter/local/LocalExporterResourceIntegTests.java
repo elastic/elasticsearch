@@ -13,15 +13,15 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.ObjectPath;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction;
@@ -35,17 +35,22 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
-@ESIntegTestCase.ClusterScope(scope = TEST,
-                              numDataNodes = 1, numClientNodes = 0, transportClientRatio = 0.0, supportsDedicatedMasters = false)
+@ESIntegTestCase.ClusterScope(
+    scope = TEST,
+    numDataNodes = 1,
+    numClientNodes = 0,
+    transportClientRatio = 0.0,
+    supportsDedicatedMasters = false
+)
 public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase {
 
     public LocalExporterResourceIntegTests() {
@@ -88,8 +93,10 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
         assertResourcesExist();
         waitNoPendingTasksOnAll();
 
-        Settings exporterSettings = Settings.builder().put(localExporterSettings())
-            .put("xpack.monitoring.migration.decommission_alerts", true).build();
+        Settings exporterSettings = Settings.builder()
+            .put(localExporterSettings())
+            .put("xpack.monitoring.migration.decommission_alerts", true)
+            .build();
 
         createResources("decommission_local", exporterSettings);
         waitNoPendingTasksOnAll();
@@ -106,8 +113,10 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
         assertResourcesExist();
         waitNoPendingTasksOnAll();
 
-        Settings exporterSettings = Settings.builder().put(localExporterSettings())
-            .put("xpack.monitoring.migration.decommission_alerts", true).build();
+        Settings exporterSettings = Settings.builder()
+            .put(localExporterSettings())
+            .put("xpack.monitoring.migration.decommission_alerts", true)
+            .build();
 
         MonitoringMigrationCoordinator coordinator = new MonitoringMigrationCoordinator();
         assertTrue(coordinator.tryBlockInstallationTasks());
@@ -125,7 +134,7 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
         // cluster alert creation and decommissioning
         return Settings.builder()
             .put(super.localExporterSettings())
-            .put("xpack.monitoring.exporters." + exporterName +  ".cluster_alerts.management.enabled", true)
+            .put("xpack.monitoring.exporters." + exporterName + ".cluster_alerts.management.enabled", true)
             .build();
     }
 
@@ -151,20 +160,19 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
 
         // this would totally break Monitoring UI, but the idea is that it's different from a real template and
         // the version controls that; it also won't break indexing (just searching) so this test can use it blindly
-        builder
-            .field("index_patterns", name)
+        builder.field("index_patterns", name)
             .startObject("settings")
-                .field("index.number_of_shards", 1)
-                .field("index.number_of_replicas", 0)
+            .field("index.number_of_shards", 1)
+            .field("index.number_of_replicas", 0)
             .endObject()
             .startObject("mappings")
-                // The internal representation still requires a default type of _doc
-                .startObject("_doc")
-                    .startObject("_meta")
-                        .field("test", true)
-                    .endObject()
-                    .field("enabled", false)
-                .endObject()
+            // The internal representation still requires a default type of _doc
+            .startObject("_doc")
+            .startObject("_meta")
+            .field("test", true)
+            .endObject()
+            .field("enabled", false)
+            .endObject()
             .endObject();
 
         if (version != null) {
@@ -236,8 +244,7 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
         for (final String watchId : ClusterAlertsUtil.WATCH_IDS) {
             final String uniqueWatchId = ClusterAlertsUtil.createUniqueWatchId(clusterService(), watchId);
             final BytesReference watch = generateWatchSource(watchId, clusterService().state().metadata().clusterUUID(), version);
-            client().execute(PutWatchAction.INSTANCE, new PutWatchRequest(uniqueWatchId, watch, XContentType.JSON))
-                .actionGet();
+            client().execute(PutWatchAction.INSTANCE, new PutWatchRequest(uniqueWatchId, watch, XContentType.JSON)).actionGet();
         }
     }
 
@@ -246,30 +253,26 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
      */
     private static BytesReference generateWatchSource(final String id, final String clusterUUID, final Integer version) throws Exception {
         final XContentBuilder builder = jsonBuilder().startObject();
-        builder
-            .startObject("metadata")
-                .startObject("xpack")
-                    .field("cluster_uuid", clusterUUID);
-                    if(version != null) {
-                        builder.field("version_created", Integer.toString(version));
-                    }
-        builder
-                    .field("watch", id)
-                .endObject()
+        builder.startObject("metadata").startObject("xpack").field("cluster_uuid", clusterUUID);
+        if (version != null) {
+            builder.field("version_created", Integer.toString(version));
+        }
+        builder.field("watch", id)
+            .endObject()
             .endObject()
             .startObject("trigger")
-                .startObject("schedule")
-                    .field("interval", "30m")
-                .endObject()
+            .startObject("schedule")
+            .field("interval", "30m")
+            .endObject()
             .endObject()
             .startObject("input")
-                .startObject("simple")
-                    .field("ignore", "ignore")
-                .endObject()
+            .startObject("simple")
+            .field("ignore", "ignore")
+            .endObject()
             .endObject()
             .startObject("condition")
-                .startObject("never")
-                .endObject()
+            .startObject("never")
+            .endObject()
             .endObject()
             .startObject("actions")
             .endObject();
@@ -346,8 +349,9 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
             for (SearchHit hit : searchResponse.getHits().getHits()) {
                 invalidWatches.add(ObjectPath.eval("metadata.xpack.watch", hit.getSourceAsMap()));
             }
-            fail("Found [" + searchResponse.getHits().getTotalHits().value + "] invalid watches when none were expected: "
-                + invalidWatches);
+            fail(
+                "Found [" + searchResponse.getHits().getTotalHits().value + "] invalid watches when none were expected: " + invalidWatches
+            );
         }
     }
 

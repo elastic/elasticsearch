@@ -85,6 +85,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
@@ -215,8 +216,8 @@ public class CertificateToolTests extends ESTestCase {
         Collection<CertificateInformation> certInfos = CertificateTool.parseFile(instanceFile);
         assertEquals(4, certInfos.size());
 
-        Map<String, CertificateInformation> certInfosMap =
-                certInfos.stream().collect(Collectors.toMap((c) -> c.name.originalName, Function.identity()));
+        Map<String, CertificateInformation> certInfosMap = certInfos.stream()
+            .collect(Collectors.toMap((c) -> c.name.originalName, Function.identity()));
         CertificateInformation certInfo = certInfosMap.get("node1");
         assertEquals(Collections.singletonList("127.0.0.1"), certInfo.ipAddresses);
         assertEquals(Collections.singletonList("localhost"), certInfo.dnsNames);
@@ -246,8 +247,10 @@ public class CertificateToolTests extends ESTestCase {
         Path tempDir = initTempDir();
         Path instanceFile = writeInvalidInstanceInformation(tempDir.resolve("instances-invalid.yml"));
         final MockTerminal terminal = new MockTerminal();
-        final UserException exception = expectThrows(UserException.class,
-                () -> CertificateTool.parseAndValidateFile(terminal, instanceFile));
+        final UserException exception = expectThrows(
+            UserException.class,
+            () -> CertificateTool.parseAndValidateFile(terminal, instanceFile)
+        );
         assertThat(exception.getMessage(), containsString("invalid configuration"));
         assertThat(exception.getMessage(), containsString(instanceFile.toString()));
         assertThat(terminal.getErrorOutput(), containsString("THIS=not a,valid DN"));
@@ -315,8 +318,9 @@ public class CertificateToolTests extends ESTestCase {
         final String keyPassword = randomBoolean() ? SecuritySettingsSourceField.TEST_PASSWORD : null;
 
         assertFalse(Files.exists(outputFile));
-        CAInfo caInfo = selfSigned ? null :
-            new CAInfo(caCert, keyPair.getPrivate(), generatedCa, keyPassword == null ? null : keyPassword.toCharArray());
+        CAInfo caInfo = selfSigned
+            ? null
+            : new CAInfo(caCert, keyPair.getPrivate(), generatedCa, keyPassword == null ? null : keyPassword.toCharArray());
         final GenerateCertificateCommand command = new GenerateCertificateCommand();
         List<String> args = CollectionUtils.arrayAsArrayList("-keysize", String.valueOf(keySize), "-days", String.valueOf(days), "-pem");
         if (keyPassword != null) {
@@ -365,8 +369,7 @@ public class CertificateToolTests extends ESTestCase {
                             ((PEMEncryptedKeyPair) parsed).decryptKeyPair(pemDecryptorProvider);
                         } catch (Exception e) {
                             // Catch error thrown by the empty mock, we are only interested in the argument passed in
-                        }
-                        finally {
+                        } finally {
                             Mockito.verify(pemDecryptorProvider).get("AES-128-CBC");
                         }
                         char[] zeroChars = new char[caInfo.password.length];
@@ -375,8 +378,10 @@ public class CertificateToolTests extends ESTestCase {
                     }
                 }
 
-                PrivateKey privateKey = PemUtils.readPrivateKey(zipRoot.resolve("ca").resolve("ca.key"),
-                    () -> keyPassword != null ? keyPassword.toCharArray() : null);
+                PrivateKey privateKey = PemUtils.readPrivateKey(
+                    zipRoot.resolve("ca").resolve("ca.key"),
+                    () -> keyPassword != null ? keyPassword.toCharArray() : null
+                );
                 assertEquals(caInfo.certAndKey.key, privateKey);
             }
         } else {
@@ -408,8 +413,10 @@ public class CertificateToolTests extends ESTestCase {
                     assertNull(certificate.getSubjectAlternativeNames());
                 } else {
                     X509CertificateHolder x509CertHolder = new X509CertificateHolder(certificate.getEncoded());
-                    GeneralNames subjAltNames =
-                            GeneralNames.fromExtensions(x509CertHolder.getExtensions(), Extension.subjectAlternativeName);
+                    GeneralNames subjAltNames = GeneralNames.fromExtensions(
+                        x509CertHolder.getExtensions(),
+                        Extension.subjectAlternativeName
+                    );
                     assertSubjAltNames(subjAltNames, certInfo);
                 }
                 assertThat(p12, not(pathExists()));
@@ -418,8 +425,10 @@ public class CertificateToolTests extends ESTestCase {
     }
 
     public void testHandleLongPasswords() throws Exception {
-        assumeFalse("JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/75571",
-            "1.8.0_292".equals(System.getProperty("java.version")));
+        assumeFalse(
+            "JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/75571",
+            "1.8.0_292".equals(System.getProperty("java.version"))
+        );
 
         final Path tempDir = initTempDir();
 
@@ -447,14 +456,19 @@ public class CertificateToolTests extends ESTestCase {
 
         terminal.reset();
         final GenerateCertificateCommand genCommand = new PathAwareGenerateCertificateCommand(caFile, pemZipFile);
-        final OptionSet gen2Options = genCommand.getParser().parse(
-            "-ca", "<ca>",
-            "-ca-pass", longPassword,
-            (expectPrompt ? "-pass" : "-pass=" + longPassword),
-            "-out", "<node2>",
-            "-name", "cert",
-            "-pem"
-        );
+        final OptionSet gen2Options = genCommand.getParser()
+            .parse(
+                "-ca",
+                "<ca>",
+                "-ca-pass",
+                longPassword,
+                (expectPrompt ? "-pass" : "-pass=" + longPassword),
+                "-out",
+                "<node2>",
+                "-name",
+                "cert",
+                "-pem"
+            );
 
         if (expectPrompt) {
             terminal.addSecretInput(longPassword);
@@ -504,11 +518,16 @@ public class CertificateToolTests extends ESTestCase {
         String caPassword = passwordPrompt ? null : "testnode";
 
         List<String> args = CollectionUtils.arrayAsArrayList(
-                "-keysize", String.valueOf(keySize),
-                "-days", String.valueOf(days),
-                "-pem",
-                "-ca-cert", testNodeCertPath.toString(),
-                "-ca-key", testNodeKeyPath.toString());
+            "-keysize",
+            String.valueOf(keySize),
+            "-days",
+            String.valueOf(days),
+            "-pem",
+            "-ca-cert",
+            testNodeCertPath.toString(),
+            "-ca-key",
+            testNodeKeyPath.toString()
+        );
 
         args.add("-ca-pass");
         if (caPassword != null) {
@@ -531,10 +550,14 @@ public class CertificateToolTests extends ESTestCase {
 
         // test generation
         args = CollectionUtils.arrayAsArrayList(
-                "-keysize", String.valueOf(keySize),
-                "-days", String.valueOf(days),
-                "-pem",
-                "-ca-dn", "CN=foo bar");
+            "-keysize",
+            String.valueOf(keySize),
+            "-days",
+            String.valueOf(days),
+            "-pem",
+            "-ca-dn",
+            "CN=foo bar"
+        );
 
         final boolean passwordProtected = randomBoolean();
         if (passwordProtected) {
@@ -549,8 +572,7 @@ public class CertificateToolTests extends ESTestCase {
         options = command.getParser().parse(Strings.toStringArray(args));
         caInfo = command.getCAInfo(terminal, options, env);
         caCK = caInfo.certAndKey;
-        assertThat(terminal.getOutput(),
-            containsString("Generating certificates without providing a CA certificate is deprecated."));
+        assertThat(terminal.getOutput(), containsString("Generating certificates without providing a CA certificate is deprecated."));
         assertThat(caCK.cert, instanceOf(X509Certificate.class));
         assertEquals(caCK.cert.getSubjectX500Principal().getName(), "CN=foo bar");
         assertThat(caCK.key.getAlgorithm(), containsString("RSA"));
@@ -633,8 +655,10 @@ public class CertificateToolTests extends ESTestCase {
      * - Checks that all 3 certificates have the right values based on the command line options provided during generation
      */
     public void testCreateCaAndMultipleInstances() throws Exception {
-        assumeFalse("JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/75571",
-            "1.8.0_292".equals(System.getProperty("java.version")));
+        assumeFalse(
+            "JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/75571",
+            "1.8.0_292".equals(System.getProperty("java.version"))
+        );
         final Path tempDir = initTempDir();
 
         final MockTerminal terminal = new MockTerminal();
@@ -668,55 +692,89 @@ public class CertificateToolTests extends ESTestCase {
                 return caFile;
             }
         };
-        final OptionSet caOptions = caCommand.getParser().parse(
-                "-ca-dn", "CN=My ElasticSearch Cluster",
-                "-pass", caPassword,
-                "-out", caFile.toString(),
-                "-keysize", String.valueOf(caKeySize),
-                "-days", String.valueOf(days)
-        );
+        final OptionSet caOptions = caCommand.getParser()
+            .parse(
+                "-ca-dn",
+                "CN=My ElasticSearch Cluster",
+                "-pass",
+                caPassword,
+                "-out",
+                caFile.toString(),
+                "-keysize",
+                String.valueOf(caKeySize),
+                "-days",
+                String.valueOf(days)
+            );
         caCommand.execute(terminal, caOptions, env);
 
         assertThat(caFile, pathExists());
 
         final GenerateCertificateCommand gen1Command = new PathAwareGenerateCertificateCommand(caFile, node1File);
-        final OptionSet gen1Options = gen1Command.getParser().parse(
-                "-ca", "<ca>",
-                "-ca-pass", caPassword,
-                "-pass", node1Password,
-                "-out", "<node1>",
-                "-keysize", String.valueOf(node1KeySize),
-                "-days", String.valueOf(days),
-                "-dns", "node01.cluster1.es.internal.corp.net",
-                "-ip", node1Ip,
-                "-name", "node01");
+        final OptionSet gen1Options = gen1Command.getParser()
+            .parse(
+                "-ca",
+                "<ca>",
+                "-ca-pass",
+                caPassword,
+                "-pass",
+                node1Password,
+                "-out",
+                "<node1>",
+                "-keysize",
+                String.valueOf(node1KeySize),
+                "-days",
+                String.valueOf(days),
+                "-dns",
+                "node01.cluster1.es.internal.corp.net",
+                "-ip",
+                node1Ip,
+                "-name",
+                "node01"
+            );
         gen1Command.execute(terminal, gen1Options, env);
 
         assertThat(node1File, pathExists());
 
         final GenerateCertificateCommand gen2Command = new PathAwareGenerateCertificateCommand(caFile, node2File);
-        final OptionSet gen2Options = gen2Command.getParser().parse(
-                "-ca", "<ca>",
-                "-ca-pass", caPassword,
-                "-pass", node2Password,
-                "-out", "<node2>",
-                "-keysize", String.valueOf(node2KeySize),
-                "-days", String.valueOf(days),
-                "-dns", "node02.cluster1.es.internal.corp.net",
-                "-ip", node2Ip,
-                "-name", "node02");
+        final OptionSet gen2Options = gen2Command.getParser()
+            .parse(
+                "-ca",
+                "<ca>",
+                "-ca-pass",
+                caPassword,
+                "-pass",
+                node2Password,
+                "-out",
+                "<node2>",
+                "-keysize",
+                String.valueOf(node2KeySize),
+                "-days",
+                String.valueOf(days),
+                "-dns",
+                "node02.cluster1.es.internal.corp.net",
+                "-ip",
+                node2Ip,
+                "-name",
+                "node02"
+            );
         gen2Command.execute(terminal, gen2Options, env);
 
         assertThat(node2File, pathExists());
 
         // Node 3 uses an auto generated CA or a self-signed cert, and therefore should not be trusted by the other nodes.
         final List<String> gen3Args = CollectionUtils.arrayAsArrayList(
-            "-pass", node3Password,
-            "-out", "<node3>",
-            "-keysize", String.valueOf(node3KeySize),
-            "-days", String.valueOf(days),
-            "-dns", "node03.cluster2.es.internal.corp.net",
-            "-ip", node3Ip
+            "-pass",
+            node3Password,
+            "-out",
+            "<node3>",
+            "-keysize",
+            String.valueOf(node3KeySize),
+            "-days",
+            String.valueOf(days),
+            "-dns",
+            "node03.cluster2.es.internal.corp.net",
+            "-ip",
+            node3Ip
         );
         final boolean selfSigned = randomBoolean();
         if (selfSigned) {
@@ -726,8 +784,7 @@ public class CertificateToolTests extends ESTestCase {
             gen3Args.add("CN=My ElasticSearch Cluster 2");
         }
         final GenerateCertificateCommand gen3Command = new PathAwareGenerateCertificateCommand(null, node3File);
-        final OptionSet gen3Options = gen3Command.getParser().parse(
-                Strings.toStringArray(gen3Args));
+        final OptionSet gen3Options = gen3Command.getParser().parse(Strings.toStringArray(gen3Args));
         gen3Command.execute(terminal, gen3Options, env);
 
         assertThat(node3File, pathExists());
@@ -771,11 +828,9 @@ public class CertificateToolTests extends ESTestCase {
             assertEquals(node3x509Certificate.getSubjectX500Principal(), node3x509Certificate.getIssuerX500Principal());
         } else {
             assertEquals(2, certificateChain.length);
-            assertEquals(node3x509Certificate.getIssuerX500Principal(),
-                ((X509Certificate) certificateChain[1]).getSubjectX500Principal());
+            assertEquals(node3x509Certificate.getIssuerX500Principal(), ((X509Certificate) certificateChain[1]).getSubjectX500Principal());
         }
     }
-
 
     /**
      * A multi-stage test that:
@@ -784,8 +839,10 @@ public class CertificateToolTests extends ESTestCase {
      * - Checks that the PKCS12 certificate and the PEM certificate trust one another
      */
     public void testTrustBetweenPEMandPKCS12() throws Exception {
-        assumeFalse("JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/75571",
-            "1.8.0_292".equals(System.getProperty("java.version")));
+        assumeFalse(
+            "JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/75571",
+            "1.8.0_292".equals(System.getProperty("java.version"))
+        );
         final Path tempDir = initTempDir();
 
         final MockTerminal terminal = new MockTerminal();
@@ -801,14 +858,20 @@ public class CertificateToolTests extends ESTestCase {
         final String node1Password = randomAlphaOfLengthBetween(4, 16);
 
         final GenerateCertificateCommand gen1Command = new PathAwareGenerateCertificateCommand(null, pkcs12Zip);
-        final OptionSet gen1Options = gen1Command.getParser().parse(
+        final OptionSet gen1Options = gen1Command.getParser()
+            .parse(
                 "-keep-ca-key",
-                "-out", "<zip>",
-                "-keysize", String.valueOf(keySize),
-                "-days", String.valueOf(days),
-                "-dns", "node01.cluster1.es.internal.corp.net",
-                "-name", "node01"
-        );
+                "-out",
+                "<zip>",
+                "-keysize",
+                String.valueOf(keySize),
+                "-days",
+                String.valueOf(days),
+                "-dns",
+                "node01.cluster1.es.internal.corp.net",
+                "-name",
+                "node01"
+            );
 
         terminal.addSecretInput(caPassword);
         terminal.addSecretInput(node1Password);
@@ -826,15 +889,22 @@ public class CertificateToolTests extends ESTestCase {
         assertThat(node1P12, pathExists());
 
         final GenerateCertificateCommand gen2Command = new PathAwareGenerateCertificateCommand(caP12, pemZip);
-        final OptionSet gen2Options = gen2Command.getParser().parse(
-                "-ca", "<ca>",
-                "-out", "<zip>",
-                "-keysize", String.valueOf(keySize),
-                "-days", String.valueOf(days),
-                "-dns", "node02.cluster1.es.internal.corp.net",
-                "-name", "node02",
+        final OptionSet gen2Options = gen2Command.getParser()
+            .parse(
+                "-ca",
+                "<ca>",
+                "-out",
+                "<zip>",
+                "-keysize",
+                String.valueOf(keySize),
+                "-days",
+                String.valueOf(days),
+                "-dns",
+                "node02.cluster1.es.internal.corp.net",
+                "-name",
+                "node02",
                 "-pem"
-        );
+            );
 
         terminal.addSecretInput(caPassword);
         gen2Command.execute(terminal, gen2Options, env);
@@ -873,9 +943,14 @@ public class CertificateToolTests extends ESTestCase {
         final AtomicBoolean isZip = new AtomicBoolean(false);
         final GenerateCertificateCommand genCommand = new PathAwareGenerateCertificateCommand(null, zip) {
             @Override
-            void generateAndWriteSignedCertificates(Path output, boolean writeZipFile, OptionSet options,
-                                                    Collection<CertificateInformation> certs, CAInfo caInfo,
-                                                    Terminal terminal) throws Exception {
+            void generateAndWriteSignedCertificates(
+                Path output,
+                boolean writeZipFile,
+                OptionSet options,
+                Collection<CertificateInformation> certs,
+                CAInfo caInfo,
+                Terminal terminal
+            ) throws Exception {
                 isZip.set(writeZipFile);
                 // do nothing, all we care about is the "zip" flag
             }
@@ -883,16 +958,14 @@ public class CertificateToolTests extends ESTestCase {
             @Override
             Collection<CertificateInformation> getCertificateInformationList(Terminal terminal, OptionSet options) throws Exception {
                 // Regardless of the commandline options, just work with a single cert
-                return Collections.singleton(new CertificateInformation("node", "node",
-                        Collections.emptyList(), Collections.emptyList(), Collections.emptyList()));
+                return Collections.singleton(
+                    new CertificateInformation("node", "node", Collections.emptyList(), Collections.emptyList(), Collections.emptyList())
+                );
             }
         };
 
         final String optionThatTriggersZip = randomFrom("-pem", "-keep-ca-key", "-multiple", "-in=input.yml");
-        final OptionSet genOptions = genCommand.getParser().parse(
-                "-out", "<zip>",
-                optionThatTriggersZip
-        );
+        final OptionSet genOptions = genCommand.getParser().parse("-out", "<zip>", optionThatTriggersZip);
         genCommand.execute(terminal, genOptions, env);
 
         assertThat("For command line option " + optionThatTriggersZip, isZip.get(), equalTo(true));
@@ -910,8 +983,13 @@ public class CertificateToolTests extends ESTestCase {
     private void assertSubjAltNames(Certificate certificate, String ip, String dns) throws Exception {
         final X509CertificateHolder holder = new X509CertificateHolder(certificate.getEncoded());
         final GeneralNames names = GeneralNames.fromExtensions(holder.getExtensions(), Extension.subjectAlternativeName);
-        final CertificateInformation certInfo = new CertificateInformation("n", "n", Collections.singletonList(ip),
-                Collections.singletonList(dns), Collections.emptyList());
+        final CertificateInformation certInfo = new CertificateInformation(
+            "n",
+            "n",
+            Collections.singletonList(ip),
+            Collections.singletonList(dns),
+            Collections.emptyList()
+        );
         assertSubjAltNames(names, certInfo);
     }
 
@@ -919,8 +997,11 @@ public class CertificateToolTests extends ESTestCase {
      * Checks whether there are keys in {@code keyStore} that are trusted by {@code trustStore}.
      */
     private void checkTrust(KeyStore keyStore, char[] keyPassword, KeyStore trustStore, boolean trust) throws Exception {
-        final X509ExtendedKeyManager keyManager = CertParsingUtils.keyManager(keyStore, keyPassword,
-                KeyManagerFactory.getDefaultAlgorithm());
+        final X509ExtendedKeyManager keyManager = CertParsingUtils.keyManager(
+            keyStore,
+            keyPassword,
+            KeyManagerFactory.getDefaultAlgorithm()
+        );
         final X509ExtendedTrustManager trustManager = CertParsingUtils.trustManager(trustStore, TrustManagerFactory.getDefaultAlgorithm());
 
         final X509Certificate[] node1CertificateIssuers = trustManager.getAcceptedIssuers();
@@ -938,8 +1019,7 @@ public class CertificateToolTests extends ESTestCase {
     }
 
     private PKCS10CertificationRequest readCertificateRequest(Path path) throws Exception {
-        try (Reader reader = Files.newBufferedReader(path);
-             PEMParser pemParser = new PEMParser(reader)) {
+        try (Reader reader = Files.newBufferedReader(path); PEMParser pemParser = new PEMParser(reader)) {
             Object object = pemParser.readObject();
             assertThat(object, instanceOf(PKCS10CertificationRequest.class));
             return (PKCS10CertificationRequest) object;
@@ -1000,22 +1080,23 @@ public class CertificateToolTests extends ESTestCase {
      */
     private Path writeInstancesTo(Path path) throws IOException {
         Iterable<String> instances = Arrays.asList(
-                "instances:",
-                "  - name: \"node1\"",
-                "    ip:",
-                "      - \"127.0.0.1\"",
-                "    dns: \"localhost\"",
-                "  - name: \"node2\"",
-                "    filename: \"node2\"",
-                "    ip: \"::1\"",
-                "    cn:",
-                "      - \"node2.elasticsearch\"",
-                "  - name: \"node3\"",
-                "    filename: \"node3\"",
-                "  - name: \"CN=different value\"",
-                "    filename: \"different file\"",
-                "    dns:",
-                "      - \"node4.mydomain.com\"");
+            "instances:",
+            "  - name: \"node1\"",
+            "    ip:",
+            "      - \"127.0.0.1\"",
+            "    dns: \"localhost\"",
+            "  - name: \"node2\"",
+            "    filename: \"node2\"",
+            "    ip: \"::1\"",
+            "    cn:",
+            "      - \"node2.elasticsearch\"",
+            "  - name: \"node3\"",
+            "    filename: \"node3\"",
+            "  - name: \"CN=different value\"",
+            "    filename: \"different file\"",
+            "    dns:",
+            "      - \"node4.mydomain.com\""
+        );
 
         return Files.write(path, instances, StandardCharsets.UTF_8);
     }
@@ -1024,10 +1105,7 @@ public class CertificateToolTests extends ESTestCase {
      * Writes the description of instances to a given {@link Path}
      */
     private Path writeInvalidInstanceInformation(Path path) throws IOException {
-        Iterable<String> instances = Arrays.asList(
-                "instances:",
-                "  - name: \"THIS=not a,valid DN\"",
-                "    ip: \"127.0.0.1\"");
+        Iterable<String> instances = Arrays.asList("instances:", "  - name: \"THIS=not a,valid DN\"", "    ip: \"127.0.0.1\"");
         return Files.write(path, instances, StandardCharsets.UTF_8);
     }
 
@@ -1042,13 +1120,19 @@ public class CertificateToolTests extends ESTestCase {
         final String caPassword = randomFrom("", randomAlphaOfLengthBetween(4, 80));
 
         final CertificateAuthorityCommand caCommand = new PathAwareCertificateAuthorityCommand(caFile);
-        final OptionSet caOptions = caCommand.getParser().parse(
-            "-ca-dn", "CN=My ElasticSearch Cluster",
-            "-pass", caPassword,
-            "-out", caFile.toString(),
-            "-keysize", String.valueOf(caKeySize),
-            "-days", String.valueOf(days)
-        );
+        final OptionSet caOptions = caCommand.getParser()
+            .parse(
+                "-ca-dn",
+                "CN=My ElasticSearch Cluster",
+                "-pass",
+                caPassword,
+                "-out",
+                caFile.toString(),
+                "-keysize",
+                String.valueOf(caKeySize),
+                "-days",
+                String.valueOf(days)
+            );
         caCommand.execute(terminal, caOptions, env);
 
         // Check output for OpenSSL compatibility version

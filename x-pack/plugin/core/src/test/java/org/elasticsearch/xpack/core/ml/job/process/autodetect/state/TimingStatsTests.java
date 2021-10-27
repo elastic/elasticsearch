@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContext;
 import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContextTests;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
@@ -35,7 +35,8 @@ public class TimingStatsTests extends AbstractSerializingTestCase<TimingStats> {
             randomBoolean() ? null : randomDouble(),
             randomBoolean() ? null : randomDouble(),
             randomBoolean() ? null : randomDouble(),
-            ExponentialAverageCalculationContextTests.createRandom());
+            ExponentialAverageCalculationContextTests.createRandom()
+        );
     }
 
     @Override
@@ -72,8 +73,11 @@ public class TimingStatsTests extends AbstractSerializingTestCase<TimingStats> {
     }
 
     public void testConstructor() {
-        ExponentialAverageCalculationContext context =
-            new ExponentialAverageCalculationContext(78.9, Instant.ofEpochMilli(123456789), 987.0);
+        ExponentialAverageCalculationContext context = new ExponentialAverageCalculationContext(
+            78.9,
+            Instant.ofEpochMilli(123456789),
+            987.0
+        );
         TimingStats stats = new TimingStats(JOB_ID, 7, 1.0, 2.0, 1.23, 7.89, context);
 
         assertThat(stats.getJobId(), equalTo(JOB_ID));
@@ -87,8 +91,11 @@ public class TimingStatsTests extends AbstractSerializingTestCase<TimingStats> {
     }
 
     public void testCopyConstructor() {
-        ExponentialAverageCalculationContext context =
-            new ExponentialAverageCalculationContext(78.9, Instant.ofEpochMilli(123456789), 987.0);
+        ExponentialAverageCalculationContext context = new ExponentialAverageCalculationContext(
+            78.9,
+            Instant.ofEpochMilli(123456789),
+            987.0
+        );
         TimingStats stats1 = new TimingStats(JOB_ID, 7, 1.0, 2.0, 1.23, 7.89, context);
         TimingStats stats2 = new TimingStats(stats1);
 
@@ -168,10 +175,12 @@ public class TimingStatsTests extends AbstractSerializingTestCase<TimingStats> {
                     && closeTo(operand.getMinBucketProcessingTimeMs(), error).matches(item.getMinBucketProcessingTimeMs())
                     && closeTo(operand.getMaxBucketProcessingTimeMs(), error).matches(item.getMaxBucketProcessingTimeMs())
                     && closeTo(operand.getAvgBucketProcessingTimeMs(), error).matches(item.getAvgBucketProcessingTimeMs())
-                    && closeTo(operand.getExponentialAvgBucketProcessingTimeMs(), error)
-                        .matches(item.getExponentialAvgBucketProcessingTimeMs())
-                    && closeTo(operand.getExponentialAvgBucketProcessingTimePerHourMs(), error)
-                        .matches(item.getExponentialAvgBucketProcessingTimePerHourMs());
+                    && closeTo(operand.getExponentialAvgBucketProcessingTimeMs(), error).matches(
+                        item.getExponentialAvgBucketProcessingTimeMs()
+                    )
+                    && closeTo(operand.getExponentialAvgBucketProcessingTimePerHourMs(), error).matches(
+                        item.getExponentialAvgBucketProcessingTimePerHourMs()
+                    );
             }
         };
     }

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.script.expression;
 
-import java.io.IOException;
 import org.apache.lucene.expressions.Bindings;
 import org.apache.lucene.expressions.Expression;
 import org.apache.lucene.expressions.SimpleBindings;
@@ -17,6 +16,8 @@ import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.DoubleValuesSource;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.TermsSetQueryScript;
+
+import java.io.IOException;
 
 /**
  * A bridge to evaluate an {@link Expression} against {@link Bindings} in the context

@@ -13,8 +13,8 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
 import java.util.List;
@@ -89,15 +89,17 @@ public class ParsedDocument {
         );
     }
 
-    public ParsedDocument(Field version,
-                          SeqNoFieldMapper.SequenceIDFields seqID,
-                          String id,
-                          String type,
-                          String routing,
-                          List<LuceneDocument> documents,
-                          BytesReference source,
-                          XContentType xContentType,
-                          Mapping dynamicMappingsUpdate) {
+    public ParsedDocument(
+        Field version,
+        SeqNoFieldMapper.SequenceIDFields seqID,
+        String id,
+        String type,
+        String routing,
+        List<LuceneDocument> documents,
+        BytesReference source,
+        XContentType xContentType,
+        Mapping dynamicMappingsUpdate
+    ) {
         this.version = version;
         this.seqID = seqID;
         this.id = id;

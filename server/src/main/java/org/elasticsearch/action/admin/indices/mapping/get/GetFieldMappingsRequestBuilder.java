@@ -14,8 +14,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.util.ArrayUtils;
 
 /** A helper class to build {@link GetFieldMappingsRequest} objects */
-public class GetFieldMappingsRequestBuilder
-        extends ActionRequestBuilder<GetFieldMappingsRequest, GetFieldMappingsResponse> {
+public class GetFieldMappingsRequestBuilder extends ActionRequestBuilder<GetFieldMappingsRequest, GetFieldMappingsResponse> {
 
     public GetFieldMappingsRequestBuilder(ElasticsearchClient client, GetFieldMappingsAction action, String... indices) {
         super(client, action, new GetFieldMappingsRequest().indices(indices));
@@ -45,7 +44,6 @@ public class GetFieldMappingsRequestBuilder
         request.indicesOptions(indicesOptions);
         return this;
     }
-
 
     /** Sets the fields to retrieve. */
     public GetFieldMappingsRequestBuilder setFields(String... fields) {

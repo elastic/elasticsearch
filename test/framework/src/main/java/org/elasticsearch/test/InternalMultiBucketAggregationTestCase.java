@@ -31,8 +31,8 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class InternalMultiBucketAggregationTestCase<T extends InternalAggregation & MultiBucketsAggregation>
-        extends InternalAggregationTestCase<T> {
+public abstract class InternalMultiBucketAggregationTestCase<T extends InternalAggregation & MultiBucketsAggregation> extends
+    InternalAggregationTestCase<T> {
 
     private static final int DEFAULT_MAX_NUMBER_OF_BUCKETS = 10;
 
@@ -83,8 +83,8 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
     @Override
     protected final T createTestInstance(String name, Map<String, Object> metadata) {
         T instance = createTestInstance(name, metadata, subAggregationsSupplier.get());
-        assert instance.getBuckets().size() <= maxNumberOfBuckets() :
-                "Maximum number of buckets exceeded for " + instance.getClass().getSimpleName() + " aggregation";
+        assert instance.getBuckets().size() <= maxNumberOfBuckets()
+            : "Maximum number of buckets exceeded for " + instance.getClass().getSimpleName() + " aggregation";
         return instance;
     }
 
@@ -144,8 +144,10 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
     protected void assertMultiBucketsAggregation(MultiBucketsAggregation expected, MultiBucketsAggregation actual, boolean checkOrder) {
         Class<? extends ParsedMultiBucketAggregation<?>> parsedClass = implementationClass();
         assertNotNull("Parsed aggregation class must not be null", parsedClass);
-        assertTrue("Unexpected parsed class, expected instance of: " + actual + ", but was: " + parsedClass,
-                parsedClass.isInstance(actual));
+        assertTrue(
+            "Unexpected parsed class, expected instance of: " + actual + ", but was: " + parsedClass,
+            parsedClass.isInstance(actual)
+        );
 
         assertTrue(expected instanceof InternalAggregation);
         assertEquals(expected.getName(), actual.getName());
@@ -211,10 +213,7 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
             PipelineTree.EMPTY,
             () -> false
         );
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> agg.reduce(org.elasticsearch.core.List.of(agg), reduceContext)
-        );
+        Exception e = expectThrows(IllegalArgumentException.class, () -> agg.reduce(org.elasticsearch.core.List.of(agg), reduceContext));
         assertThat(e.getMessage(), equalTo("too big!"));
     }
 }

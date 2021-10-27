@@ -468,6 +468,11 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         "model-inference",
         License.OperationMode.PLATINUM
     );
+    public static final LicensedFeature.Persistent ML_PYTORCH_MODEL_INFERENCE_FEATURE = LicensedFeature.persistent(
+        MachineLearningField.ML_FEATURE_FAMILY,
+        "pytorch-model-inference",
+        License.OperationMode.PLATINUM
+    );
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {

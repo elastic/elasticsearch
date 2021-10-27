@@ -125,7 +125,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyObject;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -666,7 +665,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         doAnswer(invocation -> {
             ((ActionListener<Releasable>) invocation.getArguments()[0]).onResponse(() -> {});
             return null;
-        }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), anyObject());
+        }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), any());
 
         final IndexMetadata.Builder indexMetadata = IndexMetadata.builder("test")
             .settings(
@@ -754,7 +753,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             freed.set(false);
             ((ActionListener<Releasable>) invocation.getArguments()[0]).onResponse(() -> freed.set(true));
             return null;
-        }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), anyObject());
+        }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), any());
 
         Thread cancelingThread = new Thread(() -> cancellableThreads.cancel("test"));
         cancelingThread.start();

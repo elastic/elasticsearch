@@ -41,7 +41,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyObject;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -96,7 +95,7 @@ public class ClientHelperTests extends ESTestCase {
             latch.countDown();
             ((ActionListener<?>) invocationOnMock.getArguments()[2]).onResponse(null);
             return null;
-        }).when(client).execute(anyObject(), anyObject(), anyObject());
+        }).when(client).execute(any(), any(), any());
 
         threadContext.putHeader(headerName, headerValue);
         ClientHelper.executeAsyncWithOrigin(client, origin, ClusterHealthAction.INSTANCE, new ClusterHealthRequest(), listener);
@@ -128,7 +127,7 @@ public class ClientHelperTests extends ESTestCase {
             latch.countDown();
             ((ActionListener<?>) invocationOnMock.getArguments()[2]).onResponse(null);
             return null;
-        }).when(client).execute(anyObject(), anyObject(), anyObject());
+        }).when(client).execute(any(), any(), any());
 
         threadContext.putHeader(headerName, headerValue);
         Client clientWithOrigin = ClientHelper.clientWithOrigin(client, origin);
@@ -154,7 +153,7 @@ public class ClientHelperTests extends ESTestCase {
             latch.countDown();
             ((ActionListener<?>) invocationOnMock.getArguments()[2]).onResponse(null);
             return null;
-        }).when(client).execute(anyObject(), anyObject(), anyObject());
+        }).when(client).execute(any(), any(), any());
 
         SearchRequest request = new SearchRequest("foo");
 
@@ -182,7 +181,7 @@ public class ClientHelperTests extends ESTestCase {
             latch.countDown();
             ((ActionListener<?>) invocationOnMock.getArguments()[2]).onResponse(null);
             return null;
-        }).when(client).execute(anyObject(), anyObject(), anyObject());
+        }).when(client).execute(any(), any(), any());
 
         SearchRequest request = new SearchRequest("foo");
         Map<String, String> headers = new HashMap<>(1);
@@ -215,7 +214,7 @@ public class ClientHelperTests extends ESTestCase {
             latch.countDown();
             ((ActionListener<?>) invocationOnMock.getArguments()[2]).onResponse(null);
             return null;
-        }).when(client).execute(anyObject(), anyObject(), anyObject());
+        }).when(client).execute(any(), any(), any());
 
         SearchRequest request = new SearchRequest("foo");
         Map<String, String> headers = new HashMap<>(1);

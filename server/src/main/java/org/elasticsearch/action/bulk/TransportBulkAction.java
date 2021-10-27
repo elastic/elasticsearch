@@ -525,7 +525,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
                     IndexRouting indexRouting = concreteIndices.routing(concreteIndex);
 
-                    int shardId;
                     switch (docWriteRequest.opType()) {
                         case CREATE:
                         case INDEX:
@@ -534,24 +533,17 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             IndexRequest indexRequest = (IndexRequest) docWriteRequest;
                             indexRequest.resolveRouting(metadata);
                             indexRequest.process();
-                            shardId = indexRouting.indexShard(
-                                docWriteRequest.id(),
-                                docWriteRequest.routing(),
-                                indexRequest.getContentType(),
-                                indexRequest.source()
-                            );
                             break;
                         case UPDATE:
                             docWriteRequest.routing(metadata.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
-                            shardId = indexRouting.updateShard(docWriteRequest.id(), docWriteRequest.routing());
                             break;
                         case DELETE:
                             docWriteRequest.routing(metadata.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
-                            shardId = indexRouting.deleteShard(docWriteRequest.id(), docWriteRequest.routing());
                             break;
                         default:
                             throw new AssertionError("request type not supported: [" + docWriteRequest.opType() + "]");
                     }
+                    int shardId = docWriteRequest.route(indexRouting);
                     List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(
                         new ShardId(concreteIndex, shardId),
                         shard -> new ArrayList<>()

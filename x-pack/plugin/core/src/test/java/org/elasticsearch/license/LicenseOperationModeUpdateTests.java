@@ -19,7 +19,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class LicenseOperationModeUpdateTests extends ESTestCase {
 
@@ -53,7 +53,7 @@ public class LicenseOperationModeUpdateTests extends ESTestCase {
         assertThat(license.operationMode(), equalTo(License.OperationMode.resolve(type)));
         OperationModeFileWatcherTests.writeMode("gold", licenseModeFile);
         license.setOperationModeFileWatcher(operationModeFileWatcher);
-        verifyZeroInteractions(resourceWatcherService);
+        verifyNoMoreInteractions(resourceWatcherService);
         assertThat(license.operationMode(), equalTo(License.OperationMode.resolve(type)));
     }
 

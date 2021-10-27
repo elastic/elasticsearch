@@ -1,4 +1,5 @@
 [[ingest-enriching-data]]
+[testenv="basic"]
 == Enrich your data
 
 You can use the <<enrich-processor,enrich processor>> to add data from your

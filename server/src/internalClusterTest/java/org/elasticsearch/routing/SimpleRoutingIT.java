@@ -26,11 +26,9 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.OperationRouting;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -48,18 +46,17 @@ public class SimpleRoutingIT extends ESIntegTestCase {
     }
 
     public String findNonMatchingRoutingValue(String index, String id) {
-        OperationRouting operationRouting = new OperationRouting(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-        );
         ClusterState state = client().admin().cluster().prepareState().all().get().getState();
+        IndexMetadata metadata = state.metadata().index(index);
+        IndexMetadata withoutRoutingRequired = IndexMetadata.builder(metadata).putMapping("{}").build();
+        IndexRouting indexRouting = IndexRouting.fromIndexMetadata(withoutRoutingRequired);
         int routing = -1;
-        ShardId idShard;
-        ShardId routingShard;
+        int idShard;
+        int routingShard;
         do {
-            idShard = operationRouting.shardId(state, index, id, null);
-            routingShard = operationRouting.shardId(state, index, id, Integer.toString(++routing));
-        } while (idShard.getId() == routingShard.id());
+            idShard = indexRouting.getShard(id, null);
+            routingShard = indexRouting.getShard(id, Integer.toString(++routing));
+        } while (idShard == routingShard);
 
         return Integer.toString(routing);
     }

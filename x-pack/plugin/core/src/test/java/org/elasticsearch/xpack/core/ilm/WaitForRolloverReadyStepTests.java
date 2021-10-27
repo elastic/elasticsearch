@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForRolloverReadyStep> {
 
@@ -240,9 +240,9 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
         assertEquals(true, conditionsMet.get());
 
-        verifyZeroInteractions(client);
-        verifyZeroInteractions(adminClient);
-        verifyZeroInteractions(indicesClient);
+        verifyNoMoreInteractions(client);
+        verifyNoMoreInteractions(adminClient);
+        verifyNoMoreInteractions(indicesClient);
     }
 
     private void mockRolloverIndexCall(String rolloverTarget, WaitForRolloverReadyStep step) {

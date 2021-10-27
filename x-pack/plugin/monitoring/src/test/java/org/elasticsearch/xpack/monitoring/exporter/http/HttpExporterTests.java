@@ -69,7 +69,6 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -498,7 +497,7 @@ public class HttpExporterTests extends ESTestCase {
 
         assertThat(HttpExporter.createSniffer(config, client, listener), nullValue());
 
-        verifyZeroInteractions(client, listener);
+        verifyNoMoreInteractions(client, listener);
     }
 
     public void testCreateSniffer() throws IOException {

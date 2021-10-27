@@ -52,7 +52,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
@@ -93,7 +92,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             listener.onNewScrollContext(readerContext);
             listener.validateReaderContext(readerContext, Empty.INSTANCE);
             verify(licenseState, times(2)).isSecurityEnabled();
-            verifyZeroInteractions(auditTrailService, searchContext);
+            verifyNoMoreInteractions(auditTrailService, searchContext);
         }
     }
 
@@ -132,7 +131,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             assertThat(readerContext.getFromContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), is(indicesAccessControl));
 
             verify(licenseState).isSecurityEnabled();
-            verifyZeroInteractions(auditTrailService);
+            verifyNoMoreInteractions(auditTrailService);
         }
     }
 
@@ -174,7 +173,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 listener.validateReaderContext(readerContext, Empty.INSTANCE);
                 assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), is(indicesAccessControl));
                 verify(licenseState).isSecurityEnabled();
-                verifyZeroInteractions(auditTrail);
+                verifyNoMoreInteractions(auditTrail);
             }
 
             try (StoredContext ignore = threadContext.newStoredContext(false)) {
@@ -189,7 +188,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 listener.validateReaderContext(readerContext, Empty.INSTANCE);
                 assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), is(indicesAccessControl));
                 verify(licenseState, times(2)).isSecurityEnabled();
-                verifyZeroInteractions(auditTrail);
+                verifyNoMoreInteractions(auditTrail);
             }
 
             try (StoredContext ignore = threadContext.newStoredContext(false)) {
@@ -300,7 +299,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             auditId,
             () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, original.getUser().roles())
         );
-        verifyZeroInteractions(auditTrail);
+        verifyNoMoreInteractions(auditTrail);
 
         // original user being run as
         User user = new User(new User("test", "role"), new User("authenticated", "runas"));
@@ -319,7 +318,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             auditId,
             () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, original.getUser().roles())
         );
-        verifyZeroInteractions(auditTrail);
+        verifyNoMoreInteractions(auditTrail);
 
         // both user are run as
         current = new Authentication(
@@ -338,7 +337,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             auditId,
             () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, original.getUser().roles())
         );
-        verifyZeroInteractions(auditTrail);
+        verifyNoMoreInteractions(auditTrail);
 
         // different authenticated by type
         Authentication differentRealmType = new Authentication(

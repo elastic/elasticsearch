@@ -37,7 +37,7 @@ import static org.mockito.ArgumentMatchers.isA;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class InternalRealmsTests extends ESTestCase {
 
@@ -53,7 +53,7 @@ public class InternalRealmsTests extends ESTestCase {
             securityIndex
         );
         assertThat(factories, hasEntry(is(NativeRealmSettings.TYPE), any(Realm.Factory.class)));
-        verifyZeroInteractions(securityIndex);
+        verifyNoMoreInteractions(securityIndex);
 
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, "test");

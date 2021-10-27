@@ -37,7 +37,7 @@ import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class AuditTrailServiceTests extends ESTestCase {
@@ -133,7 +133,7 @@ public class AuditTrailServiceTests extends ESTestCase {
                 verify(auditTrail).authenticationFailed(requestId, token, "_action", request);
             }
         } else {
-            verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
+            verifyNoMoreInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
         }
     }
 
@@ -146,7 +146,7 @@ public class AuditTrailServiceTests extends ESTestCase {
                 verify(auditTrail).authenticationFailed(requestId, "_action", request);
             }
         } else {
-            verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
+            verifyNoMoreInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
         }
     }
 
@@ -159,7 +159,7 @@ public class AuditTrailServiceTests extends ESTestCase {
                 verify(auditTrail).authenticationFailed(requestId, restRequest);
             }
         } else {
-            verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
+            verifyNoMoreInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
         }
     }
 
@@ -172,7 +172,7 @@ public class AuditTrailServiceTests extends ESTestCase {
                 verify(auditTrail).authenticationFailed(requestId, token, restRequest);
             }
         } else {
-            verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
+            verifyNoMoreInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
         }
     }
 
@@ -185,7 +185,7 @@ public class AuditTrailServiceTests extends ESTestCase {
                 verify(auditTrail).authenticationFailed(requestId, "_realm", token, "_action", request);
             }
         } else {
-            verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
+            verifyNoMoreInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
         }
     }
 
@@ -198,7 +198,7 @@ public class AuditTrailServiceTests extends ESTestCase {
                 verify(auditTrail).authenticationFailed(requestId, "_realm", token, restRequest);
             }
         } else {
-            verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
+            verifyNoMoreInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
         }
     }
 
@@ -211,7 +211,7 @@ public class AuditTrailServiceTests extends ESTestCase {
                 verify(auditTrail).anonymousAccessDenied(requestId, "_action", request);
             }
         } else {
-            verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
+            verifyNoMoreInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
         }
     }
 
@@ -233,7 +233,7 @@ public class AuditTrailServiceTests extends ESTestCase {
                 verify(auditTrail).accessGranted(requestId, authentication, "_action", request, authzInfo);
             }
         } else {
-            verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
+            verifyNoMoreInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
         }
     }
 
@@ -255,7 +255,7 @@ public class AuditTrailServiceTests extends ESTestCase {
                 verify(auditTrail).accessDenied(requestId, authentication, "_action", request, authzInfo);
             }
         } else {
-            verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
+            verifyNoMoreInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
         }
     }
 
@@ -269,7 +269,7 @@ public class AuditTrailServiceTests extends ESTestCase {
                 verify(auditTrail).connectionGranted(inetAddress, "client", rule);
             }
         } else {
-            verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
+            verifyNoMoreInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
         }
     }
 
@@ -283,7 +283,7 @@ public class AuditTrailServiceTests extends ESTestCase {
                 verify(auditTrail).connectionDenied(inetAddress, "client", rule);
             }
         } else {
-            verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
+            verifyNoMoreInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
         }
     }
 
@@ -301,7 +301,7 @@ public class AuditTrailServiceTests extends ESTestCase {
                 verify(auditTrail).authenticationSuccess(requestId, authentication, restRequest);
             }
         } else {
-            verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
+            verifyNoMoreInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
         }
     }
 
@@ -319,7 +319,7 @@ public class AuditTrailServiceTests extends ESTestCase {
                 verify(auditTrail).authenticationSuccess(requestId, authentication, "_action", request);
             }
         } else {
-            verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
+            verifyNoMoreInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
         }
     }
 }

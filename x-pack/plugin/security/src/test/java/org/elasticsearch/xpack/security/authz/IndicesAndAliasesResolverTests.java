@@ -108,7 +108,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.oneOf;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anySetOf;
+import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
@@ -357,7 +357,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 );
             }
             return Void.TYPE;
-        }).when(rolesStore).roles(anySetOf(String.class), anyActionListener());
+        }).when(rolesStore).roles(anySet(), anyActionListener());
         doCallRealMethod().when(rolesStore).getRoles(any(User.class), any(Authentication.class), anyActionListener());
 
         ClusterService clusterService = mock(ClusterService.class);

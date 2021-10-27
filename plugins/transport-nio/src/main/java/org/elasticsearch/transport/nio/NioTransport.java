@@ -29,6 +29,7 @@ import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportSettings;
 
@@ -47,6 +48,7 @@ public class NioTransport extends TcpTransport {
     private static final Logger logger = LogManager.getLogger(NioTransport.class);
 
     protected final PageAllocator pageAllocator;
+    protected final BytesRefRecycler bytesRefRecycler;
     private final ConcurrentMap<String, TcpChannelFactory> profileToChannelFactory = newConcurrentMap();
     private final NioGroupFactory groupFactory;
     private volatile NioGroup nioGroup;
@@ -58,6 +60,7 @@ public class NioTransport extends TcpTransport {
         super(settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService);
         this.pageAllocator = new PageAllocator(pageCacheRecycler);
         this.groupFactory = groupFactory;
+        this.bytesRefRecycler = new BytesRefRecycler(pageCacheRecycler);
     }
 
     @Override
@@ -151,7 +154,7 @@ public class NioTransport extends TcpTransport {
         public NioTcpChannel createChannel(NioSelector selector, SocketChannel channel, Config.Socket socketConfig) {
             NioTcpChannel nioChannel = new NioTcpChannel(isClient == false, profileName, channel);
             Consumer<Exception> exceptionHandler = (e) -> onException(nioChannel, e);
-            TcpReadWriteHandler handler = new TcpReadWriteHandler(nioChannel, pageCacheRecycler, NioTransport.this);
+            TcpReadWriteHandler handler = new TcpReadWriteHandler(nioChannel, bytesRefRecycler, NioTransport.this);
             BytesChannelContext context = new BytesChannelContext(nioChannel, selector, socketConfig, exceptionHandler, handler,
                 new InboundChannelBuffer(pageAllocator));
             nioChannel.setContext(context);

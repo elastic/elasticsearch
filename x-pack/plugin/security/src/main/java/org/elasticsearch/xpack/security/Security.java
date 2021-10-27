@@ -357,29 +357,29 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     public static final LicensedFeature.Momentary IP_FILTERING_FEATURE =
         LicensedFeature.momentaryLenient(null, "security-ip-filtering", License.OperationMode.GOLD);
     public static final LicensedFeature.Momentary AUDITING_FEATURE =
-        LicensedFeature.momentaryLenient(null, "security-auditing", License.OperationMode.GOLD);
+        LicensedFeature.momentary(null, "security-auditing", License.OperationMode.GOLD);
     public static final LicensedFeature.Momentary TOKEN_SERVICE_FEATURE =
-        LicensedFeature.momentaryLenient(null, "security-token-service", License.OperationMode.STANDARD);
+        LicensedFeature.momentary(null, "security-token-service", License.OperationMode.STANDARD);
 
     private static final String REALMS_FEATURE_FAMILY = "security-realms";
     // Builtin realms (file/native) realms are Basic licensed, so don't need to be checked or tracked
     // Some realms (LDAP, AD, PKI) are Gold+
     public static final LicensedFeature.Persistent LDAP_REALM_FEATURE =
-        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "ldap", License.OperationMode.GOLD);
+        LicensedFeature.persistent(REALMS_FEATURE_FAMILY, "ldap", License.OperationMode.GOLD);
     public static final LicensedFeature.Persistent AD_REALM_FEATURE =
-        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "active-directory", License.OperationMode.GOLD);
+        LicensedFeature.persistent(REALMS_FEATURE_FAMILY, "active-directory", License.OperationMode.GOLD);
     public static final LicensedFeature.Persistent PKI_REALM_FEATURE =
-        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "pki", License.OperationMode.GOLD);
+        LicensedFeature.persistent(REALMS_FEATURE_FAMILY, "pki", License.OperationMode.GOLD);
     // SSO realms are Platinum+
     public static final LicensedFeature.Persistent SAML_REALM_FEATURE =
-        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "saml", License.OperationMode.PLATINUM);
+        LicensedFeature.persistent(REALMS_FEATURE_FAMILY, "saml", License.OperationMode.PLATINUM);
     public static final LicensedFeature.Persistent OIDC_REALM_FEATURE =
-        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "oidc", License.OperationMode.PLATINUM);
+        LicensedFeature.persistent(REALMS_FEATURE_FAMILY, "oidc", License.OperationMode.PLATINUM);
     public static final LicensedFeature.Persistent KERBEROS_REALM_FEATURE =
-        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "kerberos", License.OperationMode.PLATINUM);
+        LicensedFeature.persistent(REALMS_FEATURE_FAMILY, "kerberos", License.OperationMode.PLATINUM);
     // Custom realms are Platinum+
     public static final LicensedFeature.Persistent CUSTOM_REALMS_FEATURE =
-        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "custom", License.OperationMode.PLATINUM);
+        LicensedFeature.persistent(REALMS_FEATURE_FAMILY, "custom", License.OperationMode.PLATINUM);
 
     public static final LicensedFeature.Momentary DELEGATED_AUTHORIZATION_FEATURE =
         LicensedFeature.momentary(null, "security-delegated-authorization", License.OperationMode.PLATINUM);

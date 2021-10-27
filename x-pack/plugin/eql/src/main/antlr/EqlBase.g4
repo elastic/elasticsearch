@@ -137,7 +137,7 @@ booleanValue
     ;
 
 qualifiedName
-    : identifier (DOT identifier | LB INTEGER_VALUE+ RB)*
+    : OPTIONAL? identifier (DOT identifier | LB INTEGER_VALUE+ RB)*
     ;
 
 identifier
@@ -204,6 +204,7 @@ RB: ']';
 LP: '(';
 RP: ')';
 PIPE: '|';
+OPTIONAL: '?';
 
 fragment STRING_ESCAPE
     : '\\' [btnfr"'\\]

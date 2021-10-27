@@ -16,13 +16,13 @@ import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.test.ESTestCase;
 
@@ -42,6 +42,7 @@ public class InboundPipelineTests extends ESTestCase {
 
     private static final int BYTE_THRESHOLD = 128 * 1024;
     private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+    private final BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
 
     public void testPipelineHandling() throws IOException {
         final List<Tuple<MessageData, Exception>> expected = new ArrayList<>();
@@ -77,7 +78,7 @@ public class InboundPipelineTests extends ESTestCase {
 
         final StatsTracker statsTracker = new StatsTracker();
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
-        final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
+        final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, recycler);
         final String breakThisAction = "break_this_action";
         final String actionName = "actionName";
         final Predicate<String> canTripBreaker = breakThisAction::equals;
@@ -186,7 +187,7 @@ public class InboundPipelineTests extends ESTestCase {
         BiConsumer<TcpChannel, InboundMessage> messageHandler = (c, m) -> {};
         final StatsTracker statsTracker = new StatsTracker();
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
-        final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
+        final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, recycler);
         final Supplier<CircuitBreaker> breaker = () -> new NoopCircuitBreaker("test");
         final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
         final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler);
@@ -223,7 +224,7 @@ public class InboundPipelineTests extends ESTestCase {
         BiConsumer<TcpChannel, InboundMessage> messageHandler = (c, m) -> {};
         final StatsTracker statsTracker = new StatsTracker();
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
-        final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
+        final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, recycler);
         final Supplier<CircuitBreaker> breaker = () -> new NoopCircuitBreaker("test");
         final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
         final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler);

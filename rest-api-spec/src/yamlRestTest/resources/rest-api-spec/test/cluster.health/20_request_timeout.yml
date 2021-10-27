@@ -48,7 +48,7 @@
       features: "warnings"
   - do:
       warnings:
-        - '[return_200_for_cluster_health_timeout] parameter is superfluous because the HTTP status code for a cluster health timeout is 200 by default. The parameter has been deprecated and will be removed in a future release.'
+        - 'the [return_200_for_cluster_health_timeout] parameter is deprecated and will be removed in a future release.'
       cluster.health:
         timeout: 1ms
         wait_for_active_shards: 5

@@ -46,8 +46,8 @@ import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResource
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.argThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -76,7 +76,9 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     private final List<String> templateNames = new ArrayList<>(EXPECTED_TEMPLATES);
     private final List<String> watchNames = new ArrayList<>(EXPECTED_WATCHES);
 
-    private final Settings exporterSettings = Settings.builder().build();
+    private final Settings exporterSettings = Settings.builder()
+        .put("xpack.monitoring.exporters._http.cluster_alerts.management.enabled", true)
+        .build();
 
     private final MultiHttpResource resources =
             HttpExporter.createResources(
@@ -363,8 +365,12 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         verifyDeleteWatches(EXPECTED_WATCHES);
         verifyNoMoreInteractions(client);
 
-        assertWarnings("[xpack.monitoring.migration.decommission_alerts] setting was deprecated in Elasticsearch and will be " +
-            "removed in a future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(
+            "[xpack.monitoring.migration.decommission_alerts] setting was deprecated in Elasticsearch and will be " +
+                "removed in a future release! See the breaking changes documentation for the next major version.",
+            "[xpack.monitoring.exporters._http.cluster_alerts.management.enabled] setting was deprecated in Elasticsearch and " +
+                "will be removed in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testSuccessfulChecksOnElectedMasterNode() {
@@ -431,6 +437,9 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         verifyVersionCheck();
         verifyGetTemplates(EXPECTED_TEMPLATES);
         verifyNoMoreInteractions(client);
+
+        assertWarnings("[xpack.monitoring.exporters._http.cluster_alerts.management.enabled] setting was deprecated in Elasticsearch " +
+            "and will be removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     private Exception failureGetException() {

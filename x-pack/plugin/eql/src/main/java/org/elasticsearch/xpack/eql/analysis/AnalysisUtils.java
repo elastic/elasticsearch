@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.eql.analysis;
 
+import org.elasticsearch.xpack.eql.expression.OptionalResolvedAttribute;
+import org.elasticsearch.xpack.eql.expression.OptionalUnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
@@ -101,6 +103,14 @@ public final class AnalysisUtils {
             else if (fa.isNested()) {
                 named = u.withUnresolvedMessage("Cannot use field [" + fa.name() + "] type [" + fa.dataType().typeName() + "] "
                     + "with unsupported nested type in hierarchy (field [" + fa.nestedParent().name() +"])");
+            }
+            // remember if the field was optional - needed when generating the runtime query
+            else if (u instanceof OptionalUnresolvedAttribute) {
+                named = new OptionalResolvedAttribute(fa);
+            }
+        } else {
+            if (u instanceof OptionalUnresolvedAttribute) {
+                named = u.withUnresolvedMessage("Unsupported optional field [" + named.name() + "] type [" + named.dataType().typeName());
             }
         }
         return named;

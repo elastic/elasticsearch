@@ -34,7 +34,7 @@ import java.util.Map;
 
 import static org.mockito.Mockito.doThrow;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;

@@ -40,6 +40,10 @@ routing:
 
 ---
 requires routing:
+  - skip:
+      version: " - 7.99.99"
+      reason: "fails with an unexpected message in 7.x"
+
   - do:
       indices.create:
         index:    test_1

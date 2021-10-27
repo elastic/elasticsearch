@@ -118,7 +118,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             indicesService.getIndicesFieldDataCache(), indicesService.getCircuitBreakerService());
         final SetOnce<Supplier<SearchLookup>> searchLookupSetOnce = new SetOnce<>();
         MappedFieldType ft = mock(MappedFieldType.class);
-        when(ft.fielddataBuilder(Matchers.any(), Matchers.any())).thenAnswer(invocationOnMock -> {
+        when(ft.fielddataBuilder(ArgumentMatchers.any(), ArgumentMatchers.any())).thenAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             Supplier<SearchLookup> searchLookup = (Supplier<SearchLookup>)invocationOnMock.getArguments()[1];
             searchLookupSetOnce.set(searchLookup);

@@ -23,11 +23,9 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -371,11 +369,10 @@ public class MasterService extends AbstractLifecycleComponent {
             final var previousIndicesLookup = newClusterState.metadata().getIndicesLookup();
             Builder builder = incrementVersion(newClusterState);
             if (previousClusterState.routingTable() != newClusterState.routingTable()) {
-                builder.routingTable(RoutingTable.builder(newClusterState.routingTable())
-                    .version(newClusterState.routingTable().version() + 1).build());
+                builder.routingTable(newClusterState.routingTable().withIncrementedVersion());
             }
             if (previousClusterState.metadata() != newClusterState.metadata()) {
-                builder.metadata(Metadata.builder(newClusterState.metadata()).version(newClusterState.metadata().version() + 1));
+                builder.metadata(newClusterState.metadata().withIncrementedVersion());
             }
 
             newClusterState = builder.build();

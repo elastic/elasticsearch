@@ -16,10 +16,14 @@ import io.netty.buffer.UnpooledByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ServerChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.core.Booleans;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -31,6 +35,7 @@ public class NettyAllocator {
 
     private static final long SUGGESTED_MAX_ALLOCATION_SIZE;
     private static final ByteBufAllocator ALLOCATOR;
+    private static final Recycler<BytesRef> RECYCLER;
     private static final String DESCRIPTION;
 
     private static final String USE_UNPOOLED = "es.use_unpooled_allocator";
@@ -103,6 +108,31 @@ public class NettyAllocator {
             }
             ALLOCATOR = new NoDirectBuffers(delegate);
         }
+
+        RECYCLER = new Recycler<>() {
+            @Override
+            public Recycler.V<BytesRef> obtain() {
+                ByteBuf byteBuf = ALLOCATOR.heapBuffer(PageCacheRecycler.BYTE_PAGE_SIZE, PageCacheRecycler.BYTE_PAGE_SIZE);
+                assert byteBuf.hasArray();
+                BytesRef bytesRef = new BytesRef(byteBuf.array(), byteBuf.arrayOffset(), byteBuf.capacity());
+                return new Recycler.V<>() {
+                    @Override
+                    public BytesRef v() {
+                        return bytesRef;
+                    }
+
+                    @Override
+                    public boolean isRecycled() {
+                        return true;
+                    }
+
+                    @Override
+                    public void close() {
+                        byteBuf.release();
+                    }
+                };
+            }
+        };
     }
 
     public static void logAllocatorDescriptionIfNeeded() {
@@ -113,6 +143,10 @@ public class NettyAllocator {
 
     public static ByteBufAllocator getAllocator() {
         return ALLOCATOR;
+    }
+
+    public static Recycler<BytesRef> getRecycler() {
+        return RECYCLER;
     }
 
     public static long suggestedMaxAllocationSize() {

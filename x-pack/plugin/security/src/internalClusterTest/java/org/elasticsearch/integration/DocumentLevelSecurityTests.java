@@ -26,12 +26,11 @@ import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.FuzzyQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
@@ -45,6 +44,7 @@ import org.elasticsearch.percolator.PercolateQueryBuilder;
 import org.elasticsearch.percolator.PercolatorPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -65,10 +65,15 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
+import org.elasticsearch.xpack.vectors.DenseVectorPlugin;
+import org.elasticsearch.xpack.vectors.query.KnnVectorQueryBuilder;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -79,7 +84,6 @@ import java.util.Map;
 
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.integration.FieldLevelSecurityTests.openPointInTime;
@@ -90,6 +94,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
@@ -105,7 +110,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(LocalStateSecurity.class, CommonAnalysisPlugin.class, ParentJoinPlugin.class,
-                InternalSettingsPlugin.class, SpatialPlugin.class, PercolatorPlugin.class);
+            InternalSettingsPlugin.class, DenseVectorPlugin.class, SpatialPlugin.class, PercolatorPlugin.class);
     }
 
     @Override
@@ -851,6 +856,77 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 .get();
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getResponse().isExists(), is(false));
+    }
+
+    public void testKnnSearch() throws Exception {
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("properties")
+                .startObject("vector")
+                    .field("type", "dense_vector")
+                    .field("dims", 3)
+                    .field("index", true)
+                    .field("similarity", "l2_norm")
+                .endObject()
+            .endObject().endObject();
+        assertAcked(client().admin().indices().prepareCreate("test")
+            .setSettings(indexSettings)
+            .setMapping(builder));
+
+        for (int i = 0; i < 5; i++) {
+            client().prepareIndex("test")
+                .setSource("field1", "value1", "vector", new float[]{i, i, i})
+                .get();
+            client().prepareIndex("test")
+                .setSource("field2", "value2", "vector", new float[]{i, i, i})
+                .get();
+        }
+
+        client().admin().indices().prepareRefresh("test").get();
+
+        // Since there's no kNN search action at the transport layer, we just emulate
+        // how the action works (it builds a kNN query under the hood)
+        float[] queryVector = new float[]{0.0f, 0.0f, 0.0f};
+        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("vector", queryVector, 50);
+
+        // user1 should only be able to see docs with field1: value1
+        SearchResponse response = client()
+            .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+            .prepareSearch("test")
+            .setQuery(query)
+            .addFetchField("field1")
+            .setSize(10)
+            .get();
+        assertEquals(5, response.getHits().getTotalHits().value);
+        assertEquals(5, response.getHits().getHits().length);
+        for (SearchHit hit : response.getHits().getHits()) {
+            assertNotNull(hit.field("field1"));
+        }
+
+        // user2 should only be able to see docs with field2: value2
+        response = client()
+            .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+            .prepareSearch("test")
+            .setQuery(query)
+            .addFetchField("field2")
+            .setSize(10)
+            .get();
+        assertEquals(5, response.getHits().getTotalHits().value);
+        assertEquals(5, response.getHits().getHits().length);
+        for (SearchHit hit : response.getHits().getHits()) {
+            assertNotNull(hit.field("field2"));
+        }
+
+        // user3 can see all indexed docs
+        response = client()
+            .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
+            .prepareSearch("test")
+            .setQuery(query)
+            .setSize(10)
+            .get();
+        assertEquals(10, response.getHits().getTotalHits().value);
+        assertEquals(10, response.getHits().getHits().length);
     }
 
     public void testGlobalAggregation() throws Exception {

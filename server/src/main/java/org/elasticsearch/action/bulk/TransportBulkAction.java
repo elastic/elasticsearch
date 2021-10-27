@@ -524,7 +524,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     }
 
                     IndexRouting indexRouting = concreteIndices.routing(concreteIndex);
-                    
+
                     switch (docWriteRequest.opType()) {
                         case CREATE:
                         case INDEX:

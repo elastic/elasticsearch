@@ -32,10 +32,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "/_cluster/health"),
-            new Route(GET, "/_cluster/health/{index}")
-        );
+        return List.of(new Route(GET, "/_cluster/health"), new Route(GET, "/_cluster/health/{index}"));
     }
 
     @Override
@@ -65,13 +62,16 @@ public class RestClusterHealthAction extends BaseRestHandler {
             clusterHealthRequest.waitForStatus(ClusterHealthStatus.valueOf(waitForStatus.toUpperCase(Locale.ROOT)));
         }
         clusterHealthRequest.waitForNoRelocatingShards(
-            request.paramAsBoolean("wait_for_no_relocating_shards", clusterHealthRequest.waitForNoRelocatingShards()));
+            request.paramAsBoolean("wait_for_no_relocating_shards", clusterHealthRequest.waitForNoRelocatingShards())
+        );
         clusterHealthRequest.waitForNoInitializingShards(
-            request.paramAsBoolean("wait_for_no_initializing_shards", clusterHealthRequest.waitForNoInitializingShards()));
+            request.paramAsBoolean("wait_for_no_initializing_shards", clusterHealthRequest.waitForNoInitializingShards())
+        );
         if (request.hasParam("wait_for_relocating_shards")) {
             // wait_for_relocating_shards has been removed in favor of wait_for_no_relocating_shards
-            throw new IllegalArgumentException("wait_for_relocating_shards has been removed, " +
-                "use wait_for_no_relocating_shards [true/false] instead");
+            throw new IllegalArgumentException(
+                "wait_for_relocating_shards has been removed, " + "use wait_for_no_relocating_shards [true/false] instead"
+            );
         }
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {
@@ -81,9 +81,9 @@ public class RestClusterHealthAction extends BaseRestHandler {
         if (request.param("wait_for_events") != null) {
             clusterHealthRequest.waitForEvents(Priority.valueOf(request.param("wait_for_events").toUpperCase(Locale.ROOT)));
         }
-        clusterHealthRequest.return200ForClusterHealthTimeout(request.paramAsBoolean(
-            "return_200_for_cluster_health_timeout",
-            clusterHealthRequest.doesReturn200ForClusterHealthTimeout()));
+        clusterHealthRequest.return200ForClusterHealthTimeout(
+            request.paramAsBoolean("return_200_for_cluster_health_timeout", clusterHealthRequest.doesReturn200ForClusterHealthTimeout())
+        );
         return clusterHealthRequest;
     }
 

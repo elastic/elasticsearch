@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.idp.saml.sp;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
 import org.junit.Before;
 import org.opensaml.saml.saml2.core.NameID;
@@ -92,8 +92,11 @@ public class WildcardServiceProviderResolverTests extends IdpSamlTestCase {
     @Before
     public void setUpResolver() {
         final Settings settings = Settings.EMPTY;
-        final ScriptService scriptService = new ScriptService(settings,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS);
+        final ScriptService scriptService = new ScriptService(
+            settings,
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            ScriptModule.CORE_CONTEXTS
+        );
         final ServiceProviderDefaults samlDefaults = new ServiceProviderDefaults("elastic-cloud", NameID.TRANSIENT, Duration.ofMinutes(15));
         resolver = new WildcardServiceProviderResolver(settings, scriptService, new SamlServiceProviderFactory(samlDefaults));
     }
@@ -105,24 +108,37 @@ public class WildcardServiceProviderResolverTests extends IdpSamlTestCase {
         final WildcardServiceProvider service1a = resolver.services().get("service1a");
         assertThat(
             service1a.extractTokens("https://abcdef.example.com/", "https://abcdef.service.example.com/saml2/acs"),
-            equalTo(Map.ofEntries(
-                Map.entry("service", "abcdef"),
-                Map.entry("entity_id", "https://abcdef.example.com/"),
-                Map.entry("acs", "https://abcdef.service.example.com/saml2/acs"))));
-        expectThrows(IllegalArgumentException.class, () ->
-            service1a.extractTokens("https://abcdef.example.com/", "https://different.service.example.com/saml2/acs"));
+            equalTo(
+                Map.ofEntries(
+                    Map.entry("service", "abcdef"),
+                    Map.entry("entity_id", "https://abcdef.example.com/"),
+                    Map.entry("acs", "https://abcdef.service.example.com/saml2/acs")
+                )
+            )
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> service1a.extractTokens("https://abcdef.example.com/", "https://different.service.example.com/saml2/acs")
+        );
         assertThat(service1a.extractTokens("urn:foo:bar", "https://something.example.org/foo/bar"), nullValue());
         assertThat(service1a.extractTokens("https://xyzzy.example.com/", "https://services.example.com/xyzzy/saml2/acs"), nullValue());
 
         final WildcardServiceProvider service1b = resolver.services().get("service1b");
-        assertThat(service1b.extractTokens("https://xyzzy.example.com/", "https://services.example.com/xyzzy/saml2/acs"),
-            equalTo(Map.ofEntries(
-                Map.entry("service", "xyzzy"),
-                Map.entry("entity_id", "https://xyzzy.example.com/"),
-                Map.entry("acs", "https://services.example.com/xyzzy/saml2/acs"))));
+        assertThat(
+            service1b.extractTokens("https://xyzzy.example.com/", "https://services.example.com/xyzzy/saml2/acs"),
+            equalTo(
+                Map.ofEntries(
+                    Map.entry("service", "xyzzy"),
+                    Map.entry("entity_id", "https://xyzzy.example.com/"),
+                    Map.entry("acs", "https://services.example.com/xyzzy/saml2/acs")
+                )
+            )
+        );
         assertThat(service1b.extractTokens("https://abcdef.example.com/", "https://abcdef.service.example.com/saml2/acs"), nullValue());
-        expectThrows(IllegalArgumentException.class, () ->
-            service1b.extractTokens("https://abcdef.example.com/", "https://services.example.com/xyzzy/saml2/acs"));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> service1b.extractTokens("https://abcdef.example.com/", "https://services.example.com/xyzzy/saml2/acs")
+        );
         assertThat(service1b.extractTokens("urn:foo:bar", "https://something.example.org/foo/bar"), nullValue());
     }
 

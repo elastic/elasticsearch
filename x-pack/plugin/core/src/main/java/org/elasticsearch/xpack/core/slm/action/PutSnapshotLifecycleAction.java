@@ -46,7 +46,7 @@ public class PutSnapshotLifecycleAction extends ActionType<PutSnapshotLifecycleA
             lifecycle = new SnapshotLifecyclePolicy(in);
         }
 
-        public Request() { }
+        public Request() {}
 
         public String getLifecycleId() {
             return this.lifecycleId;
@@ -94,8 +94,7 @@ public class PutSnapshotLifecycleAction extends ActionType<PutSnapshotLifecycleA
                 return false;
             }
             Request other = (Request) obj;
-            return lifecycleId.equals(other.lifecycleId) &&
-                lifecycle.equals(other.lifecycle);
+            return lifecycleId.equals(other.lifecycleId) && lifecycle.equals(other.lifecycle);
         }
 
         @Override

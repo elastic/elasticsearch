@@ -13,8 +13,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.script.IpFieldScript;
-import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.StringFieldScript;
 
 import java.net.InetAddress;
 

@@ -36,38 +36,59 @@ public class GoogleCloudStorageClientSettings {
     private static final String PREFIX = "gcs.client.";
 
     /** A json Service Account file loaded from secure settings. */
-    static final Setting.AffixSetting<InputStream> CREDENTIALS_FILE_SETTING = Setting.affixKeySetting(PREFIX, "credentials_file",
-            key -> SecureSetting.secureFile(key, null));
+    static final Setting.AffixSetting<InputStream> CREDENTIALS_FILE_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "credentials_file",
+        key -> SecureSetting.secureFile(key, null)
+    );
 
     /** An override for the Storage endpoint to connect to. */
-    static final Setting.AffixSetting<String> ENDPOINT_SETTING = Setting.affixKeySetting(PREFIX, "endpoint",
-            key -> Setting.simpleString(key, Setting.Property.NodeScope));
+    static final Setting.AffixSetting<String> ENDPOINT_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "endpoint",
+        key -> Setting.simpleString(key, Setting.Property.NodeScope)
+    );
 
     /** An override for the Google Project ID. */
-    static final Setting.AffixSetting<String> PROJECT_ID_SETTING = Setting.affixKeySetting(PREFIX, "project_id",
-            key -> Setting.simpleString(key, Setting.Property.NodeScope));
+    static final Setting.AffixSetting<String> PROJECT_ID_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "project_id",
+        key -> Setting.simpleString(key, Setting.Property.NodeScope)
+    );
 
     /** An override for the Token Server URI in the oauth flow. */
-    static final Setting.AffixSetting<URI> TOKEN_URI_SETTING = Setting.affixKeySetting(PREFIX, "token_uri",
-            key -> new Setting<>(key, "", URI::create, Setting.Property.NodeScope));
+    static final Setting.AffixSetting<URI> TOKEN_URI_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "token_uri",
+        key -> new Setting<>(key, "", URI::create, Setting.Property.NodeScope)
+    );
 
     /**
      * The timeout to establish a connection. A value of {@code -1} corresponds to an infinite timeout. A value of {@code 0}
      * corresponds to the default timeout of the Google Cloud Storage Java Library.
      */
-    static final Setting.AffixSetting<TimeValue> CONNECT_TIMEOUT_SETTING = Setting.affixKeySetting(PREFIX, "connect_timeout",
-        key -> timeSetting(key, TimeValue.ZERO, TimeValue.MINUS_ONE, Setting.Property.NodeScope));
+    static final Setting.AffixSetting<TimeValue> CONNECT_TIMEOUT_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "connect_timeout",
+        key -> timeSetting(key, TimeValue.ZERO, TimeValue.MINUS_ONE, Setting.Property.NodeScope)
+    );
 
     /**
      * The timeout to read data from an established connection. A value of {@code -1} corresponds to an infinite timeout. A value of
      * {@code 0} corresponds to the default timeout of the Google Cloud Storage Java Library.
      */
-    static final Setting.AffixSetting<TimeValue> READ_TIMEOUT_SETTING = Setting.affixKeySetting(PREFIX, "read_timeout",
-        key -> timeSetting(key, TimeValue.ZERO, TimeValue.MINUS_ONE, Setting.Property.NodeScope));
+    static final Setting.AffixSetting<TimeValue> READ_TIMEOUT_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "read_timeout",
+        key -> timeSetting(key, TimeValue.ZERO, TimeValue.MINUS_ONE, Setting.Property.NodeScope)
+    );
 
     /** Name used by the client when it uses the Google Cloud JSON API. */
-    static final Setting.AffixSetting<String> APPLICATION_NAME_SETTING = Setting.affixKeySetting(PREFIX, "application_name",
-        key -> new Setting<>(key, "repository-gcs", Function.identity(), Setting.Property.NodeScope, Setting.Property.Deprecated));
+    static final Setting.AffixSetting<String> APPLICATION_NAME_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "application_name",
+        key -> new Setting<>(key, "repository-gcs", Function.identity(), Setting.Property.NodeScope, Setting.Property.Deprecated)
+    );
 
     /** The credentials used by the client to connect to the Storage endpoint. */
     private final ServiceAccountCredentials credential;
@@ -90,13 +111,15 @@ public class GoogleCloudStorageClientSettings {
     /** The token server URI. This leases access tokens in the oauth flow. */
     private final URI tokenUri;
 
-    GoogleCloudStorageClientSettings(final ServiceAccountCredentials credential,
-                                     final String endpoint,
-                                     final String projectId,
-                                     final TimeValue connectTimeout,
-                                     final TimeValue readTimeout,
-                                     final String applicationName,
-                                     final URI tokenUri) {
+    GoogleCloudStorageClientSettings(
+        final ServiceAccountCredentials credential,
+        final String endpoint,
+        final String projectId,
+        final TimeValue connectTimeout,
+        final TimeValue readTimeout,
+        final String applicationName,
+        final URI tokenUri
+    ) {
         this.credential = credential;
         this.endpoint = endpoint;
         this.projectId = projectId;
@@ -136,7 +159,7 @@ public class GoogleCloudStorageClientSettings {
 
     public static Map<String, GoogleCloudStorageClientSettings> load(final Settings settings) {
         final Map<String, GoogleCloudStorageClientSettings> clients = new HashMap<>();
-        for (final String clientName: settings.getGroups(PREFIX).keySet()) {
+        for (final String clientName : settings.getGroups(PREFIX).keySet()) {
             clients.put(clientName, getClientSettings(settings, clientName));
         }
         if (clients.containsKey("default") == false) {

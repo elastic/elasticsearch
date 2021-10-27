@@ -39,22 +39,21 @@ public class NodeStatsCollector extends Collector {
      */
     public static final Setting<TimeValue> NODE_STATS_TIMEOUT = collectionTimeoutSetting("node.stats.timeout");
 
-    private static final CommonStatsFlags FLAGS =
-            new CommonStatsFlags(CommonStatsFlags.Flag.Docs,
-                                 CommonStatsFlags.Flag.FieldData,
-                                 CommonStatsFlags.Flag.Store,
-                                 CommonStatsFlags.Flag.Indexing,
-                                 CommonStatsFlags.Flag.QueryCache,
-                                 CommonStatsFlags.Flag.RequestCache,
-                                 CommonStatsFlags.Flag.Search,
-                                 CommonStatsFlags.Flag.Segments,
-                                 CommonStatsFlags.Flag.Bulk);
+    private static final CommonStatsFlags FLAGS = new CommonStatsFlags(
+        CommonStatsFlags.Flag.Docs,
+        CommonStatsFlags.Flag.FieldData,
+        CommonStatsFlags.Flag.Store,
+        CommonStatsFlags.Flag.Indexing,
+        CommonStatsFlags.Flag.QueryCache,
+        CommonStatsFlags.Flag.RequestCache,
+        CommonStatsFlags.Flag.Search,
+        CommonStatsFlags.Flag.Segments,
+        CommonStatsFlags.Flag.Bulk
+    );
 
     private final Client client;
 
-    public NodeStatsCollector(final ClusterService clusterService,
-                              final XPackLicenseState licenseState,
-                              final Client client) {
+    public NodeStatsCollector(final ClusterService clusterService, final XPackLicenseState licenseState, final Client client) {
         super(NodeStatsMonitoringDoc.TYPE, clusterService, NODE_STATS_TIMEOUT, licenseState);
         this.client = Objects.requireNonNull(client);
     }
@@ -66,9 +65,7 @@ public class NodeStatsCollector extends Collector {
     }
 
     @Override
-    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node,
-                                                  final long interval,
-                                                  final ClusterState clusterState) {
+    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node, final long interval, final ClusterState clusterState) {
         NodesStatsRequest request = new NodesStatsRequest("_local");
         request.indices(FLAGS);
         request.addMetrics(
@@ -76,7 +73,8 @@ public class NodeStatsCollector extends Collector {
             NodesStatsRequest.Metric.JVM.metricName(),
             NodesStatsRequest.Metric.PROCESS.metricName(),
             NodesStatsRequest.Metric.THREAD_POOL.metricName(),
-            NodesStatsRequest.Metric.FS.metricName());
+            NodesStatsRequest.Metric.FS.metricName()
+        );
         request.timeout(getCollectionTimeout());
 
         final NodesStatsResponse response = client.admin().cluster().nodesStats(request).actionGet();
@@ -91,8 +89,18 @@ public class NodeStatsCollector extends Collector {
         final String clusterUuid = clusterUuid(clusterState);
         final NodeStats nodeStats = response.getNodes().get(0);
 
-        return Collections.singletonList(new NodeStatsMonitoringDoc(clusterUuid, nodeStats.getTimestamp(), interval, node,
-                node.getUUID(), clusterState.getNodes().isLocalNodeElectedMaster(), nodeStats, BootstrapInfo.isMemoryLocked()));
+        return Collections.singletonList(
+            new NodeStatsMonitoringDoc(
+                clusterUuid,
+                nodeStats.getTimestamp(),
+                interval,
+                node,
+                node.getUUID(),
+                clusterState.getNodes().isLocalNodeElectedMaster(),
+                nodeStats,
+                BootstrapInfo.isMemoryLocked()
+            )
+        );
     }
 
 }

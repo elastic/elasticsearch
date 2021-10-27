@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.cli;
 
 import joptsimple.OptionSet;
-
 import joptsimple.OptionSpec;
 
 import org.apache.commons.io.FileUtils;
@@ -39,6 +38,7 @@ import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.CommandLineHttpClient;
 import org.elasticsearch.xpack.core.security.EnrollmentToken;
@@ -70,15 +70,20 @@ import java.security.cert.X509Certificate;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.BiFunction;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
 import javax.security.auth.x500.X500Principal;
 
 import static org.elasticsearch.common.ssl.PemUtils.parsePKCS8PemString;
@@ -120,6 +125,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
 
     private final OptionSpec<String> enrollmentTokenParam = parser.accepts("enrollment-token", "The enrollment token to use")
         .withRequiredArg();
+    private final OptionSpec<Void> reconfigure = parser.accepts("reconfigure");
     private final BiFunction<Environment, String, CommandLineHttpClient> clientFunction;
 
     public AutoConfigureNode(BiFunction<Environment, String, CommandLineHttpClient> clientFunction) {
@@ -186,6 +192,13 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             notifyOfFailure(inEnrollmentMode, terminal, Terminal.Verbosity.NORMAL, ExitCodes.NOOP, msg);
         }
 
+        if (options.has(reconfigure)) {
+            if (false == inEnrollmentMode) {
+                throw new UserException(ExitCodes.USAGE, "enrollment-token is a mandatory parameter.");
+            }
+            env = possibleReconfigureNode(env, terminal);
+        }
+
         // only perform auto-configuration if the existing configuration is not conflicting (eg Security already enabled)
         // if it is, silently skip auto configuration
         checkExistingConfiguration(env.settings(), inEnrollmentMode, terminal);
@@ -239,6 +252,8 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         final PrivateKey httpKey;
         final X509Certificate httpCert;
         final List<String> transportAddresses;
+        final X500Principal certificatePrincipal = new X500Principal("CN=" + System.getenv("HOSTNAME"));
+        final X500Principal caPrincipal = new X500Principal(AUTO_CONFIG_ALT_DN);
 
         if (inEnrollmentMode) {
             // this is an enrolling node, get HTTP CA key/certificate and transport layer key/certificate from another node
@@ -344,9 +359,6 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             // this is the initial node, generate HTTP CA key/certificate and transport layer key/certificate ourselves
             try {
                 transportAddresses = List.of();
-                final X500Principal certificatePrincipal = new X500Principal("CN=" + System.getenv("HOSTNAME"));
-                final X500Principal caPrincipal = new X500Principal(AUTO_CONFIG_ALT_DN);
-                final GeneralNames subjectAltNames = getSubjectAltNames();
                 // self-signed CA for transport layer
                 final KeyPair transportCaKeyPair = CertGenUtils.generateKeyPair(TRANSPORT_CA_KEY_SIZE);
                 final PrivateKey transportCaKey = transportCaKeyPair.getPrivate();
@@ -365,7 +377,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 transportKey = transportKeyPair.getPrivate();
                 transportCert = CertGenUtils.generateSignedCertificate(
                     certificatePrincipal,
-                    subjectAltNames,
+                    getSubjectAltNames(),
                     transportKeyPair,
                     transportCaCert,
                     transportCaKey,
@@ -373,6 +385,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     TRANSPORT_CERTIFICATE_DAYS,
                     SIGNATURE_ALGORITHM
                 );
+
                 final KeyPair httpCaKeyPair = CertGenUtils.generateKeyPair(HTTP_CA_KEY_SIZE);
                 httpCaKey = httpCaKeyPair.getPrivate();
                 // self-signed CA
@@ -393,18 +406,13 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 throw t;
             }
         }
-
-        // in either case, generate this node's HTTP key/certificate
         try {
-            final X500Principal certificatePrincipal = new X500Principal("CN=" + System.getenv("HOSTNAME"));
-            final GeneralNames subjectAltNames = getSubjectAltNames();
-
             final KeyPair httpKeyPair = CertGenUtils.generateKeyPair(HTTP_KEY_SIZE);
             httpKey = httpKeyPair.getPrivate();
             // non-CA
             httpCert = CertGenUtils.generateSignedCertificate(
                 certificatePrincipal,
-                subjectAltNames,
+                getSubjectAltNames(),
                 httpKeyPair,
                 httpCaCert,
                 httpCaKey,
@@ -536,6 +544,8 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         }
 
         try {
+            // final Environment to be used in the lambda below
+            final Environment localFinalEnv = env;
             List<String> existingConfigLines = Files.readAllLines(ymlPath, StandardCharsets.UTF_8);
             fullyWriteFile(env.configFile(), "elasticsearch.yml", true, stream -> {
                 try (BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8))) {
@@ -569,8 +579,8 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     bw.newLine();
                     bw.newLine();
                     // Set enrollment mode to true unless user explicitly set it to false themselves
-                    if (false == (env.settings().hasValue(XPackSettings.ENROLLMENT_ENABLED.getKey())
-                        && false == XPackSettings.ENROLLMENT_ENABLED.get(env.settings()))) {
+                    if (false == (localFinalEnv.settings().hasValue(XPackSettings.ENROLLMENT_ENABLED.getKey())
+                        && false == XPackSettings.ENROLLMENT_ENABLED.get(localFinalEnv.settings()))) {
                         bw.write(XPackSettings.ENROLLMENT_ENABLED.getKey() + ": true");
                         bw.newLine();
                         bw.newLine();
@@ -618,8 +628,8 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                         // we have configured TLS on the transport layer with newly generated certs and keys,
                         // hence this node cannot form a multi-node cluster
                         // if we don't set the following the node might trip the discovery bootstrap check
-                        if (false == DiscoveryModule.isSingleNodeDiscovery(env.settings())
-                            && false == ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.exists(env.settings())) {
+                        if (false == DiscoveryModule.isSingleNodeDiscovery(localFinalEnv.settings())
+                            && false == ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.exists(localFinalEnv.settings())) {
                             bw.newLine();
                             bw.write("# The initial node with security auto-configured must form a cluster on its own,");
                             bw.newLine();
@@ -632,12 +642,12 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
 
                     // if any address settings have been set, assume the admin has thought it through wrt to addresses,
                     // and don't try to be smart and mess with that
-                    if (false == (env.settings().hasValue(HttpTransportSettings.SETTING_HTTP_HOST.getKey())
-                        || env.settings().hasValue(HttpTransportSettings.SETTING_HTTP_BIND_HOST.getKey())
-                        || env.settings().hasValue(HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST.getKey())
-                        || env.settings().hasValue(NetworkService.GLOBAL_NETWORK_HOST_SETTING.getKey())
-                        || env.settings().hasValue(NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.getKey())
-                        || env.settings().hasValue(NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.getKey()))) {
+                    if (false == (localFinalEnv.settings().hasValue(HttpTransportSettings.SETTING_HTTP_HOST.getKey())
+                        || localFinalEnv.settings().hasValue(HttpTransportSettings.SETTING_HTTP_BIND_HOST.getKey())
+                        || localFinalEnv.settings().hasValue(HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST.getKey())
+                        || localFinalEnv.settings().hasValue(NetworkService.GLOBAL_NETWORK_HOST_SETTING.getKey())
+                        || localFinalEnv.settings().hasValue(NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.getKey())
+                        || localFinalEnv.settings().hasValue(NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.getKey()))) {
                         bw.newLine();
                         bw.write(
                             "# With security now configured, which includes user authentication over HTTPs, "
@@ -676,6 +686,59 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         }
         // only delete the backed up file if all went well
         Files.deleteIfExists(keystoreBackupPath);
+    }
+
+    private Environment possibleReconfigureNode(Environment env, Terminal terminal) throws UserException {
+        // We remove the existing auto-configuration stanza from elasticsearch.yml, the elastisearch.keystore and
+        // the directory with the auto-configured TLS key material, and then proceed as if elasticsearch is started
+        // with --enrolment-token token, in the first place.
+        final String autoConfigDirName = getAutoConfigDirName(env);
+        final List<String> existingConfigLines;
+        try {
+            existingConfigLines = Files.readAllLines(env.configFile().resolve("elasticsearch.yml"), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            // This shouldn't happen, we would have failed earlier but we need to catch the exception
+            throw new UserException(ExitCodes.IO_ERROR, "Aborting enrolling to cluster. Unable to read elasticsearch.yml.", e);
+        }
+        final List<String> existingConfigWithoutAutoconfiguration = removePreviousAutoconfiguration(existingConfigLines);
+        if (existingConfigLines.equals(existingConfigWithoutAutoconfiguration) == false) {
+            terminal.println("");
+            terminal.println("This node will be reconfigured to join an existing cluster, using the enrollment token that you provided.");
+            terminal.println("This operation will overwrite the existing configuration. Specifically: ");
+            terminal.println("  - Security auto configuration will be removed from elasticsearch.yml");
+            terminal.println("  - The " + autoConfigDirName + " directory will be removed");
+            terminal.println("  - Security auto configuration related secure settings will be removed from the elasticsearch.keystore");
+            final boolean shouldContinue = terminal.promptYesNo("Do you want to continue with the reconfiguration process", false);
+            if (shouldContinue == false) {
+                throw new UserException(ExitCodes.OK, "User cancelled operation");
+            }
+            removeAutoConfigurationFromKeystore(env, terminal);
+            try {
+                fullyWriteFile(env.configFile(), "elasticsearch.yml", true, stream -> {
+                    try (BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8))) {
+                        for (String l : existingConfigWithoutAutoconfiguration) {
+                            bw.write(l);
+                            bw.newLine();
+                        }
+                    }
+                });
+                deleteDirectory(env.configFile().resolve(autoConfigDirName));
+            } catch (Throwable t) {
+                throw new UserException(
+                    ExitCodes.IO_ERROR,
+                    "Aborting enrolling to cluster. Unable to remove existing security configuration.",
+                    t
+                );
+            }
+            // rebuild the environment after removing the settings that were added in auto-configuration.
+            return createEnv(Map.of("path.home", env.settings().get("path.home")));
+        } else {
+            throw new UserException(
+                ExitCodes.USAGE,
+                "Aborting enrolling to cluster. This node doesn't appear to be auto-configured for security. "
+                    + "Expected configuration is missing from elasticsearch.yml."
+            );
+        }
     }
 
     private void notifyOfFailure(boolean inEnrollmentMode, Terminal terminal, Terminal.Verbosity verbosity, int exitCode, String message)
@@ -901,4 +964,135 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
     private List<String> getTransportAddresses(Map<String, Object> responseMap) {
         return (List<String>) responseMap.get("nodes_addresses");
     }
+
+    private String getAutoConfigDirName(Environment env) throws UserException {
+        final List<String> autoConfigDirNameList;
+        try {
+            autoConfigDirNameList = Files.list(env.configFile())
+                .map(Path::getFileName)
+                .map(Path::toString)
+                .filter(name -> name.startsWith(TLS_CONFIG_DIR_NAME_PREFIX))
+                .collect(Collectors.toList());
+        } catch (IOException e) {
+            throw new UserException(
+                ExitCodes.USAGE,
+                "Aborting enrolling to cluster. Error attempting to find the directory with generated keys and certificates for TLS",
+                e
+            );
+        }
+        if (autoConfigDirNameList.isEmpty()) {
+            throw new UserException(
+                ExitCodes.USAGE,
+                "Aborting enrolling to cluster. This node doesn't appear to be auto-configured for security. "
+                    + "The directory with generated keys and certificates for TLS is missing."
+            );
+        } else if (autoConfigDirNameList.size() > 1) {
+            throw new UserException(
+                ExitCodes.USAGE,
+                "Aborting enrolling to cluster. Multiple directories with generated keys and certificates for TLS found: "
+                    + autoConfigDirNameList
+            );
+        } else {
+            return autoConfigDirNameList.get(0);
+        }
+    }
+
+    /**
+     * Removes existing autoconfiguration from a configuration file, retaining configuration that is user added even within
+     * the auto-configuration stanza. It only matches configuration setting keys for auto-configuration as the values depend
+     * on the timestamp of the installation time so we can't know with certainty that a user has changed the value
+     */
+    static List<String> removePreviousAutoconfiguration(List<String> existingConfigLines) throws UserException {
+        final Pattern pattern = Pattern.compile(
+            "(?s)(" + Pattern.quote(AUTO_CONFIGURATION_START_MARKER) + ".*?" + Pattern.quote(AUTO_CONFIGURATION_END_MARKER) + ")"
+        );
+        final String existingConfigurationAsString = existingConfigLines.stream().collect(Collectors.joining(System.lineSeparator()));
+        final Matcher matcher = pattern.matcher(existingConfigurationAsString);
+        if (matcher.find()) {
+            final String foundAutoConfigurationSettingsAsString = matcher.group(1);
+            final Settings foundAutoConfigurationSettings;
+            try {
+                foundAutoConfigurationSettings = Settings.builder()
+                    .loadFromSource(foundAutoConfigurationSettingsAsString, XContentType.YAML)
+                    .build();
+            } catch (Exception e) {
+                throw new UserException(
+                    ExitCodes.IO_ERROR,
+                    "Aborting enrolling to cluster. Unable to parse existing configuration file. Error was: " + e.getMessage(),
+                    e
+                );
+            }
+            // This is brittle and needs to be updated with every change above
+            final Set<String> expectedAutoConfigurationSettings = new TreeSet<String>(
+                List.of(
+                    "xpack.security.enabled",
+                    "xpack.security.enrollment.enabled",
+                    "xpack.security.transport.ssl.keystore.path",
+                    "xpack.security.transport.ssl.truststore.path",
+                    "xpack.security.transport.ssl.verification_mode",
+                    "xpack.security.http.ssl.enabled",
+                    "xpack.security.transport.ssl.enabled",
+                    "xpack.security.http.ssl.keystore.path",
+                    "cluster.initial_master_nodes",
+                    "http.host"
+                )
+            );
+            final Set<String> userAddedSettings = new HashSet<>(foundAutoConfigurationSettings.keySet());
+            userAddedSettings.removeAll(expectedAutoConfigurationSettings);
+            final List<String> newConfigurationLines = Arrays.stream(
+                existingConfigurationAsString.replace(foundAutoConfigurationSettingsAsString, "").split(System.lineSeparator())
+            ).collect(Collectors.toList());
+            if (false == userAddedSettings.isEmpty()) {
+                for (String key : userAddedSettings) {
+                    newConfigurationLines.add(key + ": " + foundAutoConfigurationSettings.get(key));
+                }
+            }
+            return newConfigurationLines;
+        }
+        return existingConfigLines;
+    }
+
+    private void removeAutoConfigurationFromKeystore(Environment env, Terminal terminal) throws UserException {
+        if (Files.exists(KeyStoreWrapper.keystorePath(env.configFile()))) {
+            try (
+                KeyStoreWrapper existingKeystore = KeyStoreWrapper.load(env.configFile());
+                SecureString keystorePassword = existingKeystore.hasPassword()
+                    ? new SecureString(
+                        terminal.readSecret("Enter password for the elasticsearch keystore: ", KeyStoreWrapper.MAX_PASSPHRASE_LENGTH)
+                    )
+                    : new SecureString(new char[0]);
+            ) {
+                existingKeystore.decrypt(keystorePassword.getChars());
+                List<String> secureSettingsToRemove = List.of(
+                    "xpack.security.transport.ssl.keystore.secure_password",
+                    "xpack.security.transport.ssl.truststore.secure_password",
+                    "xpack.security.http.ssl.keystore.secure_password",
+                    "autoconfiguration.password_hash"
+                );
+                for (String setting : secureSettingsToRemove) {
+                    if (existingKeystore.getSettingNames().contains(setting) == false) {
+                        throw new UserException(
+                            ExitCodes.IO_ERROR,
+                            "Aborting enrolling to cluster. Unable to remove existing security configuration, "
+                                + "elasticsearch.keystore did not contain expected setting ["
+                                + setting
+                                + "]."
+                        );
+                    }
+                    existingKeystore.remove(setting);
+                }
+                existingKeystore.save(env.configFile(), keystorePassword.getChars());
+            } catch (Exception e) {
+                terminal.errorPrintln(Terminal.Verbosity.VERBOSE, "");
+                terminal.errorPrintln(Terminal.Verbosity.VERBOSE, ExceptionsHelper.stackTrace(e));
+                terminal.errorPrintln(Terminal.Verbosity.VERBOSE, "");
+                throw new UserException(
+                    ExitCodes.IO_ERROR,
+                    "Aborting enrolling to cluster. Unable to remove existing secure settings. Error was: " + e.getMessage(),
+                    e
+                );
+            }
+        }
+    }
+
 }

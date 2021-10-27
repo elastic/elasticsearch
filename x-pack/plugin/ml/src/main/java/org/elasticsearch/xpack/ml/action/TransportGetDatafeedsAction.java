@@ -30,26 +30,43 @@ public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<G
     private final DatafeedManager datafeedManager;
 
     @Inject
-    public TransportGetDatafeedsAction(TransportService transportService,
-                                       ClusterService clusterService, ThreadPool threadPool,
-                                       ActionFilters actionFilters,
-                                       DatafeedManager datafeedManager,
-                                       IndexNameExpressionResolver indexNameExpressionResolver) {
-            super(GetDatafeedsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                    GetDatafeedsAction.Request::new, indexNameExpressionResolver, GetDatafeedsAction.Response::new, ThreadPool.Names.SAME);
+    public TransportGetDatafeedsAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        DatafeedManager datafeedManager,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            GetDatafeedsAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            GetDatafeedsAction.Request::new,
+            indexNameExpressionResolver,
+            GetDatafeedsAction.Response::new,
+            ThreadPool.Names.SAME
+        );
 
         this.datafeedManager = datafeedManager;
     }
 
     @Override
-    protected void masterOperation(Task task, GetDatafeedsAction.Request request, ClusterState state,
-                                   ActionListener<GetDatafeedsAction.Response> listener) {
+    protected void masterOperation(
+        Task task,
+        GetDatafeedsAction.Request request,
+        ClusterState state,
+        ActionListener<GetDatafeedsAction.Response> listener
+    ) {
         logger.debug("Get datafeed '{}'", request.getDatafeedId());
 
-        datafeedManager.getDatafeeds(request, state, ActionListener.wrap(
-            datafeeds -> listener.onResponse(new GetDatafeedsAction.Response(datafeeds)),
-            listener::onFailure
-        ));
+        datafeedManager.getDatafeeds(
+            request,
+            state,
+            ActionListener.wrap(datafeeds -> listener.onResponse(new GetDatafeedsAction.Response(datafeeds)), listener::onFailure)
+        );
     }
 
     @Override

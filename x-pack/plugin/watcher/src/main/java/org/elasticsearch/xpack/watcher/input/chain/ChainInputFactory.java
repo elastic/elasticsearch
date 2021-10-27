@@ -40,8 +40,8 @@ public class ChainInputFactory extends InputFactory<ChainInput, ChainInput.Resul
         List<Tuple<String, ExecutableInput<?, ?>>> executableInputs = new ArrayList<>();
         for (Tuple<String, Input> tuple : input.getInputs()) {
             @SuppressWarnings("unchecked")
-            ExecutableInput<?, ?> executableInput =
-                ((InputFactory<Input, ?, ?>) inputRegistry.factories().get(tuple.v2().type())).createExecutable(tuple.v2());
+            ExecutableInput<?, ?> executableInput = ((InputFactory<Input, ?, ?>) inputRegistry.factories().get(tuple.v2().type()))
+                .createExecutable(tuple.v2());
             executableInputs.add(new Tuple<>(tuple.v1(), executableInput));
         }
 

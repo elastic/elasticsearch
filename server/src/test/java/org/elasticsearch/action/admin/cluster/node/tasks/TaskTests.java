@@ -27,25 +27,26 @@ public class TaskTests extends ESTestCase {
         boolean cancellable = randomBoolean();
         boolean cancelled = cancellable && randomBoolean();
         TaskInfo taskInfo = new TaskInfo(
-                new TaskId(nodeId, taskId),
-                "test_type",
-                "test_action",
-                "test_description",
-                null,
-                startTime,
-                runningTime,
-                cancellable,
-                cancelled,
-                TaskId.EMPTY_TASK_ID,
-                Collections.singletonMap("foo", "bar"));
+            new TaskId(nodeId, taskId),
+            "test_type",
+            "test_action",
+            "test_description",
+            null,
+            startTime,
+            runningTime,
+            cancellable,
+            cancelled,
+            TaskId.EMPTY_TASK_ID,
+            Collections.singletonMap("foo", "bar")
+        );
         String taskInfoString = taskInfo.toString();
         Map<String, Object> map = XContentHelper.convertToMap(new BytesArray(taskInfoString.getBytes(StandardCharsets.UTF_8)), true).v2();
-        assertEquals(((Number)map.get("id")).longValue(), taskId);
+        assertEquals(((Number) map.get("id")).longValue(), taskId);
         assertEquals(map.get("type"), "test_type");
         assertEquals(map.get("action"), "test_action");
         assertEquals(map.get("description"), "test_description");
-        assertEquals(((Number)map.get("start_time_in_millis")).longValue(), startTime);
-        assertEquals(((Number)map.get("running_time_in_nanos")).longValue(), runningTime);
+        assertEquals(((Number) map.get("start_time_in_millis")).longValue(), startTime);
+        assertEquals(((Number) map.get("running_time_in_nanos")).longValue(), runningTime);
         assertEquals(map.get("cancellable"), cancellable);
         if (cancellable) {
             assertEquals(map.get("cancelled"), cancelled);

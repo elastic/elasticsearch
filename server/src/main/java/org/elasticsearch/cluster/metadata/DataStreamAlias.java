@@ -14,13 +14,13 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -49,23 +49,17 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
     static {
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), DATA_STREAMS_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), WRITE_DATA_STREAM_FIELD);
-        PARSER.declareField(
-            ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> {
-                if (p.currentToken() == XContentParser.Token.VALUE_EMBEDDED_OBJECT ||
-                    p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                    return new CompressedXContent(p.binaryValue());
-                } else if (p.currentToken() == XContentParser.Token.START_OBJECT) {
-                    XContentBuilder builder = XContentFactory.jsonBuilder().map(p.mapOrdered());
-                    return new CompressedXContent(BytesReference.bytes(builder));
-                } else {
-                    assert false : "unexpected token [" + p.currentToken() + " ]";
-                    return null;
-                }
-            },
-            FILTER_FIELD,
-            ObjectParser.ValueType.VALUE_OBJECT_ARRAY
-        );
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_EMBEDDED_OBJECT || p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                return new CompressedXContent(p.binaryValue());
+            } else if (p.currentToken() == XContentParser.Token.START_OBJECT) {
+                XContentBuilder builder = XContentFactory.jsonBuilder().map(p.mapOrdered());
+                return new CompressedXContent(BytesReference.bytes(builder));
+            } else {
+                assert false : "unexpected token [" + p.currentToken() + " ]";
+                return null;
+            }
+        }, FILTER_FIELD, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
     }
 
     private final String name;
@@ -218,9 +212,7 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
      * data stream no longer appears in the intersection.
      */
     public DataStreamAlias intersect(Predicate<String> filter) {
-        List<String> intersectingDataStreams = this.dataStreams.stream()
-            .filter(filter)
-            .collect(Collectors.toList());
+        List<String> intersectingDataStreams = this.dataStreams.stream().filter(filter).collect(Collectors.toList());
         String writeDataStream = this.writeDataStream;
         if (intersectingDataStreams.contains(writeDataStream) == false) {
             writeDataStream = null;
@@ -313,10 +305,10 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DataStreamAlias that = (DataStreamAlias) o;
-        return Objects.equals(name, that.name) &&
-            Objects.equals(dataStreams, that.dataStreams) &&
-            Objects.equals(writeDataStream, that.writeDataStream) &&
-            Objects.equals(filter, that.filter);
+        return Objects.equals(name, that.name)
+            && Objects.equals(dataStreams, that.dataStreams)
+            && Objects.equals(writeDataStream, that.writeDataStream)
+            && Objects.equals(filter, that.filter);
     }
 
     @Override
@@ -326,11 +318,17 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
 
     @Override
     public String toString() {
-        return "DataStreamAlias{" +
-            "name='" + name + '\'' +
-            ", dataStreams=" + dataStreams +
-            ", writeDataStream='" + writeDataStream + '\'' +
-            ", filter=" + (filter != null ? filter.string() : "null") +
-            '}';
+        return "DataStreamAlias{"
+            + "name='"
+            + name
+            + '\''
+            + ", dataStreams="
+            + dataStreams
+            + ", writeDataStream='"
+            + writeDataStream
+            + '\''
+            + ", filter="
+            + (filter != null ? filter.string() : "null")
+            + '}';
     }
 }

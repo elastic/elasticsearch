@@ -13,8 +13,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenResponse;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -33,13 +33,20 @@ public class TransportDeleteServiceAccountTokenActionTests extends ESTestCase {
     public void init() {
         serviceAccountService = mock(ServiceAccountService.class);
         transportDeleteServiceAccountTokenAction = new TransportDeleteServiceAccountTokenAction(
-            mock(TransportService.class), new ActionFilters(Collections.emptySet()), serviceAccountService);
+            mock(TransportService.class),
+            new ActionFilters(Collections.emptySet()),
+            serviceAccountService
+        );
     }
 
     public void testDoExecuteWillDelegate() {
         final DeleteServiceAccountTokenRequest request = new DeleteServiceAccountTokenRequest(
-            randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
-        @SuppressWarnings("unchecked") final ActionListener<DeleteServiceAccountTokenResponse> listener = mock(ActionListener.class);
+            randomAlphaOfLengthBetween(3, 8),
+            randomAlphaOfLengthBetween(3, 8),
+            randomAlphaOfLengthBetween(3, 8)
+        );
+        @SuppressWarnings("unchecked")
+        final ActionListener<DeleteServiceAccountTokenResponse> listener = mock(ActionListener.class);
         transportDeleteServiceAccountTokenAction.doExecute(mock(Task.class), request, listener);
         verify(serviceAccountService).deleteIndexToken(eq(request), anyActionListener());
     }

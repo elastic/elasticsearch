@@ -16,6 +16,7 @@ import static org.hamcrest.Matchers.hasItem;
 
 public abstract class AbstractNumericFieldMapperTestCase extends MapperTestCase {
     protected abstract Set<String> types();
+
     protected abstract Set<String> wholeTypes();
 
     public final void testTypesAndWholeTypes() {

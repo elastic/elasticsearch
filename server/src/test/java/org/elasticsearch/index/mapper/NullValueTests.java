@@ -21,7 +21,7 @@ public class NullValueTests extends MapperServiceTestCase {
 
     public void testNullNullValue() throws Exception {
 
-        String[] typesToTest = {"integer", "long", "double", "float", "short", "date", "ip", "keyword", "boolean", "byte", "geo_point"};
+        String[] typesToTest = { "integer", "long", "double", "float", "short", "date", "ip", "keyword", "boolean", "byte", "geo_point" };
 
         for (String type : typesToTest) {
             DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", type).nullField("null_value")));

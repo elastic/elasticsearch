@@ -61,51 +61,74 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     private static final String INDICES = "indices";
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchAction.class);
 
-    private static final ConstructingObjectParser<ClusterHealthResponse, Void> PARSER =
-            new ConstructingObjectParser<>("cluster_health_response", true,
-                    parsedObjects -> {
-                        int i = 0;
-                        // ClusterStateHealth fields
-                        int numberOfNodes = (int) parsedObjects[i++];
-                        int numberOfDataNodes = (int) parsedObjects[i++];
-                        int activeShards = (int) parsedObjects[i++];
-                        int relocatingShards = (int) parsedObjects[i++];
-                        int activePrimaryShards = (int) parsedObjects[i++];
-                        int initializingShards = (int) parsedObjects[i++];
-                        int unassignedShards = (int) parsedObjects[i++];
-                        double activeShardsPercent = (double) parsedObjects[i++];
-                        String statusStr = (String) parsedObjects[i++];
-                        ClusterHealthStatus status = ClusterHealthStatus.fromString(statusStr);
-                        @SuppressWarnings("unchecked") List<ClusterIndexHealth> indexList = (List<ClusterIndexHealth>) parsedObjects[i++];
-                        final Map<String, ClusterIndexHealth> indices;
-                        if (indexList == null || indexList.isEmpty()) {
-                            indices = emptyMap();
-                        } else {
-                            indices = new HashMap<>(indexList.size());
-                            for (ClusterIndexHealth indexHealth : indexList) {
-                                indices.put(indexHealth.getIndex(), indexHealth);
-                            }
-                        }
-                        ClusterStateHealth stateHealth = new ClusterStateHealth(activePrimaryShards, activeShards, relocatingShards,
-                                initializingShards, unassignedShards, numberOfNodes, numberOfDataNodes, activeShardsPercent, status,
-                                indices);
+    private static final ConstructingObjectParser<ClusterHealthResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "cluster_health_response",
+        true,
+        parsedObjects -> {
+            int i = 0;
+            // ClusterStateHealth fields
+            int numberOfNodes = (int) parsedObjects[i++];
+            int numberOfDataNodes = (int) parsedObjects[i++];
+            int activeShards = (int) parsedObjects[i++];
+            int relocatingShards = (int) parsedObjects[i++];
+            int activePrimaryShards = (int) parsedObjects[i++];
+            int initializingShards = (int) parsedObjects[i++];
+            int unassignedShards = (int) parsedObjects[i++];
+            double activeShardsPercent = (double) parsedObjects[i++];
+            String statusStr = (String) parsedObjects[i++];
+            ClusterHealthStatus status = ClusterHealthStatus.fromString(statusStr);
+            @SuppressWarnings("unchecked")
+            List<ClusterIndexHealth> indexList = (List<ClusterIndexHealth>) parsedObjects[i++];
+            final Map<String, ClusterIndexHealth> indices;
+            if (indexList == null || indexList.isEmpty()) {
+                indices = emptyMap();
+            } else {
+                indices = new HashMap<>(indexList.size());
+                for (ClusterIndexHealth indexHealth : indexList) {
+                    indices.put(indexHealth.getIndex(), indexHealth);
+                }
+            }
+            ClusterStateHealth stateHealth = new ClusterStateHealth(
+                activePrimaryShards,
+                activeShards,
+                relocatingShards,
+                initializingShards,
+                unassignedShards,
+                numberOfNodes,
+                numberOfDataNodes,
+                activeShardsPercent,
+                status,
+                indices
+            );
 
-                        // ClusterHealthResponse fields
-                        String clusterName = (String) parsedObjects[i++];
-                        int numberOfPendingTasks = (int) parsedObjects[i++];
-                        int numberOfInFlightFetch = (int) parsedObjects[i++];
-                        int delayedUnassignedShards = (int) parsedObjects[i++];
-                        long taskMaxWaitingTimeMillis = (long) parsedObjects[i++];
-                        boolean timedOut = (boolean) parsedObjects[i];
-                        return new ClusterHealthResponse(clusterName, numberOfPendingTasks, numberOfInFlightFetch, delayedUnassignedShards,
-                                TimeValue.timeValueMillis(taskMaxWaitingTimeMillis), timedOut, stateHealth);
-                    });
+            // ClusterHealthResponse fields
+            String clusterName = (String) parsedObjects[i++];
+            int numberOfPendingTasks = (int) parsedObjects[i++];
+            int numberOfInFlightFetch = (int) parsedObjects[i++];
+            int delayedUnassignedShards = (int) parsedObjects[i++];
+            long taskMaxWaitingTimeMillis = (long) parsedObjects[i++];
+            boolean timedOut = (boolean) parsedObjects[i];
+            return new ClusterHealthResponse(
+                clusterName,
+                numberOfPendingTasks,
+                numberOfInFlightFetch,
+                delayedUnassignedShards,
+                TimeValue.timeValueMillis(taskMaxWaitingTimeMillis),
+                timedOut,
+                stateHealth
+            );
+        }
+    );
 
-    private static final ObjectParser.NamedObjectParser<ClusterIndexHealth, Void> INDEX_PARSER =
-        (XContentParser parser, Void context, String index) -> ClusterIndexHealth.innerFromXContent(parser, index);
+    private static final ObjectParser.NamedObjectParser<ClusterIndexHealth, Void> INDEX_PARSER = (
+        XContentParser parser,
+        Void context,
+        String index) -> ClusterIndexHealth.innerFromXContent(parser, index);
     static final String ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200_KEY = "return_200_for_cluster_health_timeout";
-    static final String CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG = "the [" + ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200_KEY + "] " +
-        "parameter is deprecated and will be removed in a future release.";
+    static final String CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG = "the ["
+        + ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200_KEY
+        + "] "
+        + "parameter is deprecated and will be removed in a future release.";
 
     static {
         // ClusterStateHealth fields
@@ -148,21 +171,31 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         numberOfPendingTasks = in.readInt();
         timedOut = in.readBoolean();
         numberOfInFlightFetch = in.readInt();
-        delayedUnassignedShards= in.readInt();
+        delayedUnassignedShards = in.readInt();
         taskMaxWaitingTime = in.readTimeValue();
         return200ForClusterHealthTimeout = in.readBoolean();
     }
 
     /** needed for plugins BWC */
-    public ClusterHealthResponse(String clusterName, String[] concreteIndices, ClusterState clusterState,
-                                 boolean return200ForServerTimeout) {
-        this(clusterName, concreteIndices, clusterState, -1, -1, -1, TimeValue.timeValueHours(0),
-            return200ForServerTimeout);
+    public ClusterHealthResponse(
+        String clusterName,
+        String[] concreteIndices,
+        ClusterState clusterState,
+        boolean return200ForServerTimeout
+    ) {
+        this(clusterName, concreteIndices, clusterState, -1, -1, -1, TimeValue.timeValueHours(0), return200ForServerTimeout);
     }
 
-    public ClusterHealthResponse(String clusterName, String[] concreteIndices, ClusterState clusterState, int numberOfPendingTasks,
-                                 int numberOfInFlightFetch, int delayedUnassignedShards, TimeValue taskMaxWaitingTime,
-                                 boolean return200ForServerTimeout) {
+    public ClusterHealthResponse(
+        String clusterName,
+        String[] concreteIndices,
+        ClusterState clusterState,
+        int numberOfPendingTasks,
+        int numberOfInFlightFetch,
+        int delayedUnassignedShards,
+        TimeValue taskMaxWaitingTime,
+        boolean return200ForServerTimeout
+    ) {
         this.clusterName = clusterName;
         this.numberOfPendingTasks = numberOfPendingTasks;
         this.numberOfInFlightFetch = numberOfInFlightFetch;
@@ -176,8 +209,15 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     /**
      * For XContent Parser and serialization tests
      */
-    ClusterHealthResponse(String clusterName, int numberOfPendingTasks, int numberOfInFlightFetch, int delayedUnassignedShards,
-                          TimeValue taskMaxWaitingTime, boolean timedOut, ClusterStateHealth clusterStateHealth) {
+    ClusterHealthResponse(
+        String clusterName,
+        int numberOfPendingTasks,
+        int numberOfInFlightFetch,
+        int delayedUnassignedShards,
+        TimeValue taskMaxWaitingTime,
+        boolean timedOut,
+        ClusterStateHealth clusterStateHealth
+    ) {
         this.clusterName = clusterName;
         this.numberOfPendingTasks = numberOfPendingTasks;
         this.numberOfInFlightFetch = numberOfInFlightFetch;
@@ -192,7 +232,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         return clusterName;
     }
 
-    //package private for testing
+    // package private for testing
     ClusterStateHealth getClusterStateHealth() {
         return clusterStateHealth;
     }
@@ -322,8 +362,11 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
             return RestStatus.REQUEST_TIMEOUT;
         }
         if (return200ForClusterHealthTimeout && restApiVersion == RestApiVersion.V_8) {
-            deprecationLogger.warn(DeprecationCategory.API, "cluster_health_request_timeout",
-                CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG);
+            deprecationLogger.warn(
+                DeprecationCategory.API,
+                "cluster_health_request_timeout",
+                CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG
+            );
         }
         return RestStatus.OK;
     }
@@ -370,19 +413,27 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ClusterHealthResponse that = (ClusterHealthResponse) o;
-        return Objects.equals(clusterName, that.clusterName) &&
-                numberOfPendingTasks == that.numberOfPendingTasks &&
-                numberOfInFlightFetch == that.numberOfInFlightFetch &&
-                delayedUnassignedShards == that.delayedUnassignedShards &&
-                Objects.equals(taskMaxWaitingTime, that.taskMaxWaitingTime) &&
-                timedOut == that.timedOut &&
-                Objects.equals(clusterStateHealth, that.clusterStateHealth) &&
-                clusterHealthStatus == that.clusterHealthStatus;
+        return Objects.equals(clusterName, that.clusterName)
+            && numberOfPendingTasks == that.numberOfPendingTasks
+            && numberOfInFlightFetch == that.numberOfInFlightFetch
+            && delayedUnassignedShards == that.delayedUnassignedShards
+            && Objects.equals(taskMaxWaitingTime, that.taskMaxWaitingTime)
+            && timedOut == that.timedOut
+            && Objects.equals(clusterStateHealth, that.clusterStateHealth)
+            && clusterHealthStatus == that.clusterHealthStatus;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(clusterName, numberOfPendingTasks, numberOfInFlightFetch, delayedUnassignedShards, taskMaxWaitingTime,
-                timedOut, clusterStateHealth, clusterHealthStatus);
+        return Objects.hash(
+            clusterName,
+            numberOfPendingTasks,
+            numberOfInFlightFetch,
+            delayedUnassignedShards,
+            taskMaxWaitingTime,
+            timedOut,
+            clusterStateHealth,
+            clusterHealthStatus
+        );
     }
 }

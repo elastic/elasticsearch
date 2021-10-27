@@ -7,13 +7,12 @@
  */
 package org.elasticsearch.client.ml.inference.preprocessing;
 
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
 
 public class NGramTests extends AbstractXContentTestCase<NGram> {
 
@@ -34,12 +33,14 @@ public class NGramTests extends AbstractXContentTestCase<NGram> {
 
     public static NGram createRandom() {
         int length = randomIntBetween(1, 10);
-        return new NGram(randomAlphaOfLength(10),
+        return new NGram(
+            randomAlphaOfLength(10),
             IntStream.range(1, Math.min(5, length + 1)).limit(5).boxed().collect(Collectors.toList()),
             randomBoolean() ? null : randomIntBetween(0, 10),
             randomBoolean() ? null : length,
             randomBoolean() ? null : randomBoolean(),
-            randomBoolean() ? null : randomAlphaOfLength(10));
+            randomBoolean() ? null : randomAlphaOfLength(10)
+        );
     }
 
 }

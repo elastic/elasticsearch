@@ -14,11 +14,11 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -62,7 +62,8 @@ import static org.elasticsearch.xpack.sql.plugin.Transports.username;
 import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
 
 public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequest, SqlQueryResponse>
-    implements AsyncTaskManagementService.AsyncOperation<SqlQueryRequest, SqlQueryResponse, SqlQueryTask> {
+    implements
+        AsyncTaskManagementService.AsyncOperation<SqlQueryRequest, SqlQueryResponse, SqlQueryTask> {
 
     private static final Logger log = LogManager.getLogger(TransportSqlQueryAction.class);
     private final SecurityContext securityContext;
@@ -73,29 +74,52 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
     private final AsyncTaskManagementService<SqlQueryRequest, SqlQueryResponse, SqlQueryTask> asyncTaskManagementService;
 
     @Inject
-    public TransportSqlQueryAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                                   ThreadPool threadPool, ActionFilters actionFilters, PlanExecutor planExecutor,
-                                   SqlLicenseChecker sqlLicenseChecker, BigArrays bigArrays) {
+    public TransportSqlQueryAction(
+        Settings settings,
+        ClusterService clusterService,
+        TransportService transportService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        PlanExecutor planExecutor,
+        SqlLicenseChecker sqlLicenseChecker,
+        BigArrays bigArrays
+    ) {
         super(SqlQueryAction.NAME, transportService, actionFilters, SqlQueryRequest::new);
 
-        this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
-                new SecurityContext(settings, threadPool.getThreadContext()) : null;
+        this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
+            ? new SecurityContext(settings, threadPool.getThreadContext())
+            : null;
         this.clusterService = clusterService;
         this.planExecutor = planExecutor;
         this.sqlLicenseChecker = sqlLicenseChecker;
         this.transportService = transportService;
 
-        asyncTaskManagementService = new AsyncTaskManagementService<>(XPackPlugin.ASYNC_RESULTS_INDEX, planExecutor.client(),
-            ASYNC_SEARCH_ORIGIN, planExecutor.writeableRegistry(), taskManager, SqlQueryAction.INSTANCE.name(), this, SqlQueryTask.class,
-            clusterService, threadPool, bigArrays);
+        asyncTaskManagementService = new AsyncTaskManagementService<>(
+            XPackPlugin.ASYNC_RESULTS_INDEX,
+            planExecutor.client(),
+            ASYNC_SEARCH_ORIGIN,
+            planExecutor.writeableRegistry(),
+            taskManager,
+            SqlQueryAction.INSTANCE.name(),
+            this,
+            SqlQueryTask.class,
+            clusterService,
+            threadPool,
+            bigArrays
+        );
     }
 
     @Override
     protected void doExecute(Task task, SqlQueryRequest request, ActionListener<SqlQueryResponse> listener) {
         sqlLicenseChecker.checkIfSqlAllowed(request.mode());
         if (request.waitForCompletionTimeout() != null && request.waitForCompletionTimeout().getMillis() >= 0) {
-            asyncTaskManagementService.asyncExecute(request, request.waitForCompletionTimeout(), request.keepAlive(),
-                request.keepOnCompletion(), listener);
+            asyncTaskManagementService.asyncExecute(
+                request,
+                request.waitForCompletionTimeout(),
+                request.keepAlive(),
+                request.keepOnCompletion(),
+                listener
+            );
         } else {
             operation(planExecutor, (SqlQueryTask) task, request, listener, username(securityContext), transportService, clusterService);
         }
@@ -104,29 +128,61 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
     /**
      * Actual implementation of the action. Statically available to support embedded mode.
      */
-    public static void operation(PlanExecutor planExecutor, SqlQueryTask task, SqlQueryRequest request,
-                                 ActionListener<SqlQueryResponse> listener, String username, TransportService transportService,
-                                 ClusterService clusterService) {
+    public static void operation(
+        PlanExecutor planExecutor,
+        SqlQueryTask task,
+        SqlQueryRequest request,
+        ActionListener<SqlQueryResponse> listener,
+        String username,
+        TransportService transportService,
+        ClusterService clusterService
+    ) {
         // The configuration is always created however when dealing with the next page, only the timeouts are relevant
         // the rest having default values (since the query is already created)
-        SqlConfiguration cfg = new SqlConfiguration(request.zoneId(), request.catalog(), request.fetchSize(), request.requestTimeout(),
-                request.pageTimeout(), request.filter(), request.runtimeMappings(), request.mode(), request.clientId(), request.version(),
-                username, clusterName(clusterService), request.fieldMultiValueLeniency(), request.indexIncludeFrozen(),
-                new TaskId(clusterService.localNode().getId(), task.getId()), task,
-                request.waitForCompletionTimeout(), request.keepOnCompletion(), request.keepAlive());
+        SqlConfiguration cfg = new SqlConfiguration(
+            request.zoneId(),
+            request.catalog(),
+            request.fetchSize(),
+            request.requestTimeout(),
+            request.pageTimeout(),
+            request.filter(),
+            request.runtimeMappings(),
+            request.mode(),
+            request.clientId(),
+            request.version(),
+            username,
+            clusterName(clusterService),
+            request.fieldMultiValueLeniency(),
+            request.indexIncludeFrozen(),
+            new TaskId(clusterService.localNode().getId(), task.getId()),
+            task
+        );
 
         if (Strings.hasText(request.cursor()) == false) {
-            executeRequestWithRetryAttempt(clusterService, listener::onFailure,
-                onFailure -> planExecutor.sql(cfg, request.query(), request.params(),
-                    wrap(p -> listener.onResponse(createResponseWithSchema(request, p, task)), onFailure)),
-                node -> transportService.sendRequest(node, SqlQueryAction.NAME, request,
-                    new ActionListenerResponseHandler<>(listener, SqlQueryResponse::new, ThreadPool.Names.SAME)),
-                log);
+            executeRequestWithRetryAttempt(
+                clusterService,
+                listener::onFailure,
+                onFailure -> planExecutor.sql(
+                    cfg,
+                    request.query(),
+                    request.params(),
+                    wrap(p -> listener.onResponse(createResponseWithSchema(request, p, task)), onFailure)
+                ),
+                node -> transportService.sendRequest(
+                    node,
+                    SqlQueryAction.NAME,
+                    request,
+                    new ActionListenerResponseHandler<>(listener, SqlQueryResponse::new, ThreadPool.Names.SAME)
+                ),
+                log
+            );
         } else {
             Tuple<Cursor, ZoneId> decoded = Cursors.decodeFromStringWithZone(request.cursor());
-            planExecutor.nextPage(cfg, decoded.v1(),
-                    wrap(p -> listener.onResponse(createResponse(request, decoded.v2(), null, p, task)),
-                            listener::onFailure));
+            planExecutor.nextPage(
+                cfg,
+                decoded.v1(),
+                wrap(p -> listener.onResponse(createResponse(request, decoded.v2(), null, p, task)), listener::onFailure)
+            );
         }
     }
 
@@ -149,8 +205,13 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         return createResponse(request, request.zoneId(), columns, page, task);
     }
 
-    private static SqlQueryResponse createResponse(SqlQueryRequest request, ZoneId zoneId, List<ColumnInfo> header, Page page,
-                                                   SqlQueryTask task) {
+    private static SqlQueryResponse createResponse(
+        SqlQueryRequest request,
+        ZoneId zoneId,
+        List<ColumnInfo> header,
+        Page page,
+        SqlQueryTask task
+    ) {
         List<List<Object>> rows = new ArrayList<>();
         page.rowSet().forEachRow(rowView -> {
             List<Object> row = new ArrayList<>(rowView.columnCount());
@@ -160,14 +221,15 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
 
         AsyncExecutionId executionId = task.getExecutionId();
         return new SqlQueryResponse(
-                Cursors.encodeToString(page.next(), zoneId),
-                request.mode(),
-                request.version(),
-                request.columnar(),
-                header,
-                rows,
-                executionId == null ? null : executionId.getEncoded(),
-                false, false
+            Cursors.encodeToString(page.next(), zoneId),
+            request.mode(),
+            request.version(),
+            request.columnar(),
+            header,
+            rows,
+            executionId == null ? null : executionId.getEncoded(),
+            false,
+            false
         );
     }
 
@@ -193,10 +255,30 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
     }
 
     @Override
-    public SqlQueryTask createTask(SqlQueryRequest request, long id, String type, String action, TaskId parentTaskId,
-                                   Map<String, String> headers, Map<String, String> originHeaders, AsyncExecutionId asyncExecutionId) {
-        return new SqlQueryTask(id, type, action, request.getDescription(), parentTaskId, headers, originHeaders, asyncExecutionId,
-            request.keepAlive(), request.mode(), request.version(), request.columnar());
+    public SqlQueryTask createTask(
+        SqlQueryRequest request,
+        long id,
+        String type,
+        String action,
+        TaskId parentTaskId,
+        Map<String, String> headers,
+        Map<String, String> originHeaders,
+        AsyncExecutionId asyncExecutionId
+    ) {
+        return new SqlQueryTask(
+            id,
+            type,
+            action,
+            request.getDescription(),
+            parentTaskId,
+            headers,
+            originHeaders,
+            asyncExecutionId,
+            request.keepAlive(),
+            request.mode(),
+            request.version(),
+            request.columnar()
+        );
     }
 
     @Override

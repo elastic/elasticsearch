@@ -33,6 +33,7 @@ import static org.hamcrest.Matchers.lessThan;
 public class EsExecutorsTests extends ESTestCase {
 
     private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
     private TimeUnit randomTimeUnit() {
         return TimeUnit.values()[between(0, TimeUnit.values().length - 1)];
     }
@@ -42,8 +43,14 @@ public class EsExecutorsTests extends ESTestCase {
     }
 
     public void testFixedForcedExecution() throws Exception {
-        EsThreadPoolExecutor executor =
-                EsExecutors.newFixed(getName(), 1, 1, EsExecutors.daemonThreadFactory("test"), threadContext, randomBoolean());
+        EsThreadPoolExecutor executor = EsExecutors.newFixed(
+            getName(),
+            1,
+            1,
+            EsExecutors.daemonThreadFactory("test"),
+            threadContext,
+            randomBoolean()
+        );
         final CountDownLatch wait = new CountDownLatch(1);
 
         final CountDownLatch exec1Wait = new CountDownLatch(1);
@@ -105,8 +112,14 @@ public class EsExecutorsTests extends ESTestCase {
     }
 
     public void testFixedRejected() throws Exception {
-        EsThreadPoolExecutor executor =
-                EsExecutors.newFixed(getName(), 1, 1, EsExecutors.daemonThreadFactory("test"), threadContext, randomBoolean());
+        EsThreadPoolExecutor executor = EsExecutors.newFixed(
+            getName(),
+            1,
+            1,
+            EsExecutors.daemonThreadFactory("test"),
+            threadContext,
+            randomBoolean()
+        );
         final CountDownLatch wait = new CountDownLatch(1);
 
         final CountDownLatch exec1Wait = new CountDownLatch(1);
@@ -164,9 +177,15 @@ public class EsExecutorsTests extends ESTestCase {
         final int max = between(min + 1, 6);
         final CyclicBarrier barrier = new CyclicBarrier(max + 1);
 
-        ThreadPoolExecutor pool =
-                EsExecutors.newScaling(getClass().getName() + "/" + getTestName(), min, max, between(1, 100), randomTimeUnit(),
-                    EsExecutors.daemonThreadFactory("test"), threadContext);
+        ThreadPoolExecutor pool = EsExecutors.newScaling(
+            getClass().getName() + "/" + getTestName(),
+            min,
+            max,
+            between(1, 100),
+            randomTimeUnit(),
+            EsExecutors.daemonThreadFactory("test"),
+            threadContext
+        );
         assertThat("Min property", pool.getCorePoolSize(), equalTo(min));
         assertThat("Max property", pool.getMaximumPoolSize(), equalTo(max));
 
@@ -182,8 +201,8 @@ public class EsExecutorsTests extends ESTestCase {
                 }
             });
 
-            //wait until thread executes this task
-            //otherwise, a task might be queued
+            // wait until thread executes this task
+            // otherwise, a task might be queued
             latch.await();
         }
 
@@ -199,9 +218,15 @@ public class EsExecutorsTests extends ESTestCase {
         final int max = between(min + 1, 6);
         final CyclicBarrier barrier = new CyclicBarrier(max + 1);
 
-        final ThreadPoolExecutor pool =
-                EsExecutors.newScaling(getClass().getName() + "/" + getTestName(), min, max, between(1, 100), TimeUnit.MILLISECONDS,
-                    EsExecutors.daemonThreadFactory("test"), threadContext);
+        final ThreadPoolExecutor pool = EsExecutors.newScaling(
+            getClass().getName() + "/" + getTestName(),
+            min,
+            max,
+            between(1, 100),
+            TimeUnit.MILLISECONDS,
+            EsExecutors.daemonThreadFactory("test"),
+            threadContext
+        );
         assertThat("Min property", pool.getCorePoolSize(), equalTo(min));
         assertThat("Max property", pool.getMaximumPoolSize(), equalTo(max));
 
@@ -217,8 +242,8 @@ public class EsExecutorsTests extends ESTestCase {
                 }
             });
 
-            //wait until thread executes this task
-            //otherwise, a task might be queued
+            // wait until thread executes this task
+            // otherwise, a task might be queued
             latch.await();
         }
 
@@ -238,8 +263,14 @@ public class EsExecutorsTests extends ESTestCase {
         int queue = between(0, 100);
         int actions = queue + pool;
         final CountDownLatch latch = new CountDownLatch(1);
-        EsThreadPoolExecutor executor =
-                EsExecutors.newFixed(getName(), pool, queue, EsExecutors.daemonThreadFactory("dummy"), threadContext, randomBoolean());
+        EsThreadPoolExecutor executor = EsExecutors.newFixed(
+            getName(),
+            pool,
+            queue,
+            EsExecutors.daemonThreadFactory("dummy"),
+            threadContext,
+            randomBoolean()
+        );
         try {
             for (int i = 0; i < actions; i++) {
                 executor.execute(new Runnable() {
@@ -270,8 +301,12 @@ public class EsExecutorsTests extends ESTestCase {
                 assertFalse("Thread pool registering as terminated when it isn't", e.isExecutorShutdown());
                 String message = e.getMessage();
                 assertThat(message, containsString("dummy runnable"));
-                assertThat(message, either(containsString("on EsThreadPoolExecutor[name = " + getName()))
-                    .or(containsString("on EWMATrackingEsThreadPoolExecutor[name = " + getName())));
+                assertThat(
+                    message,
+                    either(containsString("on EsThreadPoolExecutor[name = " + getName())).or(
+                        containsString("on EWMATrackingEsThreadPoolExecutor[name = " + getName())
+                    )
+                );
                 assertThat(message, containsString("queue capacity = " + queue));
                 assertThat(message, containsString("[Running"));
                 /*
@@ -281,7 +316,7 @@ public class EsExecutorsTests extends ESTestCase {
                  * test with something like 10000 iterations. I suspect you could see "active threads = <any natural number <= to pool>". So
                  * that is what we assert.
                  */
-                @SuppressWarnings({"rawtypes", "unchecked"})
+                @SuppressWarnings({ "rawtypes", "unchecked" })
                 Matcher<String>[] activeThreads = new Matcher[pool + 1];
                 for (int p = 0; p <= pool; p++) {
                     activeThreads[p] = containsString("active threads = " + p);
@@ -311,8 +346,12 @@ public class EsExecutorsTests extends ESTestCase {
             assertTrue("Thread pool not registering as terminated when it is", e.isExecutorShutdown());
             String message = e.getMessage();
             assertThat(message, containsString("dummy runnable"));
-            assertThat(message, either(containsString("on EsThreadPoolExecutor[name = " + getName()))
-                .or(containsString("on EWMATrackingEsThreadPoolExecutor[name = " + getName())));
+            assertThat(
+                message,
+                either(containsString("on EsThreadPoolExecutor[name = " + getName())).or(
+                    containsString("on EWMATrackingEsThreadPoolExecutor[name = " + getName())
+                )
+            );
             assertThat(message, containsString("queue capacity = " + queue));
             assertThat(message, containsString("[Terminated"));
             assertThat(message, containsString("active threads = 0"));
@@ -330,8 +369,14 @@ public class EsExecutorsTests extends ESTestCase {
         threadContext.putHeader("foo", "bar");
         final Integer one = Integer.valueOf(1);
         threadContext.putTransient("foo", one);
-        EsThreadPoolExecutor executor =
-                EsExecutors.newFixed(getName(), pool, queue, EsExecutors.daemonThreadFactory("dummy"), threadContext, randomBoolean());
+        EsThreadPoolExecutor executor = EsExecutors.newFixed(
+            getName(),
+            pool,
+            queue,
+            EsExecutors.daemonThreadFactory("dummy"),
+            threadContext,
+            randomBoolean()
+        );
         try {
             executor.execute(() -> {
                 try {
@@ -361,8 +406,14 @@ public class EsExecutorsTests extends ESTestCase {
         int queue = between(0, 100);
         final CountDownLatch latch = new CountDownLatch(1);
         final CountDownLatch executed = new CountDownLatch(1);
-        EsThreadPoolExecutor executor =
-                EsExecutors.newFixed(getName(), pool, queue, EsExecutors.daemonThreadFactory("dummy"), threadContext, randomBoolean());
+        EsThreadPoolExecutor executor = EsExecutors.newFixed(
+            getName(),
+            pool,
+            queue,
+            EsExecutors.daemonThreadFactory("dummy"),
+            threadContext,
+            randomBoolean()
+        );
         try {
             Runnable r = () -> {
                 latch.countDown();
@@ -388,14 +439,14 @@ public class EsExecutorsTests extends ESTestCase {
         final int available = Runtime.getRuntime().availableProcessors();
         final int processors = randomIntBetween(available + 1, Integer.MAX_VALUE);
         final Settings settings = Settings.builder().put(processorsSetting.getKey(), processors).build();
-        final IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> processorsSetting.get(settings));
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processorsSetting.get(settings));
         final String expected = String.format(
             Locale.ROOT,
             "Failed to parse value [%d] for setting [%s] must be <= %d",
             processors,
             processorsSetting.getKey(),
-            available);
+            available
+        );
         assertThat(e, hasToString(containsString(expected)));
     }
 

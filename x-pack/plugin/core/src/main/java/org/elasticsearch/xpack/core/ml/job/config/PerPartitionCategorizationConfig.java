@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -29,9 +29,11 @@ public class PerPartitionCategorizationConfig implements ToXContentObject, Write
     public static final ConstructingObjectParser<PerPartitionCategorizationConfig, Void> STRICT_PARSER = createParser(false);
 
     private static ConstructingObjectParser<PerPartitionCategorizationConfig, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<PerPartitionCategorizationConfig, Void> parser =
-            new ConstructingObjectParser<>(TYPE_FIELD.getPreferredName(), ignoreUnknownFields,
-                a -> new PerPartitionCategorizationConfig((boolean) a[0], (Boolean) a[1]));
+        ConstructingObjectParser<PerPartitionCategorizationConfig, Void> parser = new ConstructingObjectParser<>(
+            TYPE_FIELD.getPreferredName(),
+            ignoreUnknownFields,
+            a -> new PerPartitionCategorizationConfig((boolean) a[0], (Boolean) a[1])
+        );
 
         parser.declareBoolean(ConstructingObjectParser.constructorArg(), ENABLED_FIELD);
         parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), STOP_ON_WARN);
@@ -50,8 +52,14 @@ public class PerPartitionCategorizationConfig implements ToXContentObject, Write
         this.enabled = enabled;
         this.stopOnWarn = (stopOnWarn == null) ? false : stopOnWarn;
         if (this.enabled == false && this.stopOnWarn) {
-            throw ExceptionsHelper.badRequestException(STOP_ON_WARN.getPreferredName() + " cannot be true in "
-                + TYPE_FIELD.getPreferredName() + " when " + ENABLED_FIELD.getPreferredName() + " is false");
+            throw ExceptionsHelper.badRequestException(
+                STOP_ON_WARN.getPreferredName()
+                    + " cannot be true in "
+                    + TYPE_FIELD.getPreferredName()
+                    + " when "
+                    + ENABLED_FIELD.getPreferredName()
+                    + " is false"
+            );
         }
     }
 

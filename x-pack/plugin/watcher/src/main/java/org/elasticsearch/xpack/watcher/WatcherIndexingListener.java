@@ -22,10 +22,10 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
@@ -115,19 +115,30 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
 
             ZonedDateTime now = Instant.ofEpochMilli(clock.millis()).atZone(ZoneOffset.UTC);
             try {
-                Watch watch = parser.parseWithSecrets(operation.id(), true, operation.source(), now, XContentType.JSON,
-                    operation.getIfSeqNo(), operation.getIfPrimaryTerm());
+                Watch watch = parser.parseWithSecrets(
+                    operation.id(),
+                    true,
+                    operation.source(),
+                    now,
+                    XContentType.JSON,
+                    operation.getIfSeqNo(),
+                    operation.getIfPrimaryTerm()
+                );
                 ShardAllocationConfiguration shardAllocationConfiguration = configuration.localShards.get(shardId);
                 if (shardAllocationConfiguration == null) {
-                    logger.debug("no distributed watch execution info found for watch [{}] on shard [{}], got configuration for {}",
-                        watch.id(), shardId, configuration.localShards.keySet());
+                    logger.debug(
+                        "no distributed watch execution info found for watch [{}] on shard [{}], got configuration for {}",
+                        watch.id(),
+                        shardId,
+                        configuration.localShards.keySet()
+                    );
                     return;
                 }
 
                 boolean shouldBeTriggered = shardAllocationConfiguration.shouldBeTriggered(watch.id());
                 WatcherState currentState = watcherState.get();
                 if (shouldBeTriggered && EnumSet.of(WatcherState.STOPPING, WatcherState.STOPPED).contains(currentState) == false) {
-                    if (watch.status().state().isActive() ) {
+                    if (watch.status().state().isActive()) {
                         logger.debug("adding watch [{}] to trigger service", watch.id());
                         triggerService.add(watch);
                     } else {
@@ -196,8 +207,8 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
     public void clusterChanged(ClusterChangedEvent event) {
         // if there is no master node configured in the current state, this node should not try to trigger anything, but consider itself
         // inactive. the same applies, if there is a cluster block that does not allow writes
-        if (Strings.isNullOrEmpty(event.state().nodes().getMasterNodeId()) ||
-                event.state().getBlocks().hasGlobalBlockWithLevel(ClusterBlockLevel.WRITE)) {
+        if (Strings.isNullOrEmpty(event.state().nodes().getMasterNodeId())
+            || event.state().getBlocks().hasGlobalBlockWithLevel(ClusterBlockLevel.WRITE)) {
             configuration = INACTIVE;
             return;
         }
@@ -240,8 +251,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
      * @param localShardRouting List of local shards of that index
      * @param event             The cluster changed event containing the new cluster state
      */
-    private void reloadConfiguration(String watchIndex, List<ShardRouting> localShardRouting,
-                                     ClusterChangedEvent event) {
+    private void reloadConfiguration(String watchIndex, List<ShardRouting> localShardRouting, ClusterChangedEvent event) {
         // changed alias means to always read a new configuration
         boolean isAliasChanged = watchIndex.equals(configuration.index) == false;
         if (isAliasChanged || hasShardAllocationIdChanged(watchIndex, event.state())) {
@@ -269,10 +279,12 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
 
         // check for different shard ids
         String localNodeId = state.nodes().getLocalNodeId();
-        Set<ShardId> clusterStateLocalShardIds = state.getRoutingNodes().node(localNodeId)
-                .shardsWithState(watchIndex, STARTED, RELOCATING).stream()
-                .map(ShardRouting::shardId)
-                .collect(Collectors.toSet());
+        Set<ShardId> clusterStateLocalShardIds = state.getRoutingNodes()
+            .node(localNodeId)
+            .shardsWithState(watchIndex, STARTED, RELOCATING)
+            .stream()
+            .map(ShardRouting::shardId)
+            .collect(Collectors.toSet());
         Set<ShardId> configuredLocalShardIds = new HashSet<>(configuration.localShards.keySet());
         Set<ShardId> differenceSet = Sets.difference(clusterStateLocalShardIds, configuredLocalShardIds);
         if (differenceSet.isEmpty() == false) {
@@ -280,9 +292,12 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
         }
 
         Map<ShardId, List<String>> shards = allStartedRelocatedShards.stream()
-                .collect(Collectors.groupingBy(ShardRouting::shardId,
-                        Collectors.mapping(sr -> sr.allocationId().getId(),
-                        Collectors.toCollection(ArrayList::new))));
+            .collect(
+                Collectors.groupingBy(
+                    ShardRouting::shardId,
+                    Collectors.mapping(sr -> sr.allocationId().getId(), Collectors.toCollection(ArrayList::new))
+                )
+            );
 
         // sort the collection, so we have a stable order
         shards.values().forEach(Collections::sort);
@@ -322,11 +337,12 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
             ShardId shardId = shardRouting.shardId();
 
             // find all allocation ids for this shard id in the cluster state
-            List<String> allocationIds = routingTable.shard(shardId.getId()).getActiveShards()
-                    .stream()
-                    .map(ShardRouting::allocationId)
-                    .map(AllocationId::getId)
-                    .collect(Collectors.toList());
+            List<String> allocationIds = routingTable.shard(shardId.getId())
+                .getActiveShards()
+                .stream()
+                .map(ShardRouting::allocationId)
+                .map(AllocationId::getId)
+                .collect(Collectors.toList());
 
             // sort the list so it is stable
             Collections.sort(allocationIds);

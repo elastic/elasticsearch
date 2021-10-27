@@ -12,12 +12,12 @@ import org.elasticsearch.client.ml.NodeAttributes;
 import org.elasticsearch.client.ml.dataframe.stats.AnalysisStats;
 import org.elasticsearch.client.ml.dataframe.stats.common.DataCounts;
 import org.elasticsearch.client.ml.dataframe.stats.common.MemoryUsage;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.inject.internal.ToStringBuilder;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -43,18 +43,21 @@ public class DataFrameAnalyticsStats {
     static final ParseField ASSIGNMENT_EXPLANATION = new ParseField("assignment_explanation");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<DataFrameAnalyticsStats, Void> PARSER =
-        new ConstructingObjectParser<>("data_frame_analytics_stats", true,
-            args -> new DataFrameAnalyticsStats(
-                (String) args[0],
-                (DataFrameAnalyticsState) args[1],
-                (String) args[2],
-                (List<PhaseProgress>) args[3],
-                (DataCounts) args[4],
-                (MemoryUsage) args[5],
-                (AnalysisStats) args[6],
-                (NodeAttributes) args[7],
-                (String) args[8]));
+    private static final ConstructingObjectParser<DataFrameAnalyticsStats, Void> PARSER = new ConstructingObjectParser<>(
+        "data_frame_analytics_stats",
+        true,
+        args -> new DataFrameAnalyticsStats(
+            (String) args[0],
+            (DataFrameAnalyticsState) args[1],
+            (String) args[2],
+            (List<PhaseProgress>) args[3],
+            (DataCounts) args[4],
+            (MemoryUsage) args[5],
+            (AnalysisStats) args[6],
+            (NodeAttributes) args[7],
+            (String) args[8]
+        )
+    );
 
     static {
         PARSER.declareString(constructorArg(), ID);
@@ -86,10 +89,17 @@ public class DataFrameAnalyticsStats {
     private final NodeAttributes node;
     private final String assignmentExplanation;
 
-    public DataFrameAnalyticsStats(String id, DataFrameAnalyticsState state, @Nullable String failureReason,
-                                   @Nullable List<PhaseProgress> progress, @Nullable DataCounts dataCounts,
-                                   @Nullable MemoryUsage memoryUsage, @Nullable AnalysisStats analysisStats, @Nullable NodeAttributes node,
-                                   @Nullable String assignmentExplanation) {
+    public DataFrameAnalyticsStats(
+        String id,
+        DataFrameAnalyticsState state,
+        @Nullable String failureReason,
+        @Nullable List<PhaseProgress> progress,
+        @Nullable DataCounts dataCounts,
+        @Nullable MemoryUsage memoryUsage,
+        @Nullable AnalysisStats analysisStats,
+        @Nullable NodeAttributes node,
+        @Nullable String assignmentExplanation
+    ) {
         this.id = id;
         this.state = state;
         this.failureReason = failureReason;
@@ -164,8 +174,7 @@ public class DataFrameAnalyticsStats {
 
     @Override
     public String toString() {
-        return new ToStringBuilder(getClass())
-            .add("id", id)
+        return new ToStringBuilder(getClass()).add("id", id)
             .add("state", state)
             .add("failureReason", failureReason)
             .add("progress", progress)

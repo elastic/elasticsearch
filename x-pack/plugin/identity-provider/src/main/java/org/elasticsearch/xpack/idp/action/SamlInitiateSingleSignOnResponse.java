@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.idp.action;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
@@ -30,8 +30,13 @@ public class SamlInitiateSingleSignOnResponse extends ActionResponse {
         this.error = in.readOptionalString();
     }
 
-    public SamlInitiateSingleSignOnResponse(String entityId, String postUrl, String samlResponse, String samlStatus,
-                                            @Nullable String error) {
+    public SamlInitiateSingleSignOnResponse(
+        String entityId,
+        String postUrl,
+        String samlResponse,
+        String samlStatus,
+        @Nullable String error
+    ) {
         this.entityId = entityId;
         this.postUrl = postUrl;
         this.samlResponse = samlResponse;

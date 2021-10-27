@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml.inference.preprocessing;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -18,7 +18,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-
 
 /**
  * PreProcessor for frequency encoding a set of categorical values for a given field.
@@ -35,13 +34,16 @@ public class FrequencyEncoding implements PreProcessor {
     public static final ConstructingObjectParser<FrequencyEncoding, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         true,
-        a -> new FrequencyEncoding((String)a[0], (String)a[1], (Map<String, Double>)a[2], (Boolean)a[3]));
+        a -> new FrequencyEncoding((String) a[0], (String) a[1], (Map<String, Double>) a[2], (Boolean) a[3])
+    );
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FEATURE_NAME);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(),
+        PARSER.declareObject(
+            ConstructingObjectParser.constructorArg(),
             (p, c) -> p.map(HashMap::new, XContentParser::doubleValue),
-            FREQUENCY_MAP);
+            FREQUENCY_MAP
+        );
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), CUSTOM);
     }
 

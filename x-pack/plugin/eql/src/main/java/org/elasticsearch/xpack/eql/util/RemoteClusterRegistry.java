@@ -28,7 +28,7 @@ public class RemoteClusterRegistry {
 
     public Set<String> versionIncompatibleClusters(String indexPattern) {
         Set<String> incompatibleClusters = new TreeSet<>();
-        for (String clusterAlias: clusterAliases(Strings.splitStringByCommaToArray(indexPattern), true)) {
+        for (String clusterAlias : clusterAliases(Strings.splitStringByCommaToArray(indexPattern), true)) {
             Version clusterVersion = remoteClusterService.getConnection(clusterAlias).getVersion();
             if (clusterVersion.equals(Version.CURRENT) == false) { // TODO: should newer clusters be eventually allowed?
                 incompatibleClusters.add(clusterAlias);

@@ -24,14 +24,22 @@ public final class CompilerSettings {
      * disabled. If {@code use-limit}, the default, regexes are enabled but limited in complexity according to the
      * {@code script.painless.regex.limit-factor} setting.
      */
-    public static final Setting<RegexEnabled> REGEX_ENABLED =
-        new Setting<>("script.painless.regex.enabled", RegexEnabled.LIMITED.value, RegexEnabled::parse, Property.NodeScope);
+    public static final Setting<RegexEnabled> REGEX_ENABLED = new Setting<>(
+        "script.painless.regex.enabled",
+        RegexEnabled.LIMITED.value,
+        RegexEnabled::parse,
+        Property.NodeScope
+    );
 
     /**
      * How complex can a regex be?  This is the number of characters that can be considered expressed as a multiple of string length.
      */
-    public static final Setting<Integer> REGEX_LIMIT_FACTOR =
-        Setting.intSetting("script.painless.regex.limit-factor", 6, 1, Property.NodeScope);
+    public static final Setting<Integer> REGEX_LIMIT_FACTOR = Setting.intSetting(
+        "script.painless.regex.limit-factor",
+        6,
+        1,
+        Property.NodeScope
+    );
 
     /**
      * Constant to be used when specifying the maximum loop counter when compiling a script.
@@ -75,7 +83,6 @@ public final class CompilerSettings {
      */
     private RegexEnabled regexesEnabled = RegexEnabled.LIMITED;
 
-
     /**
      * How complex can regexes be?  Expressed as a multiple of the input string.
      */
@@ -104,7 +111,7 @@ public final class CompilerSettings {
      * parsing problems.
      */
     public boolean isPicky() {
-      return picky;
+        return picky;
     }
 
     /**
@@ -112,7 +119,7 @@ public final class CompilerSettings {
      * @see #isPicky
      */
     public void setPicky(boolean picky) {
-      this.picky = picky;
+        this.picky = picky;
     }
 
     /**
@@ -188,6 +195,7 @@ public final class CompilerSettings {
         TRUE("true"),
         FALSE("false"),
         LIMITED("limited");
+
         final String value;
 
         RegexEnabled(String value) {

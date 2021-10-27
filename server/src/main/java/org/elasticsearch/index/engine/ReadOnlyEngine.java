@@ -93,9 +93,15 @@ public class ReadOnlyEngine extends Engine {
      * @param requireCompleteHistory indicates whether this engine permits an incomplete history (i.e. LCP &lt; MSN)
      * @param lazilyLoadSoftDeletes indicates whether this engine should load the soft-delete based liveDocs eagerly, or on first access
      */
-    public ReadOnlyEngine(EngineConfig config, SeqNoStats seqNoStats, TranslogStats translogStats, boolean obtainLock,
-                          Function<DirectoryReader, DirectoryReader> readerWrapperFunction, boolean requireCompleteHistory,
-                          boolean lazilyLoadSoftDeletes) {
+    public ReadOnlyEngine(
+        EngineConfig config,
+        SeqNoStats seqNoStats,
+        TranslogStats translogStats,
+        boolean obtainLock,
+        Function<DirectoryReader, DirectoryReader> readerWrapperFunction,
+        boolean requireCompleteHistory,
+        boolean lazilyLoadSoftDeletes
+    ) {
         super(config);
         this.requireCompleteHistory = requireCompleteHistory;
         try {
@@ -169,12 +175,16 @@ public class ReadOnlyEngine extends Engine {
         // created after the refactoring of the Close Index API and its TransportVerifyShardBeforeCloseAction
         // that guarantee that all operations have been flushed to Lucene.
         final Version indexVersionCreated = engineConfig.getIndexSettings().getIndexVersionCreated();
-        if (indexVersionCreated.onOrAfter(Version.V_7_2_0) ||
-            (seqNoStats.getGlobalCheckpoint() != SequenceNumbers.UNASSIGNED_SEQ_NO)) {
+        if (indexVersionCreated.onOrAfter(Version.V_7_2_0) || (seqNoStats.getGlobalCheckpoint() != SequenceNumbers.UNASSIGNED_SEQ_NO)) {
             assert assertMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats.getMaxSeqNo(), seqNoStats.getGlobalCheckpoint());
             if (seqNoStats.getMaxSeqNo() != seqNoStats.getGlobalCheckpoint()) {
-                throw new IllegalStateException("Maximum sequence number [" + seqNoStats.getMaxSeqNo()
-                    + "] from last commit does not match global checkpoint [" + seqNoStats.getGlobalCheckpoint() + "]");
+                throw new IllegalStateException(
+                    "Maximum sequence number ["
+                        + seqNoStats.getMaxSeqNo()
+                        + "] from last commit does not match global checkpoint ["
+                        + seqNoStats.getGlobalCheckpoint()
+                        + "]"
+                );
             }
         }
     }
@@ -194,9 +204,11 @@ public class ReadOnlyEngine extends Engine {
         // reopened as an internal engine, which would be the path to fix the issue.
     }
 
-    protected final ElasticsearchDirectoryReader wrapReader(DirectoryReader reader,
-                                                            Function<DirectoryReader, DirectoryReader> readerWrapperFunction,
-                                                            @Nullable ESCacheHelper esCacheHelper) throws IOException {
+    protected final ElasticsearchDirectoryReader wrapReader(
+        DirectoryReader reader,
+        Function<DirectoryReader, DirectoryReader> readerWrapperFunction,
+        @Nullable ESCacheHelper esCacheHelper
+    ) throws IOException {
         reader = readerWrapperFunction.apply(reader);
         return ElasticsearchDirectoryReader.wrap(reader, engineConfig.getShardId(), esCacheHelper);
     }
@@ -226,8 +238,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     private static SeqNoStats buildSeqNoStats(EngineConfig config, SegmentInfos infos) {
-        final SequenceNumbers.CommitInfo seqNoStats =
-            SequenceNumbers.loadSeqNoInfoFromLuceneCommit(infos.userData.entrySet());
+        final SequenceNumbers.CommitInfo seqNoStats = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(infos.userData.entrySet());
         long maxSeqNo = seqNoStats.maxSeqNo;
         long localCheckpoint = seqNoStats.localCheckpoint;
         return new SeqNoStats(maxSeqNo, localCheckpoint, config.getGlobalCheckpointSupplier().getAsLong());
@@ -242,16 +253,27 @@ public class ReadOnlyEngine extends Engine {
         final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
         final long localCheckpoint = Long.parseLong(infos.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
         translogDeletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpoint);
-        try (Translog translog = new Translog(translogConfig, translogUuid, translogDeletionPolicy, config.getGlobalCheckpointSupplier(),
-                config.getPrimaryTermSupplier(), seqNo -> {})
+        try (
+            Translog translog = new Translog(
+                translogConfig,
+                translogUuid,
+                translogDeletionPolicy,
+                config.getGlobalCheckpointSupplier(),
+                config.getPrimaryTermSupplier(),
+                seqNo -> {}
+            )
         ) {
             return translog.stats();
         }
     }
 
     @Override
-    public GetResult get(Get get, MappingLookup mappingLookup, DocumentParser documentParser,
-                         Function<Searcher, Searcher> searcherWrapper) {
+    public GetResult get(
+        Get get,
+        MappingLookup mappingLookup,
+        DocumentParser documentParser,
+        Function<Searcher, Searcher> searcherWrapper
+    ) {
         return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper), false);
     }
 
@@ -314,8 +336,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void syncTranslog() {
-    }
+    public void syncTranslog() {}
 
     @Override
     public Closeable acquireHistoryRetentionLock() {
@@ -330,9 +351,14 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo, long toSeqNo,
-                                                boolean requiredFullRange, boolean singleConsumer,
-                                                boolean accessStats) {
+    public Translog.Snapshot newChangesSnapshot(
+        String source,
+        long fromSeqNo,
+        long toSeqNo,
+        boolean requiredFullRange,
+        boolean singleConsumer,
+        boolean accessStats
+    ) {
         return newEmptySnapshot();
     }
 
@@ -354,7 +380,7 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public Translog.Location getTranslogLastWriteLocation() {
-        return new Translog.Location(0,0,0);
+        return new Translog.Location(0, 0, 0);
     }
 
     @Override
@@ -404,8 +430,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void writeIndexingBuffer() throws EngineException {
-    }
+    public void writeIndexingBuffer() throws EngineException {}
 
     @Override
     public boolean shouldPeriodicallyFlush() {
@@ -422,12 +447,21 @@ public class ReadOnlyEngine extends Engine {
         if (maxNumSegments == ForceMergeRequest.Defaults.MAX_NUM_SEGMENTS) {
             // noop
         } else if (maxNumSegments < lastCommittedSegmentInfos.size()) {
-            throw new UnsupportedOperationException("force merge is not supported on a read-only engine, " +
-                "target max number of segments[" + maxNumSegments + "], " +
-                "current number of segments[" + lastCommittedSegmentInfos.size() + "].");
+            throw new UnsupportedOperationException(
+                "force merge is not supported on a read-only engine, "
+                    + "target max number of segments["
+                    + maxNumSegments
+                    + "], "
+                    + "current number of segments["
+                    + lastCommittedSegmentInfos.size()
+                    + "]."
+            );
         } else {
-            logger.debug("current number of segments[{}] is not greater than target max number of segments[{}].",
-                lastCommittedSegmentInfos.size(), maxNumSegments);
+            logger.debug(
+                "current number of segments[{}] is not greater than target max number of segments[{}].",
+                lastCommittedSegmentInfos.size(),
+                maxNumSegments
+            );
         }
     }
 
@@ -448,16 +482,13 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void activateThrottling() {
-    }
+    public void activateThrottling() {}
 
     @Override
-    public void deactivateThrottling() {
-    }
+    public void deactivateThrottling() {}
 
     @Override
-    public void trimUnreferencedTranslogFiles() {
-    }
+    public void trimUnreferencedTranslogFiles() {}
 
     @Override
     public boolean shouldRollTranslogGeneration() {
@@ -465,8 +496,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void rollTranslogGeneration() {
-    }
+    public void rollTranslogGeneration() {}
 
     @Override
     public int restoreLocalHistoryFromTranslog(TranslogRecoveryRunner translogRecoveryRunner) {
@@ -492,16 +522,13 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void skipTranslogRecovery() {
-    }
+    public void skipTranslogRecovery() {}
 
     @Override
-    public void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) {
-    }
+    public void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) {}
 
     @Override
-    public void maybePruneDeletes() {
-    }
+    public void maybePruneDeletes() {}
 
     @Override
     public void updateMaxUnsafeAutoIdTimestamp(long newTimestamp) {
@@ -516,8 +543,7 @@ public class ReadOnlyEngine extends Engine {
     private Translog.Snapshot newEmptySnapshot() {
         return new Translog.Snapshot() {
             @Override
-            public void close() {
-            }
+            public void close() {}
 
             @Override
             public int totalOperations() {
@@ -538,8 +564,8 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary) {
-        assert maxSeqNoOfUpdatesOnPrimary <= getMaxSeqNoOfUpdatesOrDeletes() :
-            maxSeqNoOfUpdatesOnPrimary + ">" + getMaxSeqNoOfUpdatesOrDeletes();
+        assert maxSeqNoOfUpdatesOnPrimary <= getMaxSeqNoOfUpdatesOrDeletes()
+            : maxSeqNoOfUpdatesOnPrimary + ">" + getMaxSeqNoOfUpdatesOrDeletes();
     }
 
     protected DirectoryReader openDirectory(Directory directory) throws IOException {
@@ -571,14 +597,13 @@ public class ReadOnlyEngine extends Engine {
 
             if (minPackedValue == null || maxPackedValue == null) {
                 assert minPackedValue == null && maxPackedValue == null
-                        : Arrays.toString(minPackedValue) + "-" + Arrays.toString(maxPackedValue);
+                    : Arrays.toString(minPackedValue) + "-" + Arrays.toString(maxPackedValue);
                 return ShardLongFieldRange.EMPTY;
             }
 
             return ShardLongFieldRange.of(LongPoint.decodeDimension(minPackedValue, 0), LongPoint.decodeDimension(maxPackedValue, 0));
         }
     }
-
 
     @Override
     public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {

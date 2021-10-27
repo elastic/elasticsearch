@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 public final class TransportTLSBootstrapCheck implements BootstrapCheck {
     @Override
     public BootstrapCheckResult check(BootstrapContext context) {
-        assert XPackSettings.SECURITY_ENABLED.get(context.settings()) 
+        assert XPackSettings.SECURITY_ENABLED.get(context.settings())
             : "Bootstrap check should not be installed unless security is enabled";
         if (XPackSettings.TRANSPORT_SSL_ENABLED.get(context.settings()) == false) {
             return BootstrapCheckResult.failure(

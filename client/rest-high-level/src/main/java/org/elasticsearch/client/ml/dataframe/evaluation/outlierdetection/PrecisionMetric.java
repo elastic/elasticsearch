@@ -28,8 +28,10 @@ public class PrecisionMetric extends AbstractConfusionMatrixMetric {
     public static final String NAME = "precision";
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<PrecisionMetric, Void> PARSER =
-        new ConstructingObjectParser<>(NAME, args -> new PrecisionMetric((List<Double>) args[0]));
+    private static final ConstructingObjectParser<PrecisionMetric, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        args -> new PrecisionMetric((List<Double>) args[0])
+    );
 
     static {
         PARSER.declareDoubleArray(constructorArg(), AT);

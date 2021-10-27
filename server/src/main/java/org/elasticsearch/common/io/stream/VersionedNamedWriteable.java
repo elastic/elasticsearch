@@ -50,7 +50,7 @@ public interface VersionedNamedWriteable extends NamedWriteable {
      * @param <T>     type of customs in map
      */
     static <T extends VersionedNamedWriteable> void writeVersionedWritables(StreamOutput out, ImmutableOpenMap<String, T> customs)
-            throws IOException {
+        throws IOException {
         // filter out custom states not supported by the other node
         int numberOfCustoms = 0;
         for (final T value : customs.values()) {

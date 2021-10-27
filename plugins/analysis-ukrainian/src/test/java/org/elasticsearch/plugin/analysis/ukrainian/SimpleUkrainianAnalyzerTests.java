@@ -13,7 +13,6 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.plugin.analysis.ukrainian.AnalysisUkrainianPlugin;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

@@ -119,7 +119,6 @@ public class IndexOfFunctionProcessor implements Processor {
         return Objects.hash(input(), substring(), start(), isCaseInsensitive());
     }
 
-
     @Override
     public String getWriteableName() {
         return NAME;

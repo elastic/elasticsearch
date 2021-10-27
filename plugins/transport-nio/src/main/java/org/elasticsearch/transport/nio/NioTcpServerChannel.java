@@ -35,8 +35,6 @@ public class NioTcpServerChannel extends NioServerSocketChannel implements TcpSe
 
     @Override
     public String toString() {
-        return "TcpNioServerSocketChannel{" +
-            "localAddress=" + getLocalAddress() +
-            '}';
+        return "TcpNioServerSocketChannel{" + "localAddress=" + getLocalAddress() + '}';
     }
 }

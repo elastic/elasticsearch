@@ -27,16 +27,33 @@ public class DeletePipelineTransportAction extends AcknowledgedTransportMasterNo
     private final IngestService ingestService;
 
     @Inject
-    public DeletePipelineTransportAction(ThreadPool threadPool, IngestService ingestService, TransportService transportService,
-                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(DeletePipelineAction.NAME, transportService, ingestService.getClusterService(),
-            threadPool, actionFilters, DeletePipelineRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
+    public DeletePipelineTransportAction(
+        ThreadPool threadPool,
+        IngestService ingestService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            DeletePipelineAction.NAME,
+            transportService,
+            ingestService.getClusterService(),
+            threadPool,
+            actionFilters,
+            DeletePipelineRequest::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
         this.ingestService = ingestService;
     }
 
     @Override
-    protected void masterOperation(Task task, DeletePipelineRequest request, ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) throws Exception {
+    protected void masterOperation(
+        Task task,
+        DeletePipelineRequest request,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) throws Exception {
         ingestService.delete(request, listener);
     }
 

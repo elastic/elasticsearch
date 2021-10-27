@@ -9,8 +9,8 @@ package org.elasticsearch.client.rollup.job.config;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -44,7 +44,8 @@ public class HistogramGroupConfig implements Validatable, ToXContentObject {
     private static final ConstructingObjectParser<HistogramGroupConfig, Void> PARSER;
     static {
         PARSER = new ConstructingObjectParser<>(NAME, true, args -> {
-            @SuppressWarnings("unchecked") List<String> fields = (List<String>) args[1];
+            @SuppressWarnings("unchecked")
+            List<String> fields = (List<String>) args[1];
             return new HistogramGroupConfig((long) args[0], fields != null ? fields.toArray(new String[fields.size()]) : null);
         });
         PARSER.declareLong(constructorArg(), new ParseField(INTERVAL));

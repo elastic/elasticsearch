@@ -25,8 +25,8 @@ import org.elasticsearch.client.watcher.StopWatchServiceRequest;
 import org.elasticsearch.client.watcher.WatcherStatsRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -133,8 +133,7 @@ public class WatcherRequestConvertersTests extends ESTestCase {
 
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
 
-        StringJoiner expectedEndpoint = new StringJoiner("/", "/", "")
-            .add("_watcher").add("watch").add(watchId).add("_ack");
+        StringJoiner expectedEndpoint = new StringJoiner("/", "/", "").add("_watcher").add("watch").add(watchId).add("_ack");
         if (ackWatchRequest.getActionIds().length > 0) {
             String actionsParam = String.join(",", ackWatchRequest.getActionIds());
             expectedEndpoint.add(actionsParam);
@@ -166,7 +165,7 @@ public class WatcherRequestConvertersTests extends ESTestCase {
         if (includeCurrent || includeQueued) {
             assertThat(request.getParameters(), hasKey("metric"));
             Set<String> metric = Strings.tokenizeByCommaToSet(request.getParameters().get("metric"));
-            assertThat(metric, hasSize((includeCurrent?1:0) + (includeQueued?1:0)));
+            assertThat(metric, hasSize((includeCurrent ? 1 : 0) + (includeQueued ? 1 : 0)));
             Set<String> expectedMetric = new HashSet<>();
             if (includeCurrent) {
                 expectedMetric.add("current_watches");
@@ -231,31 +230,28 @@ public class WatcherRequestConvertersTests extends ESTestCase {
         String body = toString(req.getEntity());
         if (setActionMode) {
             assertThat(body, containsString("\"action_modes\":{\"action1\":\"SIMULATE\"}"));
-        }
-        else {
+        } else {
             assertThat(body, not(containsString("action_modes")));
         }
         if (useTriggerData) {
             assertThat(body, containsString("\"trigger_data\":" + triggerData));
-        }
-        else {
+        } else {
             assertThat(body, not(containsString("trigger_data")));
         }
         if (useAlternativeInput) {
             assertThat(body, containsString("\"alternative_input\":" + alternativeInput));
-        }
-        else {
+        } else {
             assertThat(body, not(containsString("alternative_input")));
         }
         assertThat(body, not(containsString("\"watch\":")));
 
     }
 
-    private static final String WATCH_JSON = "{ \n" +
-        "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n" +
-        "  \"input\": { \"none\": {} },\n" +
-        "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n" +
-        "}";
+    private static final String WATCH_JSON = "{ \n"
+        + "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n"
+        + "  \"input\": { \"none\": {} },\n"
+        + "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n"
+        + "}";
 
     public void testExecuteInlineWatchRequest() throws IOException {
         boolean ignoreCondition = randomBoolean();
@@ -263,9 +259,7 @@ public class WatcherRequestConvertersTests extends ESTestCase {
         ExecuteWatchRequest request = ExecuteWatchRequest.inline(WATCH_JSON);
         request.setIgnoreCondition(ignoreCondition);
 
-        expectThrows(IllegalArgumentException.class, () -> {
-            request.setRecordExecution(true);
-        });
+        expectThrows(IllegalArgumentException.class, () -> { request.setRecordExecution(true); });
 
         boolean setActionMode = randomBoolean();
         if (setActionMode) {
@@ -296,20 +290,17 @@ public class WatcherRequestConvertersTests extends ESTestCase {
         String body = toString(req.getEntity());
         if (setActionMode) {
             assertThat(body, containsString("\"action_modes\":{\"action1\":\"SIMULATE\"}"));
-        }
-        else {
+        } else {
             assertThat(body, not(containsString("action_modes")));
         }
         if (useTriggerData) {
             assertThat(body, containsString("\"trigger_data\":" + triggerData));
-        }
-        else {
+        } else {
             assertThat(body, not(containsString("trigger_data")));
         }
         if (useAlternativeInput) {
             assertThat(body, containsString("\"alternative_input\":" + alternativeInput));
-        }
-        else {
+        } else {
             assertThat(body, not(containsString("alternative_input")));
         }
         assertThat(body, containsString("\"watch\":" + WATCH_JSON));

@@ -20,9 +20,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 
-@Listeners({
-        ReproduceInfoPrinter.class
-})
+@Listeners({ ReproduceInfoPrinter.class })
 @TimeoutSuite(millis = TimeUnits.HOUR)
 @LuceneTestCase.SuppressReproduceLine
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")

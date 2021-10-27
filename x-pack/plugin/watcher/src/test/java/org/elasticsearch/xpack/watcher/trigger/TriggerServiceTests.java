@@ -144,7 +144,7 @@ public class TriggerServiceTests extends ESTestCase {
         return watch;
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     private void setInput(Watch watch) {
         ExecutableInput noneInput = new ExecutableNoneInput();
         when(watch.input()).thenReturn(noneInput);
@@ -161,7 +161,7 @@ public class TriggerServiceTests extends ESTestCase {
         when(watch.condition()).thenReturn(condition);
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     private void addAction(Watch watch, String type, String condition, String transform) {
         List<ActionWrapper> actions = watch.actions();
         ArrayList<ActionWrapper> newActions = new ArrayList<>(actions);

@@ -83,8 +83,14 @@ public class DocumentMapper {
         this.mapping().validate(this.mappingLookup);
         if (settings.getIndexMetadata().isRoutingPartitionedIndex()) {
             if (routingFieldMapper().required() == false) {
-                throw new IllegalArgumentException("mapping type [" + type() + "] must have routing "
-                    + "required for partitioned index [" + settings.getIndex().getName() + "]");
+                throw new IllegalArgumentException(
+                    "mapping type ["
+                        + type()
+                        + "] must have routing "
+                        + "required for partitioned index ["
+                        + settings.getIndex().getName()
+                        + "]"
+                );
             }
         }
         if (settings.getIndexSortConfig().hasIndexSort() && mappers().hasNested()) {

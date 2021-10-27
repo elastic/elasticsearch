@@ -35,8 +35,7 @@ public final class BulkShardOperationsResponse extends ReplicationResponse imple
         this.maxSeqNo = maxSeqNo;
     }
 
-    public BulkShardOperationsResponse() {
-    }
+    public BulkShardOperationsResponse() {}
 
     public BulkShardOperationsResponse(StreamInput in) throws IOException {
         super(in);
@@ -45,8 +44,7 @@ public final class BulkShardOperationsResponse extends ReplicationResponse imple
     }
 
     @Override
-    public void setForcedRefresh(final boolean forcedRefresh) {
-    }
+    public void setForcedRefresh(final boolean forcedRefresh) {}
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {

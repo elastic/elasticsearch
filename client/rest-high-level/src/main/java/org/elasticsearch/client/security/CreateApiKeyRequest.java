@@ -38,9 +38,13 @@ public final class CreateApiKeyRequest implements Validatable, ToXContentObject 
      * @param expiration to specify expiration for the API key
      * @param metadata Arbitrary metadata for the API key
      */
-    public CreateApiKeyRequest(String name, List<Role> roles, @Nullable TimeValue expiration,
-                               @Nullable final RefreshPolicy refreshPolicy,
-                               @Nullable Map<String, Object> metadata) {
+    public CreateApiKeyRequest(
+        String name,
+        List<Role> roles,
+        @Nullable TimeValue expiration,
+        @Nullable final RefreshPolicy refreshPolicy,
+        @Nullable Map<String, Object> metadata
+    ) {
         this.name = name;
         this.roles = Objects.requireNonNull(roles, "roles may not be null");
         this.expiration = expiration;
@@ -48,8 +52,7 @@ public final class CreateApiKeyRequest implements Validatable, ToXContentObject 
         this.metadata = metadata;
     }
 
-    public CreateApiKeyRequest(String name, List<Role> roles, @Nullable TimeValue expiration,
-                               @Nullable final RefreshPolicy refreshPolicy) {
+    public CreateApiKeyRequest(String name, List<Role> roles, @Nullable TimeValue expiration, @Nullable final RefreshPolicy refreshPolicy) {
         this(name, roles, expiration, refreshPolicy, null);
     }
 
@@ -87,8 +90,11 @@ public final class CreateApiKeyRequest implements Validatable, ToXContentObject 
             return false;
         }
         final CreateApiKeyRequest that = (CreateApiKeyRequest) o;
-        return Objects.equals(name, that.name) && Objects.equals(refreshPolicy, that.refreshPolicy) && Objects.equals(roles, that.roles)
-                && Objects.equals(expiration, that.expiration) && Objects.equals(metadata, that.metadata);
+        return Objects.equals(name, that.name)
+            && Objects.equals(refreshPolicy, that.refreshPolicy)
+            && Objects.equals(roles, that.roles)
+            && Objects.equals(expiration, that.expiration)
+            && Objects.equals(metadata, that.metadata);
     }
 
     @Override

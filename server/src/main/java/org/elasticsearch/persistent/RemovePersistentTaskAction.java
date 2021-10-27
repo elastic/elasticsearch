@@ -83,8 +83,10 @@ public class RemovePersistentTaskAction extends ActionType<PersistentTaskRespons
         }
     }
 
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<RemovePersistentTaskAction.Request,
-            PersistentTaskResponse, RemovePersistentTaskAction.RequestBuilder> {
+    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<
+        RemovePersistentTaskAction.Request,
+        PersistentTaskResponse,
+        RemovePersistentTaskAction.RequestBuilder> {
 
         protected RequestBuilder(ElasticsearchClient client, RemovePersistentTaskAction action) {
             super(client, action, new Request());
@@ -102,12 +104,25 @@ public class RemovePersistentTaskAction extends ActionType<PersistentTaskRespons
         private final PersistentTasksClusterService persistentTasksClusterService;
 
         @Inject
-        public TransportAction(TransportService transportService, ClusterService clusterService,
-                               ThreadPool threadPool, ActionFilters actionFilters,
-                               PersistentTasksClusterService persistentTasksClusterService,
-                               IndexNameExpressionResolver indexNameExpressionResolver) {
-            super(RemovePersistentTaskAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                Request::new, indexNameExpressionResolver, PersistentTaskResponse::new, ThreadPool.Names.MANAGEMENT);
+        public TransportAction(
+            TransportService transportService,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            ActionFilters actionFilters,
+            PersistentTasksClusterService persistentTasksClusterService,
+            IndexNameExpressionResolver indexNameExpressionResolver
+        ) {
+            super(
+                RemovePersistentTaskAction.NAME,
+                transportService,
+                clusterService,
+                threadPool,
+                actionFilters,
+                Request::new,
+                indexNameExpressionResolver,
+                PersistentTaskResponse::new,
+                ThreadPool.Names.MANAGEMENT
+            );
             this.persistentTasksClusterService = persistentTasksClusterService;
         }
 
@@ -118,11 +133,13 @@ public class RemovePersistentTaskAction extends ActionType<PersistentTaskRespons
         }
 
         @Override
-        protected final void masterOperation(Task ignoredTask, final Request request, ClusterState state,
-                                             final ActionListener<PersistentTaskResponse> listener) {
+        protected final void masterOperation(
+            Task ignoredTask,
+            final Request request,
+            ClusterState state,
+            final ActionListener<PersistentTaskResponse> listener
+        ) {
             persistentTasksClusterService.removePersistentTask(request.taskId, listener.map(PersistentTaskResponse::new));
         }
     }
 }
-
-

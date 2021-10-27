@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class EnrollmentIT  extends ESRestHighLevelClientTestCase {
+public class EnrollmentIT extends ESRestHighLevelClientTestCase {
     private static Path httpTrustStore;
 
     @BeforeClass
@@ -71,11 +71,15 @@ public class EnrollmentIT  extends ESRestHighLevelClientTestCase {
     }
 
     public void testEnrollNode() throws Exception {
-        final NodeEnrollmentResponse nodeEnrollmentResponse =
-            execute(highLevelClient().security()::enrollNode, highLevelClient().security()::enrollNodeAsync, RequestOptions.DEFAULT);
+        final NodeEnrollmentResponse nodeEnrollmentResponse = execute(
+            highLevelClient().security()::enrollNode,
+            highLevelClient().security()::enrollNodeAsync,
+            RequestOptions.DEFAULT
+        );
         assertThat(nodeEnrollmentResponse, notNullValue());
         assertThat(nodeEnrollmentResponse.getHttpCaKey(), endsWith("K2S3vidA="));
         assertThat(nodeEnrollmentResponse.getHttpCaCert(), endsWith("LfkRjirc="));
+        assertThat(nodeEnrollmentResponse.getTransportCaCert(), endsWith("3J9+kpgIbE"));
         assertThat(nodeEnrollmentResponse.getTransportKey(), endsWith("1I+r8vOQ=="));
         assertThat(nodeEnrollmentResponse.getTransportCert(), endsWith("OpTdtgJo="));
         List<String> nodesAddresses = nodeEnrollmentResponse.getNodesAddresses();
@@ -83,11 +87,16 @@ public class EnrollmentIT  extends ESRestHighLevelClientTestCase {
     }
 
     public void testEnrollKibana() throws Exception {
-        KibanaEnrollmentResponse kibanaResponse =
-            execute(highLevelClient().security()::enrollKibana, highLevelClient().security()::enrollKibanaAsync, RequestOptions.DEFAULT);
+        KibanaEnrollmentResponse kibanaResponse = execute(
+            highLevelClient().security()::enrollKibana,
+            highLevelClient().security()::enrollKibanaAsync,
+            RequestOptions.DEFAULT
+        );
         assertThat(kibanaResponse, notNullValue());
-        assertThat(kibanaResponse.getHttpCa()
-            , endsWith("brcNC5xq6YE7C4/06nH7F6le4kE4Uo6c9fpkl4ehOxQxndNLn462tFF+8VBA8IftJ1PPWzqGxLsCTzM6p6w8sa+XhgNYglLfkRjirc="));
+        assertThat(
+            kibanaResponse.getHttpCa(),
+            endsWith("brcNC5xq6YE7C4/06nH7F6le4kE4Uo6c9fpkl4ehOxQxndNLn462tFF+8VBA8IftJ1PPWzqGxLsCTzM6p6w8sa+XhgNYglLfkRjirc=")
+        );
         assertNotNull(kibanaResponse.getTokenValue());
         assertNotNull(kibanaResponse.getTokenName(), startsWith("enroll-process-token-"));
     }

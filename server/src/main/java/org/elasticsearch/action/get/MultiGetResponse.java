@@ -11,19 +11,19 @@ package org.elasticsearch.action.get;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.rest.action.document.RestMultiGetAction;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
-import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.rest.action.document.RestMultiGetAction;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,7 +32,7 @@ import java.util.Iterator;
 import java.util.List;
 
 public class MultiGetResponse extends ActionResponse implements Iterable<MultiGetItemResponse>, ToXContentObject {
-    private static final DeprecationLogger deprecationLogger =  DeprecationLogger.getLogger(MultiGetResponse.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MultiGetResponse.class);
 
     private static final ParseField INDEX = new ParseField("_index");
     private static final ParseField TYPE = new ParseField("_type");
@@ -188,8 +188,8 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
                 case FIELD_NAME:
                     currentFieldName = parser.currentName();
                     if (INDEX.match(currentFieldName, parser.getDeprecationHandler()) == false
-                            && ID.match(currentFieldName, parser.getDeprecationHandler()) == false
-                            && ERROR.match(currentFieldName, parser.getDeprecationHandler()) == false) {
+                        && ID.match(currentFieldName, parser.getDeprecationHandler()) == false
+                        && ERROR.match(currentFieldName, parser.getDeprecationHandler()) == false) {
                         getResult = GetResult.fromXContentEmbedded(parser, index, id);
                     }
                     break;

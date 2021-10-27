@@ -15,12 +15,23 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.script.AggregationScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 import org.mockito.Mockito;
 
 import java.util.List;
 
 // TODO: This whole set of tests needs to be rethought.
 public class ValuesSourceConfigTests extends MapperServiceTestCase {
+
+    @Override
+    @SuppressWarnings("unchecked")
+    protected <T> T compileScript(Script script, ScriptContext<T> context) {
+        AggregationScript.Factory mockFactory = Mockito.mock(AggregationScript.Factory.class);
+        Mockito.when(mockFactory.newFactory(Mockito.any(), Mockito.any())).thenReturn(Mockito.mock(AggregationScript.LeafFactory.class));
+        return (T) mockFactory;
+    }
+
     /**
      * Attempting to resolve a config with neither a field nor a script specified throws an error
      */
@@ -46,8 +57,17 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
 
         // With value type hint
         withAggregationContext(mapperService, List.of(source(b -> b.field("field", 42))), context -> {
-           ValuesSourceConfig config;
-            config = ValuesSourceConfig.resolve(context, ValueType.IP, "UnmappedField", null, null, null, null, CoreValuesSourceType.KEYWORD);
+            ValuesSourceConfig config;
+            config = ValuesSourceConfig.resolve(
+                context,
+                ValueType.IP,
+                "UnmappedField",
+                null,
+                null,
+                null,
+                null,
+                CoreValuesSourceType.KEYWORD
+            );
             assertEquals(CoreValuesSourceType.IP, config.valueSourceType());
         });
     }
@@ -82,28 +102,53 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
      */
     public void testScriptWithHint() throws Exception {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "long")));
-        AggregationScript.Factory mockFactory = Mockito.mock(AggregationScript.Factory.class);
-        Mockito.when(mockFactory.newFactory(Mockito.any(), Mockito.any())).thenReturn(Mockito.mock(AggregationScript.LeafFactory.class));
         // With field
         withAggregationContext(mapperService, List.of(source(b -> b.field("field", 42))), context -> {
             ValuesSourceConfig config;
-            config = ValuesSourceConfig.resolve(context, ValueType.IP, "field", mockScript("mockscript"), null, null, null, CoreValuesSourceType.KEYWORD);
+            config = ValuesSourceConfig.resolve(
+                context,
+                ValueType.IP,
+                "field",
+                mockScript("mockscript"),
+                null,
+                null,
+                null,
+                CoreValuesSourceType.KEYWORD
+            );
             assertEquals(CoreValuesSourceType.IP, config.valueSourceType());
-        }, (s, c) -> mockFactory, () -> null);
+        }, () -> null);
 
         // With unmapped field
         withAggregationContext(mapperService, List.of(source(b -> b.field("field", 42))), context -> {
             ValuesSourceConfig config;
-            config = ValuesSourceConfig.resolve(context, ValueType.IP, "unmappedField", mockScript("mockscript"), null, null, null, CoreValuesSourceType.KEYWORD);
+            config = ValuesSourceConfig.resolve(
+                context,
+                ValueType.IP,
+                "unmappedField",
+                mockScript("mockscript"),
+                null,
+                null,
+                null,
+                CoreValuesSourceType.KEYWORD
+            );
             assertEquals(CoreValuesSourceType.IP, config.valueSourceType());
-        }, (s, c) -> mockFactory, () -> null);
+        }, () -> null);
 
         // Without field
         withAggregationContext(mapperService, List.of(source(b -> b.field("field", 42))), context -> {
             ValuesSourceConfig config;
-            config = ValuesSourceConfig.resolve(context, ValueType.IP, null, mockScript("mockscript"), null, null, null, CoreValuesSourceType.KEYWORD);
+            config = ValuesSourceConfig.resolve(
+                context,
+                ValueType.IP,
+                null,
+                mockScript("mockscript"),
+                null,
+                null,
+                null,
+                CoreValuesSourceType.KEYWORD
+            );
             assertEquals(CoreValuesSourceType.IP, config.valueSourceType());
-        }, (s, c) -> mockFactory, () -> null);
+        }, () -> null);
     }
 
     public void testKeyword() throws Exception {

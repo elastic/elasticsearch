@@ -35,12 +35,10 @@ class RestCompatibleVersionHelper {
         Byte aVersion = parseVersion(acceptHeader);
         byte acceptVersion = aVersion == null ? RestApiVersion.current().major : Integer.valueOf(aVersion).byteValue();
         Byte cVersion = parseVersion(contentTypeHeader);
-        byte contentTypeVersion = cVersion == null ?
-            RestApiVersion.current().major : Integer.valueOf(cVersion).byteValue();
+        byte contentTypeVersion = cVersion == null ? RestApiVersion.current().major : Integer.valueOf(cVersion).byteValue();
 
         // accept version must be current or prior
-        if (acceptVersion > RestApiVersion.current().major ||
-            acceptVersion < RestApiVersion.minimumSupported().major) {
+        if (acceptVersion > RestApiVersion.current().major || acceptVersion < RestApiVersion.minimumSupported().major) {
             throw new ElasticsearchStatusException(
                 "Accept version must be either version {} or {}, but found {}. Accept={}",
                 RestStatus.BAD_REQUEST,
@@ -53,8 +51,7 @@ class RestCompatibleVersionHelper {
         if (hasContent) {
 
             // content-type version must be current or prior
-            if (contentTypeVersion > RestApiVersion.current().major
-                || contentTypeVersion < RestApiVersion.minimumSupported().major) {
+            if (contentTypeVersion > RestApiVersion.current().major || contentTypeVersion < RestApiVersion.minimumSupported().major) {
                 throw new ElasticsearchStatusException(
                     "Content-Type version must be either version {} or {}, but found {}. Content-Type={}",
                     RestStatus.BAD_REQUEST,

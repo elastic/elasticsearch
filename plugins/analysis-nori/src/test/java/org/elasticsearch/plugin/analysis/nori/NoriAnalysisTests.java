@@ -63,12 +63,12 @@ public class NoriAnalysisTests extends ESTokenStreamTestCase {
             .build();
         TestAnalysis analysis = createTestAnalysis(settings);
         Analyzer analyzer = analysis.indexAnalyzers.get("my_analyzer");
-        try (TokenStream stream = analyzer.tokenStream("", "여섯 용이" )) {
-            assertTokenStreamContents(stream, new String[] {"용", "이"});
+        try (TokenStream stream = analyzer.tokenStream("", "여섯 용이")) {
+            assertTokenStreamContents(stream, new String[] { "용", "이" });
         }
 
         try (TokenStream stream = analyzer.tokenStream("", "가늠표")) {
-            assertTokenStreamContents(stream, new String[] {"가늠표", "가늠", "표"});
+            assertTokenStreamContents(stream, new String[] { "가늠표", "가늠", "표" });
         }
     }
 
@@ -80,11 +80,11 @@ public class NoriAnalysisTests extends ESTokenStreamTestCase {
         TestAnalysis analysis = createTestAnalysis(settings);
         Analyzer analyzer = analysis.indexAnalyzers.get("my_analyzer");
         try (TokenStream stream = analyzer.tokenStream("", "세종시")) {
-            assertTokenStreamContents(stream, new String[]{"세종", "시"});
+            assertTokenStreamContents(stream, new String[] { "세종", "시" });
         }
 
         try (TokenStream stream = analyzer.tokenStream("", "c++world")) {
-            assertTokenStreamContents(stream, new String[]{"c++", "world"});
+            assertTokenStreamContents(stream, new String[] { "c++", "world" });
         }
     }
 
@@ -95,12 +95,12 @@ public class NoriAnalysisTests extends ESTokenStreamTestCase {
             .build();
         TestAnalysis analysis = createTestAnalysis(settings);
         Analyzer analyzer = analysis.indexAnalyzers.get("my_analyzer");
-        try (TokenStream stream = analyzer.tokenStream("", "세종시" )) {
-            assertTokenStreamContents(stream, new String[] {"세종", "시"});
+        try (TokenStream stream = analyzer.tokenStream("", "세종시")) {
+            assertTokenStreamContents(stream, new String[] { "세종", "시" });
         }
 
         try (TokenStream stream = analyzer.tokenStream("", "c++world")) {
-            assertTokenStreamContents(stream, new String[] {"c++", "world"});
+            assertTokenStreamContents(stream, new String[] { "c++", "world" });
         }
     }
 
@@ -111,8 +111,10 @@ public class NoriAnalysisTests extends ESTokenStreamTestCase {
             .putList("index.analysis.analyzer.my_analyzer.user_dictionary_rules", "c++", "C샤프", "세종", "세종시 세종 시")
             .build();
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> createTestAnalysis(settings));
-        assertThat(exc.getMessage(), containsString("It is not allowed to use [user_dictionary] in conjunction " +
-            "with [user_dictionary_rules]"));
+        assertThat(
+            exc.getMessage(),
+            containsString("It is not allowed to use [user_dictionary] in conjunction " + "with [user_dictionary_rules]")
+        );
     }
 
     public void testNoriTokenizer() throws Exception {
@@ -123,12 +125,12 @@ public class NoriAnalysisTests extends ESTokenStreamTestCase {
         TestAnalysis analysis = createTestAnalysis(settings);
         Tokenizer tokenizer = analysis.tokenizer.get("my_tokenizer").create();
         tokenizer.setReader(new StringReader("뿌리가 깊은 나무"));
-        assertTokenStreamContents(tokenizer, new String[] {"뿌리", "가", "깊", "은", "나무"});
+        assertTokenStreamContents(tokenizer, new String[] { "뿌리", "가", "깊", "은", "나무" });
         tokenizer.setReader(new StringReader("가늠표"));
-        assertTokenStreamContents(tokenizer, new String[] {"가늠표", "가늠", "표"});
+        assertTokenStreamContents(tokenizer, new String[] { "가늠표", "가늠", "표" });
         // discard_punctuation default(true)
         tokenizer.setReader(new StringReader("3.2개"));
-        assertTokenStreamContents(tokenizer, new String[] {"3", "2", "개"});
+        assertTokenStreamContents(tokenizer, new String[] { "3", "2", "개" });
     }
 
     public void testNoriTokenizerDiscardPunctuationOptionTrue() throws Exception {
@@ -136,7 +138,7 @@ public class NoriAnalysisTests extends ESTokenStreamTestCase {
         TestAnalysis analysis = createTestAnalysis(settings);
         Tokenizer tokenizer = analysis.tokenizer.get("my_tokenizer").create();
         tokenizer.setReader(new StringReader("3.2개"));
-        assertTokenStreamContents(tokenizer, new String[] {"3", "2", "개"});
+        assertTokenStreamContents(tokenizer, new String[] { "3", "2", "개" });
     }
 
     public void testNoriTokenizerDiscardPunctuationOptionFalse() throws Exception {
@@ -144,15 +146,14 @@ public class NoriAnalysisTests extends ESTokenStreamTestCase {
         TestAnalysis analysis = createTestAnalysis(settings);
         Tokenizer tokenizer = analysis.tokenizer.get("my_tokenizer").create();
         tokenizer.setReader(new StringReader("3.2개"));
-        assertTokenStreamContents(tokenizer, new String[] {"3", ".", "2", "개"});
+        assertTokenStreamContents(tokenizer, new String[] { "3", ".", "2", "개" });
     }
 
     public void testNoriTokenizerInvalidDiscardPunctuationOption() {
         String wrongOption = "wrong";
         Settings settings = createDiscardPunctuationOption(wrongOption);
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> createTestAnalysis(settings));
-        assertThat(exc.getMessage(), containsString("Failed to parse value [" + wrongOption
-            + "] as only [true] or [false] are allowed."));
+        assertThat(exc.getMessage(), containsString("Failed to parse value [" + wrongOption + "] as only [true] or [false] are allowed."));
     }
 
     public void testNoriPartOfSpeech() throws IOException {
@@ -165,7 +166,7 @@ public class NoriAnalysisTests extends ESTokenStreamTestCase {
         Tokenizer tokenizer = new KoreanTokenizer();
         tokenizer.setReader(new StringReader("여섯 용이"));
         TokenStream stream = factory.create(tokenizer);
-        assertTokenStreamContents(stream, new String[] {"용", "이"});
+        assertTokenStreamContents(stream, new String[] { "용", "이" });
     }
 
     public void testNoriReadingForm() throws IOException {
@@ -179,7 +180,7 @@ public class NoriAnalysisTests extends ESTokenStreamTestCase {
         Tokenizer tokenizer = new KoreanTokenizer();
         tokenizer.setReader(new StringReader("鄕歌"));
         TokenStream stream = factory.create(tokenizer);
-        assertTokenStreamContents(stream, new String[] {"향가"});
+        assertTokenStreamContents(stream, new String[] { "향가" });
     }
 
     public void testNoriNumber() throws IOException {
@@ -193,7 +194,7 @@ public class NoriAnalysisTests extends ESTokenStreamTestCase {
         Tokenizer tokenizer = new KoreanTokenizer();
         tokenizer.setReader(new StringReader("오늘 십만이천오백원짜리 와인 구입"));
         TokenStream stream = factory.create(tokenizer);
-        assertTokenStreamContents(stream, new String[] {"오늘", "102500", "원", "짜리", "와인", "구입"});
+        assertTokenStreamContents(stream, new String[] { "오늘", "102500", "원", "짜리", "와인", "구입" });
     }
 
     private Settings createDiscardPunctuationOption(String option) {

@@ -87,7 +87,6 @@ public class GraphExploreRequestBuilder extends ActionRequestBuilder<GraphExplor
         return request.maxDocsPerDiversityValue();
     }
 
-
     /**
      * An optional timeout to control how long the graph exploration is allowed
      * to take.
@@ -128,7 +127,6 @@ public class GraphExploreRequestBuilder extends ActionRequestBuilder<GraphExplor
         request.useSignificance(value);
         return this;
     }
-
 
     /**
      * The number of top-matching documents that are considered during each hop (default is

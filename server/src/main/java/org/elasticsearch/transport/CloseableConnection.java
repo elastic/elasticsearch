@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.CompletableContext;
 
-
 /**
  * Abstract Transport.Connection that provides common close logic.
  */

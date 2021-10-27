@@ -54,25 +54,40 @@ public class GeometryDocValueTests extends ESTestCase {
         }, () -> randomMultiPolygon(false)));
         assertDimensionalShapeType(randoPoly, DimensionalShapeType.POLYGON);
         assertDimensionalShapeType(randoMultiPoly, DimensionalShapeType.POLYGON);
-        assertDimensionalShapeType(randomFrom(
-            new GeometryCollection<>(List.of(randomPoint(false))),
-            new GeometryCollection<>(List.of(randomMultiPoint(false))),
-            new GeometryCollection<>(Collections.singletonList(
-                new GeometryCollection<>(List.of(randomPoint(false), randomMultiPoint(false))))))
-            , DimensionalShapeType.POINT);
-        assertDimensionalShapeType(randomFrom(
-            new GeometryCollection<>(List.of(randomPoint(false), randomLine(false))),
-            new GeometryCollection<>(List.of(randomMultiPoint(false), randomMultiLine(false))),
-            new GeometryCollection<>(Collections.singletonList(
-                new GeometryCollection<>(List.of(randomPoint(false), randomLine(false))))))
-            , DimensionalShapeType.LINE);
-        assertDimensionalShapeType(randomFrom(
-            new GeometryCollection<>(List.of(randomPoint(false), indexer.prepareForIndexing(randomLine(false)), randoPoly)),
-            new GeometryCollection<>(List.of(randomMultiPoint(false), randoMultiPoly)),
-            new GeometryCollection<>(Collections.singletonList(
-                new GeometryCollection<>(List.of(indexer.prepareForIndexing(randomLine(false)),
-                    indexer.prepareForIndexing(randoPoly))))))
-            , DimensionalShapeType.POLYGON);
+        assertDimensionalShapeType(
+            randomFrom(
+                new GeometryCollection<>(List.of(randomPoint(false))),
+                new GeometryCollection<>(List.of(randomMultiPoint(false))),
+                new GeometryCollection<>(
+                    Collections.singletonList(new GeometryCollection<>(List.of(randomPoint(false), randomMultiPoint(false))))
+                )
+            ),
+            DimensionalShapeType.POINT
+        );
+        assertDimensionalShapeType(
+            randomFrom(
+                new GeometryCollection<>(List.of(randomPoint(false), randomLine(false))),
+                new GeometryCollection<>(List.of(randomMultiPoint(false), randomMultiLine(false))),
+                new GeometryCollection<>(
+                    Collections.singletonList(new GeometryCollection<>(List.of(randomPoint(false), randomLine(false))))
+                )
+            ),
+            DimensionalShapeType.LINE
+        );
+        assertDimensionalShapeType(
+            randomFrom(
+                new GeometryCollection<>(List.of(randomPoint(false), indexer.prepareForIndexing(randomLine(false)), randoPoly)),
+                new GeometryCollection<>(List.of(randomMultiPoint(false), randoMultiPoly)),
+                new GeometryCollection<>(
+                    Collections.singletonList(
+                        new GeometryCollection<>(
+                            List.of(indexer.prepareForIndexing(randomLine(false)), indexer.prepareForIndexing(randoPoly))
+                        )
+                    )
+                )
+            ),
+            DimensionalShapeType.POLYGON
+        );
     }
 
     public void testRectangleShape() throws IOException {
@@ -84,7 +99,7 @@ public class GeometryDocValueTests extends ESTestCase {
             Geometry rectangle = new Rectangle(minX, maxX, maxY, minY);
             GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(rectangle, CoordinateEncoder.GEO);
 
-            Extent expectedExtent  = getExtentFromBox(minX, minY, maxX, maxY);
+            Extent expectedExtent = getExtentFromBox(minX, minY, maxX, maxY);
             assertThat(expectedExtent, equalTo(reader.getExtent()));
             // centroid is calculated using original double values but then loses precision as it is serialized as an integer
             int encodedCentroidX = CoordinateEncoder.GEO.encodeX(((double) minX + maxX) / 2);
@@ -95,10 +110,12 @@ public class GeometryDocValueTests extends ESTestCase {
     }
 
     private static Extent getExtentFromBox(double bottomLeftX, double bottomLeftY, double topRightX, double topRightY) {
-        return Extent.fromPoints(CoordinateEncoder.GEO.encodeX(bottomLeftX),
+        return Extent.fromPoints(
+            CoordinateEncoder.GEO.encodeX(bottomLeftX),
             CoordinateEncoder.GEO.encodeY(bottomLeftY),
             CoordinateEncoder.GEO.encodeX(topRightX),
-            CoordinateEncoder.GEO.encodeY(topRightY));
+            CoordinateEncoder.GEO.encodeY(topRightY)
+        );
 
     }
 

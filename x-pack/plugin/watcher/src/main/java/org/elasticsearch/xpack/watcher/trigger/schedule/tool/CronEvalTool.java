@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.trigger.schedule.tool;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.LoggingAwareCommand;
 import org.elasticsearch.cli.Terminal;

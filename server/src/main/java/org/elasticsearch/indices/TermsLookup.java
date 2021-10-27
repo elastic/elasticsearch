@@ -9,23 +9,23 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.core.RestApiVersion.equalTo;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Encapsulates the parameters needed to fetch terms.
@@ -97,20 +97,18 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         return this;
     }
 
-    private static final ConstructingObjectParser<TermsLookup, Void> PARSER = new ConstructingObjectParser<>("terms_lookup",
-        args -> {
-            String index = (String) args[0];
-            String id = (String) args[1];
-            String path = (String) args[2];
-            return new TermsLookup(index, id, path);
-        });
+    private static final ConstructingObjectParser<TermsLookup, Void> PARSER = new ConstructingObjectParser<>("terms_lookup", args -> {
+        String index = (String) args[0];
+        String id = (String) args[1];
+        String path = (String) args[2];
+        return new TermsLookup(index, id, path);
+    });
     static {
         PARSER.declareString(constructorArg(), new ParseField("index"));
         PARSER.declareString(constructorArg(), new ParseField("id"));
         PARSER.declareString(constructorArg(), new ParseField("path"));
         PARSER.declareString(TermsLookup::routing, new ParseField("routing"));
-        PARSER.declareString((termLookup,type)-> {}, new ParseField("type")
-            .forRestApiVersion(equalTo(RestApiVersion.V_7)));
+        PARSER.declareString((termLookup, type) -> {}, new ParseField("type").forRestApiVersion(equalTo(RestApiVersion.V_7)));
     }
 
     public static TermsLookup parseTermsLookup(XContentParser parser) throws IOException {
@@ -147,9 +145,9 @@ public class TermsLookup implements Writeable, ToXContentFragment {
             return false;
         }
         TermsLookup other = (TermsLookup) obj;
-        return Objects.equals(index, other.index) &&
-                Objects.equals(id, other.id) &&
-                Objects.equals(path, other.path) &&
-                Objects.equals(routing, other.routing);
+        return Objects.equals(index, other.index)
+            && Objects.equals(id, other.id)
+            && Objects.equals(path, other.path)
+            && Objects.equals(routing, other.routing);
     }
 }

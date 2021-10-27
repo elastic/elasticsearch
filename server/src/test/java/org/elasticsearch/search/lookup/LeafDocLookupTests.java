@@ -47,8 +47,11 @@ public class LeafDocLookupTests extends ESTestCase {
         when(fieldType1.valueForDisplay(anyObject())).then(returnsFirstArg());
         IndexFieldData<?> fieldData2 = createFieldData(docValues, "alias");
 
-        docLookup = new LeafDocLookup(field -> field.equals("field") ? fieldType1 : field.equals("alias") ? fieldType2 : null,
-            fieldType -> fieldType == fieldType1 ? fieldData1 : fieldType == fieldType2 ? fieldData2 : null, null);
+        docLookup = new LeafDocLookup(
+            field -> field.equals("field") ? fieldType1 : field.equals("alias") ? fieldType2 : null,
+            fieldType -> fieldType == fieldType1 ? fieldData1 : fieldType == fieldType2 ? fieldData2 : null,
+            null
+        );
     }
 
     public void testBasicLookup() {
@@ -68,8 +71,7 @@ public class LeafDocLookupTests extends ESTestCase {
         ScriptDocValues<?> docValues2 = mock(ScriptDocValues.class);
         IndexFieldData<?> fieldData2 = createFieldData(docValues2, "flattened.key2");
 
-        FlattenedFieldMapper fieldMapper = new FlattenedFieldMapper.Builder("field")
-            .build(MapperBuilderContext.ROOT);
+        FlattenedFieldMapper fieldMapper = new FlattenedFieldMapper.Builder("field").build(MapperBuilderContext.ROOT);
         DynamicFieldType fieldType = fieldMapper.fieldType();
         MappedFieldType fieldType1 = fieldType.getChildFieldType("key1");
         MappedFieldType fieldType2 = fieldType.getChildFieldType("key2");

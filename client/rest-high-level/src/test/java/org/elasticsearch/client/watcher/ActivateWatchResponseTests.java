@@ -9,14 +9,14 @@
 package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.XContentTestUtils;
 
 import java.io.IOException;
 import java.util.function.Predicate;
@@ -31,15 +31,16 @@ public class ActivateWatchResponseTests extends ESTestCase {
 
     public void testBasicParsing() throws IOException {
         XContentType contentType = randomFrom(XContentType.values());
-        XContentBuilder builder = XContentFactory.contentBuilder(contentType).startObject()
+        XContentBuilder builder = XContentFactory.contentBuilder(contentType)
+            .startObject()
             .startObject("status")
-                .field("version", 42)
-                .field("execution_state", ExecutionState.ACKNOWLEDGED)
-                .startObject("state")
-                   .field("active", false)
-                .endObject()
+            .field("version", 42)
+            .field("execution_state", ExecutionState.ACKNOWLEDGED)
+            .startObject("state")
+            .field("active", false)
             .endObject()
-        .endObject();
+            .endObject()
+            .endObject();
         BytesReference bytes = BytesReference.bytes(builder);
 
         ActivateWatchResponse response = parse(builder.contentType(), bytes);
@@ -60,9 +61,7 @@ public class ActivateWatchResponseTests extends ESTestCase {
 
     public void testParsingWithNullStatus() throws IOException {
         XContentType contentType = randomFrom(XContentType.values());
-        XContentBuilder builder = XContentFactory.contentBuilder(contentType).startObject()
-            .nullField("status")
-        .endObject();
+        XContentBuilder builder = XContentFactory.contentBuilder(contentType).startObject().nullField("status").endObject();
         BytesReference bytes = BytesReference.bytes(builder);
 
         expectThrows(XContentParseException.class, () -> parse(builder.contentType(), bytes));
@@ -70,20 +69,20 @@ public class ActivateWatchResponseTests extends ESTestCase {
 
     public void testParsingWithUnknownKeys() throws IOException {
         XContentType contentType = randomFrom(XContentType.values());
-        XContentBuilder builder = XContentFactory.contentBuilder(contentType).startObject()
+        XContentBuilder builder = XContentFactory.contentBuilder(contentType)
+            .startObject()
             .startObject("status")
-                .field("version", 42)
-                .field("execution_state", ExecutionState.ACKNOWLEDGED)
-                .startObject("state")
-                  .field("active", true)
-                .endObject()
+            .field("version", 42)
+            .field("execution_state", ExecutionState.ACKNOWLEDGED)
+            .startObject("state")
+            .field("active", true)
             .endObject()
-        .endObject();
+            .endObject()
+            .endObject();
         BytesReference bytes = BytesReference.bytes(builder);
 
         Predicate<String> excludeFilter = field -> field.equals("status.actions");
-        BytesReference bytesWithRandomFields = XContentTestUtils.insertRandomFields(
-            builder.contentType(), bytes, excludeFilter, random());
+        BytesReference bytesWithRandomFields = XContentTestUtils.insertRandomFields(builder.contentType(), bytes, excludeFilter, random());
 
         ActivateWatchResponse response = parse(builder.contentType(), bytesWithRandomFields);
         WatchStatus status = response.getStatus();
@@ -94,8 +93,7 @@ public class ActivateWatchResponseTests extends ESTestCase {
     }
 
     private ActivateWatchResponse parse(XContentType contentType, BytesReference bytes) throws IOException {
-        XContentParser parser = XContentFactory.xContent(contentType)
-            .createParser(NamedXContentRegistry.EMPTY, null, bytes.streamInput());
+        XContentParser parser = XContentFactory.xContent(contentType).createParser(NamedXContentRegistry.EMPTY, null, bytes.streamInput());
         parser.nextToken();
         return ActivateWatchResponse.fromXContent(parser);
     }

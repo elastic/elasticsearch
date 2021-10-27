@@ -43,11 +43,7 @@ public class CronScheduleTests extends ScheduleTestCase {
     }
 
     public void testParseMultiple() throws Exception {
-        XContentBuilder builder = jsonBuilder().value(new String[] {
-                "0 0/1 * * * ?",
-                "0 0/2 * * * ?",
-                "0 0/3 * * * ?"
-        });
+        XContentBuilder builder = jsonBuilder().value(new String[] { "0 0/1 * * * ?", "0 0/2 * * * ?", "0 0/3 * * * ?" });
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
@@ -89,8 +85,13 @@ public class CronScheduleTests extends ScheduleTestCase {
             new CronSchedule.Parser().parse(parser);
             fail("Expected ElasticsearchParseException");
         } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), is("could not parse [cron] schedule. expected either a cron string value or an array of cron " +
-                    "string values, but found [null]"));
+            assertThat(
+                e.getMessage(),
+                is(
+                    "could not parse [cron] schedule. expected either a cron string value or an array of cron "
+                        + "string values, but found [null]"
+                )
+            );
         }
     }
 
@@ -103,8 +104,13 @@ public class CronScheduleTests extends ScheduleTestCase {
             new CronSchedule.Parser().parse(parser);
             fail("Expected ElasticsearchParseException");
         } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), is("could not parse [cron] schedule. expected either a cron string value or an array of cron " +
-                    "string values, but found [START_OBJECT]"));
+            assertThat(
+                e.getMessage(),
+                is(
+                    "could not parse [cron] schedule. expected either a cron string value or an array of cron "
+                        + "string values, but found [START_OBJECT]"
+                )
+            );
         }
     }
 

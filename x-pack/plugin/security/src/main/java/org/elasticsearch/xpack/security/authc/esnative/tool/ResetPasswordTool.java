@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.authc.esnative.tool;
 
 import joptsimple.OptionSet;
-
 import joptsimple.OptionSpec;
 import joptsimple.OptionSpecBuilder;
 
@@ -18,14 +17,14 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.core.security.support.Validation;
-import org.elasticsearch.xpack.security.tool.BaseRunAsSuperuserCommand;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.CommandLineHttpClient;
 import org.elasticsearch.xpack.core.security.HttpResponse;
+import org.elasticsearch.xpack.core.security.support.Validation;
+import org.elasticsearch.xpack.security.tool.BaseRunAsSuperuserCommand;
 
 import java.net.HttpURLConnection;
 import java.net.URL;

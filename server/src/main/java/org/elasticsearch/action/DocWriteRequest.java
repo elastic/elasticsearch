@@ -12,10 +12,10 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -118,7 +118,7 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
      * If the document last modification was assigned a different sequence number a
      * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
      */
-     long ifSeqNo();
+    long ifSeqNo();
 
     /**
      * If set, only perform this request if the document was last modification was assigned this primary term.
@@ -139,6 +139,7 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
      * @return boolean flag, when true specifically requires an alias
      */
     boolean isRequireAlias();
+
     /**
      * Requested operation type to perform on the document
      */
@@ -176,11 +177,16 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
 
         public static OpType fromId(byte id) {
             switch (id) {
-                case 0: return INDEX;
-                case 1: return CREATE;
-                case 2: return UPDATE;
-                case 3: return DELETE;
-                default: throw new IllegalArgumentException("Unknown opType: [" + id + "]");
+                case 0:
+                    return INDEX;
+                case 1:
+                    return CREATE;
+                case 2:
+                    return UPDATE;
+                case 3:
+                    return DELETE;
+                default:
+                    throw new IllegalArgumentException("Unknown opType: [" + id + "]");
             }
         }
 
@@ -211,13 +217,13 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
         } else if (type == 2) {
             docWriteRequest = new UpdateRequest(shardId, in);
         } else {
-            throw new IllegalStateException("invalid request type [" + type+ " ]");
+            throw new IllegalStateException("invalid request type [" + type + " ]");
         }
         return docWriteRequest;
     }
 
     /** write a document write (index/delete/update) request*/
-    static void writeDocumentRequest(StreamOutput out, DocWriteRequest<?> request)  throws IOException {
+    static void writeDocumentRequest(StreamOutput out, DocWriteRequest<?> request) throws IOException {
         if (request instanceof IndexRequest) {
             out.writeByte((byte) 0);
             ((IndexRequest) request).writeTo(out);
@@ -233,7 +239,7 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
     }
 
     /** write a document write (index/delete/update) request without shard id*/
-    static void writeDocumentRequestThin(StreamOutput out, DocWriteRequest<?> request)  throws IOException {
+    static void writeDocumentRequestThin(StreamOutput out, DocWriteRequest<?> request) throws IOException {
         if (request instanceof IndexRequest) {
             out.writeByte((byte) 0);
             ((IndexRequest) request).writeThin(out);
@@ -249,30 +255,37 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
     }
 
     static ActionRequestValidationException validateSeqNoBasedCASParams(
-        DocWriteRequest<?> request, ActionRequestValidationException validationException) {
+        DocWriteRequest<?> request,
+        ActionRequestValidationException validationException
+    ) {
         final long version = request.version();
         final VersionType versionType = request.versionType();
         if (versionType.validateVersionForWrites(version) == false) {
-            validationException = addValidationError("illegal version value [" + version + "] for version type ["
-                + versionType.name() + "]", validationException);
+            validationException = addValidationError(
+                "illegal version value [" + version + "] for version type [" + versionType.name() + "]",
+                validationException
+            );
         }
 
         if (versionType == VersionType.INTERNAL && version != Versions.MATCH_ANY && version != Versions.MATCH_DELETED) {
-            validationException = addValidationError("internal versioning can not be used for optimistic concurrency control. " +
-                "Please use `if_seq_no` and `if_primary_term` instead", validationException);
+            validationException = addValidationError(
+                "internal versioning can not be used for optimistic concurrency control. "
+                    + "Please use `if_seq_no` and `if_primary_term` instead",
+                validationException
+            );
         }
 
-        if (request.ifSeqNo() != UNASSIGNED_SEQ_NO && (
-            versionType != VersionType.INTERNAL || version != Versions.MATCH_ANY
-        )) {
+        if (request.ifSeqNo() != UNASSIGNED_SEQ_NO && (versionType != VersionType.INTERNAL || version != Versions.MATCH_ANY)) {
             validationException = addValidationError("compare and write operations can not use versioning", validationException);
         }
         if (request.ifPrimaryTerm() == UNASSIGNED_PRIMARY_TERM && request.ifSeqNo() != UNASSIGNED_SEQ_NO) {
             validationException = addValidationError("ifSeqNo is set, but primary term is [0]", validationException);
         }
         if (request.ifPrimaryTerm() != UNASSIGNED_PRIMARY_TERM && request.ifSeqNo() == UNASSIGNED_SEQ_NO) {
-            validationException =
-                addValidationError("ifSeqNo is unassigned, but primary term is [" + request.ifPrimaryTerm() + "]", validationException);
+            validationException = addValidationError(
+                "ifSeqNo is unassigned, but primary term is [" + request.ifPrimaryTerm() + "]",
+                validationException
+            );
         }
 
         return validationException;

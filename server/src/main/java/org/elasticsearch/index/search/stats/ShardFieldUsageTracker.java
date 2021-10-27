@@ -48,10 +48,21 @@ public class ShardFieldUsageTracker {
         for (Map.Entry<String, InternalFieldStats> entry : perFieldStats.entrySet()) {
             InternalFieldStats ifs = entry.getValue();
             if (CollectionUtils.isEmpty(fields) || Regex.simpleMatch(fields, entry.getKey())) {
-                PerFieldUsageStats pf = new PerFieldUsageStats(ifs.any.longValue(), ifs.proximity.longValue(), ifs.terms.longValue(),
-                    ifs.postings.longValue(), ifs.termFrequencies.longValue(), ifs.positions.longValue(), ifs.offsets.longValue(),
-                    ifs.docValues.longValue(), ifs.storedFields.longValue(), ifs.norms.longValue(), ifs.payloads.longValue(),
-                    ifs.termVectors.longValue(), ifs.points.longValue());
+                PerFieldUsageStats pf = new PerFieldUsageStats(
+                    ifs.any.longValue(),
+                    ifs.proximity.longValue(),
+                    ifs.terms.longValue(),
+                    ifs.postings.longValue(),
+                    ifs.termFrequencies.longValue(),
+                    ifs.positions.longValue(),
+                    ifs.offsets.longValue(),
+                    ifs.docValues.longValue(),
+                    ifs.storedFields.longValue(),
+                    ifs.norms.longValue(),
+                    ifs.payloads.longValue(),
+                    ifs.termVectors.longValue(),
+                    ifs.points.longValue()
+                );
                 stats.put(entry.getKey(), pf);
             }
         }

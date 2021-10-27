@@ -27,25 +27,30 @@ import java.util.stream.Collectors;
 public class BaseEnrollmentTokenGenerator {
     public static final long ENROLL_API_KEY_EXPIRATION_MINUTES = 30L;
 
-    public BaseEnrollmentTokenGenerator() {
-    }
+    public BaseEnrollmentTokenGenerator() {}
 
     static String getHttpsCaFingerprint(SSLService sslService) throws Exception {
         final SslKeyConfig keyConfig = sslService.getHttpTransportSSLConfiguration().getKeyConfig();
         if (keyConfig instanceof StoreKeyConfig == false) {
-            throw new IllegalStateException("Unable to create an enrollment token. Elasticsearch node HTTP layer SSL configuration is " +
-                "not configured with a keystore");
+            throw new IllegalStateException(
+                "Unable to create an enrollment token. Elasticsearch node HTTP layer SSL configuration is "
+                    + "not configured with a keystore"
+            );
         }
-        final List<Tuple<PrivateKey, X509Certificate>> httpCaKeysAndCertificates =
-            ((StoreKeyConfig) keyConfig).getKeys().stream()
-                .filter(t -> t.v2().getBasicConstraints() != -1)
-                .collect(Collectors.toList());
+        final List<Tuple<PrivateKey, X509Certificate>> httpCaKeysAndCertificates = ((StoreKeyConfig) keyConfig).getKeys()
+            .stream()
+            .filter(t -> t.v2().getBasicConstraints() != -1)
+            .collect(Collectors.toList());
         if (httpCaKeysAndCertificates.isEmpty()) {
-            throw new IllegalStateException("Unable to create an enrollment token. Elasticsearch node HTTP layer SSL configuration " +
-                "Keystore doesn't contain any PrivateKey entries where the associated certificate is a CA certificate");
+            throw new IllegalStateException(
+                "Unable to create an enrollment token. Elasticsearch node HTTP layer SSL configuration "
+                    + "Keystore doesn't contain any PrivateKey entries where the associated certificate is a CA certificate"
+            );
         } else if (httpCaKeysAndCertificates.size() > 1) {
-            throw new IllegalStateException("Unable to create an enrollment token. Elasticsearch node HTTP layer SSL configuration " +
-                "Keystore contains multiple PrivateKey entries where the associated certificate is a CA certificate");
+            throw new IllegalStateException(
+                "Unable to create an enrollment token. Elasticsearch node HTTP layer SSL configuration "
+                    + "Keystore contains multiple PrivateKey entries where the associated certificate is a CA certificate"
+            );
         }
         return SslUtil.calculateFingerprint(httpCaKeysAndCertificates.get(0).v2(), "SHA-256");
     }
@@ -53,7 +58,7 @@ public class BaseEnrollmentTokenGenerator {
     static Tuple<List<String>, List<String>> splitAddresses(List<String> addresses) throws Exception {
         final List<String> nonLocalAddresses = new ArrayList<>();
         final List<String> localAddresses = new ArrayList<>();
-        for (String boundAddress : addresses){
+        for (String boundAddress : addresses) {
             InetAddress inetAddress = getInetAddressFromString(boundAddress);
             if (inetAddress.isLoopbackAddress()) {
                 localAddresses.add(boundAddress);

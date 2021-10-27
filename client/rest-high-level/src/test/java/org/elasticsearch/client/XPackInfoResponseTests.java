@@ -7,14 +7,14 @@
  */
 package org.elasticsearch.client;
 
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.BuildInfo;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.LicenseInfo;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -29,24 +29,30 @@ public class XPackInfoResponseTests extends AbstractResponseTestCase<XPackInfoRe
 
     private LicenseInfo convertHlrcToInternal(org.elasticsearch.client.xpack.XPackInfoResponse.LicenseInfo licenseInfo) {
         return licenseInfo != null
-            ? new LicenseInfo(licenseInfo.getUid(), licenseInfo.getType(), licenseInfo.getMode(),
+            ? new LicenseInfo(
+                licenseInfo.getUid(),
+                licenseInfo.getType(),
+                licenseInfo.getMode(),
                 licenseInfo.getStatus() != null ? LicenseStatus.valueOf(licenseInfo.getStatus().name()) : null,
-                licenseInfo.getExpiryDate())
+                licenseInfo.getExpiryDate()
+            )
             : null;
     }
 
     private FeatureSetsInfo convertHlrcToInternal(org.elasticsearch.client.xpack.XPackInfoResponse.FeatureSetsInfo featureSetsInfo) {
         return featureSetsInfo != null
-            ? new FeatureSetsInfo(featureSetsInfo.getFeatureSets().values().stream()
-            .map(fs -> new FeatureSet(fs.name(), fs.available(), fs.enabled()))
-            .collect(Collectors.toSet()))
+            ? new FeatureSetsInfo(
+                featureSetsInfo.getFeatureSets()
+                    .values()
+                    .stream()
+                    .map(fs -> new FeatureSet(fs.name(), fs.available(), fs.enabled()))
+                    .collect(Collectors.toSet())
+            )
             : null;
     }
 
     private BuildInfo randomBuildInfo() {
-        return new BuildInfo(
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(15));
+        return new BuildInfo(randomAlphaOfLength(10), randomAlphaOfLength(15));
     }
 
     private LicenseInfo randomLicenseInfo() {
@@ -55,7 +61,8 @@ public class XPackInfoResponseTests extends AbstractResponseTestCase<XPackInfoRe
             randomAlphaOfLength(4),
             randomAlphaOfLength(5),
             randomFrom(LicenseStatus.values()),
-            randomLong());
+            randomLong()
+        );
     }
 
     private FeatureSetsInfo randomFeatureSetsInfo() {
@@ -68,10 +75,7 @@ public class XPackInfoResponseTests extends AbstractResponseTestCase<XPackInfoRe
     }
 
     private FeatureSet randomFeatureSet() {
-        return new FeatureSet(
-            randomAlphaOfLength(5),
-            randomBoolean(),
-            randomBoolean());
+        return new FeatureSet(randomAlphaOfLength(5), randomBoolean(), randomBoolean());
     }
 
     @Override
@@ -79,7 +83,8 @@ public class XPackInfoResponseTests extends AbstractResponseTestCase<XPackInfoRe
         return new XPackInfoResponse(
             randomBoolean() ? null : randomBuildInfo(),
             randomBoolean() ? null : randomLicenseInfo(),
-            randomBoolean() ? null : randomFeatureSetsInfo());
+            randomBoolean() ? null : randomFeatureSetsInfo()
+        );
     }
 
     @Override
@@ -89,8 +94,11 @@ public class XPackInfoResponseTests extends AbstractResponseTestCase<XPackInfoRe
 
     @Override
     protected void assertInstances(XPackInfoResponse serverTestInstance, org.elasticsearch.client.xpack.XPackInfoResponse clientInstance) {
-        XPackInfoResponse serverInstance = new XPackInfoResponse(convertHlrcToInternal(clientInstance.getBuildInfo()),
-            convertHlrcToInternal(clientInstance.getLicenseInfo()), convertHlrcToInternal(clientInstance.getFeatureSetsInfo()));
+        XPackInfoResponse serverInstance = new XPackInfoResponse(
+            convertHlrcToInternal(clientInstance.getBuildInfo()),
+            convertHlrcToInternal(clientInstance.getLicenseInfo()),
+            convertHlrcToInternal(clientInstance.getFeatureSetsInfo())
+        );
         assertEquals(serverTestInstance, serverInstance);
     }
 }

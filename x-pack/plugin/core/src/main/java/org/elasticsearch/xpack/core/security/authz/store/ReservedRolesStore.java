@@ -402,10 +402,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("apm-*")
                     .privileges("read", "read_cross_cluster").build(),
-                // Data telemetry reads mappings, metadata and stats of indices (excluding security and async search indices)
+                // Data telemetry reads mappings, metadata and stats of indices
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("/@&~(\\.security.*)&~(\\.async-search.*)/")
-                    .allowRestrictedIndices(true)
+                    .indices("*")
                     .privileges("view_index_metadata", "monitor").build(),
                 // Endpoint diagnostic information. Kibana reads from these indices to send telemetry
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -443,7 +442,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 // Fleet package upgrade
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs-*", "synthetics-*", "traces-*",
-                        "/metrics-.*&~(metrics-endpoint\\.metadata.*)/")
+                        "/metrics-.*&~(metrics-endpoint\\.metadata_current_default)/")
                     .privileges(UpdateSettingsAction.NAME, PutMappingAction.NAME, RolloverAction.NAME)
                     .build(),
                 // For src/dest indices of the Endpoint package that ships a transform

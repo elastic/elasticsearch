@@ -101,6 +101,7 @@ public class GetDeploymentStatsActionResponseTests extends AbstractWireSerializi
             ByteSizeValue.ofBytes(randomNonNegativeLong()),
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
+            randomBoolean() ? null : randomIntBetween(1, 10000),
             nodeStatsList);
 
         Map<String, Map<String, RoutingStateAndReason>> badRoutes = new HashMap<>();
@@ -145,6 +146,7 @@ public class GetDeploymentStatsActionResponseTests extends AbstractWireSerializi
             ByteSizeValue.ofBytes(randomNonNegativeLong()),
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
+            randomBoolean() ? null : randomIntBetween(1, 10000),
             nodeStatsList);
         var response = new GetDeploymentStatsAction.Response(Collections.emptyList(), Collections.emptyList(),
             List.of(model1), 1);
@@ -202,6 +204,7 @@ public class GetDeploymentStatsActionResponseTests extends AbstractWireSerializi
             ByteSizeValue.ofBytes(randomNonNegativeLong()),
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
+            randomBoolean() ? null : randomIntBetween(1, 10000),
             nodeStatsList);
     }
 }

@@ -45,6 +45,10 @@ public class ScriptMetrics {
         compilationLimitTriggered.inc();
     }
 
+    public ScriptStats stats() {
+        return new ScriptStats(compilationsMetric.count(), cacheEvictionsMetric.count(), compilationLimitTriggered.count());
+    }
+
     protected long now() {
         return timeProvider.getAsLong() / 1000;
     }
@@ -59,4 +63,5 @@ public class ScriptMetrics {
             compilations.timeSeries(t),
             cacheEvictions.timeSeries(t)
         );
-    }}
+    }
+}

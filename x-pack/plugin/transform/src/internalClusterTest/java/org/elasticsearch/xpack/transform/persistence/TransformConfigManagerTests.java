@@ -9,13 +9,29 @@ package org.elasticsearch.xpack.transform.persistence;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -32,6 +48,7 @@ import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformIn
 import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -49,14 +66,23 @@ import static org.elasticsearch.xpack.transform.persistence.TransformInternalInd
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
     private IndexBasedTransformConfigManager transformConfigManager;
+    private ClusterService clusterService;
 
     @Before
     public void createComponents() {
-        transformConfigManager = new IndexBasedTransformConfigManager(client(), xContentRegistry());
+        clusterService = mock(ClusterService.class);
+        transformConfigManager = new IndexBasedTransformConfigManager(
+            clusterService,
+            TestIndexNameExpressionResolver.newInstance(),
+            client(),
+            xContentRegistry()
+        );
     }
 
     public void testGetMissingTransform() throws InterruptedException {
@@ -690,6 +716,10 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         assertAsync(listener -> transformConfigManager.getTransformConfiguration(transformId, listener), transformConfigNew, null, null);
 
         // delete old indices
+        when(clusterService.state()).thenReturn(
+            createClusterStateWithTransformIndex(oldIndex, TransformInternalIndexConstants.LATEST_INDEX_NAME)
+        );
+
         assertAsync(listener -> transformConfigManager.deleteOldIndices(listener), true, null, null);
 
         // the config should still be there
@@ -708,4 +738,32 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         );
     }
 
+    private static ClusterState createClusterStateWithTransformIndex(String... indexes) throws IOException {
+        ImmutableOpenMap.Builder<String, IndexMetadata> indexMapBuilder = ImmutableOpenMap.builder();
+        Metadata.Builder metaBuilder = Metadata.builder();
+        ClusterState.Builder csBuilder = ClusterState.builder(ClusterName.DEFAULT);
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+
+        for (String index : indexes) {
+            IndexMetadata.Builder builder = new IndexMetadata.Builder(index).settings(
+                Settings.builder()
+                    .put(TransformInternalIndex.settings())
+                    .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                    .build()
+            ).numberOfReplicas(0).numberOfShards(1).putMapping(Strings.toString(TransformInternalIndex.mappings()));
+            indexMapBuilder.put(index, builder.build());
+
+            routingTableBuilder.add(
+                IndexRoutingTable.builder(new Index(index, UUIDs.randomBase64UUID()))
+                    .addShard(TestShardRouting.newShardRouting(index, 0, "node_a", null, true, ShardRoutingState.STARTED))
+                    .build()
+            );
+
+        }
+        csBuilder.routingTable(routingTableBuilder.build());
+        metaBuilder.indices(indexMapBuilder.build());
+        csBuilder.metadata(metaBuilder.build());
+
+        return csBuilder.build();
+    }
 }

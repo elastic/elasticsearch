@@ -45,13 +45,8 @@ public class ScriptCache {
     private final double compilesAllowedPerNano;
     private final String contextRateSetting;
 
-    ScriptCache(
-            int cacheMaxSize,
-            TimeValue cacheExpire,
-            CompilationRate maxCompilationRate,
-            String contextRateSetting,
-            LongSupplier timeProvider
-    ) {
+    ScriptCache(int cacheMaxSize, TimeValue cacheExpire, CompilationRate maxCompilationRate, String contextRateSetting,
+                LongSupplier timeProvider) {
         this.cacheSize = cacheMaxSize;
         this.cacheExpire = cacheExpire;
         this.contextRateSetting = contextRateSetting;
@@ -96,8 +91,10 @@ public class ScriptCache {
                     logger.trace("context [{}]: compiling script, type: [{}], lang: [{}], options: [{}]", context.name, type,
                         lang, options);
                 }
-                // Check whether too many compilations have happened
-                checkCompilationLimit();
+                if (context.compilationRateLimited) {
+                    // Check whether too many compilations have happened
+                    checkCompilationLimit();
+                }
                 Object compiledScript = scriptEngine.compile(id, idOrCode, context, options);
                 // Since the cache key is the script content itself we don't need to
                 // invalidate/check the cache if an indexed script changes.
@@ -121,6 +118,10 @@ public class ScriptCache {
     @SuppressWarnings("unchecked")
     static <T extends Throwable> void rethrow(Throwable t) throws T {
         throw (T) t;
+    }
+
+    public ScriptStats stats() {
+        return scriptMetrics.stats();
     }
 
     public ScriptContextStats stats(String context) {

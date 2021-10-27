@@ -129,8 +129,9 @@ public final class RemoteClusterLicenseChecker {
     private final LicensedFeature feature;
 
     /**
-     * Constructs a remote cluster license checker with the specified license predicate for checking license compatibility. The predicate
-     * does not need to check for the active license state as this is handled by the remote cluster license checker.
+     * Constructs a remote cluster license checker with the specified licensed feature for checking license compatibility. The feature
+     * does not need to check for the active license state as this is handled by the remote cluster license checker. If the feature
+     * is {@code null} the check always succeeds.
      *
      * @param client    the client
      * @param feature   the licensed feature
@@ -166,9 +167,9 @@ public final class RemoteClusterLicenseChecker {
                     return;
                 }
 
-                if (licenseInfo.getStatus() == LicenseStatus.ACTIVE == false
-                    || isAllowedByOperationMode(License.OperationMode.parse(licenseInfo.getMode()),
-                                                feature.getMinimumOperationMode()) == false) {
+                if (((feature == null || feature.isNeedsActive()) && licenseInfo.getStatus() != LicenseStatus.ACTIVE)
+                    || feature != null && isAllowedByOperationMode(License.OperationMode.parse(licenseInfo.getMode()),
+                                                                   feature.getMinimumOperationMode()) == false) {
                     listener.onResponse(LicenseCheck.failure(new RemoteClusterLicenseInfo(clusterAlias.get(), licenseInfo)));
                     return;
                 }
@@ -274,9 +275,9 @@ public final class RemoteClusterLicenseChecker {
             final LicensedFeature feature,
             final RemoteClusterLicenseInfo remoteClusterLicenseInfo) {
         final StringBuilder error = new StringBuilder();
-        if (remoteClusterLicenseInfo.licenseInfo().getStatus() != LicenseStatus.ACTIVE) {
+        if ((feature == null || feature.isNeedsActive()) && remoteClusterLicenseInfo.licenseInfo().getStatus() != LicenseStatus.ACTIVE) {
             error.append(String.format(Locale.ROOT, "the license on cluster [%s] is not active", remoteClusterLicenseInfo.clusterAlias()));
-        } else {
+        } else if (feature != null) {
             assert isAllowedByOperationMode(License.OperationMode.parse(remoteClusterLicenseInfo.licenseInfo().getMode()),
                 feature.getMinimumOperationMode()) == false : "license must be incompatible to build error message";
             final String message = String.format(

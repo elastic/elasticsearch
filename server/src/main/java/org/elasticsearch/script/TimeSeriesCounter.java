@@ -277,7 +277,7 @@ public class TimeSeriesCounter {
          * Future
          *       [0]         [_]         [_]         [_]         [_]
          *  |_____0_____|___________|___________|___________|___________|
-         * 400[c]->   420[f]->
+         * 400[c]->    420[f]->
          *
          */
         protected final long resolution;

@@ -90,12 +90,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS") // Don't randomly add 'extra' files to directory.
-public class DatabaseRegistryTests extends ESTestCase {
+public class DatabaseNodeServiceTests extends ESTestCase {
 
     private Client client;
     private Path geoIpTmpDir;
     private ThreadPool threadPool;
-    private DatabaseRegistry databaseRegistry;
+    private DatabaseNodeService databaseNodeService;
     private ResourceWatcherService resourceWatcherService;
 
     @Before
@@ -104,17 +104,17 @@ public class DatabaseRegistryTests extends ESTestCase {
         final Path geoIpConfigDir = createTempDir();
         Files.createDirectories(geoIpConfigDir);
         copyDatabaseFiles(geoIpDir);
+        GeoIpCache cache = new GeoIpCache(1000);
+        ConfigDatabases configDatabases = new ConfigDatabases(geoIpDir, geoIpConfigDir, cache);
 
-        threadPool = new TestThreadPool(LocalDatabases.class.getSimpleName());
+        threadPool = new TestThreadPool(ConfigDatabases.class.getSimpleName());
         Settings settings = Settings.builder().put("resource.reload.interval.high", TimeValue.timeValueMillis(100)).build();
         resourceWatcherService = new ResourceWatcherService(settings, threadPool);
 
         client = mock(Client.class);
-        GeoIpCache cache = new GeoIpCache(1000);
-        LocalDatabases localDatabases = new LocalDatabases(geoIpDir, geoIpConfigDir, cache);
         geoIpTmpDir = createTempDir();
-        databaseRegistry = new DatabaseRegistry(geoIpTmpDir, client, cache, localDatabases, Runnable::run);
-        databaseRegistry.initialize("nodeId", resourceWatcherService, mock(IngestService.class));
+        databaseNodeService = new DatabaseNodeService(geoIpTmpDir, client, cache, configDatabases, Runnable::run);
+        databaseNodeService.initialize("nodeId", resourceWatcherService, mock(IngestService.class));
     }
 
     @After
@@ -139,9 +139,9 @@ public class DatabaseRegistryTests extends ESTestCase {
             .routingTable(createIndexRoutingTable())
             .build();
 
-        assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), nullValue());
-        databaseRegistry.checkDatabases(state);
-        DatabaseReaderLazyLoader database = databaseRegistry.getDatabase("GeoIP2-City.mmdb", false);
+        assertThat(databaseNodeService.getDatabase("GeoIP2-City.mmdb", false), nullValue());
+        databaseNodeService.checkDatabases(state);
+        DatabaseReaderLazyLoader database = databaseNodeService.getDatabase("GeoIP2-City.mmdb", false);
         assertThat(database, nullValue());
         verify(client, times(0)).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
@@ -159,8 +159,8 @@ public class DatabaseRegistryTests extends ESTestCase {
                 .localNodeId("_id1"))
             .routingTable(createIndexRoutingTable())
             .build();
-        databaseRegistry.checkDatabases(state);
-        database = databaseRegistry.getDatabase("GeoIP2-City.mmdb", false);
+        databaseNodeService.checkDatabases(state);
+        database = databaseNodeService.getDatabase("GeoIP2-City.mmdb", false);
         assertThat(database, notNullValue());
         verify(client, times(10)).search(any());
         //30 days check passed but we mocked mmdb data so parsing will fail
@@ -183,8 +183,8 @@ public class DatabaseRegistryTests extends ESTestCase {
             .routingTable(createIndexRoutingTable())
             .build();
 
-        databaseRegistry.checkDatabases(state);
-        assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), nullValue());
+        databaseNodeService.checkDatabases(state);
+        assertThat(databaseNodeService.getDatabase("GeoIP2-City.mmdb", false), nullValue());
         verify(client, never()).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertThat(files.collect(Collectors.toList()), empty());
@@ -205,8 +205,8 @@ public class DatabaseRegistryTests extends ESTestCase {
                 .localNodeId("_id1"))
             .build();
 
-        databaseRegistry.checkDatabases(state);
-        assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), nullValue());
+        databaseNodeService.checkDatabases(state);
+        assertThat(databaseNodeService.getDatabase("GeoIP2-City.mmdb", false), nullValue());
         verify(client, never()).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertThat(files.collect(Collectors.toList()), empty());
@@ -226,8 +226,8 @@ public class DatabaseRegistryTests extends ESTestCase {
 
         mockSearches("GeoIP2-City.mmdb", 0, 9);
 
-        databaseRegistry.checkDatabases(state);
-        assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), nullValue());
+        databaseNodeService.checkDatabases(state);
+        assertThat(databaseNodeService.getDatabase("GeoIP2-City.mmdb", false), nullValue());
         verify(client, never()).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertThat(files.collect(Collectors.toList()), empty());
@@ -244,7 +244,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         CheckedRunnable<Exception> completedHandler = mock(CheckedRunnable.class);
         @SuppressWarnings("unchecked")
         Consumer<Exception> failureHandler = mock(Consumer.class);
-        databaseRegistry.retrieveDatabase("_name", md5, metadata, chunkConsumer, completedHandler, failureHandler);
+        databaseNodeService.retrieveDatabase("_name", md5, metadata, chunkConsumer, completedHandler, failureHandler);
         verify(failureHandler, never()).accept(any());
         verify(chunkConsumer, times(30)).accept(any());
         verify(completedHandler, times(1)).run();
@@ -262,7 +262,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         CheckedRunnable<Exception> completedHandler = mock(CheckedRunnable.class);
         @SuppressWarnings("unchecked")
         Consumer<Exception> failureHandler = mock(Consumer.class);
-        databaseRegistry.retrieveDatabase("_name", incorrectMd5, metadata, chunkConsumer, completedHandler, failureHandler);
+        databaseNodeService.retrieveDatabase("_name", incorrectMd5, metadata, chunkConsumer, completedHandler, failureHandler);
         ArgumentCaptor<Exception> exceptionCaptor = ArgumentCaptor.forClass(Exception.class);
         verify(failureHandler, times(1)).accept(exceptionCaptor.capture());
         assertThat(exceptionCaptor.getAllValues().size(), equalTo(1));

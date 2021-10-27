@@ -13,8 +13,8 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.common.lucene.store.FilterIndexOutput;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.SingleObjectCache;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -68,7 +68,7 @@ final class ByteSizeCachingDirectory extends FilterDirectory {
                 // numOpenOutputs BEFORE computing the size of the directory.
                 final long modCount;
                 final boolean pendingWrite;
-                synchronized(ByteSizeCachingDirectory.this) {
+                synchronized (ByteSizeCachingDirectory.this) {
                     modCount = ByteSizeCachingDirectory.this.modCount;
                     pendingWrite = ByteSizeCachingDirectory.this.numOpenOutputs != 0;
                 }
@@ -94,7 +94,7 @@ final class ByteSizeCachingDirectory extends FilterDirectory {
                     // writes, so the size might be stale: recompute.
                     return true;
                 }
-                synchronized(ByteSizeCachingDirectory.this) {
+                synchronized (ByteSizeCachingDirectory.this) {
                     // If there are pending writes or if new files have been
                     // written/deleted since last time: recompute
                     return numOpenOutputs != 0 || cached.modCount != modCount;
@@ -140,6 +140,24 @@ final class ByteSizeCachingDirectory extends FilterDirectory {
                 // Don't write to atomicXXX here since it might be called in
                 // tight loops and memory barriers are costly
                 super.writeByte(b);
+            }
+
+            @Override
+            public void writeInt(int i) throws IOException {
+                // Delegate primitive for possible performance enhancement
+                out.writeInt(i);
+            }
+
+            @Override
+            public void writeShort(short s) throws IOException {
+                // Delegate primitive for possible performance enhancement
+                out.writeShort(s);
+            }
+
+            @Override
+            public void writeLong(long l) throws IOException {
+                // Delegate primitive for possible performance enhancement
+                out.writeLong(l);
             }
 
             @Override

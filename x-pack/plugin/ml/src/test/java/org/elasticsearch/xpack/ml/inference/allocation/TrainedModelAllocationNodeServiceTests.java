@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
@@ -46,7 +47,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -355,8 +356,7 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
                                 )
                                 .addNewAllocation(
                                     modelTwo,
-                                    TrainedModelAllocation.Builder
-                                        .empty(newParams(modelTwo))
+                                    TrainedModelAllocation.Builder.empty(newParams(modelTwo))
                                         .addNewRoutingEntry(NODE_ID)
                                         .updateExistingRoutingEntry(
                                             NODE_ID,
@@ -365,10 +365,10 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
                                                 randomAlphaOfLength(10)
                                             )
                                         )
-                                ).addNewAllocation(
+                                )
+                                .addNewAllocation(
                                     previouslyUsedModel,
-                                    TrainedModelAllocation.Builder
-                                        .empty(newParams(modelTwo))
+                                    TrainedModelAllocation.Builder.empty(newParams(modelTwo))
                                         .addNewRoutingEntry(NODE_ID)
                                         .updateExistingRoutingEntry(
                                             NODE_ID,
@@ -507,7 +507,8 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
             deploymentManager,
             taskManager,
             threadPool,
-            NODE_ID
+            NODE_ID,
+            mock(XPackLicenseState.class)
         );
     }
 

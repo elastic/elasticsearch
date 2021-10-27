@@ -17,10 +17,10 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchResponse;
@@ -50,8 +50,14 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
     private final Client client;
 
     @Inject
-    public TransportActivateWatchAction(TransportService transportService, ActionFilters actionFilters,
-                                        ClockHolder clockHolder, XPackLicenseState licenseState, WatchParser parser, Client client) {
+    public TransportActivateWatchAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClockHolder clockHolder,
+        XPackLicenseState licenseState,
+        WatchParser parser,
+        Client client
+    ) {
         super(ActivateWatchAction.NAME, transportService, actionFilters, licenseState, ActivateWatchRequest::new);
         this.clock = clockHolder.clock;
         this.parser = parser;
@@ -71,24 +77,42 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
             // once per second?
             updateRequest.retryOnConflict(2);
 
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, updateRequest,
-                    ActionListener.<UpdateResponse>wrap(updateResponse -> {
-                GetRequest getRequest = new GetRequest(Watch.INDEX, request.getWatchId())
-                        .preference(Preference.LOCAL.type()).realtime(true);
+            executeAsyncWithOrigin(
+                client.threadPool().getThreadContext(),
+                WATCHER_ORIGIN,
+                updateRequest,
+                ActionListener.<UpdateResponse>wrap(updateResponse -> {
+                    GetRequest getRequest = new GetRequest(Watch.INDEX, request.getWatchId()).preference(Preference.LOCAL.type())
+                        .realtime(true);
 
-                executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, getRequest,
+                    executeAsyncWithOrigin(
+                        client.threadPool().getThreadContext(),
+                        WATCHER_ORIGIN,
+                        getRequest,
                         ActionListener.<GetResponse>wrap(getResponse -> {
                             if (getResponse.isExists()) {
-                                Watch watch = parser.parseWithSecrets(request.getWatchId(), true, getResponse.getSourceAsBytesRef(), now,
-                                        XContentType.JSON, getResponse.getSeqNo(), getResponse.getPrimaryTerm());
+                                Watch watch = parser.parseWithSecrets(
+                                    request.getWatchId(),
+                                    true,
+                                    getResponse.getSourceAsBytesRef(),
+                                    now,
+                                    XContentType.JSON,
+                                    getResponse.getSeqNo(),
+                                    getResponse.getPrimaryTerm()
+                                );
                                 watch.status().version(getResponse.getVersion());
                                 listener.onResponse(new ActivateWatchResponse(watch.status()));
                             } else {
-                                listener.onFailure(new ResourceNotFoundException("Watch with id [{}] does not exist",
-                                        request.getWatchId()));
+                                listener.onFailure(
+                                    new ResourceNotFoundException("Watch with id [{}] does not exist", request.getWatchId())
+                                );
                             }
-                        }, listener::onFailure), client::get);
-            }, listener::onFailure), client::update);
+                        }, listener::onFailure),
+                        client::get
+                    );
+                }, listener::onFailure),
+                client::update
+            );
         } catch (IOException e) {
             listener.onFailure(e);
         }
@@ -97,9 +121,9 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
     private XContentBuilder activateWatchBuilder(boolean active, ZonedDateTime now) throws IOException {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject()
-                    .startObject(WatchField.STATUS.getPreferredName())
-                    .startObject(WatchStatus.Field.STATE.getPreferredName())
-                    .field(WatchStatus.Field.ACTIVE.getPreferredName(), active);
+                .startObject(WatchField.STATUS.getPreferredName())
+                .startObject(WatchStatus.Field.STATE.getPreferredName())
+                .field(WatchStatus.Field.ACTIVE.getPreferredName(), active);
 
             writeDate(WatchStatus.Field.TIMESTAMP.getPreferredName(), builder, now);
             builder.endObject().endObject().endObject();

@@ -26,17 +26,15 @@ import java.util.stream.Collectors;
  */
 public class DeprecationChecks {
 
-    public static final Setting<List<String>> SKIP_DEPRECATIONS_SETTING =
-        Setting.listSetting(
-            "deprecation.skip_deprecated_settings",
-            Collections.emptyList(),
-            Function.identity(),
-            Setting.Property.NodeScope,
-            Setting.Property.Dynamic
-        );
+    public static final Setting<List<String>> SKIP_DEPRECATIONS_SETTING = Setting.listSetting(
+        "deprecation.skip_deprecated_settings",
+        Collections.emptyList(),
+        Function.identity(),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
-    private DeprecationChecks() {
-    }
+    private DeprecationChecks() {}
 
     static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS = List.of(
         ClusterDeprecationChecks::checkTransientSettingsExistence
@@ -83,7 +81,8 @@ public class DeprecationChecks {
         NodeDeprecationChecks::checkScriptContextCache,
         NodeDeprecationChecks::checkScriptContextCompilationsRateLimitSetting,
         NodeDeprecationChecks::checkScriptContextCacheSizeSetting,
-        NodeDeprecationChecks::checkScriptContextCacheExpirationSetting
+        NodeDeprecationChecks::checkScriptContextCacheExpirationSetting,
+        NodeDeprecationChecks::checkEnforceDefaultTierPreferenceSetting
     );
 
     static List<Function<IndexMetadata, DeprecationIssue>> INDEX_SETTINGS_CHECKS = List.of(

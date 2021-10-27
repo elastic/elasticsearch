@@ -37,9 +37,14 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return Collections.singletonList(
-            new Route(POST,
-                MachineLearning.BASE_PATH + "trained_models/{" +
-                    StartTrainedModelDeploymentAction.Request.MODEL_ID.getPreferredName() + "}/deployment/_start"));
+            new Route(
+                POST,
+                MachineLearning.BASE_PATH
+                    + "trained_models/{"
+                    + StartTrainedModelDeploymentAction.Request.MODEL_ID.getPreferredName()
+                    + "}/deployment/_start"
+            )
+        );
     }
 
     @Override
@@ -51,13 +56,15 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
         } else {
             request = new StartTrainedModelDeploymentAction.Request(modelId);
             if (restRequest.hasParam(TIMEOUT.getPreferredName())) {
-                TimeValue openTimeout = restRequest.paramAsTime(TIMEOUT.getPreferredName(),
-                    StartTrainedModelDeploymentAction.DEFAULT_TIMEOUT);
+                TimeValue openTimeout = restRequest.paramAsTime(
+                    TIMEOUT.getPreferredName(),
+                    StartTrainedModelDeploymentAction.DEFAULT_TIMEOUT
+                );
                 request.setTimeout(openTimeout);
             }
-            request.setWaitForState(AllocationStatus.State.fromString(
-                restRequest.param(WAIT_FOR.getPreferredName(), AllocationStatus.State.STARTED.toString())
-            ));
+            request.setWaitForState(
+                AllocationStatus.State.fromString(restRequest.param(WAIT_FOR.getPreferredName(), AllocationStatus.State.STARTED.toString()))
+            );
             request.setInferenceThreads(restRequest.paramAsInt(INFERENCE_THREADS.getPreferredName(), request.getInferenceThreads()));
             request.setModelThreads(restRequest.paramAsInt(MODEL_THREADS.getPreferredName(), request.getModelThreads()));
             request.setQueueCapacity(restRequest.paramAsInt(QUEUE_CAPACITY.getPreferredName(), request.getQueueCapacity()));

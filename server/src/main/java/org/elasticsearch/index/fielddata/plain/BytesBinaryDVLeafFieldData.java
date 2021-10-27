@@ -9,9 +9,9 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-
+import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.script.field.DocValuesField;
 
 final class BytesBinaryDVLeafFieldData extends AbstractBinaryDVLeafFieldData {
     BytesBinaryDVLeafFieldData(BinaryDocValues values) {
@@ -19,8 +19,7 @@ final class BytesBinaryDVLeafFieldData extends AbstractBinaryDVLeafFieldData {
     }
 
     @Override
-    public ScriptDocValues<BytesRef> getScriptValues() {
-        return new ScriptDocValues.BytesRefs(getBytesValues());
+    public DocValuesField getScriptField(String name) {
+        return new DelegateDocValuesField(new ScriptDocValues.BytesRefs(getBytesValues()), name);
     }
 }
-

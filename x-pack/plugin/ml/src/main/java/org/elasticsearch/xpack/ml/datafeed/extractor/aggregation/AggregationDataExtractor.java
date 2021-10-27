@@ -21,14 +21,16 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 class AggregationDataExtractor extends AbstractAggregationDataExtractor<SearchRequestBuilder> {
 
     AggregationDataExtractor(
-            Client client, AggregationDataExtractorContext dataExtractorContext, DatafeedTimingStatsReporter timingStatsReporter) {
+        Client client,
+        AggregationDataExtractorContext dataExtractorContext,
+        DatafeedTimingStatsReporter timingStatsReporter
+    ) {
         super(client, dataExtractorContext, timingStatsReporter);
     }
 
     @Override
     protected SearchRequestBuilder buildSearchRequest(SearchSourceBuilder searchSourceBuilder) {
-        return new SearchRequestBuilder(client, SearchAction.INSTANCE)
-            .setSource(searchSourceBuilder)
+        return new SearchRequestBuilder(client, SearchAction.INSTANCE).setSource(searchSourceBuilder)
             .setIndicesOptions(context.indicesOptions)
             .setAllowPartialSearchResults(false)
             .setIndices(context.indices);

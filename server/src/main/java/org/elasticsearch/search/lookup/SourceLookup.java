@@ -11,15 +11,15 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
 import java.io.IOException;
@@ -104,10 +104,7 @@ public class SourceLookup implements Map<String, Object> {
         return sourceAsMapAndType(source).v2();
     }
 
-    public void setSegmentAndDocument(
-        LeafReaderContext context,
-        int docId
-    ) {
+    public void setSegmentAndDocument(LeafReaderContext context, int docId) {
         if (this.reader == context.reader() && this.docId == docId) {
             // if we are called with the same document, don't invalidate source
             return;
@@ -187,10 +184,7 @@ public class SourceLookup implements Map<String, Object> {
             FieldsVisitor sourceFieldVisitor = new FieldsVisitor(true);
             fieldReader.accept(docId, sourceFieldVisitor);
             BytesReference source = sourceFieldVisitor.source();
-            return XContentMapValues.extractRawValues(
-                path,
-                XContentHelper.convertToMap(source, false, null, filterPaths, null).v2()
-            );
+            return XContentMapValues.extractRawValues(path, XContentHelper.convertToMap(source, false, null, filterPaths, null).v2());
         } catch (Exception e) {
             throw new ElasticsearchParseException("failed to parse / load source", e);
         }

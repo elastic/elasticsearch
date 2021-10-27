@@ -22,6 +22,7 @@ import io.netty.handler.codec.http.HttpResponseDecoder;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
+
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -52,8 +53,8 @@ import java.util.function.BiConsumer;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -240,8 +241,6 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         httpResponse.addHeader(HttpHeaderNames.CONTENT_LENGTH.toString(), "0");
         return httpResponse;
     }
-
-
 
     private void prepareHandlerForResponse(HttpReadWriteHandler handler) throws IOException {
         HttpMethod method = randomBoolean() ? HttpMethod.GET : HttpMethod.HEAD;

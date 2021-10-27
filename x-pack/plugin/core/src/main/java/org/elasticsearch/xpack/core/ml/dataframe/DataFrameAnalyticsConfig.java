@@ -7,19 +7,19 @@
 package org.elasticsearch.xpack.core.ml.dataframe;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -79,12 +79,18 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         parser.declareObject(Builder::setSource, DataFrameAnalyticsSource.createParser(ignoreUnknownFields), SOURCE);
         parser.declareObject(Builder::setDest, DataFrameAnalyticsDest.createParser(ignoreUnknownFields), DEST);
         parser.declareObject(Builder::setAnalysis, (p, c) -> parseAnalysis(p, ignoreUnknownFields), ANALYSIS);
-        parser.declareField(Builder::setAnalyzedFields,
+        parser.declareField(
+            Builder::setAnalyzedFields,
             (p, c) -> FetchSourceContext.fromXContent(p),
             ANALYZED_FIELDS,
-            OBJECT_ARRAY_BOOLEAN_OR_STRING);
-        parser.declareField(Builder::setModelMemoryLimit,
-            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MODEL_MEMORY_LIMIT.getPreferredName()), MODEL_MEMORY_LIMIT, VALUE);
+            OBJECT_ARRAY_BOOLEAN_OR_STRING
+        );
+        parser.declareField(
+            Builder::setModelMemoryLimit,
+            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MODEL_MEMORY_LIMIT.getPreferredName()),
+            MODEL_MEMORY_LIMIT,
+            VALUE
+        );
         parser.declareBoolean(Builder::setAllowLazyStart, ALLOW_LAZY_START);
         parser.declareInt(Builder::setMaxNumThreads, MAX_NUM_THREADS);
         if (ignoreUnknownFields) {
@@ -92,10 +98,12 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             // (For config, headers are explicitly transferred from the auth headers by code in the put data frame actions.)
             parser.declareObject(Builder::setHeaders, (p, c) -> p.mapStrings(), HEADERS);
             // Creation time is set automatically during PUT, so create_time supplied in the _body_ of a REST request will be rejected.
-            parser.declareField(Builder::setCreateTime,
+            parser.declareField(
+                Builder::setCreateTime,
                 p -> TimeUtils.parseTimeFieldToInstant(p, CREATE_TIME.getPreferredName()),
                 CREATE_TIME,
-                ObjectParser.ValueType.VALUE);
+                ObjectParser.ValueType.VALUE
+            );
             // Version is set automatically during PUT, so version supplied in the _body_ of a REST request will be rejected.
             parser.declareString(Builder::setVersion, Version::fromString, VERSION);
         }
@@ -131,10 +139,20 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     private final boolean allowLazyStart;
     private final int maxNumThreads;
 
-    private DataFrameAnalyticsConfig(String id, String description, DataFrameAnalyticsSource source, DataFrameAnalyticsDest dest,
-                                     DataFrameAnalysis analysis, Map<String, String> headers, ByteSizeValue modelMemoryLimit,
-                                     FetchSourceContext analyzedFields, Instant createTime, Version version, boolean allowLazyStart,
-                                     Integer maxNumThreads) {
+    private DataFrameAnalyticsConfig(
+        String id,
+        String description,
+        DataFrameAnalyticsSource source,
+        DataFrameAnalyticsDest dest,
+        DataFrameAnalysis analysis,
+        Map<String, String> headers,
+        ByteSizeValue modelMemoryLimit,
+        FetchSourceContext analyzedFields,
+        Instant createTime,
+        Version version,
+        boolean allowLazyStart,
+        Integer maxNumThreads
+    ) {
         this.id = ExceptionsHelper.requireNonNull(id, ID);
         this.description = description;
         this.source = ExceptionsHelper.requireNonNull(source, SOURCE);
@@ -254,8 +272,11 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         builder.field(SOURCE.getPreferredName(), source);
         builder.field(DEST.getPreferredName(), dest);
         builder.startObject(ANALYSIS.getPreferredName());
-        builder.field(analysis.getWriteableName(), analysis,
-            new MapParams(Collections.singletonMap(VERSION.getPreferredName(), version == null ? null : version.toString())));
+        builder.field(
+            analysis.getWriteableName(),
+            analysis,
+            new MapParams(Collections.singletonMap(VERSION.getPreferredName(), version == null ? null : version.toString()))
+        );
         builder.endObject();
         if (analyzedFields != null) {
             builder.field(ANALYZED_FIELDS.getPreferredName(), analyzedFields);
@@ -316,8 +337,20 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, description, source, dest, analysis, headers, getModelMemoryLimit(), analyzedFields, createTime, version,
-            allowLazyStart, maxNumThreads);
+        return Objects.hash(
+            id,
+            description,
+            source,
+            dest,
+            analysis,
+            headers,
+            getModelMemoryLimit(),
+            analyzedFields,
+            createTime,
+            version,
+            allowLazyStart,
+            maxNumThreads
+        );
     }
 
     @Override
@@ -334,7 +367,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
      */
     @Nullable
     public static String extractJobIdFromDocId(String docId) {
-        String jobId = docId.replaceAll("^" + TYPE +"-", "");
+        String jobId = docId.replaceAll("^" + TYPE + "-", "");
         return jobId.equals(docId) ? null : jobId;
     }
 
@@ -448,8 +481,20 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
          */
         public DataFrameAnalyticsConfig build() {
             applyMaxModelMemoryLimit();
-            return new DataFrameAnalyticsConfig(id, description, source, dest, analysis, headers, modelMemoryLimit, analyzedFields,
-                createTime, version, allowLazyStart, maxNumThreads);
+            return new DataFrameAnalyticsConfig(
+                id,
+                description,
+                source,
+                dest,
+                analysis,
+                headers,
+                modelMemoryLimit,
+                analyzedFields,
+                createTime,
+                version,
+                allowLazyStart,
+                maxNumThreads
+            );
         }
 
         /**
@@ -470,7 +515,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
                 createTime,
                 version,
                 allowLazyStart,
-                maxNumThreads);
+                maxNumThreads
+            );
         }
 
         private void applyMaxModelMemoryLimit() {
@@ -481,13 +527,17 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
                     // Explicit setting lower than minimum is an error
                     throw ExceptionsHelper.badRequestException(
                         Messages.getMessage(
-                            Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_TOO_LOW, modelMemoryLimit, MIN_MODEL_MEMORY_LIMIT.getStringRep()));
+                            Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_TOO_LOW,
+                            modelMemoryLimit,
+                            MIN_MODEL_MEMORY_LIMIT.getStringRep()
+                        )
+                    );
                 }
                 if (maxModelMemoryIsSet && modelMemoryLimit.compareTo(maxModelMemoryLimit) > 0) {
                     // Explicit setting higher than limit is an error
                     throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(
-                            Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_GREATER_THAN_MAX, modelMemoryLimit, maxModelMemoryLimit));
+                        Messages.getMessage(Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_GREATER_THAN_MAX, modelMemoryLimit, maxModelMemoryLimit)
+                    );
                 }
             } else {
                 // Default is silently capped if higher than limit

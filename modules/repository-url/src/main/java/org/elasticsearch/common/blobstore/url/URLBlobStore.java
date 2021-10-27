@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.blobstore.url;
 
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -20,6 +19,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.CheckedFunction;
 
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -35,7 +35,6 @@ public class URLBlobStore implements BlobStore {
         new ByteSizeValue(100, ByteSizeUnit.KB),
         Setting.Property.NodeScope
     );
-
 
     private final URL path;
 
@@ -60,8 +59,13 @@ public class URLBlobStore implements BlobStore {
 
         final String protocol = this.path.getProtocol();
         if (protocol.equals("http") || protocol.equals("https")) {
-            this.blobContainerFactory = (blobPath) ->
-                new HttpURLBlobContainer(this, blobPath, buildPath(blobPath), httpClient, httpClientSettings);
+            this.blobContainerFactory = (blobPath) -> new HttpURLBlobContainer(
+                this,
+                blobPath,
+                buildPath(blobPath),
+                httpClient,
+                httpClientSettings
+            );
         } else if (protocol.equals("file")) {
             this.blobContainerFactory = (blobPath) -> new FileURLBlobContainer(this, blobPath, buildPath(blobPath));
         } else {

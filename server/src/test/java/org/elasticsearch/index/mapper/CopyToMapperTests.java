@@ -220,8 +220,10 @@ public class CopyToMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-            () -> docMapper.parse(source(b -> b.field("copy_test", "foo"))));
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> docMapper.parse(source(b -> b.field("copy_test", "foo")))
+        );
 
         assertThat(e.getMessage(), startsWith("mapping set to strict, dynamic introduction of [very] within [_doc] is not allowed"));
     }
@@ -252,11 +254,12 @@ public class CopyToMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-            () -> docMapper.parse(source(b -> b.field("copy_test", "foo"))));
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> docMapper.parse(source(b -> b.field("copy_test", "foo")))
+        );
 
-        assertThat(e.getMessage(),
-            startsWith("mapping set to strict, dynamic introduction of [field] within [very.far] is not allowed"));
+        assertThat(e.getMessage(), startsWith("mapping set to strict, dynamic introduction of [field] within [very.far] is not allowed"));
     }
 
     public void testCopyToFieldMerge() throws Exception {
@@ -292,48 +295,46 @@ public class CopyToMapperTests extends MapperServiceTestCase {
 
     public void testCopyToNestedField() throws Exception {
 
-            DocumentMapper mapper = createDocumentMapper(mapping(b -> {
-                b.startObject("target");
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("target");
+            {
+                b.field("type", "long");
+                b.field("doc_values", false);
+            }
+            b.endObject();
+            b.startObject("n1");
+            {
+                b.field("type", "nested");
+                b.startObject("properties");
                 {
-                    b.field("type", "long");
-                    b.field("doc_values", false);
-                }
-                b.endObject();
-                b.startObject("n1");
-                {
-                    b.field("type", "nested");
-                    b.startObject("properties");
+                    b.startObject("target");
                     {
-                        b.startObject("target");
+                        b.field("type", "long");
+                        b.field("doc_values", false);
+                    }
+                    b.endObject();
+                    b.startObject("n2");
+                    {
+                        b.field("type", "nested");
+                        b.startObject("properties");
                         {
-                            b.field("type", "long");
-                            b.field("doc_values", false);
-                        }
-                        b.endObject();
-                        b.startObject("n2");
-                        {
-                            b.field("type", "nested");
-                            b.startObject("properties");
+                            b.startObject("target");
                             {
-                                b.startObject("target");
+                                b.field("type", "long");
+                                b.field("doc_values", false);
+                            }
+                            b.endObject();
+                            b.startObject("source");
+                            {
+                                b.field("type", "long");
+                                b.field("doc_values", false);
+                                b.startArray("copy_to");
                                 {
-                                    b.field("type", "long");
-                                    b.field("doc_values", false);
+                                    b.value("target"); // should go to the root doc
+                                    b.value("n1.target"); // should go to the parent doc
+                                    b.value("n1.n2.target"); // should go to the current doc
                                 }
-                                b.endObject();
-                                b.startObject("source");
-                                {
-                                    b.field("type", "long");
-                                    b.field("doc_values", false);
-                                    b.startArray("copy_to");
-                                    {
-                                        b.value("target"); // should go to the root doc
-                                        b.value("n1.target"); // should go to the parent doc
-                                        b.value("n1.n2.target"); // should go to the current doc
-                                    }
-                                    b.endArray();
-                                }
-                                b.endObject();
+                                b.endArray();
                             }
                             b.endObject();
                         }
@@ -342,7 +343,9 @@ public class CopyToMapperTests extends MapperServiceTestCase {
                     b.endObject();
                 }
                 b.endObject();
-            }));
+            }
+            b.endObject();
+        }));
 
         ParsedDocument doc = mapper.parse(source(b -> {
             b.startArray("n1");
@@ -621,34 +624,37 @@ public class CopyToMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         })));
-        assertThat(e.getMessage(),
-            Matchers.containsString("[copy_to] may not be used to copy from a multi-field: [field.bar]"));
+        assertThat(e.getMessage(), Matchers.containsString("[copy_to] may not be used to copy from a multi-field: [field.bar]"));
     }
 
     public void testCopyToDateRangeFailure() throws Exception {
         DocumentMapper docMapper = createDocumentMapper(topMapping(b -> {
-                b.startObject("properties");
-                {
-                    b.startObject("date_copy")
-                        .field("type", "date_range")
+            b.startObject("properties");
+            {
+                b.startObject("date_copy")
+                    .field("type", "date_range")
                     .endObject()
                     .startObject("date")
-                        .field("type", "date_range")
-                        .array("copy_to", "date_copy")
+                    .field("type", "date_range")
+                    .array("copy_to", "date_copy")
                     .endObject();
-                }
-                b.endObject();
-              }));
+            }
+            b.endObject();
+        }));
 
-        BytesReference json = BytesReference.bytes(jsonBuilder().startObject()
+        BytesReference json = BytesReference.bytes(
+            jsonBuilder().startObject()
                 .startObject("date")
-                    .field("gte", "2019-11-10T01:00:00.000Z")
-                    .field("lt", "2019-11-11T01:00:00.000Z")
+                .field("gte", "2019-11-10T01:00:00.000Z")
+                .field("lt", "2019-11-11T01:00:00.000Z")
                 .endObject()
-                .endObject());
+                .endObject()
+        );
 
-        MapperParsingException ex = expectThrows(MapperParsingException.class, () -> docMapper.parse(new SourceToParse("test", "1", json,
-            XContentType.JSON)).rootDoc());
+        MapperParsingException ex = expectThrows(
+            MapperParsingException.class,
+            () -> docMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc()
+        );
         assertEquals(
             "Cannot copy field [date] to fields [date_copy]. Copy-to currently only works for value-type fields, not objects.",
             ex.getMessage()
@@ -656,21 +662,22 @@ public class CopyToMapperTests extends MapperServiceTestCase {
     }
 
     public void testCopyToWithNullValue() throws Exception {
-        DocumentMapper docMapper = createDocumentMapper(topMapping(b ->
-            b.startObject("properties")
-                .startObject("keyword_copy")
+        DocumentMapper docMapper = createDocumentMapper(
+            topMapping(
+                b -> b.startObject("properties")
+                    .startObject("keyword_copy")
                     .field("type", "keyword")
                     .field("null_value", "default-value")
-                .endObject()
-                .startObject("keyword")
+                    .endObject()
+                    .startObject("keyword")
                     .field("type", "keyword")
                     .array("copy_to", "keyword_copy")
-                .endObject()
-            .endObject()));
+                    .endObject()
+                    .endObject()
+            )
+        );
 
-        BytesReference json = BytesReference.bytes(jsonBuilder().startObject()
-                .nullField("keyword")
-            .endObject());
+        BytesReference json = BytesReference.bytes(jsonBuilder().startObject().nullField("keyword").endObject());
 
         LuceneDocument document = docMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
         assertEquals(0, document.getFields("keyword").length);
@@ -681,18 +688,18 @@ public class CopyToMapperTests extends MapperServiceTestCase {
 
     public void testCopyToGeoPoint() throws Exception {
         DocumentMapper docMapper = createDocumentMapper(topMapping(b -> {
-                b.startObject("properties");
-                {
-                    b.startObject("geopoint_copy")
-                        .field("type", "geo_point")
+            b.startObject("properties");
+            {
+                b.startObject("geopoint_copy")
+                    .field("type", "geo_point")
                     .endObject()
                     .startObject("geopoint")
-                        .field("type", "geo_point")
-                        .array("copy_to", "geopoint_copy")
+                    .field("type", "geo_point")
+                    .array("copy_to", "geopoint_copy")
                     .endObject();
-                }
-                b.endObject();
-              }));
+            }
+            b.endObject();
+        }));
         // copy-to works for value-type representations
         {
             for (String value : List.of("41.12,-71.34", "drm3btev3e86", "POINT (-71.34 41.12)")) {

@@ -35,8 +35,7 @@ public class CcrStatsAction extends ActionType<CcrStatsAction.Response> {
             super(in);
         }
 
-        public Request() {
-        }
+        public Request() {}
 
         @Override
         public ActionRequestValidationException validate() {
@@ -95,8 +94,7 @@ public class CcrStatsAction extends ActionType<CcrStatsAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
-            return Objects.equals(autoFollowStats, response.autoFollowStats) &&
-                    Objects.equals(followStats, response.followStats);
+            return Objects.equals(autoFollowStats, response.autoFollowStats) && Objects.equals(followStats, response.followStats);
         }
 
         @Override

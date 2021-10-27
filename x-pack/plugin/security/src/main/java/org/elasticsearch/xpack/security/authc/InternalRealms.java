@@ -121,49 +121,54 @@ public final class InternalRealms {
      *
      * @return A map from <em>realm-type</em> to <code>Factory</code>
      */
-    public static Map<String, Realm.Factory> getFactories(ThreadPool threadPool, ResourceWatcherService resourceWatcherService,
-                                                          SSLService sslService, NativeUsersStore nativeUsersStore,
-                                                          NativeRoleMappingStore nativeRoleMappingStore,
-                                                          SecurityIndexManager securityIndex) {
+    public static Map<String, Realm.Factory> getFactories(
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        SSLService sslService,
+        NativeUsersStore nativeUsersStore,
+        NativeRoleMappingStore nativeRoleMappingStore,
+        SecurityIndexManager securityIndex
+    ) {
 
         return Map.of(
-                // file realm
-                FileRealmSettings.TYPE,
-                config -> new FileRealm(config, resourceWatcherService, threadPool),
-                // native realm
-                NativeRealmSettings.TYPE,
-                config -> {
-                    final NativeRealm nativeRealm = new NativeRealm(config, nativeUsersStore, threadPool);
-                    securityIndex.addStateListener(nativeRealm::onSecurityIndexStateChange);
-                    return nativeRealm;
-                },
-                // active directory realm
-                LdapRealmSettings.AD_TYPE,
-                config -> new LdapRealm(config, sslService, resourceWatcherService, nativeRoleMappingStore, threadPool),
-                // LDAP realm
-                LdapRealmSettings.LDAP_TYPE,
-                config -> new LdapRealm(config, sslService, resourceWatcherService, nativeRoleMappingStore, threadPool),
-                // PKI realm
-                PkiRealmSettings.TYPE,
-                config -> new PkiRealm(config, resourceWatcherService, nativeRoleMappingStore),
-                // SAML realm
-                SamlRealmSettings.TYPE,
-                config -> SamlRealm.create(config, sslService, resourceWatcherService, nativeRoleMappingStore),
-                // Kerberos realm
-                KerberosRealmSettings.TYPE,
-                config -> new KerberosRealm(config, nativeRoleMappingStore, threadPool),
-                // OpenID Connect realm
-                OpenIdConnectRealmSettings.TYPE,
-                config -> new OpenIdConnectRealm(config, sslService, nativeRoleMappingStore, resourceWatcherService));
+            // file realm
+            FileRealmSettings.TYPE,
+            config -> new FileRealm(config, resourceWatcherService, threadPool),
+            // native realm
+            NativeRealmSettings.TYPE,
+            config -> {
+                final NativeRealm nativeRealm = new NativeRealm(config, nativeUsersStore, threadPool);
+                securityIndex.addStateListener(nativeRealm::onSecurityIndexStateChange);
+                return nativeRealm;
+            },
+            // active directory realm
+            LdapRealmSettings.AD_TYPE,
+            config -> new LdapRealm(config, sslService, resourceWatcherService, nativeRoleMappingStore, threadPool),
+            // LDAP realm
+            LdapRealmSettings.LDAP_TYPE,
+            config -> new LdapRealm(config, sslService, resourceWatcherService, nativeRoleMappingStore, threadPool),
+            // PKI realm
+            PkiRealmSettings.TYPE,
+            config -> new PkiRealm(config, resourceWatcherService, nativeRoleMappingStore),
+            // SAML realm
+            SamlRealmSettings.TYPE,
+            config -> SamlRealm.create(config, sslService, resourceWatcherService, nativeRoleMappingStore),
+            // Kerberos realm
+            KerberosRealmSettings.TYPE,
+            config -> new KerberosRealm(config, nativeRoleMappingStore, threadPool),
+            // OpenID Connect realm
+            OpenIdConnectRealmSettings.TYPE,
+            config -> new OpenIdConnectRealm(config, sslService, nativeRoleMappingStore, resourceWatcherService)
+        );
     }
 
-    private InternalRealms() {
-    }
+    private InternalRealms() {}
 
     public static List<BootstrapCheck> getBootstrapChecks(final Settings globalSettings, final Environment env) {
         final Set<String> realmTypes = Sets.newHashSet(LdapRealmSettings.AD_TYPE, LdapRealmSettings.LDAP_TYPE, PkiRealmSettings.TYPE);
         final List<BootstrapCheck> checks = RealmSettings.getRealmSettings(globalSettings)
-            .keySet().stream()
+            .keySet()
+            .stream()
             .filter(id -> realmTypes.contains(id.getType()))
             .map(id -> new RealmConfig(id, globalSettings, env, null))
             .map(RoleMappingFileBootstrapCheck::create)

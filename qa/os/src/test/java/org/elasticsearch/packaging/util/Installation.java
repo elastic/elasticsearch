@@ -171,6 +171,10 @@ public class Installation {
         }
 
         public Shell.Result run(String args, String input) {
+            return run(args, input, false);
+        }
+
+        public Shell.Result run(String args, String input, boolean ignoreExitCode) {
             String command = path.toString();
             if (Platforms.WINDOWS) {
                 command = "& '" + command + "'";
@@ -183,6 +187,9 @@ public class Installation {
 
             if (input != null) {
                 command = "echo \"" + input + "\" | " + command;
+            }
+            if (ignoreExitCode) {
+                return sh.runIgnoreExitCode(command + " " + args);
             }
             return sh.run(command + " " + args);
         }
@@ -199,7 +206,9 @@ public class Installation {
         public final Executable shardTool = new Executable("elasticsearch-shard");
         public final Executable nodeTool = new Executable("elasticsearch-node");
         public final Executable setupPasswordsTool = new Executable("elasticsearch-setup-passwords");
-        public final Executable resetElasticPasswordTool = new Executable("elasticsearch-reset-elastic-password");
+        public final Executable resetPasswordTool = new Executable("elasticsearch-reset-password");
+        public final Executable createEnrollmentToken = new Executable("elasticsearch-create-enrollment-token");
+        public final Executable nodeReconfigureTool = new Executable("elasticsearch-reconfigure-node");
         public final Executable sqlCli = new Executable("elasticsearch-sql-cli");
         public final Executable syskeygenTool = new Executable("elasticsearch-syskeygen");
         public final Executable usersTool = new Executable("elasticsearch-users");

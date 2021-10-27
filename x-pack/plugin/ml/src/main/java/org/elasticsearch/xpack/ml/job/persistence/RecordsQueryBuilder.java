@@ -49,12 +49,12 @@ public final class RecordsQueryBuilder {
     public static final int DEFAULT_SIZE = 100;
 
     private static final List<String> SECONDARY_SORT = Arrays.asList(
-            AnomalyRecord.RECORD_SCORE.getPreferredName(),
-            AnomalyRecord.OVER_FIELD_VALUE.getPreferredName(),
-            AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName(),
-            AnomalyRecord.BY_FIELD_VALUE.getPreferredName(),
-            AnomalyRecord.FIELD_NAME.getPreferredName(),
-            AnomalyRecord.FUNCTION.getPreferredName()
+        AnomalyRecord.RECORD_SCORE.getPreferredName(),
+        AnomalyRecord.OVER_FIELD_VALUE.getPreferredName(),
+        AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName(),
+        AnomalyRecord.BY_FIELD_VALUE.getPreferredName(),
+        AnomalyRecord.FIELD_NAME.getPreferredName(),
+        AnomalyRecord.FUNCTION.getPreferredName()
     );
 
     private int from = 0;
@@ -113,34 +113,29 @@ public final class RecordsQueryBuilder {
     }
 
     public SearchSourceBuilder build() {
-        QueryBuilder query = new ResultsFilterBuilder()
-                .timeRange(Result.TIMESTAMP.getPreferredName(), start, end)
-                .score(AnomalyRecord.RECORD_SCORE.getPreferredName(), recordScore)
-                .interim(includeInterim)
-                .build();
+        QueryBuilder query = new ResultsFilterBuilder().timeRange(Result.TIMESTAMP.getPreferredName(), start, end)
+            .score(AnomalyRecord.RECORD_SCORE.getPreferredName(), recordScore)
+            .interim(includeInterim)
+            .build();
 
         FieldSortBuilder sb;
         if (sortField != null) {
-            sb = new FieldSortBuilder(sortField)
-                    .missing("_last")
-                    .order(sortDescending ? SortOrder.DESC : SortOrder.ASC);
+            sb = new FieldSortBuilder(sortField).missing("_last").order(sortDescending ? SortOrder.DESC : SortOrder.ASC);
         } else {
             sb = SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC);
         }
 
-        BoolQueryBuilder recordFilter = new BoolQueryBuilder()
-                .filter(query)
-                .filter(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), AnomalyRecord.RESULT_TYPE_VALUE));
+        BoolQueryBuilder recordFilter = new BoolQueryBuilder().filter(query)
+            .filter(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), AnomalyRecord.RESULT_TYPE_VALUE));
         if (timestamp != null) {
             recordFilter.filter(QueryBuilders.termQuery(Result.TIMESTAMP.getPreferredName(), timestamp.getTime()));
         }
 
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder()
-                .from(from)
-                .size(size)
-                .query(recordFilter)
-                .sort(sb)
-                .fetchSource(true);
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().from(from)
+            .size(size)
+            .query(recordFilter)
+            .sort(sb)
+            .fetchSource(true);
 
         for (String sortField : SECONDARY_SORT) {
             searchSourceBuilder.sort(sortField, sortDescending ? SortOrder.DESC : SortOrder.ASC);
@@ -149,5 +144,3 @@ public final class RecordsQueryBuilder {
         return searchSourceBuilder;
     }
 }
-
-

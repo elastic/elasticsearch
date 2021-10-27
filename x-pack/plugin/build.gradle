@@ -118,6 +118,11 @@ tasks.named("yamlRestTestV7CompatTransform").configure{ task ->
   task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")
   task.addAllowedWarningRegexForTest("Including \\[accept_enterprise\\] in get license.*", "Installing enterprise license")
+
+  task.replaceValueTextByKeyValue("catch",
+    'bad_request',
+    '/It is no longer possible to freeze indices, but existing frozen indices can still be unfrozen/',
+    "Cannot freeze write index for data stream")
 }
 
 

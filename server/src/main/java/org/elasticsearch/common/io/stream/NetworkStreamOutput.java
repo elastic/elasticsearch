@@ -70,18 +70,21 @@ public class NetworkStreamOutput extends BytesStream {
             throw new IllegalArgumentException("Illegal offset " + offset + "/length " + length + " for byte[] of length " + b.length);
         }
 
-        int currentPageIndex = pages.size();
+        int currentPageIndex = pages.size() - 1;
 
         // get enough pages for new size
         ensureCapacity(((long) count) + length);
 
         // bulk copy
         int bytesToCopy = length;
+        int j = 0;
         while (bytesToCopy > 0) {
-            BytesRef currentPage = pages.get(currentPageIndex).v();
-
+            BytesRef currentPage = pages.get(currentPageIndex + j).v();
+            int toCopyThisLoop = Math.max(currentPage.length - currentPageOffset, bytesToCopy);
+            System.arraycopy(b, offset, currentPage.bytes, currentPage.offset + currentPageOffset, toCopyThisLoop);
+            bytesToCopy -= toCopyThisLoop;
+            j++;
         }
-
 
         // advance
         count += length;
@@ -124,17 +127,20 @@ public class NetworkStreamOutput extends BytesStream {
 
     @Override
     public void seek(long position) {
-//        ensureCapacity(position);
-//        count = (int) position;
+        ensureCapacity(position);
+        count = (int) position;
     }
 
     public void skip(int length) {
-//        seek(((long) count) + length);
+        seek(((long) count) + length);
     }
 
     @Override
     public void close() {
-        // empty for now.
+        for (Recycler.V<BytesRef> page : pages) {
+            page.close();
+        }
+        pages.clear();
     }
 
     /**

@@ -19,8 +19,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
@@ -47,8 +47,11 @@ public class AsyncTaskMaintenanceService extends AbstractLifecycleComponent impl
      * is mainly used by integration tests to make the garbage
      * collection of search responses more reactive.
      */
-    public static final Setting<TimeValue> ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING =
-        Setting.timeSetting("async_search.index_cleanup_interval", TimeValue.timeValueHours(1), Setting.Property.NodeScope);
+    public static final Setting<TimeValue> ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING = Setting.timeSetting(
+        "async_search.index_cleanup_interval",
+        TimeValue.timeValueHours(1),
+        Setting.Property.NodeScope
+    );
 
     private static final Logger logger = LogManager.getLogger(AsyncTaskMaintenanceService.class);
 
@@ -62,11 +65,13 @@ public class AsyncTaskMaintenanceService extends AbstractLifecycleComponent impl
     private boolean isCleanupRunning;
     private volatile Scheduler.Cancellable cancellable;
 
-    public AsyncTaskMaintenanceService(ClusterService clusterService,
-                                       String localNodeId,
-                                       Settings nodeSettings,
-                                       ThreadPool threadPool,
-                                       Client clientWithOrigin) {
+    public AsyncTaskMaintenanceService(
+        ClusterService clusterService,
+        String localNodeId,
+        Settings nodeSettings,
+        ThreadPool threadPool,
+        Client clientWithOrigin
+    ) {
         this.clusterService = clusterService;
         this.index = XPackPlugin.ASYNC_RESULTS_INDEX;
         this.localNodeId = localNodeId;
@@ -74,7 +79,6 @@ public class AsyncTaskMaintenanceService extends AbstractLifecycleComponent impl
         this.clientWithOrigin = clientWithOrigin;
         this.delay = ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING.get(nodeSettings);
     }
-
 
     @Override
     protected void doStart() {
@@ -88,8 +92,7 @@ public class AsyncTaskMaintenanceService extends AbstractLifecycleComponent impl
     }
 
     @Override
-    protected final void doClose() throws IOException {
-    }
+    protected final void doClose() throws IOException {}
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
@@ -124,8 +127,9 @@ public class AsyncTaskMaintenanceService extends AbstractLifecycleComponent impl
     synchronized void executeNextCleanup() {
         if (isCleanupRunning) {
             long nowInMillis = System.currentTimeMillis();
-            DeleteByQueryRequest toDelete = new DeleteByQueryRequest(index)
-                .setQuery(QueryBuilders.rangeQuery(EXPIRATION_TIME_FIELD).lte(nowInMillis));
+            DeleteByQueryRequest toDelete = new DeleteByQueryRequest(index).setQuery(
+                QueryBuilders.rangeQuery(EXPIRATION_TIME_FIELD).lte(nowInMillis)
+            );
             clientWithOrigin.execute(DeleteByQueryAction.INSTANCE, toDelete, ActionListener.wrap(this::scheduleNextCleanup));
         }
     }

@@ -7,16 +7,17 @@
 package org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl;
 
 import com.carrotsearch.randomizedtesting.WriterOutputStream;
+
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression.FieldValue;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
@@ -46,16 +47,16 @@ public class ExpressionParserTests extends ESTestCase {
     }
 
     public void testParseComplexExpression() throws Exception {
-        String json = "{ \"any\": [" +
-                "   { \"field\": { \"username\" : \"*@shield.gov\" } }, " +
-                "   { \"all\": [" +
-                "     { \"field\": { \"username\" : \"/.*\\\\@avengers\\\\.(net|org)/\" } }, " +
-                "     { \"field\": { \"groups\" : [ \"admin\", \"operators\" ] } }, " +
-                "     { \"except\":" +
-                "       { \"field\": { \"groups\" : \"disavowed\" } }" +
-                "     }" +
-                "   ] }" +
-                "] }";
+        String json = "{ \"any\": ["
+            + "   { \"field\": { \"username\" : \"*@shield.gov\" } }, "
+            + "   { \"all\": ["
+            + "     { \"field\": { \"username\" : \"/.*\\\\@avengers\\\\.(net|org)/\" } }, "
+            + "     { \"field\": { \"groups\" : [ \"admin\", \"operators\" ] } }, "
+            + "     { \"except\":"
+            + "       { \"field\": { \"groups\" : \"disavowed\" } }"
+            + "     }"
+            + "   ] }"
+            + "] }";
         final RoleMapperExpression expr = parse(json);
 
         assertThat(expr, instanceOf(AnyExpression.class));
@@ -63,8 +64,7 @@ public class ExpressionParserTests extends ESTestCase {
 
         assertThat(any.getElements(), iterableWithSize(2));
 
-        final FieldExpression fieldShield = checkExpressionType(any.getElements().get(0),
-                FieldExpression.class);
+        final FieldExpression fieldShield = checkExpressionType(any.getElements().get(0), FieldExpression.class);
         assertThat(fieldShield.getField(), equalTo("username"));
         assertThat(fieldShield.getValues(), iterableWithSize(1));
         final FieldValue valueShield = fieldShield.getValues().get(0);
@@ -73,12 +73,10 @@ public class ExpressionParserTests extends ESTestCase {
         assertThat(valueShield.getAutomaton().run("fury@shield.gov"), equalTo(true));
         assertThat(valueShield.getAutomaton().run("fury@shield.net"), equalTo(false));
 
-        final AllExpression all = checkExpressionType(any.getElements().get(1),
-                AllExpression.class);
+        final AllExpression all = checkExpressionType(any.getElements().get(1), AllExpression.class);
         assertThat(all.getElements(), iterableWithSize(3));
 
-        final FieldExpression fieldAvengers = checkExpressionType(all.getElements().get(0),
-                FieldExpression.class);
+        final FieldExpression fieldAvengers = checkExpressionType(all.getElements().get(0), FieldExpression.class);
         assertThat(fieldAvengers.getField(), equalTo("username"));
         assertThat(fieldAvengers.getValues(), iterableWithSize(1));
         final FieldValue valueAvengers = fieldAvengers.getValues().get(0);
@@ -86,17 +84,14 @@ public class ExpressionParserTests extends ESTestCase {
         assertThat(valueAvengers.getAutomaton().run("romanov@avengers.org"), equalTo(true));
         assertThat(valueAvengers.getAutomaton().run("fury@shield.gov"), equalTo(false));
 
-        final FieldExpression fieldGroupsAdmin = checkExpressionType(all.getElements().get(1),
-                FieldExpression.class);
+        final FieldExpression fieldGroupsAdmin = checkExpressionType(all.getElements().get(1), FieldExpression.class);
         assertThat(fieldGroupsAdmin.getField(), equalTo("groups"));
         assertThat(fieldGroupsAdmin.getValues(), iterableWithSize(2));
         assertThat(fieldGroupsAdmin.getValues().get(0).getValue(), equalTo("admin"));
         assertThat(fieldGroupsAdmin.getValues().get(1).getValue(), equalTo("operators"));
 
-        final ExceptExpression except = checkExpressionType(all.getElements().get(2),
-                ExceptExpression.class);
-        final FieldExpression fieldDisavowed = checkExpressionType(except.getInnerExpression(),
-                FieldExpression.class);
+        final ExceptExpression except = checkExpressionType(all.getElements().get(2), ExceptExpression.class);
+        final FieldExpression fieldDisavowed = checkExpressionType(except.getInnerExpression(), FieldExpression.class);
         assertThat(fieldDisavowed.getField(), equalTo("groups"));
         assertThat(fieldDisavowed.getValues(), iterableWithSize(1));
         assertThat(fieldDisavowed.getValues().get(0).getValue(), equalTo("disavowed"));
@@ -124,16 +119,16 @@ public class ExpressionParserTests extends ESTestCase {
     }
 
     public void testWriteAndReadFromStream() throws Exception {
-        String json = "{ \"any\": [" +
-                "   { \"field\": { \"username\" : \"*@shield.gov\" } }, " +
-                "   { \"all\": [" +
-                "     { \"field\": { \"username\" : \"/.*\\\\@avengers\\\\.(net|org)/\" } }, " +
-                "     { \"field\": { \"groups\" : [ \"admin\", \"operators\" ] } }, " +
-                "     { \"except\":" +
-                "       { \"field\": { \"groups\" : \"disavowed\" } }" +
-                "     }" +
-                "   ] }" +
-                "] }";
+        String json = "{ \"any\": ["
+            + "   { \"field\": { \"username\" : \"*@shield.gov\" } }, "
+            + "   { \"all\": ["
+            + "     { \"field\": { \"username\" : \"/.*\\\\@avengers\\\\.(net|org)/\" } }, "
+            + "     { \"field\": { \"groups\" : [ \"admin\", \"operators\" ] } }, "
+            + "     { \"except\":"
+            + "       { \"field\": { \"groups\" : \"disavowed\" } }"
+            + "     }"
+            + "   ] }"
+            + "] }";
         final RoleMapperExpression exprSource = parse(json);
         final BytesStreamOutput out = new BytesStreamOutput();
         ExpressionParser.writeExpression(exprSource, out);
@@ -151,8 +146,7 @@ public class ExpressionParserTests extends ESTestCase {
     }
 
     private RoleMapperExpression parse(String json) throws IOException {
-        return new ExpressionParser().parse("rules", new XContentSource(new BytesArray(json),
-                XContentType.JSON));
+        return new ExpressionParser().parse("rules", new XContentSource(new BytesArray(json), XContentType.JSON));
     }
 
     private String json(RoleMapperExpression node) throws IOException {

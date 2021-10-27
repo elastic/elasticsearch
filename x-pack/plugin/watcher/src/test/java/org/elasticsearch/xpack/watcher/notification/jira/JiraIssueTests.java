@@ -8,14 +8,14 @@ package org.elasticsearch.xpack.watcher.notification.jira;
 
 import org.apache.http.HttpStatus;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
+import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
 import org.elasticsearch.xpack.watcher.common.http.HttpMethod;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
-import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -111,10 +111,10 @@ public class JiraIssueTests extends ESTestCase {
         String account = "account_" + randomIntBetween(0, 100);
         Map<String, Object> fields = randomIssueDefaults();
         HttpRequest request = HttpRequest.builder(randomFrom("localhost", "internal-jira.elastic.co"), randomFrom(80, 443))
-                                            .method(HttpMethod.POST)
-                                            .path(JiraAccount.DEFAULT_PATH)
-                                            .auth(new BasicAuth(randomAlphaOfLength(5), randomAlphaOfLength(5).toCharArray()))
-                                            .build();
+            .method(HttpMethod.POST)
+            .path(JiraAccount.DEFAULT_PATH)
+            .auth(new BasicAuth(randomAlphaOfLength(5), randomAlphaOfLength(5).toCharArray()))
+            .build();
         if (rarely()) {
             Tuple<Integer, String> error = randomHttpError();
             return JiraIssue.responded(account, fields, request, new HttpResponse(error.v1(), "{\"error\": \"" + error.v2() + "\"}"));

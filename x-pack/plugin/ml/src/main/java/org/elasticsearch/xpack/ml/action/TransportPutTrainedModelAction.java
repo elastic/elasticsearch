@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.License;
@@ -36,6 +35,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
@@ -67,12 +67,28 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
     private final OriginSettingClient client;
 
     @Inject
-    public TransportPutTrainedModelAction(TransportService transportService, ClusterService clusterService,
-                                          ThreadPool threadPool, XPackLicenseState licenseState, ActionFilters actionFilters,
-                                          IndexNameExpressionResolver indexNameExpressionResolver, Client client,
-                                          TrainedModelProvider trainedModelProvider, NamedXContentRegistry xContentRegistry) {
-        super(PutTrainedModelAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new,
-            indexNameExpressionResolver, Response::new, ThreadPool.Names.SAME);
+    public TransportPutTrainedModelAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        XPackLicenseState licenseState,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Client client,
+        TrainedModelProvider trainedModelProvider,
+        NamedXContentRegistry xContentRegistry
+    ) {
+        super(
+            PutTrainedModelAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            Request::new,
+            indexNameExpressionResolver,
+            Response::new,
+            ThreadPool.Names.SAME
+        );
         this.licenseState = licenseState;
         this.trainedModelProvider = trainedModelProvider;
         this.xContentRegistry = xContentRegistry;
@@ -80,19 +96,19 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
     }
 
     @Override
-    protected void masterOperation(Task task,
-                                   PutTrainedModelAction.Request request,
-                                   ClusterState state,
-                                   ActionListener<Response> listener) {
+    protected void masterOperation(
+        Task task,
+        PutTrainedModelAction.Request request,
+        ClusterState state,
+        ActionListener<Response> listener
+    ) {
         TrainedModelConfig config = request.getTrainedModelConfig();
         try {
             if (request.isDeferDefinitionDecompression() == false) {
                 config.ensureParsedDefinition(xContentRegistry);
             }
         } catch (IOException ex) {
-            listener.onFailure(ExceptionsHelper.badRequestException("Failed to parse definition for [{}]",
-                ex,
-                config.getModelId()));
+            listener.onFailure(ExceptionsHelper.badRequestException("Failed to parse definition for [{}]", ex, config.getModelId()));
             return;
         }
 
@@ -102,17 +118,20 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             try {
                 config.getModelDefinition().getTrainedModel().validate();
             } catch (ElasticsearchException ex) {
-                listener.onFailure(ExceptionsHelper.badRequestException("Definition for [{}] has validation failures.",
-                    ex,
-                    config.getModelId()));
+                listener.onFailure(
+                    ExceptionsHelper.badRequestException("Definition for [{}] has validation failures.", ex, config.getModelId())
+                );
                 return;
             }
 
-            TrainedModelType trainedModelType =
-                TrainedModelType.typeFromTrainedModel(config.getModelDefinition().getTrainedModel());
+            TrainedModelType trainedModelType = TrainedModelType.typeFromTrainedModel(config.getModelDefinition().getTrainedModel());
             if (trainedModelType == null) {
-                listener.onFailure(ExceptionsHelper.badRequestException("Unknown trained model definition class [{}]",
-                    config.getModelDefinition().getTrainedModel().getName()));
+                listener.onFailure(
+                    ExceptionsHelper.badRequestException(
+                        "Unknown trained model definition class [{}]",
+                        config.getModelDefinition().getTrainedModel().getName()
+                    )
+                );
                 return;
             }
 
@@ -120,41 +139,43 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                 // Set the model type from the definition
                 config = new TrainedModelConfig.Builder(config).setModelType(trainedModelType).build();
             } else if (trainedModelType != config.getModelType()) {
-                listener.onFailure(ExceptionsHelper.badRequestException(
-                    "{} [{}] does not match the model definition type [{}]",
-                    TrainedModelConfig.MODEL_TYPE.getPreferredName(), config.getModelType(),
-                    trainedModelType));
+                listener.onFailure(
+                    ExceptionsHelper.badRequestException(
+                        "{} [{}] does not match the model definition type [{}]",
+                        TrainedModelConfig.MODEL_TYPE.getPreferredName(),
+                        config.getModelType(),
+                        trainedModelType
+                    )
+                );
                 return;
             }
 
-            if (config.getInferenceConfig()
-                .isTargetTypeSupported(config
-                    .getModelDefinition()
-                    .getTrainedModel()
-                    .targetType()) == false) {
-                listener.onFailure(ExceptionsHelper.badRequestException(
-                    "Model [{}] inference config type [{}] does not support definition target type [{}]",
-                    config.getModelId(),
-                    config.getInferenceConfig().getName(),
-                    config.getModelDefinition().getTrainedModel().targetType()));
+            if (config.getInferenceConfig().isTargetTypeSupported(config.getModelDefinition().getTrainedModel().targetType()) == false) {
+                listener.onFailure(
+                    ExceptionsHelper.badRequestException(
+                        "Model [{}] inference config type [{}] does not support definition target type [{}]",
+                        config.getModelId(),
+                        config.getInferenceConfig().getName(),
+                        config.getModelDefinition().getTrainedModel().targetType()
+                    )
+                );
                 return;
             }
 
-            Version minCompatibilityVersion = config
-                .getModelDefinition()
-                .getTrainedModel()
-                .getMinimalCompatibilityVersion();
+            Version minCompatibilityVersion = config.getModelDefinition().getTrainedModel().getMinimalCompatibilityVersion();
             if (state.nodes().getMinNodeVersion().before(minCompatibilityVersion)) {
-                listener.onFailure(ExceptionsHelper.badRequestException(
-                    "Definition for [{}] requires that all nodes are at least version [{}]",
-                    config.getModelId(),
-                    minCompatibilityVersion.toString()));
+                listener.onFailure(
+                    ExceptionsHelper.badRequestException(
+                        "Definition for [{}] requires that all nodes are at least version [{}]",
+                        config.getModelId(),
+                        minCompatibilityVersion.toString()
+                    )
+                );
                 return;
             }
         }
 
-        TrainedModelConfig.Builder trainedModelConfig = new TrainedModelConfig.Builder(config)
-            .setVersion(Version.CURRENT)
+        TrainedModelConfig.Builder trainedModelConfig = new TrainedModelConfig.Builder(config).setVersion(Version.CURRENT)
             .setCreateTime(Instant.now())
             .setCreatedBy("api_user")
             .setLicenseLevel(License.OperationMode.PLATINUM.description());
@@ -169,73 +190,66 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         }
 
         if (ModelAliasMetadata.fromState(state).getModelId(trainedModelConfig.getModelId()) != null) {
-            listener.onFailure(ExceptionsHelper.badRequestException(
-                "requested model_id [{}] is the same as an existing model_alias. Model model_aliases and ids must be unique",
-                config.getModelId()
-            ));
+            listener.onFailure(
+                ExceptionsHelper.badRequestException(
+                    "requested model_id [{}] is the same as an existing model_alias. Model model_aliases and ids must be unique",
+                    config.getModelId()
+                )
+            );
             return;
         }
 
         ActionListener<Void> checkStorageIndexSizeListener = ActionListener.wrap(
-            r -> trainedModelProvider.storeTrainedModel(trainedModelConfig.build(), ActionListener.wrap(
-                bool -> {
-                    TrainedModelConfig configToReturn = trainedModelConfig.clearDefinition().build();
-                    listener.onResponse(new PutTrainedModelAction.Response(configToReturn));
-                },
-                listener::onFailure
-            )),
+            r -> trainedModelProvider.storeTrainedModel(trainedModelConfig.build(), ActionListener.wrap(bool -> {
+                TrainedModelConfig configToReturn = trainedModelConfig.clearDefinition().build();
+                listener.onResponse(new PutTrainedModelAction.Response(configToReturn));
+            }, listener::onFailure)),
             listener::onFailure
         );
 
-        ActionListener<Void> tagsModelIdCheckListener = ActionListener.wrap(
-            r -> {
-                if (TrainedModelType.PYTORCH.equals(trainedModelConfig.getModelType())) {
-                    client.admin()
-                        .indices()
-                        .prepareStats(InferenceIndexConstants.nativeDefinitionStore())
-                        .clear()
-                        .setStore(true)
-                        .execute(
-                            ActionListener.wrap(
-                                stats -> {
-                                    IndexStats indexStats = stats.getIndices().get(InferenceIndexConstants.nativeDefinitionStore());
-                                    if (indexStats == null) {
-                                        checkStorageIndexSizeListener.onResponse(null);
-                                        return;
-                                    }
-                                    if (indexStats.getTotal().getStore().getSizeInBytes() > MAX_NATIVE_DEFINITION_INDEX_SIZE.getBytes()) {
-                                        listener.onFailure(new ElasticsearchStatusException(
-                                            "Native model store has exceeded the maximum acceptable size of {}, " +
-                                                "please delete older unused pytorch models",
-                                            RestStatus.CONFLICT,
-                                            MAX_NATIVE_DEFINITION_INDEX_SIZE.toString()
-                                        ));
-                                        return;
-                                    }
-                                    checkStorageIndexSizeListener.onResponse(null);
-                                },
-                                e -> {
-                                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
-                                        checkStorageIndexSizeListener.onResponse(null);
-                                        return;
-                                    }
-                                    listener.onFailure(
-                                        new ElasticsearchStatusException(
-                                            "Unable to calculate stats for definition storage index [{}], please try again later",
-                                            RestStatus.SERVICE_UNAVAILABLE,
-                                            e,
-                                            InferenceIndexConstants.nativeDefinitionStore()
-                                        )
-                                    );
-                                }
+        ActionListener<Void> tagsModelIdCheckListener = ActionListener.wrap(r -> {
+            if (TrainedModelType.PYTORCH.equals(trainedModelConfig.getModelType())) {
+                client.admin()
+                    .indices()
+                    .prepareStats(InferenceIndexConstants.nativeDefinitionStore())
+                    .clear()
+                    .setStore(true)
+                    .execute(ActionListener.wrap(stats -> {
+                        IndexStats indexStats = stats.getIndices().get(InferenceIndexConstants.nativeDefinitionStore());
+                        if (indexStats == null) {
+                            checkStorageIndexSizeListener.onResponse(null);
+                            return;
+                        }
+                        if (indexStats.getTotal().getStore().getSizeInBytes() > MAX_NATIVE_DEFINITION_INDEX_SIZE.getBytes()) {
+                            listener.onFailure(
+                                new ElasticsearchStatusException(
+                                    "Native model store has exceeded the maximum acceptable size of {}, "
+                                        + "please delete older unused pytorch models",
+                                    RestStatus.CONFLICT,
+                                    MAX_NATIVE_DEFINITION_INDEX_SIZE.toString()
+                                )
+                            );
+                            return;
+                        }
+                        checkStorageIndexSizeListener.onResponse(null);
+                    }, e -> {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                            checkStorageIndexSizeListener.onResponse(null);
+                            return;
+                        }
+                        listener.onFailure(
+                            new ElasticsearchStatusException(
+                                "Unable to calculate stats for definition storage index [{}], please try again later",
+                                RestStatus.SERVICE_UNAVAILABLE,
+                                e,
+                                InferenceIndexConstants.nativeDefinitionStore()
                             )
                         );
-                    return;
-                }
-                checkStorageIndexSizeListener.onResponse(null);
-            },
-            listener::onFailure
-        );
+                    }));
+                return;
+            }
+            checkStorageIndexSizeListener.onResponse(null);
+        }, listener::onFailure);
 
         ActionListener<Void> modelIdTagCheckListener = ActionListener.wrap(
             r -> checkTagsAgainstModelIds(request.getTrainedModelConfig().getTags(), tagsModelIdCheckListener),
@@ -247,26 +261,25 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
 
     private void checkModelIdAgainstTags(String modelId, ActionListener<Void> listener) {
         QueryBuilder builder = QueryBuilders.constantScoreQuery(
-            QueryBuilders.boolQuery()
-                .filter(QueryBuilders.termQuery(TrainedModelConfig.TAGS.getPreferredName(), modelId)));
+            QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(TrainedModelConfig.TAGS.getPreferredName(), modelId))
+        );
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(builder).size(0).trackTotalHitsUpTo(1);
         SearchRequest searchRequest = new SearchRequest(InferenceIndexConstants.INDEX_PATTERN).source(sourceBuilder);
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(),
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
             ML_ORIGIN,
             searchRequest,
-            ActionListener.<SearchResponse>wrap(
-                response -> {
-                    if (response.getHits().getTotalHits().value > 0) {
-                        listener.onFailure(
-                            ExceptionsHelper.badRequestException(
-                                Messages.getMessage(Messages.INFERENCE_MODEL_ID_AND_TAGS_UNIQUE, modelId)));
-                        return;
-                    }
-                    listener.onResponse(null);
-                },
-                listener::onFailure
-            ),
-            client::search);
+            ActionListener.<SearchResponse>wrap(response -> {
+                if (response.getHits().getTotalHits().value > 0) {
+                    listener.onFailure(
+                        ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INFERENCE_MODEL_ID_AND_TAGS_UNIQUE, modelId))
+                    );
+                    return;
+                }
+                listener.onResponse(null);
+            }, listener::onFailure),
+            client::search
+        );
     }
 
     private void checkTagsAgainstModelIds(List<String> tags, ActionListener<Void> listener) {
@@ -276,25 +289,25 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         }
 
         QueryBuilder builder = QueryBuilders.constantScoreQuery(
-            QueryBuilders.boolQuery()
-                .filter(QueryBuilders.termsQuery(TrainedModelConfig.MODEL_ID.getPreferredName(), tags)));
+            QueryBuilders.boolQuery().filter(QueryBuilders.termsQuery(TrainedModelConfig.MODEL_ID.getPreferredName(), tags))
+        );
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(builder).size(0).trackTotalHitsUpTo(1);
         SearchRequest searchRequest = new SearchRequest(InferenceIndexConstants.INDEX_PATTERN).source(sourceBuilder);
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(),
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
             ML_ORIGIN,
             searchRequest,
-            ActionListener.<SearchResponse>wrap(
-                response -> {
-                    if (response.getHits().getTotalHits().value > 0) {
-                        listener.onFailure(
-                            ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INFERENCE_TAGS_AND_MODEL_IDS_UNIQUE, tags)));
-                        return;
-                    }
-                    listener.onResponse(null);
-                },
-                listener::onFailure
-            ),
-            client::search);
+            ActionListener.<SearchResponse>wrap(response -> {
+                if (response.getHits().getTotalHits().value > 0) {
+                    listener.onFailure(
+                        ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INFERENCE_TAGS_AND_MODEL_IDS_UNIQUE, tags))
+                    );
+                    return;
+                }
+                listener.onResponse(null);
+            }, listener::onFailure),
+            client::search
+        );
     }
 
     @Override

@@ -14,6 +14,7 @@ import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDeta
 import com.microsoft.windowsazure.management.compute.models.InstanceEndpoint;
 import com.microsoft.windowsazure.management.compute.models.RoleInstance;
 import com.microsoft.windowsazure.management.compute.models.RoleInstancePowerState;
+
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService.Discovery;
@@ -145,10 +146,12 @@ public abstract class AbstractAzureComputeServiceTestCase extends ESIntegTestCas
          * network addresses for Azure instances running on the same host but different ports.
          */
         @Override
-        protected AzureSeedHostsProvider createSeedHostsProvider(final Settings settings,
-                                                                 final AzureComputeService azureComputeService,
-                                                                 final TransportService transportService,
-                                                                 final NetworkService networkService) {
+        protected AzureSeedHostsProvider createSeedHostsProvider(
+            final Settings settings,
+            final AzureComputeService azureComputeService,
+            final TransportService transportService,
+            final NetworkService networkService
+        ) {
             return new AzureSeedHostsProvider(settings, azureComputeService, transportService, networkService) {
                 @Override
                 protected String resolveInstanceAddress(final HostType hostType, final RoleInstance instance) {

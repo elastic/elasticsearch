@@ -17,9 +17,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.List;
@@ -113,18 +113,16 @@ public class DeprecationCacheResetAction extends ActionType<DeprecationCacheRese
             super(in);
         }
 
-        public NodeRequest(Request request) {
-        }
+        public NodeRequest(Request request) {}
     }
 
     public static class NodeResponse extends BaseNodeResponse {
-
 
         protected NodeResponse(StreamInput in) throws IOException {
             super(in);
         }
 
-        protected NodeResponse(DiscoveryNode node ) {
+        protected NodeResponse(DiscoveryNode node) {
             super(node);
 
         }

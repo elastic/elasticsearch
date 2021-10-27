@@ -14,7 +14,8 @@ import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 public abstract class Sort {
 
     public enum Direction {
-        ASC, DESC;
+        ASC,
+        DESC;
 
         public static Direction from(OrderDirection dir) {
             return dir == null || dir == OrderDirection.ASC ? ASC : DESC;
@@ -76,6 +77,7 @@ public abstract class Sort {
                 }
             }
         }
+
         /**
          * Preferred order of null values in aggregation queries.
          */

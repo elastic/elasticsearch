@@ -87,14 +87,14 @@ public final class ExtractorUtils {
     public static boolean isCompositeWithDateHistogramSource(AggregationBuilder aggregationBuilder) {
         return aggregationBuilder instanceof CompositeAggregationBuilder
             && ((CompositeAggregationBuilder) aggregationBuilder).sources()
-            .stream()
-            .anyMatch(DateHistogramValuesSourceBuilder.class::isInstance);
+                .stream()
+                .anyMatch(DateHistogramValuesSourceBuilder.class::isInstance);
     }
 
     public static DateHistogramValuesSourceBuilder getDateHistogramValuesSource(CompositeAggregationBuilder compositeAggregationBuilder) {
         for (CompositeValuesSourceBuilder<?> valuesSourceBuilder : compositeAggregationBuilder.sources()) {
             if (valuesSourceBuilder instanceof DateHistogramValuesSourceBuilder) {
-                return (DateHistogramValuesSourceBuilder)valuesSourceBuilder;
+                return (DateHistogramValuesSourceBuilder) valuesSourceBuilder;
             }
         }
         throw ExceptionsHelper.badRequestException("[composite] aggregations require exactly one [date_histogram] value source");
@@ -118,7 +118,7 @@ public final class ExtractorUtils {
             );
         } else if (histogramAggregation instanceof CompositeAggregationBuilder) {
             return validateAndGetDateHistogramInterval(
-                DateHistogramAggOrValueSource.fromCompositeAgg((CompositeAggregationBuilder)histogramAggregation)
+                DateHistogramAggOrValueSource.fromCompositeAgg((CompositeAggregationBuilder) histogramAggregation)
             );
         } else {
             throw new IllegalStateException("Invalid histogram aggregation [" + histogramAggregation.getName() + "]");
@@ -139,7 +139,7 @@ public final class ExtractorUtils {
             return validateAndGetCalendarInterval(dateHistogram.getCalendarInterval().toString());
         } else if (dateHistogram.getFixedInterval() != null) {
             return dateHistogram.getFixedInterval().estimateMillis();
-        }  else {
+        } else {
             throw new IllegalArgumentException("Must specify an interval for date_histogram");
         }
     }
@@ -181,9 +181,12 @@ public final class ExtractorUtils {
     }
 
     private static String invalidDateHistogramCalendarIntervalMessage(String interval) {
-        throw ExceptionsHelper.badRequestException("When specifying a date_histogram calendar interval ["
-                + interval + "], ML does not accept intervals longer than a week because of " +
-                "variable lengths of periods greater than a week");
+        throw ExceptionsHelper.badRequestException(
+            "When specifying a date_histogram calendar interval ["
+                + interval
+                + "], ML does not accept intervals longer than a week because of "
+                + "variable lengths of periods greater than a week"
+        );
     }
 
     private static class DateHistogramAggOrValueSource {
@@ -206,21 +209,15 @@ public final class ExtractorUtils {
         }
 
         private ZoneId timeZone() {
-            return agg != null ?
-                agg.timeZone() :
-                sourceBuilder.timeZone();
+            return agg != null ? agg.timeZone() : sourceBuilder.timeZone();
         }
 
         private DateHistogramInterval getFixedInterval() {
-            return agg != null ?
-                agg.getFixedInterval() :
-                sourceBuilder.getIntervalAsFixed();
+            return agg != null ? agg.getFixedInterval() : sourceBuilder.getIntervalAsFixed();
         }
 
         private DateHistogramInterval getCalendarInterval() {
-            return agg != null ?
-                agg.getCalendarInterval() :
-                sourceBuilder.getIntervalAsCalendar();
+            return agg != null ? agg.getCalendarInterval() : sourceBuilder.getIntervalAsCalendar();
         }
     }
 }

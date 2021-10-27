@@ -13,7 +13,6 @@ import org.elasticsearch.test.ESTestCase;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-
 public class DeleteCalendarRequestTests extends ESTestCase {
 
     public void testWithNullId() {

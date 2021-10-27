@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.core.watcher.transport.actions.execute;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -49,8 +49,7 @@ public class ExecuteWatchResponse extends ActionResponse implements ToXContentOb
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ExecuteWatchResponse that = (ExecuteWatchResponse) o;
-        return Objects.equals(recordId, that.recordId) &&
-            Objects.equals(recordSource, that.recordSource);
+        return Objects.equals(recordId, that.recordId) && Objects.equals(recordSource, that.recordSource);
     }
 
     @Override
@@ -93,9 +92,11 @@ public class ExecuteWatchResponse extends ActionResponse implements ToXContentOb
         return builder;
     }
 
-    private static final ConstructingObjectParser<ExecuteWatchResponse, Void> PARSER
-        = new ConstructingObjectParser<>("x_pack_execute_watch_response", false,
-        (fields) -> new ExecuteWatchResponse((String)fields[0], (BytesReference) fields[1], XContentType.JSON));
+    private static final ConstructingObjectParser<ExecuteWatchResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "x_pack_execute_watch_response",
+        false,
+        (fields) -> new ExecuteWatchResponse((String) fields[0], (BytesReference) fields[1], XContentType.JSON)
+    );
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ID_FIELD);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> readBytesReference(p), WATCH_FIELD);

@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml.inference.preprocessing;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -33,7 +33,8 @@ public class OneHotEncoding implements PreProcessor {
     public static final ConstructingObjectParser<OneHotEncoding, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         true,
-        a -> new OneHotEncoding((String)a[0], (Map<String, String>)a[1], (Boolean)a[2]));
+        a -> new OneHotEncoding((String) a[0], (Map<String, String>) a[1], (Boolean) a[2])
+    );
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), HOT_MAP);
@@ -53,6 +54,7 @@ public class OneHotEncoding implements PreProcessor {
         this.hotMap = Collections.unmodifiableMap(Objects.requireNonNull(hotMap));
         this.custom = custom;
     }
+
     /**
      * @return Field name on which to one hot encode
      */
@@ -93,9 +95,7 @@ public class OneHotEncoding implements PreProcessor {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         OneHotEncoding that = (OneHotEncoding) o;
-        return Objects.equals(field, that.field)
-            && Objects.equals(hotMap, that.hotMap)
-            && Objects.equals(custom, that.custom);
+        return Objects.equals(field, that.field) && Objects.equals(hotMap, that.hotMap) && Objects.equals(custom, that.custom);
     }
 
     @Override

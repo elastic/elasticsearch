@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.textstructure.structurefinder;
 
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.nio.charset.Charset;
 import java.util.Arrays;

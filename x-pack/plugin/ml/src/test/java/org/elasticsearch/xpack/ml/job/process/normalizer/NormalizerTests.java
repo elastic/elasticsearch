@@ -23,7 +23,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-
 public class NormalizerTests extends ESTestCase {
     private static final String JOB_ID = "foo";
     private static final String INDEX_NAME = "foo-index";
@@ -49,8 +48,9 @@ public class NormalizerTests extends ESTestCase {
         ExecutorService threadpool = Executors.newScheduledThreadPool(1);
         try {
             NormalizerProcessFactory processFactory = mock(NormalizerProcessFactory.class);
-            when(processFactory.createNormalizerProcess(eq(JOB_ID), eq(QUANTILES_STATE), eq(BUCKET_SPAN), any()))
-                    .thenReturn(new MultiplyingNormalizerProcess(FACTOR));
+            when(processFactory.createNormalizerProcess(eq(JOB_ID), eq(QUANTILES_STATE), eq(BUCKET_SPAN), any())).thenReturn(
+                new MultiplyingNormalizerProcess(FACTOR)
+            );
             Normalizer normalizer = new Normalizer(JOB_ID, processFactory, threadpool);
 
             Bucket bucket = generateBucket(new Date(0));

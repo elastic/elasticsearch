@@ -23,8 +23,11 @@ public class ShapeQueryBuilderOverShapeTests extends ShapeQueryBuilderTests {
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(
-            fieldName(), "type=shape"))), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(
+            docType,
+            new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(fieldName(), "type=shape"))),
+            MapperService.MergeReason.MAPPING_UPDATE
+        );
     }
 
     @Override
@@ -34,8 +37,7 @@ public class ShapeQueryBuilderOverShapeTests extends ShapeQueryBuilderTests {
             if (type == ShapeType.LINESTRING || type == ShapeType.MULTILINESTRING) {
                 return randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS, ShapeRelation.CONTAINS);
             } else {
-                return randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS,
-                    ShapeRelation.WITHIN, ShapeRelation.CONTAINS);
+                return randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS, ShapeRelation.WITHIN, ShapeRelation.CONTAINS);
             }
         } else {
             if (type == ShapeType.LINESTRING || type == ShapeType.MULTILINESTRING) {

@@ -39,7 +39,8 @@ public final class CompositeServiceAccountTokenStore implements ServiceAccountTo
                 stores,
                 threadContext,
                 Function.identity(),
-                storeAuthenticationResult -> false == storeAuthenticationResult.isSuccess());
+                storeAuthenticationResult -> false == storeAuthenticationResult.isSuccess()
+            );
         try {
             authenticatingListener.run();
         } catch (Exception e) {

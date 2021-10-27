@@ -126,7 +126,7 @@ public class GroupConfig implements ToXContentObject {
         this.groups = groups;
     }
 
-    public Map <String, SingleGroupSource> getGroups() {
+    public Map<String, SingleGroupSource> getGroups() {
         return groups;
     }
 

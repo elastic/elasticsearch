@@ -7,13 +7,12 @@
 
 package org.elasticsearch.xpack.idp.saml.idp;
 
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
 import org.elasticsearch.xpack.idp.saml.sp.ServiceProviderDefaults;
@@ -49,10 +48,19 @@ public class SamlIdentityProvider {
     private OrganizationInfo organization;
 
     // Package access - use Builder instead
-    SamlIdentityProvider(String entityId, Map<String, URL> ssoEndpoints, Map<String, URL> sloEndpoints, Set<String> allowedNameIdFormats,
-                         X509Credential signingCredential, X509Credential metadataSigningCredential,
-                         ContactInfo technicalContact, OrganizationInfo organization, ServiceProviderDefaults serviceProviderDefaults,
-                         SamlServiceProviderResolver serviceProviderResolver, WildcardServiceProviderResolver wildcardServiceResolver) {
+    SamlIdentityProvider(
+        String entityId,
+        Map<String, URL> ssoEndpoints,
+        Map<String, URL> sloEndpoints,
+        Set<String> allowedNameIdFormats,
+        X509Credential signingCredential,
+        X509Credential metadataSigningCredential,
+        ContactInfo technicalContact,
+        OrganizationInfo organization,
+        ServiceProviderDefaults serviceProviderDefaults,
+        SamlServiceProviderResolver serviceProviderResolver,
+        WildcardServiceProviderResolver wildcardServiceResolver
+    ) {
         this.entityId = entityId;
         this.ssoEndpoints = ssoEndpoints;
         this.sloEndpoints = sloEndpoints;
@@ -66,8 +74,10 @@ public class SamlIdentityProvider {
         this.wildcardServiceResolver = wildcardServiceResolver;
     }
 
-    public static SamlIdentityProviderBuilder builder(SamlServiceProviderResolver serviceResolver,
-                                                      WildcardServiceProviderResolver wildcardResolver) {
+    public static SamlIdentityProviderBuilder builder(
+        SamlServiceProviderResolver serviceResolver,
+        WildcardServiceProviderResolver wildcardResolver
+    ) {
         return new SamlIdentityProviderBuilder(serviceResolver, wildcardResolver);
     }
 
@@ -115,25 +125,26 @@ public class SamlIdentityProvider {
      * @param allowDisabled whether to return service providers that are not {@link SamlServiceProvider#isEnabled() enabled}.
      *                      For security reasons, callers should typically avoid working with disabled service providers.
      * @param listener Responds with the requested Service Provider object, or {@code null} if no such SP exists.
- *                 {@link ActionListener#onFailure} is only used for fatal errors (e.g. being unable to access
+    *                 {@link ActionListener#onFailure} is only used for fatal errors (e.g. being unable to access
      */
-    public void resolveServiceProvider(String spEntityId, @Nullable String acs, boolean allowDisabled,
-                                       ActionListener<SamlServiceProvider> listener) {
-        serviceProviderResolver.resolve(spEntityId, ActionListener.wrap(
-            sp -> {
-                if (sp == null) {
-                    logger.debug("No explicitly registered service provider exists for entityId [{}]", spEntityId);
-                    resolveWildcardService(spEntityId, acs, listener);
-                } else if (allowDisabled == false && sp.isEnabled() == false) {
-                    logger.info("Service provider [{}][{}] is not enabled", spEntityId, sp.getName());
-                    listener.onResponse(null);
-                } else {
-                    logger.debug("Service provider for [{}] is [{}]", spEntityId, sp);
-                    listener.onResponse(sp);
-                }
-            },
-            listener::onFailure
-        ));
+    public void resolveServiceProvider(
+        String spEntityId,
+        @Nullable String acs,
+        boolean allowDisabled,
+        ActionListener<SamlServiceProvider> listener
+    ) {
+        serviceProviderResolver.resolve(spEntityId, ActionListener.wrap(sp -> {
+            if (sp == null) {
+                logger.debug("No explicitly registered service provider exists for entityId [{}]", spEntityId);
+                resolveWildcardService(spEntityId, acs, listener);
+            } else if (allowDisabled == false && sp.isEnabled() == false) {
+                logger.info("Service provider [{}][{}] is not enabled", spEntityId, sp.getName());
+                listener.onResponse(null);
+            } else {
+                logger.debug("Service provider for [{}] is [{}]", spEntityId, sp);
+                listener.onResponse(sp);
+            }
+        }, listener::onFailure));
     }
 
     private void resolveWildcardService(String entityId, String acs, ActionListener<SamlServiceProvider> listener) {
@@ -156,14 +167,14 @@ public class SamlIdentityProvider {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         final SamlIdentityProvider that = (SamlIdentityProvider) o;
-        return Objects.equals(entityId, that.entityId) &&
-            Objects.equals(ssoEndpoints, that.ssoEndpoints) &&
-            Objects.equals(sloEndpoints, that.sloEndpoints) &&
-            Objects.equals(allowedNameIdFormats, that.allowedNameIdFormats) &&
-            Objects.equals(signingCredential, that.signingCredential) &&
-            Objects.equals(metadataSigningCredential, that.metadataSigningCredential) &&
-            Objects.equals(technicalContact, that.technicalContact) &&
-            Objects.equals(organization, that.organization);
+        return Objects.equals(entityId, that.entityId)
+            && Objects.equals(ssoEndpoints, that.ssoEndpoints)
+            && Objects.equals(sloEndpoints, that.sloEndpoints)
+            && Objects.equals(allowedNameIdFormats, that.allowedNameIdFormats)
+            && Objects.equals(signingCredential, that.signingCredential)
+            && Objects.equals(metadataSigningCredential, that.metadataSigningCredential)
+            && Objects.equals(technicalContact, that.technicalContact)
+            && Objects.equals(organization, that.organization);
     }
 
     @Override
@@ -179,7 +190,8 @@ public class SamlIdentityProvider {
                 .put(ContactPersonTypeEnumeration.SUPPORT.toString(), ContactPersonTypeEnumeration.SUPPORT)
                 .put(ContactPersonTypeEnumeration.TECHNICAL.toString(), ContactPersonTypeEnumeration.TECHNICAL)
                 .put(ContactPersonTypeEnumeration.OTHER.toString(), ContactPersonTypeEnumeration.OTHER)
-                .map());
+                .map()
+        );
 
         public final ContactPersonTypeEnumeration type;
         public final String givenName;
@@ -196,8 +208,9 @@ public class SamlIdentityProvider {
         public static ContactPersonTypeEnumeration getType(String name) {
             final ContactPersonTypeEnumeration type = TYPES.get(name.toLowerCase(Locale.ROOT));
             if (type == null) {
-                throw new IllegalArgumentException("Invalid contact type " + name + " allowed values are "
-                    + Strings.collectionToCommaDelimitedString(TYPES.keySet()));
+                throw new IllegalArgumentException(
+                    "Invalid contact type " + name + " allowed values are " + Strings.collectionToCommaDelimitedString(TYPES.keySet())
+                );
             }
             return type;
         }
@@ -219,9 +232,9 @@ public class SamlIdentityProvider {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             OrganizationInfo that = (OrganizationInfo) o;
-            return Objects.equals(organizationName, that.organizationName) &&
-                Objects.equals(displayName, that.displayName) &&
-                Objects.equals(url, that.url);
+            return Objects.equals(organizationName, that.organizationName)
+                && Objects.equals(displayName, that.displayName)
+                && Objects.equals(url, that.url);
         }
 
         @Override

@@ -116,6 +116,10 @@ public class FilterPath {
      * @return true if the name equal a final node, otherwise return false
      */
     boolean matches(String name, List<FilterPath> nextFilters) {
+        if (nextFilters == null) {
+            return false;
+        }
+
         FilterPath termNode = termsChildren.get(name);
         if (termNode != null) {
             if (termNode.isFinalNode()) {

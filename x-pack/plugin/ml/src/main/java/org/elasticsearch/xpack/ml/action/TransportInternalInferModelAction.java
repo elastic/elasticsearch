@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -42,6 +43,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.featureFromLicenseLevel;
 
 
 public class TransportInternalInferModelAction extends HandledTransportAction<Request, Response> {
@@ -79,8 +81,10 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         } else {
             trainedModelProvider.getTrainedModel(request.getModelId(), GetTrainedModelsAction.Includes.empty(), ActionListener.wrap(
                 trainedModelConfig -> {
-                    responseBuilder.setLicensed(licenseState.isAllowedByLicense(trainedModelConfig.getLicenseLevel()));
-                    if (licenseState.isAllowedByLicense(trainedModelConfig.getLicenseLevel()) || request.isPreviouslyLicensed()) {
+                    LicensedFeature.Momentary check = featureFromLicenseLevel(trainedModelConfig.getLicenseLevel());
+                    final boolean allowed = check.check(licenseState);
+                    responseBuilder.setLicensed(allowed);
+                    if (allowed || request.isPreviouslyLicensed()) {
                         doInfer(request, responseBuilder, listener);
                     } else {
                         listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
@@ -183,4 +187,6 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             )
         );
     }
+
+
 }

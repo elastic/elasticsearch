@@ -34,6 +34,17 @@ public final class MachineLearningField {
         License.OperationMode.PLATINUM
     );
 
+    public static final LicensedFeature.Momentary ML_MODEL_INFERENCE_PLATINUM_FEATURE = LicensedFeature.momentary(
+        MachineLearningField.ML_FEATURE_FAMILY,
+        "model-inference-platinum-check",
+        License.OperationMode.PLATINUM
+    );
+    public static final LicensedFeature.Momentary ML_MODEL_INFERENCE_BASIC_FEATURE = LicensedFeature.momentary(
+        MachineLearningField.ML_FEATURE_FAMILY,
+        "model-inference-basic-check",
+        License.OperationMode.BASIC
+    );
+
     private MachineLearningField() {}
 
     public static String valuesToId(String... values) {
@@ -44,5 +55,17 @@ public final class MachineLearningField {
         System.arraycopy(Numbers.longToBytes(hash.h1), 0, hashedBytes, 0, 8);
         System.arraycopy(Numbers.longToBytes(hash.h2), 0, hashedBytes, 8, 8);
         return new BigInteger(hashedBytes) + "_" + combined.length();
+    }
+
+    public static LicensedFeature.Momentary featureFromLicenseLevel(License.OperationMode mode) {
+        switch (mode) {
+            case BASIC:
+                return ML_MODEL_INFERENCE_BASIC_FEATURE;
+            case PLATINUM:
+                return ML_MODEL_INFERENCE_PLATINUM_FEATURE;
+            default:
+                assert false: "Unrecognized licensing mode for inference models [" + mode + "]";
+                return ML_MODEL_INFERENCE_PLATINUM_FEATURE;
+        }
     }
 }

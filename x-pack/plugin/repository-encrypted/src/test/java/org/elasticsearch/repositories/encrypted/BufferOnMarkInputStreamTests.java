@@ -793,7 +793,7 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
             }
             int bytesSkipped = 1 + Randomness.get().nextInt(Math.toIntExact(n));
             bytesRead.addAndGet(bytesSkipped);
-            return bytesSkipped;
+            return (long) bytesSkipped;
         });
         when(mockSource.available()).thenReturn(1 + Randomness.get().nextInt(32));
         when(mockSource.markSupported()).thenReturn(false);

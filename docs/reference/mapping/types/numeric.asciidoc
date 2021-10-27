@@ -184,6 +184,7 @@ A numeric field can't be both a time series dimension and a time series metric.
 
 // tag::time_series_metric[]
 `time_series_metric`::
+experimental:[]
 (Optional, string) For internal use by Elastic only. Marks the field as a time
 series metric. The value is the metric type. Defaults to `null` (Not a time
 series metric).

@@ -8,12 +8,14 @@
 
 package org.elasticsearch.env;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.Set;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.Set;
+import org.elasticsearch.gateway.CorruptStateException;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -133,16 +135,16 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(1)));
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(0)));
 
-        IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
+        CorruptStateException corruptStateException = expectThrows(CorruptStateException.class,
             () -> PersistedClusterStateService.nodeMetadata(allDataPaths.stream().map(PathUtils::get)
                 .map(path -> NodeEnvironment.resolveNodePath(path, 0)).toArray(Path[]::new)));
 
-        assertThat(illegalStateException.getMessage(), containsString("unexpected node ID in metadata"));
+        assertThat(corruptStateException.getMessage(), containsString("unexpected node ID in metadata"));
 
-        illegalStateException = expectThrows(IllegalStateException.class,
+        corruptStateException = expectThrows(ElasticsearchException.class, CorruptStateException.class,
             () -> internalCluster().startNode(Settings.builder().putList(Environment.PATH_DATA_SETTING.getKey(), allDataPaths)));
 
-        assertThat(illegalStateException.getMessage(), containsString("unexpected node ID in metadata"));
+        assertThat(corruptStateException.getMessage(), containsString("unexpected node ID in metadata"));
 
         final List<String> node0DataPathsPlusOne = new ArrayList<>(node0DataPaths);
         node0DataPathsPlusOne.add(createTempDir().toString());

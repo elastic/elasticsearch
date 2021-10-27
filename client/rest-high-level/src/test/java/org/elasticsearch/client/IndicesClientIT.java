@@ -147,6 +147,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
+@SuppressWarnings("removal")
 public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
     public static final RequestOptions LEGACY_TEMPLATE_OPTIONS = RequestOptions.DEFAULT.toBuilder()

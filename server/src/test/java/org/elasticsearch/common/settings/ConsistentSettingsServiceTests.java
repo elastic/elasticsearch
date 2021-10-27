@@ -11,7 +11,7 @@ package org.elasticsearch.common.settings;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.mock.orig.Mockito;
+import org.mockito.Mockito;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;

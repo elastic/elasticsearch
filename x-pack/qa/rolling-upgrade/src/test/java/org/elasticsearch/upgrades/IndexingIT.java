@@ -32,6 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class IndexingIT extends AbstractUpgradeTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79786")
     public void testIndexing() throws IOException {
         switch (CLUSTER_TYPE) {
         case OLD:

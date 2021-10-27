@@ -240,7 +240,11 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 )
             );
             transformConfigHolder.set(config);
-            client.execute(ValidateTransformAction.INSTANCE, new ValidateTransformAction.Request(config, false), validationListener);
+            client.execute(
+                ValidateTransformAction.INSTANCE,
+                new ValidateTransformAction.Request(config, false, request.timeout()),
+                validationListener
+            );
         }, listener::onFailure);
 
         // <1> Get the config to verify it exists and is valid

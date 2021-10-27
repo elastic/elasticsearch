@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.ingest.geoip.DatabaseRegistry;
+import org.elasticsearch.ingest.geoip.DatabaseNodeService;
 import org.elasticsearch.ingest.geoip.GeoIpDownloader;
 import org.elasticsearch.ingest.geoip.GeoIpDownloaderTaskExecutor;
 import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStatsAction.NodeRequest;
@@ -31,12 +31,12 @@ import java.util.List;
 public class GeoIpDownloaderStatsTransportAction extends TransportNodesAction<Request, Response, NodeRequest, NodeResponse> {
 
     private final TransportService transportService;
-    private final DatabaseRegistry registry;
+    private final DatabaseNodeService registry;
     private final GeoIpDownloaderTaskExecutor geoIpDownloaderTaskExecutor;
 
     @Inject
     public GeoIpDownloaderStatsTransportAction(TransportService transportService, ClusterService clusterService,
-                                               ThreadPool threadPool, ActionFilters actionFilters, DatabaseRegistry registry,
+                                               ThreadPool threadPool, ActionFilters actionFilters, DatabaseNodeService registry,
                                                GeoIpDownloaderTaskExecutor geoIpDownloaderTaskExecutor) {
         super(GeoIpDownloaderStatsAction.NAME, threadPool, clusterService, transportService, actionFilters, Request::new,
             NodeRequest::new, ThreadPool.Names.MANAGEMENT, NodeResponse.class);

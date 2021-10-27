@@ -82,6 +82,7 @@ import java.util.function.Function;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.core.Is.is;
 
+@SuppressWarnings("removal")
 abstract class TransformIntegTestCase extends ESRestTestCase {
 
     private Map<String, TransformConfig> transformConfigs = new HashMap<>();

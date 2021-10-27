@@ -166,7 +166,6 @@ import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
-import org.hamcrest.Description;
 import org.junit.Before;
 import org.mockito.ArgumentMatcher;
 import org.mockito.Matchers;
@@ -2096,7 +2095,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         return Matchers.argThat(new RBACAuthorizationInfoRoleMatcher(expectedRoles));
     }
 
-    private static class RBACAuthorizationInfoRoleMatcher extends ArgumentMatcher<AuthorizationInfo> {
+    private static class RBACAuthorizationInfoRoleMatcher implements ArgumentMatcher<AuthorizationInfo> {
 
         private final String[] wanted;
 
@@ -2105,17 +2104,9 @@ public class AuthorizationServiceTests extends ESTestCase {
         }
 
         @Override
-        public boolean matches(Object item) {
-            if (item instanceof AuthorizationInfo) {
-                final String[] found = (String[]) ((AuthorizationInfo) item).asMap().get(PRINCIPAL_ROLES_FIELD_NAME);
-                return Arrays.equals(wanted, found);
-            }
-            return false;
-        }
-
-        @Override
-        public void describeTo(Description description) {
-            description.appendText("RBAC AuthorizationInfo Roles[").appendText(Strings.arrayToCommaDelimitedString(wanted)).appendText("]");
+        public boolean matches(AuthorizationInfo other) {
+            final String[] found = (String[]) other.asMap().get(PRINCIPAL_ROLES_FIELD_NAME);
+            return Arrays.equals(wanted, found);
         }
     }
 

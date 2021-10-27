@@ -173,6 +173,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                 request.isDeferValidation(),
                 false, // dryRun
                 true, // checkAccess
+                request.getTimeout(),
                 ActionListener.wrap(updateResponse -> {
                     TransformConfig updatedConfig = updateResponse.getConfig();
                     auditor.info(updatedConfig.getId(), "Updated transform.");

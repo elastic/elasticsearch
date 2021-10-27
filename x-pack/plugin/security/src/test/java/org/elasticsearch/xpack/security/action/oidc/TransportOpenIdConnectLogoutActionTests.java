@@ -74,8 +74,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -119,21 +119,21 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
                 .setType((String) invocationOnMock.getArguments()[1])
                 .setId((String) invocationOnMock.getArguments()[2]);
             return builder;
-        }).when(client).prepareGet(anyString(), anyString(), anyString());
+        }).when(client).prepareGet(nullable(String.class), nullable(String.class), nullable(String.class));
         doAnswer(invocationOnMock -> {
             IndexRequestBuilder builder = new IndexRequestBuilder(client, IndexAction.INSTANCE);
             builder.setIndex((String) invocationOnMock.getArguments()[0])
                 .setType((String) invocationOnMock.getArguments()[1])
                 .setId((String) invocationOnMock.getArguments()[2]);
             return builder;
-        }).when(client).prepareIndex(anyString(), anyString(), anyString());
+        }).when(client).prepareIndex(nullable(String.class), nullable(String.class), nullable(String.class));
         doAnswer(invocationOnMock -> {
             UpdateRequestBuilder builder = new UpdateRequestBuilder(client, UpdateAction.INSTANCE);
             builder.setIndex((String) invocationOnMock.getArguments()[0])
                 .setType((String) invocationOnMock.getArguments()[1])
                 .setId((String) invocationOnMock.getArguments()[2]);
             return builder;
-        }).when(client).prepareUpdate(anyString(), anyString(), anyString());
+        }).when(client).prepareUpdate(nullable(String.class), nullable(String.class), nullable(String.class));
         doAnswer(invocationOnMock -> {
             BulkRequestBuilder builder = new BulkRequestBuilder(client, BulkAction.INSTANCE);
             return builder;

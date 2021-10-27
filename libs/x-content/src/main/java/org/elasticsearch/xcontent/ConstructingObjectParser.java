@@ -407,7 +407,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
         /**
          * The parse context that is used for this invocation. Stored here so that it can be passed to the {@link #builder}.
          */
-        private Context context;
+        private final Context context;
 
         /**
          * How many of the constructor parameters have we collected? We keep track of this so we don't have to count the

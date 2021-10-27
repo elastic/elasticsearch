@@ -27,6 +27,7 @@ import java.util.Properties;
 
 import static org.elasticsearch.test.ESTestCase.assertEquals;
 
+@SuppressWarnings("removal")
 public class EqlDataLoader {
 
     private static final String PROPERTIES_FILENAME = "config.properties";

@@ -134,9 +134,18 @@
         "options":[
           "cpu",
           "wait",
-          "block"
+          "block",
+          "mem"
         ],
         "description":"The type to sample (default: cpu)"
+      },
+      "sort":{
+        "type":"enum",
+        "options":[
+          "cpu",
+          "total"
+        ],
+        "description":"The sort order for 'cpu' type (default: total)"
       },
       "timeout":{
         "type":"time",

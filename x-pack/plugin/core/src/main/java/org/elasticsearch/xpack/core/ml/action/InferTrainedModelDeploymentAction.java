@@ -133,17 +133,14 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = super.validate();
             if (docs == null) {
-                validationException = addValidationError("[" + DOCS.getPreferredName() + "] must not be null",
-                    validationException);
+                validationException = addValidationError("[" + DOCS.getPreferredName() + "] must not be null", validationException);
             } else {
                 if (docs.isEmpty()) {
-                    validationException = addValidationError("at least one document is required",
-                        validationException);
+                    validationException = addValidationError("at least one document is required", validationException);
                 }
                 if (docs.size() > 1) {
                     // TODO support multiple docs
-                    validationException = addValidationError("multiple documents are not supported",
-                        validationException);
+                    validationException = addValidationError("multiple documents are not supported", validationException);
                 }
             }
             return validationException;

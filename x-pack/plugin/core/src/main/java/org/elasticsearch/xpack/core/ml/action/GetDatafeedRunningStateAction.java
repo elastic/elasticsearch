@@ -13,9 +13,9 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 
 import java.io.IOException;
@@ -25,7 +25,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-
 
 /**
  * Internal only action to get the current running state of a datafeed
@@ -119,10 +118,12 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
         private final Map<String, RunningState> datafeedRunningState;
 
         public static Response fromResponses(List<Response> responses) {
-            return new Response(responses.stream()
-                .flatMap(r -> r.datafeedRunningState.entrySet().stream())
-                .filter(entry -> entry.getValue() != null)
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+            return new Response(
+                responses.stream()
+                    .flatMap(r -> r.datafeedRunningState.entrySet().stream())
+                    .filter(entry -> entry.getValue() != null)
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+            );
         }
 
         public static Response fromTaskAndState(String datafeedId, RunningState runningState) {

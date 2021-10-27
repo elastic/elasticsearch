@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import org.antlr.v4.runtime.Token;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.index.IndexResolver.IndexType;
@@ -69,8 +69,7 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
         if (ctx.type != null) {
             if (ctx.type.getType() == SqlBaseLexer.ANALYZED) {
                 type = Debug.Type.ANALYZED;
-            }
-            else {
+            } else {
                 type = Debug.Type.OPTIMIZED;
             }
         }
@@ -79,7 +78,6 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
 
         return new Debug(source, plan(ctx.statement()), type, format);
     }
-
 
     @Override
     public Command visitExplain(ExplainContext ctx) {
@@ -133,8 +131,14 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
     public Object visitShowTables(ShowTablesContext ctx) {
         TableIdentifier ti = visitTableIdentifier(ctx.tableIdent);
         String index = ti != null ? ti.qualifiedIndex() : null;
-        return new ShowTables(source(ctx), visitLikePattern(ctx.clusterLike), visitString(ctx.cluster), index,
-            visitLikePattern(ctx.tableLike), ctx.FROZEN() != null);
+        return new ShowTables(
+            source(ctx),
+            visitLikePattern(ctx.clusterLike),
+            visitString(ctx.cluster),
+            index,
+            visitLikePattern(ctx.tableLike),
+            ctx.FROZEN() != null
+        );
     }
 
     @Override
@@ -190,8 +194,13 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
     public Object visitSysColumns(SysColumnsContext ctx) {
         TableIdentifier ti = visitTableIdentifier(ctx.tableIdent);
         String index = ti != null ? ti.qualifiedIndex() : null;
-        return new SysColumns(source(ctx), string(ctx.cluster), index, visitLikePattern(ctx.tableLike),
-                visitLikePattern(ctx.columnPattern));
+        return new SysColumns(
+            source(ctx),
+            string(ctx.cluster),
+            index,
+            visitLikePattern(ctx.tableLike),
+            visitLikePattern(ctx.columnPattern)
+        );
     }
 
     @Override

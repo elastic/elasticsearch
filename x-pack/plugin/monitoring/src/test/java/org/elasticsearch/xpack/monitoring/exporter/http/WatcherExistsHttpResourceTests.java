@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
-import java.util.Collections;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -17,6 +16,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.monitoring.exporter.http.HttpResource.ResourcePublishResult;
 
+import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.wrapMockListener;
@@ -53,16 +53,14 @@ public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResou
         whenElectedMaster();
 
         // /_xpack returning a 404 means ES didn't handle the request properly and X-Pack doesn't exist
-        doCheckWithStatusCode(resource, "", "_xpack", notFoundCheckStatus(),
-                              GET_EXISTS, XPACK_DOES_NOT_EXIST, true);
+        doCheckWithStatusCode(resource, "", "_xpack", notFoundCheckStatus(), GET_EXISTS, XPACK_DOES_NOT_EXIST, true);
     }
 
     public void testDoCheckExistsFor400() {
         whenElectedMaster();
 
         // /_xpack returning a 400 means X-Pack does not exist
-        doCheckWithStatusCode(resource, "", "_xpack", RestStatus.BAD_REQUEST,
-                              GET_EXISTS, XPACK_DOES_NOT_EXIST, true);
+        doCheckWithStatusCode(resource, "", "_xpack", RestStatus.BAD_REQUEST, GET_EXISTS, XPACK_DOES_NOT_EXIST, true);
     }
 
     public void testDoCheckExistsAsElectedMaster() {
@@ -73,8 +71,7 @@ public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResou
             "{\"features\":{\"watcher\":{\"available\":true,\"enabled\":false}}}",
             "{\"features\":{\"watcher\":{\"available\":false,\"enabled\":true}}}",
             "{\"features\":{\"watcher\":{\"available\":true}}}",
-            "{\"features\":{\"watcher\":{\"enabled\":true}}}"
-        };
+            "{\"features\":{\"watcher\":{\"enabled\":true}}}" };
 
         final String endpoint = "/_xpack";
         // success only implies that it responded; it also needs to be available and enabled
@@ -94,8 +91,7 @@ public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResou
 
         final String[] hasWatcher = {
             "{\"features\":{\"watcher\":{\"available\":true,\"enabled\":true}}}",
-            "{\"features\":{\"watcher\":{\"enabled\":true,\"available\":true}}}"
-        };
+            "{\"features\":{\"watcher\":{\"enabled\":true,\"available\":true}}}" };
 
         final String endpoint = "/_xpack";
         // success only implies that it responded; it also needs to be available and enabled

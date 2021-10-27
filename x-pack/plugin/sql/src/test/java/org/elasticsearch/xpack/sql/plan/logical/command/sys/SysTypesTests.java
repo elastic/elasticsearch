@@ -39,8 +39,24 @@ public class SysTypesTests extends ESTestCase {
     private final SqlParser parser = new SqlParser();
 
     private Tuple<Command, SqlSession> sql(String sql, Mode mode, SqlVersion version) {
-        SqlConfiguration configuration = new SqlConfiguration(DateUtils.UTC, null, Protocol.FETCH_SIZE,
-            Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null, null, mode, null, version, null, null, false, false);
+        SqlConfiguration configuration = new SqlConfiguration(
+            DateUtils.UTC,
+            null,
+            Protocol.FETCH_SIZE,
+            Protocol.REQUEST_TIMEOUT,
+            Protocol.PAGE_TIMEOUT,
+            null,
+            null,
+            mode,
+            null,
+            version,
+            null,
+            null,
+            false,
+            false,
+            null,
+            null
+        );
         EsIndex test = new EsIndex("test", SqlTypesTests.loadMapping("mapping-multi-field-with-nested.json", true));
         Analyzer analyzer = new Analyzer(configuration, new FunctionRegistry(), IndexResolution.valid(test), null);
         Command cmd = (Command) analyzer.analyze(parser.createStatement(sql), false);
@@ -49,6 +65,7 @@ public class SysTypesTests extends ESTestCase {
         SqlSession session = new SqlSession(configuration, null, null, resolver, null, null, null, null, null);
         return new Tuple<>(cmd, session);
     }
+
     private Tuple<Command, SqlSession> sql(String sql) {
         return sql(sql, randomFrom(Mode.values()), randomBoolean() ? null : SqlVersion.fromId(Version.CURRENT.id));
     }
@@ -56,12 +73,44 @@ public class SysTypesTests extends ESTestCase {
     public void testSysTypes() {
         Tuple<Command, SqlSession> cmd = sql("SYS TYPES");
 
-        List<String> names = asList("BYTE", "LONG", "BINARY", "NULL", "INTEGER", "SHORT", "HALF_FLOAT",
-                "FLOAT", "DOUBLE", "SCALED_FLOAT", "IP", "KEYWORD", "TEXT", "BOOLEAN", "DATE", "TIME", "DATETIME",
-                "INTERVAL_YEAR", "INTERVAL_MONTH", "INTERVAL_DAY", "INTERVAL_HOUR", "INTERVAL_MINUTE", "INTERVAL_SECOND",
-                "INTERVAL_YEAR_TO_MONTH", "INTERVAL_DAY_TO_HOUR", "INTERVAL_DAY_TO_MINUTE", "INTERVAL_DAY_TO_SECOND",
-                "INTERVAL_HOUR_TO_MINUTE", "INTERVAL_HOUR_TO_SECOND", "INTERVAL_MINUTE_TO_SECOND",
-                "GEO_POINT", "GEO_SHAPE", "SHAPE", "UNSUPPORTED", "NESTED", "OBJECT");
+        List<String> names = asList(
+            "BYTE",
+            "LONG",
+            "BINARY",
+            "NULL",
+            "INTEGER",
+            "SHORT",
+            "HALF_FLOAT",
+            "FLOAT",
+            "DOUBLE",
+            "SCALED_FLOAT",
+            "IP",
+            "KEYWORD",
+            "TEXT",
+            "BOOLEAN",
+            "DATE",
+            "TIME",
+            "DATETIME",
+            "INTERVAL_YEAR",
+            "INTERVAL_MONTH",
+            "INTERVAL_DAY",
+            "INTERVAL_HOUR",
+            "INTERVAL_MINUTE",
+            "INTERVAL_SECOND",
+            "INTERVAL_YEAR_TO_MONTH",
+            "INTERVAL_DAY_TO_HOUR",
+            "INTERVAL_DAY_TO_MINUTE",
+            "INTERVAL_DAY_TO_SECOND",
+            "INTERVAL_HOUR_TO_MINUTE",
+            "INTERVAL_HOUR_TO_SECOND",
+            "INTERVAL_MINUTE_TO_SECOND",
+            "GEO_POINT",
+            "GEO_SHAPE",
+            "SHAPE",
+            "UNSUPPORTED",
+            "NESTED",
+            "OBJECT"
+        );
 
         cmd.v1().execute(cmd.v2(), wrap(p -> {
             SchemaRowSet r = (SchemaRowSet) p.rowSet();

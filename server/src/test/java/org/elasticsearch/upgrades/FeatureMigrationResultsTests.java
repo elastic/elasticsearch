@@ -28,10 +28,7 @@ public class FeatureMigrationResultsTests extends AbstractDiffableSerializationT
         if (randomBoolean()) {
             return SingleFeatureMigrationResult.success();
         } else {
-            return SingleFeatureMigrationResult.failure(
-                randomAlphaOfLength(8),
-                new RuntimeException(randomAlphaOfLength(5))
-            );
+            return SingleFeatureMigrationResult.failure(randomAlphaOfLength(8), new RuntimeException(randomAlphaOfLength(5)));
         }
     }
 
@@ -51,7 +48,8 @@ public class FeatureMigrationResultsTests extends AbstractDiffableSerializationT
      * Disable assertions of XContent equivalence - the exception prevents this from working as it translates everything
      * into ElasticsearchException.
      */
-    @Override protected boolean assertToXContentEquivalence() {
+    @Override
+    protected boolean assertToXContentEquivalence() {
         return false;
     }
 
@@ -60,15 +58,18 @@ public class FeatureMigrationResultsTests extends AbstractDiffableSerializationT
         return FeatureMigrationResults::new;
     }
 
-    @Override protected FeatureMigrationResults doParseInstance(XContentParser parser) throws IOException {
+    @Override
+    protected FeatureMigrationResults doParseInstance(XContentParser parser) throws IOException {
         return FeatureMigrationResults.fromXContent(parser);
     }
 
-    @Override protected Metadata.Custom makeTestChanges(Metadata.Custom testInstance) {
+    @Override
+    protected Metadata.Custom makeTestChanges(Metadata.Custom testInstance) {
         return mutateInstance(testInstance);
     }
 
-    @Override protected Writeable.Reader<Diff<Metadata.Custom>> diffReader() {
+    @Override
+    protected Writeable.Reader<Diff<Metadata.Custom>> diffReader() {
         return FeatureMigrationResults.ResultsDiff::new;
     }
 }

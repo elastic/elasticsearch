@@ -87,9 +87,7 @@ public final class CcrClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable putFollowAsync(PutFollowRequest request,
-                                      RequestOptions options,
-                                      ActionListener<PutFollowResponse> listener) {
+    public Cancellable putFollowAsync(PutFollowRequest request, RequestOptions options, ActionListener<PutFollowResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             CcrRequestConverters::putFollow,
@@ -131,16 +129,15 @@ public final class CcrClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable pauseFollowAsync(PauseFollowRequest request,
-                                        RequestOptions options,
-                                        ActionListener<AcknowledgedResponse> listener) {
+    public Cancellable pauseFollowAsync(PauseFollowRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             CcrRequestConverters::pauseFollow,
             options,
             AcknowledgedResponse::fromXContent,
             listener,
-            Collections.emptySet());
+            Collections.emptySet()
+        );
     }
 
     /**
@@ -174,16 +171,19 @@ public final class CcrClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable resumeFollowAsync(ResumeFollowRequest request,
-                                         RequestOptions options,
-                                         ActionListener<AcknowledgedResponse> listener) {
+    public Cancellable resumeFollowAsync(
+        ResumeFollowRequest request,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             CcrRequestConverters::resumeFollow,
             options,
             AcknowledgedResponse::fromXContent,
             listener,
-            Collections.emptySet());
+            Collections.emptySet()
+        );
     }
 
     /**
@@ -219,9 +219,7 @@ public final class CcrClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable unfollowAsync(UnfollowRequest request,
-                                     RequestOptions options,
-                                     ActionListener<AcknowledgedResponse> listener) {
+    public Cancellable unfollowAsync(UnfollowRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             CcrRequestConverters::unfollow,
@@ -245,11 +243,12 @@ public final class CcrClient {
      */
     public BroadcastResponse forgetFollower(final ForgetFollowerRequest request, final RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(
-                request,
-                CcrRequestConverters::forgetFollower,
-                options,
-                BroadcastResponse::fromXContent,
-                Collections.emptySet());
+            request,
+            CcrRequestConverters::forgetFollower,
+            options,
+            BroadcastResponse::fromXContent,
+            Collections.emptySet()
+        );
     }
 
     /**
@@ -262,16 +261,18 @@ public final class CcrClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable forgetFollowerAsync(
-            final ForgetFollowerRequest request,
-            final RequestOptions options,
-            final ActionListener<BroadcastResponse> listener) {
+        final ForgetFollowerRequest request,
+        final RequestOptions options,
+        final ActionListener<BroadcastResponse> listener
+    ) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
-                request,
-                CcrRequestConverters::forgetFollower,
-                options,
-                BroadcastResponse::fromXContent,
-                listener,
-                Collections.emptySet());
+            request,
+            CcrRequestConverters::forgetFollower,
+            options,
+            BroadcastResponse::fromXContent,
+            listener,
+            Collections.emptySet()
+        );
     }
 
     /**
@@ -305,16 +306,19 @@ public final class CcrClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable putAutoFollowPatternAsync(PutAutoFollowPatternRequest request,
-                                                 RequestOptions options,
-                                                 ActionListener<AcknowledgedResponse> listener) {
+    public Cancellable putAutoFollowPatternAsync(
+        PutAutoFollowPatternRequest request,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             CcrRequestConverters::putAutoFollowPattern,
             options,
             AcknowledgedResponse::fromXContent,
             listener,
-            Collections.emptySet());
+            Collections.emptySet()
+        );
     }
 
     /**
@@ -328,8 +332,7 @@ public final class CcrClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public AcknowledgedResponse deleteAutoFollowPattern(DeleteAutoFollowPatternRequest request,
-                                                        RequestOptions options) throws IOException {
+    public AcknowledgedResponse deleteAutoFollowPattern(DeleteAutoFollowPatternRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(
             request,
             CcrRequestConverters::deleteAutoFollowPattern,
@@ -349,9 +352,11 @@ public final class CcrClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable deleteAutoFollowPatternAsync(DeleteAutoFollowPatternRequest request,
-                                                    RequestOptions options,
-                                                    ActionListener<AcknowledgedResponse> listener) {
+    public Cancellable deleteAutoFollowPatternAsync(
+        DeleteAutoFollowPatternRequest request,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             CcrRequestConverters::deleteAutoFollowPattern,
@@ -373,8 +378,8 @@ public final class CcrClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public GetAutoFollowPatternResponse getAutoFollowPattern(GetAutoFollowPatternRequest request,
-                                                             RequestOptions options) throws IOException {
+    public GetAutoFollowPatternResponse getAutoFollowPattern(GetAutoFollowPatternRequest request, RequestOptions options)
+        throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(
             request,
             CcrRequestConverters::getAutoFollowPattern,
@@ -394,9 +399,11 @@ public final class CcrClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getAutoFollowPatternAsync(GetAutoFollowPatternRequest request,
-                                                 RequestOptions options,
-                                                 ActionListener<GetAutoFollowPatternResponse> listener) {
+    public Cancellable getAutoFollowPatternAsync(
+        GetAutoFollowPatternRequest request,
+        RequestOptions options,
+        ActionListener<GetAutoFollowPatternResponse> listener
+    ) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             CcrRequestConverters::getAutoFollowPattern,
@@ -438,16 +445,19 @@ public final class CcrClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable pauseAutoFollowPatternAsync(PauseAutoFollowPatternRequest request,
-                                                   RequestOptions options,
-                                                   ActionListener<AcknowledgedResponse> listener) {
+    public Cancellable pauseAutoFollowPatternAsync(
+        PauseAutoFollowPatternRequest request,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             CcrRequestConverters::pauseAutoFollowPattern,
             options,
             AcknowledgedResponse::fromXContent,
             listener,
-            Collections.emptySet());
+            Collections.emptySet()
+        );
     }
 
     /**
@@ -481,16 +491,19 @@ public final class CcrClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable resumeAutoFollowPatternAsync(ResumeAutoFollowPatternRequest request,
-                                                    RequestOptions options,
-                                                    ActionListener<AcknowledgedResponse> listener) {
+    public Cancellable resumeAutoFollowPatternAsync(
+        ResumeAutoFollowPatternRequest request,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             CcrRequestConverters::resumeAutoFollowPattern,
             options,
             AcknowledgedResponse::fromXContent,
             listener,
-            Collections.emptySet());
+            Collections.emptySet()
+        );
     }
 
     /**
@@ -504,8 +517,7 @@ public final class CcrClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public CcrStatsResponse getCcrStats(CcrStatsRequest request,
-                                        RequestOptions options) throws IOException {
+    public CcrStatsResponse getCcrStats(CcrStatsRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(
             request,
             CcrRequestConverters::getCcrStats,
@@ -524,9 +536,7 @@ public final class CcrClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getCcrStatsAsync(CcrStatsRequest request,
-                                        RequestOptions options,
-                                        ActionListener<CcrStatsResponse> listener) {
+    public Cancellable getCcrStatsAsync(CcrStatsRequest request, RequestOptions options, ActionListener<CcrStatsResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             CcrRequestConverters::getCcrStats,
@@ -548,8 +558,7 @@ public final class CcrClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public FollowStatsResponse getFollowStats(FollowStatsRequest request,
-                                              RequestOptions options) throws IOException {
+    public FollowStatsResponse getFollowStats(FollowStatsRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(
             request,
             CcrRequestConverters::getFollowStats,
@@ -568,9 +577,11 @@ public final class CcrClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getFollowStatsAsync(FollowStatsRequest request,
-                                           RequestOptions options,
-                                           ActionListener<FollowStatsResponse> listener) {
+    public Cancellable getFollowStatsAsync(
+        FollowStatsRequest request,
+        RequestOptions options,
+        ActionListener<FollowStatsResponse> listener
+    ) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             CcrRequestConverters::getFollowStats,
@@ -611,9 +622,7 @@ public final class CcrClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getFollowInfoAsync(FollowInfoRequest request,
-                                          RequestOptions options,
-                                          ActionListener<FollowInfoResponse> listener) {
+    public Cancellable getFollowInfoAsync(FollowInfoRequest request, RequestOptions options, ActionListener<FollowInfoResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             CcrRequestConverters::getFollowInfo,

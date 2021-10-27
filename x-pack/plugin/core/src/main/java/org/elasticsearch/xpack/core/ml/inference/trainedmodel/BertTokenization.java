@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
@@ -29,7 +29,7 @@ public class BertTokenization extends Tokenization {
                 (Boolean) a[0],
                 (Boolean) a[1],
                 (Integer) a[2],
-                a[3] == null ? null : Truncate.fromString((String)a[3])
+                a[3] == null ? null : Truncate.fromString((String) a[3])
             )
         );
         Tokenization.declareCommonFields(parser);

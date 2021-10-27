@@ -12,11 +12,11 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -35,10 +35,14 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_data_stream_timestamp";
     public static final String DEFAULT_PATH = "@timestamp";
 
-    public static final DataStreamTimestampFieldMapper ENABLED_INSTANCE =
-        new DataStreamTimestampFieldMapper(TimestampFieldType.INSTANCE, true);
-    private static final DataStreamTimestampFieldMapper DISABLED_INSTANCE =
-        new DataStreamTimestampFieldMapper(TimestampFieldType.INSTANCE, false);
+    public static final DataStreamTimestampFieldMapper ENABLED_INSTANCE = new DataStreamTimestampFieldMapper(
+        TimestampFieldType.INSTANCE,
+        true
+    );
+    private static final DataStreamTimestampFieldMapper DISABLED_INSTANCE = new DataStreamTimestampFieldMapper(
+        TimestampFieldType.INSTANCE,
+        false
+    );
 
     // For now the field shouldn't be useable in searches.
     // In the future it should act as an alias to the actual data stream timestamp field.
@@ -96,10 +100,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> DISABLED_INSTANCE,
-        c -> new Builder()
-    );
+    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> DISABLED_INSTANCE, c -> new Builder());
 
     private final boolean enabled;
 

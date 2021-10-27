@@ -54,8 +54,13 @@ public class ExpiredAnnotationsRemover extends AbstractExpiredJobDataRemover {
     private final AnomalyDetectionAuditor auditor;
     private final ThreadPool threadPool;
 
-    public ExpiredAnnotationsRemover(OriginSettingClient client, Iterator<Job> jobIterator, TaskId parentTaskId,
-                                     AnomalyDetectionAuditor auditor, ThreadPool threadPool) {
+    public ExpiredAnnotationsRemover(
+        OriginSettingClient client,
+        Iterator<Job> jobIterator,
+        TaskId parentTaskId,
+        AnomalyDetectionAuditor auditor,
+        ThreadPool threadPool
+    ) {
         super(client, jobIterator, parentTaskId);
         this.auditor = Objects.requireNonNull(auditor);
         this.threadPool = Objects.requireNonNull(threadPool);
@@ -105,8 +110,9 @@ public class ExpiredAnnotationsRemover extends AbstractExpiredJobDataRemover {
             .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()))
             .filter(QueryBuilders.rangeQuery(Annotation.TIMESTAMP.getPreferredName()).lt(cutoffEpochMs).format("epoch_millis"))
             .filter(QueryBuilders.termQuery(Annotation.CREATE_USERNAME.getPreferredName(), XPackUser.NAME));
-        DeleteByQueryRequest request = new DeleteByQueryRequest(AnnotationIndex.READ_ALIAS_NAME)
-            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
+        DeleteByQueryRequest request = new DeleteByQueryRequest(AnnotationIndex.READ_ALIAS_NAME).setSlices(
+            AbstractBulkByScrollRequest.AUTO_SLICES
+        )
             .setBatchSize(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE)
             // We are deleting old data, we should simply proceed as a version conflict could mean that another deletion is taking place
             .setAbortOnVersionConflict(false)
@@ -118,19 +124,21 @@ public class ExpiredAnnotationsRemover extends AbstractExpiredJobDataRemover {
 
     @Override
     void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<CutoffDetails> listener) {
-        ThreadedActionListener<CutoffDetails> threadedActionListener = new ThreadedActionListener<>(LOGGER, threadPool,
-                MachineLearning.UTILITY_THREAD_POOL_NAME, listener, false);
-        latestBucketTime(client, getParentTaskId(), jobId, ActionListener.wrap(
-                latestTime -> {
-                    if (latestTime == null) {
-                        threadedActionListener.onResponse(null);
-                    } else {
-                        long cutoff = latestTime - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis();
-                        threadedActionListener.onResponse(new CutoffDetails(latestTime, cutoff));
-                    }
-                },
-                listener::onFailure
-        ));
+        ThreadedActionListener<CutoffDetails> threadedActionListener = new ThreadedActionListener<>(
+            LOGGER,
+            threadPool,
+            MachineLearning.UTILITY_THREAD_POOL_NAME,
+            listener,
+            false
+        );
+        latestBucketTime(client, getParentTaskId(), jobId, ActionListener.wrap(latestTime -> {
+            if (latestTime == null) {
+                threadedActionListener.onResponse(null);
+            } else {
+                long cutoff = latestTime - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis();
+                threadedActionListener.onResponse(new CutoffDetails(latestTime, cutoff));
+            }
+        }, listener::onFailure));
     }
 
     private void auditAnnotationsWereDeleted(String jobId, long cutoffEpochMs) {

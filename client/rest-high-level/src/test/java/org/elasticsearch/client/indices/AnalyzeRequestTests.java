@@ -32,8 +32,7 @@ public abstract class AnalyzeRequestTests extends AbstractRequestTestCase<Analyz
         if (serverInstance.tokenizer() != null) {
             assertEquals(serverInstance.tokenizer().name, clientTestInstance.tokenizer().name);
             assertEquals(serverInstance.tokenizer().definition, clientTestInstance.tokenizer().definition);
-        }
-        else {
+        } else {
             assertNull(clientTestInstance.tokenizer());
         }
         assertEquals(serverInstance.field(), clientTestInstance.field());

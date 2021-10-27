@@ -71,8 +71,13 @@ public class CopySettingsStep extends ClusterStateActionStep {
         }
 
         if (targetIndexMetadata == null) {
-            String errorMessage = String.format(Locale.ROOT, "index [%s] is being referenced by ILM action [%s] on step [%s] but " +
-                "it doesn't exist", targetIndexName, getKey().getAction(), getKey().getName());
+            String errorMessage = String.format(
+                Locale.ROOT,
+                "index [%s] is being referenced by ILM action [%s] on step [%s] but " + "it doesn't exist",
+                targetIndexName,
+                getKey().getAction(),
+                getKey().getName()
+            );
             logger.debug(errorMessage);
             throw new IllegalStateException(errorMessage);
         }
@@ -84,9 +89,9 @@ public class CopySettingsStep extends ClusterStateActionStep {
         }
 
         Metadata.Builder newMetaData = Metadata.builder(clusterState.getMetadata())
-            .put(IndexMetadata.builder(targetIndexMetadata)
-                .settingsVersion(targetIndexMetadata.getSettingsVersion() + 1)
-                .settings(settings));
+            .put(
+                IndexMetadata.builder(targetIndexMetadata).settingsVersion(targetIndexMetadata.getSettingsVersion() + 1).settings(settings)
+            );
         return ClusterState.builder(clusterState).metadata(newMetaData.build(false)).build();
     }
 
@@ -102,8 +107,7 @@ public class CopySettingsStep extends ClusterStateActionStep {
             return false;
         }
         CopySettingsStep that = (CopySettingsStep) o;
-        return Objects.equals(settingsKeys, that.settingsKeys) &&
-            Objects.equals(indexPrefix, that.indexPrefix);
+        return Objects.equals(settingsKeys, that.settingsKeys) && Objects.equals(indexPrefix, that.indexPrefix);
     }
 
     @Override

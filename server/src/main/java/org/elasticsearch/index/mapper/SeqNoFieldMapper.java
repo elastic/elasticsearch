@@ -79,13 +79,17 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
                 new LongPoint(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
                 new NumericDocValuesField(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
                 new NumericDocValuesField(PRIMARY_TERM_NAME, 0),
-                null);
+                null
+            );
         }
 
         public static SequenceIDFields tombstone() {
-            return new SequenceIDFields(new LongPoint(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
+            return new SequenceIDFields(
+                new LongPoint(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
                 new NumericDocValuesField(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
-                new NumericDocValuesField(PRIMARY_TERM_NAME, 0), new NumericDocValuesField(TOMBSTONE_NAME, 1));
+                new NumericDocValuesField(PRIMARY_TERM_NAME, 0),
+                new NumericDocValuesField(TOMBSTONE_NAME, 1)
+            );
         }
     }
 
@@ -146,8 +150,13 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower,
-                                boolean includeUpper, SearchExecutionContext context) {
+        public Query rangeQuery(
+            Object lowerTerm,
+            Object upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            SearchExecutionContext context
+        ) {
             long l = Long.MIN_VALUE;
             long u = Long.MAX_VALUE;
             if (lowerTerm != null) {

@@ -27,15 +27,16 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyz
 
     private Analyzer customAnalyzer;
 
-    public CustomAnalyzerProvider(IndexSettings indexSettings,
-                                  String name, Settings settings) {
+    public CustomAnalyzerProvider(IndexSettings indexSettings, String name, Settings settings) {
         super(indexSettings, name, settings);
         this.analyzerSettings = settings;
     }
 
-    void build(final Map<String, TokenizerFactory> tokenizers,
-               final Map<String, CharFilterFactory> charFilters,
-               final Map<String, TokenFilterFactory> tokenFilters) {
+    void build(
+        final Map<String, TokenizerFactory> tokenizers,
+        final Map<String, CharFilterFactory> charFilters,
+        final Map<String, TokenFilterFactory> tokenFilters
+    ) {
         customAnalyzer = create(name(), analyzerSettings, tokenizers, charFilters, tokenFilters);
     }
 
@@ -43,9 +44,13 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyz
      * Factory method that either returns a plain {@link ReloadableCustomAnalyzer} if the components used for creation are supporting index
      * and search time use, or a {@link ReloadableCustomAnalyzer} if the components are intended for search time use only.
      */
-    private static Analyzer create(String name, Settings analyzerSettings, Map<String, TokenizerFactory> tokenizers,
-            Map<String, CharFilterFactory> charFilters,
-            Map<String, TokenFilterFactory> tokenFilters) {
+    private static Analyzer create(
+        String name,
+        Settings analyzerSettings,
+        Map<String, TokenizerFactory> tokenizers,
+        Map<String, CharFilterFactory> charFilters,
+        Map<String, TokenFilterFactory> tokenFilters
+    ) {
         int positionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
         positionIncrementGap = analyzerSettings.getAsInt("position_increment_gap", positionIncrementGap);
         int offsetGap = analyzerSettings.getAsInt("offset_gap", -1);
@@ -53,8 +58,13 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyz
         if (components.analysisMode().equals(AnalysisMode.SEARCH_TIME)) {
             return new ReloadableCustomAnalyzer(components, positionIncrementGap, offsetGap);
         } else {
-            return new CustomAnalyzer(components.getTokenizerFactory(), components.getCharFilters(),
-                    components.getTokenFilters(), positionIncrementGap, offsetGap);
+            return new CustomAnalyzer(
+                components.getTokenizerFactory(),
+                components.getCharFilters(),
+                components.getTokenFilters(),
+                positionIncrementGap,
+                offsetGap
+            );
         }
     }
 

@@ -10,15 +10,15 @@ package org.elasticsearch.index.get;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -44,8 +44,11 @@ public class DocumentFieldTests extends ESTestCase {
     }
 
     public void testEqualsAndHashcode() {
-        checkEqualsAndHashCode(randomDocumentField(XContentType.JSON).v1(), DocumentFieldTests::copyDocumentField,
-                DocumentFieldTests::mutateDocumentField);
+        checkEqualsAndHashCode(
+            randomDocumentField(XContentType.JSON).v1(),
+            DocumentFieldTests::copyDocumentField,
+            DocumentFieldTests::mutateDocumentField
+        );
     }
 
     public void testToAndFromXContent() throws Exception {
@@ -60,10 +63,10 @@ public class DocumentFieldTests extends ESTestCase {
             ToXContent.EMPTY_PARAMS,
             humanReadable
         );
-        //test that we can parse what we print out
+        // test that we can parse what we print out
         DocumentField parsedDocumentField;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            //we need to move to the next token, the start object one that we manually added is not expected
+            // we need to move to the next token, the start object one that we manually added is not expected
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
             parsedDocumentField = DocumentField.fromXContent(parser);
@@ -100,11 +103,13 @@ public class DocumentFieldTests extends ESTestCase {
         return randomDocumentField(xContentType, randomBoolean(), fieldName -> false);  // don't exclude any meta-fields
     }
 
-    public static Tuple<DocumentField, DocumentField> randomDocumentField(XContentType xContentType, boolean isMetafield,
-            Predicate<String> excludeMetaFieldFilter) {
+    public static Tuple<DocumentField, DocumentField> randomDocumentField(
+        XContentType xContentType,
+        boolean isMetafield,
+        Predicate<String> excludeMetaFieldFilter
+    ) {
         if (isMetafield) {
-            String metaField = randomValueOtherThanMany(excludeMetaFieldFilter,
-                () -> randomFrom(IndicesModule.getBuiltInMetadataFields()));
+            String metaField = randomValueOtherThanMany(excludeMetaFieldFilter, () -> randomFrom(IndicesModule.getBuiltInMetadataFields()));
             DocumentField documentField;
             if (metaField.equals(IgnoredFieldMapper.NAME)) {
                 int numValues = randomIntBetween(1, 3);
@@ -114,7 +119,7 @@ public class DocumentFieldTests extends ESTestCase {
                 }
                 documentField = new DocumentField(metaField, ignoredFields);
             } else {
-                //meta fields are single value only, besides _ignored
+                // meta fields are single value only, besides _ignored
                 documentField = new DocumentField(metaField, Collections.singletonList(randomAlphaOfLengthBetween(3, 10)));
             }
             return Tuple.tuple(documentField, documentField);

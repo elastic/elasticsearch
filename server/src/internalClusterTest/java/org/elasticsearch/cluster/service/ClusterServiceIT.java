@@ -13,8 +13,8 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -47,43 +47,45 @@ public class ClusterServiceIT extends ESIntegTestCase {
         final AtomicBoolean executed = new AtomicBoolean(false);
         final CountDownLatch latch = new CountDownLatch(1);
         final CountDownLatch processedLatch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("test",
-                new AckedClusterStateUpdateTask(MasterServiceTests.ackedRequest(TEN_SECONDS, TEN_SECONDS), null) {
-            @Override
-            public boolean mustAck(DiscoveryNode discoveryNode) {
-                return true;
-            }
+        clusterService.submitStateUpdateTask(
+            "test",
+            new AckedClusterStateUpdateTask(MasterServiceTests.ackedRequest(TEN_SECONDS, TEN_SECONDS), null) {
+                @Override
+                public boolean mustAck(DiscoveryNode discoveryNode) {
+                    return true;
+                }
 
-            @Override
-            public void onAllNodesAcked(@Nullable Exception e) {
-                allNodesAcked.set(true);
-                latch.countDown();
-            }
+                @Override
+                public void onAllNodesAcked(@Nullable Exception e) {
+                    allNodesAcked.set(true);
+                    latch.countDown();
+                }
 
-            @Override
-            public void onAckTimeout() {
-                ackTimeout.set(true);
-                latch.countDown();
-            }
+                @Override
+                public void onAckTimeout() {
+                    ackTimeout.set(true);
+                    latch.countDown();
+                }
 
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                processedLatch.countDown();
-            }
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    processedLatch.countDown();
+                }
 
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                executed.set(true);
-                return ClusterState.builder(currentState).build();
-            }
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    executed.set(true);
+                    return ClusterState.builder(currentState).build();
+                }
 
-            @Override
-            public void onFailure(String source, Exception e) {
-                logger.error(() -> new ParameterizedMessage("failed to execute callback in test {}", source), e);
-                onFailure.set(true);
-                latch.countDown();
+                @Override
+                public void onFailure(String source, Exception e) {
+                    logger.error(() -> new ParameterizedMessage("failed to execute callback in test {}", source), e);
+                    onFailure.set(true);
+                    latch.countDown();
+                }
             }
-        });
+        );
 
         ensureGreen();
         assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
@@ -106,38 +108,40 @@ public class ClusterServiceIT extends ESIntegTestCase {
         final AtomicBoolean executed = new AtomicBoolean(false);
         final CountDownLatch latch = new CountDownLatch(1);
         final CountDownLatch processedLatch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("test",
-                new AckedClusterStateUpdateTask(MasterServiceTests.ackedRequest(TEN_SECONDS, TEN_SECONDS), null) {
-            @Override
-            public void onAllNodesAcked(@Nullable Exception e) {
-                allNodesAcked.set(true);
-                latch.countDown();
-            }
+        clusterService.submitStateUpdateTask(
+            "test",
+            new AckedClusterStateUpdateTask(MasterServiceTests.ackedRequest(TEN_SECONDS, TEN_SECONDS), null) {
+                @Override
+                public void onAllNodesAcked(@Nullable Exception e) {
+                    allNodesAcked.set(true);
+                    latch.countDown();
+                }
 
-            @Override
-            public void onAckTimeout() {
-                ackTimeout.set(true);
-                latch.countDown();
-            }
+                @Override
+                public void onAckTimeout() {
+                    ackTimeout.set(true);
+                    latch.countDown();
+                }
 
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                processedLatch.countDown();
-            }
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    processedLatch.countDown();
+                }
 
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                executed.set(true);
-                return currentState;
-            }
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    executed.set(true);
+                    return currentState;
+                }
 
-            @Override
-            public void onFailure(String source, Exception e) {
-                logger.error(() -> new ParameterizedMessage("failed to execute callback in test {}", source), e);
-                onFailure.set(true);
-                latch.countDown();
+                @Override
+                public void onFailure(String source, Exception e) {
+                    logger.error(() -> new ParameterizedMessage("failed to execute callback in test {}", source), e);
+                    onFailure.set(true);
+                    latch.countDown();
+                }
             }
-        });
+        );
 
         ensureGreen();
         assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
@@ -161,41 +165,42 @@ public class ClusterServiceIT extends ESIntegTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
 
         clusterService.submitStateUpdateTask(
-                "test", new AckedClusterStateUpdateTask(MasterServiceTests.ackedRequest(TEN_SECONDS, TEN_SECONDS), null) {
-            @Override
-            public boolean mustAck(DiscoveryNode discoveryNode) {
-                return false;
-            }
+            "test",
+            new AckedClusterStateUpdateTask(MasterServiceTests.ackedRequest(TEN_SECONDS, TEN_SECONDS), null) {
+                @Override
+                public boolean mustAck(DiscoveryNode discoveryNode) {
+                    return false;
+                }
 
-            @Override
-            public void onAllNodesAcked(@Nullable Exception e) {
-                allNodesAcked.set(true);
-                latch.countDown();
-            }
+                @Override
+                public void onAllNodesAcked(@Nullable Exception e) {
+                    allNodesAcked.set(true);
+                    latch.countDown();
+                }
 
-            @Override
-            public void onAckTimeout() {
-                ackTimeout.set(true);
-                latch.countDown();
-            }
+                @Override
+                public void onAckTimeout() {
+                    ackTimeout.set(true);
+                    latch.countDown();
+                }
 
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-            }
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {}
 
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                executed.set(true);
-                return ClusterState.builder(currentState).build();
-            }
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    executed.set(true);
+                    return ClusterState.builder(currentState).build();
+                }
 
-            @Override
-            public void onFailure(String source, Exception e) {
-                logger.error(() -> new ParameterizedMessage("failed to execute callback in test {}", source), e);
-                onFailure.set(true);
-                latch.countDown();
+                @Override
+                public void onFailure(String source, Exception e) {
+                    logger.error(() -> new ParameterizedMessage("failed to execute callback in test {}", source), e);
+                    onFailure.set(true);
+                    latch.countDown();
+                }
             }
-        });
+        );
 
         ensureGreen();
         assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
@@ -216,43 +221,45 @@ public class ClusterServiceIT extends ESIntegTestCase {
         final AtomicBoolean executed = new AtomicBoolean(false);
         final CountDownLatch latch = new CountDownLatch(1);
         final CountDownLatch processedLatch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("test",
-                new AckedClusterStateUpdateTask(MasterServiceTests.ackedRequest(TimeValue.ZERO, TEN_SECONDS), null) {
-            @Override
-            public boolean mustAck(DiscoveryNode discoveryNode) {
-                return false;
-            }
+        clusterService.submitStateUpdateTask(
+            "test",
+            new AckedClusterStateUpdateTask(MasterServiceTests.ackedRequest(TimeValue.ZERO, TEN_SECONDS), null) {
+                @Override
+                public boolean mustAck(DiscoveryNode discoveryNode) {
+                    return false;
+                }
 
-            @Override
-            public void onAllNodesAcked(@Nullable Exception e) {
-                allNodesAcked.set(true);
-                latch.countDown();
-            }
+                @Override
+                public void onAllNodesAcked(@Nullable Exception e) {
+                    allNodesAcked.set(true);
+                    latch.countDown();
+                }
 
-            @Override
-            public void onAckTimeout() {
-                ackTimeout.set(true);
-                latch.countDown();
-            }
+                @Override
+                public void onAckTimeout() {
+                    ackTimeout.set(true);
+                    latch.countDown();
+                }
 
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                processedLatch.countDown();
-            }
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    processedLatch.countDown();
+                }
 
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                executed.set(true);
-                return ClusterState.builder(currentState).build();
-            }
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    executed.set(true);
+                    return ClusterState.builder(currentState).build();
+                }
 
-            @Override
-            public void onFailure(String source, Exception e) {
-                logger.error(() -> new ParameterizedMessage("failed to execute callback in test {}", source), e);
-                onFailure.set(true);
-                latch.countDown();
+                @Override
+                public void onFailure(String source, Exception e) {
+                    logger.error(() -> new ParameterizedMessage("failed to execute callback in test {}", source), e);
+                    onFailure.set(true);
+                    latch.countDown();
+                }
             }
-        });
+        );
 
         ensureGreen();
         assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));

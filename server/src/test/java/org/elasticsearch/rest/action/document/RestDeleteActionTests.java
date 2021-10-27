@@ -32,16 +32,14 @@ public class RestDeleteActionTests extends RestActionTestCase {
     }
 
     public void testTypeInPath() {
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withHeaders(Map.of("Accept", contentTypeHeader))
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(Map.of("Accept", contentTypeHeader))
             .withMethod(RestRequest.Method.DELETE)
             .withPath("/some_index/some_type/some_id")
             .build();
         dispatchRequest(request);
         assertWarnings(RestDeleteAction.TYPES_DEPRECATION_MESSAGE);
 
-        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withHeaders(Map.of("Accept", contentTypeHeader))
+        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(Map.of("Accept", contentTypeHeader))
             .withMethod(RestRequest.Method.DELETE)
             .withPath("/some_index/_doc/some_id")
             .build();

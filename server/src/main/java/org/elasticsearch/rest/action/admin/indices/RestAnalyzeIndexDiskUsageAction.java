@@ -60,8 +60,9 @@ public class RestAnalyzeIndexDiskUsageAction extends BaseRestHandler {
     public BaseRestHandler.RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         if (Booleans.parseBoolean(request.param("run_expensive_tasks"), false) == false) {
             throw new IllegalArgumentException(
-                "analyzing the disk usage of an index is expensive and resource-intensive, " +
-                    "the parameter [run_expensive_tasks] must be set to [true] in order for the task to be performed.");
+                "analyzing the disk usage of an index is expensive and resource-intensive, "
+                    + "the parameter [run_expensive_tasks] must be set to [true] in order for the task to be performed."
+            );
         }
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS);

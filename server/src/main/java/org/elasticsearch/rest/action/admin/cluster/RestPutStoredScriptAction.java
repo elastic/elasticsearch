@@ -10,11 +10,11 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.script.StoredScriptSource;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
@@ -30,7 +30,8 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
             new Route(POST, "/_scripts/{id}"),
             new Route(PUT, "/_scripts/{id}"),
             new Route(POST, "/_scripts/{id}/{context}"),
-            new Route(PUT, "/_scripts/{id}/{context}"));
+            new Route(PUT, "/_scripts/{id}/{context}")
+        );
     }
 
     @Override

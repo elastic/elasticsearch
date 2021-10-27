@@ -10,11 +10,11 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -37,15 +37,11 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
         public static final ParseField REQUESTS_PER_SECOND = new ParseField("requests_per_second");
         public static final ParseField TIMEOUT = new ParseField("timeout");
 
-        public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(
-            "delete_expired_data_request",
-            false,
-            Request::new);
+        public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>("delete_expired_data_request", false, Request::new);
 
         static {
             PARSER.declareFloat(Request::setRequestsPerSecond, REQUESTS_PER_SECOND);
-            PARSER.declareString((obj, value) -> obj.setTimeout(TimeValue.parseTimeValue(value, TIMEOUT.getPreferredName())),
-                TIMEOUT);
+            PARSER.declareString((obj, value) -> obj.setTimeout(TimeValue.parseTimeValue(value, TIMEOUT.getPreferredName())), TIMEOUT);
             PARSER.declareString(Request::setJobId, Job.ID);
         }
 
@@ -60,7 +56,7 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
         private Float requestsPerSecond;
         private TimeValue timeout;
         private String jobId;
-        private String [] expandedJobIds;
+        private String[] expandedJobIds;
 
         public Request() {}
 
@@ -109,11 +105,11 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
          * @return The expanded Ids in the case where {@code jobId} is not `_all`
          * otherwise null.
          */
-        public String [] getExpandedJobIds() {
+        public String[] getExpandedJobIds() {
             return expandedJobIds;
         }
 
-        public void setExpandedJobIds(String [] expandedJobIds) {
+        public void setExpandedJobIds(String[] expandedJobIds) {
             this.expandedJobIds = expandedJobIds;
         }
 

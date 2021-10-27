@@ -54,9 +54,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -85,34 +85,42 @@ public class ReservedRealmTests extends ESTestCase {
     public void testInvalidHashingAlgorithmFails() {
         final String invalidAlgoId = randomFrom("sha1", "md5", "noop");
         final Settings invalidSettings = Settings.builder().put("xpack.security.authc.password_hashing.algorithm", invalidAlgoId).build();
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new ReservedRealm(mock(Environment.class),
-            invalidSettings, usersStore, new AnonymousUser(Settings.EMPTY), threadPool));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new ReservedRealm(mock(Environment.class), invalidSettings, usersStore, new AnonymousUser(Settings.EMPTY), threadPool)
+        );
         assertThat(exception.getMessage(), containsString(invalidAlgoId));
         assertThat(exception.getMessage(), containsString("Invalid algorithm"));
     }
 
     public void testInvalidAutoConfigPasswordHashFails() {
-        char[] invalidAutoConfHash =
-            randomFrom(Hasher.MD5.hash(new SecureString(randomAlphaOfLengthBetween(0, 8).toCharArray())),
-                Hasher.SHA1.hash(new SecureString(randomAlphaOfLengthBetween(0, 8).toCharArray())),
-                Hasher.SSHA256.hash(new SecureString(randomAlphaOfLengthBetween(0, 8).toCharArray())),
-                randomAlphaOfLengthBetween(1, 16).toCharArray(),
-                new char[0]
-                );
+        char[] invalidAutoConfHash = randomFrom(
+            Hasher.MD5.hash(new SecureString(randomAlphaOfLengthBetween(0, 8).toCharArray())),
+            Hasher.SHA1.hash(new SecureString(randomAlphaOfLengthBetween(0, 8).toCharArray())),
+            Hasher.SSHA256.hash(new SecureString(randomAlphaOfLengthBetween(0, 8).toCharArray())),
+            randomAlphaOfLengthBetween(1, 16).toCharArray(),
+            new char[0]
+        );
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
         mockSecureSettings.setString("autoconfiguration.password_hash", new String(invalidAutoConfHash));
         if (randomBoolean()) {
             mockSecureSettings.setString("bootstrap.password", "foobar longer than 14 chars because of FIPS");
         }
         Settings invalidSettings = Settings.builder().setSecureSettings(mockSecureSettings).build();
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new ReservedRealm(mock(Environment.class),
-            invalidSettings, usersStore, new AnonymousUser(Settings.EMPTY), threadPool));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new ReservedRealm(mock(Environment.class), invalidSettings, usersStore, new AnonymousUser(Settings.EMPTY), threadPool)
+        );
         assertThat(exception.getMessage(), containsString("Invalid password hash for elastic user auto configuration"));
     }
 
     public void testReservedUserEmptyPasswordAuthenticationFails() throws Throwable {
-        final String principal = randomFrom(UsernamesField.ELASTIC_NAME, UsernamesField.KIBANA_NAME, UsernamesField.LOGSTASH_NAME,
-            UsernamesField.BEATS_NAME);
+        final String principal = randomFrom(
+            UsernamesField.ELASTIC_NAME,
+            UsernamesField.KIBANA_NAME,
+            UsernamesField.LOGSTASH_NAME,
+            UsernamesField.BEATS_NAME
+        );
         SecureString password = new SecureString("password longer than 14 chars because of FIPS".toCharArray());
         // Mocked users store is initiated with default hashing algorithm
         final Hasher hasher = Hasher.resolve("bcrypt");
@@ -120,8 +128,13 @@ public class ReservedRealmTests extends ESTestCase {
         ReservedUserInfo userInfo = new ReservedUserInfo(hash, true);
         mockGetAllReservedUserInfo(usersStore, Collections.singletonMap(principal, userInfo));
 
-        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
-            new AnonymousUser(Settings.EMPTY), threadPool);
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            Settings.EMPTY,
+            usersStore,
+            new AnonymousUser(Settings.EMPTY),
+            threadPool
+        );
 
         PlainActionFuture<AuthenticationResult<User>> listener = new PlainActionFuture<>();
 
@@ -135,17 +148,26 @@ public class ReservedRealmTests extends ESTestCase {
             mockSecureSettings.setString("bootstrap.password", "foobar longer than 14 chars because of FIPS");
         }
         if (randomBoolean()) {
-            mockSecureSettings.setString("autoconfiguration.password_hash",
-                new String(randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(
-                    new SecureString("barbaz longer than 14 chars because of FIPS".toCharArray()))));
+            mockSecureSettings.setString(
+                "autoconfiguration.password_hash",
+                new String(
+                    randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(
+                        new SecureString("barbaz longer than 14 chars because of FIPS".toCharArray())
+                    )
+                )
+            );
         }
         Settings settings = Settings.builder()
             .put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false)
             .setSecureSettings(mockSecureSettings)
             .build();
-        final ReservedRealm reservedRealm =
-            new ReservedRealm(mock(Environment.class), settings, usersStore,
-                new AnonymousUser(settings), threadPool);
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            settings,
+            usersStore,
+            new AnonymousUser(settings),
+            threadPool
+        );
         final User expected = randomReservedUser(true);
         final String principal = expected.principal();
 
@@ -166,8 +188,13 @@ public class ReservedRealmTests extends ESTestCase {
     }
 
     private void verifySuccessfulAuthentication(boolean enabled) throws Exception {
-        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
-            new AnonymousUser(Settings.EMPTY), threadPool);
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            Settings.EMPTY,
+            usersStore,
+            new AnonymousUser(Settings.EMPTY),
+            threadPool
+        );
         final User expectedUser = randomReservedUser(enabled);
         final String principal = expectedUser.principal();
         final SecureString newPassword = new SecureString("foobar longer than 14 chars because of FIPS".toCharArray());
@@ -194,8 +221,10 @@ public class ReservedRealmTests extends ESTestCase {
         verifyNoMoreInteractions(usersStore);
 
         if (new KibanaUser(enabled).equals(expectedUser)) {
-            assertWarnings("The user [kibana] is deprecated and will be removed in a future version of Elasticsearch. " +
-                            "Please use the [kibana_system] user instead.");
+            assertWarnings(
+                "The user [kibana] is deprecated and will be removed in a future version of Elasticsearch. "
+                    + "Please use the [kibana_system] user instead."
+            );
         }
     }
 
@@ -217,16 +246,22 @@ public class ReservedRealmTests extends ESTestCase {
             mockSecureSettings.setString("bootstrap.password", "foobar longer than 14 chars because of FIPS");
         }
         if (randomBoolean()) {
-            mockSecureSettings.setString("autoconfiguration.password_hash",
-                new String(randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(
-                    new SecureString("barbaz longer than 14 chars because of FIPS".toCharArray()))));
+            mockSecureSettings.setString(
+                "autoconfiguration.password_hash",
+                new String(
+                    randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(
+                        new SecureString("barbaz longer than 14 chars because of FIPS".toCharArray())
+                    )
+                )
+            );
         }
-        final ReservedRealm reservedRealm =
-            new ReservedRealm(mock(Environment.class),
-                Settings.builder()
-                    .setSecureSettings(mockSecureSettings)
-                    .build(), usersStore,
-                new AnonymousUser(Settings.EMPTY), threadPool);
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            Settings.builder().setSecureSettings(mockSecureSettings).build(),
+            usersStore,
+            new AnonymousUser(Settings.EMPTY),
+            threadPool
+        );
 
         PlainActionFuture<User> listener = new PlainActionFuture<>();
         reservedRealm.doLookupUser(principal, listener);
@@ -247,17 +282,26 @@ public class ReservedRealmTests extends ESTestCase {
             mockSecureSettings.setString("bootstrap.password", "foobar longer than 14 chars because of FIPS");
         }
         if (randomBoolean()) {
-            mockSecureSettings.setString("autoconfiguration.password_hash",
-                new String(randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(
-                    new SecureString("barbaz longer than 14 chars because of FIPS".toCharArray()))));
+            mockSecureSettings.setString(
+                "autoconfiguration.password_hash",
+                new String(
+                    randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(
+                        new SecureString("barbaz longer than 14 chars because of FIPS".toCharArray())
+                    )
+                )
+            );
         }
         Settings settings = Settings.builder()
             .put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false)
             .setSecureSettings(mockSecureSettings)
             .build();
-        final ReservedRealm reservedRealm =
-            new ReservedRealm(mock(Environment.class), settings, usersStore, new AnonymousUser(settings),
-                threadPool);
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            settings,
+            usersStore,
+            new AnonymousUser(settings),
+            threadPool
+        );
         final User expectedUser = randomReservedUser(true);
         final String principal = expectedUser.principal();
 
@@ -274,18 +318,27 @@ public class ReservedRealmTests extends ESTestCase {
             mockSecureSettings.setString("bootstrap.password", "foobar longer than 14 chars because of FIPS");
         }
         if (randomBoolean()) {
-            mockSecureSettings.setString("autoconfiguration.password_hash",
-                new String(randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(
-                    new SecureString("barbaz longer than 14 chars because of FIPS".toCharArray()))));
+            mockSecureSettings.setString(
+                "autoconfiguration.password_hash",
+                new String(
+                    randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(
+                        new SecureString("barbaz longer than 14 chars because of FIPS".toCharArray())
+                    )
+                )
+            );
         }
         Settings settings = Settings.builder()
             .put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false)
             .put(AnonymousUser.ROLES_SETTING.getKey(), "anonymous")
             .setSecureSettings(mockSecureSettings)
             .build();
-        final ReservedRealm reservedRealm =
-            new ReservedRealm(mock(Environment.class), settings, usersStore, new AnonymousUser(settings),
-                threadPool);
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            settings,
+            usersStore,
+            new AnonymousUser(settings),
+            threadPool
+        );
         final User expectedUser = new AnonymousUser(settings);
         final String principal = expectedUser.principal();
 
@@ -296,9 +349,13 @@ public class ReservedRealmTests extends ESTestCase {
     }
 
     public void testLookupThrows() throws Exception {
-        final ReservedRealm reservedRealm =
-            new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
-                new AnonymousUser(Settings.EMPTY), threadPool);
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            Settings.EMPTY,
+            usersStore,
+            new AnonymousUser(Settings.EMPTY),
+            threadPool
+        );
         final User expectedUser = randomReservedUser(true);
         final String principal = expectedUser.principal();
         final RuntimeException e = new RuntimeException("store threw");
@@ -338,13 +395,27 @@ public class ReservedRealmTests extends ESTestCase {
     }
 
     public void testGetUsers() {
-        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
-            new AnonymousUser(Settings.EMPTY), threadPool);
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            Settings.EMPTY,
+            usersStore,
+            new AnonymousUser(Settings.EMPTY),
+            threadPool
+        );
         PlainActionFuture<Collection<User>> userFuture = new PlainActionFuture<>();
         reservedRealm.users(userFuture);
-        assertThat(userFuture.actionGet(),
-            containsInAnyOrder(new ElasticUser(true), new KibanaUser(true), new KibanaSystemUser(true),
-                new LogstashSystemUser(true), new BeatsSystemUser(true), new APMSystemUser(true), new RemoteMonitoringUser(true)));
+        assertThat(
+            userFuture.actionGet(),
+            containsInAnyOrder(
+                new ElasticUser(true),
+                new KibanaUser(true),
+                new KibanaSystemUser(true),
+                new LogstashSystemUser(true),
+                new BeatsSystemUser(true),
+                new APMSystemUser(true),
+                new RemoteMonitoringUser(true)
+            )
+        );
     }
 
     public void testGetUsersDisabled() {
@@ -354,9 +425,14 @@ public class ReservedRealmTests extends ESTestCase {
             mockSecureSettings.setString("bootstrap.password", "foobar longer than 14 chars because of FIPS");
         }
         if (randomBoolean()) {
-            mockSecureSettings.setString("autoconfiguration.password_hash",
-                new String(randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(
-                    new SecureString("barbaz longer than 14 chars because of FIPS".toCharArray()))));
+            mockSecureSettings.setString(
+                "autoconfiguration.password_hash",
+                new String(
+                    randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(
+                        new SecureString("barbaz longer than 14 chars because of FIPS".toCharArray())
+                    )
+                )
+            );
         }
         Settings settings = Settings.builder()
             .put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false)
@@ -364,8 +440,7 @@ public class ReservedRealmTests extends ESTestCase {
             .setSecureSettings(mockSecureSettings)
             .build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
-        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore, anonymousUser,
-            threadPool);
+        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore, anonymousUser, threadPool);
         PlainActionFuture<Collection<User>> userFuture = new PlainActionFuture<>();
         reservedRealm.users(userFuture);
         if (anonymousEnabled) {
@@ -381,9 +456,14 @@ public class ReservedRealmTests extends ESTestCase {
             mockSecureSettings.setString("bootstrap.password", "foobar longer than 14 chars because of FIPS");
         }
         if (randomBoolean()) {
-            mockSecureSettings.setString("autoconfiguration.password_hash",
-                new String(randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(
-                    new SecureString("barbaz longer than 14 chars because of FIPS".toCharArray()))));
+            mockSecureSettings.setString(
+                "autoconfiguration.password_hash",
+                new String(
+                    randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(
+                        new SecureString("barbaz longer than 14 chars because of FIPS".toCharArray())
+                    )
+                )
+            );
         }
         SecureString password = new SecureString("password".toCharArray());
         // Mocked users store is initiated with default hashing algorithm
@@ -394,10 +474,13 @@ public class ReservedRealmTests extends ESTestCase {
         String principal = reservedUser.principal();
         ReservedUserInfo userInfo = new ReservedUserInfo(hash, true);
         mockGetAllReservedUserInfo(usersStore, Collections.singletonMap(principal, userInfo));
-        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class),
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
             Settings.builder().setSecureSettings(mockSecureSettings).build(),
             usersStore,
-            new AnonymousUser(Settings.EMPTY), threadPool);
+            new AnonymousUser(Settings.EMPTY),
+            threadPool
+        );
 
         if (randomBoolean()) {
             PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
@@ -405,14 +488,18 @@ public class ReservedRealmTests extends ESTestCase {
             User user = future.actionGet().getValue();
             assertEquals(reservedUser, user);
             if (new KibanaUser(enabled).equals(reservedUser)) {
-                assertWarnings("The user [kibana] is deprecated and will be removed in a future version of Elasticsearch. " +
-                    "Please use the [kibana_system] user instead.");
+                assertWarnings(
+                    "The user [kibana] is deprecated and will be removed in a future version of Elasticsearch. "
+                        + "Please use the [kibana_system] user instead."
+                );
             }
         }
 
         PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
-        reservedRealm.authenticate(new UsernamePasswordToken(principal,
-            new SecureString("foobar longer than 14 chars because of FIPS".toCharArray())), future);
+        reservedRealm.authenticate(
+            new UsernamePasswordToken(principal, new SecureString("foobar longer than 14 chars because of FIPS".toCharArray())),
+            future
+        );
         assertFailedAuthentication(future, principal);
     }
 
@@ -437,48 +524,72 @@ public class ReservedRealmTests extends ESTestCase {
         mockSecureSettings.setString("bootstrap.password", "foobar longer than 14 chars because of FIPS");
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
 
-        ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
-            new AnonymousUser(Settings.EMPTY), threadPool);
+        ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            settings,
+            usersStore,
+            new AnonymousUser(Settings.EMPTY),
+            threadPool
+        );
         PlainActionFuture<AuthenticationResult<User>> listener = new PlainActionFuture<>();
 
-        reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(),
-                mockSecureSettings.getString("bootstrap.password")),
-            listener);
+        reservedRealm.doAuthenticate(
+            new UsernamePasswordToken(new ElasticUser(true).principal(), mockSecureSettings.getString("bootstrap.password")),
+            listener
+        );
         AuthenticationResult<User> result = listener.get();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
 
         // add auto configured password which should be ignored because the bootstrap password has priority
-        mockSecureSettings.setString("autoconfiguration.password_hash", new String(randomFrom(Hasher.BCRYPT, Hasher.PBKDF2)
-            .hash(new SecureString("bazbar longer than 14 chars because of FIPS".toCharArray()))));
+        mockSecureSettings.setString(
+            "autoconfiguration.password_hash",
+            new String(
+                randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(new SecureString("bazbar longer than 14 chars because of FIPS".toCharArray()))
+            )
+        );
         settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
 
         reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore, new AnonymousUser(Settings.EMPTY), threadPool);
 
         // authn still works for the bootstrap password
         listener = new PlainActionFuture<>();
-        reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(),
-                new SecureString("foobar longer than 14 chars because of FIPS".toCharArray())),
-            listener);
+        reservedRealm.doAuthenticate(
+            new UsernamePasswordToken(
+                new ElasticUser(true).principal(),
+                new SecureString("foobar longer than 14 chars because of FIPS".toCharArray())
+            ),
+            listener
+        );
         result = listener.get();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
 
         // authn fails for the auto configured password hash
         listener = new PlainActionFuture<>();
-        reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(),
-                new SecureString("bazbar longer than 14 chars because of FIPS".toCharArray())),
-            listener);
+        reservedRealm.doAuthenticate(
+            new UsernamePasswordToken(
+                new ElasticUser(true).principal(),
+                new SecureString("bazbar longer than 14 chars because of FIPS".toCharArray())
+            ),
+            listener
+        );
         assertFailedAuthentication(listener, ElasticUser.NAME);
     }
 
     public void testAutoconfigElasticPasswordWorksWhenElasticUserIsMissing() throws Exception {
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
         char[] autoconfHash = randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(
-            new SecureString("foobar longer than 14 chars because of FIPS".toCharArray()));
+            new SecureString("foobar longer than 14 chars because of FIPS".toCharArray())
+        );
         mockSecureSettings.setString("autoconfiguration.password_hash", new String(autoconfHash));
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
 
-        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
-            new AnonymousUser(Settings.EMPTY), threadPool);
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            settings,
+            usersStore,
+            new AnonymousUser(Settings.EMPTY),
+            threadPool
+        );
         PlainActionFuture<AuthenticationResult<User>> listener = new PlainActionFuture<>();
 
         doAnswer((i) -> {
@@ -494,9 +605,13 @@ public class ReservedRealmTests extends ESTestCase {
             callback.onResponse(null);
             return null;
         }).when(usersStore).createElasticUser(any(char[].class), anyActionListener());
-        reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(),
-                new SecureString("foobar longer than 14 chars because of FIPS".toCharArray())),
-            listener);
+        reservedRealm.doAuthenticate(
+            new UsernamePasswordToken(
+                new ElasticUser(true).principal(),
+                new SecureString("foobar longer than 14 chars because of FIPS".toCharArray())
+            ),
+            listener
+        );
         AuthenticationResult<User> result = listener.get();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
         verify(usersStore).getReservedUserInfo(eq("elastic"), anyActionListener());
@@ -506,9 +621,10 @@ public class ReservedRealmTests extends ESTestCase {
 
         // wrong password doesn't attempt to promote
         listener = new PlainActionFuture<>();
-        reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(),
-                new SecureString("wrong password".toCharArray())),
-            listener);
+        reservedRealm.doAuthenticate(
+            new UsernamePasswordToken(new ElasticUser(true).principal(), new SecureString("wrong password".toCharArray())),
+            listener
+        );
         assertFailedAuthentication(listener, ElasticUser.NAME);
         verify(usersStore, times(2)).getReservedUserInfo(eq("elastic"), anyActionListener());
         verify(usersStore).createElasticUser(any(char[].class), anyActionListener());
@@ -517,12 +633,18 @@ public class ReservedRealmTests extends ESTestCase {
     public void testAutoconfigElasticPasswordAuthnErrorWhenHashPromotionFails() throws Exception {
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
         char[] autoconfHash = randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(
-            new SecureString("foobar longer than 14 chars because of FIPS".toCharArray()));
+            new SecureString("foobar longer than 14 chars because of FIPS".toCharArray())
+        );
         mockSecureSettings.setString("autoconfiguration.password_hash", new String(autoconfHash));
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
 
-        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
-            new AnonymousUser(Settings.EMPTY), threadPool);
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            settings,
+            usersStore,
+            new AnonymousUser(Settings.EMPTY),
+            threadPool
+        );
         PlainActionFuture<AuthenticationResult<User>> listener = new PlainActionFuture<>();
 
         doAnswer((i) -> {
@@ -538,12 +660,16 @@ public class ReservedRealmTests extends ESTestCase {
             callback.onFailure(new Exception("any failure to promote the auto configured password"));
             return null;
         }).when(usersStore).createElasticUser(any(char[].class), anyActionListener());
-        reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(),
-                    new SecureString("foobar longer than 14 chars because of FIPS".toCharArray())),
-                listener);
+        reservedRealm.doAuthenticate(
+            new UsernamePasswordToken(
+                new ElasticUser(true).principal(),
+                new SecureString("foobar longer than 14 chars because of FIPS".toCharArray())
+            ),
+            listener
+        );
         ExecutionException exception = expectThrows(ExecutionException.class, () -> listener.get());
         assertThat(exception.getCause(), instanceOf(ElasticsearchAuthenticationProcessingError.class));
-        assertThat(((ElasticsearchAuthenticationProcessingError)exception.getCause()).status(), is(RestStatus.INTERNAL_SERVER_ERROR));
+        assertThat(((ElasticsearchAuthenticationProcessingError) exception.getCause()).status(), is(RestStatus.INTERNAL_SERVER_ERROR));
         verify(usersStore).getReservedUserInfo(eq("elastic"), anyActionListener());
         ArgumentCaptor<char[]> userHashCaptor = ArgumentCaptor.forClass(char[].class);
         verify(usersStore).createElasticUser(userHashCaptor.capture(), anyActionListener());
@@ -554,14 +680,24 @@ public class ReservedRealmTests extends ESTestCase {
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
         mockSecureSettings.setString("bootstrap.password", "foobar longer than 14 chars because of FIPS");
         if (randomBoolean()) {
-            mockSecureSettings.setString("autoconfiguration.password_hash",
-                new String(randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(
-                    new SecureString("barbaz longer than 14 chars because of FIPS".toCharArray()))));
+            mockSecureSettings.setString(
+                "autoconfiguration.password_hash",
+                new String(
+                    randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(
+                        new SecureString("barbaz longer than 14 chars because of FIPS".toCharArray())
+                    )
+                )
+            );
         }
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
 
-        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
-            new AnonymousUser(Settings.EMPTY), threadPool);
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            settings,
+            usersStore,
+            new AnonymousUser(Settings.EMPTY),
+            threadPool
+        );
         PlainActionFuture<AuthenticationResult<User>> listener = new PlainActionFuture<>();
         SecureString password = new SecureString("password".toCharArray());
         // Mocked users store is initiated with default hashing algorithm
@@ -574,12 +710,19 @@ public class ReservedRealmTests extends ESTestCase {
             callback.onResponse(userInfo);
             return null;
         }).when(usersStore).getReservedUserInfo(eq("elastic"), anyActionListener());
-        reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(),
-            mockSecureSettings.getString("bootstrap.password")), listener);
+        reservedRealm.doAuthenticate(
+            new UsernamePasswordToken(new ElasticUser(true).principal(), mockSecureSettings.getString("bootstrap.password")),
+            listener
+        );
         assertFailedAuthentication(listener, "elastic");
         listener = new PlainActionFuture<>();
-        reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(),
-            new SecureString("barbaz longer than 14 chars because of FIPS".toCharArray())), listener);
+        reservedRealm.doAuthenticate(
+            new UsernamePasswordToken(
+                new ElasticUser(true).principal(),
+                new SecureString("barbaz longer than 14 chars because of FIPS".toCharArray())
+            ),
+            listener
+        );
         assertFailedAuthentication(listener, "elastic");
         // now try with the real password
         listener = new PlainActionFuture<>();
@@ -590,26 +733,46 @@ public class ReservedRealmTests extends ESTestCase {
 
     public void testAutoconfigPasswordHashFailsOnceElasticUserExists() throws Exception {
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
-        mockSecureSettings.setString("autoconfiguration.password_hash",
-            new String(randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(
-                new SecureString("auto_password longer than 14 chars because of FIPS".toCharArray()))));
+        mockSecureSettings.setString(
+            "autoconfiguration.password_hash",
+            new String(
+                randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(
+                    new SecureString("auto_password longer than 14 chars because of FIPS".toCharArray())
+                )
+            )
+        );
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
 
-        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
-            new AnonymousUser(Settings.EMPTY), threadPool);
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            settings,
+            usersStore,
+            new AnonymousUser(Settings.EMPTY),
+            threadPool
+        );
         PlainActionFuture<AuthenticationResult<User>> listener = new PlainActionFuture<>();
         // Mocked users store is initiated with default hashing algorithm
         final Hasher hasher = Hasher.resolve("bcrypt");
         doAnswer(getAnswer(true, new SecureString("password longer than 14 chars because of FIPS".toCharArray()), hasher)).when(usersStore)
             .getReservedUserInfo(eq("elastic"), anyActionListener());
-        reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(),
-            new SecureString("password longer than 14 chars because of FIPS".toCharArray())), listener);
+        reservedRealm.doAuthenticate(
+            new UsernamePasswordToken(
+                new ElasticUser(true).principal(),
+                new SecureString("password longer than 14 chars because of FIPS".toCharArray())
+            ),
+            listener
+        );
         final AuthenticationResult<User> result = listener.get();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
         // but auto config password does not work
         listener = new PlainActionFuture<>();
-        reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(),
-            new SecureString("auto_password longer than 14 chars because of FIPS".toCharArray())), listener);
+        reservedRealm.doAuthenticate(
+            new UsernamePasswordToken(
+                new ElasticUser(true).principal(),
+                new SecureString("auto_password longer than 14 chars because of FIPS".toCharArray())
+            ),
+            listener
+        );
         assertFailedAuthentication(listener, "elastic");
         verify(usersStore, times(2)).getReservedUserInfo(eq("elastic"), anyActionListener());
         verify(usersStore, times(0)).createElasticUser(any(char[].class), anyActionListener());
@@ -620,18 +783,34 @@ public class ReservedRealmTests extends ESTestCase {
         final String password = randomAlphaOfLengthBetween(15, 24);
         mockSecureSettings.setString("bootstrap.password", password);
         if (randomBoolean()) {
-            mockSecureSettings.setString("autoconfiguration.password_hash",
-                new String(randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(
-                    new SecureString("barbaz longer than 14 chars because of FIPS".toCharArray()))));
+            mockSecureSettings.setString(
+                "autoconfiguration.password_hash",
+                new String(
+                    randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(
+                        new SecureString("barbaz longer than 14 chars because of FIPS".toCharArray())
+                    )
+                )
+            );
         }
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
 
-        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
-            new AnonymousUser(Settings.EMPTY), threadPool);
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            settings,
+            usersStore,
+            new AnonymousUser(Settings.EMPTY),
+            threadPool
+        );
         PlainActionFuture<AuthenticationResult<User>> listener = new PlainActionFuture<>();
 
-        final String principal = randomFrom(KibanaUser.NAME, KibanaSystemUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME,
-            APMSystemUser.NAME, RemoteMonitoringUser.NAME);
+        final String principal = randomFrom(
+            KibanaUser.NAME,
+            KibanaSystemUser.NAME,
+            LogstashSystemUser.NAME,
+            BeatsSystemUser.NAME,
+            APMSystemUser.NAME,
+            RemoteMonitoringUser.NAME
+        );
         doAnswer((i) -> {
             ActionListener<?> callback = (ActionListener<?>) i.getArguments()[1];
             callback.onResponse(null);
@@ -645,16 +824,29 @@ public class ReservedRealmTests extends ESTestCase {
     public void testNonElasticUsersCannotUseAutoconfigPasswordHash() throws Exception {
         final MockSecureSettings mockSecureSettings = new MockSecureSettings();
         final String password = randomAlphaOfLengthBetween(15, 24);
-        mockSecureSettings.setString("autoconfiguration.password_hash",
-            new String(randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(new SecureString(password.toCharArray()))));
+        mockSecureSettings.setString(
+            "autoconfiguration.password_hash",
+            new String(randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(new SecureString(password.toCharArray())))
+        );
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
 
-        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
-            new AnonymousUser(Settings.EMPTY), threadPool);
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            settings,
+            usersStore,
+            new AnonymousUser(Settings.EMPTY),
+            threadPool
+        );
         PlainActionFuture<AuthenticationResult<User>> listener = new PlainActionFuture<>();
 
-        final String principal = randomFrom(KibanaUser.NAME, KibanaSystemUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME,
-            APMSystemUser.NAME, RemoteMonitoringUser.NAME);
+        final String principal = randomFrom(
+            KibanaUser.NAME,
+            KibanaSystemUser.NAME,
+            LogstashSystemUser.NAME,
+            BeatsSystemUser.NAME,
+            APMSystemUser.NAME,
+            RemoteMonitoringUser.NAME
+        );
         doAnswer((i) -> {
             ActionListener<?> callback = (ActionListener<?>) i.getArguments()[1];
             callback.onResponse(null);
@@ -665,8 +857,15 @@ public class ReservedRealmTests extends ESTestCase {
     }
 
     private User randomReservedUser(boolean enabled) {
-        return randomFrom(new ElasticUser(enabled), new KibanaUser(enabled), new KibanaSystemUser(enabled),
-            new LogstashSystemUser(enabled), new BeatsSystemUser(enabled), new APMSystemUser(enabled), new RemoteMonitoringUser(enabled));
+        return randomFrom(
+            new ElasticUser(enabled),
+            new KibanaUser(enabled),
+            new KibanaSystemUser(enabled),
+            new LogstashSystemUser(enabled),
+            new BeatsSystemUser(enabled),
+            new APMSystemUser(enabled),
+            new RemoteMonitoringUser(enabled)
+        );
     }
 
     /*

@@ -419,10 +419,11 @@ public class LdapRealmTests extends LdapTestCase {
         PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         ldap.authenticate(new UsernamePasswordToken("Horatio Hornblower", new SecureString(PASSWORD)), future);
         final AuthenticationResult<User> result = future.actionGet();
-        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+        assertThat(result, notNullValue());
+        assertThat(result.toString(), result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
         User user = result.getValue();
         assertThat(user, notNullValue());
-        assertThat(user.roles(), arrayContaining("avenger"));
+        assertThat(user.toString(), user.roles(), arrayContaining("avenger"));
     }
 
     /**
@@ -488,7 +489,8 @@ public class LdapRealmTests extends LdapTestCase {
         PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         ldap.authenticate(new UsernamePasswordToken("Horatio Hornblower", new SecureString(PASSWORD)), future);
         final AuthenticationResult<User> result = future.actionGet();
-        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+        assertThat(result, notNullValue());
+        assertThat(result.toString(), result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
         User user = result.getValue();
         assertThat(user, notNullValue());
         assertThat(user.roles(), arrayContainingInAnyOrder("_user_hhornblo", "sales_admin"));
@@ -519,7 +521,8 @@ public class LdapRealmTests extends LdapTestCase {
         PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, new SecureString(PASSWORD)), future);
         final AuthenticationResult<User> result = future.actionGet();
-        assertThat(result.getStatus(), is(AuthenticationResult.Status.CONTINUE));
+        assertThat(result, notNullValue());
+        assertThat(result.toString(), result.getStatus(), is(AuthenticationResult.Status.CONTINUE));
         assertThat(result.getValue(), nullValue());
         assertThat(result.getMessage(), is("authenticate failed"));
         assertThat(result.getException(), notNullValue());

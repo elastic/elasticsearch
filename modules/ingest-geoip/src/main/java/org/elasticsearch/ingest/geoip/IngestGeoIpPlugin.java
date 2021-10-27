@@ -60,6 +60,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -73,7 +74,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
     public static final Setting<Long> CACHE_SIZE =
         Setting.longSetting("ingest.geoip.cache_size", 1000, 0, Setting.Property.NodeScope);
 
-    static String[] DEFAULT_DATABASE_FILENAMES = new String[]{"GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"};
+    static Set<String> DEFAULT_DATABASE_FILENAMES = Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb");
 
     private final SetOnce<IngestService> ingestService = new SetOnce<>();
     private final SetOnce<DatabaseNodeService> databaseRegistry = new SetOnce<>();

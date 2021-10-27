@@ -320,9 +320,9 @@ public abstract class PackagingTestCase extends Assert {
             case TAR:
             case ZIP:
                 if (useTty) {
-                    return Archives.startElasticsearchWithTty(installation, sh, password, daemonize);
+                    return Archives.startElasticsearchWithTty(installation, sh, password, List.of(), daemonize);
                 } else {
-                    return Archives.runElasticsearchStartCommand(installation, sh, password, daemonize);
+                    return Archives.runElasticsearchStartCommand(installation, sh, password, List.of(), daemonize);
                 }
             case DEB:
             case RPM:
@@ -732,7 +732,7 @@ public abstract class PackagingTestCase extends Assert {
         assertThat(configLines, not(contains(containsString("automatically generated in order to configure Security"))));
         Path caCert = ServerUtils.getCaCert(installation);
         if (caCert != null) {
-            assertThat(caCert.toString(), Matchers.not(Matchers.containsString("tls_auto_config_initial_node")));
+            assertThat(caCert.toString(), Matchers.not(Matchers.containsString("tls_auto_config")));
         }
     }
 

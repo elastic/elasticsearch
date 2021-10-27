@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -174,7 +175,18 @@ public class RandomSearchRequestGenerator {
         if (randomBoolean()) {
             int numFields = randomInt(5);
             for (int i = 0; i < numFields; i++) {
-                builder.fetchField(randomAlphaOfLengthBetween(5, 10));
+                String field = randomAlphaOfLengthBetween(5, 10);
+                String format = randomBoolean() ? randomAlphaOfLengthBetween(5, 10) : null;
+                builder.fetchField(new FieldAndFormat(field, format));
+            }
+        }
+
+        if (randomBoolean()) {
+            int numFields = randomInt(5);
+            for (int i = 0; i < numFields; i++) {
+                String field = randomAlphaOfLengthBetween(5, 10);
+                String format = randomBoolean() ? randomAlphaOfLengthBetween(5, 10) : null;
+                builder.docValueField(field, format);
             }
         }
 

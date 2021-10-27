@@ -12,12 +12,12 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -86,8 +86,8 @@ public final class IndicesPermission {
         this.restrictedNamesAutomaton = restrictedNamesAutomaton;
         this.characterRunAutomaton = new CharacterRunAutomaton(restrictedNamesAutomaton);
         this.groups = groups;
-        this.hasFieldOrDocumentLevelSecurity = Arrays.stream(groups)
-            .anyMatch(g -> g.hasQuery() || g.fieldPermissions.hasFieldLevelSecurity());
+        this.hasFieldOrDocumentLevelSecurity = Arrays.stream(groups).noneMatch(Group::isTotal)
+            && Arrays.stream(groups).anyMatch(g -> g.hasQuery() || g.fieldPermissions.hasFieldLevelSecurity());
     }
 
     /**
@@ -328,10 +328,10 @@ public final class IndicesPermission {
             } else if (indexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX) {
                 return List.of(indexAbstraction.getName());
             } else {
-                final List<IndexMetadata> indices = indexAbstraction.getIndices();
+                final List<Index> indices = indexAbstraction.getIndices();
                 final List<String> concreteIndices = new ArrayList<>(indices.size());
                 for (var idx : indices) {
-                    concreteIndices.add(idx.getIndex().getName());
+                    concreteIndices.add(idx.getName());
                 }
                 return concreteIndices;
             }
@@ -345,12 +345,16 @@ public final class IndicesPermission {
     /**
      * Authorizes the provided action against the provided indices, given the current cluster metadata
      */
-    public Map<String, IndicesAccessControl.IndexAccessControl> authorize(
+    public IndicesAccessControl authorize(
         String action,
         Set<String> requestedIndicesOrAliases,
         Map<String, IndexAbstraction> lookup,
         FieldPermissionsCache fieldPermissionsCache
     ) {
+        // Short circuit if the indicesPermission allows all access to every index
+        if (Arrays.stream(groups).anyMatch(Group::isTotal)) {
+            return IndicesAccessControl.allowAll();
+        }
 
         final List<IndexResource> resources = new ArrayList<>(requestedIndicesOrAliases.size());
         int totalResourceCount = 0;
@@ -469,6 +473,7 @@ public final class IndicesPermission {
             }
         }
 
+        boolean overallGranted = true;
         Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = new HashMap<>(grantedBuilder.size());
         for (Map.Entry<String, Boolean> entry : grantedBuilder.entrySet()) {
             String index = entry.getKey();
@@ -488,10 +493,13 @@ public final class IndicesPermission {
             } else {
                 fieldPermissions = FieldPermissions.DEFAULT;
             }
+            if (entry.getValue() == false) {
+                overallGranted = false;
+            }
             indexPermissions.put(index, new IndicesAccessControl.IndexAccessControl(entry.getValue(), fieldPermissions,
                     (roleQueries != null) ? DocumentPermissions.filteredBy(roleQueries) : DocumentPermissions.allowAll()));
         }
-        return unmodifiableMap(indexPermissions);
+        return new IndicesAccessControl(overallGranted, unmodifiableMap(indexPermissions));
     }
 
     private boolean isConcreteRestrictedIndex(String indexPattern) {
@@ -515,7 +523,7 @@ public final class IndicesPermission {
         private final IndexPrivilege privilege;
         private final Predicate<String> actionMatcher;
         private final String[] indices;
-        private final Predicate<String> indexNameMatcher;
+        private final StringMatcher indexNameMatcher;
         private final Supplier<Automaton> indexNameAutomaton;
         private final FieldPermissions fieldPermissions;
         private final Set<BytesReference> query;
@@ -582,6 +590,14 @@ public final class IndicesPermission {
 
         public Automaton getIndexMatcherAutomaton() {
             return indexNameAutomaton.get();
+        }
+
+        boolean isTotal() {
+            return allowRestrictedIndices
+                && indexNameMatcher.isTotal()
+                && privilege == IndexPrivilege.ALL
+                && query == null
+                && false == fieldPermissions.hasFieldLevelSecurity();
         }
     }
 

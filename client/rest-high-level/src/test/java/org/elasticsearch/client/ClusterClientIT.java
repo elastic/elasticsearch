@@ -37,13 +37,13 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.SniffConnectionStrategy;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -74,9 +74,10 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         ClusterUpdateSettingsRequest setRequest = new ClusterUpdateSettingsRequest();
         setRequest.transientSettings(transientSettings);
         setRequest.persistentSettings(map);
+        RequestOptions options = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build();
 
         ClusterUpdateSettingsResponse setResponse = execute(setRequest, highLevelClient().cluster()::putSettings,
-            highLevelClient().cluster()::putSettingsAsync);
+            highLevelClient().cluster()::putSettingsAsync, options);
 
         assertAcked(setResponse);
         assertThat(setResponse.getTransientSettings().get(transientSettingKey), notNullValue());
@@ -98,7 +99,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         resetRequest.persistentSettings("{\"" + persistentSettingKey + "\": null }", XContentType.JSON);
 
         ClusterUpdateSettingsResponse resetResponse = execute(resetRequest, highLevelClient().cluster()::putSettings,
-            highLevelClient().cluster()::putSettingsAsync);
+            highLevelClient().cluster()::putSettingsAsync, options);
 
         assertThat(resetResponse.getTransientSettings().get(transientSettingKey), equalTo(null));
         assertThat(resetResponse.getPersistentSettings().get(persistentSettingKey), equalTo(null));
@@ -315,7 +316,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
         assertNoIndices(response);
         assertWarnings("The HTTP status code for a cluster health timeout will be changed from 408 to 200 in a " +
-            "future version. Set the [es.cluster_health.request_timeout_200] system property to [true] to suppress this message and " +
+            "future version. Set the [return_200_for_cluster_health_timeout] query parameter to [true] to suppress this message and " +
             "opt in to the future behaviour now.");
     }
 

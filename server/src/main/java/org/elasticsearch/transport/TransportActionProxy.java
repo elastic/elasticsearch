@@ -98,7 +98,7 @@ public final class TransportActionProxy {
         }
     }
 
-    static class ProxyRequest<T extends TransportRequest> extends TransportRequest {
+    static class ProxyRequest<T extends TransportRequest> extends TransportRequest implements RawIndexingDataTransportRequest {
         final T wrapped;
         final DiscoveryNode targetNode;
 
@@ -119,6 +119,14 @@ public final class TransportActionProxy {
             super.writeTo(out);
             targetNode.writeTo(out);
             wrapped.writeTo(out);
+        }
+
+        @Override
+        public boolean isRawIndexingData() {
+            if (wrapped instanceof RawIndexingDataTransportRequest) {
+                return ((RawIndexingDataTransportRequest) wrapped).isRawIndexingData();
+            }
+            return false;
         }
     }
 
@@ -159,12 +167,7 @@ public final class TransportActionProxy {
      */
     public static void registerProxyAction(TransportService service, String action, boolean cancellable,
                                            Writeable.Reader<? extends TransportResponse> reader) {
-        RequestHandlerRegistry<? extends TransportRequest> requestHandler = service.getRequestHandler(action);
-        service.registerRequestHandler(getProxyAction(action), ThreadPool.Names.SAME, true, false,
-            in -> cancellable ?
-                new CancellableProxyRequest<>(in, requestHandler::newRequest) :
-                new ProxyRequest<>(in, requestHandler::newRequest),
-            new ProxyRequestHandler<>(service, action, request -> reader));
+        registerProxyActionWithDynamicResponseType(service, action, cancellable, request -> reader);
     }
 
     private static final String PROXY_ACTION_PREFIX = "internal:transport/proxy/";

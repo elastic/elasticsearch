@@ -150,6 +150,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
                 DiscoveryNodeRole.DATA_HOT_NODE_ROLE
             )
         );
+
         putAutoscalingPolicy("hot", DataTier.DATA_HOT);
         putAutoscalingPolicy("warm", DataTier.DATA_WARM);
         putAutoscalingPolicy("cold", DataTier.DATA_COLD);
@@ -179,6 +180,10 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
                     .build()
             )
         );
+
+        // the tier preference will have defaulted to data_content, set it back to null
+        updateIndexSettings(indexName, Settings.builder().putNull(DataTier.TIER_PREFERENCE));
+
         refresh(indexName);
         assertThat(capacity().results().get("warm").requiredCapacity().total().storage().getBytes(), Matchers.equalTo(0L));
         assertThat(capacity().results().get("cold").requiredCapacity().total().storage().getBytes(), Matchers.equalTo(0L));

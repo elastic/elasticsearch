@@ -19,6 +19,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.RescoreDocIds;
@@ -42,6 +43,7 @@ import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -65,6 +67,9 @@ public abstract class SearchContext implements Releasable {
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private InnerHitsContext innerHitsContext;
 
+    private boolean rewritten;
+    private Query rewriteQuery;
+
     protected SearchContext() {}
 
     public abstract void setTask(SearchShardTask task);
@@ -82,9 +87,8 @@ public abstract class SearchContext implements Releasable {
 
     /**
      * Should be called before executing the main query and after all other parameters have been set.
-     * @param rewrite if the set query should be rewritten against the searcher returned from {@link #searcher()}
      */
-    public abstract void preProcess(boolean rewrite);
+    public abstract void preProcess();
 
     /** Automatically apply all required filters to the given query such as
      *  alias filters, types filters, etc. */
@@ -252,9 +256,26 @@ public abstract class SearchContext implements Releasable {
     public abstract ParsedQuery parsedQuery();
 
     /**
-     * The query to execute, might be rewritten.
+     * The query to execute, not rewritten.
      */
     public abstract Query query();
+
+    /**
+     * The query to execute in its rewritten form.
+     */
+    public final Query rewrittenQuery() {
+        if (query() == null) {
+            throw new IllegalStateException("preProcess must be called first");
+        }
+        if (rewriteQuery == null) {
+            try {
+                this.rewriteQuery = searcher().rewrite(query());
+            } catch (IOException exc) {
+                throw new QueryShardException(getSearchExecutionContext(), "rewrite failed", exc);
+            }
+        }
+        return rewriteQuery;
+    }
 
     public abstract int from();
 

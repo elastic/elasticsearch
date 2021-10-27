@@ -45,6 +45,8 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
+import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -79,6 +81,8 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.indices.recovery.plan.SourceOnlyRecoveryPlannerService;
+import org.elasticsearch.plugins.RecoveryPlannerPlugin;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -116,7 +120,6 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
-import org.elasticsearch.indices.recovery.plan.SnapshotsRecoveryPlannerService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
@@ -170,6 +173,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.upgrades.SystemIndexMigrationExecutor;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
@@ -320,7 +324,7 @@ public class Node implements Closeable {
             if (Environment.PATH_SHARED_DATA_SETTING.exists(tmpSettings)) {
                 // NOTE: this must be done with an explicit check here because the deprecation property on a path setting will
                 // cause ES to fail to start since logging is not yet initialized on first read of the setting
-                deprecationLogger.critical(
+                deprecationLogger.warn(
                     DeprecationCategory.SETTINGS,
                     "shared-data-path",
                     "setting [path.shared_data] is deprecated and will be removed in a future release"
@@ -328,9 +332,15 @@ public class Node implements Closeable {
             }
 
             if (initialEnvironment.dataFiles().length > 1) {
-                throw new IllegalArgumentException("Multiple [path.data] values found. Specify a single data path.");
-            } else if (Environment.dataPathUsesList(tmpSettings)) {
-                throw new IllegalArgumentException("[path.data] is a list. Specify as a string value.");
+                // NOTE: we use initialEnvironment here, but assertEquivalent below ensures the data paths do not change
+                deprecationLogger.warn(DeprecationCategory.SETTINGS, "multiple-data-paths",
+                    "Configuring multiple [path.data] paths is deprecated. Use RAID or other system level features for utilizing " +
+                        "multiple disks. This feature will be removed in a future release.");
+            }
+            if (Environment.dataPathUsesList(tmpSettings)) {
+                // already checked for multiple values above, so if this is a list it is a single valued list
+                deprecationLogger.warn(DeprecationCategory.SETTINGS, "multiple-data-paths-list",
+                    "Configuring [path.data] with a list is deprecated. Instead specify as a string value.");
             }
 
             if (logger.isDebugEnabled()) {
@@ -422,7 +432,8 @@ public class Node implements Closeable {
                 searchModule.getNamedWriteables().stream(),
                 pluginsService.filterPlugins(Plugin.class).stream()
                     .flatMap(p -> p.getNamedWriteables().stream()),
-                ClusterModule.getNamedWriteables().stream())
+                ClusterModule.getNamedWriteables().stream(),
+                SystemIndexMigrationExecutor.getNamedWriteables().stream())
                 .flatMap(Function.identity()).collect(Collectors.toList());
             final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
             NamedXContentRegistry xContentRegistry = new NamedXContentRegistry(Stream.of(
@@ -557,6 +568,16 @@ public class Node implements Closeable {
 
             final MetadataCreateDataStreamService metadataCreateDataStreamService =
                 new MetadataCreateDataStreamService(threadPool, clusterService, metadataCreateIndexService);
+            final MetadataDataStreamsService metadataDataStreamsService = new MetadataDataStreamsService(clusterService, indicesService);
+
+            final MetadataUpdateSettingsService metadataUpdateSettingsService = new MetadataUpdateSettingsService(
+                clusterService,
+                clusterModule.getAllocationService(),
+                settingsModule.getIndexScopedSettings(),
+                indicesService,
+                shardLimitValidator,
+                threadPool
+            );
 
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream()
                 .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,
@@ -643,14 +664,31 @@ public class Node implements Closeable {
                 threadPool, scriptService, bigArrays, searchModule.getFetchPhase(),
                 responseCollectorService, circuitBreakerService, executorSelector);
 
-            final List<PersistentTasksExecutor<?>> tasksExecutors = pluginsService
-                .filterPlugins(PersistentTaskPlugin.class).stream()
-                .map(p -> p.getPersistentTasksExecutor(clusterService, threadPool, client, settingsModule,
-                    clusterModule.getIndexNameExpressionResolver()))
+            final SystemIndexMigrationExecutor systemIndexMigrationExecutor = new SystemIndexMigrationExecutor(
+                client,
+                clusterService,
+                systemIndices,
+                metadataUpdateSettingsService,
+                metadataCreateIndexService,
+                settingsModule.getIndexScopedSettings());
+            final List<PersistentTasksExecutor<?>> builtinTaskExecutors = Arrays.asList(systemIndexMigrationExecutor);
+            final List<PersistentTasksExecutor<?>> pluginTaskExectors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
+                .stream()
+                .map(
+                    p -> p.getPersistentTasksExecutor(
+                        clusterService,
+                        threadPool,
+                        client,
+                        settingsModule,
+                        clusterModule.getIndexNameExpressionResolver()
+                    )
+                )
                 .flatMap(List::stream)
                 .collect(toList());
-
-            final PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(tasksExecutors);
+            final List<PersistentTasksExecutor<?>> allTasksExectors = Stream.of(pluginTaskExectors, builtinTaskExecutors)
+                .flatMap(List::stream)
+                .collect(toList());
+            final PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(allTasksExectors);
             final PersistentTasksClusterService persistentTasksClusterService =
                 new PersistentTasksClusterService(settings, registry, clusterService, threadPool);
             resourcesToClose.add(persistentTasksClusterService);
@@ -659,6 +697,8 @@ public class Node implements Closeable {
             final List<ShutdownAwarePlugin> shutdownAwarePlugins = pluginsService.filterPlugins(ShutdownAwarePlugin.class);
             final PluginShutdownService pluginShutdownService = new PluginShutdownService(shutdownAwarePlugins);
             clusterService.addListener(pluginShutdownService);
+
+            final RecoveryPlannerService recoveryPlannerService = getRecoveryPlannerService(threadPool, clusterService, repositoryService);
 
             modules.add(b -> {
                     b.bind(Node.class).toInstance(this);
@@ -688,6 +728,8 @@ public class Node implements Closeable {
                     b.bind(AliasValidator.class).toInstance(aliasValidator);
                     b.bind(MetadataCreateIndexService.class).toInstance(metadataCreateIndexService);
                     b.bind(MetadataCreateDataStreamService.class).toInstance(metadataCreateDataStreamService);
+                    b.bind(MetadataDataStreamsService.class).toInstance(metadataDataStreamsService);
+                    b.bind(MetadataUpdateSettingsService.class).toInstance(metadataUpdateSettingsService);
                     b.bind(SearchService.class).toInstance(searchService);
                     b.bind(SearchTransportService.class).toInstance(searchTransportService);
                     b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(searchService::aggReduceContextBuilder));
@@ -702,12 +744,6 @@ public class Node implements Closeable {
                     b.bind(Coordinator.class).toInstance(discoveryModule.getCoordinator());
                     {
                         processRecoverySettings(settingsModule.getClusterSettings(), recoverySettings);
-                        final ShardSnapshotsService shardSnapshotsService = new ShardSnapshotsService(client,
-                            repositoryService,
-                            threadPool,
-                            clusterService
-                        );
-                        final RecoveryPlannerService recoveryPlannerService = new SnapshotsRecoveryPlannerService(shardSnapshotsService);
                         final SnapshotFilesProvider snapshotFilesProvider =
                             new SnapshotFilesProvider(repositoryService);
                         b.bind(PeerRecoverySourceService.class).toInstance(new PeerRecoverySourceService(transportService,
@@ -780,6 +816,27 @@ public class Node implements Closeable {
                 IOUtils.closeWhileHandlingException(resourcesToClose);
             }
         }
+    }
+
+    private RecoveryPlannerService getRecoveryPlannerService(ThreadPool threadPool,
+                                                             ClusterService clusterService,
+                                                             RepositoriesService repositoryService) {
+        final List<RecoveryPlannerPlugin> recoveryPlannerPlugins = pluginsService.filterPlugins(RecoveryPlannerPlugin.class);
+        if (recoveryPlannerPlugins.isEmpty()) {
+            return new SourceOnlyRecoveryPlannerService();
+        }
+
+        if (recoveryPlannerPlugins.size() > 1) {
+            throw new IllegalStateException("A single RecoveryPlannerPlugin was expected but got: " + recoveryPlannerPlugins);
+        }
+
+        final ShardSnapshotsService shardSnapshotsService = new ShardSnapshotsService(client,
+            repositoryService,
+            threadPool,
+            clusterService
+        );
+        final RecoveryPlannerPlugin recoveryPlannerPlugin = recoveryPlannerPlugins.get(0);
+        return recoveryPlannerPlugin.createRecoveryPlannerService(shardSnapshotsService);
     }
 
 

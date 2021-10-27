@@ -26,6 +26,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Predicate;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class PipelineConfigurationTests extends AbstractXContentTestCase<PipelineConfiguration> {
 
     public void testSerialization() throws IOException {
@@ -70,6 +72,24 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
         assertEquals(xContentType.canonical(), parsed.getXContentType());
         assertEquals("{}", XContentHelper.convertToJson(parsed.getConfig(), false, parsed.getXContentType()));
         assertEquals("1", parsed.getId());
+    }
+
+    public void testGetVersion() {
+        {
+            // missing version
+            String configJson = "{\"description\": \"blah\", \"_meta\" : {\"foo\": \"bar\"}}";
+            PipelineConfiguration configuration = new PipelineConfiguration("1",
+                new BytesArray(configJson.getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
+            assertNull(configuration.getVersion());
+        }
+        {
+            // null version
+            int version = randomInt();
+            String configJson = "{\"version\": " + version + ", \"description\": \"blah\", \"_meta\" : {\"foo\": \"bar\"}}";
+            PipelineConfiguration configuration = new PipelineConfiguration("1",
+                new BytesArray(configJson.getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
+            assertThat(configuration.getVersion(), equalTo(version));
+        }
     }
 
     @Override

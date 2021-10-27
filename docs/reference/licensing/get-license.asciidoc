@@ -32,7 +32,14 @@ response after cluster startup, wait a short period and retry the request.
 `local`::
   (Boolean) Specifies whether to retrieve local information. The default value
   is `false`, which means the information is retrieved from the master node.
-
+  
+ `accept_enterprise`::
+(Boolean) If `true`, this parameter returns `enterprise` for Enterprise
+license types. If `false`, this parameter returns `platinum` for both
+`platinum` and `enterprise` license types. This behavior is maintained for
+backwards compatibility.
+   
+deprecated::[7.6.0,"This parameter is deprecated and will always be set to `true` in 8.x."]
 
 [discrete]
 ==== Authorization

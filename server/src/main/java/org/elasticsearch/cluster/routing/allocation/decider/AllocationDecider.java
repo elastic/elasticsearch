@@ -122,4 +122,19 @@ public abstract class AllocationDecider {
     public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         return Decision.YES;
     }
+
+    /**
+     * Returns a {@link Decision} whether the given replica shard can be
+     * allocated to the given node when there is an existing retention lease
+     * already existing on the node (meaning it has been allocated there previously)
+     *
+     * This method does not actually check whether there is a retention lease,
+     * that is the responsibility of the caller.
+     *
+     * It defaults to the same value as {@code canAllocate}.
+     */
+    public Decision canAllocateReplicaWhenThereIsRetentionLease(ShardRouting shardRouting, RoutingNode node,
+                                                                RoutingAllocation allocation) {
+        return canAllocate(shardRouting, node, allocation);
+    }
 }

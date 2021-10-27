@@ -99,7 +99,7 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(INDEX_TEMPLATE.getPreferredName());
         for (Map.Entry<String, ComposableIndexTemplate> template : indexTemplates.entrySet()) {
-            builder.field(template.getKey(), template.getValue());
+            builder.field(template.getKey(), template.getValue(), params);
         }
         builder.endObject();
         return builder;

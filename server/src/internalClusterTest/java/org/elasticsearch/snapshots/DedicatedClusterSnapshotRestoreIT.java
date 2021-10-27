@@ -1251,7 +1251,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             assertThat(
                 e.getMessage(),
                 containsString(
-                    "trying to modify or unregister repository [test-repo] that is currently used (snapshot deletion is in progress)"
+                    "[test-repo] trying to modify or unregister repository that is currently used (snapshot deletion is in progress)"
                 )
             );
         }

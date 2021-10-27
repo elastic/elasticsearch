@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.execution.search.SourceGenerator;
+import org.elasticsearch.xpack.eql.expression.OptionalMissingAttribute;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
@@ -118,6 +119,10 @@ public class QueryContainer {
                 throw new UnsupportedOperationException("Nested not yet supported");
             }
             return new Tuple<>(this, extractorRegistry.fieldExtraction(expression));
+        }
+
+        if (expression instanceof OptionalMissingAttribute) {
+            return new Tuple<>(this, new ComputedRef(new ConstantInput(expression.source(), expression, null)));
         }
 
         if (expression.foldable()) {

@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -14,7 +15,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.Collections;
 import java.util.Iterator;
@@ -115,8 +115,7 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
                     }
                 }
             } else {
-                if (response instanceof RemoteTransportException
-                    && ((RemoteTransportException) response).status() == RestStatus.TOO_MANY_REQUESTS) {
+                if (ExceptionsHelper.status((Throwable) response) == RestStatus.TOO_MANY_REQUESTS) {
                     if (rejectedExecutionExpected == false) {
                         assertRetriedCorrectly(internalPolicy, response, ((Throwable) response).getCause());
                         rejectedAfterAllRetries = true;

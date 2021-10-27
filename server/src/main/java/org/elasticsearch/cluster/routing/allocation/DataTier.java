@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.shard.IndexSettingProvider;
@@ -44,6 +45,14 @@ public class DataTier {
 
     public static final Set<String> ALL_DATA_TIERS = Set.of(DATA_CONTENT, DATA_HOT, DATA_WARM, DATA_COLD, DATA_FROZEN);
 
+    // deprecated setting for migrating from 7.x (where a tier preference was not required, and did not necessarily
+    // have a default value), to 8.x (where a tier preference will be required, and a default value will be injected).
+    // in version 8.0 and onward, this setting doesn't control any logic anymore, and it will be removed as a breaking change in
+    // some future version, likely 9.0.
+    public static final String ENFORCE_DEFAULT_TIER_PREFERENCE = "cluster.routing.allocation.enforce_default_tier_preference";
+    public static final Setting<Boolean> ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING =
+        Setting.boolSetting(ENFORCE_DEFAULT_TIER_PREFERENCE, true, Property.Dynamic, Property.NodeScope, Property.Deprecated);
+
     public static final String TIER_PREFERENCE = "index.routing.allocation.include._tier_preference";
 
     private static final Settings DATA_CONTENT_TIER_PREFERENCE_SETTINGS = Settings.builder().put(TIER_PREFERENCE, DATA_CONTENT).build();
@@ -57,8 +66,8 @@ public class DataTier {
         DataTierSettingValidator::getDefaultTierPreference,
         Function.identity(),
         new DataTierSettingValidator(),
-        Setting.Property.Dynamic,
-        Setting.Property.IndexScope
+        Property.Dynamic,
+        Property.IndexScope
     );
 
     static {

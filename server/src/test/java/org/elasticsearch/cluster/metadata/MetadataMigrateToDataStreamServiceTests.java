@@ -14,13 +14,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.indices.EmptySystemIndices;
-import org.elasticsearch.plugins.Plugin;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -217,10 +216,11 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
         assertThat(ds, notNullValue());
         assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
         assertThat(ds.getIndices().size(), equalTo(2));
-        List<String> backingIndexNames = ds.getIndices().stream().map(x -> x.getIndex().getName()).collect(Collectors.toList());
+        List<String> backingIndexNames = ds.getIndices().stream().map(Index::getName).collect(Collectors.toList());
         assertThat(backingIndexNames, containsInAnyOrder("foo1", "foo2"));
-        assertThat(ds.getWriteIndex().getIndex().getName(), equalTo("foo1"));
-        for (IndexMetadata im : ds.getIndices()) {
+        assertThat(ds.getWriteIndex().getName(), equalTo("foo1"));
+        for (Index index : ds.getIndices()) {
+            IndexMetadata im = newState.metadata().index(index);
             assertThat(im.getSettings().get("index.hidden"), equalTo("true"));
             assertThat(im.getAliases().size(), equalTo(0));
         }
@@ -261,10 +261,11 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
         assertThat(ds, notNullValue());
         assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
         assertThat(ds.getIndices().size(), equalTo(2));
-        List<String> backingIndexNames = ds.getIndices().stream().map(x -> x.getIndex().getName()).collect(Collectors.toList());
+        List<String> backingIndexNames = ds.getIndices().stream().map(Index::getName).collect(Collectors.toList());
         assertThat(backingIndexNames, containsInAnyOrder("foo1", "foo2"));
-        assertThat(ds.getWriteIndex().getIndex().getName(), equalTo("foo1"));
-        for (IndexMetadata im : ds.getIndices()) {
+        assertThat(ds.getWriteIndex().getName(), equalTo("foo1"));
+        for (Index index : ds.getIndices()) {
+            IndexMetadata im = newState.metadata().index(index);
             assertThat(im.getSettings().get("index.hidden"), equalTo("true"));
             assertThat(im.getAliases().size(), equalTo(0));
         }
@@ -322,10 +323,5 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
         MetadataCreateIndexService service = mock(MetadataCreateIndexService.class);
         when(service.getSystemIndices()).thenReturn(EmptySystemIndices.INSTANCE);
         return service;
-    }
-
-    @Override
-    protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new MetadataIndexTemplateServiceTests.DummyPlugin());
     }
 }

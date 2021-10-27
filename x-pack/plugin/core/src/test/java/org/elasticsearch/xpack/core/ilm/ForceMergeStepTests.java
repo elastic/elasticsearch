@@ -27,7 +27,7 @@ import org.mockito.Mockito;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 
 public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
 

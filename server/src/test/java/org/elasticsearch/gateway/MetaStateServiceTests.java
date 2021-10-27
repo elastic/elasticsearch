@@ -56,7 +56,7 @@ public class MetaStateServiceTests extends ESTestCase {
 
     public void testWriteLoadIndex() throws Exception {
         IndexMetadata index = indexMetadata("test1");
-        metaStateService.writeIndex("test_write", index);
+        MetaStateWriterUtils.writeIndex(env, "test_write", index);
         assertThat(metaStateService.loadIndexState(index.getIndex()), equalTo(index));
     }
 
@@ -68,7 +68,7 @@ public class MetaStateServiceTests extends ESTestCase {
         Metadata metadata = Metadata.builder()
                 .persistentSettings(Settings.builder().put("test1", "value1").build())
                 .build();
-        metaStateService.writeGlobalState("test_write", metadata);
+        MetaStateWriterUtils.writeGlobalState(env, "test_write", metadata);
         assertThat(metaStateService.loadGlobalState().persistentSettings(), equalTo(metadata.persistentSettings()));
     }
 
@@ -79,7 +79,7 @@ public class MetaStateServiceTests extends ESTestCase {
         IndexMetadata index = indexMetadata("test1");
         Metadata metadataWithIndex = Metadata.builder(metadata).put(index, true).build();
 
-        metaStateService.writeGlobalState("test_write", metadataWithIndex);
+        MetaStateWriterUtils.writeGlobalState(env, "test_write", metadataWithIndex);
         assertThat(metaStateService.loadGlobalState().persistentSettings(), equalTo(metadata.persistentSettings()));
         assertThat(metaStateService.loadGlobalState().hasIndex("test1"), equalTo(false));
     }
@@ -91,8 +91,8 @@ public class MetaStateServiceTests extends ESTestCase {
                 .put(indexMetadata, true)
                 .build();
 
-        long globalGeneration = metaStateService.writeGlobalState("test_write", metadata);
-        long indexGeneration = metaStateService.writeIndex("test_write", indexMetadata);
+        long globalGeneration = MetaStateWriterUtils.writeGlobalState(env, "test_write", metadata);
+        long indexGeneration = MetaStateWriterUtils.writeIndex(env, "test_write", indexMetadata);
 
         Tuple<Manifest, Metadata> manifestAndMetadata = metaStateService.loadFullState();
         Manifest manifest = manifestAndMetadata.v1();
@@ -118,7 +118,7 @@ public class MetaStateServiceTests extends ESTestCase {
 
     public void testLoadEmptyStateWithManifest() throws IOException {
         Manifest manifest = Manifest.empty();
-        metaStateService.writeManifestAndCleanup("test", manifest);
+        MetaStateWriterUtils.writeManifestAndCleanup(env, "test", manifest);
 
         Tuple<Manifest, Metadata> manifestAndMetadata = metaStateService.loadFullState();
         assertTrue(manifestAndMetadata.v1().isEmpty());
@@ -128,13 +128,13 @@ public class MetaStateServiceTests extends ESTestCase {
 
     public void testLoadFullStateMissingGlobalMetadata() throws IOException {
         IndexMetadata index = indexMetadata("test1");
-        long indexGeneration = metaStateService.writeIndex("test", index);
+        long indexGeneration = MetaStateWriterUtils.writeIndex(env, "test", index);
         Manifest manifest = new Manifest(randomNonNegativeLong(), randomNonNegativeLong(),
                 Manifest.empty().getGlobalGeneration(), new HashMap<Index, Long>() {{
                     put(index.getIndex(), indexGeneration);
                 }});
         assertTrue(manifest.isGlobalGenerationMissing());
-        metaStateService.writeManifestAndCleanup("test", manifest);
+        MetaStateWriterUtils.writeManifestAndCleanup(env, "test", manifest);
 
         Tuple<Manifest, Metadata> manifestAndMetadata = metaStateService.loadFullState();
         assertThat(manifestAndMetadata.v1(), equalTo(manifest));
@@ -151,20 +151,20 @@ public class MetaStateServiceTests extends ESTestCase {
                 .put(index, true)
                 .build();
 
-        long globalGeneration = metaStateService.writeGlobalState("first global state write", metadata);
-        long indexGeneration = metaStateService.writeIndex("first index state write", index);
+        long globalGeneration = MetaStateWriterUtils.writeGlobalState(env, "first global state write", metadata);
+        long indexGeneration = MetaStateWriterUtils.writeIndex(env, "first index state write", index);
 
         Manifest manifest = new Manifest(randomNonNegativeLong(), randomNonNegativeLong(),
                 globalGeneration, new HashMap<Index, Long>() {{
             put(index.getIndex(), indexGeneration);
         }});
-        metaStateService.writeManifestAndCleanup("first manifest write", manifest);
+        MetaStateWriterUtils.writeManifestAndCleanup(env, "first manifest write", manifest);
 
         Metadata newMetadata = Metadata.builder()
                 .persistentSettings(Settings.builder().put("test1", "value2").build())
                 .put(index, true)
                 .build();
-        globalGeneration = metaStateService.writeGlobalState("second global state write", newMetadata);
+        globalGeneration = MetaStateWriterUtils.writeGlobalState(env, "second global state write", newMetadata);
 
         Tuple<Manifest, Metadata> manifestAndMetadata = metaStateService.loadFullState();
         assertThat(manifestAndMetadata.v1(), equalTo(manifest));
@@ -179,9 +179,9 @@ public class MetaStateServiceTests extends ESTestCase {
             put(index.getIndex(), indexGeneration);
         }});
 
-        metaStateService.writeManifestAndCleanup("second manifest write", manifest);
-        metaStateService.cleanupGlobalState(globalGeneration);
-        metaStateService.cleanupIndex(index.getIndex(), indexGeneration);
+        MetaStateWriterUtils.writeManifestAndCleanup(env, "second manifest write", manifest);
+        Metadata.FORMAT.cleanupOldFiles(globalGeneration, env.nodeDataPaths());
+        IndexMetadata.FORMAT.cleanupOldFiles(indexGeneration, env.indexPaths(index.getIndex()));
 
         manifestAndMetadata = metaStateService.loadFullState();
         assertThat(manifestAndMetadata.v1(), equalTo(manifest));

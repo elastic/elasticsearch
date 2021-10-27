@@ -14,10 +14,10 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.xpack.core.DataTiersFeatureSetUsage;
 import org.elasticsearch.xpack.core.action.XPackUsageRequestBuilder;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
@@ -84,40 +84,18 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         ensureYellow(index);
     }
 
-    public void testRequestSettingOverridesAllocation() {
-        startWarmOnlyNode();
-        startColdOnlyNode();
+    public void testRequestSettingOverridden() {
+        startContentOnlyNode();
         ensureGreen();
 
         client().admin().indices().prepareCreate(index)
             .setWaitForActiveShards(0)
             .setSettings(Settings.builder()
-                .putNull(DataTier.TIER_PREFERENCE))
+                .putNull(DataTier.TIER_PREFERENCE)) // will be overridden to data_content
             .get();
 
         Settings idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
-        assertThat(DataTier.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo(""));
-        // Even the key shouldn't exist if it has been nulled out
-        assertFalse(idxSettings.keySet().toString(), idxSettings.keySet().contains(DataTier.TIER_PREFERENCE));
-
-        // index should be yellow
-        logger.info("--> waiting for {} to be yellow", index);
-        ensureYellow(index);
-
-        client().admin().indices().prepareDelete(index).get();
-
-        // Now test it overriding the "require" setting, in which case the preference should be skipped
-        client().admin().indices().prepareCreate(index)
-            .setWaitForActiveShards(0)
-            .setSettings(Settings.builder()
-                .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".box", "cold"))
-            .get();
-
-        idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
-        assertThat(DataTier.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo(""));
-        // The key should not be put in place since it was overridden
-        assertFalse(idxSettings.keySet().contains(DataTier.TIER_PREFERENCE));
-        assertThat(idxSettings.get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".box"), equalTo("cold"));
+        assertThat(DataTier.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo("data_content"));
 
         // index should be yellow
         logger.info("--> waiting for {} to be yellow", index);
@@ -162,11 +140,11 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
             .get();
     }
 
-    public void testTemplateOverridesDefaults() {
-        startWarmOnlyNode();
+    public void testTemplateOverridden() {
+        startContentOnlyNode();
 
         Template t = new Template(Settings.builder()
-            .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".box", "warm")
+            .putNull(DataTier.TIER_PREFERENCE)
             .build(), null, null);
         ComposableIndexTemplate ct = new ComposableIndexTemplate.Builder()
             .indexPatterns(Collections.singletonList(index))
@@ -177,26 +155,9 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         client().admin().indices().prepareCreate(index).setWaitForActiveShards(0).get();
 
         Settings idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
-        assertThat(idxSettings.keySet().contains(DataTier.TIER_PREFERENCE), equalTo(false));
+        assertThat(DataTier.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo("data_content"));
 
         // index should be yellow
-        ensureYellow(index);
-
-        client().admin().indices().prepareDelete(index).get();
-
-        t = new Template(Settings.builder()
-            .putNull(DataTier.TIER_PREFERENCE)
-            .build(), null, null);
-        ct = new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList(index))
-                 .template(t).build();
-        client().execute(PutComposableIndexTemplateAction.INSTANCE,
-            new PutComposableIndexTemplateAction.Request("template").indexTemplate(ct)).actionGet();
-
-        client().admin().indices().prepareCreate(index).setWaitForActiveShards(0).get();
-
-        idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
-        assertThat(idxSettings.keySet().contains(DataTier.TIER_PREFERENCE), equalTo(false));
-
         ensureYellow(index);
     }
 

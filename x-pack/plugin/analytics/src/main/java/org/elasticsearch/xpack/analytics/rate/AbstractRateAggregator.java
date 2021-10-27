@@ -29,6 +29,7 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
     private final Rounding.DateTimeUnit rateUnit;
     protected final RateMode rateMode;
     private final SizedBucketAggregator sizedBucketAggregator;
+    protected final boolean computeWithDocCount;
 
     protected DoubleArray sums;
     protected DoubleArray compensations;
@@ -55,6 +56,8 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
         this.rateUnit = rateUnit;
         this.rateMode = rateMode;
         this.sizedBucketAggregator = findSizedBucketAncestor();
+        // If no fields or scripts have been defined in the agg, rate should be computed based on bucket doc_counts
+        this.computeWithDocCount = valuesSourceConfig.fieldContext() == null && valuesSourceConfig.script() == null;
     }
 
     private SizedBucketAggregator findSizedBucketAncestor() {
@@ -112,5 +115,4 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
     public void doClose() {
         Releasables.close(sums, compensations);
     }
-
 }

@@ -31,7 +31,7 @@ import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.NoOpEngine;
@@ -47,6 +47,7 @@ import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -64,6 +65,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
@@ -97,7 +99,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         final DiscoveryNode pNode = getFakeDiscoNode(sourceShard.routingEntry().currentNodeId());
         final DiscoveryNode rNode = getFakeDiscoNode(targetShard.routingEntry().currentNodeId());
         targetShard.markAsRecovering("test-peer-recovery", new RecoveryState(targetShard.routingEntry(), rNode, pNode));
-        final RecoveryTarget recoveryTarget = new RecoveryTarget(targetShard, null, null, null);
+        final RecoveryTarget recoveryTarget = new RecoveryTarget(targetShard, null, null, null, null);
         final PlainActionFuture<Void> receiveFileInfoFuture = new PlainActionFuture<>();
         recoveryTarget.receiveFileInfo(
             mdFiles.stream().map(StoreFileMetadata::name).collect(Collectors.toList()),
@@ -297,7 +299,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         shard.prepareForIndexRecovery();
         long startingSeqNo = shard.recoverLocallyUpToGlobalCheckpoint();
         shard.store().markStoreCorrupted(new IOException("simulated"));
-        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, null, null);
+        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, null, null, null);
         StartRecoveryRequest request = PeerRecoveryTargetService.getStartRecoveryRequest(logger, rNode, recoveryTarget, startingSeqNo);
         assertThat(request.startingSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
         assertThat(request.metadataSnapshot().size(), equalTo(0));
@@ -324,7 +326,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         shard = reinitShard(shard, ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE));
         shard.markAsRecovering("peer recovery", new RecoveryState(shard.routingEntry(), pNode, rNode));
         shard.prepareForIndexRecovery();
-        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, null, null);
+        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, null, null, null);
         StartRecoveryRequest request = PeerRecoveryTargetService.getStartRecoveryRequest(
             logger, rNode, recoveryTarget, randomNonNegativeLong());
         assertThat(request.startingSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
@@ -385,7 +387,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         recoveryStateIndex.addFileDetail(storeFileMetadata.name(), storeFileMetadata.length(), false);
         recoveryStateIndex.setFileDetailsComplete();
 
-        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, snapshotFilesProvider, null);
+        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, snapshotFilesProvider, () -> {}, null);
 
         PlainActionFuture<Void> writeSnapshotFileFuture = PlainActionFuture.newFuture();
         recoveryTarget.restoreFileFromSnapshot(repositoryName, indexId, fileInfo, writeSnapshotFileFuture);
@@ -457,7 +459,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         recoveryStateIndex.addFileDetail(storeFileMetadata.name(), storeFileMetadata.length(), false);
         recoveryStateIndex.setFileDetailsComplete();
 
-        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, snapshotFilesProvider, null);
+        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, snapshotFilesProvider, () -> {}, null);
 
         String repositoryName = "repo";
         IndexId indexId = new IndexId("index", "uuid");
@@ -565,7 +567,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             }
         };
 
-        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, snapshotFilesProvider, null);
+        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, snapshotFilesProvider, () -> {}, null);
 
         String[] fileNamesBeforeRecoveringSnapshotFiles = directory.listAll();
 
@@ -631,7 +633,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         recoveryStateIndex.addFileDetail(storeFileMetadata.name(), storeFileMetadata.length(), false);
         recoveryStateIndex.setFileDetailsComplete();
 
-        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, snapshotFilesProvider, null);
+        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, snapshotFilesProvider, () -> {}, null);
 
         String repository = "repo";
         IndexId indexId = new IndexId("index", "uuid");
@@ -661,6 +663,29 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         // Once the reference is released, the tmp file should be deleted
         assertThat(filesBeforeRestoringSnapshotFile, equalTo(directory.listAll()));
 
+        closeShards(shard);
+    }
+
+    public void testSnapshotFileDownloadPermitIsReleasedAfterClosingRecoveryTarget() throws Exception {
+        DiscoveryNode pNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
+            Collections.emptyMap(), Collections.emptySet(), Version.CURRENT);
+        DiscoveryNode rNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
+            Collections.emptyMap(), Collections.emptySet(), Version.CURRENT);
+
+        IndexShard shard = newShard(false);
+        shard.markAsRecovering("peer recovery", new RecoveryState(shard.routingEntry(), pNode, rNode));
+        shard.prepareForIndexRecovery();
+
+        AtomicBoolean snapshotFileDownloadsPermitFlag = new AtomicBoolean();
+        Releasable snapshotFileDownloadsPermit = () -> {
+            assertThat(snapshotFileDownloadsPermitFlag.compareAndSet(false, true), is(equalTo(true)));
+        };
+        RecoveryTarget recoveryTarget =
+            new RecoveryTarget(shard, null, null, snapshotFileDownloadsPermit, null);
+
+        recoveryTarget.decRef();
+
+        assertThat(snapshotFileDownloadsPermitFlag.get(), is(equalTo(true)));
         closeShards(shard);
     }
 

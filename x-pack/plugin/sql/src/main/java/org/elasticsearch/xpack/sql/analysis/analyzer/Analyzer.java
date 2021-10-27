@@ -302,14 +302,17 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     private class ResolveTable extends AnalyzerRule<UnresolvedRelation> {
         @Override
         protected LogicalPlan rule(UnresolvedRelation plan) {
-            TableIdentifier table = plan.table();
             if (indexResolution.isValid() == false) {
                 return plan.unresolvedMessage().equals(indexResolution.toString()) ? plan :
                     new UnresolvedRelation(plan.source(), plan.table(), plan.alias(), plan.frozen(), indexResolution.toString());
             }
-            assert indexResolution.matches(table.index());
+            TableIdentifier table = plan.table();
+            if (indexResolution.matches(table.index()) == false) {
+                new UnresolvedRelation(plan.source(), plan.table(), plan.alias(), plan.frozen(),
+                    "invalid [" + table + "] resolution to [" + indexResolution + "]");
+            }
             LogicalPlan logicalPlan = new EsRelation(plan.source(), indexResolution.get(), plan.frozen());
-            SubQueryAlias sa = new SubQueryAlias(plan.source(), logicalPlan, table.index());
+            SubQueryAlias sa = new SubQueryAlias(plan.source(), logicalPlan, indexResolution.get().toString());
 
             if (plan.alias() != null) {
                 sa = new SubQueryAlias(plan.source(), sa, plan.alias());

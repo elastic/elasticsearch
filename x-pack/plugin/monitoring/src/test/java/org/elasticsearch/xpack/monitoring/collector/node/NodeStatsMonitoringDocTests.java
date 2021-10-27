@@ -341,7 +341,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         final OsStats.Cgroup osCgroup = new OsStats.Cgroup("_cpu_acct_ctrl_group", ++iota, "_cpu_ctrl_group", ++iota, ++iota, osCpuStat,
                 "_memory_ctrl_group", "2000000000", "1000000000");
 
-        final OsStats.Mem osMem = new OsStats.Mem(0, 0);
+        final OsStats.Mem osMem = new OsStats.Mem(0, 0, 0);
         final OsStats.Swap osSwap = new OsStats.Swap(0, 0);
         final OsStats os = new OsStats(no, osCpu, osMem, osSwap, osCgroup);
 
@@ -378,6 +378,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
                                                                 emptySet(),
                                                                 Version.CURRENT);
 
-        return new NodeStats(discoveryNode, no, indices, os, process, jvm, threadPool, fs, null, null, null, null, null, null, null, null);
+        return new NodeStats(discoveryNode, no, indices, os, process, jvm, threadPool, fs, null, null, null, null, null, null, null, null,
+            null);
     }
 }

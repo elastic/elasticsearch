@@ -57,12 +57,14 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
     private final NodeLoadDetector nodeLoadDetector;
     private volatile int maxMemoryPercentage;
     private volatile boolean useAuto;
+    private volatile int maxOpenJobs;
 
     public TrainedModelAllocationClusterService(Settings settings, ClusterService clusterService, NodeLoadDetector nodeLoadDetector) {
         this.clusterService = clusterService;
         this.nodeLoadDetector = nodeLoadDetector;
         this.maxMemoryPercentage = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
         this.useAuto = MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT.get(settings);
+        this.maxOpenJobs = MachineLearning.MAX_OPEN_JOBS_PER_NODE.get(settings);
         // Only nodes that can possibly be master nodes really need this service running
         if (DiscoveryNode.isMasterNode(settings)) {
             clusterService.addListener(this);
@@ -70,6 +72,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
                 .addSettingsUpdateConsumer(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, this::setMaxMemoryPercentage);
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT, this::setUseAuto);
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_OPEN_JOBS_PER_NODE, this::setMaxOpenJobs);
         }
     }
 
@@ -79,6 +82,10 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
 
     private void setUseAuto(boolean useAuto) {
         this.useAuto = useAuto;
+    }
+
+    private void setMaxOpenJobs(int maxOpenJobs) {
+        this.maxOpenJobs = maxOpenJobs;
     }
 
     @Override
@@ -437,7 +444,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
     }
 
     Optional<String> nodeHasCapacity(ClusterState state, StartTrainedModelDeploymentAction.TaskParams params, DiscoveryNode node) {
-        NodeLoad load = nodeLoadDetector.detectNodeLoad(state, true, node, Integer.MAX_VALUE, maxMemoryPercentage, useAuto);
+        NodeLoad load = nodeLoadDetector.detectNodeLoad(state, node, maxOpenJobs, maxMemoryPercentage, useAuto);
         return handleNodeLoad(load, node.getId(), params);
     }
 
@@ -453,9 +460,8 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         NodeLoad load = nodeLoadDetector.detectNodeLoad(
             state,
             builder.build(),
-            true,
             node,
-            Integer.MAX_VALUE,
+            maxOpenJobs,
             maxMemoryPercentage,
             useAuto
         );
@@ -466,6 +472,18 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         if (Strings.isNullOrEmpty(load.getError()) == false) {
             logger.warn("[{}] failed to calculate current node load with error [{}]", params.getModelId(), nodeId);
             return Optional.of(load.getError());
+        }
+        if (load.remainingJobs() == 0) {
+            return Optional.of(
+                ParameterizedMessage.format(
+                    "This node is full. Number of opened jobs and allocated native inference processes [{}], {} [{}].",
+                    new Object[] {
+                        load.getNumAssignedJobs(),
+                        MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(),
+                        maxOpenJobs
+                    }
+                )
+            );
         }
         if (load.getFreeMemory() < params.estimateMemoryUsageBytes()) {
             return Optional.of(

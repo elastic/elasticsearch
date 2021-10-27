@@ -96,21 +96,21 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
     }
 
     private Predicate<String> successfulAutoConfiguration() {
-        Predicate<String> p1 = output -> output.contains("Authentication and Authorization are enabled.");
-        Predicate<String> p2 = output -> output.contains("TLS for the transport and the http layers is enabled and configured.");
-        Predicate<String> p3 = output -> output.contains("The password of the elastic superuser will be set to:");
+        Predicate<String> p1 = output -> output.contains("Authentication and authorization are enabled.");
+        Predicate<String> p2 = output -> output.contains("TLS for the transport and HTTP layers is enabled and configured.");
+        Predicate<String> p3 = output -> output.contains("The generated password for the elastic built-in superuser is :");
         return p1.and(p2).and(p3);
     }
 
     private Predicate<String> existingSecurityConfiguration() {
-        return output -> output.contains("Security features appear to be already configured.");
+        return output -> output.contains("Skipping auto-configuration because security features appear to be already configured.");
     }
 
     private Predicate<String> errorOutput() {
         Predicate<String> p1 = output -> output.contains("Failed to auto-configure security features.");
-        Predicate<String> p2 = output -> output.contains("Authentication and Authorization are enabled.");
-        Predicate<String> p3 = output -> output.contains("You can use elasticsearch-reset-elastic-password to set a password");
-        Predicate<String> p4 = output -> output.contains("for the elastic user.");
+        Predicate<String> p2 = output -> output.contains("However, authentication and authorization are still enabled.");
+        Predicate<String> p3 = output -> output.contains("You can reset the password of the elastic built-in superuser with");
+        Predicate<String> p4 = output -> output.contains("/usr/share/elasticsearch/bin/elasticsearch-reset-password -u elastic");
         return p1.and(p2).and(p3).and(p4);
     }
 

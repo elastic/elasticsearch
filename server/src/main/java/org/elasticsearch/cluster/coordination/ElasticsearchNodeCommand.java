@@ -9,6 +9,7 @@ package org.elasticsearch.cluster.coordination;
 
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.LockObtainFailedException;
@@ -22,20 +23,22 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.metadata.ComponentTemplateMetadata;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -68,7 +71,8 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         public <T, C> T parseNamedObject(Class<T> categoryClass, String name, XContentParser parser, C context) throws IOException {
             // Currently, two unknown top-level objects are present
             if (Metadata.Custom.class.isAssignableFrom(categoryClass)) {
-                if (DataStreamMetadata.TYPE.equals(name)) {
+                if (DataStreamMetadata.TYPE.equals(name) || ComposableIndexTemplateMetadata.TYPE.equals(name)
+                    || ComponentTemplateMetadata.TYPE.equals(name)) {
                     // DataStreamMetadata is used inside Metadata class for validation purposes and building the indicesLookup,
                     // therefor even es node commands need to be able to parse it.
                     return super.parseNamedObject(categoryClass, name, parser, context);

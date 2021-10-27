@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.coordination;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -24,6 +25,7 @@ public class PublishClusterStateStats implements Writeable, ToXContentObject {
     private final long fullClusterStateReceivedCount;
     private final long incompatibleClusterStateDiffReceivedCount;
     private final long compatibleClusterStateDiffReceivedCount;
+    private final ClusterStateSerializationStats clusterStateSerializationStats;
 
     /**
      * @param fullClusterStateReceivedCount the number of times this node has received a full copy of the cluster state from the master.
@@ -32,16 +34,19 @@ public class PublishClusterStateStats implements Writeable, ToXContentObject {
      */
     public PublishClusterStateStats(long fullClusterStateReceivedCount,
                                     long incompatibleClusterStateDiffReceivedCount,
-                                    long compatibleClusterStateDiffReceivedCount) {
+                                    long compatibleClusterStateDiffReceivedCount,
+                                    ClusterStateSerializationStats clusterStateSerializationStats) {
         this.fullClusterStateReceivedCount = fullClusterStateReceivedCount;
         this.incompatibleClusterStateDiffReceivedCount = incompatibleClusterStateDiffReceivedCount;
         this.compatibleClusterStateDiffReceivedCount = compatibleClusterStateDiffReceivedCount;
+        this.clusterStateSerializationStats = clusterStateSerializationStats;
     }
 
     public PublishClusterStateStats(StreamInput in) throws IOException {
         fullClusterStateReceivedCount = in.readVLong();
         incompatibleClusterStateDiffReceivedCount = in.readVLong();
         compatibleClusterStateDiffReceivedCount = in.readVLong();
+        clusterStateSerializationStats = new ClusterStateSerializationStats(in);
     }
 
     @Override
@@ -49,10 +54,14 @@ public class PublishClusterStateStats implements Writeable, ToXContentObject {
         out.writeVLong(fullClusterStateReceivedCount);
         out.writeVLong(incompatibleClusterStateDiffReceivedCount);
         out.writeVLong(compatibleClusterStateDiffReceivedCount);
+        clusterStateSerializationStats.writeTo(out);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+
+        builder.field("serialized_cluster_states");
+        clusterStateSerializationStats.toXContent(builder, params);
         builder.startObject("published_cluster_states");
         {
             builder.field("full_states", fullClusterStateReceivedCount);
@@ -69,11 +78,16 @@ public class PublishClusterStateStats implements Writeable, ToXContentObject {
 
     public long getCompatibleClusterStateDiffReceivedCount() { return compatibleClusterStateDiffReceivedCount; }
 
+    public ClusterStateSerializationStats getClusterStateSerializationStats() {
+        return clusterStateSerializationStats;
+    }
+
     @Override
     public String toString() {
         return "PublishClusterStateStats(full=" + fullClusterStateReceivedCount
             + ", incompatible=" + incompatibleClusterStateDiffReceivedCount
             + ", compatible=" + compatibleClusterStateDiffReceivedCount
+            + ", serializationStats=" + Strings.toString(clusterStateSerializationStats)
             + ")";
     }
 }

@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -23,25 +24,22 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
-import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -72,13 +70,9 @@ import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.mock;
 
 public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(DummyPlugin.class);
-    }
 
     public void testLegacyNoopUpdate() {
         ClusterState state = ClusterState.EMPTY_STATE;
@@ -1511,9 +1505,11 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {
+        ThreadPool testThreadPool = mock(ThreadPool.class);
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
                 Settings.EMPTY,
-                null,
+                clusterService,
                 null,
                 null,
                 null,
@@ -1589,16 +1585,5 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public static void assertTemplatesEqual(ComposableIndexTemplate actual, ComposableIndexTemplate expected) {
         assertTrue(Objects.equals(actual, expected));
-    }
-
-    // Composable index template with data_stream definition need _timestamp meta field mapper,
-    // this is a dummy impl, so that tests don't fail with the fact that the _timestamp field can't be found.
-    // (tests using this dummy impl doesn't test the _timestamp validation, but need it to tests other functionality)
-    public static class DummyPlugin extends Plugin implements MapperPlugin {
-
-        @Override
-        public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-            return Map.of(DataStreamTimestampFieldMapper.NAME, DataStreamTimestampFieldMapper.PARSER);
-        }
     }
 }

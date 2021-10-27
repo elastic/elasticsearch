@@ -191,7 +191,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         try {
             ParsedQuery parsedQuery = searchContext.getSearchExecutionContext().toQuery(request.query());
             searchContext.parsedQuery(parsedQuery);
-            searchContext.preProcess(request.rewrite());
+            searchContext.preProcess();
             valid = true;
             explanation = explain(searchContext, request.rewrite());
         } catch (QueryShardException|ParsingException e) {
@@ -208,7 +208,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
     }
 
     private String explain(SearchContext context, boolean rewritten) {
-        Query query = context.query();
+        Query query = rewritten ? context.rewrittenQuery() : context.query();
         if (rewritten && query instanceof MatchNoDocsQuery) {
             return context.parsedQuery().query().toString();
         } else {

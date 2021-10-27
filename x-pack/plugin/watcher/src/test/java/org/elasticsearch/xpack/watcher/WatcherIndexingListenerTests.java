@@ -66,10 +66,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.core.Is.is;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyObject;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -715,7 +715,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
             IndexMetadata indexMetadata = mock(IndexMetadata.class);
             when(indexMetadata.getIndex()).thenReturn(new Index(watchIndex, randomAlphaOfLength(10)));
-            indices.put(watchIndex, new IndexAbstraction.Index(indexMetadata));
+            indices.put(watchIndex, new IndexAbstraction.ConcreteIndex(indexMetadata));
 
             // now point the alias, if the watch index is not .watches
             if (watchIndex.equals(Watch.INDEX) == false) {
@@ -726,6 +726,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
                 aliases.put(Watch.INDEX, aliasMetadata);
                 when(indexMetadata.getAliases()).thenReturn(aliases.build());
                 indices.put(Watch.INDEX, new IndexAbstraction.Alias(aliasMetadata, List.of(indexMetadata)));
+                when(metadata.index(any(Index.class))).thenReturn(indexMetadata);
             }
 
             when(metadata.getIndicesLookup()).thenReturn(indices);

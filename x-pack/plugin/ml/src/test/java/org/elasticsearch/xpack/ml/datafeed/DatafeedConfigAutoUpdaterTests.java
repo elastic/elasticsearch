@@ -38,9 +38,9 @@ import java.util.List;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -179,7 +179,7 @@ public class DatafeedConfigAutoUpdaterTests extends ESTestCase {
         final ClusterState clusterState = csBuilder.build();
         assertThat(updater.isAbleToRun(clusterState), is(true));
 
-        metadata = new Metadata.Builder(clusterState.metadata());
+        metadata = Metadata.builder(clusterState.metadata());
         routingTable = new RoutingTable.Builder(clusterState.routingTable());
         if (randomBoolean()) {
             routingTable.remove(MlConfigIndex.indexName());

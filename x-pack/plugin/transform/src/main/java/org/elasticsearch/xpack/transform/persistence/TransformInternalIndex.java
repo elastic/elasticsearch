@@ -19,7 +19,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -99,25 +98,6 @@ public final class TransformInternalIndex {
             .setVersionMetaKey("version")
             .setOrigin(TRANSFORM_ORIGIN)
             .build();
-    }
-
-    // use getAuditIndexTemplate instead
-    @Deprecated
-    public static IndexTemplateMetadata getAuditIndexTemplateMetadata() throws IOException {
-        IndexTemplateMetadata transformTemplate = IndexTemplateMetadata.builder(TransformInternalIndexConstants.AUDIT_INDEX)
-            .patterns(Collections.singletonList(TransformInternalIndexConstants.AUDIT_INDEX_PREFIX + "*"))
-            .version(Version.CURRENT.id)
-            .settings(
-                Settings.builder()
-                    // the audits are expected to be small
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                    .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
-            )
-            .putMapping(MapperService.SINGLE_MAPPING_NAME, Strings.toString(auditMappings()))
-            .putAlias(AliasMetadata.builder(TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS).isHidden(true))
-            .build();
-        return transformTemplate;
     }
 
     public static Template getAuditIndexTemplate() throws IOException {

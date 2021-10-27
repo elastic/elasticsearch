@@ -142,8 +142,8 @@ public class HttpExporterTests extends ESTestCase {
         builder.putList(prefix + ".host", Collections.emptyList());
         final Settings settings = builder.build();
         HttpExporter.HOST_SETTING.getConcreteSetting(prefix + ".host").get(settings);
-        assertWarnings(Level.WARN, "[xpack.monitoring.exporters.example.host] setting was deprecated in Elasticsearch and will be removed " +
-            "in a future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(Level.WARN, "[xpack.monitoring.exporters.example.host] setting was deprecated in Elasticsearch and will be " +
+            "removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testHostListIsRejectedIfTypeIsNotHttp() {

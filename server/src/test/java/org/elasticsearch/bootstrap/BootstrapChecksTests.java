@@ -461,11 +461,13 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         };
         isSystemCallFilterInstalled.set(false);
         BootstrapChecks.check(context_1, true, Collections.singletonList(systemCallFilterNotEnabledCheck));
-        assertWarnings(Level.WARN, "[bootstrap.system_call_filter] setting was deprecated in Elasticsearch and will be removed in a future release!" +
+        assertWarnings(Level.WARN, "[bootstrap.system_call_filter] setting was deprecated in Elasticsearch and will be removed in a " +
+            "future release!" +
                 " See the breaking changes documentation for the next major version.");
         isSystemCallFilterInstalled.set(true);
         BootstrapChecks.check(context_1, true, Collections.singletonList(systemCallFilterNotEnabledCheck));
-        assertWarnings(Level.WARN, "[bootstrap.system_call_filter] setting was deprecated in Elasticsearch and will be removed in a future release!" +
+        assertWarnings(Level.WARN, "[bootstrap.system_call_filter] setting was deprecated in Elasticsearch and will be removed in a " +
+            "future release!" +
                 " See the breaking changes documentation for the next major version.");
     }
 

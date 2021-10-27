@@ -803,19 +803,22 @@ public abstract class ESRestTestCase extends ESTestCase {
      * This method checks whether ILM policies or templates get recreated after they have been deleted. If so, we are probably deleting
      * them unnecessarily, potentially causing test performance problems. This could happen for example if someone adds a new standard ILM
      * policy but forgets to put it in the exclusion list in this test.
+     *
      * @throws IOException
      */
     private void checkForUnexpectedlyRecreatedObjects() throws IOException {
         if (hasIlm && false == preserveILMPoliciesUponCompletion()) {
             Set<String> unexpectedIlmPlicies = getAllUnexpectedIlmPolicies(preserveILMPolicyIds());
-            assertTrue("Expected no ILM policies after deletions, but found " +
-                    unexpectedIlmPlicies.stream().collect(Collectors.joining(", ")),
-                unexpectedIlmPlicies.isEmpty());
+            assertTrue(
+                "Expected no ILM policies after deletions, but found " + unexpectedIlmPlicies.stream().collect(Collectors.joining(", ")),
+                unexpectedIlmPlicies.isEmpty()
+            );
         }
         Set<String> unexpectedTemplates = getAllUnexpectedTemplates();
-        assertTrue("Expected no templates after deletions, but found " +
-                unexpectedTemplates.stream().collect(Collectors.joining(", ")),
-            unexpectedTemplates.isEmpty());
+        assertTrue(
+            "Expected no templates after deletions, but found " + unexpectedTemplates.stream().collect(Collectors.joining(", ")),
+            unexpectedTemplates.isEmpty()
+        );
     }
 
     private Set<String> getAllUnexpectedIlmPolicies(Set<String> exclusions) throws IOException {
@@ -832,8 +835,10 @@ public abstract class ESRestTestCase extends ESTestCase {
                 throw e;
             }
         }
-        Set<String> unexpectedPolicies =
-            policies.keySet().stream().filter(p -> exclusions.contains(p) == false).collect(Collectors.toSet());
+        Set<String> unexpectedPolicies = policies.keySet()
+            .stream()
+            .filter(p -> exclusions.contains(p) == false)
+            .collect(Collectors.toSet());
         return unexpectedPolicies;
     }
 
@@ -850,17 +855,21 @@ public abstract class ESRestTestCase extends ESTestCase {
                         EntityUtils.toString(adminClient().performRequest(getTemplatesRequest).getEntity()),
                         false
                     );
-                    unexpectedTemplates.addAll(((List<?>) composableIndexTemplates.get("index_templates")).stream()
-                        .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
-                        .filter(name -> isXPackTemplate(name) == false)
-                        .collect(Collectors.toSet()));
+                    unexpectedTemplates.addAll(
+                        ((List<?>) composableIndexTemplates.get("index_templates")).stream()
+                            .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
+                            .filter(name -> isXPackTemplate(name) == false)
+                            .collect(Collectors.toSet())
+                    );
                     Request compReq = new Request("GET", "_component_template");
                     String componentTemplates = EntityUtils.toString(adminClient().performRequest(compReq).getEntity());
                     Map<String, Object> cTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent, componentTemplates, false);
-                    unexpectedTemplates.addAll(((List<?>) cTemplates.get("component_templates")).stream()
-                        .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
-                        .filter(name -> isXPackTemplate(name) == false)
-                        .collect(Collectors.toList()));
+                    unexpectedTemplates.addAll(
+                        ((List<?>) cTemplates.get("component_templates")).stream()
+                            .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
+                            .filter(name -> isXPackTemplate(name) == false)
+                            .collect(Collectors.toList())
+                    );
                 }
                 // Always check for legacy templates:
                 Request getLegacyTemplatesRequest = new Request("GET", "_template");
@@ -869,8 +878,9 @@ public abstract class ESRestTestCase extends ESTestCase {
                     EntityUtils.toString(adminClient().performRequest(getLegacyTemplatesRequest).getEntity()),
                     false
                 );
-                unexpectedTemplates.addAll(legacyTemplates.keySet().stream().filter(template -> isXPackTemplate(template) == false)
-                    .collect(Collectors.toSet()));
+                unexpectedTemplates.addAll(
+                    legacyTemplates.keySet().stream().filter(template -> isXPackTemplate(template) == false).collect(Collectors.toSet())
+                );
             } else {
                 // Do nothing
             }

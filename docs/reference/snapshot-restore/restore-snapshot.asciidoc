@@ -237,9 +237,10 @@ POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 [[restore-feature-state]]
 === Restore a feature state
 
-You can restore a feature state to recover system indices, system data streams,
-and other configuration data for a feature from a snapshot. Restoring a feature
-state is the preferred way to restore system indices and system data streams.
+You can restore a <<feature-state,feature state>> to recover system indices,
+system data streams, and other configuration data for a feature from a snapshot.
+Restoring a feature state is the preferred way to restore system indices and
+system data streams.
 
 If you restore a snapshot's cluster state, the operation restores all feature
 states in the snapshot by default. Similarly, if you don't restore a snapshot's
@@ -292,8 +293,8 @@ POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 === Restore an entire cluster
 
 In some cases, you need to restore an entire cluster from a snapshot, including
-the cluster state and all feature states. These cases should be rare, such as in
-the event of a catastrophic failure.
+the cluster state and all <<feature-state,feature states>>. These cases should
+be rare, such as in the event of a catastrophic failure.
 
 Restoring an entire cluster involves deleting important system indices,
 including those used for authentication. Consider whether you can restore

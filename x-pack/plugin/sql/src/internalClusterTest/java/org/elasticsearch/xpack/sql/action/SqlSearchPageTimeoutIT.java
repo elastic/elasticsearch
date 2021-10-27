@@ -32,6 +32,7 @@ public class SqlSearchPageTimeoutIT extends AbstractSqlIntegTestCase {
         return settings.build();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/79928")
     public void testSearchContextIsCleanedUpAfterPageTimeoutForHitsQueries() throws Exception {
         setupTestIndex();
 

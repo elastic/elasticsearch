@@ -105,9 +105,9 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
             clusterService,
             transportService,
             actionFilters,
-            Request::fromStreamWithBWC,
-            Response::fromStreamWithBWC,
-            Response::fromStreamWithBWC,
+            Request::new,
+            Response::new,
+            Response::new,
             ThreadPool.Names.SAME
         );
 
@@ -138,7 +138,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                     nodes.getMasterNode(),
                     actionName,
                     request,
-                    new ActionListenerResponseHandler<>(listener, Response::fromStreamWithBWC)
+                    new ActionListenerResponseHandler<>(listener, Response::new)
                 );
             }
             return;

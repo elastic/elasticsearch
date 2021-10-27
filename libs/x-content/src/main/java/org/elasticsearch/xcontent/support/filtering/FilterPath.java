@@ -12,6 +12,7 @@ import org.elasticsearch.core.Glob;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -28,7 +29,7 @@ public class FilterPath {
 
     private FilterPath(boolean doubleWildcard, boolean isFinalNode) {
         this.termsChildren = new HashMap<>();
-        this.wildcardChildren = new HashMap<>();
+        this.wildcardChildren = new LinkedHashMap<>();
         this.doubleWildcard = doubleWildcard;
         this.isFinalNode = isFinalNode;
     }
@@ -124,9 +125,10 @@ public class FilterPath {
             }
         }
 
-        for (String wildcardPattern : wildcardChildren.keySet()) {
+        for (Map.Entry<String, FilterPath> entry : wildcardChildren.entrySet()) {
+            String wildcardPattern = entry.getKey();
             if (Glob.globMatch(wildcardPattern, name)) {
-                FilterPath wildcardNode = wildcardChildren.get(wildcardPattern);
+                FilterPath wildcardNode = entry.getValue();
                 if (wildcardNode.isFinalNode()) {
                     return true;
                 } else {

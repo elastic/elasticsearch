@@ -51,6 +51,7 @@ import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -75,7 +76,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     }
 
     @After
-    public void cleanUp() {
+    public void cleanUp() throws Exception {
         ClusterUpdateSettingsResponse settingsResponse = client().admin().cluster()
             .prepareUpdateSettings()
             .setPersistentSettings(Settings.builder()
@@ -84,6 +85,25 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                 .putNull("ingest.geoip.database_validity"))
             .get();
         assertTrue(settingsResponse.isAcknowledged());
+
+        assertBusy(() -> {
+            PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> task = getTask();
+            if (task != null) {
+                GeoIpTaskState state = (GeoIpTaskState) task.getState();
+                assertThat(state.getDatabases(), anEmptyMap());
+            }
+        });
+        assertBusy(() -> {
+            List<Path> geoIpTmpDirs = getGeoIpTmpDirs();
+            for (Path geoIpTmpDir : geoIpTmpDirs) {
+                try (Stream<Path> files = Files.list(geoIpTmpDir)) {
+                    Set<String> names = files.map(f -> f.getFileName().toString()).collect(Collectors.toSet());
+                    assertThat(names, not(hasItem("GeoLite2-ASN.mmdb")));
+                    assertThat(names, not(hasItem("GeoLite2-City.mmdb")));
+                    assertThat(names, not(hasItem("GeoLite2-Country.mmdb")));
+                }
+            }
+        });
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75221")
@@ -227,7 +247,6 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74358")
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/69972")
     public void testUseGeoIpProcessorWithDownloadedDBs() throws Exception {
         assumeTrue("only test with fixture to have stable results", ENDPOINT != null);

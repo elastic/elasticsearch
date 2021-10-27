@@ -100,16 +100,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         Client client,
         IngestService ingestService
     ) {
-        super(
-            name,
-            clusterService,
-            transportService,
-            actionFilters,
-            Request::new,
-            Response::new,
-            Response::new,
-            ThreadPool.Names.SAME
-        );
+        super(name, clusterService, transportService, actionFilters, Request::new, Response::new, Response::new, ThreadPool.Names.SAME);
 
         this.settings = settings;
         this.client = client;

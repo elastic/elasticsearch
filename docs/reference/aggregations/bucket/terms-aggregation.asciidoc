@@ -161,7 +161,7 @@ data node.
 
 If you set the `show_term_doc_count_error` parameter to `true` the `terms`
 aggregation will include `doc_count_error_upper_bound` which is an upper bound
-to the error on the `doc_count` returned by each shard. It's pretty much the
+to the error on the `doc_count` returned by each shard. It's the
 sum of the size of the largest bucket on each shard that didn't fit into
 `shard_size`.
 
@@ -198,19 +198,15 @@ determined and is given a value of -1 to indicate this.
 [[search-aggregations-bucket-terms-aggregation-order]]
 ==== Order
 
-By default, the buckets are ordered by their `doc_count` descending but you can
-order by the term itself (`_key`) or to the value of a sub-aggregation. And you
-can flip from descending to ascending order.
+By default, the `terms` aggregation orders terms by descending document `_count`.
+Use the `order` parameter to specify a different sort order.
 
-WARNING: Danger! Danger! Remember how the terms agg picks the top
-<<search-aggregations-bucket-terms-aggregation-shard-size, `shard_size`>>
-buckets on the data node? Well all of that works really well for something like
-doc count descending. A very well for `_key` in either direction. But for doc
-count ascending it's frankly *terrible*. That basically throws out all of the
-buckets with the most data on every shard. It's likely that a bucket with few
-documents on one shard could have more on another but that it wouldn't fit into
-`shard_size`. This is so bad that we've created a whole separate
-<<search-aggregations-bucket-rare-terms-aggregation>> aggregation.
+WARNING: Avoid using `"order": { "_count": "asc" }`. If you need to find rare
+terms, use the
+<<search-aggregations-bucket-rare-terms-aggregation,`rare_terms`>> aggregation
+instead. Due to the way the `terms` aggregation
+<<search-aggregations-bucket-terms-aggregation-shard-size,gets terms from
+shards>>, sorting by ascending doc count often produces inaccurate results.
 
 If you really must, this is how you sort on doc count ascending:
 
@@ -246,12 +242,13 @@ GET /_search
 }
 --------------------------------------------------
 
-WARNING: There is also danger in sorting on the value of a sub-aggregation but
-how much danger depends on what the sub-aggregation is doing. Sorting on, say,
-`max` descending is fairly similar to sorting on `doc_count` descending and
-fairly safe. Sorting on `max` ascending is likely to cause tons of errors for
-the same reason sorting on doc count ascending does. See the warning above for
-more on why that's trouble.
+WARNING: Test any sorts on sub-aggregations before using them in production.
+Sorting on a sub-aggregation may return errors or inaccurate results. For
+example, due to the way the `terms` aggregation
+<<search-aggregations-bucket-terms-aggregation-shard-size,gets results from
+shards>>, sorting on a `max` sub-aggregation in _ascending_ order often produces
+inaccurate results. However, sorting on a `max` sub-aggregation in _descending_
+order is typically safe.
 
 Ordering the buckets by single value metrics sub-aggregation (identified by the aggregation name):
 

@@ -38,6 +38,7 @@ import static org.hamcrest.Matchers.is;
  * Documentation for miscellaneous APIs in the high level java client.
  * Code wrapped in {@code tag} and {@code end} tags is included in the docs.
  */
+@SuppressWarnings("removal")
 public class MiscellaneousDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testMain() throws IOException {

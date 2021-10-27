@@ -8,9 +8,9 @@
 
 package org.elasticsearch.nio;
 
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -27,10 +27,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.isNull;
-import static org.mockito.Matchers.same;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -168,7 +168,7 @@ public class NioSelectorTests extends ESTestCase {
 
     public void testSelectorClosedExceptionIsNotCaughtWhileRunning() throws IOException {
         boolean closedSelectorExceptionCaught = false;
-        when(rawSelector.select(anyInt())).thenThrow(new ClosedSelectorException());
+        when(rawSelector.select(anyLong())).thenThrow(new ClosedSelectorException());
         try {
             this.selector.singleLoop();
         } catch (ClosedSelectorException e) {
@@ -181,7 +181,7 @@ public class NioSelectorTests extends ESTestCase {
     public void testIOExceptionWhileSelect() throws IOException {
         IOException ioException = new IOException();
 
-        when(rawSelector.select(anyInt())).thenThrow(ioException);
+        when(rawSelector.select(anyLong())).thenThrow(ioException);
 
         this.selector.singleLoop();
 

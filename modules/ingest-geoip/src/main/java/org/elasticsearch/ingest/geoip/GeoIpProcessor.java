@@ -370,15 +370,15 @@ public final class GeoIpProcessor extends AbstractProcessor {
             Property.IP, Property.ASN, Property.ORGANIZATION_NAME, Property.NETWORK
         ));
 
-        private final DatabaseRegistry databaseRegistry;
+        private final DatabaseNodeService databaseNodeService;
         private final ClusterService clusterService;
 
         List<DatabaseReaderLazyLoader> getAllDatabases() {
-            return databaseRegistry.getAllDatabases();
+            return databaseNodeService.getAllDatabases();
         }
 
-        public Factory(DatabaseRegistry databaseRegistry, ClusterService clusterService) {
-            this.databaseRegistry = databaseRegistry;
+        public Factory(DatabaseNodeService databaseNodeService, ClusterService clusterService) {
+            this.databaseNodeService = databaseNodeService;
             this.clusterService = clusterService;
         }
 
@@ -400,8 +400,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 DEPRECATION_LOGGER.critical(DeprecationCategory.OTHER, "default_databases_message", DEFAULT_DATABASES_DEPRECATION_MESSAGE);
             }
 
-            DatabaseReaderLazyLoader lazyLoader = databaseRegistry.getDatabase(databaseFile);
-            if (useDatabaseUnavailableProcessor(lazyLoader, databaseRegistry.getAvailableDatabases())) {
+            DatabaseReaderLazyLoader lazyLoader = databaseNodeService.getDatabase(databaseFile);
+            if (useDatabaseUnavailableProcessor(lazyLoader, databaseNodeService.getAvailableDatabases())) {
                 return new DatabaseUnavailableProcessor(processorTag, description, databaseFile);
             } else if (lazyLoader == null) {
                 throw newConfigurationException(TYPE, processorTag,
@@ -438,8 +438,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 }
             }
             CheckedSupplier<DatabaseReaderLazyLoader, IOException> supplier = () -> {
-                DatabaseReaderLazyLoader loader = databaseRegistry.getDatabase(databaseFile);
-                if (useDatabaseUnavailableProcessor(loader, databaseRegistry.getAvailableDatabases())) {
+                DatabaseReaderLazyLoader loader = databaseNodeService.getDatabase(databaseFile);
+                if (useDatabaseUnavailableProcessor(loader, databaseNodeService.getAvailableDatabases())) {
                     return null;
                 } else if (loader == null) {
                     throw new ResourceNotFoundException("database file [" + databaseFile + "] doesn't exist");

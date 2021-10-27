@@ -13,14 +13,14 @@
     "url":{
       "paths":[
         {
-          "path":"/_fleet/_msearch",
+          "path":"/_fleet/_fleet_msearch",
           "methods":[
             "GET",
             "POST"
           ]
         },
         {
-          "path":"/{index}/_fleet/_msearch",
+          "path":"/{index}/_fleet/_fleet_msearch",
           "methods":[
             "GET",
             "POST"

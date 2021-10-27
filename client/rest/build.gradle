@@ -44,7 +44,6 @@ dependencies {
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
-  testImplementation "org.elasticsearch:securemock:${versions.securemock}"
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
 }
 

@@ -277,12 +277,14 @@ final class Bootstrap {
             final Environment initialEnv) throws BootstrapException, NodeValidationException, UserException {
         // force the class initializer for BootstrapInfo to run before
         // the security manager is installed
-        BootstrapInfo.init(getSysOutReference());
+        BootstrapInfo.init();
 
         INSTANCE = new Bootstrap();
 
         final SecureSettings keystore = BootstrapUtil.loadSecureSettings(initialEnv);
         final Environment environment = createEnvironment(pidFile, keystore, initialEnv.settings(), initialEnv.configFile());
+
+        BootstrapInfo.setConsoleOutput(getConsole(environment));
 
         // the LogConfigurator will replace System.out and System.err with redirects to our logfile, so we need to capture
         // the stream objects before calling LogConfigurator to be able to close them when appropriate
@@ -385,9 +387,8 @@ final class Bootstrap {
         }
     }
 
-    @SuppressForbidden(reason = "Retain reference for System.out")
-    private static PrintStream getSysOutReference() {
-        return System.out;
+    private static PrintStream getConsole(Environment environment) {
+        return ConsoleLoader.loadConsole(environment);
     }
 
     @SuppressForbidden(reason = "System#out")

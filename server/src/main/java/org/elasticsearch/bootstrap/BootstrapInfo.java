@@ -8,6 +8,7 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.PrintStream;
@@ -20,7 +21,7 @@ import java.util.Enumeration;
 @SuppressForbidden(reason = "exposes read-only view of system properties")
 public final class BootstrapInfo {
 
-    private static PrintStream originalStandardOut;
+    private static SetOnce<PrintStream> consoleOutput;
 
     /** no instantiation */
     private BootstrapInfo() {}
@@ -50,9 +51,9 @@ public final class BootstrapInfo {
     }
 
     /**
-     * Returns a reference to the original System.out
+     * Returns a reference to a stream attached to Standard Output, iff we have determined that stdout is a console (tty)
      */
-    public static PrintStream getOriginalStandardOut() { return originalStandardOut; }
+    public static PrintStream getConsoleOutput() { return consoleOutput.get(); }
 
     /**
      * codebase location for untrusted scripts (provide some additional safety)
@@ -118,8 +119,12 @@ public final class BootstrapInfo {
         return SYSTEM_PROPERTIES;
     }
 
-    public static void init(PrintStream originalStandardOut) {
-        BootstrapInfo.originalStandardOut = originalStandardOut;
+    public static void init() {
+        BootstrapInfo.consoleOutput = new SetOnce<>();
+    }
+
+    static void setConsoleOutput(PrintStream output) {
+        consoleOutput.set(output);
     }
 
 }

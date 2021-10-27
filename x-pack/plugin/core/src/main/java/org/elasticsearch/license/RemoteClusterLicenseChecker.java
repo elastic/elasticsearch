@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
@@ -131,12 +132,12 @@ public final class RemoteClusterLicenseChecker {
     /**
      * Constructs a remote cluster license checker with the specified licensed feature for checking license compatibility. The feature
      * does not need to check for the active license state as this is handled by the remote cluster license checker. If the feature
-     * is {@code null} the check always succeeds.
+     * is {@code null} a check is only performed on whether the license is active.
      *
      * @param client    the client
      * @param feature   the licensed feature
      */
-    public RemoteClusterLicenseChecker(final Client client, final LicensedFeature feature) {
+    public RemoteClusterLicenseChecker(final Client client, @Nullable final LicensedFeature feature) {
         this.client = client;
         this.feature = feature;
     }
@@ -167,12 +168,7 @@ public final class RemoteClusterLicenseChecker {
                     return;
                 }
 
-                if (((feature == null || feature.isNeedsActive()) && licenseInfo.getStatus() != LicenseStatus.ACTIVE)
-                    || feature != null
-                        && isAllowedByOperationMode(
-                            License.OperationMode.parse(licenseInfo.getMode()),
-                            feature.getMinimumOperationMode()
-                        ) == false) {
+                if (isActive(licenseInfo) == false || isAllowed(licenseInfo) == false) {
                     listener.onResponse(LicenseCheck.failure(new RemoteClusterLicenseInfo(clusterAlias.get(), licenseInfo)));
                     return;
                 }
@@ -197,6 +193,15 @@ public final class RemoteClusterLicenseChecker {
         // check the license on the first cluster, and then we recursively check licenses on the remaining clusters
         clusterAlias.set(clusterAliasesIterator.next());
         remoteClusterLicense(clusterAlias.get(), infoListener);
+    }
+
+    private boolean isActive(XPackInfoResponse.LicenseInfo licenseInfo) {
+        return (feature == null || feature.isNeedsActive()) && licenseInfo.getStatus() == LicenseStatus.ACTIVE;
+    }
+
+    private boolean isAllowed(XPackInfoResponse.LicenseInfo licenseInfo) {
+        License.OperationMode mode = License.OperationMode.parse(licenseInfo.getMode());
+        return feature == null || isAllowedByOperationMode(mode, feature.getMinimumOperationMode());
     }
 
     private void remoteClusterLicense(final String clusterAlias, final ActionListener<XPackInfoResponse> listener) {

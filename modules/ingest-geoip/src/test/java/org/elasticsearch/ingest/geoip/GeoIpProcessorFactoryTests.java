@@ -220,7 +220,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
     public void testBuildBuiltinDatabaseMissing() throws Exception {
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseNodeService, clusterService);
-        cleanDatabaseFiles(geoIpConfigDir, localDatabases);
+        cleanDatabaseFiles(geoIpConfigDir, configDatabases);
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
@@ -437,7 +437,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
     public void testDatabaseNotReadyYet() throws Exception {
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseNodeService, clusterService);
-        cleanDatabaseFiles(geoIpConfigDir, localDatabases);
+        cleanDatabaseFiles(geoIpConfigDir, configDatabases);
 
         {
             Map<String, Object> config = new HashMap<>();
@@ -491,9 +491,9 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         }
     }
 
-    static void cleanDatabaseFiles(final Path path, LocalDatabases localDatabases) throws IOException {
+    static void cleanDatabaseFiles(final Path path, ConfigDatabases configDatabases) throws IOException {
         for (final String databaseFilename : IngestGeoIpPlugin.DEFAULT_DATABASE_FILENAMES) {
-            localDatabases.updateDatabase(path.resolve(databaseFilename), false);
+            configDatabases.updateDatabase(path.resolve(databaseFilename), false);
         }
     }
 

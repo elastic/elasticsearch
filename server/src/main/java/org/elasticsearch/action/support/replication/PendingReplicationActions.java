@@ -17,10 +17,12 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 public class PendingReplicationActions implements Consumer<ReplicationGroup>, Releasable {
 
@@ -89,10 +91,8 @@ public class PendingReplicationActions implements Consumer<ReplicationGroup>, Re
 
     @Override
     public synchronized void close() {
-        final List<RetryableAction<?>> toCancel = new ArrayList<>();
-        for (Set<RetryableAction<?>> set : onGoingReplicationActions.values()) {
-            toCancel.addAll(set);
-        }
+        final List<RetryableAction<?>> toCancel =
+            onGoingReplicationActions.values().stream().flatMap(Collection::stream).collect(Collectors.toList());
         onGoingReplicationActions.clear();
         cancelActions(toCancel, "Primary closed.");
     }

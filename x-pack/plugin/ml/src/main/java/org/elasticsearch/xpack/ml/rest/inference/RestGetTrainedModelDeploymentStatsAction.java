@@ -31,9 +31,14 @@ public class RestGetTrainedModelDeploymentStatsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return Collections.singletonList(
-            new Route(GET,
-                MachineLearning.BASE_PATH + "trained_models/{" +
-                    StartTrainedModelDeploymentAction.Request.MODEL_ID.getPreferredName() + "}/deployment/_stats"));
+            new Route(
+                GET,
+                MachineLearning.BASE_PATH
+                    + "trained_models/{"
+                    + StartTrainedModelDeploymentAction.Request.MODEL_ID.getPreferredName()
+                    + "}/deployment/_stats"
+            )
+        );
     }
 
     @Override
@@ -41,9 +46,7 @@ public class RestGetTrainedModelDeploymentStatsAction extends BaseRestHandler {
         String modelId = restRequest.param(StartTrainedModelDeploymentAction.Request.MODEL_ID.getPreferredName());
         GetDeploymentStatsAction.Request request = new GetDeploymentStatsAction.Request(modelId);
 
-        request.setAllowNoMatch(
-            restRequest.paramAsBoolean(
-                GetDeploymentStatsAction.Request.ALLOW_NO_MATCH, request.isAllowNoMatch()));
+        request.setAllowNoMatch(restRequest.paramAsBoolean(GetDeploymentStatsAction.Request.ALLOW_NO_MATCH, request.isAllowNoMatch()));
 
         return channel -> client.execute(GetDeploymentStatsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

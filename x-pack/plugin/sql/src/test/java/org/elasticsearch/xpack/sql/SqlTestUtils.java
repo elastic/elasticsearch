@@ -38,20 +38,34 @@ import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
 import static org.elasticsearch.test.ESTestCase.randomZone;
 
-
 public final class SqlTestUtils {
 
     private SqlTestUtils() {}
 
-    public static final SqlConfiguration TEST_CFG = new SqlConfiguration(DateUtils.UTC, null, Protocol.FETCH_SIZE,
-            Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null, null, Mode.PLAIN,
-            null, null, null, null, false, false,
-            null, null);
+    public static final SqlConfiguration TEST_CFG = new SqlConfiguration(
+        DateUtils.UTC,
+        null,
+        Protocol.FETCH_SIZE,
+        Protocol.REQUEST_TIMEOUT,
+        Protocol.PAGE_TIMEOUT,
+        null,
+        null,
+        Mode.PLAIN,
+        null,
+        null,
+        null,
+        null,
+        false,
+        false,
+        null,
+        null
+    );
 
     public static SqlConfiguration randomConfiguration(ZoneId providedZoneId, SqlVersion sqlVersion) {
         Mode mode = randomFrom(Mode.values());
         long taskId = randomNonNegativeLong();
-        return new SqlConfiguration(providedZoneId != null ? providedZoneId : randomZone(),
+        return new SqlConfiguration(
+            providedZoneId != null ? providedZoneId : randomZone(),
             null,
             randomIntBetween(0, 1000),
             new TimeValue(randomNonNegativeLong()),
@@ -66,7 +80,8 @@ public final class SqlTestUtils {
             false,
             randomBoolean(),
             new TaskId(randomAlphaOfLength(10), taskId),
-            randomTask(taskId, mode, sqlVersion));
+            randomTask(taskId, mode, sqlVersion)
+        );
     }
 
     public static SqlConfiguration randomConfiguration() {
@@ -82,9 +97,20 @@ public final class SqlTestUtils {
     }
 
     public static SqlQueryTask randomTask(long taskId, Mode mode, SqlVersion sqlVersion) {
-        return new SqlQueryTask(taskId, "transport", SqlQueryAction.NAME, "", null, emptyMap(), emptyMap(),
-            new AsyncExecutionId("", new TaskId(randomAlphaOfLength(10), 1)), TimeValue.timeValueDays(5), mode, sqlVersion,
-            randomBoolean());
+        return new SqlQueryTask(
+            taskId,
+            "transport",
+            SqlQueryAction.NAME,
+            "",
+            null,
+            emptyMap(),
+            emptyMap(),
+            new AsyncExecutionId("", new TaskId(randomAlphaOfLength(10), 1)),
+            TimeValue.timeValueDays(5),
+            mode,
+            sqlVersion,
+            randomBoolean()
+        );
     }
 
     public static String randomWhitespaces() {

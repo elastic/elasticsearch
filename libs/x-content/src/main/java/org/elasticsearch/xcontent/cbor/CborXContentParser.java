@@ -9,6 +9,7 @@
 package org.elasticsearch.xcontent.cbor;
 
 import com.fasterxml.jackson.core.JsonParser;
+
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -18,14 +19,16 @@ import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
 public class CborXContentParser extends JsonXContentParser {
 
-    public CborXContentParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, JsonParser parser) {
+    public CborXContentParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, JsonParser parser) {
         super(xContentRegistry, deprecationHandler, parser);
     }
 
-    public CborXContentParser(NamedXContentRegistry xContentRegistry,
-                              DeprecationHandler deprecationHandler, JsonParser parser,
-                              RestApiVersion restApiVersion) {
+    public CborXContentParser(
+        NamedXContentRegistry xContentRegistry,
+        DeprecationHandler deprecationHandler,
+        JsonParser parser,
+        RestApiVersion restApiVersion
+    ) {
         super(xContentRegistry, deprecationHandler, parser, restApiVersion);
     }
 

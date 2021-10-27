@@ -36,8 +36,7 @@ public class GroupByNumericHistogram extends GroupByKey {
 
     @Override
     protected CompositeValuesSourceBuilder<?> createSourceBuilder() {
-        return new HistogramValuesSourceBuilder(id())
-                .interval(interval);
+        return new HistogramValuesSourceBuilder(id()).interval(interval);
     }
 
     @Override

@@ -26,8 +26,11 @@ public class FeaturesIT extends ESRestHighLevelClientTestCase {
     public void testGetFeatures() throws IOException {
         GetFeaturesRequest request = new GetFeaturesRequest();
 
-        GetFeaturesResponse response = execute(request,
-            highLevelClient().features()::getFeatures, highLevelClient().features()::getFeaturesAsync);
+        GetFeaturesResponse response = execute(
+            request,
+            highLevelClient().features()::getFeatures,
+            highLevelClient().features()::getFeaturesAsync
+        );
 
         assertThat(response, notNullValue());
         assertThat(response.getFeatures(), notNullValue());
@@ -48,15 +51,21 @@ public class FeaturesIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient adminHighLevelClient = new RestHighLevelClient(
             adminClient(),
             (client) -> {},
-            new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
-        ResetFeaturesResponse response = execute(request,
+            new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents()
+        );
+        ResetFeaturesResponse response = execute(
+            request,
             adminHighLevelClient.features()::resetFeatures,
-            adminHighLevelClient.features()::resetFeaturesAsync);
+            adminHighLevelClient.features()::resetFeaturesAsync
+        );
 
         assertThat(response, notNullValue());
         assertThat(response.getFeatureResetStatuses(), notNullValue());
         assertThat(response.getFeatureResetStatuses().size(), greaterThan(1));
-        assertTrue(response.getFeatureResetStatuses().stream().anyMatch(
-            feature -> "tasks".equals(feature.getFeatureName()) && "SUCCESS".equals(feature.getStatus())));
+        assertTrue(
+            response.getFeatureResetStatuses()
+                .stream()
+                .anyMatch(feature -> "tasks".equals(feature.getFeatureName()) && "SUCCESS".equals(feature.getStatus()))
+        );
     }
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.discovery.gce;
 
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.NetworkInterface;
+
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cloud.gce.GceInstancesService;
 import org.elasticsearch.cloud.gce.util.Access;
@@ -51,10 +52,10 @@ public class GceDiscoverTests extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                        .put(super.nodeSettings(nodeOrdinal, otherSettings))
-                        .put(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "gce")
-                        .put("cloud.gce.project_id", "test")
-                        .put("cloud.gce.zone", "test")
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "gce")
+            .put("cloud.gce.project_id", "test")
+            .put("cloud.gce.zone", "test")
             .build();
     }
 
@@ -63,22 +64,26 @@ public class GceDiscoverTests extends ESIntegTestCase {
         final String masterNode = internalCluster().startMasterOnlyNode();
         registerGceNode(masterNode);
 
-        ClusterStateResponse clusterStateResponse = client(masterNode).admin().cluster().prepareState()
-                                                                            .setMasterNodeTimeout("1s")
-                                                                            .clear()
-                                                                            .setNodes(true)
-                                                                            .get();
+        ClusterStateResponse clusterStateResponse = client(masterNode).admin()
+            .cluster()
+            .prepareState()
+            .setMasterNodeTimeout("1s")
+            .clear()
+            .setNodes(true)
+            .get();
         assertNotNull(clusterStateResponse.getState().nodes().getMasterNodeId());
 
         // start another node
         final String secondNode = internalCluster().startNode();
         registerGceNode(secondNode);
-        clusterStateResponse = client(secondNode).admin().cluster().prepareState()
-                                                                            .setMasterNodeTimeout("1s")
-                                                                            .clear()
-                                                                            .setNodes(true)
-                                                                            .setLocal(true)
-                                                                            .get();
+        clusterStateResponse = client(secondNode).admin()
+            .cluster()
+            .prepareState()
+            .setMasterNodeTimeout("1s")
+            .clear()
+            .setNodes(true)
+            .setLocal(true)
+            .get();
         assertNotNull(clusterStateResponse.getState().nodes().getMasterNodeId());
 
         // wait for the cluster to form
@@ -161,8 +166,7 @@ public class GceDiscoverTests extends ESIntegTestCase {
                 }
 
                 @Override
-                public void close() throws IOException {
-                }
+                public void close() throws IOException {}
             };
         }
     }

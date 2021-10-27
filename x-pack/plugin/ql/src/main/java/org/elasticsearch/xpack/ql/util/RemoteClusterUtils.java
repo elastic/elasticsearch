@@ -18,14 +18,15 @@ public class RemoteClusterUtils {
 
     public static Tuple<String, String> splitQualifiedIndex(String indexName) {
         int separatorOffset = indexName.indexOf(REMOTE_CLUSTER_INDEX_SEPARATOR);
-        return separatorOffset > 0 ? Tuple.tuple(indexName.substring(0, separatorOffset), indexName.substring(separatorOffset + 1)) :
-            Tuple.tuple(null, indexName);
+        return separatorOffset > 0
+            ? Tuple.tuple(indexName.substring(0, separatorOffset), indexName.substring(separatorOffset + 1))
+            : Tuple.tuple(null, indexName);
     }
 
     public static String qualifyAndJoinIndices(String cluster, String[] indices) {
         StringJoiner sj = new StringJoiner(",");
         for (String index : indices) {
-            sj.add(cluster != null ? buildRemoteIndexName(cluster,index) : index);
+            sj.add(cluster != null ? buildRemoteIndexName(cluster, index) : index);
         }
         return sj.toString();
     }

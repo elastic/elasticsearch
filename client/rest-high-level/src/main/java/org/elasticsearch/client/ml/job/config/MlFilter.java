@@ -8,8 +8,8 @@
 package org.elasticsearch.client.ml.job.config;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -116,8 +116,7 @@ public class MlFilter implements ToXContentObject {
         private String description;
         private SortedSet<String> items = new TreeSet<>();
 
-        private Builder() {
-        }
+        private Builder() {}
 
         /**
          * Set the ID of the filter

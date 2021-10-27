@@ -40,7 +40,7 @@ public final class MultiShardTermsEnum {
 
     /** Sole constructor.
      * @param enums TermsEnums from shards which we should merge
-     * @throws IOException Errors accessing data 
+     * @throws IOException Errors accessing data
      **/
     public MultiShardTermsEnum(TermsEnum[] enums) throws IOException {
         queue = new TermMergeQueue(enums.length);

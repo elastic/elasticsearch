@@ -33,17 +33,30 @@ public class SqlPluginTests extends ESTestCase {
         SqlPlugin plugin = new SqlPlugin(settings);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterName()).thenReturn(new ClusterName(randomAlphaOfLength(10)));
-        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY,
-            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        assertThat(plugin.createComponents(mock(Client.class), Settings.EMPTY, clusterService,
-                new NamedWriteableRegistry(Cursors.getNamedWriteables())),
-            hasSize(3));
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        assertThat(
+            plugin.createComponents(
+                mock(Client.class),
+                Settings.EMPTY,
+                clusterService,
+                new NamedWriteableRegistry(Cursors.getNamedWriteables())
+            ),
+            hasSize(3)
+        );
         assertThat(plugin.getActions(), hasSize(8));
         assertThat(
-            plugin.getRestHandlers(Settings.EMPTY, mock(RestController.class),
+            plugin.getRestHandlers(
+                Settings.EMPTY,
+                mock(RestController.class),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, new SettingsFilter(Collections.emptyList()),
-                mock(IndexNameExpressionResolver.class), () -> mock(DiscoveryNodes.class)),
-            hasSize(7));
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                new SettingsFilter(Collections.emptyList()),
+                mock(IndexNameExpressionResolver.class),
+                () -> mock(DiscoveryNodes.class)
+            ),
+            hasSize(7)
+        );
     }
 }

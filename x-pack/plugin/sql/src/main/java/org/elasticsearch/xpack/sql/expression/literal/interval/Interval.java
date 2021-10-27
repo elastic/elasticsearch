@@ -67,8 +67,7 @@ public abstract class Interval<I extends TemporalAmount> implements ConstantName
         }
 
         Interval<?> other = (Interval<?>) obj;
-        return Objects.equals(other.interval, interval)
-            && Objects.equals(other.intervalType, intervalType);
+        return Objects.equals(other.interval, interval) && Objects.equals(other.intervalType, intervalType);
     }
 
     @Override

@@ -6,18 +6,17 @@
  */
 package org.elasticsearch.xpack.core.rollup.job;
 
-
 import org.elasticsearch.Version;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 
 import java.io.IOException;
@@ -47,9 +46,10 @@ public class RollupJobStatus implements Task.Status, PersistentTaskState {
     private static final ParseField UPGRADED_DOC_ID = new ParseField("upgraded_doc_id"); // This can be removed in 9.0
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<RollupJobStatus, Void> PARSER =
-            new ConstructingObjectParser<>(NAME,
-                    args -> new RollupJobStatus((IndexerState) args[0], (HashMap<String, Object>) args[1]));
+    public static final ConstructingObjectParser<RollupJobStatus, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        args -> new RollupJobStatus((IndexerState) args[0], (HashMap<String, Object>) args[1])
+    );
 
     static {
         PARSER.declareString(constructorArg(), IndexerState::fromString, STATE);
@@ -76,7 +76,7 @@ public class RollupJobStatus implements Task.Status, PersistentTaskState {
         state = IndexerState.fromStream(in);
         currentPosition = in.readBoolean() ? new TreeMap<>(in.readMap()) : null;
         if (in.getVersion().before(Version.V_8_0_0)) {
-            // 7.x nodes serialize `upgradedDocumentID` flag.  We don't need it anymore, but
+            // 7.x nodes serialize `upgradedDocumentID` flag. We don't need it anymore, but
             // we need to pull it off the stream
             // This can go away completely in 9.0
             in.readBoolean();
@@ -142,8 +142,7 @@ public class RollupJobStatus implements Task.Status, PersistentTaskState {
 
         RollupJobStatus that = (RollupJobStatus) other;
 
-        return Objects.equals(this.state, that.state)
-            && Objects.equals(this.currentPosition, that.currentPosition);
+        return Objects.equals(this.state, that.state) && Objects.equals(this.currentPosition, that.currentPosition);
     }
 
     @Override

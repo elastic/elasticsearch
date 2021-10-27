@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
-
 public interface CorrelationFunction extends NamedWriteable, NamedXContentObject {
 
     double execute(CountCorrelationIndicator y);

@@ -23,7 +23,8 @@ public final class KibanaEnrollmentRequest extends ActionRequest {
         super(in);
     }
 
-    @Override public ActionRequestValidationException validate() {
+    @Override
+    public ActionRequestValidationException validate() {
         return null;
     }
 }

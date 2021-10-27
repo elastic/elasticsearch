@@ -58,9 +58,7 @@ public class AnalyticsBuilderTests extends ESTestCase {
     }
 
     public void testBuild_MemoryUsageEstimation() throws Exception {
-        analyticsBuilder
-            .performMemoryUsageEstimationOnly()
-            .build();
+        analyticsBuilder.performMemoryUsageEstimationOnly().build();
         assertThat(filesToDelete, hasSize(1));
 
         verify(nativeController).startProcess(commandCaptor.capture());

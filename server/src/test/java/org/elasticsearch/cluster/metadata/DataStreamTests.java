@@ -401,12 +401,14 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         );
         assertThat(
             e.getMessage(),
-            equalTo(String.format(
-                Locale.ROOT,
-                "cannot replace backing index [%s] of data stream [%s] because it is the write index",
-                indices.get(writeIndexPosition).getName(),
-                dataStreamName
-            ))
+            equalTo(
+                String.format(
+                    Locale.ROOT,
+                    "cannot replace backing index [%s] of data stream [%s] because it is the write index",
+                    indices.get(writeIndexPosition).getName(),
+                    dataStreamName
+                )
+            )
         );
     }
 

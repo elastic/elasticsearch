@@ -421,8 +421,12 @@ public class Node implements Closeable {
             client = new NodeClient(settings, threadPool);
 
             final ScriptModule scriptModule = new ScriptModule(settings, pluginsService.filterPlugins(ScriptPlugin.class));
-            final ScriptService scriptService =
-                newScriptService(settings, scriptModule.engines, scriptModule.contexts, threadPool::absoluteTimeInMillis);
+            final ScriptService scriptService = newScriptService(
+                settings,
+                scriptModule.engines,
+                scriptModule.contexts,
+                threadPool::absoluteTimeInMillis
+            );
             AnalysisModule analysisModule = new AnalysisModule(this.environment, pluginsService.filterPlugins(AnalysisPlugin.class));
             // this is as early as we can validate settings at this point. we already pass them to ScriptModule as well as ThreadPool
             // so we might be late here already
@@ -1489,8 +1493,12 @@ public class Node implements Closeable {
     /**
      * Creates a new the ScriptService. This method can be overwritten by tests to inject mock implementations.
      */
-    protected ScriptService newScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext<?>> contexts,
-                                             LongSupplier timeProvider) {
+    protected ScriptService newScriptService(
+        Settings settings,
+        Map<String, ScriptEngine> engines,
+        Map<String, ScriptContext<?>> contexts,
+        LongSupplier timeProvider
+    ) {
         return new ScriptService(settings, engines, contexts, timeProvider);
     }
 

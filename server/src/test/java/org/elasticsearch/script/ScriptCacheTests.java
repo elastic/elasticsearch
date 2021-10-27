@@ -18,6 +18,7 @@ import java.util.stream.Collectors;
 
 public class ScriptCacheTests extends ESTestCase {
     private static final LongSupplier time = () -> 1L;
+
     // even though circuit breaking is allowed to be configured per minute, we actually weigh this over five minutes
     // simply by multiplying by five, so even setting it to one, requires five compilations to break
     public void testCompilationCircuitBreaking() throws Exception {
@@ -40,8 +41,7 @@ public class ScriptCacheTests extends ESTestCase {
         );
         cache.checkCompilationLimit(); // should pass
         expectThrows(CircuitBreakingException.class, cache::checkCompilationLimit);
-        cache = new ScriptCache(size, expire, new ScriptCache.CompilationRate(2, TimeValue.timeValueMinutes(1)), rateSettingName,
-            time);
+        cache = new ScriptCache(size, expire, new ScriptCache.CompilationRate(2, TimeValue.timeValueMinutes(1)), rateSettingName, time);
         cache.checkCompilationLimit(); // should pass
         cache.checkCompilationLimit(); // should pass
         expectThrows(CircuitBreakingException.class, cache::checkCompilationLimit);
@@ -51,8 +51,7 @@ public class ScriptCacheTests extends ESTestCase {
             cache.checkCompilationLimit(); // should pass
         }
         expectThrows(CircuitBreakingException.class, cache::checkCompilationLimit);
-        cache = new ScriptCache(size, expire, new ScriptCache.CompilationRate(0, TimeValue.timeValueMinutes(1)), rateSettingName,
-            time);
+        cache = new ScriptCache(size, expire, new ScriptCache.CompilationRate(0, TimeValue.timeValueMinutes(1)), rateSettingName, time);
         expectThrows(CircuitBreakingException.class, cache::checkCompilationLimit);
         cache = new ScriptCache(
             size,
@@ -71,24 +70,26 @@ public class ScriptCacheTests extends ESTestCase {
         final TimeValue expire = ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.get(Settings.EMPTY);
         final Integer size = ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING.get(Settings.EMPTY);
         String settingName = ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey();
-        ScriptCache cache = new ScriptCache(size, expire, new ScriptCache.CompilationRate(1, TimeValue.timeValueMinutes(1)), settingName,
-            () -> 1L);
+        ScriptCache cache = new ScriptCache(
+            size,
+            expire,
+            new ScriptCache.CompilationRate(1, TimeValue.timeValueMinutes(1)),
+            settingName,
+            () -> 1L
+        );
         cache.checkCompilationLimit(); // should pass
         expectThrows(CircuitBreakingException.class, cache::checkCompilationLimit);
-        cache = new ScriptCache(size, expire, new ScriptCache.CompilationRate(2, TimeValue.timeValueMinutes(1)), settingName,
-            () -> 1L);
+        cache = new ScriptCache(size, expire, new ScriptCache.CompilationRate(2, TimeValue.timeValueMinutes(1)), settingName, () -> 1L);
         cache.checkCompilationLimit(); // should pass
         cache.checkCompilationLimit(); // should pass
         expectThrows(CircuitBreakingException.class, cache::checkCompilationLimit);
         int count = randomIntBetween(5, 50);
-        cache = new ScriptCache(size, expire, new ScriptCache.CompilationRate(count, TimeValue.timeValueMinutes(1)), settingName,
-            () -> 1L);
+        cache = new ScriptCache(size, expire, new ScriptCache.CompilationRate(count, TimeValue.timeValueMinutes(1)), settingName, () -> 1L);
         for (int i = 0; i < count; i++) {
             cache.checkCompilationLimit(); // should pass
         }
         expectThrows(CircuitBreakingException.class, cache::checkCompilationLimit);
-        cache = new ScriptCache(size, expire, new ScriptCache.CompilationRate(0, TimeValue.timeValueMinutes(1)), settingName,
-            () -> 1L);
+        cache = new ScriptCache(size, expire, new ScriptCache.CompilationRate(0, TimeValue.timeValueMinutes(1)), settingName, () -> 1L);
         expectThrows(CircuitBreakingException.class, cache::checkCompilationLimit);
         cache = new ScriptCache(
             size,

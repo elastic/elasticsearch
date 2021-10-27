@@ -158,8 +158,12 @@ public class MockNode extends Node {
     }
 
     @Override
-    protected ScriptService newScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext<?>> contexts,
-                                             LongSupplier timeProvider) {
+    protected ScriptService newScriptService(
+        Settings settings,
+        Map<String, ScriptEngine> engines,
+        Map<String, ScriptContext<?>> contexts,
+        LongSupplier timeProvider
+    ) {
         if (getPluginsService().filterPlugins(MockScriptService.TestPlugin.class).isEmpty()) {
             return super.newScriptService(settings, engines, contexts, timeProvider);
         }

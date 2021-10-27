@@ -28,14 +28,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ScriptStatsTests extends ESTestCase {
     public void testXContent() throws IOException {
         List<ScriptContextStats> contextStats = List.of(
-            new ScriptContextStats(
-                "contextB",
-                100,
-                201,
-                302,
-                new TimeSeries(1000, 1001, 1002),
-                new TimeSeries(2000, 2001, 2002)
-            ),
+            new ScriptContextStats("contextB", 100, 201, 302, new TimeSeries(1000, 1001, 1002), new TimeSeries(2000, 2001, 2002)),
             new ScriptContextStats("contextA", 1000, 2010, 3020, null, new TimeSeries(0, 0, 0))
         );
         ScriptStats stats = new ScriptStats(contextStats);
@@ -96,14 +89,7 @@ public class ScriptStatsTests extends ESTestCase {
     }
 
     public void testSerializeTimeSeries() throws IOException {
-        Function<TimeSeries, ScriptContextStats> mkContextStats = (ts) -> new ScriptContextStats(
-            "c",
-            1111,
-            2222,
-            3333,
-            null,
-            ts
-        );
+        Function<TimeSeries, ScriptContextStats> mkContextStats = (ts) -> new ScriptContextStats("c", 1111, 2222, 3333, null, ts);
 
         TimeSeries series = new TimeSeries(0, 0, 5);
         String format = "{\n"

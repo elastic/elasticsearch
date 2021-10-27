@@ -73,7 +73,6 @@ public class TimeSeriesCounter {
         return total < 0 ? 0 : total;
     }
 
-
     /*
      * Keeps track event counts over a duration.  Events are clamped to buckets, either the current bucket or a future
      * bucket.  A bucket represents all events over a period of resolution number of seconds.
@@ -285,7 +284,7 @@ public class TimeSeriesCounter {
         protected final long duration;
         protected final long[] buckets;
 
-        // The start time of buckets[0].  bucket(t + (i * duration)) is the same for all i.  startOfEpoch
+        // The start time of buckets[0]. bucket(t + (i * duration)) is the same for all i. startOfEpoch
         protected long startOfEpoch;
         protected int curBucket = 0;
 

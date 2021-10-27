@@ -179,8 +179,12 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
     // package private for tests
     final AtomicReference<CacheHolder> cacheHolder = new AtomicReference<>();
 
-    public ScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext<?>> contexts,
-                         LongSupplier timeProvider) {
+    public ScriptService(
+        Settings settings,
+        Map<String, ScriptEngine> engines,
+        Map<String, ScriptContext<?>> contexts,
+        LongSupplier timeProvider
+    ) {
         this.engines = Collections.unmodifiableMap(Objects.requireNonNull(engines));
         this.contexts = Collections.unmodifiableMap(Objects.requireNonNull(contexts));
 
@@ -764,8 +768,13 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
         final ScriptCache general;
         final Map<String, AtomicReference<ScriptCache>> contextCache;
 
-        CacheHolder(int cacheMaxSize, TimeValue cacheExpire, ScriptCache.CompilationRate maxCompilationRate, String contextRateSetting,
-                    LongSupplier timeProvider) {
+        CacheHolder(
+            int cacheMaxSize,
+            TimeValue cacheExpire,
+            ScriptCache.CompilationRate maxCompilationRate,
+            String contextRateSetting,
+            LongSupplier timeProvider
+        ) {
             contextCache = null;
             general = new ScriptCache(cacheMaxSize, cacheExpire, maxCompilationRate, contextRateSetting, timeProvider);
         }

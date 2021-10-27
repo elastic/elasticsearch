@@ -66,7 +66,7 @@ public class TimeSeriesCounterTests extends ESTestCase {
         long t;
         long next = randomLongBetween(1, HOUR);
         long twentyFive = 25 * HOUR;
-        for (int i=0; i < twentyFive; i++) {
+        for (int i = 0; i < twentyFive; i++) {
             t = time + i;
             inc(t);
 
@@ -103,7 +103,6 @@ public class TimeSeriesCounterTests extends ESTestCase {
         assertEquals(0, counter.sum(start + duration + resolution));
         assertEquals(count, counter.sum(start + duration + resolution - 1));
     }
-
 
     public void testFiveMinuteSameBucket() {
         inc(now);
@@ -294,12 +293,12 @@ public class TimeSeriesCounterTests extends ESTestCase {
 
     public void testCounterReset() {
         long time = now;
-        for (int i=0; i < 20; i++) {
+        for (int i = 0; i < 20; i++) {
             long count = 0;
             long withinBucket = randomIntBetween(1, (int) (customCounterResolution / 2));
             time += customCounterResolution + (i * customCounterDuration);
             long last = time;
-            for (int j=0; j < withinBucket; j++) {
+            for (int j = 0; j < withinBucket; j++) {
                 long bucketTime = (time / customCounterResolution) * customCounterResolution;
                 last = bucketTime + randomLongBetween(0, customCounterResolution - 1);
                 counter.inc(last);
@@ -313,10 +312,10 @@ public class TimeSeriesCounterTests extends ESTestCase {
         long time = now;
         long resolution = tsc.fiveMinutes.resolution;
         long duration = tsc.fiveMinutes.duration;
-        for (int i=0; i < 20; i++) {
+        for (int i = 0; i < 20; i++) {
             long withinBucket = randomLongBetween(1, resolution);
             time += resolution + (i * duration);
-            for (int j=0; j < withinBucket; j++) {
+            for (int j = 0; j < withinBucket; j++) {
                 inc(time + j);
             }
             TimeSeries ts = tsc.timeSeries(time);
@@ -331,10 +330,10 @@ public class TimeSeriesCounterTests extends ESTestCase {
         long time = now;
         long resolution = tsc.fifteenMinutes.resolution;
         long duration = tsc.fifteenMinutes.duration;
-        for (int i=0; i < 20; i++) {
+        for (int i = 0; i < 20; i++) {
             long withinBucket = randomLongBetween(1, resolution);
             time += resolution + (i * duration);
-            for (int j=0; j < withinBucket; j++) {
+            for (int j = 0; j < withinBucket; j++) {
                 inc(time + j);
             }
             TimeSeries ts = tsc.timeSeries(time);

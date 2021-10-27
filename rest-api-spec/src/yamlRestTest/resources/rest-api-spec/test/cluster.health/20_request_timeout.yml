@@ -43,7 +43,7 @@
 ---
 "cluster health request timeout with 200 response code":
   - skip:
-      version: " - 7.15.99"
+      version: " - 7.99.99"
       reason: "return_200_for_cluster_health_timeout was added in 7.16"
       features: "warnings"
   - do:

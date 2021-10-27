@@ -23,12 +23,15 @@ import java.util.List;
  */
 public class RefreshResponse extends BroadcastResponse {
 
-    private static final ConstructingObjectParser<RefreshResponse, Void> PARSER = new ConstructingObjectParser<>("refresh", true,
-        arg -> {
-            BroadcastResponse response = (BroadcastResponse) arg[0];
-            return new RefreshResponse(response.getTotalShards(), response.getSuccessfulShards(), response.getFailedShards(),
-                Arrays.asList(response.getShardFailures()));
-        });
+    private static final ConstructingObjectParser<RefreshResponse, Void> PARSER = new ConstructingObjectParser<>("refresh", true, arg -> {
+        BroadcastResponse response = (BroadcastResponse) arg[0];
+        return new RefreshResponse(
+            response.getTotalShards(),
+            response.getSuccessfulShards(),
+            response.getFailedShards(),
+            Arrays.asList(response.getShardFailures())
+        );
+    });
 
     static {
         declareBroadcastFields(PARSER);

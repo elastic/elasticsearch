@@ -12,7 +12,6 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.elasticsearch.script.field.BinaryDocValuesField;
 import org.elasticsearch.script.field.DocValuesField;
 
-
 final class BytesBinaryDVLeafFieldData extends AbstractBinaryDVLeafFieldData {
     BytesBinaryDVLeafFieldData(BinaryDocValues values) {
         super(values);
@@ -23,4 +22,3 @@ final class BytesBinaryDVLeafFieldData extends AbstractBinaryDVLeafFieldData {
         return new BinaryDocValuesField(getBytesValues(), name);
     }
 }
-

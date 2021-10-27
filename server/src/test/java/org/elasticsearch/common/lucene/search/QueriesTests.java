@@ -29,22 +29,21 @@ public class QueriesTests extends ESTestCase {
     public void testIsNegativeQuery() {
         assertFalse(Queries.isNegativeQuery(new MatchAllDocsQuery()));
         assertFalse(Queries.isNegativeQuery(new BooleanQuery.Builder().build()));
-        assertFalse(Queries.isNegativeQuery(new BooleanQuery.Builder()
-                .add(new TermQuery(new Term("foo", "bar")), Occur.MUST).build()));
-        assertTrue(Queries.isNegativeQuery(new BooleanQuery.Builder()
-                .add(new TermQuery(new Term("foo", "bar")), Occur.MUST_NOT).build()));
-        assertFalse(Queries.isNegativeQuery(new BooleanQuery.Builder()
-                .add(new MatchAllDocsQuery(), Occur.MUST)
-                .add(new MatchAllDocsQuery(), Occur.MUST_NOT).build()));
+        assertFalse(Queries.isNegativeQuery(new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), Occur.MUST).build()));
+        assertTrue(Queries.isNegativeQuery(new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), Occur.MUST_NOT).build()));
+        assertFalse(
+            Queries.isNegativeQuery(
+                new BooleanQuery.Builder().add(new MatchAllDocsQuery(), Occur.MUST).add(new MatchAllDocsQuery(), Occur.MUST_NOT).build()
+            )
+        );
     }
 
     public void testFixNegativeQuery() {
-        assertEquals(new BooleanQuery.Builder()
-                .add(new MatchAllDocsQuery(), Occur.FILTER)
-                .add(new TermQuery(new Term("foo", "bar")), Occur.MUST_NOT).build(),
-                Queries.fixNegativeQueryIfNeeded(
-                        new BooleanQuery.Builder()
-                        .add(new TermQuery(new Term("foo", "bar")), Occur.MUST_NOT)
-                        .build()));
+        assertEquals(
+            new BooleanQuery.Builder().add(new MatchAllDocsQuery(), Occur.FILTER)
+                .add(new TermQuery(new Term("foo", "bar")), Occur.MUST_NOT)
+                .build(),
+            Queries.fixNegativeQueryIfNeeded(new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), Occur.MUST_NOT).build())
+        );
     }
 }

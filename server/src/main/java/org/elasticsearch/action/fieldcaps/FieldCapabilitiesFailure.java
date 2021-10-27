@@ -9,15 +9,15 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,24 +58,21 @@ public class FieldCapabilitiesFailure implements Writeable, ToXContentObject {
     }
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<FieldCapabilitiesFailure, Void> PARSER =
-        new ConstructingObjectParser<>("field_capabilities_failure", true, a -> {
-            return new FieldCapabilitiesFailure(((List<String>) a[0]).toArray(String[]::new), (Exception) a[1]);
-        });
+    private static final ConstructingObjectParser<FieldCapabilitiesFailure, Void> PARSER = new ConstructingObjectParser<>(
+        "field_capabilities_failure",
+        true,
+        a -> { return new FieldCapabilitiesFailure(((List<String>) a[0]).toArray(String[]::new), (Exception) a[1]); }
+    );
 
     static {
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), INDICES_FIELD);
-        PARSER.declareObject(
-            ConstructingObjectParser.constructorArg(),
-            (p, c) -> {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, p.currentToken(), p);
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, p.nextToken(), p);
-                Exception e = ElasticsearchException.failureFromXContent(p);
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, p.nextToken(), p);
-                return e;
-            },
-            FAILURE_FIELD
-        );
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, p.currentToken(), p);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, p.nextToken(), p);
+            Exception e = ElasticsearchException.failureFromXContent(p);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, p.nextToken(), p);
+            return e;
+        }, FAILURE_FIELD);
     }
 
     public static FieldCapabilitiesFailure fromXContent(XContentParser parser) throws IOException {

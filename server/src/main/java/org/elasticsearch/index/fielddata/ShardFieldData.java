@@ -9,6 +9,7 @@
 package org.elasticsearch.index.fielddata;
 
 import com.carrotsearch.hppc.ObjectLongHashMap;
+
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.metrics.CounterMetric;
@@ -36,8 +37,11 @@ public class ShardFieldData implements IndexFieldDataCache.Listener {
                 }
             }
         }
-        return new FieldDataStats(totalMetric.count(), evictionsMetric.count(), fieldTotals == null ? null :
-            new FieldMemoryStats(fieldTotals));
+        return new FieldDataStats(
+            totalMetric.count(),
+            evictionsMetric.count(),
+            fieldTotals == null ? null : new FieldMemoryStats(fieldTotals)
+        );
     }
 
     @Override

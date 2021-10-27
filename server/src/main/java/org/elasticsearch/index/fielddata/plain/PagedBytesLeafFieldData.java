@@ -32,8 +32,7 @@ public class PagedBytesLeafFieldData extends AbstractLeafOrdinalsFieldData {
     }
 
     @Override
-    public void close() {
-    }
+    public void close() {}
 
     @Override
     public long ramBytesUsed() {
@@ -48,9 +47,10 @@ public class PagedBytesLeafFieldData extends AbstractLeafOrdinalsFieldData {
     @Override
     public Collection<Accountable> getChildResources() {
         return List.of(
-                Accountables.namedAccountable("ordinals", ordinals),
-                Accountables.namedAccountable("term bytes", bytes),
-                Accountables.namedAccountable("term offsets", termOrdToBytesOffset));
+            Accountables.namedAccountable("ordinals", ordinals),
+            Accountables.namedAccountable("term bytes", bytes),
+            Accountables.namedAccountable("term offsets", termOrdToBytesOffset)
+        );
     }
 
     @Override

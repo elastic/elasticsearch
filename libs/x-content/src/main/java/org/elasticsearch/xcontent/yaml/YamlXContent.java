@@ -43,8 +43,7 @@ public class YamlXContent implements XContent {
         yamlXContent = new YamlXContent();
     }
 
-    private YamlXContent() {
-    }
+    private YamlXContent() {}
 
     @Override
     public XContentType type() {

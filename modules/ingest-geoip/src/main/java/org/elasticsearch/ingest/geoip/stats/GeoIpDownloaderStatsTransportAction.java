@@ -29,19 +29,32 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
-public class GeoIpDownloaderStatsTransportAction extends TransportNodesAction<Request,
-    Response, NodeRequest, NodeResponse> {
+public class GeoIpDownloaderStatsTransportAction extends TransportNodesAction<Request, Response, NodeRequest, NodeResponse> {
 
     private final TransportService transportService;
     private final DatabaseNodeService registry;
     private final GeoIpDownloaderTaskExecutor geoIpDownloaderTaskExecutor;
 
     @Inject
-    public GeoIpDownloaderStatsTransportAction(TransportService transportService, ClusterService clusterService,
-                                               ThreadPool threadPool, ActionFilters actionFilters, DatabaseNodeService registry,
-                                               GeoIpDownloaderTaskExecutor geoIpDownloaderTaskExecutor) {
-        super(GeoIpDownloaderStatsAction.NAME, threadPool, clusterService, transportService, actionFilters, Request::new,
-            NodeRequest::new, ThreadPool.Names.MANAGEMENT, NodeResponse.class);
+    public GeoIpDownloaderStatsTransportAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        DatabaseNodeService registry,
+        GeoIpDownloaderTaskExecutor geoIpDownloaderTaskExecutor
+    ) {
+        super(
+            GeoIpDownloaderStatsAction.NAME,
+            threadPool,
+            clusterService,
+            transportService,
+            actionFilters,
+            Request::new,
+            NodeRequest::new,
+            ThreadPool.Names.MANAGEMENT,
+            NodeResponse.class
+        );
         this.transportService = transportService;
         this.registry = registry;
         this.geoIpDownloaderTaskExecutor = geoIpDownloaderTaskExecutor;
@@ -66,7 +79,12 @@ public class GeoIpDownloaderStatsTransportAction extends TransportNodesAction<Re
     protected NodeResponse nodeOperation(NodeRequest request, Task task) {
         GeoIpDownloader geoIpTask = geoIpDownloaderTaskExecutor.getCurrentTask();
         GeoIpDownloaderStats stats = geoIpTask == null || geoIpTask.getStatus() == null ? null : geoIpTask.getStatus();
-        return new NodeResponse(transportService.getLocalNode(), stats, registry.getAvailableDatabases(), registry.getFilesInTemp(),
-            registry.getConfigDatabases());
+        return new NodeResponse(
+            transportService.getLocalNode(),
+            stats,
+            registry.getAvailableDatabases(),
+            registry.getFilesInTemp(),
+            registry.getConfigDatabases()
+        );
     }
 }

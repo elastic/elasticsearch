@@ -9,8 +9,8 @@
 package org.elasticsearch.client.core;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -41,8 +41,9 @@ public class BroadcastResponse {
     private static final ParseField SHARDS_FIELD = new ParseField("_shards");
 
     static final ConstructingObjectParser<BroadcastResponse, Void> PARSER = new ConstructingObjectParser<>(
-            "broadcast_response",
-            a -> new BroadcastResponse((Shards) a[0]));
+        "broadcast_response",
+        a -> new BroadcastResponse((Shards) a[0])
+    );
 
     static {
         declareShardsField(PARSER);
@@ -125,11 +126,12 @@ public class BroadcastResponse {
         }
 
         Shards(
-                final int total,
-                final int successful,
-                final int skipped,
-                final int failed,
-                final Collection<DefaultShardOperationFailedException> failures) {
+            final int total,
+            final int successful,
+            final int skipped,
+            final int failed,
+            final Collection<DefaultShardOperationFailedException> failures
+        ) {
             this.total = total;
             this.successful = successful;
             this.skipped = skipped;
@@ -145,13 +147,15 @@ public class BroadcastResponse {
 
         @SuppressWarnings("unchecked")
         static final ConstructingObjectParser<Shards, Void> SHARDS_PARSER = new ConstructingObjectParser<>(
-                "shards",
-                a -> new Shards(
-                        (int) a[0], // total
-                        (int) a[1], // successful
-                        a[2] == null ? 0 : (int) a[2], // skipped
-                        (int) a[3], // failed
-                        a[4] == null ? Collections.emptyList() : (Collection<DefaultShardOperationFailedException>) a[4])); // failures
+            "shards",
+            a -> new Shards(
+                (int) a[0], // total
+                (int) a[1], // successful
+                a[2] == null ? 0 : (int) a[2], // skipped
+                (int) a[3], // failed
+                a[4] == null ? Collections.emptyList() : (Collection<DefaultShardOperationFailedException>) a[4]
+            )
+        ); // failures
 
         static {
             SHARDS_PARSER.declareInt(ConstructingObjectParser.constructorArg(), TOTAL_FIELD);
@@ -159,8 +163,10 @@ public class BroadcastResponse {
             SHARDS_PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), SKIPPED_FIELD);
             SHARDS_PARSER.declareInt(ConstructingObjectParser.constructorArg(), FAILED_FIELD);
             SHARDS_PARSER.declareObjectArray(
-                    ConstructingObjectParser.optionalConstructorArg(),
-                    DefaultShardOperationFailedException.PARSER, FAILURES_FIELD);
+                ConstructingObjectParser.optionalConstructorArg(),
+                DefaultShardOperationFailedException.PARSER,
+                FAILURES_FIELD
+            );
         }
 
     }

@@ -18,14 +18,11 @@ import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.Storage.BlobListOption;
 import com.google.cloud.storage.StorageBatch;
 import com.google.cloud.storage.StorageException;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -36,8 +33,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.ByteArrayInputStream;
 import java.io.FilterOutputStream;
@@ -79,7 +80,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         } else {
             final int largeBlobThresholdByteSize;
             try {
-              largeBlobThresholdByteSize = Integer.parseInt(largeBlobThresholdByteSizeProperty);
+                largeBlobThresholdByteSize = Integer.parseInt(largeBlobThresholdByteSizeProperty);
             } catch (final NumberFormatException e) {
                 throw new IllegalArgumentException("failed to parse " + key + " having value [" + largeBlobThresholdByteSizeProperty + "]");
             }
@@ -98,12 +99,14 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     private final int bufferSize;
     private final BigArrays bigArrays;
 
-    GoogleCloudStorageBlobStore(String bucketName,
-                                String clientName,
-                                String repositoryName,
-                                GoogleCloudStorageService storageService,
-                                BigArrays bigArrays,
-                                int bufferSize) {
+    GoogleCloudStorageBlobStore(
+        String bucketName,
+        String clientName,
+        String repositoryName,
+        GoogleCloudStorageService storageService,
+        BigArrays bigArrays,
+        int bufferSize
+    ) {
         this.bucketName = bucketName;
         this.clientName = clientName;
         this.repositoryName = repositoryName;
@@ -150,23 +153,26 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         final String pathPrefix = buildKey(path, prefix);
         final MapBuilder<String, BlobMetadata> mapBuilder = MapBuilder.newMapBuilder();
         SocketAccess.doPrivilegedVoidIOException(
-            () -> client().list(bucketName, BlobListOption.currentDirectory(), BlobListOption.prefix(pathPrefix)).iterateAll().forEach(
-                blob -> {
+            () -> client().list(bucketName, BlobListOption.currentDirectory(), BlobListOption.prefix(pathPrefix))
+                .iterateAll()
+                .forEach(blob -> {
                     assert blob.getName().startsWith(path);
                     if (blob.isDirectory() == false) {
                         final String suffixName = blob.getName().substring(path.length());
                         mapBuilder.put(suffixName, new PlainBlobMetadata(suffixName, blob.getSize()));
                     }
-                }));
+                })
+        );
         return mapBuilder.immutableMap();
     }
 
     Map<String, BlobContainer> listChildren(BlobPath path) throws IOException {
         final String pathStr = path.buildAsString();
         final MapBuilder<String, BlobContainer> mapBuilder = MapBuilder.newMapBuilder();
-        SocketAccess.doPrivilegedVoidIOException
-            (() -> client().list(bucketName, BlobListOption.currentDirectory(), BlobListOption.prefix(pathStr)).iterateAll().forEach(
-                blob -> {
+        SocketAccess.doPrivilegedVoidIOException(
+            () -> client().list(bucketName, BlobListOption.currentDirectory(), BlobListOption.prefix(pathStr))
+                .iterateAll()
+                .forEach(blob -> {
                     if (blob.isDirectory()) {
                         assert blob.getName().startsWith(pathStr);
                         assert blob.getName().endsWith("/");
@@ -176,7 +182,8 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                             mapBuilder.put(suffixName, new GoogleCloudStorageBlobContainer(path.add(suffixName), this));
                         }
                     }
-                }));
+                })
+        );
         return mapBuilder.immutableMap();
     }
 
@@ -220,8 +227,12 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         if (length == 0) {
             return new ByteArrayInputStream(new byte[0]);
         } else {
-            return new GoogleCloudStorageRetryingInputStream(client(), BlobId.of(bucketName, blobName), position,
-                Math.addExact(position, length - 1));
+            return new GoogleCloudStorageRetryingInputStream(
+                client(),
+                BlobId.of(bucketName, blobName),
+                position,
+                Math.addExact(position, length - 1)
+            );
         }
     }
 
@@ -236,8 +247,12 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             // This is needed since we rely on atomic write behavior when writing BytesReferences in BlobStoreRepository which is not
             // guaranteed for resumable uploads.
             final String md5 = Base64.getEncoder().encodeToString(MessageDigests.digest(bytes, MessageDigests.md5()));
-            writeBlobResumable(BlobInfo.newBuilder(bucketName, blobName).setMd5(md5).build(), bytes.streamInput(), bytes.length(),
-                failIfAlreadyExists);
+            writeBlobResumable(
+                BlobInfo.newBuilder(bucketName, blobName).setMd5(md5).build(),
+                bytes.streamInput(),
+                bytes.length(),
+                failIfAlreadyExists
+            );
         } else {
             final BlobInfo blobInfo = BlobInfo.newBuilder(bucketName, blobName).build();
             if (bytes.hasArray()) {
@@ -274,11 +289,12 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     }
 
     // possible options for #writeBlobResumable uploads
-    private static final Storage.BlobWriteOption[] NO_OVERWRITE_NO_MD5 = {Storage.BlobWriteOption.doesNotExist()};
+    private static final Storage.BlobWriteOption[] NO_OVERWRITE_NO_MD5 = { Storage.BlobWriteOption.doesNotExist() };
     private static final Storage.BlobWriteOption[] OVERWRITE_NO_MD5 = new Storage.BlobWriteOption[0];
-    private static final Storage.BlobWriteOption[] NO_OVERWRITE_CHECK_MD5 =
-            {Storage.BlobWriteOption.doesNotExist(), Storage.BlobWriteOption.md5Match()};
-    private static final Storage.BlobWriteOption[] OVERWRITE_CHECK_MD5 = {Storage.BlobWriteOption.md5Match()};
+    private static final Storage.BlobWriteOption[] NO_OVERWRITE_CHECK_MD5 = {
+        Storage.BlobWriteOption.doesNotExist(),
+        Storage.BlobWriteOption.md5Match() };
+    private static final Storage.BlobWriteOption[] OVERWRITE_CHECK_MD5 = { Storage.BlobWriteOption.md5Match() };
 
     void writeBlob(String blobName, boolean failIfAlreadyExists, CheckedConsumer<OutputStream, IOException> writer) throws IOException {
         final BlobInfo blobInfo = BlobInfo.newBuilder(bucketName, blobName).build();
@@ -325,8 +341,9 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                     }
 
                     private void initResumableStream() throws IOException {
-                        final WriteChannel writeChannel =
-                                SocketAccess.doPrivilegedIOException(() -> client().writer(blobInfo, writeOptions));
+                        final WriteChannel writeChannel = SocketAccess.doPrivilegedIOException(
+                            () -> client().writer(blobInfo, writeOptions)
+                        );
                         channelRef.set(writeChannel);
                         resumableStream = new FilterOutputStream(Channels.newOutputStream(new WritableBlobChannel(writeChannel))) {
                             @Override
@@ -381,8 +398,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      * @param size expected size of the blob to be written
      * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
      */
-    private void writeBlobResumable(BlobInfo blobInfo, InputStream inputStream, long size, boolean failIfAlreadyExists)
-            throws IOException {
+    private void writeBlobResumable(BlobInfo blobInfo, InputStream inputStream, long size, boolean failIfAlreadyExists) throws IOException {
         // We retry 410 GONE errors to cover the unlikely but possible scenario where a resumable upload session becomes broken and
         // needs to be restarted from scratch. Given how unlikely a 410 error should be according to SLAs we retry only twice.
         assert inputStream.markSupported();
@@ -405,7 +421,10 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                  * is in the stacktrace and is not granted the permissions needed to close and write the channel.
                  */
                 org.elasticsearch.core.internal.io.Streams.copy(
-                        inputStream, Channels.newOutputStream(new WritableBlobChannel(writeChannel)), buffer);
+                    inputStream,
+                    Channels.newOutputStream(new WritableBlobChannel(writeChannel)),
+                    buffer
+                );
                 SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
                 // We don't track this operation on the http layer as
                 // we do with the GET/LIST operations since this operations
@@ -448,11 +467,10 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         throws IOException {
         assert blobSize <= getLargeBlobThresholdInBytes() : "large blob uploads should use the resumable upload method";
         try {
-            final Storage.BlobTargetOption[] targetOptions = failIfAlreadyExists ?
-                new Storage.BlobTargetOption[] { Storage.BlobTargetOption.doesNotExist() } :
-                new Storage.BlobTargetOption[0];
-            SocketAccess.doPrivilegedVoidIOException(
-                    () -> client().create(blobInfo, buffer, offset, blobSize, targetOptions));
+            final Storage.BlobTargetOption[] targetOptions = failIfAlreadyExists
+                ? new Storage.BlobTargetOption[] { Storage.BlobTargetOption.doesNotExist() }
+                : new Storage.BlobTargetOption[0];
+            SocketAccess.doPrivilegedVoidIOException(() -> client().create(blobInfo, buffer, offset, blobSize, targetOptions));
             // We don't track this operation on the http layer as
             // we do with the GET/LIST operations since this operations
             // can trigger multiple underlying http requests but only one
@@ -527,25 +545,23 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                 final StorageBatch batch = client().batch();
                 while (blobIdsToDelete.hasNext()) {
                     BlobId blob = blobIdsToDelete.next();
-                    batch.delete(blob).notify(
-                        new BatchResult.Callback<>() {
-                            @Override
-                            public void success(Boolean result) {
-                            }
+                    batch.delete(blob).notify(new BatchResult.Callback<>() {
+                        @Override
+                        public void success(Boolean result) {}
 
-                            @Override
-                            public void error(StorageException exception) {
-                                if (exception.getCode() != HTTP_NOT_FOUND) {
-                                    // track up to 10 failed blob deletions for the exception message below
-                                    if (failedBlobs.size() < 10) {
-                                        failedBlobs.add(blob);
-                                    }
-                                    if (ioe.compareAndSet(null, exception) == false) {
-                                        ioe.get().addSuppressed(exception);
-                                    }
+                        @Override
+                        public void error(StorageException exception) {
+                            if (exception.getCode() != HTTP_NOT_FOUND) {
+                                // track up to 10 failed blob deletions for the exception message below
+                                if (failedBlobs.size() < 10) {
+                                    failedBlobs.add(blob);
+                                }
+                                if (ioe.compareAndSet(null, exception) == false) {
+                                    ioe.get().addSuppressed(exception);
                                 }
                             }
-                        });
+                        }
+                    });
                 }
                 batch.submit();
 

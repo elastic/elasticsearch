@@ -31,8 +31,10 @@ public final class ProfileConfigurations {
                 if (settings.getByPrefix("transport.profiles.default.xpack.security.ssl.").isEmpty()) {
                     continue;
                 } else {
-                    throw new IllegalArgumentException("SSL settings should not be configured for the default profile. " +
-                        "Use the [xpack.security.transport.ssl] settings instead.");
+                    throw new IllegalArgumentException(
+                        "SSL settings should not be configured for the default profile. "
+                            + "Use the [xpack.security.transport.ssl] settings instead."
+                    );
                 }
             }
             SslConfiguration configuration = sslService.getSSLConfiguration("transport.profiles." + profileName + "." + setting("ssl"));

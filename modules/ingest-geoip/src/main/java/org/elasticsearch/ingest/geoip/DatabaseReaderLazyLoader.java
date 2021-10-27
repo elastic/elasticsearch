@@ -16,13 +16,14 @@ import com.maxmind.geoip2.model.AbstractResponse;
 import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CityResponse;
 import com.maxmind.geoip2.model.CountryResponse;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
 
@@ -44,8 +45,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 class DatabaseReaderLazyLoader implements Closeable {
 
-    private static final boolean LOAD_DATABASE_ON_HEAP =
-        Booleans.parseBoolean(System.getProperty("es.geoip.load_db_on_heap", "false"));
+    private static final boolean LOAD_DATABASE_ON_HEAP = Booleans.parseBoolean(System.getProperty("es.geoip.load_db_on_heap", "false"));
 
     private static final Logger LOGGER = LogManager.getLogger(DatabaseReaderLazyLoader.class);
 
@@ -91,7 +91,7 @@ class DatabaseReaderLazyLoader implements Closeable {
                     if (fileSize <= 512) {
                         throw new IOException("unexpected file length [" + fileSize + "] for [" + databasePath + "]");
                     }
-                    final int[] databaseTypeMarker = {'d', 'a', 't', 'a', 'b', 'a', 's', 'e', '_', 't', 'y', 'p', 'e'};
+                    final int[] databaseTypeMarker = { 'd', 'a', 't', 'a', 'b', 'a', 's', 'e', '_', 't', 'y', 'p', 'e' };
                     try (InputStream in = databaseInputStream()) {
                         // read the last 512 bytes
                         final long skipped = in.skip(fileSize - 512);
@@ -178,19 +178,20 @@ class DatabaseReaderLazyLoader implements Closeable {
         return currentUsages.get();
     }
 
-    private <T extends AbstractResponse> T getResponse(InetAddress ipAddress,
-                                                       CheckedBiFunction<DatabaseReader, InetAddress, T, Exception> responseProvider) {
+    private <T extends AbstractResponse> T getResponse(
+        InetAddress ipAddress,
+        CheckedBiFunction<DatabaseReader, InetAddress, T, Exception> responseProvider
+    ) {
         SpecialPermission.check();
-        return AccessController.doPrivileged((PrivilegedAction<T>) () ->
-            cache.putIfAbsent(ipAddress, databasePath.toString(), ip -> {
-                try {
-                    return responseProvider.apply(get(), ipAddress);
-                } catch (AddressNotFoundException e) {
-                    throw new GeoIpProcessor.AddressNotFoundRuntimeException(e);
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-            }));
+        return AccessController.doPrivileged((PrivilegedAction<T>) () -> cache.putIfAbsent(ipAddress, databasePath.toString(), ip -> {
+            try {
+                return responseProvider.apply(get(), ipAddress);
+            } catch (AddressNotFoundException e) {
+                throw new GeoIpProcessor.AddressNotFoundRuntimeException(e);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }));
     }
 
     DatabaseReader get() throws IOException {

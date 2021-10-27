@@ -16,8 +16,7 @@ import java.util.List;
 public class MultiPolygon extends GeometryCollection<Polygon> {
     public static final MultiPolygon EMPTY = new MultiPolygon();
 
-    private MultiPolygon() {
-    }
+    private MultiPolygon() {}
 
     public MultiPolygon(List<Polygon> polygons) {
         super(polygons);

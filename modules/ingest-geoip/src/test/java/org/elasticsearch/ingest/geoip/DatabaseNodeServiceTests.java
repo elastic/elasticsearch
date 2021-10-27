@@ -9,6 +9,7 @@
 package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.db.InvalidDatabaseException;
+
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
@@ -29,15 +30,13 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -49,6 +48,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -134,15 +135,15 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         String md5 = mockSearches("GeoIP2-City.mmdb", 5, 14);
         String taskId = GeoIpDownloader.GEOIP_DOWNLOADER;
         PersistentTask<?> task = new PersistentTask<>(taskId, GeoIpDownloader.GEOIP_DOWNLOADER, new GeoIpTaskParams(), 1, null);
-        task = new PersistentTask<>(task, new GeoIpTaskState(Map.of("GeoIP2-City.mmdb",
-            new GeoIpTaskState.Metadata(10, 5, 14, md5, 10))));
+        task = new PersistentTask<>(task, new GeoIpTaskState(Map.of("GeoIP2-City.mmdb", new GeoIpTaskState.Metadata(10, 5, 14, md5, 10))));
         PersistentTasksCustomMetadata tasksCustomMetadata = new PersistentTasksCustomMetadata(1L, Map.of(taskId, task));
 
         ClusterState state = ClusterState.builder(new ClusterName("name"))
             .metadata(Metadata.builder().putCustom(TYPE, tasksCustomMetadata).build())
-            .nodes(new DiscoveryNodes.Builder()
-                .add(new DiscoveryNode("_id1", buildNewFakeTransportAddress(), Version.CURRENT))
-                .localNodeId("_id1"))
+            .nodes(
+                new DiscoveryNodes.Builder().add(new DiscoveryNode("_id1", buildNewFakeTransportAddress(), Version.CURRENT))
+                    .localNodeId("_id1")
+            )
             .routingTable(createIndexRoutingTable())
             .build();
 
@@ -161,15 +162,18 @@ public class DatabaseNodeServiceTests extends ESTestCase {
             assertEquals(0, files.count());
         }
 
-        task = new PersistentTask<>(task, new GeoIpTaskState(Map.of("GeoIP2-City.mmdb",
-            new GeoIpTaskState.Metadata(10, 5, 14, md5, System.currentTimeMillis()))));
+        task = new PersistentTask<>(
+            task,
+            new GeoIpTaskState(Map.of("GeoIP2-City.mmdb", new GeoIpTaskState.Metadata(10, 5, 14, md5, System.currentTimeMillis())))
+        );
         tasksCustomMetadata = new PersistentTasksCustomMetadata(1L, Map.of(taskId, task));
 
         state = ClusterState.builder(new ClusterName("name"))
             .metadata(Metadata.builder().putCustom(TYPE, tasksCustomMetadata).build())
-            .nodes(new DiscoveryNodes.Builder()
-                .add(new DiscoveryNode("_id1", buildNewFakeTransportAddress(), Version.CURRENT))
-                .localNodeId("_id1"))
+            .nodes(
+                new DiscoveryNodes.Builder().add(new DiscoveryNode("_id1", buildNewFakeTransportAddress(), Version.CURRENT))
+                    .localNodeId("_id1")
+            )
             .routingTable(createIndexRoutingTable())
             .build();
         // Database should be downloaded
@@ -182,7 +186,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         }
         // First time GeoIP2-City.mmdb is downloaded, so a pipeline reload can happen:
         verify(ingestService, times(numPipelinesToBeReloaded)).reloadPipeline(anyString());
-        //30 days check passed but we mocked mmdb data so parsing will fail
+        // 30 days check passed but we mocked mmdb data so parsing will fail
         expectThrows(InvalidDatabaseException.class, database::get);
     }
 
@@ -195,10 +199,18 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(new ClusterName("name"))
             .metadata(Metadata.builder().putCustom(TYPE, tasksCustomMetadata).build())
-            .nodes(new DiscoveryNodes.Builder()
-                .add(new DiscoveryNode("_name1", "_id1", buildNewFakeTransportAddress(), Map.of(),
-                    Set.of(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT))
-                .localNodeId("_id1"))
+            .nodes(
+                new DiscoveryNodes.Builder().add(
+                    new DiscoveryNode(
+                        "_name1",
+                        "_id1",
+                        buildNewFakeTransportAddress(),
+                        Map.of(),
+                        Set.of(DiscoveryNodeRole.MASTER_ROLE),
+                        Version.CURRENT
+                    )
+                ).localNodeId("_id1")
+            )
             .routingTable(createIndexRoutingTable())
             .build();
 
@@ -219,9 +231,10 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(new ClusterName("name"))
             .metadata(Metadata.builder().putCustom(TYPE, tasksCustomMetadata).build())
-            .nodes(new DiscoveryNodes.Builder()
-                .add(new DiscoveryNode("_id1", buildNewFakeTransportAddress(), Version.CURRENT))
-                .localNodeId("_id1"))
+            .nodes(
+                new DiscoveryNodes.Builder().add(new DiscoveryNode("_id1", buildNewFakeTransportAddress(), Version.CURRENT))
+                    .localNodeId("_id1")
+            )
             .build();
 
         databaseNodeService.checkDatabases(state);
@@ -237,9 +250,10 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(new ClusterName("name"))
             .metadata(Metadata.builder().putCustom(TYPE, tasksCustomMetadata).build())
-            .nodes(new DiscoveryNodes.Builder()
-                .add(new DiscoveryNode("_id1", buildNewFakeTransportAddress(), Version.CURRENT))
-                .localNodeId("_id1"))
+            .nodes(
+                new DiscoveryNodes.Builder().add(new DiscoveryNode("_id1", buildNewFakeTransportAddress(), Version.CURRENT))
+                    .localNodeId("_id1")
+            )
             .routingTable(createIndexRoutingTable())
             .build();
 
@@ -285,8 +299,10 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         ArgumentCaptor<Exception> exceptionCaptor = ArgumentCaptor.forClass(Exception.class);
         verify(failureHandler, times(1)).accept(exceptionCaptor.capture());
         assertThat(exceptionCaptor.getAllValues().size(), equalTo(1));
-        assertThat(exceptionCaptor.getAllValues().get(0).getMessage(), equalTo("expected md5 hash [different], " +
-            "but got md5 hash [" + md5 + "]"));
+        assertThat(
+            exceptionCaptor.getAllValues().get(0).getMessage(),
+            equalTo("expected md5 hash [different], " + "but got md5 hash [" + md5 + "]")
+        );
         verify(chunkConsumer, times(10)).accept(any());
         verify(completedHandler, times(0)).run();
         verify(client, times(10)).search(any());
@@ -329,9 +345,17 @@ public class DatabaseNodeServiceTests extends ESTestCase {
                 throw new UncheckedIOException(ex);
             }
 
-            SearchHits hits = new SearchHits(new SearchHit[]{hit}, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f);
-            SearchResponse searchResponse =
-                new SearchResponse(new SearchResponseSections(hits, null, null, false, null, null, 0), null, 1, 1, 0, 1L, null, null);
+            SearchHits hits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f);
+            SearchResponse searchResponse = new SearchResponse(
+                new SearchResponseSections(hits, null, null, false, null, null, 0),
+                null,
+                1,
+                1,
+                0,
+                1L,
+                null,
+                null
+            );
             @SuppressWarnings("unchecked")
             ActionFuture<SearchResponse> actionFuture = mock(ActionFuture.class);
             when(actionFuture.actionGet()).thenReturn(searchResponse);
@@ -384,7 +408,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         int chunkSize = all.length / chunks;
         List<byte[]> data = new ArrayList<>();
 
-        for (int from = 0; from < all.length; ) {
+        for (int from = 0; from < all.length;) {
             int to = from + chunkSize;
             if (to > all.length) {
                 to = all.length;

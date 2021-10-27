@@ -14,11 +14,11 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
@@ -51,14 +51,18 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
         policy = randomAlphaOfLength(10);
         LifecyclePolicy lifecyclePolicy = LifecyclePolicyTests.randomTestLifecyclePolicy(policy);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
-            .settings(settings(Version.CURRENT)
-                .put(LifecycleSettings.LIFECYCLE_NAME, policy))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policy))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
         index = indexMetadata.getIndex();
         IndexLifecycleMetadata ilmMeta = new IndexLifecycleMetadata(
-            Collections.singletonMap(policy, new LifecyclePolicyMetadata(lifecyclePolicy, Collections.emptyMap(),
-                randomNonNegativeLong(), randomNonNegativeLong())),
-            OperationMode.RUNNING);
+            Collections.singletonMap(
+                policy,
+                new LifecyclePolicyMetadata(lifecyclePolicy, Collections.emptyMap(), randomNonNegativeLong(), randomNonNegativeLong())
+            ),
+            OperationMode.RUNNING
+        );
         Metadata metadata = Metadata.builder()
             .persistentSettings(settings(Version.CURRENT).build())
             .put(IndexMetadata.builder(indexMetadata))
@@ -75,8 +79,15 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
 
         setStateToKey(currentStepKey);
 
-        MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(index, policy, currentStepKey, cause, () -> now,
-            (idxMeta, stepKey) -> new MockStep(stepKey, nextStepKey), state -> {});
+        MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(
+            index,
+            policy,
+            currentStepKey,
+            cause,
+            () -> now,
+            (idxMeta, stepKey) -> new MockStep(stepKey, nextStepKey),
+            state -> {}
+        );
         ClusterState newState = task.execute(clusterState);
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.getMetadata().index(index));
         StepKey actualKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
@@ -91,8 +102,10 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
         ElasticsearchException.generateThrowableXContent(causeXContentBuilder, ToXContent.EMPTY_PARAMS, cause);
         causeXContentBuilder.endObject();
         String expectedCauseValue = BytesReference.bytes(causeXContentBuilder).utf8ToString();
-        assertThat(lifecycleState.getStepInfo(),
-            containsString("{\"type\":\"exception\",\"reason\":\"THIS IS AN EXPECTED CAUSE\",\"stack_trace\":\""));
+        assertThat(
+            lifecycleState.getStepInfo(),
+            containsString("{\"type\":\"exception\",\"reason\":\"THIS IS AN EXPECTED CAUSE\",\"stack_trace\":\"")
+        );
     }
 
     public void testExecuteNoopDifferentStep() throws IOException {
@@ -101,8 +114,15 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
         long now = randomNonNegativeLong();
         Exception cause = new ElasticsearchException("THIS IS AN EXPECTED CAUSE");
         setStateToKey(notCurrentStepKey);
-        MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(index, policy, currentStepKey, cause, () -> now,
-            (idxMeta, stepKey) -> new MockStep(stepKey, new StepKey("next-phase", "action", "step")), state -> {});
+        MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(
+            index,
+            policy,
+            currentStepKey,
+            cause,
+            () -> now,
+            (idxMeta, stepKey) -> new MockStep(stepKey, new StepKey("next-phase", "action", "step")),
+            state -> {}
+        );
         ClusterState newState = task.execute(clusterState);
         assertThat(newState, sameInstance(clusterState));
     }
@@ -113,28 +133,44 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
         Exception cause = new ElasticsearchException("THIS IS AN EXPECTED CAUSE");
         setStateToKey(currentStepKey);
         setStatePolicy("not-" + policy);
-        MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(index, policy, currentStepKey, cause, () -> now,
-            (idxMeta, stepKey) -> new MockStep(stepKey, new StepKey("next-phase", "action", "step")), state -> {});
+        MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(
+            index,
+            policy,
+            currentStepKey,
+            cause,
+            () -> now,
+            (idxMeta, stepKey) -> new MockStep(stepKey, new StepKey("next-phase", "action", "step")),
+            state -> {}
+        );
         ClusterState newState = task.execute(clusterState);
         assertThat(newState, sameInstance(clusterState));
     }
 
     private void setStatePolicy(String policy) {
         clusterState = ClusterState.builder(clusterState)
-            .metadata(Metadata.builder(clusterState.metadata())
-                .updateSettings(Settings.builder()
-                    .put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), index.getName())).build();
+            .metadata(
+                Metadata.builder(clusterState.metadata())
+                    .updateSettings(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), index.getName())
+            )
+            .build();
     }
+
     private void setStateToKey(StepKey stepKey) {
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder(
-            LifecycleExecutionState.fromIndexMetadata(clusterState.metadata().index(index)));
+            LifecycleExecutionState.fromIndexMetadata(clusterState.metadata().index(index))
+        );
         lifecycleState.setPhase(stepKey.getPhase());
         lifecycleState.setAction(stepKey.getAction());
         lifecycleState.setStep(stepKey.getName());
 
         clusterState = ClusterState.builder(clusterState)
-            .metadata(Metadata.builder(clusterState.getMetadata())
-                .put(IndexMetadata.builder(clusterState.getMetadata().index(index))
-                    .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap()))).build();
+            .metadata(
+                Metadata.builder(clusterState.getMetadata())
+                    .put(
+                        IndexMetadata.builder(clusterState.getMetadata().index(index))
+                            .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
+                    )
+            )
+            .build();
     }
 }

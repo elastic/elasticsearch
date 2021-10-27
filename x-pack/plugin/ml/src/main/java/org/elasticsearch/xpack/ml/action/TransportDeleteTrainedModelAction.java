@@ -49,8 +49,7 @@ import java.util.Set;
  * The action is a master node action to ensure it reads an up-to-date cluster
  * state in order to determine if there is a processor referencing the trained model
  */
-public class TransportDeleteTrainedModelAction
-    extends AcknowledgedTransportMasterNodeAction<DeleteTrainedModelAction.Request> {
+public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMasterNodeAction<DeleteTrainedModelAction.Request> {
 
     private static final Logger logger = LogManager.getLogger(TransportDeleteTrainedModelAction.class);
 
@@ -59,31 +58,50 @@ public class TransportDeleteTrainedModelAction
     private final IngestService ingestService;
 
     @Inject
-    public TransportDeleteTrainedModelAction(TransportService transportService, ClusterService clusterService,
-                                             ThreadPool threadPool, ActionFilters actionFilters,
-                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                             TrainedModelProvider configProvider, InferenceAuditor auditor,
-                                             IngestService ingestService) {
-        super(DeleteTrainedModelAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            DeleteTrainedModelAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
+    public TransportDeleteTrainedModelAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        TrainedModelProvider configProvider,
+        InferenceAuditor auditor,
+        IngestService ingestService
+    ) {
+        super(
+            DeleteTrainedModelAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            DeleteTrainedModelAction.Request::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
         this.trainedModelProvider = configProvider;
         this.ingestService = ingestService;
         this.auditor = Objects.requireNonNull(auditor);
     }
 
     @Override
-    protected void masterOperation(Task task,
-                                   DeleteTrainedModelAction.Request request,
-                                   ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        DeleteTrainedModelAction.Request request,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         String id = request.getId();
         IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
         Set<String> referencedModels = getReferencedModelKeys(currentIngestMetadata, ingestService);
 
         if (referencedModels.contains(id)) {
-            listener.onFailure(new ElasticsearchStatusException("Cannot delete model [{}] as it is still referenced by ingest processors",
-                RestStatus.CONFLICT,
-                id));
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Cannot delete model [{}] as it is still referenced by ingest processors",
+                    RestStatus.CONFLICT,
+                    id
+                )
+            );
             return;
         }
 
@@ -96,30 +114,29 @@ public class TransportDeleteTrainedModelAction
         }
         for (String modelAlias : modelAliases) {
             if (referencedModels.contains(modelAlias)) {
-                listener.onFailure(new ElasticsearchStatusException(
-                    "Cannot delete model [{}] as it has a model_alias [{}] that is still referenced by ingest processors",
-                    RestStatus.CONFLICT,
-                    id,
-                    modelAlias));
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "Cannot delete model [{}] as it has a model_alias [{}] that is still referenced by ingest processors",
+                        RestStatus.CONFLICT,
+                        id,
+                        modelAlias
+                    )
+                );
                 return;
             }
         }
         if (TrainedModelAllocationMetadata.fromState(state).isAllocated(request.getId())) {
-            listener.onFailure(new ElasticsearchStatusException(
-                "Cannot delete model [{}] as it is currently deployed",
-                RestStatus.CONFLICT,
-                id));
+            listener.onFailure(
+                new ElasticsearchStatusException("Cannot delete model [{}] as it is currently deployed", RestStatus.CONFLICT, id)
+            );
             return;
         }
 
         ActionListener<AcknowledgedResponse> nameDeletionListener = ActionListener.wrap(
-            ack -> trainedModelProvider.deleteTrainedModel(request.getId(), ActionListener.wrap(
-                    r -> {
-                        auditor.info(request.getId(), "trained model deleted");
-                        listener.onResponse(AcknowledgedResponse.TRUE);
-                    },
-                    listener::onFailure
-            )),
+            ack -> trainedModelProvider.deleteTrainedModel(request.getId(), ActionListener.wrap(r -> {
+                auditor.info(request.getId(), "trained model deleted");
+                listener.onResponse(AcknowledgedResponse.TRUE);
+            }, listener::onFailure)),
 
             listener::onFailure
         );
@@ -142,9 +159,9 @@ public class TransportDeleteTrainedModelAction
                 logger.info("[{}] delete model model_aliases {}", request.getId(), modelAliases);
                 modelAliases.forEach(newMetadata::remove);
                 final ModelAliasMetadata modelAliasMetadata = new ModelAliasMetadata(newMetadata);
-                builder.metadata(Metadata.builder(currentState.getMetadata())
-                    .putCustom(ModelAliasMetadata.NAME, modelAliasMetadata)
-                    .build());
+                builder.metadata(
+                    Metadata.builder(currentState.getMetadata()).putCustom(ModelAliasMetadata.NAME, modelAliasMetadata).build()
+                );
                 return builder.build();
             }
         });
@@ -155,15 +172,18 @@ public class TransportDeleteTrainedModelAction
         if (ingestMetadata == null) {
             return allReferencedModelKeys;
         }
-        for(Map.Entry<String, PipelineConfiguration> entry : ingestMetadata.getPipelines().entrySet()) {
+        for (Map.Entry<String, PipelineConfiguration> entry : ingestMetadata.getPipelines().entrySet()) {
             String pipelineId = entry.getKey();
             Map<String, Object> config = entry.getValue().getConfigAsMap();
             try {
-                Pipeline pipeline = Pipeline.create(pipelineId,
+                Pipeline pipeline = Pipeline.create(
+                    pipelineId,
                     config,
                     ingestService.getProcessorFactories(),
-                    ingestService.getScriptService());
-                pipeline.getProcessors().stream()
+                    ingestService.getScriptService()
+                );
+                pipeline.getProcessors()
+                    .stream()
                     .filter(p -> p instanceof InferenceProcessor)
                     .map(p -> (InferenceProcessor) p)
                     .map(InferenceProcessor::getModelId)
@@ -174,7 +194,6 @@ public class TransportDeleteTrainedModelAction
         }
         return allReferencedModelKeys;
     }
-
 
     @Override
     protected ClusterBlockException checkBlock(DeleteTrainedModelAction.Request request, ClusterState state) {

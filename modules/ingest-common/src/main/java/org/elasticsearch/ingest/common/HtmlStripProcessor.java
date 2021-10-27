@@ -55,8 +55,14 @@ public final class HtmlStripProcessor extends AbstractStringProcessor<String> {
         }
 
         @Override
-        protected HtmlStripProcessor newProcessor(String tag, String description, Map<String, Object> config, String field,
-                                             boolean ignoreMissing, String targetField) {
+        protected HtmlStripProcessor newProcessor(
+            String tag,
+            String description,
+            Map<String, Object> config,
+            String field,
+            boolean ignoreMissing,
+            String targetField
+        ) {
             return new HtmlStripProcessor(tag, description, field, ignoreMissing, targetField);
         }
     }

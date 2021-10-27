@@ -17,16 +17,24 @@ import java.util.List;
 
 public final class UpdateProcessMessage {
 
-    @Nullable private final ModelPlotConfig modelPlotConfig;
-    @Nullable private final PerPartitionCategorizationConfig perPartitionCategorizationConfig;
-    @Nullable private final List<JobUpdate.DetectorUpdate> detectorUpdates;
-    @Nullable private final List<MlFilter> filters;
-    @Nullable private final List<ScheduledEvent> scheduledEvents;
+    @Nullable
+    private final ModelPlotConfig modelPlotConfig;
+    @Nullable
+    private final PerPartitionCategorizationConfig perPartitionCategorizationConfig;
+    @Nullable
+    private final List<JobUpdate.DetectorUpdate> detectorUpdates;
+    @Nullable
+    private final List<MlFilter> filters;
+    @Nullable
+    private final List<ScheduledEvent> scheduledEvents;
 
-    private UpdateProcessMessage(@Nullable ModelPlotConfig modelPlotConfig,
-                                 @Nullable PerPartitionCategorizationConfig perPartitionCategorizationConfig,
-                                 @Nullable List<JobUpdate.DetectorUpdate> detectorUpdates,
-                                 @Nullable List<MlFilter> filters, List<ScheduledEvent> scheduledEvents) {
+    private UpdateProcessMessage(
+        @Nullable ModelPlotConfig modelPlotConfig,
+        @Nullable PerPartitionCategorizationConfig perPartitionCategorizationConfig,
+        @Nullable List<JobUpdate.DetectorUpdate> detectorUpdates,
+        @Nullable List<MlFilter> filters,
+        List<ScheduledEvent> scheduledEvents
+    ) {
         this.modelPlotConfig = modelPlotConfig;
         this.perPartitionCategorizationConfig = perPartitionCategorizationConfig;
         this.detectorUpdates = detectorUpdates;
@@ -61,11 +69,16 @@ public final class UpdateProcessMessage {
 
     public static class Builder {
 
-        @Nullable private ModelPlotConfig modelPlotConfig;
-        @Nullable private PerPartitionCategorizationConfig perPartitionCategorizationConfig;
-        @Nullable private List<JobUpdate.DetectorUpdate> detectorUpdates;
-        @Nullable private List<MlFilter> filters;
-        @Nullable private List<ScheduledEvent> scheduledEvents;
+        @Nullable
+        private ModelPlotConfig modelPlotConfig;
+        @Nullable
+        private PerPartitionCategorizationConfig perPartitionCategorizationConfig;
+        @Nullable
+        private List<JobUpdate.DetectorUpdate> detectorUpdates;
+        @Nullable
+        private List<MlFilter> filters;
+        @Nullable
+        private List<ScheduledEvent> scheduledEvents;
 
         public Builder setModelPlotConfig(ModelPlotConfig modelPlotConfig) {
             this.modelPlotConfig = modelPlotConfig;

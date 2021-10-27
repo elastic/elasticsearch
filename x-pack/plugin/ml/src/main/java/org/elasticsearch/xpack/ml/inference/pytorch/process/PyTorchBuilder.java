@@ -29,10 +29,7 @@ public class PyTorchBuilder {
     private final int inferenceThreads;
     private final int modelThreads;
 
-    public PyTorchBuilder(NativeController nativeController,
-                          ProcessPipes processPipes,
-                          int inferenceThreads,
-                          int modelThreads) {
+    public PyTorchBuilder(NativeController nativeController, ProcessPipes processPipes, int inferenceThreads, int modelThreads) {
         this.nativeController = Objects.requireNonNull(nativeController);
         this.processPipes = Objects.requireNonNull(processPipes);
         this.inferenceThreads = inferenceThreads;

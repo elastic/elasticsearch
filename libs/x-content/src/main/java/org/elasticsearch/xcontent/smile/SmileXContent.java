@@ -50,8 +50,7 @@ public class SmileXContent implements XContent {
         smileXContent = new SmileXContent();
     }
 
-    private SmileXContent() {
-    }
+    private SmileXContent() {}
 
     @Override
     public XContentType type() {
@@ -77,7 +76,6 @@ public class SmileXContent implements XContent {
     public XContentParser createParser(XContentParserConfiguration config, InputStream is) throws IOException {
         return new SmileXContentParser(config, smileFactory.createParser(is));
     }
-
 
     @Override
     public XContentParser createParser(XContentParserConfiguration config, byte[] data, int offset, int length) throws IOException {

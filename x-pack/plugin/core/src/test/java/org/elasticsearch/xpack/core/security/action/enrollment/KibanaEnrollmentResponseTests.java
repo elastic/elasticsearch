@@ -10,11 +10,11 @@ package org.elasticsearch.xpack.core.security.action.enrollment;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Map;
@@ -22,7 +22,6 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 public class KibanaEnrollmentResponseTests extends AbstractWireSerializingTestCase<KibanaEnrollmentResponse> {
-
 
     @Override
     protected Writeable.Reader<KibanaEnrollmentResponse> instanceReader() {
@@ -54,11 +53,7 @@ public class KibanaEnrollmentResponseTests extends AbstractWireSerializingTestCa
                     randomAlphaOfLength(52)
                 );
             case 2:
-                return new KibanaEnrollmentResponse(
-                    randomAlphaOfLengthBetween(14, 20),
-                    instance.getTokenValue(),
-                    randomAlphaOfLength(52)
-                );
+                return new KibanaEnrollmentResponse(randomAlphaOfLengthBetween(14, 20), instance.getTokenValue(), randomAlphaOfLength(52));
             case 3:
                 return new KibanaEnrollmentResponse(
                     randomAlphaOfLengthBetween(14, 20),
@@ -76,12 +71,21 @@ public class KibanaEnrollmentResponseTests extends AbstractWireSerializingTestCa
         response.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
         final Map<String, Object> responseMap = XContentHelper.convertToMap(
             BytesReference.bytes(jsonBuilder),
-            false, jsonBuilder.contentType()).v2();
+            false,
+            jsonBuilder.contentType()
+        ).v2();
 
-        assertThat(responseMap, equalTo(Map.of(
-            "token", Map.of("name", response.getTokenName(), "value", response.getTokenValue().toString()),
-            "http_ca", response.getHttpCa()
-        )));
+        assertThat(
+            responseMap,
+            equalTo(
+                Map.of(
+                    "token",
+                    Map.of("name", response.getTokenName(), "value", response.getTokenValue().toString()),
+                    "http_ca",
+                    response.getHttpCa()
+                )
+            )
+        );
     }
 
 }

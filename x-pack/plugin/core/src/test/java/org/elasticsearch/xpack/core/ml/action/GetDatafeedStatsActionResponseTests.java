@@ -11,11 +11,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction.Response;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -49,10 +49,9 @@ public class GetDatafeedStatsActionResponseTests extends AbstractWireSerializing
         for (int j = 0; j < listSize; j++) {
             String datafeedId = randomAlphaOfLength(10);
             DatafeedState datafeedState = randomFrom(DatafeedState.values());
-            DiscoveryNode node =
-                randomBoolean()
-                    ? null
-                    : new DiscoveryNode("_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT);
+            DiscoveryNode node = randomBoolean()
+                ? null
+                : new DiscoveryNode("_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT);
             String explanation = randomBoolean() ? null : randomAlphaOfLength(3);
             DatafeedTimingStats timingStats = randomBoolean() ? null : DatafeedTimingStatsTests.createRandom();
             Response.DatafeedStats datafeedStats = new Response.DatafeedStats(
@@ -84,12 +83,15 @@ public class GetDatafeedStatsActionResponseTests extends AbstractWireSerializing
         attributes.put("non-ml-attribute", "should be filtered out");
         TransportAddress transportAddress = new TransportAddress(TransportAddress.META_ADDRESS, 9000);
 
-        DiscoveryNode node = new DiscoveryNode("df-node-name", "df-node-id", transportAddress, attributes,
-                Set.of(),
-                Version.CURRENT);
+        DiscoveryNode node = new DiscoveryNode("df-node-name", "df-node-id", transportAddress, attributes, Set.of(), Version.CURRENT);
 
-        DatafeedTimingStats timingStats =
-            new DatafeedTimingStats("my-job-id", 5, 10, 100.0, new ExponentialAverageCalculationContext(50.0, null, null));
+        DatafeedTimingStats timingStats = new DatafeedTimingStats(
+            "my-job-id",
+            5,
+            10,
+            100.0,
+            new ExponentialAverageCalculationContext(50.0, null, null)
+        );
 
         Response.DatafeedStats stats = new Response.DatafeedStats(
             "df-id",

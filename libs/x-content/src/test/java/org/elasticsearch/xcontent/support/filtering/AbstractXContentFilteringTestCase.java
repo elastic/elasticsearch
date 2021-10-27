@@ -109,12 +109,16 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
     static void assertXContentBuilderAsBytes(final XContentBuilder expected, final XContentBuilder actual) {
         XContent xContent = XContentFactory.xContent(actual.contentType());
         try (
-            XContentParser jsonParser =
-                xContent.createParser(NamedXContentRegistry.EMPTY,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION, BytesReference.bytes(expected).streamInput());
-            XContentParser testParser =
-                xContent.createParser(NamedXContentRegistry.EMPTY,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION, BytesReference.bytes(actual).streamInput());
+            XContentParser jsonParser = xContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                BytesReference.bytes(expected).streamInput()
+            );
+            XContentParser testParser = xContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                BytesReference.bytes(actual).streamInput()
+            );
         ) {
             while (true) {
                 XContentParser.Token token1 = jsonParser.nextToken();

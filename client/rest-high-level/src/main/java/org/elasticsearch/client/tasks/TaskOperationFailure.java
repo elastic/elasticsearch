@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.tasks;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Objects;
@@ -26,7 +26,7 @@ public class TaskOperationFailure {
     private final ElasticsearchException reason;
     private final String status;
 
-    public TaskOperationFailure(String nodeId, long taskId,String status, ElasticsearchException reason) {
+    public TaskOperationFailure(String nodeId, long taskId, String status, ElasticsearchException reason) {
         this.nodeId = nodeId;
         this.taskId = taskId;
         this.status = status;
@@ -54,38 +54,49 @@ public class TaskOperationFailure {
         if (this == o) return true;
         if ((o instanceof TaskOperationFailure) == false) return false;
         TaskOperationFailure that = (TaskOperationFailure) o;
-        return getTaskId() == that.getTaskId() &&
-            Objects.equals(getNodeId(), that.getNodeId()) &&
-            Objects.equals(getReason(), that.getReason()) &&
-            Objects.equals(getStatus(), that.getStatus());
+        return getTaskId() == that.getTaskId()
+            && Objects.equals(getNodeId(), that.getNodeId())
+            && Objects.equals(getReason(), that.getReason())
+            && Objects.equals(getStatus(), that.getStatus());
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(getNodeId(), getTaskId(), getReason(), getStatus());
     }
+
     @Override
     public String toString() {
-        return "TaskOperationFailure{" +
-            "nodeId='" + nodeId + '\'' +
-            ", taskId=" + taskId +
-            ", reason=" + reason +
-            ", status='" + status + '\'' +
-            '}';
+        return "TaskOperationFailure{"
+            + "nodeId='"
+            + nodeId
+            + '\''
+            + ", taskId="
+            + taskId
+            + ", reason="
+            + reason
+            + ", status='"
+            + status
+            + '\''
+            + '}';
     }
+
     public static TaskOperationFailure fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    private static final ConstructingObjectParser<TaskOperationFailure, Void> PARSER =
-        new ConstructingObjectParser<>("task_info", true, constructorObjects -> {
+    private static final ConstructingObjectParser<TaskOperationFailure, Void> PARSER = new ConstructingObjectParser<>(
+        "task_info",
+        true,
+        constructorObjects -> {
             int i = 0;
             String nodeId = (String) constructorObjects[i++];
             long taskId = (long) constructorObjects[i++];
             String status = (String) constructorObjects[i++];
             ElasticsearchException reason = (ElasticsearchException) constructorObjects[i];
             return new TaskOperationFailure(nodeId, taskId, status, reason);
-        });
+        }
+    );
 
     static {
         PARSER.declareString(constructorArg(), new ParseField("node_id"));

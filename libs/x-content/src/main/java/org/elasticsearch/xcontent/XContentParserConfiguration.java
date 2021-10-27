@@ -25,7 +25,7 @@ public class XContentParserConfiguration {
      * Creates parsers that don't support {@link XContentParser#namedObject},
      * throw an exception when they see deprecated fields, that return the
      * {@link RestApiVersion#current() current version} from
-     * {@link XContentParser#getRestApiVersion}, and do no filtering.  
+     * {@link XContentParser#getRestApiVersion}, and do no filtering.
      */
     public static final XContentParserConfiguration EMPTY = new XContentParserConfiguration(
         NamedXContentRegistry.EMPTY,

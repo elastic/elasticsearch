@@ -11,16 +11,16 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
@@ -45,17 +45,29 @@ public final class RestGrantApiKeyAction extends SecurityBaseRestHandler impleme
     static {
         PARSER.declareString((req, str) -> req.getGrant().setType(str), new ParseField("grant_type"));
         PARSER.declareString((req, str) -> req.getGrant().setUsername(str), new ParseField("username"));
-        PARSER.declareField((req, secStr) -> req.getGrant().setPassword(secStr), RestGrantApiKeyAction::getSecureString,
-            new ParseField("password"), ObjectParser.ValueType.STRING);
-        PARSER.declareField((req, secStr) -> req.getGrant().setAccessToken(secStr), RestGrantApiKeyAction::getSecureString,
-            new ParseField("access_token"), ObjectParser.ValueType.STRING);
-        PARSER.declareObject((req, api) -> req.setApiKeyRequest(api), (parser, ignore) -> CreateApiKeyRequestBuilder.parse(parser),
-            new ParseField("api_key"));
+        PARSER.declareField(
+            (req, secStr) -> req.getGrant().setPassword(secStr),
+            RestGrantApiKeyAction::getSecureString,
+            new ParseField("password"),
+            ObjectParser.ValueType.STRING
+        );
+        PARSER.declareField(
+            (req, secStr) -> req.getGrant().setAccessToken(secStr),
+            RestGrantApiKeyAction::getSecureString,
+            new ParseField("access_token"),
+            ObjectParser.ValueType.STRING
+        );
+        PARSER.declareObject(
+            (req, api) -> req.setApiKeyRequest(api),
+            (parser, ignore) -> CreateApiKeyRequestBuilder.parse(parser),
+            new ParseField("api_key")
+        );
     }
 
     private static SecureString getSecureString(XContentParser parser) throws IOException {
         return new SecureString(
-            Arrays.copyOfRange(parser.textCharacters(), parser.textOffset(), parser.textOffset() + parser.textLength()));
+            Arrays.copyOfRange(parser.textCharacters(), parser.textOffset(), parser.textOffset() + parser.textLength())
+        );
     }
 
     public RestGrantApiKeyAction(Settings settings, XPackLicenseState licenseState) {
@@ -64,9 +76,7 @@ public final class RestGrantApiKeyAction extends SecurityBaseRestHandler impleme
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(POST, "/_security/api_key/grant"),
-            new Route(PUT, "/_security/api_key/grant"));
+        return List.of(new Route(POST, "/_security/api_key/grant"), new Route(PUT, "/_security/api_key/grant"));
     }
 
     @Override
@@ -82,16 +92,20 @@ public final class RestGrantApiKeyAction extends SecurityBaseRestHandler impleme
             if (refresh != null) {
                 grantRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.parse(refresh));
             }
-            return channel -> client.execute(GrantApiKeyAction.INSTANCE, grantRequest,
+            return channel -> client.execute(
+                GrantApiKeyAction.INSTANCE,
+                grantRequest,
                 new RestToXContentListener<CreateApiKeyResponse>(channel).delegateResponse((listener, ex) -> {
                     RestStatus status = ExceptionsHelper.status(ex);
                     if (status == RestStatus.UNAUTHORIZED) {
                         listener.onFailure(
-                            new ElasticsearchSecurityException("Failed to authenticate api key grant", RestStatus.FORBIDDEN, ex));
+                            new ElasticsearchSecurityException("Failed to authenticate api key grant", RestStatus.FORBIDDEN, ex)
+                        );
                     } else {
                         listener.onFailure(ex);
                     }
-                }));
+                })
+            );
         }
     }
 

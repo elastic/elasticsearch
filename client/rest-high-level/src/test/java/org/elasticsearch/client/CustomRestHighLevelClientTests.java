@@ -25,11 +25,11 @@ import org.elasticsearch.action.main.MainRequest;
 import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RequestMatcher;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -67,15 +67,12 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
             RestHighLevelClientTests.mockGetRoot(restClient);
             restHighLevelClient = new CustomRestClient(restClient);
 
-            doAnswer(inv -> mockPerformRequest((Request) inv.getArguments()[0]))
-                    .when(restClient)
-                    .performRequest(argThat(new RequestMatcher("GET", ENDPOINT)::matches));
+            doAnswer(inv -> mockPerformRequest((Request) inv.getArguments()[0])).when(restClient)
+                .performRequest(argThat(new RequestMatcher("GET", ENDPOINT)::matches));
 
-            doAnswer(inv -> mockPerformRequestAsync(
-                        ((Request) inv.getArguments()[0]),
-                        (ResponseListener) inv.getArguments()[1]))
-                    .when(restClient)
-                    .performRequestAsync(argThat(new RequestMatcher("GET", ENDPOINT)::matches), any(ResponseListener.class));
+            doAnswer(inv -> mockPerformRequestAsync(((Request) inv.getArguments()[0]), (ResponseListener) inv.getArguments()[1])).when(
+                restClient
+            ).performRequestAsync(argThat(new RequestMatcher("GET", ENDPOINT)::matches), any(ResponseListener.class));
         }
     }
 
@@ -115,21 +112,21 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
      */
     @SuppressForbidden(reason = "We're forced to uses Class#getDeclaredMethods() here because this test checks protected methods")
     public void testMethodsVisibility() {
-        final String[] methodNames = new String[]{"convertExistsResponse",
-                                                  "parseEntity",
-                                                  "parseResponseException",
-                                                  "performRequest",
-                                                  "performRequestAndParseEntity",
-                                                  "performRequestAndParseOptionalEntity",
-                                                  "performRequestAsync",
-                                                  "performRequestAsyncAndParseEntity",
-                                                  "performRequestAsyncAndParseOptionalEntity"
-                                                  };
+        final String[] methodNames = new String[] {
+            "convertExistsResponse",
+            "parseEntity",
+            "parseResponseException",
+            "performRequest",
+            "performRequestAndParseEntity",
+            "performRequestAndParseOptionalEntity",
+            "performRequestAsync",
+            "performRequestAsyncAndParseEntity",
+            "performRequestAsyncAndParseOptionalEntity" };
 
-        final Set<String> protectedMethods =  Arrays.stream(RestHighLevelClient.class.getDeclaredMethods())
-                                                     .filter(method -> Modifier.isProtected(method.getModifiers()))
-                                                     .map(Method::getName)
-                                                     .collect(Collectors.toCollection(TreeSet::new));
+        final Set<String> protectedMethods = Arrays.stream(RestHighLevelClient.class.getDeclaredMethods())
+            .filter(method -> Modifier.isProtected(method.getModifiers()))
+            .map(Method::getName)
+            .collect(Collectors.toCollection(TreeSet::new));
 
         assertThat(protectedMethods, contains(methodNames));
     }

@@ -10,8 +10,8 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.protocol.xpack.common.ProtocolUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -47,8 +47,12 @@ public class PutLicenseResponse extends AcknowledgedResponse {
         this(acknowledged, status, null, Collections.<String, String[]>emptyMap());
     }
 
-    public PutLicenseResponse(boolean acknowledged, LicensesStatus status, String acknowledgeHeader,
-                              Map<String, String[]> acknowledgeMessages) {
+    public PutLicenseResponse(
+        boolean acknowledged,
+        LicensesStatus status,
+        String acknowledgeHeader,
+        Map<String, String[]> acknowledgeMessages
+    ) {
         super(acknowledged);
         this.status = status;
         this.acknowledgeHeader = acknowledgeHeader;
@@ -111,9 +115,9 @@ public class PutLicenseResponse extends AcknowledgedResponse {
         if (super.equals(o) == false) return false;
         PutLicenseResponse that = (PutLicenseResponse) o;
 
-        return status == that.status &&
-            ProtocolUtils.equals(acknowledgeMessages, that.acknowledgeMessages) &&
-            Objects.equals(acknowledgeHeader, that.acknowledgeHeader);
+        return status == that.status
+            && ProtocolUtils.equals(acknowledgeMessages, that.acknowledgeMessages)
+            && Objects.equals(acknowledgeHeader, that.acknowledgeHeader);
     }
 
     @Override

@@ -34,6 +34,7 @@ public class JsonXContent implements XContent {
     public static XContentBuilder contentBuilder() throws IOException {
         return XContentBuilder.builder(jsonXContent);
     }
+
     private static final JsonFactory jsonFactory;
 
     public static final JsonXContent jsonXContent;
@@ -49,8 +50,7 @@ public class JsonXContent implements XContent {
         jsonXContent = new JsonXContent();
     }
 
-    private JsonXContent() {
-    }
+    private JsonXContent() {}
 
     @Override
     public XContentType type() {

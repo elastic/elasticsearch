@@ -48,8 +48,7 @@ public class CborXContent implements XContent {
         cborXContent = new CborXContent();
     }
 
-    private CborXContent() {
-    }
+    private CborXContent() {}
 
     @Override
     public XContentType type() {

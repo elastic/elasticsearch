@@ -25,8 +25,11 @@ import java.util.stream.Collectors;
 public class JdbcConfigurationDataSourceTests extends WebServerTestCase {
 
     public void testDataSourceConfigurationWithSSLInURL() throws SQLException, URISyntaxException, IOException {
-        webServer().enqueue(new MockResponse().setResponseCode(200).addHeader("Content-Type", "application/json").setBody(
-                XContentHelper.toXContent(createCurrentVersionMainResponse(), XContentType.JSON, false).utf8ToString()));
+        webServer().enqueue(
+            new MockResponse().setResponseCode(200)
+                .addHeader("Content-Type", "application/json")
+                .setBody(XContentHelper.toXContent(createCurrentVersionMainResponse(), XContentType.JSON, false).utf8ToString())
+        );
 
         Map<String, String> urlPropMap = JdbcConfigurationTests.sslProperties();
         Properties allProps = new Properties();
@@ -59,17 +62,18 @@ public class JdbcConfigurationDataSourceTests extends WebServerTestCase {
         );
 
         EsDataSource dataSource = new EsDataSource();
-        String address = "jdbc:es://" + webServerAddress()
-            + "/?binary.format=false&query.timeout=" + queryTimeout
-            + "&page.timeout=" + pageTimeout;
+        String address = "jdbc:es://"
+            + webServerAddress()
+            + "/?binary.format=false&query.timeout="
+            + queryTimeout
+            + "&page.timeout="
+            + pageTimeout;
         dataSource.setUrl(address);
         Connection connection = dataSource.getConnection();
         webServer().takeRequest();
 
         webServer().enqueue(
-            new MockResponse().setResponseCode(200)
-                .addHeader("Content-Type", "application/json")
-                .setBody("{\"rows\":[],\"columns\":[]}")
+            new MockResponse().setResponseCode(200).addHeader("Content-Type", "application/json").setBody("{\"rows\":[],\"columns\":[]}")
         );
         PreparedStatement statement = connection.prepareStatement("SELECT 1");
         statement.execute();

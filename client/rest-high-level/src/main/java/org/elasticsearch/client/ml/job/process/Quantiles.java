@@ -8,9 +8,9 @@
 package org.elasticsearch.client.ml.job.process;
 
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -29,8 +29,11 @@ public class Quantiles implements ToXContentObject {
     public static final ParseField TIMESTAMP = new ParseField("timestamp");
     public static final ParseField QUANTILE_STATE = new ParseField("quantile_state");
 
-    public static final ConstructingObjectParser<Quantiles, Void> PARSER =
-        new ConstructingObjectParser<>("quantiles", true, a -> new Quantiles((String) a[0], (Date) a[1], (String) a[2]));
+    public static final ConstructingObjectParser<Quantiles, Void> PARSER = new ConstructingObjectParser<>(
+        "quantiles",
+        true,
+        a -> new Quantiles((String) a[0], (Date) a[1], (String) a[2])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
@@ -94,8 +97,8 @@ public class Quantiles implements ToXContentObject {
 
         Quantiles that = (Quantiles) other;
 
-        return Objects.equals(this.jobId, that.jobId) && Objects.equals(this.timestamp, that.timestamp)
+        return Objects.equals(this.jobId, that.jobId)
+            && Objects.equals(this.timestamp, that.timestamp)
             && Objects.equals(this.quantileState, that.quantileState);
     }
 }
-

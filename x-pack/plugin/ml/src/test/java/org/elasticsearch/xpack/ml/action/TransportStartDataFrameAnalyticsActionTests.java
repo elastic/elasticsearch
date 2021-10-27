@@ -105,6 +105,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
     // - _node_name0 is too old (version 7.2.0)
     // - _node_name1 is too old (version 7.9.1)
     // - _node_name2 is too old (version 7.9.2)
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79939")
     public void testGetAssignment_MlNodesAreTooOld() {
         TaskExecutor executor = createTaskExecutor();
         TaskParams params = new TaskParams(JOB_ID, Version.CURRENT, false);

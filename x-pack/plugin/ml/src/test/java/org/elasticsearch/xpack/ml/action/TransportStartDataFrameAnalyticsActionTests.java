@@ -105,7 +105,6 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
     // - _node_name0 is too old (version 7.2.0)
     // - _node_name1 is too old (version 7.9.1)
     // - _node_name2 is too old (version 7.9.2)
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79939")
     public void testGetAssignment_MlNodesAreTooOld() {
         TaskExecutor executor = createTaskExecutor();
         TaskParams params = new TaskParams(JOB_ID, Version.CURRENT, false);
@@ -130,11 +129,15 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
                 ),
                 containsString(
                     "Not opening job [data_frame_id] on node [{_node_name1}{version=7.9.1}], "
-                        + "because the data frame analytics created for version [8.0.0] requires a node of version [7.10.0] or higher"
+                        + "because the data frame analytics created for version ["
+                        + Version.CURRENT
+                        + "] requires a node of version [7.10.0] or higher"
                 ),
                 containsString(
                     "Not opening job [data_frame_id] on node [{_node_name2}{version=7.9.2}], "
-                        + "because the data frame analytics created for version [8.0.0] requires a node of version [7.10.0] or higher"
+                        + "because the data frame analytics created for version ["
+                        + Version.CURRENT
+                        + "] requires a node of version [7.10.0] or higher"
                 )
             )
         );

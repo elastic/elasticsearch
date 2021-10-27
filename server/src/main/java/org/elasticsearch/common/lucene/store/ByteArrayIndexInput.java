@@ -8,6 +8,7 @@
 package org.elasticsearch.common.lucene.store;
 
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.BitUtil;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -84,5 +85,32 @@ public class ByteArrayIndexInput extends IndexInput {
         }
         System.arraycopy(bytes, this.offset + pos, b, offset, len);
         pos += len;
+    }
+
+    @Override
+    public short readShort() throws IOException {
+        try {
+            return (short) BitUtil.VH_LE_SHORT.get(bytes, pos);
+        } finally {
+            pos += Short.BYTES;
+        }
+    }
+
+    @Override
+    public int readInt() throws IOException {
+        try {
+            return (int) BitUtil.VH_LE_INT.get(bytes, pos);
+        } finally {
+            pos += Integer.BYTES;
+        }
+    }
+
+    @Override
+    public long readLong() throws IOException {
+        try {
+            return (long) BitUtil.VH_LE_LONG.get(bytes, pos);
+        } finally {
+            pos += Long.BYTES;
+        }
     }
 }

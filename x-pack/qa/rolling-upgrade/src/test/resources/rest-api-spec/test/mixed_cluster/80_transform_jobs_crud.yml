@@ -255,11 +255,6 @@
           {
             "description": "old complex transform"
           }
-  # check that upgrade is not allowed in a mixed cluster
-  - do:
-      catch: /Cannot upgrade transforms. All nodes must be the same version \[.*\]/
-      transform.upgrade_transforms:
-        dry_run: false
 ---
 "Test GET, stop, start, old continuous transforms":
   - do:

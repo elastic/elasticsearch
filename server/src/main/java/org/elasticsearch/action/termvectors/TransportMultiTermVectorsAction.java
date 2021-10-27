@@ -60,11 +60,12 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
             TermVectorsRequest termVectorsRequest = request.requests.get(i);
             ShardId shardId;
             try {
-                termVectorsRequest.routing(clusterState.metadata().resolveIndexRouting(termVectorsRequest.routing(),
-                    termVectorsRequest.index()));
+                termVectorsRequest.routing(
+                    clusterState.metadata().resolveIndexRouting(termVectorsRequest.routing(), termVectorsRequest.index())
+                );
                 String concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, termVectorsRequest).getName();
-                shardId = clusterService.operationRouting().shardId(clusterState, concreteSingleIndex,
-                    termVectorsRequest.id(), termVectorsRequest.routing());
+                shardId = clusterService.operationRouting()
+                    .shardId(clusterState, concreteSingleIndex, termVectorsRequest.id(), termVectorsRequest.routing());
             } catch (RoutingMissingException e) {
                 responses.set(
                     i,

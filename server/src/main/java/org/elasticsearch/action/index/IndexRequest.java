@@ -587,7 +587,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return this.versionType;
     }
 
-
     public void process() {
         if ("".equals(id)) {
             throw new IllegalArgumentException("if _id is specified it must not be empty");

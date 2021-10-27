@@ -71,6 +71,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
@@ -198,11 +199,9 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 }
                 closeRemote.countDown();
                 listenerCalled.await();
-                assertNotNull(exceptionReference.get());
-                expectThrows(AlreadyClosedException.class, () -> {
-                    throw exceptionReference.get();
-                });
-
+                Exception e = exceptionReference.get();
+                assertNotNull(e);
+                assertThat(e, either(instanceOf(AlreadyClosedException.class)).or(instanceOf(ConnectTransportException.class)));
             }
         }
     }

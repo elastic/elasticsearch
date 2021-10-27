@@ -54,6 +54,7 @@ import static org.elasticsearch.xpack.transform.integration.TransformRestTestCas
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
+@SuppressWarnings("removal")
 public class TransformProgressIT extends ESRestTestCase {
     protected void createReviewsIndex(int userWithMissingBuckets) throws Exception {
         final int numDocs = 1000;
@@ -160,6 +161,7 @@ public class TransformProgressIT extends ESRestTestCase {
             null,
             null,
             pivotConfig,
+            null,
             null,
             null,
             null,

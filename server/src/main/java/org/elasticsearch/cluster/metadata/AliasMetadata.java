@@ -225,12 +225,13 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         return builder;
     }
 
-    public static AliasMetadata getFirstAliasMetadata(IndexAbstraction ia) {
+    public static AliasMetadata getFirstAliasMetadata(Metadata metadata, IndexAbstraction ia) {
         if (ia.getType() != IndexAbstraction.Type.ALIAS) {
             throw new IllegalArgumentException("unexpected type: [" + ia.getType() + "]");
         }
 
-        return ia.getIndices().get(0).getAliases().get(ia.getName());
+        IndexMetadata firstIndex = metadata.index(ia.getIndices().get(0));
+        return firstIndex.getAliases().get(ia.getName());
     }
 
     public static class Builder {

@@ -377,6 +377,17 @@ won't be included in the response because `include_unmapped` isn't set to
 // TESTRESPONSE[s/"_score" : 1.0/"_score" : $body.hits.hits.0._score/]
 
 [discrete]
+[[retrieve-metadata-fields]]
+==== Retrieving metadata fields
+By default, document metadata fields like `_id` or `_index` are not returned
+when the requested `fields` option uses wildcard patterns like `*`. However,
+when explicitly requested using the fields name, the `_id`, `_routing`,
+`_ignored`, `_index` and `_version` metadata fields can be retrieved.
+In addition, when you define an <<field-alias, alias field>> with a path to one
+of the above metadata fields, this field will also be retrievable using either
+the alias name or via wildcard patterns that match the alias.
+
+[discrete]
 [[Ignored-field values]]
 ==== Ignored field values
 The `fields` section of the response only returns values that were valid when indexed.

@@ -40,10 +40,10 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.argThat;
-import static org.mockito.Matchers.same;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -458,7 +458,7 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
                 threadPool,
                 client -> {
                     when(client.getRemoteClusterClient(clusterAlias)).thenThrow(new IllegalArgumentException());
-                    when(client.getRemoteClusterClient(argThat(not(clusterAlias)))).thenReturn(client);
+                    when(client.getRemoteClusterClient(argThat(a -> not(clusterAlias).matches(a)))).thenReturn(client);
                 });
     }
 

@@ -24,6 +24,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -116,21 +117,24 @@ public class MetadataMigrateToDataStreamService {
 
         validateBackingIndices(currentState, request.aliasName);
         Metadata.Builder mb = Metadata.builder(currentState.metadata());
-        for (IndexMetadata im : alias.getIndices()) {
+        for (Index index : alias.getIndices()) {
+            IndexMetadata im = currentState.metadata().index(index);
             prepareBackingIndex(mb, im, request.aliasName, mapperSupplier, true);
         }
         currentState = ClusterState.builder(currentState).metadata(mb).build();
 
-        IndexMetadata writeIndex = alias.getWriteIndex();
+        Index writeIndex = alias.getWriteIndex();
 
+        ClusterState finalCurrentState = currentState;
         List<IndexMetadata> backingIndices = alias.getIndices()
             .stream()
-            .filter(x -> writeIndex == null || x.getIndex().getName().equals(writeIndex.getIndex().getName()) == false)
+            .filter(x -> writeIndex == null || x.equals(writeIndex) == false)
+            .map(x -> finalCurrentState.metadata().index(x))
             .collect(Collectors.toList());
 
         logger.info("submitting request to migrate alias [{}] to a data stream", request.aliasName);
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(request.aliasName);
-        return createDataStream(metadataCreateIndexService, currentState, req, backingIndices, writeIndex);
+        return createDataStream(metadataCreateIndexService, currentState, req, backingIndices, currentState.metadata().index(writeIndex));
     }
 
     // package-visible for testing
@@ -144,7 +148,7 @@ public class MetadataMigrateToDataStreamService {
         }
 
         // check for "clean" alias without routing or filter query
-        AliasMetadata aliasMetadata = AliasMetadata.getFirstAliasMetadata(ia);
+        AliasMetadata aliasMetadata = AliasMetadata.getFirstAliasMetadata(currentState.metadata(), ia);
         assert aliasMetadata != null : "alias metadata may not be null";
         if (aliasMetadata.filteringRequired() || aliasMetadata.getIndexRouting() != null || aliasMetadata.getSearchRouting() != null) {
             throw new IllegalArgumentException("alias [" + request.aliasName + "] may not have custom filtering or routing");
@@ -191,9 +195,10 @@ public class MetadataMigrateToDataStreamService {
 
         // ensure that no other aliases reference indices
         List<String> indicesWithOtherAliases = new ArrayList<>();
-        for (IndexMetadata im : alias.getIndices()) {
+        for (Index index : alias.getIndices()) {
+            IndexMetadata im = currentState.metadata().index(index);
             if (im.getAliases().size() > 1 || im.getAliases().containsKey(alias.getName()) == false) {
-                indicesWithOtherAliases.add(im.getIndex().getName());
+                indicesWithOtherAliases.add(index.getName());
             }
         }
         if (indicesWithOtherAliases.size() > 0) {

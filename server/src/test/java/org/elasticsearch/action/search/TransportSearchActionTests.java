@@ -91,6 +91,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.search.SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE;
 import static org.elasticsearch.test.InternalAggregationTestCase.emptyReduceContextBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -883,34 +884,34 @@ public class TransportSearchActionTests extends ESTestCase {
         {
             SearchRequest searchRequest = new SearchRequest();
             assertFalse(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
-                indices, randomIntBetween(2, 128)));
+                indices, randomIntBetween(2, 128), DEFAULT_PRE_FILTER_SHARD_SIZE));
             assertFalse(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
-                indices, randomIntBetween(129, 10000)));
+                indices, randomIntBetween(129, 10000), DEFAULT_PRE_FILTER_SHARD_SIZE));
         }
         {
             SearchRequest searchRequest = new SearchRequest()
                 .source(new SearchSourceBuilder().query(QueryBuilders.rangeQuery("timestamp")));
             assertFalse(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
-                indices, randomIntBetween(2, 128)));
+                indices, randomIntBetween(2, DEFAULT_PRE_FILTER_SHARD_SIZE), DEFAULT_PRE_FILTER_SHARD_SIZE));
             assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
-                indices, randomIntBetween(129, 10000)));
+                indices, randomIntBetween(DEFAULT_PRE_FILTER_SHARD_SIZE + 1, 10000), DEFAULT_PRE_FILTER_SHARD_SIZE));
         }
         {
             SearchRequest searchRequest = new SearchRequest()
                 .source(new SearchSourceBuilder().sort(SortBuilders.fieldSort("timestamp")));
             assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
-                indices, randomIntBetween(2, 127)));
+                indices, randomIntBetween(2, DEFAULT_PRE_FILTER_SHARD_SIZE - 1), DEFAULT_PRE_FILTER_SHARD_SIZE));
             assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
-                indices, randomIntBetween(127, 10000)));
+                indices, randomIntBetween(DEFAULT_PRE_FILTER_SHARD_SIZE - 1, 10000), DEFAULT_PRE_FILTER_SHARD_SIZE));
         }
         {
             SearchRequest searchRequest = new SearchRequest()
                 .source(new SearchSourceBuilder().sort(SortBuilders.fieldSort("timestamp")))
                 .scroll("5m");
             assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
-                indices, randomIntBetween(2, 128)));
+                indices, randomIntBetween(2, DEFAULT_PRE_FILTER_SHARD_SIZE), DEFAULT_PRE_FILTER_SHARD_SIZE));
             assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
-                indices, randomIntBetween(129, 10000)));
+                indices, randomIntBetween(DEFAULT_PRE_FILTER_SHARD_SIZE + 1, 10000), DEFAULT_PRE_FILTER_SHARD_SIZE));
         }
     }
 
@@ -933,35 +934,35 @@ public class TransportSearchActionTests extends ESTestCase {
         {
             SearchRequest searchRequest = new SearchRequest();
             assertFalse(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
-                indices, randomIntBetween(2, 127)));
+                indices, randomIntBetween(2, DEFAULT_PRE_FILTER_SHARD_SIZE - 1), DEFAULT_PRE_FILTER_SHARD_SIZE));
             assertFalse(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
-                indices, randomIntBetween(127, 10000)));
+                indices, randomIntBetween(DEFAULT_PRE_FILTER_SHARD_SIZE - 1, 10000), DEFAULT_PRE_FILTER_SHARD_SIZE));
         }
         {
             SearchRequest searchRequest = new SearchRequest()
                 .source(new SearchSourceBuilder().query(QueryBuilders.rangeQuery("timestamp")));
             assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
-                indices, randomIntBetween(2, 127)));
+                indices, randomIntBetween(2, DEFAULT_PRE_FILTER_SHARD_SIZE - 1), DEFAULT_PRE_FILTER_SHARD_SIZE));
             assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
-                indices, randomIntBetween(127, 10000)));
+                indices, randomIntBetween(DEFAULT_PRE_FILTER_SHARD_SIZE - 1, 10000), DEFAULT_PRE_FILTER_SHARD_SIZE));
         }
         {
             SearchRequest searchRequest = new SearchRequest()
                 .source(new SearchSourceBuilder().query(QueryBuilders.rangeQuery("timestamp")));
             searchRequest.scroll("5s");
             assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
-                indices, randomIntBetween(2, 127)));
+                indices, randomIntBetween(2, DEFAULT_PRE_FILTER_SHARD_SIZE - 1), DEFAULT_PRE_FILTER_SHARD_SIZE));
             assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
-                indices, randomIntBetween(127, 10000)));
+                indices, randomIntBetween(DEFAULT_PRE_FILTER_SHARD_SIZE - 1, 10000), DEFAULT_PRE_FILTER_SHARD_SIZE));
         }
         {
             SearchRequest searchRequest = new SearchRequest()
                 .source(new SearchSourceBuilder().query(QueryBuilders.rangeQuery("timestamp")));
             searchRequest.searchType(SearchType.DFS_QUERY_THEN_FETCH);
             assertFalse(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
-                indices, randomIntBetween(2, 127)));
+                indices, randomIntBetween(2, DEFAULT_PRE_FILTER_SHARD_SIZE - 1), DEFAULT_PRE_FILTER_SHARD_SIZE));
             assertFalse(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
-                indices, randomIntBetween(127, 10000)));
+                indices, randomIntBetween(DEFAULT_PRE_FILTER_SHARD_SIZE - 1, 10000), DEFAULT_PRE_FILTER_SHARD_SIZE));
         }
     }
 

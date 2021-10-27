@@ -32,6 +32,9 @@ public class PackageUpgradeTests extends PackagingTestCase {
     public void test10InstallBwcVersion() throws Exception {
         installation = installPackage(sh, bwcDistribution);
         assertInstalled(bwcDistribution);
+        // TODO: Add more tests here to assert behavior when updating from < v8 to > v8 with implicit/explicit behavior,
+        // maybe as part of https://github.com/elastic/elasticsearch/pull/76879
+        ServerUtils.disableSecurityFeatures(installation);
     }
 
     public void test11ModifyKeystore() throws Exception {
@@ -78,9 +81,12 @@ public class PackageUpgradeTests extends PackagingTestCase {
             installation = Packages.forceUpgradePackage(sh, distribution);
         } else {
             installation = Packages.upgradePackage(sh, distribution);
+            verifySecurityNotAutoConfigured(installation);
         }
         assertInstalled(distribution);
         verifyPackageInstallation(installation, distribution, sh);
+        // Upgrade overwrites the configuration file because we run with --force-confnew so we need to disable security again
+        ServerUtils.disableSecurityFeatures(installation);
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76283")
@@ -89,28 +95,11 @@ public class PackageUpgradeTests extends PackagingTestCase {
     }
 
     private void assertDocsExist() throws Exception {
-        // We can properly handle this as part of https://github.com/elastic/elasticsearch/issues/75940
-        // For now we can use elastic with "keystore.seed" as we set it explicitly in PackageUpgradeTests#test11ModifyKeystore
-        String response1 = ServerUtils.makeRequest(
-            Request.Get("http://localhost:9200/library/_doc/1?pretty"),
-            "elastic",
-            "keystore_seed",
-            null
-        );
+        String response1 = ServerUtils.makeRequest(Request.Get("http://localhost:9200/library/_doc/1?pretty"));
         assertThat(response1, containsString("Elasticsearch"));
-        String response2 = ServerUtils.makeRequest(
-            Request.Get("http://localhost:9200/library/_doc/2?pretty"),
-            "elastic",
-            "keystore_seed",
-            null
-        );
+        String response2 = ServerUtils.makeRequest(Request.Get("http://localhost:9200/library/_doc/2?pretty"));
         assertThat(response2, containsString("World"));
-        String response3 = ServerUtils.makeRequest(
-            Request.Get("http://localhost:9200/library2/_doc/1?pretty"),
-            "elastic",
-            "keystore_seed",
-            null
-        );
+        String response3 = ServerUtils.makeRequest(Request.Get("http://localhost:9200/library2/_doc/1?pretty"));
         assertThat(response3, containsString("Darkness"));
     }
 }

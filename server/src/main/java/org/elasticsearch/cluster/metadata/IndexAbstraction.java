@@ -9,13 +9,13 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.Index;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
 
 /**
  * An index abstraction is a reference to one or more concrete indices.
@@ -37,7 +37,7 @@ public interface IndexAbstraction {
     /**
      * @return All {@link IndexMetadata} of all concrete indices this index abstraction is referring to.
      */
-    List<IndexMetadata> getIndices();
+    List<Index> getIndices();
 
     /**
      * A write index is a dedicated concrete index, that accepts all the new documents that belong to an index abstraction.
@@ -49,7 +49,7 @@ public interface IndexAbstraction {
      * <code>null</code> if this index abstraction doesn't have a write index.
      */
     @Nullable
-    IndexMetadata getWriteIndex();
+    Index getWriteIndex();
 
     /**
      * @return the data stream to which this index belongs or <code>null</code> if this is not a concrete index or
@@ -120,23 +120,29 @@ public interface IndexAbstraction {
     /**
      * Represents an concrete index and encapsulates its {@link IndexMetadata}
      */
-    class Index implements IndexAbstraction {
+    class ConcreteIndex implements IndexAbstraction {
 
-        private final IndexMetadata concreteIndex;
+        private final Index concreteIndexName;
+        private final boolean isHidden;
+        private final boolean isSystem;
+        private final List<String> aliases;
         private final DataStream dataStream;
 
-        public Index(IndexMetadata indexMetadata, DataStream dataStream) {
-            this.concreteIndex = indexMetadata;
+        public ConcreteIndex(IndexMetadata indexMetadata, DataStream dataStream) {
+            this.concreteIndexName = indexMetadata.getIndex();
+            this.isHidden = indexMetadata.isHidden();
+            this.isSystem = indexMetadata.isSystem();
+            this.aliases = indexMetadata.getAliases() != null ? List.of(indexMetadata.getAliases().keys().toArray(String.class)) : null;
             this.dataStream = dataStream;
         }
 
-        public Index(IndexMetadata indexMetadata) {
+        public ConcreteIndex(IndexMetadata indexMetadata) {
             this(indexMetadata, null);
         }
 
         @Override
         public String getName() {
-            return concreteIndex.getIndex().getName();
+            return concreteIndexName.getName();
         }
 
         @Override
@@ -145,13 +151,13 @@ public interface IndexAbstraction {
         }
 
         @Override
-        public List<IndexMetadata> getIndices() {
-            return List.of(concreteIndex);
+        public List<Index> getIndices() {
+            return List.of(concreteIndexName);
         }
 
         @Override
-        public IndexMetadata getWriteIndex() {
-            return concreteIndex;
+        public Index getWriteIndex() {
+            return concreteIndexName;
         }
 
         @Override
@@ -161,17 +167,34 @@ public interface IndexAbstraction {
 
         @Override
         public boolean isHidden() {
-            return INDEX_HIDDEN_SETTING.get(concreteIndex.getSettings());
+            return isHidden;
         }
 
         @Override
         public boolean isSystem() {
-            return concreteIndex.isSystem();
+            return isSystem;
         }
 
         @Override
         public List<String> getAliases() {
-            return List.of(concreteIndex.getAliases().keys().toArray(String.class));
+            return aliases;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ConcreteIndex that = (ConcreteIndex) o;
+            return isHidden == that.isHidden &&
+                isSystem == that.isSystem &&
+                concreteIndexName.equals(that.concreteIndexName) &&
+                Objects.equals(aliases, that.aliases) &&
+                Objects.equals(dataStream, that.dataStream);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(concreteIndexName, isHidden, isSystem, aliases, dataStream);
         }
     }
 
@@ -181,28 +204,32 @@ public interface IndexAbstraction {
     class Alias implements IndexAbstraction {
 
         private final String aliasName;
-        private final List<IndexMetadata> referenceIndexMetadatas;
-        private final IndexMetadata writeIndex;
+        private final List<Index> referenceIndexMetadatas;
+        private final Index writeIndex;
         private final boolean isHidden;
+        private final boolean isSystem;
         private final boolean dataStreamAlias;
 
         public Alias(AliasMetadata aliasMetadata, List<IndexMetadata> indices) {
             this.aliasName = aliasMetadata.getAlias();
-            this.referenceIndexMetadatas = indices;
+            this.referenceIndexMetadatas = new ArrayList<>(indices.size());
+            for (IndexMetadata imd : indices) {
+                this.referenceIndexMetadatas.add(imd.getIndex());
+            }
 
             List<IndexMetadata> writeIndices = indices.stream()
                 .filter(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).writeIndex()))
                 .collect(Collectors.toList());
 
-            if (writeIndices.isEmpty() && referenceIndexMetadatas.size() == 1
-                && referenceIndexMetadatas.get(0).getAliases().get(aliasName).writeIndex() == null) {
-                writeIndices.add(referenceIndexMetadatas.get(0));
+            if (writeIndices.isEmpty() && indices.size() == 1
+                && indices.get(0).getAliases().get(aliasName).writeIndex() == null) {
+                writeIndices.add(indices.get(0));
             }
 
             if (writeIndices.size() == 0) {
                 this.writeIndex = null;
             } else if (writeIndices.size() == 1) {
-                this.writeIndex = writeIndices.get(0);
+                this.writeIndex = writeIndices.get(0).getIndex();
             } else {
                 List<String> writeIndicesStrings = writeIndices.stream()
                     .map(i -> i.getIndex().getName()).collect(Collectors.toList());
@@ -211,17 +238,17 @@ public interface IndexAbstraction {
             }
 
             this.isHidden = aliasMetadata.isHidden() == null ? false : aliasMetadata.isHidden();
+            this.isSystem = indices.stream().allMatch(IndexMetadata::isSystem);
             dataStreamAlias = false;
-            validateAliasProperties();
+            validateAliasProperties(indices);
         }
 
-        public Alias(org.elasticsearch.cluster.metadata.DataStreamAlias dataStreamAlias,
-                     List<IndexMetadata> indicesOfAllDataStreams,
-                     IndexMetadata writeIndexOfWriteDataStream) {
+        public Alias(DataStreamAlias dataStreamAlias, List<Index> indicesOfAllDataStreams, Index writeIndexOfWriteDataStream) {
             this.aliasName = dataStreamAlias.getName();
             this.referenceIndexMetadatas = indicesOfAllDataStreams;
             this.writeIndex = writeIndexOfWriteDataStream;
             this.isHidden = false;
+            this.isSystem = false;
             this.dataStreamAlias = true;
         }
 
@@ -235,12 +262,12 @@ public interface IndexAbstraction {
         }
 
         @Override
-        public List<IndexMetadata> getIndices() {
+        public List<Index> getIndices() {
             return referenceIndexMetadatas;
         }
 
         @Nullable
-        public IndexMetadata getWriteIndex() {
+        public Index getWriteIndex() {
             return writeIndex;
         }
 
@@ -257,7 +284,7 @@ public interface IndexAbstraction {
 
         @Override
         public boolean isSystem() {
-            return referenceIndexMetadatas.stream().allMatch(IndexMetadata::isSystem);
+            return isSystem;
         }
 
         @Override
@@ -270,7 +297,7 @@ public interface IndexAbstraction {
             return null;
         }
 
-        private void validateAliasProperties() {
+        private void validateAliasProperties(List<IndexMetadata> referenceIndexMetadatas) {
             // Validate hidden status
             final Map<Boolean, List<IndexMetadata>> groupedByHiddenStatus = referenceIndexMetadatas.stream()
                 .collect(Collectors.groupingBy(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).isHidden())));
@@ -312,21 +339,34 @@ public interface IndexAbstraction {
         private boolean isNonEmpty(List<IndexMetadata> idxMetas) {
             return (Objects.isNull(idxMetas) || idxMetas.isEmpty()) == false;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Alias alias = (Alias) o;
+            return isHidden == alias.isHidden &&
+                isSystem == alias.isSystem &&
+                dataStreamAlias == alias.dataStreamAlias &&
+                aliasName.equals(alias.aliasName) &&
+                referenceIndexMetadatas.equals(alias.referenceIndexMetadatas) &&
+                Objects.equals(writeIndex, alias.writeIndex);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(aliasName, referenceIndexMetadatas, writeIndex, isHidden, isSystem, dataStreamAlias);
+        }
     }
 
     class DataStream implements IndexAbstraction {
 
         private final org.elasticsearch.cluster.metadata.DataStream dataStream;
-        private final List<IndexMetadata> dataStreamIndices;
-        private final IndexMetadata writeIndex;
         private final List<String> referencedByDataStreamAliases;
 
         public DataStream(org.elasticsearch.cluster.metadata.DataStream dataStream,
-                          List<IndexMetadata> dataStreamIndices,
                           List<String> aliases) {
             this.dataStream = dataStream;
-            this.dataStreamIndices = List.copyOf(dataStreamIndices);
-            this.writeIndex =  dataStreamIndices.get(dataStreamIndices.size() - 1);
             this.referencedByDataStreamAliases = aliases;
         }
 
@@ -341,12 +381,12 @@ public interface IndexAbstraction {
         }
 
         @Override
-        public List<IndexMetadata> getIndices() {
-            return dataStreamIndices;
+        public List<Index> getIndices() {
+            return dataStream.getIndices();
         }
 
-        public IndexMetadata getWriteIndex() {
-            return writeIndex;
+        public Index getWriteIndex() {
+            return dataStream.getWriteIndex();
         }
 
         @Override
@@ -377,6 +417,20 @@ public interface IndexAbstraction {
 
         public org.elasticsearch.cluster.metadata.DataStream getDataStream() {
             return dataStream;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            DataStream that = (DataStream) o;
+            return dataStream.equals(that.dataStream) &&
+                Objects.equals(referencedByDataStreamAliases, that.referencedByDataStreamAliases);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(dataStream, referencedByDataStreamAliases);
         }
     }
 

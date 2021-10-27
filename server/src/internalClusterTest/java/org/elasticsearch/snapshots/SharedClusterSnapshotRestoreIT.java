@@ -8,6 +8,8 @@
 
 package org.elasticsearch.snapshots;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -30,9 +32,11 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
@@ -70,10 +74,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -965,7 +971,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             logger.info("--> in-use repository deletion failed");
             assertThat(
                 ex.getMessage(),
-                equalTo("trying to modify or unregister repository [test-repo] that is currently used (snapshot is in progress)")
+                equalTo("[test-repo] trying to modify or unregister repository that is currently used (snapshot is in progress)")
             );
         }
 
@@ -1150,11 +1156,26 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         );
 
         // Create index on 2 nodes and make sure each node has a primary by setting no replicas
-        assertAcked(prepareCreate("test-idx", 2, Settings.builder().put("number_of_replicas", 0)));
+        assertAcked(
+            prepareCreate(
+                "test-idx",
+                2,
+                Settings.builder().put("number_of_replicas", 0).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(2, 10))
+            )
+        );
         indexRandomDocs("test-idx", 100);
 
         // Pick one node and block it
         String blockedNode = blockNodeWithIndex("test-repo", "test-idx");
+        String blockedNodeId = clusterService().state()
+            .getNodes()
+            .getDataNodes()
+            .values()
+            .stream()
+            .filter(n -> n.getName().equals(blockedNode))
+            .map(DiscoveryNode::getId)
+            .findFirst()
+            .orElse("");
 
         logger.info("--> snapshot");
         client.admin()
@@ -1167,6 +1188,22 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> waiting for block to kick in");
         waitForBlock(blockedNode, "test-repo");
+
+        awaitClusterState(state -> {
+            SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+            Set<Snapshot> snapshots = snapshotsInProgress.asStream().map(SnapshotsInProgress.Entry::snapshot).collect(Collectors.toSet());
+            if (snapshots.size() != 1) {
+                return false;
+            }
+            SnapshotsInProgress.Entry entry = snapshotsInProgress.snapshot(snapshots.iterator().next());
+            for (ObjectObjectCursor<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : entry.shards()) {
+                if (shard.value.nodeId().equals(blockedNodeId) == false
+                    && shard.value.state() == SnapshotsInProgress.ShardState.SUCCESS == false) {
+                    return false;
+                }
+            }
+            return true;
+        });
 
         logger.info("--> execution was blocked on node [{}], checking snapshot status with specified repository and snapshot", blockedNode);
         SnapshotsStatusResponse response = client.admin().cluster().prepareSnapshotStatus("test-repo").execute().actionGet();
@@ -1208,6 +1245,10 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(getResponse.getSnapshots().size(), equalTo(1));
         SnapshotInfo snapshotInfo = getResponse.getSnapshots().get(0);
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.IN_PROGRESS));
+        snapshotStatus = client.admin().cluster().prepareSnapshotStatus().get().getSnapshots().get(0);
+        assertThat(snapshotInfo.totalShards(), equalTo(snapshotStatus.getIndices().get("test-idx").getShardsStats().getTotalShards()));
+        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotStatus.getIndices().get("test-idx").getShardsStats().getDoneShards()));
+        assertThat(snapshotInfo.shardFailures().size(), equalTo(0));
 
         logger.info("--> unblocking blocked node");
         unblockNode("test-repo", blockedNode);

@@ -32,10 +32,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -44,8 +42,8 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.get.GetResult;
@@ -55,7 +53,6 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -66,6 +63,8 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -106,7 +105,6 @@ import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -147,11 +145,12 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.argThat;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.same;
+import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -231,9 +230,9 @@ public class AuthenticationServiceTests extends ESTestCase {
             }
         }
         when(licenseState.isAllowed(Security.CUSTOM_REALMS_FEATURE)).thenReturn(true);
-        when(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
+        when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
-        when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
+        when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
         when(licenseState.getOperationMode()).thenReturn(randomFrom(License.OperationMode.ENTERPRISE, License.OperationMode.PLATINUM));
 
         ReservedRealm reservedRealm = mock(ReservedRealm.class);
@@ -260,9 +259,9 @@ public class AuthenticationServiceTests extends ESTestCase {
         threadContext = threadPool.getThreadContext();
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
-        when(client.prepareIndex(any(String.class)))
+        when(client.prepareIndex(nullable(String.class)))
             .thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
-        when(client.prepareUpdate(any(String.class), any(String.class)))
+        when(client.prepareUpdate(nullable(String.class), nullable(String.class)))
             .thenReturn(new UpdateRequestBuilder(client, UpdateAction.INSTANCE));
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
@@ -276,7 +275,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             builder.setIndex((String) invocationOnMock.getArguments()[0])
                     .setId((String) invocationOnMock.getArguments()[1]);
             return builder;
-        }).when(client).prepareGet(anyString(), anyString());
+        }).when(client).prepareGet(nullable(String.class), nullable(String.class));
         securityIndex = mock(SecurityIndexManager.class);
         doAnswer(invocationOnMock -> {
             Runnable runnable = (Runnable) invocationOnMock.getArguments()[1];
@@ -341,12 +340,12 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(firstRealm.supports(token)).thenReturn(false);
         when(secondRealm.supports(token)).thenReturn(true);
         final User user = new User(randomAlphaOfLength(8));
-        final AuthenticationResult authenticationResult = AuthenticationResult.success(user);
+        final AuthenticationResult<User> authenticationResult = AuthenticationResult.success(user);
         doAnswer(invocationOnMock -> {
             final Object[] arguments = invocationOnMock.getArguments();
             assertThat(arguments[0], is(token));
-            @SuppressWarnings("unchecked") final ActionListener<AuthenticationResult> listener =
-                (ActionListener<AuthenticationResult>) arguments[1];
+            @SuppressWarnings("unchecked") final ActionListener<AuthenticationResult<User>> listener =
+                (ActionListener<AuthenticationResult<User>>) arguments[1];
             listener.onResponse(authenticationResult);
             return null;
         }).when(secondRealm).authenticate(eq(token), anyActionListener());
@@ -706,7 +705,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThat(result.v1().getAuthenticationType(), is(AuthenticationType.REALM));
             verifyZeroInteractions(auditTrail);
             verifyZeroInteractions(firstRealm, secondRealm);
-            verifyZeroInteractions(operatorPrivilegesService);
+            verify(operatorPrivilegesService, times(1)).maybeMarkOperatorUser(result.v1(), threadContext);
         });
     }
 
@@ -970,7 +969,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                     assertThat(ctxAuth, sameInstance(authRef.get()));
                     assertThat(threadContext1.getHeader(AuthenticationField.AUTHENTICATION_KEY), sameInstance(authHeaderRef.get()));
                     setCompletedToTrue(completed);
-                    verifyZeroInteractions(operatorPrivilegesService);
+                    verify(operatorPrivilegesService, times(1)).maybeMarkOperatorUser(ctxAuth, threadContext1);
                 }, this::logAndFail));
             assertTrue(completed.compareAndSet(true, false));
             verifyNoMoreInteractions(firstRealm);
@@ -1018,7 +1017,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                     assertThat(result.getUser(), equalTo(user1));
                     assertThat(result.getAuthenticationType(), is(AuthenticationType.REALM));
                     setCompletedToTrue(completed);
-                    verifyZeroInteractions(operatorPrivilegesService);
+                    verify(operatorPrivilegesService, times(1)).maybeMarkOperatorUser(result, threadPool2.getThreadContext());
                 }, this::logAndFail));
             assertTrue(completed.get());
             verifyNoMoreInteractions(firstRealm);
@@ -2043,12 +2042,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             verifyZeroInteractions(operatorPrivilegesService);
             final ServiceAccountToken serviceToken = ServiceAccountToken.fromBearerString(new SecureString(bearerString.toCharArray()));
             verify(auditTrail).authenticationFailed(eq(reqId.get()),
-                argThat(new ArgumentMatcher<AuthenticationToken>() {
-                    @Override
-                    public boolean matches(Object o) {
-                        return ((ServiceAccountToken) o).getTokenId().equals(serviceToken.getTokenId());
-                    }
-                }),
+                argThat(o -> ((ServiceAccountToken) o).getTokenId().equals(serviceToken.getTokenId())),
                 eq("_action"), eq(transportRequest));
         }
     }
@@ -2073,7 +2067,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     private void mockAuthenticate(Realm realm, AuthenticationToken token, User user) {
         final boolean separateThread = randomBoolean();
         doAnswer(i -> {
-            ActionListener<AuthenticationResult> listener = (ActionListener<AuthenticationResult>) i.getArguments()[1];
+            ActionListener<AuthenticationResult<User>> listener = (ActionListener<AuthenticationResult<User>>) i.getArguments()[1];
             Runnable run = () -> {
                 if (user == null) {
                     listener.onResponse(AuthenticationResult.notHandled());
@@ -2095,7 +2089,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     private void mockAuthenticate(Realm realm, AuthenticationToken token, Exception e, boolean terminate) {
         doAnswer((i) -> {
-            ActionListener<AuthenticationResult> listener = (ActionListener<AuthenticationResult>) i.getArguments()[1];
+            ActionListener<AuthenticationResult<User>> listener = (ActionListener<AuthenticationResult<User>>) i.getArguments()[1];
             if (terminate) {
                 listener.onResponse(AuthenticationResult.terminate("terminate authc process", e));
             } else {

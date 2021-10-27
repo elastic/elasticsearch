@@ -13,22 +13,22 @@
     "url":{
       "paths":[
         {
-          "path":"/_fleet/_msearch",
+          "path":"/_fleet/_fleet_msearch",
           "methods":[
             "GET",
             "POST"
           ]
         },
         {
-          "path":"/{index}/_fleet/_msearch",
+          "path":"/{index}/_fleet/_fleet_msearch",
           "methods":[
             "GET",
             "POST"
           ],
           "parts":{
             "index":{
-              "type":"list",
-              "description":"A comma-separated list of index names to use as default"
+              "type":"string",
+              "description":"The index name to use as the default"
             }
           }
         }

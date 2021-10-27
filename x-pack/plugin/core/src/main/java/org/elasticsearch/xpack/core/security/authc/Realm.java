@@ -119,7 +119,7 @@ public abstract class Realm implements Comparable<Realm> {
      * @param token           The authentication token
      * @param listener        The listener to pass the authentication result to
      */
-    public abstract void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult> listener);
+    public abstract void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult<User>> listener);
 
     /**
      * Looks up the user identified the String identifier. A successful lookup will call the {@link ActionListener#onResponse}

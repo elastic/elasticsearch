@@ -17,16 +17,16 @@ without prior notice.
 [[fleet-multi-search-api-request]]
 ==== {api-request-title}
 
-`GET /_fleet/_msearch`
+`GET /_fleet/_fleet_msearch`
 
-`GET /<index>/_fleet/_msearch`
+`GET /<index>/_fleet/_fleet_msearch`
 
 [[fleet-multi-search-api-path-params]]
 ==== {api-path-parms-title}
 
-`<index>`::
+`<target>`::
 (Optional, string)
-A single index. Index aliases are not supported.
+A single target to search. If the target is an index alias, it must resolve to a single index.
 
 [role="child_attributes"]
 [[fleet-multi-search-api-query-parms]]

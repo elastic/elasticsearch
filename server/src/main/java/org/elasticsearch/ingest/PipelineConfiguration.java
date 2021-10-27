@@ -96,6 +96,22 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
         return config;
     }
 
+    public Integer getVersion() {
+        var configMap = getConfigAsMap();
+        if (configMap.containsKey("version")) {
+            Object o = configMap.get("version");
+            if (o == null) {
+                return null;
+            } else if (o instanceof Number) {
+                return ((Number) o).intValue();
+            } else {
+                throw new IllegalStateException("unexpected version type [" + o.getClass().getName() + "]");
+            }
+        } else {
+            return null;
+        }
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

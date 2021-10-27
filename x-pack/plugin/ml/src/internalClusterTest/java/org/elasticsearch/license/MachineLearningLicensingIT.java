@@ -30,6 +30,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
@@ -764,7 +765,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
     private static void assertMLAllowed(boolean expected) {
         for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-            assertEquals(licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING), expected);
+            assertEquals(MachineLearningField.ML_API_FEATURE.check(licenseState), expected);
         }
     }
 

@@ -370,15 +370,15 @@ public final class GeoIpProcessor extends AbstractProcessor {
             Property.IP, Property.ASN, Property.ORGANIZATION_NAME, Property.NETWORK
         ));
 
-        private final DatabaseRegistry databaseRegistry;
+        private final DatabaseNodeService databaseNodeService;
         private final ClusterService clusterService;
 
         List<DatabaseReaderLazyLoader> getAllDatabases() {
-            return databaseRegistry.getAllDatabases();
+            return databaseNodeService.getAllDatabases();
         }
 
-        public Factory(DatabaseRegistry databaseRegistry, ClusterService clusterService) {
-            this.databaseRegistry = databaseRegistry;
+        public Factory(DatabaseNodeService databaseNodeService, ClusterService clusterService) {
+            this.databaseNodeService = databaseNodeService;
             this.clusterService = clusterService;
         }
 
@@ -400,12 +400,12 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 DEPRECATION_LOGGER.critical(DeprecationCategory.OTHER, "default_databases_message", DEFAULT_DATABASES_DEPRECATION_MESSAGE);
             }
 
-            DatabaseReaderLazyLoader lazyLoader = databaseRegistry.getDatabase(databaseFile);
-            if (lazyLoader == null && databaseRegistry.getAvailableDatabases().isEmpty() == false) {
+            DatabaseReaderLazyLoader lazyLoader = databaseNodeService.getDatabase(databaseFile);
+            if (useDatabaseUnavailableProcessor(lazyLoader, databaseFile)) {
+                return new DatabaseUnavailableProcessor(processorTag, description, databaseFile);
+            } else if (lazyLoader == null) {
                 throw newConfigurationException(TYPE, processorTag,
                     "database_file", "database file [" + databaseFile + "] doesn't exist");
-            } else if (lazyLoader == null && databaseRegistry.getAvailableDatabases().isEmpty()) {
-                return new DatabaseUnavailableProcessor(processorTag, description, databaseFile);
             }
             final String databaseType;
             try {
@@ -438,8 +438,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 }
             }
             CheckedSupplier<DatabaseReaderLazyLoader, IOException> supplier = () -> {
-                DatabaseReaderLazyLoader loader = databaseRegistry.getDatabase(databaseFile);
-                if (loader == null && databaseRegistry.getAvailableDatabases().isEmpty() == false) {
+                DatabaseReaderLazyLoader loader = databaseNodeService.getDatabase(databaseFile);
+                if (useDatabaseUnavailableProcessor(loader, databaseFile)) {
                     return null;
                 } else if (loader == null) {
                     throw new ResourceNotFoundException("database file [" + databaseFile + "] doesn't exist");
@@ -470,8 +470,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
                 boolean valid = metadata.isValid(currentState.metadata().settings());
                 if (valid && metadata.isCloseToExpiration()) {
-                    HeaderWarning.addWarning("database [{}] was not updated for over 25 days, geoip processor will stop working if there " +
-                        "is no update for 30 days", databaseFile);
+                    HeaderWarning.addWarning(DeprecationLogger.CRITICAL, "database [{}] was not updated for over 25 days, geoip processor" +
+                        " will stop working if there is no update for 30 days", databaseFile);
                 }
 
                 return valid;
@@ -479,6 +479,15 @@ public final class GeoIpProcessor extends AbstractProcessor {
             return new GeoIpProcessor(processorTag, description, ipField, supplier, isValid, targetField, properties, ignoreMissing,
                 firstOnly, databaseFile);
         }
+
+        private static boolean useDatabaseUnavailableProcessor(DatabaseReaderLazyLoader loader, String databaseName) {
+            // If there is no loader for a database we should fail with a config error, but
+            // if there is no loader for a builtin database that we manage via GeoipDownloader then don't fail.
+            // In the latter case the database should become available at a later moment, so a processor impl
+            // is returned that tags documents instead.
+            return loader == null && IngestGeoIpPlugin.DEFAULT_DATABASE_FILENAMES.contains(databaseName);
+        }
+
     }
 
     // Geoip2's AddressNotFoundException is checked and due to the fact that we need run their code

@@ -16,23 +16,21 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.same;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -166,11 +164,7 @@ public class MachineLearningTests extends ESTestCase {
 
     public void testNoAttributes_givenClash() {
         Settings.Builder builder = Settings.builder();
-        if (randomBoolean()) {
-            builder.put("node.attr.ml.enabled", randomBoolean());
-        } else {
-            builder.put("node.attr.ml.max_open_jobs", randomIntBetween(13, 15));
-        }
+        builder.put("node.attr.ml.max_open_jobs", randomIntBetween(13, 15));
         MachineLearning machineLearning = createMachineLearning(builder.put("path.home", createTempDir()).build());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, machineLearning::additionalSettings);
         assertThat(e.getMessage(), startsWith("Directly setting [node.attr.ml."));
@@ -178,46 +172,10 @@ public class MachineLearningTests extends ESTestCase {
                 "it is reserved for machine learning. If your intention was to customize machine learning, set the [xpack.ml."));
     }
 
-    public void testMachineMemory_givenStatsFailure() throws IOException {
-        OsStats stats = mock(OsStats.class);
-        when(stats.getMem()).thenReturn(new OsStats.Mem(0, 0));
-        assertEquals(0L, MachineLearning.machineMemoryFromStats(stats));
-    }
-
-    public void testMachineMemory_givenNoCgroup() throws IOException {
-        OsStats stats = mock(OsStats.class);
-        when(stats.getMem()).thenReturn(new OsStats.Mem(10_737_418_240L, 5_368_709_120L));
-        assertEquals(10_737_418_240L, MachineLearning.machineMemoryFromStats(stats));
-    }
-
-    public void testMachineMemory_givenCgroupNullLimit() throws IOException {
-        OsStats stats = mock(OsStats.class);
-        when(stats.getMem()).thenReturn(new OsStats.Mem(10_737_418_240L, 5_368_709_120L));
-        when(stats.getCgroup()).thenReturn(new OsStats.Cgroup("a", 1, "b", 2, 3,
-                new OsStats.Cgroup.CpuStat(4, 5, 6), null, null, null));
-        assertEquals(10_737_418_240L, MachineLearning.machineMemoryFromStats(stats));
-    }
-
-    public void testMachineMemory_givenCgroupNoLimit() throws IOException {
-        OsStats stats = mock(OsStats.class);
-        when(stats.getMem()).thenReturn(new OsStats.Mem(10_737_418_240L, 5_368_709_120L));
-        when(stats.getCgroup()).thenReturn(new OsStats.Cgroup("a", 1, "b", 2, 3,
-                new OsStats.Cgroup.CpuStat(4, 5, 6), "c", "18446744073709551615", "4796416"));
-        assertEquals(10_737_418_240L, MachineLearning.machineMemoryFromStats(stats));
-    }
-
-    public void testMachineMemory_givenCgroupLowLimit() throws IOException {
-        OsStats stats = mock(OsStats.class);
-        when(stats.getMem()).thenReturn(new OsStats.Mem(10_737_418_240L, 5_368_709_120L));
-        when(stats.getCgroup()).thenReturn(new OsStats.Cgroup("a", 1, "b", 2, 3,
-                new OsStats.Cgroup.CpuStat(4, 5, 6), "c", "7516192768", "4796416"));
-        assertEquals(7_516_192_768L, MachineLearning.machineMemoryFromStats(stats));
-    }
-
     private MachineLearning createMachineLearning(Settings settings) {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
 
-        return new MachineLearning(settings, null){
+        return new MachineLearning(settings) {
             @Override
             protected XPackLicenseState getLicenseState() {
                 return licenseState;

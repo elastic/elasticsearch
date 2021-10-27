@@ -143,6 +143,24 @@ final class ByteSizeCachingDirectory extends FilterDirectory {
             }
 
             @Override
+            public void writeInt(int i) throws IOException {
+                // Delegate primitive for possible performance enhancement
+                out.writeInt(i);
+            }
+
+            @Override
+            public void writeShort(short s) throws IOException {
+                // Delegate primitive for possible performance enhancement
+                out.writeShort(s);
+            }
+
+            @Override
+            public void writeLong(long l) throws IOException {
+                // Delegate primitive for possible performance enhancement
+                out.writeLong(l);
+            }
+
+            @Override
             public void close() throws IOException {
                 // Close might cause some data to be flushed from in-memory buffers, so
                 // increment the modification counter too.

@@ -36,7 +36,7 @@ public class MigrateAction implements LifecycleAction {
     public static final ParseField ENABLED_FIELD = new ParseField("enabled");
 
     private static final Logger logger = LogManager.getLogger(MigrateAction.class);
-    static final String CONDITIONAL_SKIP_MIGRATE_STEP = BranchingStep.NAME + "-check-skip-action";
+    public static final String CONDITIONAL_SKIP_MIGRATE_STEP = BranchingStep.NAME + "-check-skip-action";
 
     private static final ConstructingObjectParser<MigrateAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
         a -> new MigrateAction(a[0] == null ? true : (boolean) a[0]));

@@ -37,12 +37,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.gateway.MetadataStateFormat;
@@ -52,6 +47,11 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -149,7 +149,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String SETTING_ROUTING_PARTITION_SIZE = "index.routing_partition_size";
     public static final Setting<Integer> INDEX_ROUTING_PARTITION_SIZE_SETTING =
-            Setting.intSetting(SETTING_ROUTING_PARTITION_SIZE, 1, 1, Property.IndexScope);
+            Setting.intSetting(SETTING_ROUTING_PARTITION_SIZE, 1, 1, Property.Final, Property.IndexScope);
 
     @SuppressWarnings("Convert2Diamond") // since some IntelliJs mysteriously report an error if an <Integer> is replaced with <> here:
     public static final Setting<Integer> INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING = Setting.intSetting(
@@ -330,6 +330,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final Setting<Integer> INDEX_FORMAT_SETTING =
             Setting.intSetting(INDEX_FORMAT, 0, Setting.Property.IndexScope, Setting.Property.Final);
 
+    public static final Setting<List<String>> INDEX_ROUTING_PATH = Setting.listSetting(
+        "index.routing_path",
+        List.of(),
+        Function.identity(),
+        Setting.Property.IndexScope,
+        Setting.Property.Final
+    );
+
     public static final String KEY_IN_SYNC_ALLOCATIONS = "in_sync_allocations";
     static final String KEY_VERSION = "version";
     static final String KEY_MAPPING_VERSION = "mapping_version";
@@ -352,6 +360,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final int routingNumShards;
     private final int routingFactor;
     private final int routingPartitionSize;
+    private final List<String> routingPaths;
 
     private final int numberOfShards;
     private final int numberOfReplicas;
@@ -426,6 +435,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final Version indexCreatedVersion,
             final int routingNumShards,
             final int routingPartitionSize,
+            final List<String> routingPaths,
             final ActiveShardCount waitForActiveShards,
             final ImmutableOpenMap<String, RolloverInfo> rolloverInfos,
             final boolean isSystem,
@@ -464,6 +474,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.routingNumShards = routingNumShards;
         this.routingFactor = routingNumShards / numberOfShards;
         this.routingPartitionSize = routingPartitionSize;
+        this.routingPaths = routingPaths;
         this.waitForActiveShards = waitForActiveShards;
         this.rolloverInfos = rolloverInfos;
         this.isSystem = isSystem;
@@ -554,6 +565,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public boolean isRoutingPartitionedIndex() {
         return routingPartitionSize != 1;
+    }
+
+    public List<String> getRoutingPaths() {
+        return routingPaths;
     }
 
     public int getTotalNumberOfShards() {
@@ -661,6 +676,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public IndexLongFieldRange getTimestampRange() {
         return timestampRange;
     }
+
+
 
     @Override
     public boolean equals(Object o) {
@@ -1324,6 +1341,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                                                    "number of shard copies [" + (numberOfReplicas + 1) + "]");
             }
 
+            final List<String> routingPaths = INDEX_ROUTING_PATH.get(settings);
+
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
 
             List<String> tierPreference;
@@ -1359,6 +1378,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     indexCreatedVersion,
                     getRoutingNumShards(),
                     routingPartitionSize,
+                    routingPaths,
                     waitForActiveShards,
                     rolloverInfos.build(),
                     isSystem,
@@ -1618,6 +1638,75 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
             return builder.build();
         }
+
+        /**
+         * Used to load legacy metadata from ES versions that are no longer index-compatible.
+         * Returns information on best-effort basis.
+         * Throws an exception if the metadata is index-compatible with the current version (in that case,
+         * {@link #fromXContent} should be used to load the content.
+         */
+        public static IndexMetadata legacyFromXContent(XContentParser parser) throws IOException {
+            if (parser.currentToken() == null) { // fresh parser? move to the first token
+                parser.nextToken();
+            }
+            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {  // on a start object move to next token
+                parser.nextToken();
+            }
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
+            Builder builder = new Builder(parser.currentName());
+
+            String currentFieldName = null;
+            XContentParser.Token token = parser.nextToken();
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token == XContentParser.Token.START_OBJECT) {
+                    if ("settings".equals(currentFieldName)) {
+                        Settings settings = Settings.fromXContent(parser);
+                        if (SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(Version.CURRENT.minimumIndexCompatibilityVersion())) {
+                            throw new IllegalStateException("this method should only be used to parse older index metadata versions " +
+                                "but got " + SETTING_INDEX_VERSION_CREATED.get(settings));
+                        }
+                        builder.settings(settings);
+                    } else if ("mappings".equals(currentFieldName)) {
+                        // don't try to parse these for now
+                        parser.skipChildren();
+                    } else {
+                        // assume it's custom index metadata
+                        parser.skipChildren();
+                    }
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    if ("mappings".equals(currentFieldName)) {
+                        // don't try to parse these for now
+                        parser.skipChildren();
+                    } else {
+                        parser.skipChildren();
+                    }
+                } else if (token.isValue()) {
+                    if ("state".equals(currentFieldName)) {
+                        builder.state(State.fromString(parser.text()));
+                    } else if ("version".equals(currentFieldName)) {
+                        builder.version(parser.longValue());
+                    } else if ("mapping_version".equals(currentFieldName)) {
+                        builder.mappingVersion(parser.longValue());
+                    } else if ("settings_version".equals(currentFieldName)) {
+                        builder.settingsVersion(parser.longValue());
+                    } else if ("routing_num_shards".equals(currentFieldName)) {
+                        builder.setRoutingNumShards(parser.intValue());
+                    } else {
+                        // unknown, ignore
+                    }
+                } else {
+                    XContentParserUtils.throwUnknownToken(token, parser.getTokenLocation());
+                }
+            }
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
+
+            IndexMetadata indexMetadata = builder.build();
+            assert indexMetadata.getCreationVersion().before(Version.CURRENT.minimumIndexCompatibilityVersion());
+            return indexMetadata;
+        }
     }
 
     /**
@@ -1683,7 +1772,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     /**
      * Returns the number of shards that should be used for routing. This basically defines the hash space we use in
-     * {@link IndexRouting#shardId(String, String)} to route documents
+     * {@link IndexRouting#indexShard} to route documents
      * to shards based on their ID or their specific routing value. The default value is {@link #getNumberOfShards()}. This value only
      * changes if and index is shrunk.
      */
@@ -1796,7 +1885,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     /**
      * Returns the routing factor for and shrunk index with the given number of target shards.
      * This factor is used in the hash function in
-     * {@link IndexRouting#shardId(String, String)} to guarantee consistent
+     * {@link IndexRouting#indexShard} to guarantee consistent
      * hashing / routing of documents even if the number of shards changed (ie. a shrunk index).
      *
      * @param sourceNumberOfShards the total number of shards in the source index

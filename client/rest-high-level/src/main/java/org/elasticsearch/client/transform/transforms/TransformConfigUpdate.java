@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -39,8 +40,10 @@ public class TransformConfigUpdate implements ToXContentObject {
             SyncConfig syncConfig = (SyncConfig) args[3];
             String description = (String) args[4];
             SettingsConfig settings = (SettingsConfig) args[5];
-            RetentionPolicyConfig retentionPolicyConfig = (RetentionPolicyConfig) args[6];
-            return new TransformConfigUpdate(source, dest, frequency, syncConfig, description, settings, retentionPolicyConfig);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> metadata = (Map<String, Object>) args[6];
+            RetentionPolicyConfig retentionPolicyConfig = (RetentionPolicyConfig) args[7];
+            return new TransformConfigUpdate(source, dest, frequency, syncConfig, description, settings, metadata, retentionPolicyConfig);
         }
     );
 
@@ -51,6 +54,7 @@ public class TransformConfigUpdate implements ToXContentObject {
         PARSER.declareNamedObject(optionalConstructorArg(), (p, c, n) -> p.namedObject(SyncConfig.class, n, c), TransformConfig.SYNC);
         PARSER.declareString(optionalConstructorArg(), TransformConfig.DESCRIPTION);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> SettingsConfig.fromXContent(p), TransformConfig.SETTINGS);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapOrdered(), TransformConfig.METADATA);
         PARSER.declareNamedObject(
             optionalConstructorArg(),
             (p, c, n) -> p.namedObject(RetentionPolicyConfig.class, n, c),
@@ -64,6 +68,7 @@ public class TransformConfigUpdate implements ToXContentObject {
     private final SyncConfig syncConfig;
     private final String description;
     private final SettingsConfig settings;
+    private final Map<String, Object> metadata;
 
     public TransformConfigUpdate(
         final SourceConfig source,
@@ -72,6 +77,7 @@ public class TransformConfigUpdate implements ToXContentObject {
         final SyncConfig syncConfig,
         final String description,
         final SettingsConfig settings,
+        final Map<String, Object> metadata,
         final RetentionPolicyConfig retentionPolicyConfig
     ) {
         this.source = source;
@@ -80,6 +86,7 @@ public class TransformConfigUpdate implements ToXContentObject {
         this.syncConfig = syncConfig;
         this.description = description;
         this.settings = settings;
+        this.metadata = metadata;
     }
 
     public SourceConfig getSource() {
@@ -108,6 +115,11 @@ public class TransformConfigUpdate implements ToXContentObject {
         return settings;
     }
 
+    @Nullable
+    public Map<String, Object> getMetadata() {
+        return metadata;
+    }
+
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
@@ -131,6 +143,9 @@ public class TransformConfigUpdate implements ToXContentObject {
         if (settings != null) {
             builder.field(TransformConfig.SETTINGS.getPreferredName(), settings);
         }
+        if (metadata != null) {
+            builder.field(TransformConfig.METADATA.getPreferredName(), metadata);
+        }
 
         builder.endObject();
         return builder;
@@ -153,12 +168,13 @@ public class TransformConfigUpdate implements ToXContentObject {
             && Objects.equals(this.frequency, that.frequency)
             && Objects.equals(this.syncConfig, that.syncConfig)
             && Objects.equals(this.description, that.description)
-            && Objects.equals(this.settings, that.settings);
+            && Objects.equals(this.settings, that.settings)
+            && Objects.equals(this.metadata, that.metadata);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(source, dest, frequency, syncConfig, description, settings);
+        return Objects.hash(source, dest, frequency, syncConfig, description, settings, metadata);
     }
 
     @Override
@@ -182,6 +198,7 @@ public class TransformConfigUpdate implements ToXContentObject {
         private SyncConfig syncConfig;
         private String description;
         private SettingsConfig settings;
+        private Map<String, Object> metdata;
         private RetentionPolicyConfig retentionPolicyConfig;
 
         public Builder setSource(SourceConfig source) {
@@ -214,13 +231,18 @@ public class TransformConfigUpdate implements ToXContentObject {
             return this;
         }
 
+        public Builder setMetadata(Map<String, Object> metadata) {
+            this.metdata = metdata;
+            return this;
+        }
+
         public Builder setRetentionPolicyConfig(RetentionPolicyConfig retentionPolicyConfig) {
             this.retentionPolicyConfig = retentionPolicyConfig;
             return this;
         }
 
         public TransformConfigUpdate build() {
-            return new TransformConfigUpdate(source, dest, frequency, syncConfig, description, settings, retentionPolicyConfig);
+            return new TransformConfigUpdate(source, dest, frequency, syncConfig, description, settings, metdata, retentionPolicyConfig);
         }
     }
 }

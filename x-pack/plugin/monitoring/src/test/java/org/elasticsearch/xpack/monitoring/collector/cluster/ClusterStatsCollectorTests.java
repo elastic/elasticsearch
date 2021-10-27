@@ -52,9 +52,9 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.same;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -269,6 +269,9 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         verify(licenseService, times(1)).getLicense();
         verify(clusterAdminClient).prepareClusterStats();
         verify(client).execute(same(XPackUsageAction.INSTANCE), any(XPackUsageRequest.class));
+
+        assertWarnings("[xpack.monitoring.collection.cluster.stats.timeout] setting was deprecated in Elasticsearch and will be removed " +
+            "in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testDoCollectNoLicense() throws Exception {
@@ -330,6 +333,9 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         assertEquals(1, results.size());
         final ClusterStatsMonitoringDoc doc = (ClusterStatsMonitoringDoc) results.iterator().next();
         assertThat(doc.getLicense(), nullValue());
+
+        assertWarnings("[xpack.monitoring.collection.cluster.stats.timeout] setting was deprecated in Elasticsearch and will be removed " +
+            "in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testDoCollectThrowsTimeoutException() throws Exception {
@@ -383,6 +389,9 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
                 new ClusterStatsCollector(settings.build(), clusterService, licenseState,
                         client, licenseService, indexNameExpressionResolver);
         expectThrows(ElasticsearchTimeoutException.class, () -> collector.doCollect(node, interval, clusterState));
+
+        assertWarnings("[xpack.monitoring.collection.cluster.stats.timeout] setting was deprecated in Elasticsearch and will be removed " +
+            "in a future release! See the breaking changes documentation for the next major version.");
     }
 
 }

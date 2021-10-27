@@ -104,9 +104,9 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
                 return new ExplainResponse(shardId.getIndexName(), request.id(), false);
             }
             context.parsedQuery(context.getSearchExecutionContext().toQuery(request.query()));
-            context.preProcess(true);
+            context.preProcess();
             int topLevelDocId = result.docIdAndVersion().docId + result.docIdAndVersion().docBase;
-            Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);
+            Explanation explanation = context.searcher().explain(context.rewrittenQuery(), topLevelDocId);
             for (RescoreContext ctx : context.rescore()) {
                 Rescorer rescorer = ctx.rescorer();
                 explanation = rescorer.explain(topLevelDocId, context.searcher(), ctx, explanation);

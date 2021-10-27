@@ -23,8 +23,12 @@ import java.util.function.Consumer;
  * <p>
  * The main differences being that it is using Builder to construct the parser and takes a class of the target object instead of the object
  * builder. The target object must have exactly one constructor with the number and order of arguments matching the number of order of
- * declared fields. If there are more then 2 constructors with the same number of arguments, one of them needs to be marked with
+ * declared fields. If there are more than 2 constructors with the same number of arguments, one of them needs to be marked with
  * {@linkplain ParserConstructor} annotation.
+ *
+ * It is also possible for the constructor to accept Context as the first parameter, in this case as in the case with multiple constructors
+ * it is required for the constructor to be marked with {@linkplain ParserConstructor} annotation.
+ *
  * <pre>{@code
  *   public static class Thing{
  *       public Thing(String animal, String vegetable, int mineral) {
@@ -37,14 +41,35 @@ import java.util.function.Consumer;
  *
  *   }
  *
- *   private static final InstantiatingObjectParser<Thing, SomeContext> PARSER = new InstantiatingObjectParser<>("thing", Thing.class);
+ *   private static final InstantiatingObjectParser<Thing, SomeContext> PARSER;
  *   static {
- *       PARSER.declareString(constructorArg(), new ParseField("animal"));
- *       PARSER.declareString(constructorArg(), new ParseField("vegetable"));
- *       PARSER.declareInt(optionalConstructorArg(), new ParseField("mineral"));
- *       PARSER.declareInt(Thing::setFruit, new ParseField("fruit"));
- *       PARSER.declareInt(Thing::setBug, new ParseField("bug"));
- *       PARSER.finalizeFields()
+ *       InstantiatingObjectParser.Builder<Thing, SomeContext> parser =
+ *           InstantiatingObjectParser,builder<>("thing", true, Thing.class);
+ *       parser.declareString(constructorArg(), new ParseField("animal"));
+ *       parser.declareString(constructorArg(), new ParseField("vegetable"));
+ *       parser.declareInt(optionalConstructorArg(), new ParseField("mineral"));
+ *       parser.declareInt(Thing::setFruit, new ParseField("fruit"));
+ *       parser.declareInt(Thing::setBug, new ParseField("bug"));
+ *       PARSER = parser.build()
+ *   }
+ * }</pre>
+ * <pre>{@code
+ *
+ *   public static class AnotherThing {
+ *       @ParserConstructor
+ *       public AnotherThing(SomeContext continent, String animal, String vegetable, int mineral) {
+ *           ....
+ *       }
+ *   }
+ *
+ *   private static final InstantiatingObjectParser<AnotherThing, SomeContext> PARSER;
+ *   static {
+ *       InstantiatingObjectParser.Builder<AnotherThing, SomeContext> parser =
+ *           InstantiatingObjectParser,builder<>("thing", true, AnotherThing.class);
+ *       parser.declareString(constructorArg(), new ParseField("animal"));
+ *       parser.declareString(constructorArg(), new ParseField("vegetable"));
+ *       parser.declareInt(optionalConstructorArg(), new ParseField("mineral"));
+ *       PARSER = parser.build()
  *   }
  * }</pre>
  */
@@ -72,7 +97,7 @@ public class InstantiatingObjectParser<Value, Context>
         }
 
         public Builder(String name, boolean ignoreUnknownFields, Class<Value> valueClass) {
-            this.constructingObjectParser = new ConstructingObjectParser<>(name, ignoreUnknownFields, this::build);
+            this.constructingObjectParser = new ConstructingObjectParser<>(name, ignoreUnknownFields, this::buildInstance);
             this.valueClass = valueClass;
         }
 
@@ -87,9 +112,15 @@ public class InstantiatingObjectParser<Value, Context>
                         throw new IllegalArgumentException("More then one public constructor with @ParserConstructor annotation exist in " +
                             "the class " + valueClass.getName());
                     }
-                    if (c.getParameterCount() != neededArguments) {
-                        throw new IllegalArgumentException("Annotated constructor doesn't have " + neededArguments +
-                            " arguments in the class " + valueClass.getName());
+                    if (c.getParameterCount() < neededArguments || c.getParameterCount() > neededArguments + 1) {
+                        throw new IllegalArgumentException(
+                            "Annotated constructor doesn't have "
+                                + neededArguments
+                                + " or "
+                                + (neededArguments + 1)
+                                + " arguments in the class "
+                                + valueClass.getName()
+                        );
                     }
                     constructor = c;
                 }
@@ -154,13 +185,20 @@ public class InstantiatingObjectParser<Value, Context>
             constructingObjectParser.declareExclusiveFieldSet(exclusiveSet);
         }
 
-        private Value build(Object[] args) {
+        private Value buildInstance(Object[] args, Context context) {
             if (constructor == null) {
                 throw new IllegalArgumentException("InstantiatingObjectParser for type " + valueClass.getName() + " has to be finalized " +
                     "before the first use");
             }
             try {
-                return constructor.newInstance(args);
+                if (constructor.getParameterCount() != args.length) {
+                    Object[] newArgs = new Object[args.length + 1];
+                    System.arraycopy(args, 0, newArgs, 1, args.length);
+                    newArgs[0] = context;
+                    return constructor.newInstance(newArgs);
+                } else {
+                    return constructor.newInstance(args);
+                }
             } catch (Exception ex) {
                 throw new IllegalArgumentException("Cannot instantiate an object of " + valueClass.getName(), ex);
             }

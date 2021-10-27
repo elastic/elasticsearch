@@ -46,21 +46,7 @@ setup:
   - match: { hits.hits.2.fields.scripted_ul.0: -9223372036854775808 }
   - match: { hits.hits.3.fields.scripted_ul.0: 9223372036854775807 }
   - match: { hits.hits.4.fields.scripted_ul.0: 0 }
-  - do:
-      search:
-        index: test1
-        body:
-          sort: [ { ul: desc } ]
-          script_fields:
-            scripted_ul:
-              script:
-                source: "field('ul').getLong(1000L)"
 
-  - match: { hits.hits.0.fields.scripted_ul.0: -1 }
-  - match: { hits.hits.1.fields.scripted_ul.0: -3 }
-  - match: { hits.hits.2.fields.scripted_ul.0: -9223372036854775808 }
-  - match: { hits.hits.3.fields.scripted_ul.0: 9223372036854775807 }
-  - match: { hits.hits.4.fields.scripted_ul.0: 0 }
   - do:
       search:
         index: test1

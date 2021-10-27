@@ -135,8 +135,8 @@ setup:
 ---
 "Reject request containing comma":
   - skip:
-      version: " - 7.99.99"
-      reason: "validation only added in 8.0.0"
+      version: " - 7.15.99"
+      reason: "validation only added in 7.16.0"
   - do:
       catch:  bad_request
       cat.templates:

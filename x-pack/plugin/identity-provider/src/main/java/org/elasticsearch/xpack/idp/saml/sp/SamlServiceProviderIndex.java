@@ -197,7 +197,7 @@ public class SamlServiceProviderIndex implements Closeable {
             logger.warn("service provider alias [{}] refers to multiple indices [{}] - this is unexpected and is likely to cause problems",
                 ALIAS_NAME, Strings.collectionToCommaDelimitedString(aliasInfo.getIndices()));
         } else {
-            logger.info("service provider alias [{}] refers to [{}]", ALIAS_NAME, aliasInfo.getIndices().get(0).getIndex());
+            logger.info("service provider alias [{}] refers to [{}]", ALIAS_NAME, aliasInfo.getIndices().get(0));
         }
     }
 

@@ -778,6 +778,46 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return nodesToShards.size();
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        RoutingNodes that = (RoutingNodes) o;
+        return readOnly == that.readOnly
+            && inactivePrimaryCount == that.inactivePrimaryCount
+            && inactiveShardCount == that.inactiveShardCount
+            && relocatingShards == that.relocatingShards
+            && activeShardCount == that.activeShardCount
+            && totalShardCount == that.totalShardCount
+            && nodesToShards.equals(that.nodesToShards)
+            && unassignedShards.equals(that.unassignedShards)
+            && assignedShards.equals(that.assignedShards)
+            && attributeValuesByAttribute.equals(that.attributeValuesByAttribute)
+            && recoveriesPerNode.equals(that.recoveriesPerNode
+        );
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            nodesToShards,
+            unassignedShards,
+            assignedShards,
+            readOnly,
+            inactivePrimaryCount,
+            inactiveShardCount,
+            relocatingShards,
+            activeShardCount,
+            totalShardCount,
+            attributeValuesByAttribute,
+            recoveriesPerNode
+        );
+    }
+
     public static final class UnassignedShards implements Iterable<ShardRouting>  {
 
         private final RoutingNodes nodes;
@@ -990,6 +1030,26 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             primaries = 0;
             return mutableShardRoutings;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            UnassignedShards that = (UnassignedShards) o;
+            return primaries == that.primaries
+                && ignoredPrimaries == that.ignoredPrimaries
+                && unassigned.equals(that.unassigned)
+                && ignored.equals(that.ignored);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(unassigned, ignored, primaries, ignoredPrimaries);
+        }
     }
 
 
@@ -1183,5 +1243,22 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             }
             return recoveries;
         }
-     }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            Recoveries that = (Recoveries) o;
+            return incoming == that.incoming && outgoing == that.outgoing;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(incoming, outgoing);
+        }
+    }
 }

@@ -41,9 +41,9 @@ import static org.elasticsearch.ingest.geoip.IngestGeoIpPlugin.DEFAULT_DATABASE_
  * 2) User provided databases from the ES_HOME/config/ingest-geoip directory. This directory is monitored
  *    and files updates are picked up and may cause databases being loaded or removed at runtime.
  */
-final class LocalDatabases implements Closeable {
+final class ConfigDatabases implements Closeable {
 
-    private static final Logger LOGGER = LogManager.getLogger(LocalDatabases.class);
+    private static final Logger LOGGER = LogManager.getLogger(ConfigDatabases.class);
 
     private final GeoIpCache cache;
     private final Path geoipConfigDir;
@@ -51,7 +51,7 @@ final class LocalDatabases implements Closeable {
     private final Map<String, DatabaseReaderLazyLoader> defaultDatabases;
     private final ConcurrentMap<String, DatabaseReaderLazyLoader> configDatabases;
 
-    LocalDatabases(Environment environment, GeoIpCache cache) {
+    ConfigDatabases(Environment environment, GeoIpCache cache) {
         this(
             // In GeoIpProcessorNonIngestNodeTests, ingest-geoip is loaded on the classpath.
             // This means that the plugin is never unbundled into a directory where the database files would live.
@@ -65,7 +65,7 @@ final class LocalDatabases implements Closeable {
             cache);
     }
 
-    LocalDatabases(Path geoipModuleDir, Path geoipConfigDir, GeoIpCache cache) {
+    ConfigDatabases(Path geoipModuleDir, Path geoipConfigDir, GeoIpCache cache) {
         this.cache = cache;
         this.geoipConfigDir = geoipConfigDir;
         this.configDatabases = new ConcurrentHashMap<>();

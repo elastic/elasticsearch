@@ -76,7 +76,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
     static String[] DEFAULT_DATABASE_FILENAMES = new String[]{"GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"};
 
     private final SetOnce<IngestService> ingestService = new SetOnce<>();
-    private final SetOnce<DatabaseRegistry> databaseRegistry = new SetOnce<>();
+    private final SetOnce<DatabaseNodeService> databaseRegistry = new SetOnce<>();
     private GeoIpDownloaderTaskExecutor geoIpDownloaderTaskExecutor;
 
     @Override
@@ -91,7 +91,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
 
         long cacheSize = CACHE_SIZE.get(parameters.env.settings());
         GeoIpCache geoIpCache = new GeoIpCache(cacheSize);
-        DatabaseRegistry registry = new DatabaseRegistry(parameters.env, parameters.client, geoIpCache, parameters.genericExecutor);
+        DatabaseNodeService registry = new DatabaseNodeService(parameters.env, parameters.client, geoIpCache, parameters.genericExecutor);
         databaseRegistry.set(registry);
         return Collections.singletonMap(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory(registry,
             parameters.ingestService.getClusterService()));

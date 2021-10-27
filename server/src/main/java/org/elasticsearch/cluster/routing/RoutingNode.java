@@ -22,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -33,6 +34,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
 
     private final String nodeId;
 
+    @Nullable
     private final DiscoveryNode node;
 
     private final LinkedHashMap<ShardId, ShardRouting> shards; // LinkedHashMap to preserve order
@@ -47,7 +49,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
         this(nodeId, node, buildShardRoutingMap(shards));
     }
 
-    RoutingNode(String nodeId, DiscoveryNode node, LinkedHashMap<ShardId, ShardRouting> shards) {
+    RoutingNode(String nodeId, @Nullable DiscoveryNode node, LinkedHashMap<ShardId, ShardRouting> shards) {
         this.nodeId = nodeId;
         this.node = node;
         this.shards = shards;
@@ -87,6 +89,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
      *
      * @return discoveryNode of this node
      */
+    @Nullable
     public DiscoveryNode node() {
         return this.node;
     }
@@ -297,13 +300,17 @@ public class RoutingNode implements Iterable<ShardRouting> {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append("routingNode ([");
-        sb.append(node.getName());
-        sb.append("][");
-        sb.append(node.getId());
-        sb.append("][");
-        sb.append(node.getHostName());
-        sb.append("][");
-        sb.append(node.getHostAddress());
+        if (node != null) {
+            sb.append(node.getName());
+            sb.append("][");
+            sb.append(node.getId());
+            sb.append("][");
+            sb.append(node.getHostName());
+            sb.append("][");
+            sb.append(node.getHostAddress());
+        } else {
+            sb.append("null");
+        }
         sb.append("], [");
         sb.append(shards.size());
         sb.append(" assigned shards])");
@@ -319,7 +326,6 @@ public class RoutingNode implements Iterable<ShardRouting> {
     }
 
     private boolean invariant() {
-
         // initializingShards must consistent with that in shards
         Collection<ShardRouting> shardRoutingsInitializing =
             shards.values().stream().filter(ShardRouting::initializing).collect(Collectors.toList());
@@ -337,5 +343,22 @@ public class RoutingNode implements Iterable<ShardRouting> {
         assert shardRoutingsByIndex.equals(shardsByIndex);
 
         return true;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        RoutingNode that = (RoutingNode) o;
+        return nodeId.equals(that.nodeId) && Objects.equals(node, that.node) && shards.equals(that.shards);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(nodeId, node, shards);
     }
 }

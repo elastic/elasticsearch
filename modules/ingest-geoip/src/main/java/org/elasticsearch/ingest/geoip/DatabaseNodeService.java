@@ -60,9 +60,9 @@ import java.util.zip.GZIPInputStream;
 
 /**
  * A component that is responsible for making the databases maintained by {@link GeoIpDownloader}
- * available for ingest processors.
+ * available to ingest processors on each ingest node.
  * <p>
- * Also provided a lookup mechanism for geoip processors with fallback to {@link LocalDatabases}.
+ * Also provides a lookup mechanism for geoip processors with fallback to {@link ConfigDatabases}.
  * All databases are downloaded into a geoip tmp directory, which is created at node startup.
  * <p>
  * The following high level steps are executed after each cluster state update:
@@ -77,43 +77,43 @@ import java.util.zip.GZIPInputStream;
  * if there is an old instance of this database then that is closed.
  * 4) Cleanup locally loaded databases that are no longer mentioned in {@link GeoIpTaskState}.
  */
-public final class DatabaseRegistry implements Closeable {
+public final class DatabaseNodeService implements Closeable {
 
-    private static final Logger LOGGER = LogManager.getLogger(DatabaseRegistry.class);
+    private static final Logger LOGGER = LogManager.getLogger(DatabaseNodeService.class);
 
     private final Client client;
     private final GeoIpCache cache;
     private final Path geoipTmpBaseDirectory;
     private Path geoipTmpDirectory;
-    private final LocalDatabases localDatabases;
+    private final ConfigDatabases configDatabases;
     private final Consumer<Runnable> genericExecutor;
 
     private final ConcurrentMap<String, DatabaseReaderLazyLoader> databases = new ConcurrentHashMap<>();
 
-    DatabaseRegistry(Environment environment, Client client, GeoIpCache cache, Consumer<Runnable> genericExecutor) {
+    DatabaseNodeService(Environment environment, Client client, GeoIpCache cache, Consumer<Runnable> genericExecutor) {
         this(
             environment.tmpFile(),
             new OriginSettingClient(client, IngestService.INGEST_ORIGIN),
             cache,
-            new LocalDatabases(environment, cache),
+            new ConfigDatabases(environment, cache),
             genericExecutor
         );
     }
 
-    DatabaseRegistry(Path tmpDir,
-                     Client client,
-                     GeoIpCache cache,
-                     LocalDatabases localDatabases,
-                     Consumer<Runnable> genericExecutor) {
+    DatabaseNodeService(Path tmpDir,
+                        Client client,
+                        GeoIpCache cache,
+                        ConfigDatabases configDatabases,
+                        Consumer<Runnable> genericExecutor) {
         this.client = client;
         this.cache = cache;
         this.geoipTmpBaseDirectory = tmpDir.resolve("geoip-databases");
-        this.localDatabases = localDatabases;
+        this.configDatabases = configDatabases;
         this.genericExecutor = genericExecutor;
     }
 
     public void initialize(String nodeId, ResourceWatcherService resourceWatcher, IngestService ingestService) throws IOException {
-        localDatabases.initialize(resourceWatcher);
+        configDatabases.initialize(resourceWatcher);
         geoipTmpDirectory = geoipTmpBaseDirectory.resolve(nodeId);
         Files.walkFileTree(geoipTmpDirectory, new FileVisitor<Path>() {
             @Override
@@ -157,7 +157,7 @@ public final class DatabaseRegistry implements Closeable {
         // that gets closed while using it. (this can happen during a database update)
         while (true) {
             DatabaseReaderLazyLoader instance =
-                databases.getOrDefault(name, localDatabases.getDatabase(name, fallbackUsingDefaultDatabases));
+                databases.getOrDefault(name, configDatabases.getDatabase(name, fallbackUsingDefaultDatabases));
             if (instance == null || instance.preLookup()) {
                 return instance;
             }
@@ -167,7 +167,7 @@ public final class DatabaseRegistry implements Closeable {
     }
 
     List<DatabaseReaderLazyLoader> getAllDatabases() {
-        List<DatabaseReaderLazyLoader> all = new ArrayList<>(localDatabases.getAllDatabases());
+        List<DatabaseReaderLazyLoader> all = new ArrayList<>(configDatabases.getAllDatabases());
         this.databases.forEach((key, value) -> all.add(value));
         return all;
     }
@@ -382,6 +382,10 @@ public final class DatabaseRegistry implements Closeable {
 
     public Set<String> getAvailableDatabases() {
         return org.elasticsearch.core.Set.copyOf(databases.keySet());
+    }
+
+    public Set<String> getConfigDatabases() {
+        return configDatabases.getConfigDatabases().keySet();
     }
 
     public Set<String> getFilesInTemp() {

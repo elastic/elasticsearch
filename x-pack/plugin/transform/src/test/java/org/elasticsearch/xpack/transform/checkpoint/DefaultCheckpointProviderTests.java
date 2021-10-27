@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.transform.checkpoint;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
@@ -17,9 +18,6 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -48,14 +46,14 @@ import java.util.HashSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -204,14 +202,14 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
     public void testHandlingShardFailures() throws Exception {
         String transformId = getTestName();
         String indexName = "some-index";
-        TransformConfig transformConfig =
-            new TransformConfig.Builder(TransformConfigTests.randomTransformConfig(transformId))
-                .setSource(new SourceConfig(indexName))
-                .build();
+        TransformConfig transformConfig = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig(transformId)).setSource(
+            new SourceConfig(indexName)
+        ).build();
 
         RemoteClusterResolver remoteClusterResolver = mock(RemoteClusterResolver.class);
-        doReturn(new RemoteClusterResolver.ResolvedIndices(Collections.emptyMap(), Collections.singletonList(indexName)))
-            .when(remoteClusterResolver).resolve(transformConfig.getSource().getIndex());
+        doReturn(new RemoteClusterResolver.ResolvedIndices(Collections.emptyMap(), Collections.singletonList(indexName))).when(
+            remoteClusterResolver
+        ).resolve(transformConfig.getSource().getIndex());
 
         GetIndexResponse getIndexResponse = new GetIndexResponse(new String[] { indexName }, null, null, null, null, null);
         doAnswer(withResponse(getIndexResponse)).when(client).execute(eq(GetIndexAction.INSTANCE), any(), any());
@@ -220,8 +218,8 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         doReturn(7).when(indicesStatsResponse).getFailedShards();
         doReturn(
             new DefaultShardOperationFailedException[] {
-                new DefaultShardOperationFailedException(indexName, 3, new Exception("something's wrong"))
-            }).when(indicesStatsResponse).getShardFailures();
+                new DefaultShardOperationFailedException(indexName, 3, new Exception("something's wrong")) }
+        ).when(indicesStatsResponse).getShardFailures();
         doAnswer(withResponse(indicesStatsResponse)).when(client).execute(eq(IndicesStatsAction.INSTANCE), any(), any());
 
         DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
@@ -243,7 +241,9 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
                         e.getMessage(),
                         startsWith(
                             "Source has [7] failed shards, first shard failure: [some-index][3] failed, "
-                            + "reason [Exception[something's wrong]]"))
+                                + "reason [Exception[something's wrong]]"
+                        )
+                    )
                 ),
                 latch
             )

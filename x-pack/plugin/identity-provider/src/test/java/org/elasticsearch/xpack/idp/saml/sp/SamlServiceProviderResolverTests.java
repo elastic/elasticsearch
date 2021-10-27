@@ -61,8 +61,7 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
         final String resource = "ece:" + randomAlphaOfLengthBetween(6, 12);
         final Set<String> rolePrivileges = Collections.singleton("role:(.*)");
 
-        final DocumentVersion docVersion = new DocumentVersion(
-            randomAlphaOfLength(12), randomNonNegativeLong(), randomNonNegativeLong());
+        final DocumentVersion docVersion = new DocumentVersion(randomAlphaOfLength(12), randomNonNegativeLong(), randomNonNegativeLong());
         final SamlServiceProviderDocument document = new SamlServiceProviderDocument();
         document.setEntityId(entityId);
         document.setAuthenticationExpiry(null);
@@ -153,8 +152,7 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
         final String defaultNameId = NameID.TRANSIENT;
         final String defaultApplication = randomAlphaOfLengthBetween(4, 12);
         final Duration defaultExpiry = Duration.standardMinutes(12);
-        final ServiceProviderDefaults defaults = new ServiceProviderDefaults(
-            defaultApplication, defaultNameId, defaultExpiry);
+        final ServiceProviderDefaults defaults = new ServiceProviderDefaults(defaultApplication, defaultNameId, defaultExpiry);
         when(identityProvider.getServiceProviderDefaults()).thenReturn(defaults);
         return defaults;
     }
@@ -167,10 +165,11 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
 
             assertThat(args[0], equalTo(entityId));
 
-            ActionListener<Set<SamlServiceProviderIndex.DocumentSupplier>> listener
-                = (ActionListener<Set<SamlServiceProviderIndex.DocumentSupplier>>) args[args.length - 1];
+            ActionListener<Set<SamlServiceProviderIndex.DocumentSupplier>> listener = (ActionListener<
+                Set<SamlServiceProviderIndex.DocumentSupplier>>) args[args.length - 1];
             listener.onResponse(
-                new HashSet<>(Collections.singletonList(new SamlServiceProviderIndex.DocumentSupplier(docVersion, () -> document))));
+                new HashSet<>(Collections.singletonList(new SamlServiceProviderIndex.DocumentSupplier(docVersion, () -> document)))
+            );
             return null;
         }).when(index).findByEntityId(anyString(), any(ActionListener.class));
     }

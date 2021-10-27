@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.is;
 public class CustomRealmIT extends ESIntegTestCase {
 
     // These are configured in build.gradle
-    public static final String USERNAME= "test_user";
+    public static final String USERNAME = "test_user";
     public static final String PASSWORD = "secret_password";
 
     @Override
@@ -60,7 +60,7 @@ public class CustomRealmIT extends ESIntegTestCase {
         try {
             getRestClient().performRequest(new Request("GET", "/"));
             fail("request should have failed");
-        } catch(ResponseException e) {
+        } catch (ResponseException e) {
             Response response = e.getResponse();
             assertThat(response.getStatusLine().getStatusCode(), is(401));
             String value = response.getHeader("WWW-Authenticate");
@@ -86,11 +86,11 @@ public class CustomRealmIT extends ESIntegTestCase {
         String clusterName = nodeInfos.getClusterName().value();
 
         Settings settings = Settings.builder()
-                .put("cluster.name", clusterName)
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-                .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, USERNAME)
-                .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, PASSWORD)
-                .build();
+            .put("cluster.name", clusterName)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
+            .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, USERNAME)
+            .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, PASSWORD)
+            .build();
         try (TransportClient client = new PreBuiltXPackTransportClient(settings)) {
             client.addTransportAddress(publishAddress);
             ClusterHealthResponse response = client.admin().cluster().prepareHealth().execute().actionGet();
@@ -106,11 +106,11 @@ public class CustomRealmIT extends ESIntegTestCase {
         String clusterName = nodeInfos.getClusterName().value();
 
         Settings settings = Settings.builder()
-                .put("cluster.name", clusterName)
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-                .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, USERNAME + randomAlphaOfLength(1))
-                .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, PASSWORD)
-                .build();
+            .put("cluster.name", clusterName)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
+            .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, USERNAME + randomAlphaOfLength(1))
+            .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, PASSWORD)
+            .build();
         try (TransportClient client = new PreBuiltXPackTransportClient(settings)) {
             client.addTransportAddress(publishAddress);
             client.admin().cluster().prepareHealth().execute().actionGet();
@@ -121,9 +121,8 @@ public class CustomRealmIT extends ESIntegTestCase {
     }
 
     public void testSettingsFiltering() throws Exception {
-        NodesInfoResponse nodeInfos = client().admin()
-            .cluster().prepareNodesInfo().clear().addMetric(Metric.SETTINGS.metricName()).get();
-        for(NodeInfo info : nodeInfos.getNodes()) {
+        NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().clear().addMetric(Metric.SETTINGS.metricName()).get();
+        for (NodeInfo info : nodeInfos.getNodes()) {
             Settings settings = info.getSettings();
             assertNotNull(settings);
             assertNull(settings.get("xpack.security.authc.realms.custom.my_realm.filtered_setting"));

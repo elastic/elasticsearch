@@ -22,9 +22,14 @@ public class OpenIdConnectAuthenticateResponse extends ActionResponse {
     private TimeValue expiresIn;
     private Authentication authentication;
 
-    public OpenIdConnectAuthenticateResponse(Authentication authentication, String accessTokenString, String refreshTokenString,
-                                             TimeValue expiresIn) {
-        this.principal = authentication.getUser().principal();;
+    public OpenIdConnectAuthenticateResponse(
+        Authentication authentication,
+        String accessTokenString,
+        String refreshTokenString,
+        TimeValue expiresIn
+    ) {
+        this.principal = authentication.getUser().principal();
+        ;
         this.accessTokenString = accessTokenString;
         this.refreshTokenString = refreshTokenString;
         this.expiresIn = expiresIn;
@@ -58,7 +63,9 @@ public class OpenIdConnectAuthenticateResponse extends ActionResponse {
         return expiresIn;
     }
 
-    public Authentication getAuthentication() { return authentication; }
+    public Authentication getAuthentication() {
+        return authentication;
+    }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {

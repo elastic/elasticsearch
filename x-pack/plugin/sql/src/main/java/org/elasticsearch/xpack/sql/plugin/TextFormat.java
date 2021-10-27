@@ -120,7 +120,7 @@ enum TextFormat {
 
         @Override
         protected String eol() {
-            //CRLF
+            // CRLF
             return "\r\n";
         }
 
@@ -136,8 +136,11 @@ enum TextFormat {
 
         @Override
         String contentType(RestRequest request) {
-            return contentType() + "; charset=utf-8; " +
-                URL_PARAM_HEADER + "=" + (hasHeader(request) ? PARAM_HEADER_PRESENT : PARAM_HEADER_ABSENT);
+            return contentType()
+                + "; charset=utf-8; "
+                + URL_PARAM_HEADER
+                + "="
+                + (hasHeader(request) ? PARAM_HEADER_PRESENT : PARAM_HEADER_ABSENT);
         }
 
         @Override
@@ -152,8 +155,9 @@ enum TextFormat {
                 throw new IllegalArgumentException("delimiter [" + delimiterParam + "] cannot be decoded: " + uee.getMessage(), uee);
             }
             if (delimiterParam.length() != 1) {
-                throw new IllegalArgumentException("invalid " +
-                    (delimiterParam.length() > 0 ? "multi-character" : "empty") + " delimiter [" + delimiterParam + "]");
+                throw new IllegalArgumentException(
+                    "invalid " + (delimiterParam.length() > 0 ? "multi-character" : "empty") + " delimiter [" + delimiterParam + "]"
+                );
             }
             Character delimiter = delimiterParam.charAt(0);
             switch (delimiter) {
@@ -162,8 +166,9 @@ enum TextFormat {
                 case '\r':
                     throw new IllegalArgumentException("illegal reserved character specified as delimiter [" + delimiter + "]");
                 case '\t':
-                    throw new IllegalArgumentException("illegal delimiter [TAB] specified as delimiter for the [csv] format; " +
-                        "choose the [tsv] format instead");
+                    throw new IllegalArgumentException(
+                        "illegal delimiter [TAB] specified as delimiter for the [csv] format; " + "choose the [tsv] format instead"
+                    );
             }
             return delimiter;
         }
@@ -255,10 +260,10 @@ enum TextFormat {
             for (int i = 0; i < value.length(); i++) {
                 char c = value.charAt(i);
                 switch (c) {
-                    case '\n' :
+                    case '\n':
                         sb.append("\\n");
                         break;
-                    case '\t' :
+                    case '\t':
                         sb.append("\\t");
                         break;
                     default:
@@ -289,8 +294,12 @@ enum TextFormat {
         }
 
         for (List<Object> row : response.rows()) {
-            row(sb, row, f -> f instanceof ZonedDateTime ? DateUtils.toString((ZonedDateTime) f) : Objects.toString(f, StringUtils.EMPTY),
-                delimiter(request));
+            row(
+                sb,
+                row,
+                f -> f instanceof ZonedDateTime ? DateUtils.toString((ZonedDateTime) f) : Objects.toString(f, StringUtils.EMPTY),
+                delimiter(request)
+            );
         }
 
         return sb.toString();
@@ -304,8 +313,8 @@ enum TextFormat {
         for (TextFormat text : values()) {
             String contentType = text.contentType();
             if (contentType.equalsIgnoreCase(accept)
-                    || accept.toLowerCase(Locale.ROOT).startsWith(contentType + ";")
-                    || text.shortName().equalsIgnoreCase(accept)) {
+                || accept.toLowerCase(Locale.ROOT).startsWith(contentType + ";")
+                || text.shortName().equalsIgnoreCase(accept)) {
                 return text;
             }
         }
@@ -318,7 +327,6 @@ enum TextFormat {
      * Can differ from the IANA mime type.
      */
     abstract String shortName();
-
 
     /**
      * Formal IANA mime type.

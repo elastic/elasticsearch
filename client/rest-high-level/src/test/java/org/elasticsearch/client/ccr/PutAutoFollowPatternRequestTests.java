@@ -27,7 +27,8 @@ public class PutAutoFollowPatternRequestTests extends AbstractRequestTestCase<
     @Override
     protected PutAutoFollowPatternRequest createClientTestInstance() {
         // Name isn't serialized, because it specified in url path, so no need to randomly generate it here.
-        PutAutoFollowPatternRequest putAutoFollowPatternRequest = new PutAutoFollowPatternRequest("name",
+        PutAutoFollowPatternRequest putAutoFollowPatternRequest = new PutAutoFollowPatternRequest(
+            "name",
             randomAlphaOfLength(4),
             Arrays.asList(generateRandomStringArray(4, 4, false)),
             Arrays.asList(generateRandomStringArray(4, 4, false))

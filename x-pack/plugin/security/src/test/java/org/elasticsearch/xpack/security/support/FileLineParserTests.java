@@ -22,18 +22,24 @@ public class FileLineParserTests extends ESTestCase {
     public void testParse() throws IOException {
         Path path = getDataPath("../authc/support/role_mapping.yml");
 
-        final Map<Integer, String> lines = new HashMap<>(org.elasticsearch.core.Map.of(
-            7, "security:",
-            8, "  - \"cn=avengers,ou=marvel,o=superheros\"",
-            9, "  - \"cn=shield,ou=marvel,o=superheros\"",
-            10, "avenger:",
-            11, "  - \"cn=avengers,ou=marvel,o=superheros\"",
-            12, "  - \"cn=Horatio Hornblower,ou=people,o=sevenSeas\""
-        ));
+        final Map<Integer, String> lines = new HashMap<>(
+            org.elasticsearch.core.Map.of(
+                7,
+                "security:",
+                8,
+                "  - \"cn=avengers,ou=marvel,o=superheros\"",
+                9,
+                "  - \"cn=shield,ou=marvel,o=superheros\"",
+                10,
+                "avenger:",
+                11,
+                "  - \"cn=avengers,ou=marvel,o=superheros\"",
+                12,
+                "  - \"cn=Horatio Hornblower,ou=people,o=sevenSeas\""
+            )
+        );
 
-        FileLineParser.parse(path, (lineNumber, line) -> {
-            assertThat(lines.remove(lineNumber), equalTo(line));
-        });
+        FileLineParser.parse(path, (lineNumber, line) -> { assertThat(lines.remove(lineNumber), equalTo(line)); });
         assertThat(lines.isEmpty(), is(true));
     }
 }

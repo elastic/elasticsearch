@@ -53,7 +53,8 @@ public class TransportDeleteTrainedModelAliasAction extends AcknowledgedTranspor
         ActionFilters actionFilters,
         InferenceAuditor auditor,
         IngestService ingestService,
-        IndexNameExpressionResolver indexNameExpressionResolver) {
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
         super(
             DeleteTrainedModelAliasAction.NAME,
             transportService,
@@ -82,10 +83,12 @@ public class TransportDeleteTrainedModelAliasAction extends AcknowledgedTranspor
         });
     }
 
-    static ClusterState deleteModelAlias(final ClusterState currentState,
-                                         final IngestService ingestService,
-                                         final InferenceAuditor inferenceAuditor,
-                                         final DeleteTrainedModelAliasAction.Request request) {
+    static ClusterState deleteModelAlias(
+        final ClusterState currentState,
+        final IngestService ingestService,
+        final InferenceAuditor inferenceAuditor,
+        final DeleteTrainedModelAliasAction.Request request
+    ) {
         final ModelAliasMetadata currentMetadata = ModelAliasMetadata.fromState(currentState);
         final String referencedModel = currentMetadata.getModelId(request.getModelAlias());
         if (referencedModel == null) {

@@ -13,10 +13,10 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -54,8 +54,9 @@ public class PostCalendarEventsAction extends ActionType<PostCalendarEventsActio
 
             for (ScheduledEvent.Builder event : events) {
                 if (event.getCalendarId() != null && event.getCalendarId().equals(calendarId) == false) {
-                    throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INCONSISTENT_ID,
-                            Calendar.ID.getPreferredName(), event.getCalendarId(), calendarId));
+                    throw ExceptionsHelper.badRequestException(
+                        Messages.getMessage(Messages.INCONSISTENT_ID, Calendar.ID.getPreferredName(), event.getCalendarId(), calendarId)
+                    );
                 }
                 // Set the calendar Id in case it is null
                 event.calendarId(calendarId);
@@ -67,8 +68,7 @@ public class PostCalendarEventsAction extends ActionType<PostCalendarEventsActio
         private String calendarId;
         private List<ScheduledEvent> scheduledEvents;
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -137,7 +137,7 @@ public class PostCalendarEventsAction extends ActionType<PostCalendarEventsActio
         public Response(StreamInput in) throws IOException {
             super(in);
             if (in.getVersion().before(Version.V_6_3_0)) {
-                //the acknowledged flag was removed
+                // the acknowledged flag was removed
                 in.readBoolean();
             }
             in.readList(ScheduledEvent::new);
@@ -150,7 +150,7 @@ public class PostCalendarEventsAction extends ActionType<PostCalendarEventsActio
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             if (out.getVersion().before(Version.V_6_3_0)) {
-                //the acknowledged flag is no longer supported
+                // the acknowledged flag is no longer supported
                 out.writeBoolean(true);
             }
             out.writeList(scheduledEvents);

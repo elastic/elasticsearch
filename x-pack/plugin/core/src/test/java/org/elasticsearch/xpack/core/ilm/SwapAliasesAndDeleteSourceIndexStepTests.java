@@ -39,8 +39,12 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
 
     @Override
     protected SwapAliasesAndDeleteSourceIndexStep copyInstance(SwapAliasesAndDeleteSourceIndexStep instance) {
-        return new SwapAliasesAndDeleteSourceIndexStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(),
-            instance.getTargetIndexPrefix());
+        return new SwapAliasesAndDeleteSourceIndexStep(
+            instance.getKey(),
+            instance.getNextStepKey(),
+            instance.getClient(),
+            instance.getTargetIndexPrefix()
+        );
     }
 
     @Override
@@ -66,8 +70,10 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
 
     public void testPerformAction() {
         String sourceIndexName = randomAlphaOfLength(10);
-        IndexMetadata.Builder sourceIndexMetadataBuilder = IndexMetadata.builder(sourceIndexName).settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
+        IndexMetadata.Builder sourceIndexMetadataBuilder = IndexMetadata.builder(sourceIndexName)
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5));
         AliasMetadata.Builder aliasBuilder = AliasMetadata.builder(randomAlphaOfLengthBetween(3, 10));
         if (randomBoolean()) {
             aliasBuilder.routing(randomAlphaOfLengthBetween(1, 10));
@@ -88,33 +94,37 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
         List<AliasActions> expectedAliasActions = Arrays.asList(
             AliasActions.removeIndex().index(sourceIndexName),
             AliasActions.add().index(targetIndexName).alias(sourceIndexName),
-            AliasActions.add().index(targetIndexName).alias(aliasMetadata.alias())
-                .searchRouting(aliasMetadata.searchRouting()).indexRouting(aliasMetadata.indexRouting())
-                .writeIndex(null));
+            AliasActions.add()
+                .index(targetIndexName)
+                .alias(aliasMetadata.alias())
+                .searchRouting(aliasMetadata.searchRouting())
+                .indexRouting(aliasMetadata.indexRouting())
+                .writeIndex(null)
+        );
 
         try (NoOpClient client = getIndicesAliasAssertingClient(expectedAliasActions)) {
-            SwapAliasesAndDeleteSourceIndexStep step = new SwapAliasesAndDeleteSourceIndexStep(randomStepKey(), randomStepKey(),
-                client, targetIndexPrefix);
+            SwapAliasesAndDeleteSourceIndexStep step = new SwapAliasesAndDeleteSourceIndexStep(
+                randomStepKey(),
+                randomStepKey(),
+                client,
+                targetIndexPrefix
+            );
 
-            IndexMetadata.Builder targetIndexMetadataBuilder = IndexMetadata.builder(targetIndexName).settings(settings(Version.CURRENT))
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
+            IndexMetadata.Builder targetIndexMetadataBuilder = IndexMetadata.builder(targetIndexName)
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(randomIntBetween(1, 5))
+                .numberOfReplicas(randomIntBetween(0, 5));
 
             ClusterState clusterState = ClusterState.builder(emptyClusterState())
-                .metadata(
-                    Metadata.builder()
-                        .put(sourceIndexMetadata, true)
-                        .put(targetIndexMetadataBuilder)
-                        .build()
-                ).build();
+                .metadata(Metadata.builder().put(sourceIndexMetadata, true).put(targetIndexMetadataBuilder).build())
+                .build();
 
             step.performAction(sourceIndexMetadata, clusterState, null, new ActionListener<Void>() {
                 @Override
-                public void onResponse(Void complete) {
-                }
+                public void onResponse(Void complete) {}
 
                 @Override
-                public void onFailure(Exception e) {
-                }
+                public void onFailure(Exception e) {}
             });
         }
     }
@@ -122,9 +132,11 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
     private NoOpClient getIndicesAliasAssertingClient(List<AliasActions> expectedAliasActions) {
         return new NoOpClient(getTestName()) {
             @Override
-            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(ActionType<Response> action,
-                                                                                                      Request request,
-                                                                                                      ActionListener<Response> listener) {
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
                 assertThat(action.name(), is(IndicesAliasesAction.NAME));
                 assertTrue(request instanceof IndicesAliasesRequest);
                 assertThat(((IndicesAliasesRequest) request).getAliasActions(), equalTo(expectedAliasActions));

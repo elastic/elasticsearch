@@ -9,19 +9,20 @@ package org.elasticsearch.client;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.ObjectIntMap;
+
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.flush.ShardsSyncedFlushResult;
+import org.elasticsearch.indices.flush.SyncedFlushService;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.flush.ShardsSyncedFlushResult;
-import org.elasticsearch.indices.flush.SyncedFlushService;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,19 +47,18 @@ public class SyncedFlushResponseTests extends ESTestCase {
         assertNotNull(plan.result);
         plan.clientResult.toXContent(clientResponsebuilder, ToXContent.EMPTY_PARAMS);
         Map<String, Object> serverContentMap = convertFailureListToSet(
-            serverResponsebuilder
-                .generator()
+            serverResponsebuilder.generator()
                 .contentType()
                 .xContent()
                 .createParser(
                     xContentRegistry(),
                     DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
                     BytesReference.bytes(serverResponsebuilder).streamInput()
-                ).map()
+                )
+                .map()
         );
         Map<String, Object> clientContentMap = convertFailureListToSet(
-            clientResponsebuilder
-                .generator()
+            clientResponsebuilder.generator()
                 .contentType()
                 .xContent()
                 .createParser(
@@ -78,20 +78,15 @@ public class SyncedFlushResponseTests extends ESTestCase {
         builder.startObject();
         plan.result.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        XContentParser parser = builder
-            .generator()
+        XContentParser parser = builder.generator()
             .contentType()
             .xContent()
-            .createParser(
-                xContentRegistry(),
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                BytesReference.bytes(builder).streamInput()
-            );
+            .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, BytesReference.bytes(builder).streamInput());
         SyncedFlushResponse originalResponse = plan.clientResult;
         SyncedFlushResponse parsedResponse = SyncedFlushResponse.fromXContent(parser);
         assertNotNull(parsedResponse);
         assertShardCounts(originalResponse.getShardCounts(), parsedResponse.getShardCounts());
-        for (Map.Entry<String, SyncedFlushResponse.IndexResult> entry: originalResponse.getIndexResults().entrySet()) {
+        for (Map.Entry<String, SyncedFlushResponse.IndexResult> entry : originalResponse.getIndexResults().entrySet()) {
             String index = entry.getKey();
             SyncedFlushResponse.IndexResult responseResult = entry.getValue();
             SyncedFlushResponse.IndexResult parsedResult = parsedResponse.getIndexResults().get(index);
@@ -99,7 +94,7 @@ public class SyncedFlushResponseTests extends ESTestCase {
             assertNotNull(parsedResult);
             assertShardCounts(responseResult.getShardCounts(), parsedResult.getShardCounts());
             assertEquals(responseResult.failures().size(), parsedResult.failures().size());
-            for (SyncedFlushResponse.ShardFailure responseShardFailure: responseResult.failures()) {
+            for (SyncedFlushResponse.ShardFailure responseShardFailure : responseResult.failures()) {
                 assertTrue(containsFailure(parsedResult.failures(), responseShardFailure));
             }
         }
@@ -138,21 +133,18 @@ public class SyncedFlushResponseTests extends ESTestCase {
                     failed += replicas + 1;
                     failures++;
                     shardsResults.add(new ShardsSyncedFlushResult(shardId, replicas + 1, "simulated total failure"));
-                    shardFailures.add(
-                        new SyncedFlushResponse.ShardFailure(
-                            shardId.id(),
-                            "simulated total failure",
-                            new HashMap<>()
-                        )
-                    );
+                    shardFailures.add(new SyncedFlushResponse.ShardFailure(shardId.id(), "simulated total failure", new HashMap<>()));
                 } else {
                     Map<ShardRouting, SyncedFlushService.ShardSyncedFlushResponse> shardResponses = new HashMap<>();
                     for (int copy = 0; copy < replicas + 1; copy++) {
-                        final ShardRouting shardRouting =
-                            TestShardRouting.newShardRouting(
-                                index, shard, "node_" + shardId + "_" + copy, null,
-                                copy == 0, ShardRoutingState.STARTED
-                            );
+                        final ShardRouting shardRouting = TestShardRouting.newShardRouting(
+                            index,
+                            shard,
+                            "node_" + shardId + "_" + copy,
+                            null,
+                            copy == 0,
+                            ShardRoutingState.STARTED
+                        );
                         if (randomInt(5) < 2) {
                             // shard copy failure
                             failed++;
@@ -160,24 +152,17 @@ public class SyncedFlushResponseTests extends ESTestCase {
                             shardResponses.put(shardRouting, new SyncedFlushService.ShardSyncedFlushResponse("copy failure " + shardId));
                             // Building the shardRouting map here.
                             XContentBuilder builder = XContentBuilder.builder(xContentType.xContent());
-                            Map<String, Object> routing =
-                                shardRouting.toXContent(builder, ToXContent.EMPTY_PARAMS)
-                                    .generator()
-                                    .contentType()
-                                    .xContent()
-                                    .createParser(
-                                        xContentRegistry(),
-                                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                                        BytesReference.bytes(builder).streamInput()
-                                    )
-                                    .map();
-                            shardFailures.add(
-                                new SyncedFlushResponse.ShardFailure(
-                                    shardId.id(),
-                                    "copy failure " + shardId,
-                                    routing
+                            Map<String, Object> routing = shardRouting.toXContent(builder, ToXContent.EMPTY_PARAMS)
+                                .generator()
+                                .contentType()
+                                .xContent()
+                                .createParser(
+                                    xContentRegistry(),
+                                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                                    BytesReference.bytes(builder).streamInput()
                                 )
-                            );
+                                .map();
+                            shardFailures.add(new SyncedFlushResponse.ShardFailure(shardId.id(), "copy failure " + shardId, routing));
                         } else {
                             successful++;
                             shardResponses.put(shardRouting, new SyncedFlushService.ShardSyncedFlushResponse((String) null));
@@ -187,15 +172,7 @@ public class SyncedFlushResponseTests extends ESTestCase {
                 }
             }
             indicesResults.put(index, shardsResults);
-            indexResults.put(
-                index,
-                new SyncedFlushResponse.IndexResult(
-                    shards * (replicas + 1),
-                    successful,
-                    failed,
-                    shardFailures
-                )
-            );
+            indexResults.put(index, new SyncedFlushResponse.IndexResult(shards * (replicas + 1), successful, failed, shardFailures));
             testPlan.countsPerIndex.put(index, new SyncedFlushResponse.ShardCounts(shards * (replicas + 1), successful, failed));
             testPlan.expectedFailuresPerIndex.put(index, failures);
             totalFailed += failed;
@@ -212,16 +189,15 @@ public class SyncedFlushResponseTests extends ESTestCase {
     }
 
     public boolean containsFailure(List<SyncedFlushResponse.ShardFailure> failures, SyncedFlushResponse.ShardFailure origFailure) {
-        for (SyncedFlushResponse.ShardFailure failure: failures) {
-            if (failure.getShardId() == origFailure.getShardId() &&
-                failure.getFailureReason().equals(origFailure.getFailureReason()) &&
-                failure.getRouting().equals(origFailure.getRouting())) {
+        for (SyncedFlushResponse.ShardFailure failure : failures) {
+            if (failure.getShardId() == origFailure.getShardId()
+                && failure.getFailureReason().equals(origFailure.getFailureReason())
+                && failure.getRouting().equals(origFailure.getRouting())) {
                 return true;
             }
         }
         return false;
     }
-
 
     public void assertShardCounts(SyncedFlushResponse.ShardCounts first, SyncedFlushResponse.ShardCounts second) {
         if (first == null) {
@@ -233,18 +209,18 @@ public class SyncedFlushResponseTests extends ESTestCase {
 
     public Map<String, Object> convertFailureListToSet(Map<String, Object> input) {
         Map<String, Object> retMap = new HashMap<>();
-        for (Map.Entry<String, Object> entry: input.entrySet()) {
+        for (Map.Entry<String, Object> entry : input.entrySet()) {
             if (entry.getKey().equals(SyncedFlushResponse.SHARDS_FIELD)) {
                 retMap.put(entry.getKey(), entry.getValue());
             } else {
                 // This was an index entry.
                 @SuppressWarnings("unchecked")
-                Map<String, Object> indexResult = (Map<String, Object>)entry.getValue();
+                Map<String, Object> indexResult = (Map<String, Object>) entry.getValue();
                 Map<String, Object> retResult = new HashMap<>();
-                for (Map.Entry<String, Object> entry2: indexResult.entrySet()) {
+                for (Map.Entry<String, Object> entry2 : indexResult.entrySet()) {
                     if (entry2.getKey().equals(SyncedFlushResponse.IndexResult.FAILURES_FIELD)) {
                         @SuppressWarnings("unchecked")
-                        List<Object> failures = (List<Object>)entry2.getValue();
+                        List<Object> failures = (List<Object>) entry2.getValue();
                         Set<Object> retSet = new HashSet<>(failures);
                         retResult.put(entry.getKey(), retSet);
                     } else {

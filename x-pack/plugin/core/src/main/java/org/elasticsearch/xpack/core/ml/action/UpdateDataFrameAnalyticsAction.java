@@ -45,7 +45,8 @@ public class UpdateDataFrameAnalyticsAction extends ActionType<PutDataFrameAnaly
             } else if (Strings.isNullOrEmpty(id) == false && id.equals(updateBuilder.getId()) == false) {
                 // If we have both URI and body ID, they must be identical
                 throw new IllegalArgumentException(
-                    Messages.getMessage(Messages.INCONSISTENT_ID, DataFrameAnalyticsConfig.ID, updateBuilder.getId(), id));
+                    Messages.getMessage(Messages.INCONSISTENT_ID, DataFrameAnalyticsConfig.ID, updateBuilder.getId(), id)
+                );
             }
 
             return new UpdateDataFrameAnalyticsAction.Request(updateBuilder.build());
@@ -99,8 +100,10 @@ public class UpdateDataFrameAnalyticsAction extends ActionType<PutDataFrameAnaly
         }
     }
 
-    public static class RequestBuilder
-        extends MasterNodeOperationRequestBuilder<Request, PutDataFrameAnalyticsAction.Response, RequestBuilder> {
+    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<
+        Request,
+        PutDataFrameAnalyticsAction.Response,
+        RequestBuilder> {
 
         protected RequestBuilder(ElasticsearchClient client, UpdateDataFrameAnalyticsAction action) {
             super(client, action, new Request());

@@ -15,14 +15,14 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -63,8 +63,9 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
             if (request.getId() == null) {
                 request.setId(id);
             } else if (Strings.isNullOrEmpty(id) == false && id.equals(request.getId()) == false) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, DataFrameAnalyticsConfig.ID,
-                    request.getId(), id));
+                throw new IllegalArgumentException(
+                    Messages.getMessage(Messages.INCONSISTENT_ID, DataFrameAnalyticsConfig.ID, request.getId(), id)
+                );
             }
             return request;
         }
@@ -157,8 +158,10 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
         public static final Version VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED = Version.V_7_10_0;
 
         public static final ConstructingObjectParser<TaskParams, Void> PARSER = new ConstructingObjectParser<>(
-            MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, true,
-            a -> new TaskParams((String) a[0], (String) a[1], (Boolean) a[2]));
+            MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
+            true,
+            a -> new TaskParams((String) a[0], (String) a[1], (Boolean) a[2])
+        );
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), DataFrameAnalyticsConfig.ID);
@@ -227,11 +230,13 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
                 // Previous versions expect a list of phase progress objects.
                 // We write progress for reindexing of 1 so that the task doesn't fail
                 // and resumes from reindexing.
-                out.writeList(Arrays.asList(
-                    new PhaseProgress("reindexing", 1),
-                    new PhaseProgress("loading_data", 0),
-                    new PhaseProgress("writing_results", 0)
-                ));
+                out.writeList(
+                    Arrays.asList(
+                        new PhaseProgress("reindexing", 1),
+                        new PhaseProgress("loading_data", 0),
+                        new PhaseProgress("writing_results", 0)
+                    )
+                );
             }
             if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
                 out.writeBoolean(allowLazyStart);

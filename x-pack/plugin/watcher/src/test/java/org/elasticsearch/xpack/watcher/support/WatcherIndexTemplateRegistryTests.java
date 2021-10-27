@@ -25,17 +25,17 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
@@ -59,8 +59,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 import static org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -73,7 +71,9 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.when;
 
 public class WatcherIndexTemplateRegistryTests extends ESTestCase {
 
@@ -97,18 +97,23 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         when(adminClient.indices()).thenReturn(indicesAdminClient);
         when(client.admin()).thenReturn(adminClient);
         doAnswer(invocationOnMock -> {
-            ActionListener<AcknowledgedResponse> listener =
-                    (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[1];
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[1];
             listener.onResponse(new TestPutIndexTemplateResponse(true));
             return null;
         }).when(indicesAdminClient).putTemplate(any(PutIndexTemplateRequest.class), any(ActionListener.class));
 
         clusterService = mock(ClusterService.class);
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
-        entries.addAll(Arrays.asList(
-            new NamedXContentRegistry.Entry(LifecycleType.class, new ParseField(TimeseriesLifecycleType.TYPE),
-                (p) -> TimeseriesLifecycleType.INSTANCE),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse)));
+        entries.addAll(
+            Arrays.asList(
+                new NamedXContentRegistry.Entry(
+                    LifecycleType.class,
+                    new ParseField(TimeseriesLifecycleType.TYPE),
+                    (p) -> TimeseriesLifecycleType.INSTANCE
+                ),
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse)
+            )
+        );
         xContentRegistry = new NamedXContentRegistry(entries);
         registry = new WatcherIndexTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry);
     }
@@ -119,8 +124,9 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
 
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
-        ArgumentCaptor<PutComposableIndexTemplateAction.Request> argumentCaptor =
-            ArgumentCaptor.forClass(PutComposableIndexTemplateAction.Request.class);
+        ArgumentCaptor<PutComposableIndexTemplateAction.Request> argumentCaptor = ArgumentCaptor.forClass(
+            PutComposableIndexTemplateAction.Request.class
+        );
         verify(client, times(1)).execute(same(PutComposableIndexTemplateAction.INSTANCE), argumentCaptor.capture(), anyObject());
 
         // now delete one template from the cluster state and lets retry
@@ -130,7 +136,8 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         registry.clusterChanged(newEvent);
         argumentCaptor = ArgumentCaptor.forClass(PutComposableIndexTemplateAction.Request.class);
         verify(client, times(1)).execute(same(PutComposableIndexTemplateAction.INSTANCE), argumentCaptor.capture(), anyObject());
-        PutComposableIndexTemplateAction.Request req = argumentCaptor.getAllValues().stream()
+        PutComposableIndexTemplateAction.Request req = argumentCaptor.getAllValues()
+            .stream()
             .filter(r -> r.name().equals(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME))
             .findFirst()
             .orElseThrow(() -> new AssertionError("expected the watch history template to be put"));
@@ -141,13 +148,18 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
-        registry = new WatcherIndexTemplateRegistry(Settings.builder()
-            .put(Watcher.USE_ILM_INDEX_MANAGEMENT.getKey(), false).build(),
-            clusterService, threadPool, client, xContentRegistry);
+        registry = new WatcherIndexTemplateRegistry(
+            Settings.builder().put(Watcher.USE_ILM_INDEX_MANAGEMENT.getKey(), false).build(),
+            clusterService,
+            threadPool,
+            client,
+            xContentRegistry
+        );
         ClusterChangedEvent event = createClusterChangedEvent(Settings.EMPTY, Collections.emptyMap(), Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
-        ArgumentCaptor<PutComposableIndexTemplateAction.Request> argumentCaptor =
-            ArgumentCaptor.forClass(PutComposableIndexTemplateAction.Request.class);
+        ArgumentCaptor<PutComposableIndexTemplateAction.Request> argumentCaptor = ArgumentCaptor.forClass(
+            PutComposableIndexTemplateAction.Request.class
+        );
         verify(client, times(1)).execute(same(PutComposableIndexTemplateAction.INSTANCE), argumentCaptor.capture(), anyObject());
 
         // now delete one template from the cluster state and lets retry
@@ -175,7 +187,8 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs().stream()
+        List<LifecyclePolicy> policies = registry.getPolicyConfigs()
+            .stream()
             .map(policyConfig -> policyConfig.load(xContentRegistry))
             .collect(Collectors.toList());
         assertThat(policies, hasSize(1));
@@ -190,9 +203,13 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
-        registry = new WatcherIndexTemplateRegistry(Settings.builder()
-            .put(Watcher.USE_ILM_INDEX_MANAGEMENT.getKey(), false).build(),
-            clusterService, threadPool, client, xContentRegistry);
+        registry = new WatcherIndexTemplateRegistry(
+            Settings.builder().put(Watcher.USE_ILM_INDEX_MANAGEMENT.getKey(), false).build(),
+            clusterService,
+            threadPool,
+            client,
+            xContentRegistry
+        );
         ClusterChangedEvent event = createClusterChangedEvent(Settings.EMPTY, Collections.emptyMap(), Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
         verify(client, times(0)).execute(eq(PutLifecycleAction.INSTANCE), anyObject(), anyObject());
@@ -204,13 +221,16 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
         String policyStr = "{\"phases\":{\"delete\":{\"min_age\":\"1m\",\"actions\":{\"delete\":{}}}}}";
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs().stream()
+        List<LifecyclePolicy> policies = registry.getPolicyConfigs()
+            .stream()
             .map(policyConfig -> policyConfig.load(xContentRegistry))
             .collect(Collectors.toList());
         assertThat(policies, hasSize(1));
         LifecyclePolicy policy = policies.get(0);
-        try (XContentParser parser = XContentType.JSON.xContent()
-            .createParser(xContentRegistry, LoggingDeprecationHandler.THROW_UNSUPPORTED_OPERATION, policyStr)) {
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(xContentRegistry, LoggingDeprecationHandler.THROW_UNSUPPORTED_OPERATION, policyStr)
+        ) {
             LifecyclePolicy different = LifecyclePolicy.parse(parser, policy.getName());
             policyMap.put(policy.getName(), different);
             ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), policyMap, nodes);
@@ -282,10 +302,12 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         return createClusterChangedEvent(existingTemplateNames, Collections.emptyMap(), nodes);
     }
 
-    private ClusterState createClusterState(Settings nodeSettings,
-                                            Map<String, Integer> existingTemplates,
-                                            Map<String, LifecyclePolicy> existingPolicies,
-                                            DiscoveryNodes nodes) {
+    private ClusterState createClusterState(
+        Settings nodeSettings,
+        Map<String, Integer> existingTemplates,
+        Map<String, LifecyclePolicy> existingPolicies,
+        DiscoveryNodes nodes
+    ) {
         ImmutableOpenMap.Builder<String, IndexTemplateMetadata> indexTemplates = ImmutableOpenMap.builder();
         for (Map.Entry<String, Integer> template : existingTemplates.entrySet()) {
             final IndexTemplateMetadata mockTemplate = mock(IndexTemplateMetadata.class);
@@ -294,34 +316,44 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
             indexTemplates.put(template.getKey(), mockTemplate);
         }
 
-        Map<String, LifecyclePolicyMetadata> existingILMMeta = existingPolicies.entrySet().stream()
+        Map<String, LifecyclePolicyMetadata> existingILMMeta = existingPolicies.entrySet()
+            .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, e -> new LifecyclePolicyMetadata(e.getValue(), Collections.emptyMap(), 1, 1)));
         IndexLifecycleMetadata ilmMeta = new IndexLifecycleMetadata(existingILMMeta, OperationMode.RUNNING);
 
         return ClusterState.builder(new ClusterName("test"))
-            .metadata(Metadata.builder()
-                .templates(indexTemplates.build())
-                .transientSettings(nodeSettings)
-                .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
-                .build())
+            .metadata(
+                Metadata.builder()
+                    .templates(indexTemplates.build())
+                    .transientSettings(nodeSettings)
+                    .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
+                    .build()
+            )
             .blocks(new ClusterBlocks.Builder().build())
             .nodes(nodes)
             .build();
     }
 
-    private ClusterChangedEvent createClusterChangedEvent(Map<String, Integer> existingTemplateNames,
-                                                          Map<String, LifecyclePolicy> existingPolicies,
-                                                          DiscoveryNodes nodes) {
+    private ClusterChangedEvent createClusterChangedEvent(
+        Map<String, Integer> existingTemplateNames,
+        Map<String, LifecyclePolicy> existingPolicies,
+        DiscoveryNodes nodes
+    ) {
         return createClusterChangedEvent(Settings.EMPTY, existingTemplateNames, existingPolicies, nodes);
     }
 
-    private ClusterChangedEvent createClusterChangedEvent(Settings nodeSettings,
-                                                          Map<String, Integer> existingTemplates,
-                                                          Map<String, LifecyclePolicy> existingPolicies,
-                                                          DiscoveryNodes nodes) {
+    private ClusterChangedEvent createClusterChangedEvent(
+        Settings nodeSettings,
+        Map<String, Integer> existingTemplates,
+        Map<String, LifecyclePolicy> existingPolicies,
+        DiscoveryNodes nodes
+    ) {
         ClusterState cs = createClusterState(nodeSettings, existingTemplates, existingPolicies, nodes);
-        ClusterChangedEvent realEvent = new ClusterChangedEvent("created-from-test", cs,
-            ClusterState.builder(new ClusterName("test")).build());
+        ClusterChangedEvent realEvent = new ClusterChangedEvent(
+            "created-from-test",
+            cs,
+            ClusterState.builder(new ClusterName("test")).build()
+        );
         ClusterChangedEvent event = spy(realEvent);
         when(event.localNodeMaster()).thenReturn(nodes.isLocalNodeElectedMaster());
         when(clusterService.state()).thenReturn(cs);

@@ -31,34 +31,32 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-
 public class InternalInferModelActionRequestTests extends AbstractBWCWireSerializationTestCase<Request> {
 
     @Override
     @SuppressWarnings("unchecked")
     protected Request createTestInstance() {
-        return randomBoolean() ?
-            new Request(
+        return randomBoolean()
+            ? new Request(
                 randomAlphaOfLength(10),
                 Stream.generate(InternalInferModelActionRequestTests::randomMap).limit(randomInt(10)).collect(Collectors.toList()),
                 randomInferenceConfigUpdate(),
-                randomBoolean()) :
-            new Request(
-                randomAlphaOfLength(10),
-                randomMap(),
-                randomInferenceConfigUpdate(),
-                randomBoolean());
+                randomBoolean()
+            )
+            : new Request(randomAlphaOfLength(10), randomMap(), randomInferenceConfigUpdate(), randomBoolean());
     }
 
     private static InferenceConfigUpdate randomInferenceConfigUpdate() {
-        return randomFrom(RegressionConfigUpdateTests.randomRegressionConfigUpdate(),
+        return randomFrom(
+            RegressionConfigUpdateTests.randomRegressionConfigUpdate(),
             ClassificationConfigUpdateTests.randomClassificationConfigUpdate(),
             ResultsFieldUpdateTests.randomUpdate(),
-            EmptyConfigUpdateTests.testInstance());
+            EmptyConfigUpdateTests.testInstance()
+        );
     }
 
     private static Map<String, Object> randomMap() {
-        return Stream.generate(()-> randomAlphaOfLength(10))
+        return Stream.generate(() -> randomAlphaOfLength(10))
             .limit(randomInt(10))
             .collect(Collectors.toMap(Function.identity(), (v) -> randomAlphaOfLength(10)));
     }
@@ -78,8 +76,8 @@ public class InternalInferModelActionRequestTests extends AbstractBWCWireSeriali
     @Override
     protected boolean isCompatible(Request instance, Version version) {
         if (version.before(Version.V_7_8_0)) {
-            boolean isSupportedType = instance.getUpdate() instanceof RegressionConfigUpdate ||
-                instance.getUpdate() instanceof ClassificationConfigUpdate;
+            boolean isSupportedType = instance.getUpdate() instanceof RegressionConfigUpdate
+                || instance.getUpdate() instanceof ClassificationConfigUpdate;
             return isSupportedType;
         }
         return true;
@@ -92,13 +90,13 @@ public class InternalInferModelActionRequestTests extends AbstractBWCWireSeriali
             InferenceConfigUpdate update = null;
             if (instance.getUpdate() instanceof ClassificationConfigUpdate) {
                 update = ClassificationConfigUpdate.fromConfig(
-                    ClassificationConfigTests.mutateForVersion((ClassificationConfig) instance.getUpdate().toConfig(), version));
-            }
-            else if (instance.getUpdate() instanceof RegressionConfigUpdate) {
+                    ClassificationConfigTests.mutateForVersion((ClassificationConfig) instance.getUpdate().toConfig(), version)
+                );
+            } else if (instance.getUpdate() instanceof RegressionConfigUpdate) {
                 update = RegressionConfigUpdate.fromConfig(
-                    RegressionConfigTests.mutateForVersion((RegressionConfig) instance.getUpdate().toConfig(), version));
-            }
-            else {
+                    RegressionConfigTests.mutateForVersion((RegressionConfig) instance.getUpdate().toConfig(), version)
+                );
+            } else {
                 fail("unknown update type " + instance.getUpdate().getName());
             }
             return new Request(instance.getModelId(), instance.getObjectsToInfer(), update, instance.isPreviouslyLicensed());

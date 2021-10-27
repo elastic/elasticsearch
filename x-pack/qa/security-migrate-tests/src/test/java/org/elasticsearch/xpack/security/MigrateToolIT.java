@@ -13,9 +13,9 @@ import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesResponse;
@@ -77,14 +77,14 @@ public class MigrateToolIT extends MigrateToolTestCase {
         assertTrue("user 'bob' should exist", resp.hasUsers());
         User bob = resp.users()[0];
         assertEquals(bob.principal(), "bob");
-        assertArrayEquals(bob.roles(), new String[]{"actual_role"});
+        assertArrayEquals(bob.roles(), new String[] { "actual_role" });
 
         // Make sure the existing user did not change
         resp = c.prepareGetUsers("existing").get();
         assertTrue("user should exist", resp.hasUsers());
         User existing = resp.users()[0];
         assertEquals(existing.principal(), "existing");
-        assertArrayEquals(existing.roles(), new String[]{"role1", "user"});
+        assertArrayEquals(existing.roles(), new String[] { "role1", "user" });
 
         // Make sure the "actual_role" made it in and is correct
         GetRolesResponse roleResp = c.prepareGetRoles().names("actual_role").get();
@@ -92,24 +92,27 @@ public class MigrateToolIT extends MigrateToolTestCase {
         RoleDescriptor rd = roleResp.roles()[0];
         assertNotNull(rd);
         assertEquals(rd.getName(), "actual_role");
-        assertArrayEquals(rd.getClusterPrivileges(), new String[]{"monitor"});
-        assertArrayEquals(rd.getRunAs(), new String[]{"joe"});
+        assertArrayEquals(rd.getClusterPrivileges(), new String[] { "monitor" });
+        assertArrayEquals(rd.getRunAs(), new String[] { "joe" });
         RoleDescriptor.IndicesPrivileges[] ips = rd.getIndicesPrivileges();
         assertEquals(ips.length, 2);
         for (RoleDescriptor.IndicesPrivileges ip : ips) {
             final FieldPermissions fieldPermissions = new FieldPermissions(
-                    new FieldPermissionsDefinition(ip.getGrantedFields(), ip.getDeniedFields()));
-            if (Arrays.equals(ip.getIndices(), new String[]{"index1", "index2"})) {
-                assertArrayEquals(ip.getPrivileges(), new String[]{"read", "write", "create_index", "indices:admin/refresh"});
+                new FieldPermissionsDefinition(ip.getGrantedFields(), ip.getDeniedFields())
+            );
+            if (Arrays.equals(ip.getIndices(), new String[] { "index1", "index2" })) {
+                assertArrayEquals(ip.getPrivileges(), new String[] { "read", "write", "create_index", "indices:admin/refresh" });
                 assertTrue(fieldPermissions.hasFieldLevelSecurity());
                 assertTrue(fieldPermissions.grantsAccessTo("bar"));
                 assertTrue(fieldPermissions.grantsAccessTo("foo"));
                 assertNotNull(ip.getQuery());
-                assertThat(ip.getQuery().iterator().next().utf8ToString(),
-                        containsString("{\"bool\":{\"must_not\":{\"match\":{\"hidden\":true}}}}"));
+                assertThat(
+                    ip.getQuery().iterator().next().utf8ToString(),
+                    containsString("{\"bool\":{\"must_not\":{\"match\":{\"hidden\":true}}}}")
+                );
             } else {
-                assertArrayEquals(ip.getIndices(), new String[]{"*"});
-                assertArrayEquals(ip.getPrivileges(), new String[]{"read"});
+                assertArrayEquals(ip.getIndices(), new String[] { "*" });
+                assertArrayEquals(ip.getPrivileges(), new String[] { "read" });
                 assertFalse(fieldPermissions.hasFieldLevelSecurity());
                 assertNull(ip.getQuery());
             }
@@ -120,12 +123,16 @@ public class MigrateToolIT extends MigrateToolTestCase {
         // Create "index1" index and try to search from it as "bob"
         client.filterWithHeader(Collections.singletonMap("Authorization", token)).admin().indices().prepareCreate("index1").get();
         // Wait for the index to be ready so it doesn't fail if no shards are initialized
-        client.admin().cluster().health(Requests.clusterHealthRequest("index1")
-                .timeout(TimeValue.timeValueSeconds(30))
-                .waitForYellowStatus()
-                .waitForEvents(Priority.LANGUID)
-                .waitForNoRelocatingShards(true))
-                .actionGet();
+        client.admin()
+            .cluster()
+            .health(
+                Requests.clusterHealthRequest("index1")
+                    .timeout(TimeValue.timeValueSeconds(30))
+                    .waitForYellowStatus()
+                    .waitForEvents(Priority.LANGUID)
+                    .waitForNoRelocatingShards(true)
+            )
+            .actionGet();
         client.filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("index1").get();
     }
 }

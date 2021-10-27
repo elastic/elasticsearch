@@ -12,8 +12,10 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * Watcher stats request builder.
  */
-public class WatcherStatsRequestBuilder extends NodesOperationRequestBuilder<WatcherStatsRequest, WatcherStatsResponse,
-        WatcherStatsRequestBuilder> {
+public class WatcherStatsRequestBuilder extends NodesOperationRequestBuilder<
+    WatcherStatsRequest,
+    WatcherStatsResponse,
+    WatcherStatsRequestBuilder> {
 
     public WatcherStatsRequestBuilder(ElasticsearchClient client) {
         super(client, WatcherStatsAction.INSTANCE, new WatcherStatsRequest());

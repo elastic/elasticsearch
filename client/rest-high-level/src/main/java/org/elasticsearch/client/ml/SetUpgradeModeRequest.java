@@ -9,8 +9,8 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.util.Objects;
 
@@ -18,7 +18,6 @@ import java.util.Objects;
  * Sets ML into upgrade_mode
  */
 public class SetUpgradeModeRequest extends ActionRequest {
-
 
     public static final ParseField ENABLED = new ParseField("enabled");
     public static final ParseField TIMEOUT = new ParseField("timeout");

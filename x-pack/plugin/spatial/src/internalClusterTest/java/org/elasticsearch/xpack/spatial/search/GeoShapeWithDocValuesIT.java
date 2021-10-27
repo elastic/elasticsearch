@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.spatial.search;
 
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.geo.GeoShapeIntegTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 
 import java.io.IOException;
@@ -28,7 +28,7 @@ public class GeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>>  nodePlugins() {
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(LocalStateSpatialPlugin.class);
     }
 
@@ -44,22 +44,22 @@ public class GeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
 
     public void testMappingUpdate() {
         // create index
-        assertAcked(client().admin().indices().prepareCreate("test")
-            .addMapping("shape", "shape", "type=geo_shape").get());
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("shape", "shape", "type=geo_shape").get());
         ensureGreen();
 
-        String update ="{\n" +
-            "  \"properties\": {\n" +
-            "    \"shape\": {\n" +
-            "      \"type\": \"geo_shape\"," +
-            "      \"strategy\": \"recursive\"" +
-            "    }\n" +
-            "  }\n" +
-            "}";
+        String update = "{\n"
+            + "  \"properties\": {\n"
+            + "    \"shape\": {\n"
+            + "      \"type\": \"geo_shape\","
+            + "      \"strategy\": \"recursive\""
+            + "    }\n"
+            + "  }\n"
+            + "}";
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().indices()
-            .preparePutMapping("test").setType("shape")
-            .setSource(update, XContentType.JSON).get());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin().indices().preparePutMapping("test").setType("shape").setSource(update, XContentType.JSON).get()
+        );
         assertThat(e.getMessage(), containsString("mapper [shape] of type [geo_shape] cannot change strategy from [BKD] to [recursive]"));
     }
 }

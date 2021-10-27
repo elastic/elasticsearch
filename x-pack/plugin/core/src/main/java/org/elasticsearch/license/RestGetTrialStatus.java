@@ -24,8 +24,7 @@ public class RestGetTrialStatus extends XPackRestHandler {
     @Override
     public List<Route> routes() {
         return org.elasticsearch.core.List.of(
-            Route.builder(GET, "/_license/trial_status")
-                .replaces(GET, URI_BASE + "/license/trial_status", RestApiVersion.V_7).build()
+            Route.builder(GET, "/_license/trial_status").replaces(GET, URI_BASE + "/license/trial_status", RestApiVersion.V_7).build()
         );
     }
 

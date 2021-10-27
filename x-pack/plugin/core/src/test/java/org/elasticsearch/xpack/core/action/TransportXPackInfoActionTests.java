@@ -81,11 +81,10 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         when(license.operationMode()).thenReturn(License.OperationMode.ENTERPRISE);
         when(license.uid()).thenReturn(randomAlphaOfLength(30));
 
-        checkAction(categories, randomFrom(License.VERSION_ENTERPRISE, License.VERSION_CURRENT, -1), license,
-            licenseInfo -> {
-                assertThat(licenseInfo.getType(), is("enterprise"));
-                assertThat(licenseInfo.getMode(), is("enterprise"));
-            });
+        checkAction(categories, randomFrom(License.VERSION_ENTERPRISE, License.VERSION_CURRENT, -1), license, licenseInfo -> {
+            assertThat(licenseInfo.getType(), is("enterprise"));
+            assertThat(licenseInfo.getMode(), is("enterprise"));
+        });
     }
 
     public void testDoExecuteWithEnterpriseLicenseWithBackwardsCompat() throws Exception {
@@ -98,15 +97,18 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         when(license.operationMode()).thenReturn(License.OperationMode.ENTERPRISE);
         when(license.uid()).thenReturn(randomAlphaOfLength(30));
 
-        checkAction(categories, randomFrom(License.VERSION_START_DATE, License.VERSION_CRYPTO_ALGORITHMS), license,
-            licenseInfo -> {
-                assertThat(licenseInfo.getType(), is("platinum"));
-                assertThat(licenseInfo.getMode(), is("platinum"));
-            });
+        checkAction(categories, randomFrom(License.VERSION_START_DATE, License.VERSION_CRYPTO_ALGORITHMS), license, licenseInfo -> {
+            assertThat(licenseInfo.getType(), is("platinum"));
+            assertThat(licenseInfo.getMode(), is("platinum"));
+        });
     }
 
-    private void checkAction(EnumSet<XPackInfoRequest.Category> categories, int licenseVersion, License license,
-                             Consumer<XPackInfoResponse.LicenseInfo> licenseVerifier) throws InterruptedException {
+    private void checkAction(
+        EnumSet<XPackInfoRequest.Category> categories,
+        int licenseVersion,
+        License license,
+        Consumer<XPackInfoResponse.LicenseInfo> licenseVerifier
+    ) throws InterruptedException {
         LicenseService licenseService = mock(LicenseService.class);
 
         final Set<XPackFeatureSet> featureSets = new HashSet<>();
@@ -119,10 +121,21 @@ public class TransportXPackInfoActionTests extends ESTestCase {
             featureSets.add(fs);
         }
 
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
-        TransportXPackInfoAction action = new TransportXPackInfoAction(transportService, mock(ActionFilters.class),
-            licenseService, featureSets);
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
+        TransportXPackInfoAction action = new TransportXPackInfoAction(
+            transportService,
+            mock(ActionFilters.class),
+            licenseService,
+            featureSets
+        );
 
         when(licenseService.getLicense()).thenReturn(license);
 

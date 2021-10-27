@@ -10,10 +10,10 @@ package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.client.core.MainResponse;
+import org.elasticsearch.client.license.LicenseStatus;
 import org.elasticsearch.client.xpack.XPackInfoRequest;
 import org.elasticsearch.client.xpack.XPackInfoResponse;
 import org.elasticsearch.client.xpack.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
-import org.elasticsearch.client.license.LicenseStatus;
 
 import java.io.IOException;
 import java.util.EnumSet;

@@ -10,8 +10,8 @@ package org.elasticsearch.client.ml;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -42,7 +42,9 @@ public class GetJobRequest extends ActionRequest implements ToXContentObject {
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<GetJobRequest, Void> PARSER = new ConstructingObjectParser<>(
         "get_job_request",
-        true, a -> new GetJobRequest(a[0] == null ? new ArrayList<>() : (List<String>) a[0]));
+        true,
+        a -> new GetJobRequest(a[0] == null ? new ArrayList<>() : (List<String>) a[0])
+    );
 
     static {
         PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), JOB_IDS);
@@ -129,9 +131,9 @@ public class GetJobRequest extends ActionRequest implements ToXContentObject {
         }
 
         GetJobRequest that = (GetJobRequest) other;
-        return Objects.equals(jobIds, that.jobIds) &&
-            Objects.equals(excludeGenerated, that.excludeGenerated) &&
-            Objects.equals(allowNoMatch, that.allowNoMatch);
+        return Objects.equals(jobIds, that.jobIds)
+            && Objects.equals(excludeGenerated, that.excludeGenerated)
+            && Objects.equals(allowNoMatch, that.allowNoMatch);
     }
 
     @Override

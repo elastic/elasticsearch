@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml.inference.trainedmodel;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -27,15 +27,16 @@ public class ClassificationConfig implements InferenceConfig {
     public static final ParseField TOP_CLASSES_RESULTS_FIELD = new ParseField("top_classes_results_field");
     public static final ParseField NUM_TOP_FEATURE_IMPORTANCE_VALUES = new ParseField("num_top_feature_importance_values");
 
-
     private final Integer numTopClasses;
     private final String topClassesResultsField;
     private final String resultsField;
     private final Integer numTopFeatureImportanceValues;
 
-    private static final ConstructingObjectParser<ClassificationConfig, Void> PARSER =
-            new ConstructingObjectParser<>(NAME.getPreferredName(), true, args -> new ClassificationConfig(
-                    (Integer) args[0], (String) args[1], (String) args[2], (Integer) args[3]));
+    private static final ConstructingObjectParser<ClassificationConfig, Void> PARSER = new ConstructingObjectParser<>(
+        NAME.getPreferredName(),
+        true,
+        args -> new ClassificationConfig((Integer) args[0], (String) args[1], (String) args[2], (Integer) args[3])
+    );
 
     static {
         PARSER.declareInt(optionalConstructorArg(), NUM_TOP_CLASSES);

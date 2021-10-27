@@ -18,14 +18,14 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.junit.After;
 import org.junit.Before;
@@ -56,9 +56,13 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new SnapshotLifecycleTemplateRegistryTests.VerifyingClient(threadPool);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        ComposableIndexTemplate template =
-            ComposableIndexTemplate.parse(JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, TEMPLATE_SLM_HISTORY.loadBytes()));
+        ComposableIndexTemplate template = ComposableIndexTemplate.parse(
+            JsonXContent.jsonXContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                TEMPLATE_SLM_HISTORY.loadBytes()
+            )
+        );
         ClusterState state = clusterService.state();
         Map<String, ComposableIndexTemplate> templates = Collections.singletonMap(TEMPLATE_SLM_HISTORY.getTemplateName(), template);
         Metadata.Builder metadataBuilder = Metadata.builder(state.getMetadata()).indexTemplates(templates);
@@ -123,7 +127,8 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
                     randomLongBetween(1, 1000),
                     randomLongBetween(1, 1000),
                     randomLongBetween(1, 1000),
-                    randomBoolean());
+                    randomBoolean()
+                );
             });
 
             historyStore.putAsync(record);
@@ -163,7 +168,8 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
                     randomLongBetween(1, 1000),
                     randomLongBetween(1, 1000),
                     randomLongBetween(1, 1000),
-                    randomBoolean());
+                    randomBoolean()
+                );
             });
 
             historyStore.putAsync(record);
@@ -179,9 +185,7 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
                 assertContainsMap(indexedDocument, (Map<String, Object>) v);
             }
             if (v instanceof Iterable) {
-                ((Iterable) v).forEach(elem -> {
-                    assertThat(indexedDocument, containsString(elem.toString()));
-                });
+                ((Iterable) v).forEach(elem -> { assertThat(indexedDocument, containsString(elem.toString())); });
             } else {
                 assertThat(indexedDocument, containsString(v.toString()));
             }
@@ -196,17 +200,10 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
                 config.put(randomAlphaOfLength(4), randomAlphaOfLength(4));
             }
         }
-        return new SnapshotLifecyclePolicy(id,
-            randomAlphaOfLength(4),
-            randomSchedule(),
-            randomAlphaOfLength(4),
-            config,
-            null);
+        return new SnapshotLifecyclePolicy(id, randomAlphaOfLength(4), randomSchedule(), randomAlphaOfLength(4), config, null);
     }
 
     private static String randomSchedule() {
-        return randomIntBetween(0, 59) + " " +
-            randomIntBetween(0, 59) + " " +
-            randomIntBetween(0, 12) + " * * ?";
+        return randomIntBetween(0, 59) + " " + randomIntBetween(0, 59) + " " + randomIntBetween(0, 12) + " * * ?";
     }
 }

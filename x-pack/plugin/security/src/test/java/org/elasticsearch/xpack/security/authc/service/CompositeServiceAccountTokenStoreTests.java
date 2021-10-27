@@ -42,8 +42,7 @@ public class CompositeServiceAccountTokenStoreTests extends ESTestCase {
         store1 = mock(ServiceAccountTokenStore.class);
         store2 = mock(ServiceAccountTokenStore.class);
         store3 = mock(ServiceAccountTokenStore.class);
-        compositeStore = new CompositeServiceAccountTokenStore(
-            List.of(store1, store2, store3), threadContext);
+        compositeStore = new CompositeServiceAccountTokenStore(List.of(store1, store2, store3), threadContext);
     }
 
     public void testAuthenticate() throws ExecutionException, InterruptedException {
@@ -56,24 +55,25 @@ public class CompositeServiceAccountTokenStoreTests extends ESTestCase {
         final TokenSource tokenSource = randomFrom(TokenSource.values());
 
         doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked") final ActionListener<StoreAuthenticationResult> listener =
-                (ActionListener<StoreAuthenticationResult>) invocationOnMock.getArguments()[1];
+            @SuppressWarnings("unchecked")
+            final ActionListener<StoreAuthenticationResult> listener = (ActionListener<StoreAuthenticationResult>) invocationOnMock
+                .getArguments()[1];
             listener.onResponse(new StoreAuthenticationResult(store1Success, tokenSource));
             return null;
         }).when(store1).authenticate(eq(token), any());
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            final ActionListener<StoreAuthenticationResult> listener =
-                (ActionListener<StoreAuthenticationResult>) invocationOnMock.getArguments()[1];
+            final ActionListener<StoreAuthenticationResult> listener = (ActionListener<StoreAuthenticationResult>) invocationOnMock
+                .getArguments()[1];
             listener.onResponse(new StoreAuthenticationResult(store2Success, tokenSource));
             return null;
         }).when(store2).authenticate(eq(token), any());
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            final ActionListener<StoreAuthenticationResult> listener =
-                (ActionListener<StoreAuthenticationResult>) invocationOnMock.getArguments()[1];
+            final ActionListener<StoreAuthenticationResult> listener = (ActionListener<StoreAuthenticationResult>) invocationOnMock
+                .getArguments()[1];
             listener.onResponse(new StoreAuthenticationResult(store3Success, tokenSource));
             return null;
         }).when(store3).authenticate(eq(token), any());

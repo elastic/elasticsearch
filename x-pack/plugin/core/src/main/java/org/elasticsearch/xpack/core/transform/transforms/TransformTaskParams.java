@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -33,8 +33,11 @@ public class TransformTaskParams extends AbstractDiffable<TransformTaskParams> i
     private final TimeValue frequency;
     private final Boolean requiresRemote;
 
-    public static final ConstructingObjectParser<TransformTaskParams, Void> PARSER = new ConstructingObjectParser<>(NAME, true,
-            a -> new TransformTaskParams((String) a[0], (String) a[1], (String) a[2], (Boolean) a[3]));
+    public static final ConstructingObjectParser<TransformTaskParams, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        true,
+        a -> new TransformTaskParams((String) a[0], (String) a[1], (String) a[2], (Boolean) a[3])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TransformField.ID);
@@ -60,7 +63,7 @@ public class TransformTaskParams extends AbstractDiffable<TransformTaskParams> i
     }
 
     public TransformTaskParams(StreamInput in) throws IOException {
-        this.transformId  = in.readString();
+        this.transformId = in.readString();
         if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
             this.version = Version.readVersion(in);
         } else {

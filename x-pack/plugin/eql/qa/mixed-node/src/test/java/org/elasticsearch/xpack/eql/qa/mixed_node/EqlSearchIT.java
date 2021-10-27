@@ -14,9 +14,9 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.eql.execution.search.RuntimeUtils;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
 import org.elasticsearch.xpack.ql.TestNode;
@@ -120,67 +120,171 @@ public class EqlSearchIT extends ESRestTestCase {
         Set<String> testedFunctions = new HashSet<>();
         boolean multiValued = nodes.getBWCVersion().onOrAfter(RuntimeUtils.SWITCH_TO_MULTI_VALUE_FIELDS_VERSION);
         try (
-            RestClient client = buildClient(restClientSettings(),
-                newNodes.stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new))
+            RestClient client = buildClient(
+                restClientSettings(),
+                newNodes.stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new)
+            )
         ) {
             // filter only the relevant bits of the response
             String filterPath = "filter_path=hits.events._id";
             Request request = new Request("POST", index + "/_eql/search?" + filterPath);
 
-            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "between",
+            assertMultiValueFunctionQuery(
+                availableFunctions,
+                testedFunctions,
+                request,
+                client,
+                "between",
                 "PROCESS where between(process_name, \\\"w\\\", \\\"s\\\") : \\\"indow\\\"",
-                multiValued ? new int[] {120, 121} : new int[] {121});
-            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "cidrmatch",
+                multiValued ? new int[] { 120, 121 } : new int[] { 121 }
+            );
+            assertMultiValueFunctionQuery(
+                availableFunctions,
+                testedFunctions,
+                request,
+                client,
+                "cidrmatch",
                 "PROCESS where string(cidrmatch(source_address, \\\"10.6.48.157/24\\\")) : \\\"true\\\"",
-                multiValued ? new int[] {121, 122} : new int[] {122});
-            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "concat",
+                multiValued ? new int[] { 121, 122 } : new int[] { 122 }
+            );
+            assertMultiValueFunctionQuery(
+                availableFunctions,
+                testedFunctions,
+                request,
+                client,
+                "concat",
                 "PROCESS where concat(file_name, process_name) == \\\"foo\\\" or add(pid, ppid) > 100",
-                multiValued ? new int[] {116, 117, 120, 121, 122} : new int[] {120, 121});
-            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "endswith",
+                multiValued ? new int[] { 116, 117, 120, 121, 122 } : new int[] { 120, 121 }
+            );
+            assertMultiValueFunctionQuery(
+                availableFunctions,
+                testedFunctions,
+                request,
+                client,
+                "endswith",
                 "PROCESS where string(endswith(process_name, \\\"s\\\")) : \\\"true\\\"",
-                multiValued ? new int[] {120, 121} : new int[] {121});
-            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "indexof",
+                multiValued ? new int[] { 120, 121 } : new int[] { 121 }
+            );
+            assertMultiValueFunctionQuery(
+                availableFunctions,
+                testedFunctions,
+                request,
+                client,
+                "indexof",
                 "PROCESS where indexof(file_name, \\\"x\\\", 2) > 0",
-                multiValued ? new int[] {116, 117} : new int[] {117});
-            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "length",
+                multiValued ? new int[] { 116, 117 } : new int[] { 117 }
+            );
+            assertMultiValueFunctionQuery(
+                availableFunctions,
+                testedFunctions,
+                request,
+                client,
+                "length",
                 "PROCESS where length(file_name) >= 3 and length(file_name) == 1",
-                multiValued ? new int[] {116} : new int[] {});
-            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "startswith",
+                multiValued ? new int[] { 116 } : new int[] {}
+            );
+            assertMultiValueFunctionQuery(
+                availableFunctions,
+                testedFunctions,
+                request,
+                client,
+                "startswith",
                 "PROCESS where string(startswith(file_name, \\\"f\\\")) : \\\"true\\\"",
-                multiValued ? new int[] {116, 117, 120, 121} : new int[] {116, 120, 121});
-            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "string",
+                multiValued ? new int[] { 116, 117, 120, 121 } : new int[] { 116, 120, 121 }
+            );
+            assertMultiValueFunctionQuery(
+                availableFunctions,
+                testedFunctions,
+                request,
+                client,
+                "string",
                 "PROCESS where string(concat(file_name, process_name) == \\\"foo\\\") : \\\"true\\\"",
-                multiValued ? new int[] {116, 120} : new int[] {120});
-            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "stringcontains",
+                multiValued ? new int[] { 116, 120 } : new int[] { 120 }
+            );
+            assertMultiValueFunctionQuery(
+                availableFunctions,
+                testedFunctions,
+                request,
+                client,
+                "stringcontains",
                 "PROCESS where string(stringcontains(file_name, \\\"txt\\\")) : \\\"true\\\"",
-                multiValued ? new int[] {117} : new int[] {});
-            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "substring",
+                multiValued ? new int[] { 117 } : new int[] {}
+            );
+            assertMultiValueFunctionQuery(
+                availableFunctions,
+                testedFunctions,
+                request,
+                client,
+                "substring",
                 "PROCESS where substring(file_name, -4) : \\\".txt\\\"",
-                multiValued ? new int[] {117} : new int[] {});
-            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "add",
+                multiValued ? new int[] { 117 } : new int[] {}
+            );
+            assertMultiValueFunctionQuery(
+                availableFunctions,
+                testedFunctions,
+                request,
+                client,
+                "add",
                 "PROCESS where add(pid, 1) == 2",
-                multiValued ? new int[] {120, 121, 122} : new int[] {120, 121, 122});
-            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "divide",
+                multiValued ? new int[] { 120, 121, 122 } : new int[] { 120, 121, 122 }
+            );
+            assertMultiValueFunctionQuery(
+                availableFunctions,
+                testedFunctions,
+                request,
+                client,
+                "divide",
                 "PROCESS where divide(pid, 12) == 1",
-                multiValued ? new int[] {116, 117, 118, 119, 120, 122} : new int[] {116, 117, 118, 119});
-            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "modulo",
+                multiValued ? new int[] { 116, 117, 118, 119, 120, 122 } : new int[] { 116, 117, 118, 119 }
+            );
+            assertMultiValueFunctionQuery(
+                availableFunctions,
+                testedFunctions,
+                request,
+                client,
+                "modulo",
                 "PROCESS where modulo(ppid, 10) == 0",
-                multiValued ? new int[] {121, 122} : new int[] {121});
-            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "multiply",
+                multiValued ? new int[] { 121, 122 } : new int[] { 121 }
+            );
+            assertMultiValueFunctionQuery(
+                availableFunctions,
+                testedFunctions,
+                request,
+                client,
+                "multiply",
                 "PROCESS where string(multiply(pid, 10) == 120) == \\\"true\\\"",
-                multiValued ? new int[] {116, 117, 118, 119, 120, 122} : new int[] {116, 117, 118, 119});
-            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "number",
+                multiValued ? new int[] { 116, 117, 118, 119, 120, 122 } : new int[] { 116, 117, 118, 119 }
+            );
+            assertMultiValueFunctionQuery(
+                availableFunctions,
+                testedFunctions,
+                request,
+                client,
+                "number",
                 "PROCESS where number(command_line) + pid >= 360",
-                multiValued ? new int[] {122, 123} : new int[] {123});
-            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "subtract",
+                multiValued ? new int[] { 122, 123 } : new int[] { 123 }
+            );
+            assertMultiValueFunctionQuery(
+                availableFunctions,
+                testedFunctions,
+                request,
+                client,
+                "subtract",
                 "PROCESS where subtract(pid, 1) == 0",
-                multiValued ? new int[] {120, 121, 122} : new int[] {120, 121, 122});
+                multiValued ? new int[] { 120, 121, 122 } : new int[] { 120, 121, 122 }
+            );
             // this test is not entirely accurate, as it doesn't use a Painless script to generate a query, but it seems there is a bug
             // in earlier versions (tested with 7.10.0) where an incorrect query DSL is generated for the original eql query
             // PROCESS where string(wildcard(process_name, \\\"*d*\\\") : \\\"true\\\")
-            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "wildcard",
+            assertMultiValueFunctionQuery(
+                availableFunctions,
+                testedFunctions,
+                request,
+                client,
+                "wildcard",
                 "PROCESS where wildcard(process_name, \\\"*d*\\\")",
-                multiValued ? new int[] {120, 121} : new int[] {120, 121});
+                multiValued ? new int[] { 120, 121 } : new int[] { 120, 121 }
+            );
         }
 
         // check that ALL functions from the function registry have a test query. We don't want to miss any of the functions, since this
@@ -192,8 +296,10 @@ public class EqlSearchIT extends ESRestTestCase {
         final String event = randomEvent();
         Map<String, Object> expectedResponse = prepareEventsTestData(event);
         try (
-            RestClient client = buildClient(restClientSettings(),
-                nodesList.stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new))
+            RestClient client = buildClient(
+                restClientSettings(),
+                nodesList.stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new)
+            )
         ) {
             // filter only the relevant bits of the response
             String filterPath = "filter_path=hits.events._source.@timestamp,hits.events._source.event_type,hits.events._source.sequence";
@@ -207,8 +313,10 @@ public class EqlSearchIT extends ESRestTestCase {
     private void assertSequncesQueryOnNodes(List<TestNode> nodesList) throws Exception {
         Map<String, Object> expectedResponse = prepareSequencesTestData();
         try (
-            RestClient client = buildClient(restClientSettings(),
-                nodesList.stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new))
+            RestClient client = buildClient(
+                restClientSettings(),
+                nodesList.stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new)
+            )
         ) {
             String filterPath = "filter_path=hits.sequences.join_keys,hits.sequences.events._id,hits.sequences.events._source";
             String query = "sequence by `sequence` with maxspan=100ms [success where true] by correlation_success1, correlation_success2 "
@@ -316,8 +424,15 @@ public class EqlSearchIT extends ESRestTestCase {
         return expectedResponse;
     }
 
-    private void assertMultiValueFunctionQuery(Set<String> availableFunctions, Set<String> testedFunctions, Request request,
-        RestClient client, String functionName, String query, int[] ids) throws IOException {
+    private void assertMultiValueFunctionQuery(
+        Set<String> availableFunctions,
+        Set<String> testedFunctions,
+        Request request,
+        RestClient client,
+        String functionName,
+        String query,
+        int[] ids
+    ) throws IOException {
         List<Object> eventIds = new ArrayList<>();
         for (int id : ids) {
             eventIds.add(String.valueOf(id));

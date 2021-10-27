@@ -1,5 +1,4 @@
 
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -247,32 +246,34 @@ public class ContextExampleTests extends ScriptTestCase {
     */
 
     public void testIngestProcessorScript() {
-        assertEquals(1535785200000L,
-            exec("def x = ['date': '2018-9-1', 'time': '3:00 PM'];" +
-                "String[] dateSplit = x.date.splitOnToken('-');" +
-                "String year = dateSplit[0].trim();" +
-                "String month = dateSplit[1].trim();" +
-                "if (month.length() == 1) {" +
-                "    month = '0' + month;" +
-                "}" +
-                "String day = dateSplit[2].trim();" +
-                "if (day.length() == 1) {" +
-                "    day = '0' + day;" +
-                "}" +
-                "boolean pm = x.time.substring(x.time.length() - 2).equals('PM');" +
-                "String[] timeSplit = x.time.substring(0, x.time.length() - 2).splitOnToken(':');" +
-                "int hours = Integer.parseInt(timeSplit[0].trim());" +
-                "int minutes = Integer.parseInt(timeSplit[1].trim());" +
-                "if (pm) {" +
-                "    hours += 12;" +
-                "}" +
-                "String dts = year + '-' + month + '-' + day + 'T' +" +
-                "        (hours < 10 ? '0' + hours : '' + hours) + ':' +" +
-                "        (minutes < 10 ? '0' + minutes : '' + minutes) +" +
-                "        ':00+08:00';" +
-                "ZonedDateTime dt = ZonedDateTime.parse(" +
-                "         dts, DateTimeFormatter.ISO_OFFSET_DATE_TIME);" +
-                "return dt.getLong(ChronoField.INSTANT_SECONDS) * 1000L"
+        assertEquals(
+            1535785200000L,
+            exec(
+                "def x = ['date': '2018-9-1', 'time': '3:00 PM'];"
+                    + "String[] dateSplit = x.date.splitOnToken('-');"
+                    + "String year = dateSplit[0].trim();"
+                    + "String month = dateSplit[1].trim();"
+                    + "if (month.length() == 1) {"
+                    + "    month = '0' + month;"
+                    + "}"
+                    + "String day = dateSplit[2].trim();"
+                    + "if (day.length() == 1) {"
+                    + "    day = '0' + day;"
+                    + "}"
+                    + "boolean pm = x.time.substring(x.time.length() - 2).equals('PM');"
+                    + "String[] timeSplit = x.time.substring(0, x.time.length() - 2).splitOnToken(':');"
+                    + "int hours = Integer.parseInt(timeSplit[0].trim());"
+                    + "int minutes = Integer.parseInt(timeSplit[1].trim());"
+                    + "if (pm) {"
+                    + "    hours += 12;"
+                    + "}"
+                    + "String dts = year + '-' + month + '-' + day + 'T' +"
+                    + "        (hours < 10 ? '0' + hours : '' + hours) + ':' +"
+                    + "        (minutes < 10 ? '0' + minutes : '' + minutes) +"
+                    + "        ':00+08:00';"
+                    + "ZonedDateTime dt = ZonedDateTime.parse("
+                    + "         dts, DateTimeFormatter.ISO_OFFSET_DATE_TIME);"
+                    + "return dt.getLong(ChronoField.INSTANT_SECONDS) * 1000L"
             )
         );
     }
@@ -284,7 +285,6 @@ public class ContextExampleTests extends ScriptTestCase {
     curl -XPOST localhost:9200/seats/seat/_bulk?pipeline=seats -H "Content-Type: application/x-ndjson" --data-binary "@/home/jdconrad/test/seats.json"
 
     */
-
 
     // Use script_fields API to add two extra fields to the hits
 
@@ -309,7 +309,6 @@ public class ContextExampleTests extends ScriptTestCase {
     }
     */
 
-
     // Testing only params, as I am not sure how to test Script Doc Values in painless
     public void testScriptFieldsScript() {
         Map<String, Object> hit = new HashMap<>();
@@ -318,16 +317,20 @@ public class ContextExampleTests extends ScriptTestCase {
         hit.put("fields", fields);
 
         Map<String, Object> source = new HashMap<>();
-        String[] actors =  {"James Holland", "Krissy Smith", "Joe Muir", "Ryan Earns"};
+        String[] actors = { "James Holland", "Krissy Smith", "Joe Muir", "Ryan Earns" };
         source.put("actors", actors);
 
-        assertEquals(hit, exec(
-            "Map fields = new HashMap();" +
-                "fields[\"number-of-actors\"] = params['_source']['actors'].length;" +
-                "Map rtn = new HashMap();" +
-                "rtn[\"fields\"] = fields;" +
-                "return rtn;",
-            singletonMap("_source", source), true)
+        assertEquals(
+            hit,
+            exec(
+                "Map fields = new HashMap();"
+                    + "fields[\"number-of-actors\"] = params['_source']['actors'].length;"
+                    + "Map rtn = new HashMap();"
+                    + "rtn[\"fields\"] = fields;"
+                    + "return rtn;",
+                singletonMap("_source", source),
+                true
+            )
         );
     }
 
@@ -361,12 +364,9 @@ public class ContextExampleTests extends ScriptTestCase {
         params.put("_source", source);
         params.put("cost", 18);
 
-        boolean result = (boolean) exec(
-            " params['_source']['sold'] == false && params['_source']['cost'] < params.cost;",
-            params, true);
+        boolean result = (boolean) exec(" params['_source']['sold'] == false && params['_source']['cost'] < params.cost;", params, true);
         assertTrue(result);
     }
-
 
     // Use script_fields API to add two extra fields to the hits
     /*
@@ -396,4 +396,3 @@ public class ContextExampleTests extends ScriptTestCase {
         assertEquals(2, result, 0);
     }
 }
-

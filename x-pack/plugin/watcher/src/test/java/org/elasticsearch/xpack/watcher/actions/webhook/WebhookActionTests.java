@@ -9,14 +9,14 @@ package org.elasticsearch.xpack.watcher.actions.webhook;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.actions.Action.Result.Status;
@@ -41,11 +41,12 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
-import javax.mail.internet.AddressException;
 import java.io.IOException;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Map;
+
+import javax.mail.internet.AddressException;
 
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -99,8 +100,14 @@ public class WebhookActionTests extends ESTestCase {
         scenario.assertResult(httpClient, actionResult);
     }
 
-    private HttpRequestTemplate getHttpRequestTemplate(HttpMethod method, String host, int port, TextTemplate path, TextTemplate body,
-                                                       Map<String, TextTemplate> params) {
+    private HttpRequestTemplate getHttpRequestTemplate(
+        HttpMethod method,
+        String host,
+        int port,
+        TextTemplate path,
+        TextTemplate body,
+        Map<String, TextTemplate> params
+    ) {
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder(host, port);
         if (path != null) {
             builder.path(path);
@@ -111,7 +118,7 @@ public class WebhookActionTests extends ESTestCase {
         if (method != null) {
             builder.method(method);
         }
-        if (params != null){
+        if (params != null) {
             builder.putParams(params);
         }
         return builder.build();
@@ -171,7 +178,7 @@ public class WebhookActionTests extends ESTestCase {
         String watchId = "_watch";
         String actionId = randomAlphaOfLength(5);
 
-        HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE, HttpMethod.HEAD,  null);
+        HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE, HttpMethod.HEAD, null);
         HttpRequestTemplate request = getHttpRequestTemplate(method, host, TEST_PORT, path, body, null);
 
         WebhookAction action = WebhookAction.builder(request).build();
@@ -200,7 +207,7 @@ public class WebhookActionTests extends ESTestCase {
         parser.nextToken();
 
         WebhookActionFactory actionParser = webhookFactory(ExecuteScenario.Success.client());
-        //This should fail since we are not supplying a url
+        // This should fail since we are not supplying a url
         try {
             actionParser.parseExecutable("_watch", randomAlphaOfLength(5), parser);
             fail("expected a WebhookActionException since we only provided either a host or a port but not both");
@@ -216,22 +223,36 @@ public class WebhookActionTests extends ESTestCase {
     public void testThatSelectingProxyWorks() throws Exception {
         Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
 
-        try (HttpClient httpClient = new HttpClient(Settings.EMPTY, new SSLService(environment.settings(), environment), null,
-            mockClusterService());
-             MockWebServer proxyServer = new MockWebServer()) {
+        try (
+            HttpClient httpClient = new HttpClient(
+                Settings.EMPTY,
+                new SSLService(environment.settings(), environment),
+                null,
+                mockClusterService()
+            );
+            MockWebServer proxyServer = new MockWebServer()
+        ) {
             proxyServer.start();
             proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody("fullProxiedContent"));
 
             HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("localhost", 65535)
-                    .path("/").proxy(new HttpProxy("localhost", proxyServer.getPort()));
+                .path("/")
+                .proxy(new HttpProxy("localhost", proxyServer.getPort()));
             WebhookAction action = new WebhookAction(builder.build());
 
             ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, httpClient, templateEngine);
             String watchId = "test_url_encode" + randomAlphaOfLength(10);
-            ScheduleTriggerEvent triggerEvent = new ScheduleTriggerEvent(watchId, ZonedDateTime.now(ZoneOffset.UTC),
-                ZonedDateTime.now(ZoneOffset.UTC));
-            TriggeredExecutionContext ctx = new TriggeredExecutionContext(watchId, ZonedDateTime.now(ZoneOffset.UTC),
-                triggerEvent, timeValueSeconds(5));
+            ScheduleTriggerEvent triggerEvent = new ScheduleTriggerEvent(
+                watchId,
+                ZonedDateTime.now(ZoneOffset.UTC),
+                ZonedDateTime.now(ZoneOffset.UTC)
+            );
+            TriggeredExecutionContext ctx = new TriggeredExecutionContext(
+                watchId,
+                ZonedDateTime.now(ZoneOffset.UTC),
+                triggerEvent,
+                timeValueSeconds(5)
+            );
             Watch watch = createWatch(watchId);
             ctx.ensureWatchExists(() -> watch);
             executable.execute("_id", ctx, new Payload.Simple());
@@ -242,8 +263,7 @@ public class WebhookActionTests extends ESTestCase {
 
     public void testValidUrls() throws Exception {
         HttpClient client = mock(HttpClient.class);
-        when(client.execute(any(HttpRequest.class)))
-                .thenReturn(new HttpResponse(randomIntBetween(200, 399)));
+        when(client.execute(any(HttpRequest.class))).thenReturn(new HttpResponse(randomIntBetween(200, 399)));
         String watchId = "test_url_encode" + randomAlphaOfLength(10);
 
         HttpMethod method = HttpMethod.POST;
@@ -255,10 +275,17 @@ public class WebhookActionTests extends ESTestCase {
 
         ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, client, templateEngine);
 
-        ScheduleTriggerEvent triggerEvent = new ScheduleTriggerEvent(watchId, ZonedDateTime.now(ZoneOffset.UTC),
-            ZonedDateTime.now(ZoneOffset.UTC));
-        TriggeredExecutionContext ctx = new TriggeredExecutionContext(watchId, ZonedDateTime.now(ZoneOffset.UTC),
-            triggerEvent, timeValueSeconds(5));
+        ScheduleTriggerEvent triggerEvent = new ScheduleTriggerEvent(
+            watchId,
+            ZonedDateTime.now(ZoneOffset.UTC),
+            ZonedDateTime.now(ZoneOffset.UTC)
+        );
+        TriggeredExecutionContext ctx = new TriggeredExecutionContext(
+            watchId,
+            ZonedDateTime.now(ZoneOffset.UTC),
+            triggerEvent,
+            timeValueSeconds(5)
+        );
         Watch watch = createWatch(watchId);
         ctx.ensureWatchExists(() -> watch);
         Action.Result result = executable.execute("_id", ctx, new Payload.Simple());
@@ -266,12 +293,14 @@ public class WebhookActionTests extends ESTestCase {
     }
 
     private Watch createWatch(String watchId) throws AddressException, IOException {
-        return WatcherTestUtils.createTestWatch(watchId,
-                mock(Client.class),
-                ExecuteScenario.Success.client(),
-                new EmailActionTests.NoopEmailService(),
-                mock(WatcherSearchTemplateService.class),
-                logger);
+        return WatcherTestUtils.createTestWatch(
+            watchId,
+            mock(Client.class),
+            ExecuteScenario.Success.client(),
+            new EmailActionTests.NoopEmailService(),
+            mock(WatcherSearchTemplateService.class),
+            logger
+        );
     }
 
     private enum ExecuteScenario {
@@ -299,8 +328,7 @@ public class WebhookActionTests extends ESTestCase {
             @Override
             public HttpClient client() throws IOException {
                 HttpClient client = mock(HttpClient.class);
-                when(client.execute(any(HttpRequest.class)))
-                        .thenThrow(new IOException("Unable to connect"));
+                when(client.execute(any(HttpRequest.class))).thenThrow(new IOException("Unable to connect"));
                 return client;
             }
 
@@ -314,10 +342,9 @@ public class WebhookActionTests extends ESTestCase {
 
         Success() {
             @Override
-            public HttpClient client() throws IOException{
+            public HttpClient client() throws IOException {
                 HttpClient client = mock(HttpClient.class);
-                when(client.execute(any(HttpRequest.class)))
-                        .thenReturn(new HttpResponse(randomIntBetween(200, 399)));
+                when(client.execute(any(HttpRequest.class))).thenReturn(new HttpResponse(randomIntBetween(200, 399)));
                 return client;
             }
 
@@ -335,7 +362,7 @@ public class WebhookActionTests extends ESTestCase {
 
         NoExecute() {
             @Override
-            public HttpClient client() throws IOException{
+            public HttpClient client() throws IOException {
                 return mock(HttpClient.class);
             }
 
@@ -347,6 +374,6 @@ public class WebhookActionTests extends ESTestCase {
 
         public abstract HttpClient client() throws IOException;
 
-        public abstract void assertResult(HttpClient client, Action.Result result) throws Exception ;
+        public abstract void assertResult(HttpClient client, Action.Result result) throws Exception;
     }
 }

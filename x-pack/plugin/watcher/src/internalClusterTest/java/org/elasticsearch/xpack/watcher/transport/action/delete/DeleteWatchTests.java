@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.watcher.transport.action.delete;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
-import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
 import org.elasticsearch.xcontent.ObjectPath;
-import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
+import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
@@ -52,15 +52,18 @@ public class DeleteWatchTests extends AbstractWatcherIntegrationTestCase {
             server.start();
             HttpRequestTemplate template = HttpRequestTemplate.builder(server.getHostName(), server.getPort()).path("/").build();
 
-            PutWatchResponse responseFuture = watcherClient().preparePutWatch("_name").setSource(watchBuilder()
-                    .trigger(schedule(interval("6h")))
-                    .input(httpInput(template))
-                    .addAction("_action1", loggingAction("anything")))
-                    .get();
+            PutWatchResponse responseFuture = watcherClient().preparePutWatch("_name")
+                .setSource(
+                    watchBuilder().trigger(schedule(interval("6h")))
+                        .input(httpInput(template))
+                        .addAction("_action1", loggingAction("anything"))
+                )
+                .get();
             assertThat(responseFuture.isCreated(), is(true));
 
-            ActionFuture<ExecuteWatchResponse> executeWatchFuture =
-                    watcherClient().prepareExecuteWatch("_name").setRecordExecution(true).execute();
+            ActionFuture<ExecuteWatchResponse> executeWatchFuture = watcherClient().prepareExecuteWatch("_name")
+                .setRecordExecution(true)
+                .execute();
 
             // without this sleep the delete operation might overtake the watch execution
             sleep(1000);

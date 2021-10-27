@@ -7,17 +7,17 @@
 package org.elasticsearch.xpack.ml.rest.datafeeds;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction.Request;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction.Response;
@@ -36,7 +36,8 @@ public class RestStopDatafeedAction extends BaseRestHandler {
     public List<Route> routes() {
         return org.elasticsearch.core.List.of(
             Route.builder(POST, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_stop")
-                .replaces(POST, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_stop", RestApiVersion.V_7).build()
+                .replaces(POST, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_stop", RestApiVersion.V_7)
+                .build()
         );
     }
 
@@ -63,12 +64,18 @@ public class RestStopDatafeedAction extends BaseRestHandler {
             }
             if (restRequest.hasParam(Request.ALLOW_NO_DATAFEEDS)) {
                 LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(
-                    null, () -> null, Request.ALLOW_NO_DATAFEEDS, Request.ALLOW_NO_MATCH.getPreferredName());
+                    null,
+                    () -> null,
+                    Request.ALLOW_NO_DATAFEEDS,
+                    Request.ALLOW_NO_MATCH.getPreferredName()
+                );
             }
             request.setAllowNoMatch(
                 restRequest.paramAsBoolean(
                     Request.ALLOW_NO_MATCH.getPreferredName(),
-                    restRequest.paramAsBoolean(Request.ALLOW_NO_DATAFEEDS, request.allowNoMatch())));
+                    restRequest.paramAsBoolean(Request.ALLOW_NO_DATAFEEDS, request.allowNoMatch())
+                )
+            );
         }
         return channel -> client.execute(StopDatafeedAction.INSTANCE, request, new RestBuilderListener<Response>(channel) {
 

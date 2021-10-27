@@ -9,8 +9,8 @@ package org.elasticsearch.upgrades;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ObjectPath;
@@ -31,10 +31,8 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
-
 public class RollupIDUpgradeIT extends AbstractUpgradeTestCase {
-    private static final Version UPGRADE_FROM_VERSION =
-        Version.fromString(System.getProperty("tests.upgrade_from_version"));
+    private static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
 
     /**
      * This test verifies that as a cluster is upgraded incrementally, new documents eventually switch
@@ -91,28 +89,30 @@ public class RollupIDUpgradeIT extends AbstractUpgradeTestCase {
 
             // create the rollup job
             final Request createRollupJobRequest = new Request("PUT", "/_rollup/job/rollup-id-test");
-            createRollupJobRequest.setJsonEntity("{"
-                + "\"index_pattern\":\"target\","
-                + "\"rollup_index\":\"rollup\","
-                + "\"cron\":\"*/1 * * * * ?\","
-                + "\"page_size\":100,"
-                + "\"groups\":{"
-                + "    \"date_histogram\":{"
-                + "        \"field\":\"timestamp\","
-                + "        \"interval\":\"5m\""
-                + "      },"
-                +       "\"histogram\":{"
-                + "        \"fields\": [\"value\"],"
-                + "        \"interval\":1"
-                + "      },"
-                +       "\"terms\":{"
-                + "        \"fields\": [\"value\"]"
-                + "      }"
-                + "},"
-                + "\"metrics\":["
-                + "    {\"field\":\"value\",\"metrics\":[\"min\",\"max\",\"sum\"]}"
-                + "]"
-                + "}");
+            createRollupJobRequest.setJsonEntity(
+                "{"
+                    + "\"index_pattern\":\"target\","
+                    + "\"rollup_index\":\"rollup\","
+                    + "\"cron\":\"*/1 * * * * ?\","
+                    + "\"page_size\":100,"
+                    + "\"groups\":{"
+                    + "    \"date_histogram\":{"
+                    + "        \"field\":\"timestamp\","
+                    + "        \"interval\":\"5m\""
+                    + "      },"
+                    + "\"histogram\":{"
+                    + "        \"fields\": [\"value\"],"
+                    + "        \"interval\":1"
+                    + "      },"
+                    + "\"terms\":{"
+                    + "        \"fields\": [\"value\"]"
+                    + "      }"
+                    + "},"
+                    + "\"metrics\":["
+                    + "    {\"field\":\"value\",\"metrics\":[\"min\",\"max\",\"sum\"]}"
+                    + "]"
+                    + "}"
+            );
 
             Map<String, Object> createRollupJobResponse = entityAsMap(client().performRequest(createRollupJobRequest));
             assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
@@ -146,7 +146,7 @@ public class RollupIDUpgradeIT extends AbstractUpgradeTestCase {
 
             // next doc may be either style
             ids.removeAll(Arrays.asList("621059582", "rollup-id-test$ehY4NAyVSy8xxUDZrNXXIA"));
-            assertThat(ids.toString(),ids.size(), equalTo(0));
+            assertThat(ids.toString(), ids.size(), equalTo(0));
         }
 
         if (CLUSTER_TYPE == ClusterType.MIXED && Booleans.parseBoolean(System.getProperty("tests.first_round")) == false) {
@@ -163,8 +163,9 @@ public class RollupIDUpgradeIT extends AbstractUpgradeTestCase {
             ids.remove("3310683722");
 
             // next two docs may be either style
-            ids.removeAll(Arrays.asList("621059582", "4288019978",
-                "rollup-id-test$ehY4NAyVSy8xxUDZrNXXIA", "rollup-id-test$60RGDSb92YI5LH4_Fnq_1g"));
+            ids.removeAll(
+                Arrays.asList("621059582", "4288019978", "rollup-id-test$ehY4NAyVSy8xxUDZrNXXIA", "rollup-id-test$60RGDSb92YI5LH4_Fnq_1g")
+            );
             assertThat(ids.toString(), ids.size(), equalTo(0));
 
         }
@@ -182,8 +183,9 @@ public class RollupIDUpgradeIT extends AbstractUpgradeTestCase {
             ids.remove("3310683722");
 
             // next two docs may be either style
-            ids.removeAll(Arrays.asList("621059582", "4288019978",
-                "rollup-id-test$ehY4NAyVSy8xxUDZrNXXIA", "rollup-id-test$60RGDSb92YI5LH4_Fnq_1g"));
+            ids.removeAll(
+                Arrays.asList("621059582", "4288019978", "rollup-id-test$ehY4NAyVSy8xxUDZrNXXIA", "rollup-id-test$60RGDSb92YI5LH4_Fnq_1g")
+            );
 
             // Last is guaranteed to be new
             ids.remove("rollup-id-test$LAKZftDeQwsUtdPixrkkzQ");
@@ -284,8 +286,7 @@ public class RollupIDUpgradeIT extends AbstractUpgradeTestCase {
     @SuppressWarnings("unchecked")
     private static Map<String, Object> getJob(Map<String, Object> jobsMap, String targetJobId) throws IOException {
 
-        List<Map<String, Object>> jobs =
-            (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", jobsMap);
+        List<Map<String, Object>> jobs = (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", jobsMap);
 
         if (jobs == null) {
             return null;

@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.security.authc.support;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -40,9 +40,7 @@ public class RealmUserLookupTests extends ESTestCase {
 
     @Before
     public void setup() {
-        globalSettings = Settings.builder()
-            .put("path.home", createTempDir())
-            .build();
+        globalSettings = Settings.builder().put("path.home", createTempDir()).build();
         env = TestEnvironment.newEnvironment(globalSettings);
         threadContext = new ThreadContext(globalSettings);
     }
@@ -117,7 +115,7 @@ public class RealmUserLookupTests extends ESTestCase {
     private List<MockLookupRealm> buildRealms(int realmCount) {
         final List<MockLookupRealm> realms = new ArrayList<>(realmCount);
         for (int i = 1; i <= realmCount; i++) {
-            final RealmConfig config = new RealmConfig(new RealmIdentifier("mock","lookup-" + i), globalSettings, env, threadContext);
+            final RealmConfig config = new RealmConfig(new RealmIdentifier("mock", "lookup-" + i), globalSettings, env, threadContext);
             final MockLookupRealm realm = new MockLookupRealm(config);
             for (int j = 0; j < 5; j++) {
                 realm.registerUser(new User(randomAlphaOfLengthBetween(6, 12)));

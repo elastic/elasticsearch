@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.security.transport.ssl;
 
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.TestXPackTransportClient;
@@ -60,8 +60,8 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
      */
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        String randomClientPortRange = randomClientPort + "-" + (randomClientPort+100);
-        String randomNoClientAuthPortRange = randomNoClientAuthPort + "-" + (randomNoClientAuthPort+100);
+        String randomClientPortRange = randomClientPort + "-" + (randomClientPort + 100);
+        String randomNoClientAuthPortRange = randomNoClientAuthPort + "-" + (randomNoClientAuthPort + 100);
 
         Path trustCert;
         try {
@@ -92,13 +92,13 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
 
     private TransportClient createTransportClient(Settings additionalSettings) {
         Settings settings = Settings.builder()
-                .put(transportClientSettings().filter(s -> s.startsWith("xpack.security.transport.ssl") == false))
-                .put("node.name", "programmatic_transport_client")
-                .put("cluster.name", internalCluster().getClusterName())
-                .put("xpack.security.transport.ssl.enabled", true)
-                .put(additionalSettings)
-                .build();
-        //return new TestXPackTransportClient(settings, LocalStateSecurity.class);
+            .put(transportClientSettings().filter(s -> s.startsWith("xpack.security.transport.ssl") == false))
+            .put("node.name", "programmatic_transport_client")
+            .put("cluster.name", internalCluster().getClusterName())
+            .put("xpack.security.transport.ssl.enabled", true)
+            .put(additionalSettings)
+            .build();
+        // return new TestXPackTransportClient(settings, LocalStateSecurity.class);
         logger.info("transport client settings:\n{}", settings);
         return new TestXPackTransportClient(settings, LocalStateSecurity.class);
     }
@@ -119,15 +119,19 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
      * disabling the client auth requirement
      */
     public void testThatStandardTransportClientCanConnectToNoClientAuthProfile() throws Exception {
-        try(TransportClient transportClient = new TestXPackTransportClient(Settings.builder()
-                .put(transportClientSettings())
-                .put("xpack.security.transport.ssl.enabled", true)
-                .putList("xpack.security.transport.ssl.supported_protocols", getProtocols())
-                .put("node.name", "programmatic_transport_client")
-                .put("cluster.name", internalCluster().getClusterName())
-                .build(), LocalStateSecurity.class)) {
-            transportClient.addTransportAddress(new TransportAddress(localAddress,
-                    getProfilePort("no_client_auth")));
+        try (
+            TransportClient transportClient = new TestXPackTransportClient(
+                Settings.builder()
+                    .put(transportClientSettings())
+                    .put("xpack.security.transport.ssl.enabled", true)
+                    .putList("xpack.security.transport.ssl.supported_protocols", getProtocols())
+                    .put("node.name", "programmatic_transport_client")
+                    .put("cluster.name", internalCluster().getClusterName())
+                    .build(),
+                LocalStateSecurity.class
+            )
+        ) {
+            transportClient.addTransportAddress(new TransportAddress(localAddress, getProfilePort("no_client_auth")));
             assertGreenClusterState(transportClient);
         }
     }
@@ -161,8 +165,11 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient-client-profile.pem",
             "testclient-client-profile",
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient-client-profile.crt",
-            Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
-                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt"));
+            Arrays.asList(
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt"
+            )
+        );
         try (TransportClient transportClient = createTransportClient(builder.build())) {
             transportClient.addTransportAddress(new TransportAddress(localAddress, getProfilePort("client")));
             assertGreenClusterState(transportClient);
@@ -182,12 +189,14 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient-client-profile.pem",
             "testclient-client-profile",
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient-client-profile.crt",
-            Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
-                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt"));
+            Arrays.asList(
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt"
+            )
+        );
         builder.putList("xpack.security.transport.ssl.supported_protocols", getProtocols());
         try (TransportClient transportClient = createTransportClient(builder.build())) {
-            transportClient.addTransportAddress(new TransportAddress(localAddress,
-                    getProfilePort("no_client_auth")));
+            transportClient.addTransportAddress(new TransportAddress(localAddress, getProfilePort("no_client_auth")));
             assertGreenClusterState(transportClient);
         }
     }
@@ -205,8 +214,11 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient-client-profile.pem",
             "testclient-client-profile",
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient-client-profile.crt",
-            Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
-                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt"));
+            Arrays.asList(
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt"
+            )
+        );
         try (TransportClient transportClient = createTransportClient(builder.build())) {
             TransportAddress transportAddress = randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses());
             transportClient.addTransportAddress(transportAddress);
@@ -223,11 +235,12 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
      */
     public void testThatTransportClientCannotConnectToDefaultProfile() throws Exception {
         Settings settings = Settings.builder()
-                .put(SecurityField.USER_SETTING.getKey(), TEST_USER_NAME + ":" + TEST_PASSWORD)
-                .put("cluster.name", internalCluster().getClusterName())
-                .build();
-        try (TransportClient transportClient = new TestXPackTransportClient(settings,
-                                                                            Collections.singletonList(LocalStateSecurity.class))) {
+            .put(SecurityField.USER_SETTING.getKey(), TEST_USER_NAME + ":" + TEST_PASSWORD)
+            .put("cluster.name", internalCluster().getClusterName())
+            .build();
+        try (
+            TransportClient transportClient = new TestXPackTransportClient(settings, Collections.singletonList(LocalStateSecurity.class))
+        ) {
             transportClient.addTransportAddress(randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses()));
             assertGreenClusterState(transportClient);
             fail("Expected NoNodeAvailableException");
@@ -242,11 +255,12 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
      */
     public void testThatTransportClientCannotConnectToClientProfile() throws Exception {
         Settings settings = Settings.builder()
-                .put(SecurityField.USER_SETTING.getKey(), TEST_USER_NAME + ":" + TEST_PASSWORD)
-                .put("cluster.name", internalCluster().getClusterName())
-                .build();
-        try (TransportClient transportClient = new TestXPackTransportClient(settings,
-                                                                            Collections.singletonList(LocalStateSecurity.class))) {
+            .put(SecurityField.USER_SETTING.getKey(), TEST_USER_NAME + ":" + TEST_PASSWORD)
+            .put("cluster.name", internalCluster().getClusterName())
+            .build();
+        try (
+            TransportClient transportClient = new TestXPackTransportClient(settings, Collections.singletonList(LocalStateSecurity.class))
+        ) {
             transportClient.addTransportAddress(new TransportAddress(localAddress, getProfilePort("client")));
             assertGreenClusterState(transportClient);
             fail("Expected NoNodeAvailableException");
@@ -261,13 +275,13 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
      */
     public void testThatTransportClientCannotConnectToNoClientAuthProfile() throws Exception {
         Settings settings = Settings.builder()
-                .put(SecurityField.USER_SETTING.getKey(), TEST_USER_NAME + ":" + TEST_PASSWORD)
-                .put("cluster.name", internalCluster().getClusterName())
-                .build();
-        try (TransportClient transportClient = new TestXPackTransportClient(settings,
-                                                                            Collections.singletonList(LocalStateSecurity.class))) {
-            transportClient.addTransportAddress(new TransportAddress(localAddress,
-                    getProfilePort("no_client_auth")));
+            .put(SecurityField.USER_SETTING.getKey(), TEST_USER_NAME + ":" + TEST_PASSWORD)
+            .put("cluster.name", internalCluster().getClusterName())
+            .build();
+        try (
+            TransportClient transportClient = new TestXPackTransportClient(settings, Collections.singletonList(LocalStateSecurity.class))
+        ) {
+            transportClient.addTransportAddress(new TransportAddress(localAddress, getProfilePort("no_client_auth")));
             assertGreenClusterState(transportClient);
             fail("Expected NoNodeAvailableException");
         } catch (NoNodeAvailableException e) {
@@ -284,15 +298,17 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
             .put(SecurityField.USER_SETTING.getKey(), TEST_USER_NAME + ":" + TEST_PASSWORD)
             .put("cluster.name", internalCluster().getClusterName())
             .put("xpack.security.transport.ssl.enabled", true)
-            .putList("xpack.security.transport.ssl.certificate_authorities",
+            .putList(
+                "xpack.security.transport.ssl.certificate_authorities",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt").toString(),
-                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt").toString())
+                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt").toString()
+            )
             .putList("xpack.security.transport.ssl.supported_protocols", getProtocols())
             .build();
-        try (TransportClient transportClient = new TestXPackTransportClient(settings,
-                                                                            Collections.singletonList(LocalStateSecurity.class))) {
-            transportClient.addTransportAddress(new TransportAddress(localAddress,
-                    getProfilePort("no_client_auth")));
+        try (
+            TransportClient transportClient = new TestXPackTransportClient(settings, Collections.singletonList(LocalStateSecurity.class))
+        ) {
+            transportClient.addTransportAddress(new TransportAddress(localAddress, getProfilePort("no_client_auth")));
         }
     }
 
@@ -307,13 +323,16 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
             .put("cluster.name", internalCluster().getClusterName())
             .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.security.transport.ssl.client_authentication", SSLClientAuth.REQUIRED)
-            .putList("xpack.security.transport.ssl.certificate_authorities",
+            .putList(
+                "xpack.security.transport.ssl.certificate_authorities",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt").toString(),
-                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt").toString())
+                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt").toString()
+            )
             .putList("xpack.security.transport.ssl.supported_protocols", getProtocols())
             .build();
-        try (TransportClient transportClient = new TestXPackTransportClient(settings,
-                                                                            Collections.singletonList(LocalStateSecurity.class))) {
+        try (
+            TransportClient transportClient = new TestXPackTransportClient(settings, Collections.singletonList(LocalStateSecurity.class))
+        ) {
             transportClient.addTransportAddress(new TransportAddress(localAddress, getProfilePort("client")));
             assertGreenClusterState(transportClient);
             fail("Expected NoNodeAvailableException");
@@ -333,15 +352,18 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
             .put("cluster.name", internalCluster().getClusterName())
             .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.security.transport.ssl.client_authentication", SSLClientAuth.REQUIRED)
-            .putList("xpack.security.transport.ssl.certificate_authorities",
+            .putList(
+                "xpack.security.transport.ssl.certificate_authorities",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt").toString(),
-                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt").toString())
+                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt").toString()
+            )
             .putList("xpack.security.transport.ssl.supported_protocols", getProtocols())
             .build();
-        try (TransportClient transportClient = new TestXPackTransportClient(settings,
-                                                                            Collections.singletonList(LocalStateSecurity.class))) {
+        try (
+            TransportClient transportClient = new TestXPackTransportClient(settings, Collections.singletonList(LocalStateSecurity.class))
+        ) {
             transportClient.addTransportAddress(randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses()));
-                    assertGreenClusterState(transportClient);
+            assertGreenClusterState(transportClient);
             fail("Expected NoNodeAvailableException");
         } catch (NoNodeAvailableException e) {
             assertThat(e.getMessage(), containsString("None of the configured nodes are available: [{#transport#-"));
@@ -360,8 +382,9 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
             .put("xpack.security.transport.ssl.client_authentication", SSLClientAuth.REQUIRED)
             .put("xpack.security.transport.ssl.enabled", true)
             .build();
-        try (TransportClient transportClient = new TestXPackTransportClient(settings,
-                                                                            Collections.singletonList(LocalStateSecurity.class))) {
+        try (
+            TransportClient transportClient = new TestXPackTransportClient(settings, Collections.singletonList(LocalStateSecurity.class))
+        ) {
             transportClient.addTransportAddress(randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses()));
             assertGreenClusterState(transportClient);
             fail("Expected NoNodeAvailableException");
@@ -382,8 +405,9 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
             .put("xpack.security.transport.ssl.client_authentication", SSLClientAuth.REQUIRED)
             .put("xpack.security.transport.ssl.enabled", true)
             .build();
-        try (TransportClient transportClient = new TestXPackTransportClient(settings,
-                                                                            Collections.singletonList(LocalStateSecurity.class))) {
+        try (
+            TransportClient transportClient = new TestXPackTransportClient(settings, Collections.singletonList(LocalStateSecurity.class))
+        ) {
             transportClient.addTransportAddress(new TransportAddress(localAddress, getProfilePort("client")));
             assertGreenClusterState(transportClient);
             fail("Expected NoNodeAvailableException");
@@ -404,10 +428,10 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
             .put("xpack.security.transport.ssl.client_authentication", SSLClientAuth.REQUIRED)
             .put("xpack.security.transport.ssl.enabled", true)
             .build();
-        try (TransportClient transportClient = new TestXPackTransportClient(settings,
-                                                                            Collections.singletonList(LocalStateSecurity.class))) {
-            transportClient.addTransportAddress(new TransportAddress(localAddress,
-                    getProfilePort("no_client_auth")));
+        try (
+            TransportClient transportClient = new TestXPackTransportClient(settings, Collections.singletonList(LocalStateSecurity.class))
+        ) {
+            transportClient.addTransportAddress(new TransportAddress(localAddress, getProfilePort("no_client_auth")));
             assertGreenClusterState(transportClient);
             fail("Expected NoNodeAvailableException");
         } catch (NoNodeAvailableException e) {
@@ -416,15 +440,22 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
     }
 
     private static int getProfilePort(String profile) {
-        TransportAddress[] transportAddresses =
-            internalCluster().getInstance(Transport.class).profileBoundAddresses().get(profile).boundAddresses();
+        TransportAddress[] transportAddresses = internalCluster().getInstance(Transport.class)
+            .profileBoundAddresses()
+            .get(profile)
+            .boundAddresses();
         for (TransportAddress address : transportAddresses) {
             if (address.address().getAddress().equals(localAddress)) {
                 return address.address().getPort();
             }
         }
-        throw new IllegalStateException("failed to find transport address equal to [" + NetworkAddress.format(localAddress) + "] " +
-            " in the following bound addresses " + Arrays.toString(transportAddresses));
+        throw new IllegalStateException(
+            "failed to find transport address equal to ["
+                + NetworkAddress.format(localAddress)
+                + "] "
+                + " in the following bound addresses "
+                + Arrays.toString(transportAddresses)
+        );
     }
 
     /**
@@ -436,8 +467,9 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
         if (JavaVersion.current().compareTo(JavaVersion.parse("11")) < 0) {
             return XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS;
         }
-        JavaVersion full =
-            AccessController.doPrivileged((PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version")));
+        JavaVersion full = AccessController.doPrivileged(
+            (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version"))
+        );
         if (full.compareTo(JavaVersion.parse("11.0.3")) < 0) {
             return Collections.singletonList("TLSv1.2");
         }

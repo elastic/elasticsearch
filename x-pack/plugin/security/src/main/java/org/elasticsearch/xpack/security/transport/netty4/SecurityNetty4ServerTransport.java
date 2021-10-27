@@ -8,12 +8,13 @@ package org.elasticsearch.xpack.security.transport.netty4;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
+
 import org.elasticsearch.Version;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.SharedGroupFactory;
@@ -24,21 +25,32 @@ import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 
 public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
 
-    @Nullable private final IPFilter authenticator;
+    @Nullable
+    private final IPFilter authenticator;
 
     public SecurityNetty4ServerTransport(
-            final Settings settings,
-            final Version version,
-            final ThreadPool threadPool,
-            final NetworkService networkService,
-            final PageCacheRecycler pageCacheRecycler,
-            final NamedWriteableRegistry namedWriteableRegistry,
-            final CircuitBreakerService circuitBreakerService,
-            @Nullable final IPFilter authenticator,
-            final SSLService sslService,
-            final SharedGroupFactory sharedGroupFactory) {
-        super(settings, version, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, sslService,
-            sharedGroupFactory);
+        final Settings settings,
+        final Version version,
+        final ThreadPool threadPool,
+        final NetworkService networkService,
+        final PageCacheRecycler pageCacheRecycler,
+        final NamedWriteableRegistry namedWriteableRegistry,
+        final CircuitBreakerService circuitBreakerService,
+        @Nullable final IPFilter authenticator,
+        final SSLService sslService,
+        final SharedGroupFactory sharedGroupFactory
+    ) {
+        super(
+            settings,
+            version,
+            threadPool,
+            networkService,
+            pageCacheRecycler,
+            namedWriteableRegistry,
+            circuitBreakerService,
+            sslService,
+            sharedGroupFactory
+        );
         this.authenticator = authenticator;
     }
 

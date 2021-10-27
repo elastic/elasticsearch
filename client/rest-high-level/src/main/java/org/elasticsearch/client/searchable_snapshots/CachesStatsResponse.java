@@ -8,8 +8,8 @@
 
 package org.elasticsearch.client.searchable_snapshots;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Collections;
@@ -31,7 +31,10 @@ public class CachesStatsResponse {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<CachesStatsResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "caches_stats_response", true, args -> new CachesStatsResponse((List<NodeCachesStats>) args[0]));
+        "caches_stats_response",
+        true,
+        args -> new CachesStatsResponse((List<NodeCachesStats>) args[0])
+    );
     static {
         PARSER.declareNamedObjects(constructorArg(), (p, c, nodeId) -> NodeCachesStats.PARSER.apply(p, nodeId), new ParseField("nodes"));
     }
@@ -59,7 +62,10 @@ public class CachesStatsResponse {
         }
 
         private static final ConstructingObjectParser<NodeCachesStats, String> PARSER = new ConstructingObjectParser<>(
-            "node_caches_stats", true, (args, nodeId) -> new NodeCachesStats(nodeId, (SharedCacheStats) args[0]));
+            "node_caches_stats",
+            true,
+            (args, nodeId) -> new NodeCachesStats(nodeId, (SharedCacheStats) args[0])
+        );
         static {
             PARSER.declareObject(constructorArg(), (p, c) -> SharedCacheStats.fromXContent(p), new ParseField("shared_cache"));
         }
@@ -163,16 +169,24 @@ public class CachesStatsResponse {
 
         @Override
         public String toString() {
-            return "SharedCacheStats{" +
-                "numRegions=" + numRegions +
-                ", size=" + size +
-                ", regionSize=" + regionSize +
-                ", writes=" + writes +
-                ", bytesWritten=" + bytesWritten +
-                ", reads=" + reads +
-                ", bytesRead=" + bytesRead +
-                ", evictions=" + evictions +
-                '}';
+            return "SharedCacheStats{"
+                + "numRegions="
+                + numRegions
+                + ", size="
+                + size
+                + ", regionSize="
+                + regionSize
+                + ", writes="
+                + writes
+                + ", bytesWritten="
+                + bytesWritten
+                + ", reads="
+                + reads
+                + ", bytesRead="
+                + bytesRead
+                + ", evictions="
+                + evictions
+                + '}';
         }
     }
 }

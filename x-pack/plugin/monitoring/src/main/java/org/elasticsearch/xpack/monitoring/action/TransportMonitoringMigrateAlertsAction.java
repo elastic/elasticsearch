@@ -44,7 +44,8 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeAction<MonitoringMigrateAlertsRequest,
+public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeAction<
+    MonitoringMigrateAlertsRequest,
     MonitoringMigrateAlertsResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportMonitoringMigrateAlertsAction.class);
@@ -54,20 +55,38 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
     private final Exporters exporters;
 
     @Inject
-    public TransportMonitoringMigrateAlertsAction(Client client, Exporters exporters, MonitoringMigrationCoordinator migrationCoordinator,
-                                                  TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                                  ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(MonitoringMigrateAlertsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            MonitoringMigrateAlertsRequest::new, indexNameExpressionResolver, MonitoringMigrateAlertsResponse::new,
-            ThreadPool.Names.MANAGEMENT);
+    public TransportMonitoringMigrateAlertsAction(
+        Client client,
+        Exporters exporters,
+        MonitoringMigrationCoordinator migrationCoordinator,
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            MonitoringMigrateAlertsAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            MonitoringMigrateAlertsRequest::new,
+            indexNameExpressionResolver,
+            MonitoringMigrateAlertsResponse::new,
+            ThreadPool.Names.MANAGEMENT
+        );
         this.client = client;
         this.migrationCoordinator = migrationCoordinator;
         this.exporters = exporters;
     }
 
     @Override
-    protected void masterOperation(MonitoringMigrateAlertsRequest request, ClusterState state,
-                                   ActionListener<MonitoringMigrateAlertsResponse> listener) throws Exception {
+    protected void masterOperation(
+        MonitoringMigrateAlertsRequest request,
+        ClusterState state,
+        ActionListener<MonitoringMigrateAlertsResponse> listener
+    ) throws Exception {
         // First, set the migration coordinator as currently running
         if (migrationCoordinator.tryBlockInstallationTasks() == false) {
             throw new EsRejectedExecutionException("Could not migrate cluster alerts. Migration already in progress.");
@@ -76,7 +95,10 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
             // Wrap the listener to unblock resource installation before completing
             listener = ActionListener.runBefore(listener, migrationCoordinator::unblockInstallationTasks);
             Settings.Builder decommissionAlertSetting = Settings.builder().put(Monitoring.MIGRATION_DECOMMISSION_ALERTS.getKey(), true);
-            client.admin().cluster().prepareUpdateSettings().setPersistentSettings(decommissionAlertSetting)
+            client.admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(decommissionAlertSetting)
                 .execute(completeOnManagementThread(listener));
         } catch (Exception e) {
             // unblock resource installation if something fails here
@@ -86,11 +108,12 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
     }
 
     private ActionListener<ClusterUpdateSettingsResponse> completeOnManagementThread(
-        ActionListener<MonitoringMigrateAlertsResponse> delegate) {
+        ActionListener<MonitoringMigrateAlertsResponse> delegate
+    ) {
         // Send failures to the final listener directly, and on success, fork to management thread and execute best effort alert removal
         return ActionListener.wrap(
-            (response) -> threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(
-                ActionRunnable.wrap(delegate, (listener) -> afterSettingUpdate(listener, response))),
+            (response) -> threadPool.executor(ThreadPool.Names.MANAGEMENT)
+                .execute(ActionRunnable.wrap(delegate, (listener) -> afterSettingUpdate(listener, response))),
             delegate::onFailure
         );
     }
@@ -100,8 +123,10 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
      * to explicitly remove their installed alerts if possible. This makes sure that alerts are removed in a timely fashion instead of
      * waiting for metrics to be bulked into the monitoring cluster.
      */
-    private void afterSettingUpdate(ActionListener<MonitoringMigrateAlertsResponse> listener,
-                                    ClusterUpdateSettingsResponse clusterUpdateSettingsResponse) {
+    private void afterSettingUpdate(
+        ActionListener<MonitoringMigrateAlertsResponse> listener,
+        ClusterUpdateSettingsResponse clusterUpdateSettingsResponse
+    ) {
         logger.info("THREAD NAME: {}" + Thread.currentThread().getName());
 
         // Ensure positive result
@@ -116,18 +141,28 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
         List<Runnable> refreshTasks = new ArrayList<>();
         AtomicInteger remaining = new AtomicInteger(enabledExporters.size() + disabledExporterConfigs.size());
         List<ExporterResourceStatus> results = Collections.synchronizedList(new ArrayList<>(remaining.get()));
-        logger.debug("Exporters in need of refreshing [{}]; enabled [{}], disabled [{}]", remaining.get(), enabledExporters.size(),
-            disabledExporterConfigs.size());
+        logger.debug(
+            "Exporters in need of refreshing [{}]; enabled [{}], disabled [{}]",
+            remaining.get(),
+            enabledExporters.size(),
+            disabledExporterConfigs.size()
+        );
 
         for (Exporter enabledExporter : enabledExporters) {
-            refreshTasks.add(ActionRunnable.wrap(
-                resultCollector(enabledExporter.config(), listener, remaining, results),
-                (resultCollector) -> deleteAlertsFromOpenExporter(enabledExporter, resultCollector)));
+            refreshTasks.add(
+                ActionRunnable.wrap(
+                    resultCollector(enabledExporter.config(), listener, remaining, results),
+                    (resultCollector) -> deleteAlertsFromOpenExporter(enabledExporter, resultCollector)
+                )
+            );
         }
         for (Exporter.Config disabledExporter : disabledExporterConfigs) {
-            refreshTasks.add(ActionRunnable.wrap(
-                resultCollector(disabledExporter, listener, remaining, results),
-                (resultCollector) -> deleteAlertsFromDisabledExporter(disabledExporter, resultCollector)));
+            refreshTasks.add(
+                ActionRunnable.wrap(
+                    resultCollector(disabledExporter, listener, remaining, results),
+                    (resultCollector) -> deleteAlertsFromDisabledExporter(disabledExporter, resultCollector)
+                )
+            );
         }
         for (Runnable refreshTask : refreshTasks) {
             threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(refreshTask);
@@ -141,10 +176,12 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
      * @param remaining The counter used to determine if any other operations are in flight
      * @param results A thread-safe collection to hold results
      */
-    private ActionListener<ExporterResourceStatus> resultCollector(final Exporter.Config exporterConfig,
-                                                                   final ActionListener<MonitoringMigrateAlertsResponse> listener,
-                                                                   final AtomicInteger remaining,
-                                                                   final List<ExporterResourceStatus> results) {
+    private ActionListener<ExporterResourceStatus> resultCollector(
+        final Exporter.Config exporterConfig,
+        final ActionListener<MonitoringMigrateAlertsResponse> listener,
+        final AtomicInteger remaining,
+        final List<ExporterResourceStatus> results
+    ) {
         return new ActionListener<ExporterResourceStatus>() {
             @Override
             public void onResponse(ExporterResourceStatus exporterResourceStatus) {
@@ -167,13 +204,16 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
 
             private void finalResult() {
                 try {
-                    List<ExporterMigrationResult> collectedResults = results.stream().map(status ->
-                        new ExporterMigrationResult(
-                            status.getExporterName(),
-                            status.getExporterType(),
-                            status.isComplete(),
-                            compileReason(status))
-                    ).collect(Collectors.toList());
+                    List<ExporterMigrationResult> collectedResults = results.stream()
+                        .map(
+                            status -> new ExporterMigrationResult(
+                                status.getExporterName(),
+                                status.getExporterType(),
+                                status.isComplete(),
+                                compileReason(status)
+                            )
+                        )
+                        .collect(Collectors.toList());
                     MonitoringMigrateAlertsResponse response = new MonitoringMigrateAlertsResponse(collectedResults);
                     listener.onResponse(response);
                 } catch (Exception e) {

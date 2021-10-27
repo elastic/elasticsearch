@@ -33,12 +33,14 @@ import static org.hamcrest.Matchers.nullValue;
 public class GetWatchTests extends AbstractWatcherIntegrationTestCase {
 
     public void testGet() throws Exception {
-        PutWatchResponse putResponse = watcherClient().preparePutWatch("_name").setSource(watchBuilder()
-                .trigger(schedule(interval("5m")))
-                .input(simpleInput())
-                .condition(InternalAlwaysCondition.INSTANCE)
-                .addAction("_action1", loggingAction("{{ctx.watch_id}}")))
-                .get();
+        PutWatchResponse putResponse = watcherClient().preparePutWatch("_name")
+            .setSource(
+                watchBuilder().trigger(schedule(interval("5m")))
+                    .input(simpleInput())
+                    .condition(InternalAlwaysCondition.INSTANCE)
+                    .addAction("_action1", loggingAction("{{ctx.watch_id}}"))
+            )
+            .get();
 
         assertThat(putResponse, notNullValue());
         assertThat(putResponse.isCreated(), is(true));

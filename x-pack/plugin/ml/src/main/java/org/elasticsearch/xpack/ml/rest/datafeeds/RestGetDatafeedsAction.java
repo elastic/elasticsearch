@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.ml.rest.datafeeds;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -32,9 +32,9 @@ public class RestGetDatafeedsAction extends BaseRestHandler {
     public List<Route> routes() {
         return org.elasticsearch.core.List.of(
             Route.builder(GET, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}")
-                .replaces(GET, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}", RestApiVersion.V_7).build(),
-            Route.builder(GET, BASE_PATH + "datafeeds")
-                .replaces(GET, PRE_V7_BASE_PATH + "datafeeds", RestApiVersion.V_7).build()
+                .replaces(GET, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}", RestApiVersion.V_7)
+                .build(),
+            Route.builder(GET, BASE_PATH + "datafeeds").replaces(GET, PRE_V7_BASE_PATH + "datafeeds", RestApiVersion.V_7).build()
         );
     }
 
@@ -56,7 +56,9 @@ public class RestGetDatafeedsAction extends BaseRestHandler {
         request.setAllowNoMatch(
             restRequest.paramAsBoolean(
                 Request.ALLOW_NO_MATCH,
-                restRequest.paramAsBoolean(Request.ALLOW_NO_DATAFEEDS, request.allowNoMatch())));
+                restRequest.paramAsBoolean(Request.ALLOW_NO_DATAFEEDS, request.allowNoMatch())
+            )
+        );
         return channel -> client.execute(GetDatafeedsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 

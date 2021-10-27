@@ -35,8 +35,8 @@ public class RegressionInferenceResults extends SingleValueInferenceResults {
     public RegressionInferenceResults(double value, InferenceConfig config, List<RegressionFeatureImportance> featureImportance) {
         this(
             value,
-            ((RegressionConfig)config).getResultsField(),
-            ((RegressionConfig)config).getNumTopFeatureImportanceValues(),
+            ((RegressionConfig) config).getResultsField(),
+            ((RegressionConfig) config).getNumTopFeatureImportanceValues(),
             featureImportance
         );
     }
@@ -45,25 +45,30 @@ public class RegressionInferenceResults extends SingleValueInferenceResults {
         this(value, resultsField, 0, Collections.emptyList());
     }
 
-    public RegressionInferenceResults(double value, String resultsField,
-                                      List<RegressionFeatureImportance> featureImportance) {
+    public RegressionInferenceResults(double value, String resultsField, List<RegressionFeatureImportance> featureImportance) {
         this(value, resultsField, featureImportance.size(), featureImportance);
     }
 
-    public RegressionInferenceResults(double value, String resultsField, int topNFeatures,
-                                       List<RegressionFeatureImportance> featureImportance) {
+    public RegressionInferenceResults(
+        double value,
+        String resultsField,
+        int topNFeatures,
+        List<RegressionFeatureImportance> featureImportance
+    ) {
         super(value);
         this.resultsField = resultsField;
         this.featureImportance = takeTopFeatureImportances(featureImportance, topNFeatures);
     }
 
-    static List<RegressionFeatureImportance> takeTopFeatureImportances(List<RegressionFeatureImportance> featureImportances,
-                                                                       int numTopFeatures) {
+    static List<RegressionFeatureImportance> takeTopFeatureImportances(
+        List<RegressionFeatureImportance> featureImportances,
+        int numTopFeatures
+    ) {
         if (featureImportances == null || featureImportances.isEmpty()) {
             return Collections.emptyList();
         }
         return featureImportances.stream()
-            .sorted((l, r)-> Double.compare(Math.abs(r.getImportance()), Math.abs(l.getImportance())))
+            .sorted((l, r) -> Double.compare(Math.abs(r.getImportance()), Math.abs(l.getImportance())))
             .limit(numTopFeatures)
             .collect(Collectors.toList());
     }
@@ -100,8 +105,12 @@ public class RegressionInferenceResults extends SingleValueInferenceResults {
 
     @Override
     public boolean equals(Object object) {
-        if (object == this) { return true; }
-        if (object == null || getClass() != object.getClass()) { return false; }
+        if (object == this) {
+            return true;
+        }
+        if (object == null || getClass() != object.getClass()) {
+            return false;
+        }
         RegressionInferenceResults that = (RegressionInferenceResults) object;
         return Objects.equals(value(), that.value())
             && Objects.equals(this.resultsField, that.resultsField)

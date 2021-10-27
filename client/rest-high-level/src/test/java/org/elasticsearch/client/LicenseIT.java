@@ -52,8 +52,7 @@ public class LicenseIT extends ESRestHighLevelClientTestCase {
 
     @BeforeClass
     public static void checkForSnapshot() {
-        assumeTrue("Trial license used to rollback is only valid when tested against snapshot/test builds",
-            Build.CURRENT.isSnapshot());
+        assumeTrue("Trial license used to rollback is only valid when tested against snapshot/test builds", Build.CURRENT.isSnapshot());
     }
 
     @After
@@ -93,31 +92,37 @@ public class LicenseIT extends ESRestHighLevelClientTestCase {
     }
 
     public static void putTrialLicense() throws IOException {
-        assumeTrue("Trial license is only valid when tested against snapshot/test builds",
-            Build.CURRENT.isSnapshot());
+        assumeTrue("Trial license is only valid when tested against snapshot/test builds", Build.CURRENT.isSnapshot());
 
         // use a hard-coded trial license for 20 yrs to be able to roll back from another licenses
-        final String licenseDefinition = Strings.toString(jsonBuilder()
-            .startObject()
-            .field("licenses", Arrays.asList(
-                MapBuilder.<String, Object>newMapBuilder()
-                    .put("uid", "96fc37c6-6fc9-43e2-a40d-73143850cd72")
-                    .put("type", "trial")
-                    // 2018-10-16 07:02:48 UTC
-                    .put("issue_date_in_millis", "1539673368158")
-                    // 2038-10-11 07:02:48 UTC, 20 yrs later
-                    .put("expiry_date_in_millis", "2170393368158")
-                    .put("max_nodes", "5")
-                    .put("issued_to", "client_rest-high-level_integTestCluster")
-                    .put("issuer", "elasticsearch")
-                    .put("start_date_in_millis", "-1")
-                    .put("signature",
-                        "AAAABAAAAA3FXON9kGmNqmH+ASDWAAAAIAo5/x6hrsGh1GqqrJmy4qgmEC7gK0U4zQ6q5ZEMhm4jAAABAAcdKHL0BfM2uqTgT7BDuFxX5lb"
-                            + "t/bHDVJ421Wwgm5p3IMbw/W13iiAHz0hhDziF7acJbc/y65L+BKGtVC1gSSHeLDHaAD66VrjKxfc7VbGyJIAYBOdujf0rheurmaD3IcNo"
-                            + "/tWDjCdtTwrNziFkorsGcPadBP5Yc6csk3/Q74DlfiYweMBxLUfkBERwxwd5OQS6ujGvl/4bb8p5zXvOw8vMSaAXSXXnExP6lam+0934W"
-                            + "0kHvU7IGk+fCUjOaiSWKSoE4TEcAtVNYj/oRoRtfQ1KQGpdCHxTHs1BimdZaG0nBHDsvhYlVVLSvHN6QzqsHWgFDG6JJxhtU872oTRSUHA=")
-                    .immutableMap()))
-            .endObject());
+        final String licenseDefinition = Strings.toString(
+            jsonBuilder().startObject()
+                .field(
+                    "licenses",
+                    Arrays.asList(
+                        MapBuilder.<String, Object>newMapBuilder()
+                            .put("uid", "96fc37c6-6fc9-43e2-a40d-73143850cd72")
+                            .put("type", "trial")
+                            // 2018-10-16 07:02:48 UTC
+                            .put("issue_date_in_millis", "1539673368158")
+                            // 2038-10-11 07:02:48 UTC, 20 yrs later
+                            .put("expiry_date_in_millis", "2170393368158")
+                            .put("max_nodes", "5")
+                            .put("issued_to", "client_rest-high-level_integTestCluster")
+                            .put("issuer", "elasticsearch")
+                            .put("start_date_in_millis", "-1")
+                            .put(
+                                "signature",
+                                "AAAABAAAAA3FXON9kGmNqmH+ASDWAAAAIAo5/x6hrsGh1GqqrJmy4qgmEC7gK0U4zQ6q5ZEMhm4jAAABAAcdKHL0BfM2uqTgT7BDuFxX5lb"
+                                    + "t/bHDVJ421Wwgm5p3IMbw/W13iiAHz0hhDziF7acJbc/y65L+BKGtVC1gSSHeLDHaAD66VrjKxfc7VbGyJIAYBOdujf0rheurmaD3IcNo"
+                                    + "/tWDjCdtTwrNziFkorsGcPadBP5Yc6csk3/Q74DlfiYweMBxLUfkBERwxwd5OQS6ujGvl/4bb8p5zXvOw8vMSaAXSXXnExP6lam+0934W"
+                                    + "0kHvU7IGk+fCUjOaiSWKSoE4TEcAtVNYj/oRoRtfQ1KQGpdCHxTHs1BimdZaG0nBHDsvhYlVVLSvHN6QzqsHWgFDG6JJxhtU872oTRSUHA="
+                            )
+                            .immutableMap()
+                    )
+                )
+                .endObject()
+        );
 
         final PutLicenseRequest request = new PutLicenseRequest();
         request.setAcknowledge(true);
@@ -137,9 +142,13 @@ public class LicenseIT extends ESRestHighLevelClientTestCase {
             assertThat(response.isAcknowledged(), equalTo(false));
             assertThat(response.isBasicStarted(), equalTo(false));
             assertThat(response.getErrorMessage(), equalTo("Operation failed: Needs acknowledgement."));
-            assertThat(response.getAcknowledgeMessage(),
-                containsString("This license update requires acknowledgement. " +
-                    "To acknowledge the license, please read the following messages and call /start_basic again"));
+            assertThat(
+                response.getAcknowledgeMessage(),
+                containsString(
+                    "This license update requires acknowledgement. "
+                        + "To acknowledge the license, please read the following messages and call /start_basic again"
+                )
+            );
             assertNotEmptyAcknowledgeMessages(response.getAcknowledgeMessages());
         }
         // case where we acknowledge and the basic is started successfully

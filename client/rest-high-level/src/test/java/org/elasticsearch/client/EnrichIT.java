@@ -29,14 +29,19 @@ import static org.hamcrest.Matchers.notNullValue;
 public class EnrichIT extends ESRestHighLevelClientTestCase {
 
     public void testCRUD() throws Exception {
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest("my-index")
-            .mapping(Collections.singletonMap("properties", Collections.singletonMap("enrich_key",
-                Collections.singletonMap("type", "keyword"))));
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest("my-index").mapping(
+            Collections.singletonMap("properties", Collections.singletonMap("enrich_key", Collections.singletonMap("type", "keyword")))
+        );
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
 
         final EnrichClient enrichClient = highLevelClient().enrich();
-        PutPolicyRequest putPolicyRequest = new PutPolicyRequest("my-policy", "match",
-            Collections.singletonList("my-index"), "enrich_key", Collections.singletonList("enrich_value"));
+        PutPolicyRequest putPolicyRequest = new PutPolicyRequest(
+            "my-policy",
+            "match",
+            Collections.singletonList("my-index"),
+            "enrich_key",
+            Collections.singletonList("enrich_value")
+        );
         AcknowledgedResponse putPolicyResponse = execute(putPolicyRequest, enrichClient::putPolicy, enrichClient::putPolicyAsync);
         assertThat(putPolicyResponse.isAcknowledged(), is(true));
 
@@ -59,13 +64,19 @@ public class EnrichIT extends ESRestHighLevelClientTestCase {
         assertThat(statsResponse.getCoordinatorStats().get(0).getExecutedSearchesTotal(), greaterThanOrEqualTo(0L));
 
         ExecutePolicyRequest executePolicyRequest = new ExecutePolicyRequest("my-policy");
-        ExecutePolicyResponse executePolicyResponse =
-            execute(executePolicyRequest, enrichClient::executePolicy, enrichClient::executePolicyAsync);
+        ExecutePolicyResponse executePolicyResponse = execute(
+            executePolicyRequest,
+            enrichClient::executePolicy,
+            enrichClient::executePolicyAsync
+        );
         assertThat(executePolicyResponse.getExecutionStatus().getPhase(), equalTo("COMPLETE"));
 
         DeletePolicyRequest deletePolicyRequest = new DeletePolicyRequest("my-policy");
-        AcknowledgedResponse deletePolicyResponse =
-            execute(deletePolicyRequest, enrichClient::deletePolicy, enrichClient::deletePolicyAsync);
+        AcknowledgedResponse deletePolicyResponse = execute(
+            deletePolicyRequest,
+            enrichClient::deletePolicy,
+            enrichClient::deletePolicyAsync
+        );
         assertThat(deletePolicyResponse.isAcknowledged(), is(true));
 
         getPolicyRequest = new GetPolicyRequest();

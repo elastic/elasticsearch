@@ -16,7 +16,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -24,6 +23,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -77,11 +77,7 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
                     String upgradedNodeId = getUpgradedNodeId();
 
                     if (upgradedNodeId != null) {
-                        updateIndexSettings(
-                            indexName,
-                            Settings.builder()
-                                .put("index.routing.allocation.exclude._id", upgradedNodeId)
-                        );
+                        updateIndexSettings(indexName, Settings.builder().put("index.routing.allocation.exclude._id", upgradedNodeId));
                     }
 
                     String primaryNodeId = getPrimaryNodeIdOfShard(indexName, 0);
@@ -99,11 +95,7 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
                         assertThat(getNodeVersion(currentPrimaryNodeId), is(equalTo(UPGRADE_FROM_VERSION)));
                     }
                 } else {
-                    updateIndexSettings(
-                        indexName,
-                        Settings.builder()
-                            .putNull("index.routing.allocation.exclude._id")
-                    );
+                    updateIndexSettings(indexName, Settings.builder().putNull("index.routing.allocation.exclude._id"));
                 }
 
                 // Drop replicas
@@ -226,10 +218,7 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
         assertOK(response);
 
         final Map<String, Object> responseAsMap = responseAsMap(response);
-        assertThat(
-            extractValue(responseAsMap, "_shards.failed"),
-            equalTo(0)
-        );
+        assertThat(extractValue(responseAsMap, "_shards.failed"), equalTo(0));
         return responseAsMap;
     }
 

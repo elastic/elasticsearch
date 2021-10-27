@@ -21,25 +21,38 @@ public class MonitoringHistoryDurationSettingsTests extends ESTestCase {
         assertEquals(sevenDays, MonitoringField.HISTORY_DURATION.get(Settings.EMPTY));
         // Note: this verifies the semantics because this is taken for granted that it never returns null!
         assertEquals(sevenDays, MonitoringField.HISTORY_DURATION.get(buildSettings(MonitoringField.HISTORY_DURATION.getKey(), null)));
-        assertWarnings(Level.WARN, "[xpack.monitoring.history.duration] setting was deprecated in Elasticsearch and will be removed in a " +
-            "future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(
+            Level.WARN,
+            "[xpack.monitoring.history.duration] setting was deprecated in Elasticsearch and will be removed in a "
+                + "future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testHistoryDurationMinimum24Hours() {
         // hit the minimum
-        assertEquals(MonitoringField.HISTORY_DURATION_MINIMUM,
-                MonitoringField.HISTORY_DURATION.get(buildSettings(MonitoringField.HISTORY_DURATION.getKey(), "24h")));
-        assertWarnings(Level.WARN, "[xpack.monitoring.history.duration] setting was deprecated in Elasticsearch and will be removed in a " +
-            "future release! See the breaking changes documentation for the next major version.");
+        assertEquals(
+            MonitoringField.HISTORY_DURATION_MINIMUM,
+            MonitoringField.HISTORY_DURATION.get(buildSettings(MonitoringField.HISTORY_DURATION.getKey(), "24h"))
+        );
+        assertWarnings(
+            Level.WARN,
+            "[xpack.monitoring.history.duration] setting was deprecated in Elasticsearch and will be removed in a "
+                + "future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testHistoryDurationMinimum24HoursBlocksLower() {
         // 1 ms early!
         final String oneSecondEarly = (MonitoringField.HISTORY_DURATION_MINIMUM.millis() - 1) + "ms";
-        expectThrows(IllegalArgumentException.class,
-                () -> MonitoringField.HISTORY_DURATION.get(buildSettings(MonitoringField.HISTORY_DURATION.getKey(), oneSecondEarly)));
-        assertWarnings(Level.WARN, "[xpack.monitoring.history.duration] setting was deprecated in Elasticsearch and will be removed in a " +
-            "future release! See the breaking changes documentation for the next major version.");
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> MonitoringField.HISTORY_DURATION.get(buildSettings(MonitoringField.HISTORY_DURATION.getKey(), oneSecondEarly))
+        );
+        assertWarnings(
+            Level.WARN,
+            "[xpack.monitoring.history.duration] setting was deprecated in Elasticsearch and will be removed in a "
+                + "future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     private Settings buildSettings(String key, String value) {

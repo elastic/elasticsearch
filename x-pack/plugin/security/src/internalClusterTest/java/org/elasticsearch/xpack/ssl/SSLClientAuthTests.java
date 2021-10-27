@@ -12,7 +12,6 @@ import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -22,6 +21,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.TestXPackTransportClient;
@@ -32,9 +32,6 @@ import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 
-import javax.net.ssl.KeyManager;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -49,6 +46,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
@@ -67,15 +68,13 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
         Settings baseSettings = super.nodeSettings(nodeOrdinal, otherSettings);
 
         Settings.Builder builder = Settings.builder().put(baseSettings);
-        baseSettings.getByPrefix("xpack.security.transport.ssl.")
-                .keySet()
-                .forEach(k -> {
-                    String httpKey = "xpack.security.http.ssl." + k;
-                    String value = baseSettings.get("xpack.security.transport.ssl." + k);
-                    if (value != null) {
-                        builder.put(httpKey, baseSettings.get("xpack.security.transport.ssl." + k));
-                    }
-                });
+        baseSettings.getByPrefix("xpack.security.transport.ssl.").keySet().forEach(k -> {
+            String httpKey = "xpack.security.http.ssl." + k;
+            String value = baseSettings.get("xpack.security.transport.ssl." + k);
+            if (value != null) {
+                builder.put(httpKey, baseSettings.get("xpack.security.transport.ssl." + k));
+            }
+        });
 
         MockSecureSettings secureSettings = (MockSecureSettings) builder.getSecureSettings();
         for (String key : new HashSet<>(secureSettings.getSettingNames())) {
@@ -95,15 +94,15 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
         }
 
         return builder
-                // invert the require auth settings
-                .put("xpack.security.transport.ssl.client_authentication", SSLClientAuth.NONE)
-                // Due to the TLSv1.3 bug with session resumption when client authentication is not
-                // used, we need to set the protocols since we disabled client auth for transport
-                // to avoid failures on pre 11.0.3 JDKs. See #getProtocols
-                .putList("xpack.security.transport.ssl.supported_protocols", getProtocols())
-                .put("xpack.security.http.ssl.enabled", true)
-                .put("xpack.security.http.ssl.client_authentication", SSLClientAuth.REQUIRED)
-                .build();
+            // invert the require auth settings
+            .put("xpack.security.transport.ssl.client_authentication", SSLClientAuth.NONE)
+            // Due to the TLSv1.3 bug with session resumption when client authentication is not
+            // used, we need to set the protocols since we disabled client auth for transport
+            // to avoid failures on pre 11.0.3 JDKs. See #getProtocols
+            .putList("xpack.security.transport.ssl.supported_protocols", getProtocols())
+            .put("xpack.security.http.ssl.enabled", true)
+            .put("xpack.security.http.ssl.client_authentication", SSLClientAuth.REQUIRED)
+            .build();
     }
 
     @Override
@@ -179,10 +178,16 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
             String nodeCertPath = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt";
             String nodeEcCertPath = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt";
             String keyPath = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem";
-            TrustManager tm = CertParsingUtils.trustManager(CertParsingUtils.readCertificates(Arrays.asList(getDataPath
-                (certPath), getDataPath(nodeCertPath), getDataPath(nodeEcCertPath))));
-            KeyManager km = CertParsingUtils.keyManager(CertParsingUtils.readCertificates(Collections.singletonList(getDataPath
-                (certPath))), PemUtils.readPrivateKey(getDataPath(keyPath), "testclient"::toCharArray), "testclient".toCharArray());
+            TrustManager tm = CertParsingUtils.trustManager(
+                CertParsingUtils.readCertificates(
+                    Arrays.asList(getDataPath(certPath), getDataPath(nodeCertPath), getDataPath(nodeEcCertPath))
+                )
+            );
+            KeyManager km = CertParsingUtils.keyManager(
+                CertParsingUtils.readCertificates(Collections.singletonList(getDataPath(certPath))),
+                PemUtils.readPrivateKey(getDataPath(keyPath), "testclient"::toCharArray),
+                "testclient".toCharArray()
+            );
 
             final SSLContext context;
             if (XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS.contains("TLSv1.3") && inFipsJvm() == false) {
@@ -217,9 +222,9 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
         if (JavaVersion.current().compareTo(JavaVersion.parse("11")) < 0) {
             return XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS;
         }
-        JavaVersion full =
-            AccessController.doPrivileged(
-                (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version")));
+        JavaVersion full = AccessController.doPrivileged(
+            (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version"))
+        );
         if (full.compareTo(JavaVersion.parse("11.0.3")) < 0) {
             return Collections.singletonList("TLSv1.2");
         }

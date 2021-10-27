@@ -18,8 +18,7 @@ import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
 public class CborXContentParser extends JsonXContentParser {
 
-    public CborXContentParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, JsonParser parser) {
+    public CborXContentParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, JsonParser parser) {
         super(xContentRegistry, deprecationHandler, parser);
     }
 

@@ -52,15 +52,21 @@ public class NioIPFilterTests extends ESTestCase {
         TransportAddress address = new TransportAddress(InetAddress.getLoopbackAddress(), 9300);
         when(transport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[] { address }, address));
         when(transport.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(
-            IPFilter.HTTP_FILTER_ALLOW_SETTING,
-            IPFilter.HTTP_FILTER_DENY_SETTING,
-            IPFilter.IP_FILTER_ENABLED_HTTP_SETTING,
-            IPFilter.IP_FILTER_ENABLED_SETTING,
-            IPFilter.TRANSPORT_FILTER_ALLOW_SETTING,
-            IPFilter.TRANSPORT_FILTER_DENY_SETTING,
-            IPFilter.PROFILE_FILTER_ALLOW_SETTING,
-            IPFilter.PROFILE_FILTER_DENY_SETTING)));
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            new HashSet<>(
+                Arrays.asList(
+                    IPFilter.HTTP_FILTER_ALLOW_SETTING,
+                    IPFilter.HTTP_FILTER_DENY_SETTING,
+                    IPFilter.IP_FILTER_ENABLED_HTTP_SETTING,
+                    IPFilter.IP_FILTER_ENABLED_SETTING,
+                    IPFilter.TRANSPORT_FILTER_ALLOW_SETTING,
+                    IPFilter.TRANSPORT_FILTER_DENY_SETTING,
+                    IPFilter.PROFILE_FILTER_ALLOW_SETTING,
+                    IPFilter.PROFILE_FILTER_DENY_SETTING
+                )
+            )
+        );
         MockLicenseState licenseState = TestUtils.newMockLicenceState();
         when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.isAllowed(Security.IP_FILTERING_FEATURE)).thenReturn(true);

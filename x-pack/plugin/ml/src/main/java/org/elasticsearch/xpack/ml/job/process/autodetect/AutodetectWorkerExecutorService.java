@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 
 import java.util.ArrayList;
@@ -109,7 +109,8 @@ class AutodetectWorkerExecutorService extends AbstractExecutorService {
                     for (Runnable runnable : notExecuted) {
                         if (runnable instanceof AbstractRunnable) {
                             ((AbstractRunnable) runnable).onRejection(
-                                new EsRejectedExecutionException("unable to process as autodetect worker service has shutdown", true));
+                                new EsRejectedExecutionException("unable to process as autodetect worker service has shutdown", true)
+                            );
                         }
                     }
                 }

@@ -10,9 +10,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -65,7 +65,7 @@ public class WatcherMetadata extends AbstractNamedDiffable<Metadata.Custom> impl
 
     @Override
     public String toString() {
-        return "manuallyStopped["+ manuallyStopped +"]";
+        return "manuallyStopped[" + manuallyStopped + "]";
     }
 
     @Override

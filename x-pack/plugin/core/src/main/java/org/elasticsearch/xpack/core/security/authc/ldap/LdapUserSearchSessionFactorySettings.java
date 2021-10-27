@@ -19,27 +19,47 @@ import static org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings
 
 public final class LdapUserSearchSessionFactorySettings {
     public static final Setting.AffixSetting<String> SEARCH_ATTRIBUTE = Setting.affixKeySetting(
-            RealmSettings.realmSettingPrefix(LDAP_TYPE), "user_search.attribute",
-            key -> new Setting<>(key, LdapUserSearchSessionFactorySettings.DEFAULT_USERNAME_ATTRIBUTE, Function.identity(),
-                    Setting.Property.NodeScope, Setting.Property.DeprecatedWarning));
+        RealmSettings.realmSettingPrefix(LDAP_TYPE),
+        "user_search.attribute",
+        key -> new Setting<>(
+            key,
+            LdapUserSearchSessionFactorySettings.DEFAULT_USERNAME_ATTRIBUTE,
+            Function.identity(),
+            Setting.Property.NodeScope,
+            Setting.Property.DeprecatedWarning
+        )
+    );
 
-    public static final Setting.AffixSetting<String> SEARCH_BASE_DN
-            = RealmSettings.simpleString(LDAP_TYPE, "user_search.base_dn", Setting.Property.NodeScope);
+    public static final Setting.AffixSetting<String> SEARCH_BASE_DN = RealmSettings.simpleString(
+        LDAP_TYPE,
+        "user_search.base_dn",
+        Setting.Property.NodeScope
+    );
 
-    public static final Setting.AffixSetting<String> SEARCH_FILTER
-            = RealmSettings.simpleString(LDAP_TYPE, "user_search.filter", Setting.Property.NodeScope);
+    public static final Setting.AffixSetting<String> SEARCH_FILTER = RealmSettings.simpleString(
+        LDAP_TYPE,
+        "user_search.filter",
+        Setting.Property.NodeScope
+    );
 
     public static final Setting.AffixSetting<LdapSearchScope> SEARCH_SCOPE = Setting.affixKeySetting(
-            RealmSettings.realmSettingPrefix(LDAP_TYPE), "user_search.scope",
-            key -> new Setting<>(key, (String) null, (String s) -> LdapSearchScope.resolve(s, LdapSearchScope.SUB_TREE),
-                    Setting.Property.NodeScope));
+        RealmSettings.realmSettingPrefix(LDAP_TYPE),
+        "user_search.scope",
+        key -> new Setting<>(
+            key,
+            (String) null,
+            (String s) -> LdapSearchScope.resolve(s, LdapSearchScope.SUB_TREE),
+            Setting.Property.NodeScope
+        )
+    );
     public static final Setting.AffixSetting<Boolean> POOL_ENABLED = Setting.affixKeySetting(
-            RealmSettings.realmSettingPrefix(LDAP_TYPE), "user_search.pool.enabled",
-            key -> Setting.boolSetting(key, true, Setting.Property.NodeScope));
+        RealmSettings.realmSettingPrefix(LDAP_TYPE),
+        "user_search.pool.enabled",
+        key -> Setting.boolSetting(key, true, Setting.Property.NodeScope)
+    );
     private static final String DEFAULT_USERNAME_ATTRIBUTE = "uid";
 
-    private LdapUserSearchSessionFactorySettings() {
-    }
+    private LdapUserSearchSessionFactorySettings() {}
 
     public static Set<Setting.AffixSetting<?>> getSettings() {
         Set<Setting.AffixSetting<?>> settings = new HashSet<>();

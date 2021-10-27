@@ -21,5 +21,6 @@ public class TransformDeprecations {
         "[max_page_search_size] is deprecated inside pivot. Use settings instead.";
 
     public static final String MAX_PAGE_SEARCH_SIZE_BREAKING_CHANGES_URL = "https://ela.st/es-deprecation-7-transform-max-page-search-size";
+
     private TransformDeprecations() {}
 }

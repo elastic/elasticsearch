@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -43,8 +43,11 @@ public class DetectionRule implements ToXContentObject, Writeable {
 
         parser.declareStringArray(Builder::setActions, ACTIONS_FIELD);
         parser.declareObject(Builder::setScope, RuleScope.parser(ignoreUnknownFields), SCOPE_FIELD);
-        parser.declareObjectArray(Builder::setConditions, ignoreUnknownFields ? RuleCondition.LENIENT_PARSER : RuleCondition.STRICT_PARSER,
-            CONDITIONS_FIELD);
+        parser.declareObjectArray(
+            Builder::setConditions,
+            ignoreUnknownFields ? RuleCondition.LENIENT_PARSER : RuleCondition.STRICT_PARSER,
+            CONDITIONS_FIELD
+        );
 
         return parser;
     }
@@ -113,9 +116,7 @@ public class DetectionRule implements ToXContentObject, Writeable {
         }
 
         DetectionRule other = (DetectionRule) obj;
-        return Objects.equals(actions, other.actions)
-                && Objects.equals(scope, other.scope)
-                && Objects.equals(conditions, other.conditions);
+        return Objects.equals(actions, other.actions) && Objects.equals(scope, other.scope) && Objects.equals(conditions, other.conditions);
     }
 
     @Override
@@ -136,8 +137,7 @@ public class DetectionRule implements ToXContentObject, Writeable {
             this.conditions = ExceptionsHelper.requireNonNull(conditions, CONDITIONS_FIELD.getPreferredName());
         }
 
-        Builder() {
-        }
+        Builder() {}
 
         public Builder setActions(List<String> actions) {
             this.actions.clear();

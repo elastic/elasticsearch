@@ -56,7 +56,7 @@ public class BinaryDvConfirmedAutomatonQuery extends Query {
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
         Query approxRewrite = approxQuery.rewrite(reader);
-        if (approxQuery != approxRewrite ) {
+        if (approxQuery != approxRewrite) {
             return new BinaryDvConfirmedAutomatonQuery(approxRewrite, field, matchPattern, bytesMatcher);
         }
         return this;
@@ -81,8 +81,7 @@ public class BinaryDvConfirmedAutomatonQuery extends Query {
                 TwoPhaseIterator twoPhase = new TwoPhaseIterator(approxDisi) {
                     @Override
                     public boolean matches() throws IOException {
-                        if (values.advanceExact(approxDisi.docID()) == false)
-                        {
+                        if (values.advanceExact(approxDisi.docID()) == false) {
                             // Can happen when approxQuery resolves to some form of MatchAllDocs expression
                             return false;
                         }
@@ -91,7 +90,7 @@ public class BinaryDvConfirmedAutomatonQuery extends Query {
                         bytes.setPosition(arrayOfValues.offset);
 
                         int size = bytes.readVInt();
-                        for (int i=0; i< size; i++) {
+                        for (int i = 0; i < size; i++) {
                             int valLength = bytes.readVInt();
                             if (bytesMatcher.run(arrayOfValues.bytes, bytes.getPosition(), valLength)) {
                                 return true;
@@ -116,9 +115,10 @@ public class BinaryDvConfirmedAutomatonQuery extends Query {
             }
         };
     }
+
     @Override
     public String toString(String field) {
-        return field+":"+matchPattern;
+        return field + ":" + matchPattern;
     }
 
     @Override
@@ -127,7 +127,8 @@ public class BinaryDvConfirmedAutomatonQuery extends Query {
             return false;
         }
         BinaryDvConfirmedAutomatonQuery other = (BinaryDvConfirmedAutomatonQuery) obj;
-        return Objects.equals(field, other.field)  && Objects.equals(matchPattern, other.matchPattern)
+        return Objects.equals(field, other.field)
+            && Objects.equals(matchPattern, other.matchPattern)
             && Objects.equals(bytesMatcher, other.bytesMatcher)
             && Objects.equals(approxQuery, other.approxQuery);
     }

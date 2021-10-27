@@ -8,17 +8,16 @@
 
 package org.elasticsearch.client.security.user.privileges;
 
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -89,8 +88,9 @@ public final class ApplicationPrivilege implements ToXContentObject {
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<ApplicationPrivilege, String> PARSER = new ConstructingObjectParser<>(
         "application_privilege",
-        true, args -> new ApplicationPrivilege((String) args[0], (String) args[1], (Collection<String>) args[2],
-        (Map<String, Object>) args[3]));
+        true,
+        args -> new ApplicationPrivilege((String) args[0], (String) args[1], (Collection<String>) args[2], (Map<String, Object>) args[3])
+    );
 
     static {
         PARSER.declareString(constructorArg(), APPLICATION);
@@ -104,10 +104,10 @@ public final class ApplicationPrivilege implements ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ApplicationPrivilege that = (ApplicationPrivilege) o;
-        return Objects.equals(application, that.application) &&
-            Objects.equals(name, that.name) &&
-            Objects.equals(actions, that.actions) &&
-            Objects.equals(metadata, that.metadata);
+        return Objects.equals(application, that.application)
+            && Objects.equals(name, that.name)
+            && Objects.equals(actions, that.actions)
+            && Objects.equals(metadata, that.metadata);
     }
 
     @Override
@@ -129,8 +129,7 @@ public final class ApplicationPrivilege implements ToXContentObject {
         private Collection<String> actions = null;
         private Map<String, Object> metadata = null;
 
-        private Builder() {
-        }
+        private Builder() {}
 
         public Builder application(String applicationName) {
             this.applicationName = Objects.requireNonNull(applicationName, "application name must be provided");
@@ -165,9 +164,9 @@ public final class ApplicationPrivilege implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
-        .field(APPLICATION.getPreferredName(), application)
-        .field(NAME.getPreferredName(), name)
-        .field(ACTIONS.getPreferredName(), actions);
+            .field(APPLICATION.getPreferredName(), application)
+            .field(NAME.getPreferredName(), name)
+            .field(ACTIONS.getPreferredName(), actions);
         if (metadata != null && metadata.isEmpty() == false) {
             builder.field(METADATA.getPreferredName(), metadata);
         }

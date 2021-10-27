@@ -18,9 +18,9 @@ import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.List;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -96,8 +96,7 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
         assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
 
         mapper = createDocumentMapper(fieldMapping(b -> b.field("type", FIELD_TYPE).field("null_value", "1234")));
-        doc = mapper.parse(source(b -> {
-        }));
+        doc = mapper.parse(source(b -> {}));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(0, fields.length);
@@ -195,8 +194,10 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
         assertEquals(IndexOptions.DOCS_AND_FREQS, fields[0].fieldType().indexOptions());
 
         for (String indexOptions : Arrays.asList("positions", "offsets")) {
-            Exception e = expectThrows(MapperParsingException.class,
-                () -> createDocumentMapper(fieldMapping(b -> b.field("type", FIELD_TYPE).field("index_options", indexOptions))));
+            Exception e = expectThrows(
+                MapperParsingException.class,
+                () -> createDocumentMapper(fieldMapping(b -> b.field("type", FIELD_TYPE).field("index_options", indexOptions)))
+            );
             assertThat(
                 e.getMessage(),
                 containsString("Unknown value [" + indexOptions + "] for field [index_options] - accepted values are [docs, freqs]")
@@ -254,7 +255,6 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
         );
         assertThat(e.getMessage(), containsString("Cannot update parameter [language] from [tr] to [en]"));
     }
-
 
     public void testIgnoreAbove() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", FIELD_TYPE).field("ignore_above", 5)));

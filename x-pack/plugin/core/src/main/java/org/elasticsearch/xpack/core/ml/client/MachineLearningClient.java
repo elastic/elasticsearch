@@ -50,8 +50,7 @@ public class MachineLearningClient {
         this.client = client;
     }
 
-    public void closeJob(CloseJobAction.Request request,
-            ActionListener<CloseJobAction.Response> listener) {
+    public void closeJob(CloseJobAction.Request request, ActionListener<CloseJobAction.Response> listener) {
         client.execute(CloseJobAction.INSTANCE, request, listener);
     }
 
@@ -61,32 +60,27 @@ public class MachineLearningClient {
         return listener;
     }
 
-    public void deleteDatafeed(DeleteDatafeedAction.Request request,
-            ActionListener<AcknowledgedResponse> listener) {
+    public void deleteDatafeed(DeleteDatafeedAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         client.execute(DeleteDatafeedAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<AcknowledgedResponse> deleteDatafeed(
-            DeleteDatafeedAction.Request request) {
+    public ActionFuture<AcknowledgedResponse> deleteDatafeed(DeleteDatafeedAction.Request request) {
         PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
         client.execute(DeleteDatafeedAction.INSTANCE, request, listener);
         return listener;
     }
 
-    public void deleteFilter(DeleteFilterAction.Request request,
-            ActionListener<AcknowledgedResponse> listener) {
+    public void deleteFilter(DeleteFilterAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         client.execute(DeleteFilterAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<AcknowledgedResponse> deleteFilter(
-            DeleteFilterAction.Request request) {
+    public ActionFuture<AcknowledgedResponse> deleteFilter(DeleteFilterAction.Request request) {
         PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
         client.execute(DeleteFilterAction.INSTANCE, request, listener);
         return listener;
     }
 
-    public void deleteJob(DeleteJobAction.Request request,
-            ActionListener<AcknowledgedResponse> listener) {
+    public void deleteJob(DeleteJobAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         client.execute(DeleteJobAction.INSTANCE, request, listener);
     }
 
@@ -96,20 +90,17 @@ public class MachineLearningClient {
         return listener;
     }
 
-    public void deleteModelSnapshot(DeleteModelSnapshotAction.Request request,
-            ActionListener<AcknowledgedResponse> listener) {
+    public void deleteModelSnapshot(DeleteModelSnapshotAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         client.execute(DeleteModelSnapshotAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<AcknowledgedResponse> deleteModelSnapshot(
-            DeleteModelSnapshotAction.Request request) {
+    public ActionFuture<AcknowledgedResponse> deleteModelSnapshot(DeleteModelSnapshotAction.Request request) {
         PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
         client.execute(DeleteModelSnapshotAction.INSTANCE, request, listener);
         return listener;
     }
 
-    public void flushJob(FlushJobAction.Request request,
-            ActionListener<FlushJobAction.Response> listener) {
+    public void flushJob(FlushJobAction.Request request, ActionListener<FlushJobAction.Response> listener) {
         client.execute(FlushJobAction.INSTANCE, request, listener);
     }
 
@@ -119,8 +110,7 @@ public class MachineLearningClient {
         return listener;
     }
 
-    public void getBuckets(GetBucketsAction.Request request,
-            ActionListener<GetBucketsAction.Response> listener) {
+    public void getBuckets(GetBucketsAction.Request request, ActionListener<GetBucketsAction.Response> listener) {
         client.execute(GetBucketsAction.INSTANCE, request, listener);
     }
 
@@ -130,44 +120,37 @@ public class MachineLearningClient {
         return listener;
     }
 
-    public void getCategories(GetCategoriesAction.Request request,
-            ActionListener<GetCategoriesAction.Response> listener) {
+    public void getCategories(GetCategoriesAction.Request request, ActionListener<GetCategoriesAction.Response> listener) {
         client.execute(GetCategoriesAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<GetCategoriesAction.Response> getCategories(
-            GetCategoriesAction.Request request) {
+    public ActionFuture<GetCategoriesAction.Response> getCategories(GetCategoriesAction.Request request) {
         PlainActionFuture<GetCategoriesAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(GetCategoriesAction.INSTANCE, request, listener);
         return listener;
     }
 
-    public void getDatafeeds(GetDatafeedsAction.Request request,
-            ActionListener<GetDatafeedsAction.Response> listener) {
+    public void getDatafeeds(GetDatafeedsAction.Request request, ActionListener<GetDatafeedsAction.Response> listener) {
         client.execute(GetDatafeedsAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<GetDatafeedsAction.Response> getDatafeeds(
-            GetDatafeedsAction.Request request) {
+    public ActionFuture<GetDatafeedsAction.Response> getDatafeeds(GetDatafeedsAction.Request request) {
         PlainActionFuture<GetDatafeedsAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(GetDatafeedsAction.INSTANCE, request, listener);
         return listener;
     }
 
-    public void getDatafeedsStats(GetDatafeedsStatsAction.Request request,
-            ActionListener<GetDatafeedsStatsAction.Response> listener) {
+    public void getDatafeedsStats(GetDatafeedsStatsAction.Request request, ActionListener<GetDatafeedsStatsAction.Response> listener) {
         client.execute(GetDatafeedsStatsAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<GetDatafeedsStatsAction.Response> getDatafeedsStats(
-            GetDatafeedsStatsAction.Request request) {
+    public ActionFuture<GetDatafeedsStatsAction.Response> getDatafeedsStats(GetDatafeedsStatsAction.Request request) {
         PlainActionFuture<GetDatafeedsStatsAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(GetDatafeedsStatsAction.INSTANCE, request, listener);
         return listener;
     }
 
-    public void getFilters(GetFiltersAction.Request request,
-            ActionListener<GetFiltersAction.Response> listener) {
+    public void getFilters(GetFiltersAction.Request request, ActionListener<GetFiltersAction.Response> listener) {
         client.execute(GetFiltersAction.INSTANCE, request, listener);
     }
 
@@ -177,20 +160,17 @@ public class MachineLearningClient {
         return listener;
     }
 
-    public void getInfluencers(GetInfluencersAction.Request request,
-                               ActionListener<GetInfluencersAction.Response> listener) {
+    public void getInfluencers(GetInfluencersAction.Request request, ActionListener<GetInfluencersAction.Response> listener) {
         client.execute(GetInfluencersAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<GetInfluencersAction.Response> getInfluencers(
-            GetInfluencersAction.Request request) {
+    public ActionFuture<GetInfluencersAction.Response> getInfluencers(GetInfluencersAction.Request request) {
         PlainActionFuture<GetInfluencersAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(GetInfluencersAction.INSTANCE, request, listener);
         return listener;
     }
 
-    public void getJobs(GetJobsAction.Request request,
-            ActionListener<GetJobsAction.Response> listener) {
+    public void getJobs(GetJobsAction.Request request, ActionListener<GetJobsAction.Response> listener) {
         client.execute(GetJobsAction.INSTANCE, request, listener);
     }
 
@@ -200,32 +180,27 @@ public class MachineLearningClient {
         return listener;
     }
 
-    public void getJobsStats(GetJobsStatsAction.Request request,
-            ActionListener<GetJobsStatsAction.Response> listener) {
+    public void getJobsStats(GetJobsStatsAction.Request request, ActionListener<GetJobsStatsAction.Response> listener) {
         client.execute(GetJobsStatsAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<GetJobsStatsAction.Response> getJobsStats(
-            GetJobsStatsAction.Request request) {
+    public ActionFuture<GetJobsStatsAction.Response> getJobsStats(GetJobsStatsAction.Request request) {
         PlainActionFuture<GetJobsStatsAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(GetJobsStatsAction.INSTANCE, request, listener);
         return listener;
     }
 
-    public void getModelSnapshots(GetModelSnapshotsAction.Request request,
-            ActionListener<GetModelSnapshotsAction.Response> listener) {
+    public void getModelSnapshots(GetModelSnapshotsAction.Request request, ActionListener<GetModelSnapshotsAction.Response> listener) {
         client.execute(GetModelSnapshotsAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<GetModelSnapshotsAction.Response> getModelSnapshots(
-            GetModelSnapshotsAction.Request request) {
+    public ActionFuture<GetModelSnapshotsAction.Response> getModelSnapshots(GetModelSnapshotsAction.Request request) {
         PlainActionFuture<GetModelSnapshotsAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(GetModelSnapshotsAction.INSTANCE, request, listener);
         return listener;
     }
 
-    public void getRecords(GetRecordsAction.Request request,
-            ActionListener<GetRecordsAction.Response> listener) {
+    public void getRecords(GetRecordsAction.Request request, ActionListener<GetRecordsAction.Response> listener) {
         client.execute(GetRecordsAction.INSTANCE, request, listener);
     }
 
@@ -235,8 +210,7 @@ public class MachineLearningClient {
         return listener;
     }
 
-    public void openJob(OpenJobAction.Request request,
-            ActionListener<NodeAcknowledgedResponse> listener) {
+    public void openJob(OpenJobAction.Request request, ActionListener<NodeAcknowledgedResponse> listener) {
         client.execute(OpenJobAction.INSTANCE, request, listener);
     }
 
@@ -246,8 +220,7 @@ public class MachineLearningClient {
         return listener;
     }
 
-    public void postData(PostDataAction.Request request,
-            ActionListener<PostDataAction.Response> listener) {
+    public void postData(PostDataAction.Request request, ActionListener<PostDataAction.Response> listener) {
         client.execute(PostDataAction.INSTANCE, request, listener);
     }
 
@@ -257,8 +230,7 @@ public class MachineLearningClient {
         return listener;
     }
 
-    public void putDatafeed(PutDatafeedAction.Request request,
-            ActionListener<PutDatafeedAction.Response> listener) {
+    public void putDatafeed(PutDatafeedAction.Request request, ActionListener<PutDatafeedAction.Response> listener) {
         client.execute(PutDatafeedAction.INSTANCE, request, listener);
     }
 
@@ -268,8 +240,7 @@ public class MachineLearningClient {
         return listener;
     }
 
-    public void putFilter(PutFilterAction.Request request,
-            ActionListener<PutFilterAction.Response> listener) {
+    public void putFilter(PutFilterAction.Request request, ActionListener<PutFilterAction.Response> listener) {
         client.execute(PutFilterAction.INSTANCE, request, listener);
     }
 
@@ -279,8 +250,7 @@ public class MachineLearningClient {
         return listener;
     }
 
-    public void putJob(PutJobAction.Request request,
-            ActionListener<PutJobAction.Response> listener) {
+    public void putJob(PutJobAction.Request request, ActionListener<PutJobAction.Response> listener) {
         client.execute(PutJobAction.INSTANCE, request, listener);
     }
 
@@ -290,56 +260,50 @@ public class MachineLearningClient {
         return listener;
     }
 
-    public void revertModelSnapshot(RevertModelSnapshotAction.Request request,
-            ActionListener<RevertModelSnapshotAction.Response> listener) {
+    public void revertModelSnapshot(
+        RevertModelSnapshotAction.Request request,
+        ActionListener<RevertModelSnapshotAction.Response> listener
+    ) {
         client.execute(RevertModelSnapshotAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<RevertModelSnapshotAction.Response> revertModelSnapshot(
-            RevertModelSnapshotAction.Request request) {
+    public ActionFuture<RevertModelSnapshotAction.Response> revertModelSnapshot(RevertModelSnapshotAction.Request request) {
         PlainActionFuture<RevertModelSnapshotAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(RevertModelSnapshotAction.INSTANCE, request, listener);
         return listener;
     }
 
-    public void startDatafeed(StartDatafeedAction.Request request,
-            ActionListener<NodeAcknowledgedResponse> listener) {
+    public void startDatafeed(StartDatafeedAction.Request request, ActionListener<NodeAcknowledgedResponse> listener) {
         client.execute(StartDatafeedAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<NodeAcknowledgedResponse> startDatafeed(
-            StartDatafeedAction.Request request) {
+    public ActionFuture<NodeAcknowledgedResponse> startDatafeed(StartDatafeedAction.Request request) {
         PlainActionFuture<NodeAcknowledgedResponse> listener = PlainActionFuture.newFuture();
         client.execute(StartDatafeedAction.INSTANCE, request, listener);
         return listener;
     }
 
-    public void stopDatafeed(StopDatafeedAction.Request request,
-            ActionListener<StopDatafeedAction.Response> listener) {
+    public void stopDatafeed(StopDatafeedAction.Request request, ActionListener<StopDatafeedAction.Response> listener) {
         client.execute(StopDatafeedAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<StopDatafeedAction.Response> stopDatafeed(
-            StopDatafeedAction.Request request) {
+    public ActionFuture<StopDatafeedAction.Response> stopDatafeed(StopDatafeedAction.Request request) {
         PlainActionFuture<StopDatafeedAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(StopDatafeedAction.INSTANCE, request, listener);
         return listener;
     }
 
-    public void updateDatafeed(UpdateDatafeedAction.Request request,
-            ActionListener<PutDatafeedAction.Response> listener) {
+    public void updateDatafeed(UpdateDatafeedAction.Request request, ActionListener<PutDatafeedAction.Response> listener) {
         client.execute(UpdateDatafeedAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<PutDatafeedAction.Response> updateDatafeed(
-            UpdateDatafeedAction.Request request) {
+    public ActionFuture<PutDatafeedAction.Response> updateDatafeed(UpdateDatafeedAction.Request request) {
         PlainActionFuture<PutDatafeedAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(UpdateDatafeedAction.INSTANCE, request, listener);
         return listener;
     }
 
-    public void updateJob(UpdateJobAction.Request request,
-            ActionListener<PutJobAction.Response> listener) {
+    public void updateJob(UpdateJobAction.Request request, ActionListener<PutJobAction.Response> listener) {
         client.execute(UpdateJobAction.INSTANCE, request, listener);
     }
 
@@ -349,37 +313,34 @@ public class MachineLearningClient {
         return listener;
     }
 
-    public void updateModelSnapshot(UpdateModelSnapshotAction.Request request,
-            ActionListener<UpdateModelSnapshotAction.Response> listener) {
+    public void updateModelSnapshot(
+        UpdateModelSnapshotAction.Request request,
+        ActionListener<UpdateModelSnapshotAction.Response> listener
+    ) {
         client.execute(UpdateModelSnapshotAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<UpdateModelSnapshotAction.Response> updateModelSnapshot(
-            UpdateModelSnapshotAction.Request request) {
+    public ActionFuture<UpdateModelSnapshotAction.Response> updateModelSnapshot(UpdateModelSnapshotAction.Request request) {
         PlainActionFuture<UpdateModelSnapshotAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(UpdateModelSnapshotAction.INSTANCE, request, listener);
         return listener;
     }
 
-    public void validateDetector(ValidateDetectorAction.Request request,
-                                    ActionListener<AcknowledgedResponse> listener) {
+    public void validateDetector(ValidateDetectorAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         client.execute(ValidateDetectorAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<AcknowledgedResponse> validateDetector(
-            ValidateDetectorAction.Request request) {
+    public ActionFuture<AcknowledgedResponse> validateDetector(ValidateDetectorAction.Request request) {
         PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
         client.execute(ValidateDetectorAction.INSTANCE, request, listener);
         return listener;
     }
 
-    public void validateJobConfig(ValidateJobConfigAction.Request request,
-                                 ActionListener<AcknowledgedResponse> listener) {
+    public void validateJobConfig(ValidateJobConfigAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         client.execute(ValidateJobConfigAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<AcknowledgedResponse> validateJobConfig(
-            ValidateJobConfigAction.Request request) {
+    public ActionFuture<AcknowledgedResponse> validateJobConfig(ValidateJobConfigAction.Request request) {
         PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
         client.execute(ValidateJobConfigAction.INSTANCE, request, listener);
         return listener;

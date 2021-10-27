@@ -15,108 +15,108 @@ package org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedd
  * See https://github.com/google/cld3/blob/master/src/script_span/generated_ulscript.h
  */
 public enum ScriptCode {
-    Common(0),//Zyyy
-    Latin(1),//Latn
-    Greek(2),//Grek
-    Cyrillic(3),//Cyrl
-    Armenian(4),//Armn
-    Hebrew(5),//Hebr
-    Arabic(6),//Arab
-    Syriac(7),//Syrc
-    Thaana(8),//Thaa
-    Devanagari(9),//Deva
-    Bengali(10),//Beng
-    Gurmukhi(11),//Guru
-    Gujarati(12),//Gujr
-    Oriya(13),//Orya
-    Tamil(14),//Taml
-    Telugu(15),//Telu
-    Kannada(16),//Knda
-    Malayalam(17),//Mlym
-    Sinhala(18),//Sinh
-    Thai(19),//Thai
-    Lao(20),//Laoo
-    Tibetan(21),//Tibt
-    Myanmar(22),//Mymr
-    Georgian(23),//Geor
-    Hani(24),//Hani
-    Ethiopic(25),//Ethi
-    Cherokee(26),//Cher
-    Canadian_Aboriginal(27),//Cans
-    Ogham(28),//Ogam
-    Runic(29),//Runr
-    Khmer(30),//Khmr
-    Mongolian(31),//Mong
+    Common(0),// Zyyy
+    Latin(1),// Latn
+    Greek(2),// Grek
+    Cyrillic(3),// Cyrl
+    Armenian(4),// Armn
+    Hebrew(5),// Hebr
+    Arabic(6),// Arab
+    Syriac(7),// Syrc
+    Thaana(8),// Thaa
+    Devanagari(9),// Deva
+    Bengali(10),// Beng
+    Gurmukhi(11),// Guru
+    Gujarati(12),// Gujr
+    Oriya(13),// Orya
+    Tamil(14),// Taml
+    Telugu(15),// Telu
+    Kannada(16),// Knda
+    Malayalam(17),// Mlym
+    Sinhala(18),// Sinh
+    Thai(19),// Thai
+    Lao(20),// Laoo
+    Tibetan(21),// Tibt
+    Myanmar(22),// Mymr
+    Georgian(23),// Geor
+    Hani(24),// Hani
+    Ethiopic(25),// Ethi
+    Cherokee(26),// Cher
+    Canadian_Aboriginal(27),// Cans
+    Ogham(28),// Ogam
+    Runic(29),// Runr
+    Khmer(30),// Khmr
+    Mongolian(31),// Mong
     Undefined_32(32),//
     Undefined_33(33),//
-    Bopomofo(34),//Bopo
+    Bopomofo(34),// Bopo
     Undefined_35(35),//
-    Yi(36),//Yiii
-    Old_Italic(37),//Ital
-    Gothic(38),//Goth
-    Deseret(39),//Dsrt
-    Inherited(40),//Zinh
-    Tagalog(41),//Tglg
-    Hanunoo(42),//Hano
-    Buhid(43),//Buhd
-    Tagbanwa(44),//Tagb
-    Limbu(45),//Limb
-    Tai_Le(46),//Tale
-    Linear_B(47),//Linb
-    Ugaritic(48),//Ugar
-    Shavian(49),//Shaw
-    Osmanya(50),//Osma
-    Cypriot(51),//Cprt
-    Braille(52),//Brai
-    Buginese(53),//Bugi
-    Coptic(54),//Copt
-    New_Tai_Lue(55),//Talu
-    Glagolitic(56),//Glag
-    Tifinagh(57),//Tfng
-    Syloti_Nagri(58),//Sylo
-    Old_Persian(59),//Xpeo
-    Kharoshthi(60),//Khar
-    Balinese(61),//Bali
-    Cuneiform(62),//Xsux
-    Phoenician(63),//Phnx
-    Phags_Pa(64),//Phag
-    Nko(65),//Nkoo
-    Sundanese(66),//Sund
-    Lepcha(67),//Lepc
-    Ol_Chiki(68),//Olck
-    Vai(69),//Vaii
-    Saurashtra(70),//Saur
-    Kayah_Li(71),//Kali
-    Rejang(72),//Rjng
-    Lycian(73),//Lyci
-    Carian(74),//Cari
-    Lydian(75),//Lydi
-    Cham(76),//Cham
-    Tai_Tham(77),//Lana
-    Tai_Viet(78),//Tavt
-    Avestan(79),//Avst
-    Egyptian_Hieroglyphs(80),//Egyp
-    Samaritan(81),//Samr
-    Lisu(82),//Lisu
-    Bamum(83),//Bamu
-    Javanese(84),//Java
-    Meetei_Mayek(85),//Mtei
-    Imperial_Aramaic(86),//Armi
-    Old_South_Arabian(87),//Sarb
-    Inscriptional_Parthian(88),//Prti
-    Inscriptional_Pahlavi(89),//Phli
-    Old_Turkic(90),//Orkh
-    Kaithi(91),//Kthi
-    Batak(92),//Batk
-    Brahmi(93),//Brah
-    Mandaic(94),//Mand
-    Chakma(95),//Cakm
-    Meroitic_Cursive(96),//Merc
-    Meroitic_Hieroglyphs(97),//Mero
-    Miao(98),//Plrd
-    Sharada(99),//Shrd
-    Sora_Sompeng(100),//Sora
-    Takri(101),//Takr
+    Yi(36),// Yiii
+    Old_Italic(37),// Ital
+    Gothic(38),// Goth
+    Deseret(39),// Dsrt
+    Inherited(40),// Zinh
+    Tagalog(41),// Tglg
+    Hanunoo(42),// Hano
+    Buhid(43),// Buhd
+    Tagbanwa(44),// Tagb
+    Limbu(45),// Limb
+    Tai_Le(46),// Tale
+    Linear_B(47),// Linb
+    Ugaritic(48),// Ugar
+    Shavian(49),// Shaw
+    Osmanya(50),// Osma
+    Cypriot(51),// Cprt
+    Braille(52),// Brai
+    Buginese(53),// Bugi
+    Coptic(54),// Copt
+    New_Tai_Lue(55),// Talu
+    Glagolitic(56),// Glag
+    Tifinagh(57),// Tfng
+    Syloti_Nagri(58),// Sylo
+    Old_Persian(59),// Xpeo
+    Kharoshthi(60),// Khar
+    Balinese(61),// Bali
+    Cuneiform(62),// Xsux
+    Phoenician(63),// Phnx
+    Phags_Pa(64),// Phag
+    Nko(65),// Nkoo
+    Sundanese(66),// Sund
+    Lepcha(67),// Lepc
+    Ol_Chiki(68),// Olck
+    Vai(69),// Vaii
+    Saurashtra(70),// Saur
+    Kayah_Li(71),// Kali
+    Rejang(72),// Rjng
+    Lycian(73),// Lyci
+    Carian(74),// Cari
+    Lydian(75),// Lydi
+    Cham(76),// Cham
+    Tai_Tham(77),// Lana
+    Tai_Viet(78),// Tavt
+    Avestan(79),// Avst
+    Egyptian_Hieroglyphs(80),// Egyp
+    Samaritan(81),// Samr
+    Lisu(82),// Lisu
+    Bamum(83),// Bamu
+    Javanese(84),// Java
+    Meetei_Mayek(85),// Mtei
+    Imperial_Aramaic(86),// Armi
+    Old_South_Arabian(87),// Sarb
+    Inscriptional_Parthian(88),// Prti
+    Inscriptional_Pahlavi(89),// Phli
+    Old_Turkic(90),// Orkh
+    Kaithi(91),// Kthi
+    Batak(92),// Batk
+    Brahmi(93),// Brah
+    Mandaic(94),// Mand
+    Chakma(95),// Cakm
+    Meroitic_Cursive(96),// Merc
+    Meroitic_Hieroglyphs(97),// Mero
+    Miao(98),// Plrd
+    Sharada(99),// Shrd
+    Sora_Sompeng(100),// Sora
+    Takri(101),// Takr
     MAX_SCRIPT_CODE(102);
 
     private final int code;

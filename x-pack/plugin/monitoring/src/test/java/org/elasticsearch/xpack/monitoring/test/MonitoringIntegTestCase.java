@@ -10,16 +10,16 @@ import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -50,26 +50,27 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder builder = Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal, otherSettings))
-                .put(MonitoringService.INTERVAL.getKey(), MonitoringService.MIN_INTERVAL)
-//                .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
-//                .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
-                // Disable native ML autodetect_process as the c++ controller won't be available
-//                .put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false)
-//                .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
-                // we do this by default in core, but for monitoring this isn't needed and only adds noise.
-                .put("indices.lifecycle.history_index_enabled", false)
-                .put("index.store.mock.check_index_on_close", false);
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(MonitoringService.INTERVAL.getKey(), MonitoringService.MIN_INTERVAL)
+            // .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
+            // .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
+            // Disable native ML autodetect_process as the c++ controller won't be available
+            // .put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false)
+            // .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
+            // we do this by default in core, but for monitoring this isn't needed and only adds noise.
+            .put("indices.lifecycle.history_index_enabled", false)
+            .put("index.store.mock.check_index_on_close", false);
 
         return builder.build();
     }
 
     @Override
     protected Settings transportClientSettings() {
-        return Settings.builder().put(super.transportClientSettings())
-//                .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
-                .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
-                .build();
+        return Settings.builder()
+            .put(super.transportClientSettings())
+            // .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
+            .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
+            .build();
     }
 
     @Override
@@ -82,14 +83,22 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateMonitoring.class, MockClusterAlertScriptEngine.TestPlugin.class,
-                MockIngestPlugin.class, CommonAnalysisPlugin.class);
+        return Arrays.asList(
+            LocalStateMonitoring.class,
+            MockClusterAlertScriptEngine.TestPlugin.class,
+            MockIngestPlugin.class,
+            CommonAnalysisPlugin.class
+        );
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(XPackClientPlugin.class, MockClusterAlertScriptEngine.TestPlugin.class,
-                MockIngestPlugin.class, CommonAnalysisPlugin.class);
+        return Arrays.asList(
+            XPackClientPlugin.class,
+            MockClusterAlertScriptEngine.TestPlugin.class,
+            MockIngestPlugin.class,
+            CommonAnalysisPlugin.class
+        );
     }
 
     protected MonitoringClient monitoringClient() {
@@ -125,8 +134,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
         CountDown retries = new CountDown(3);
         assertBusy(() -> {
             try {
-                boolean exist = client().admin().indices().prepareExists(ALL_MONITORING_INDICES)
-                        .get().isExists();
+                boolean exist = client().admin().indices().prepareExists(ALL_MONITORING_INDICES).get().isExists();
                 if (exist) {
                     deleteMonitoringIndices();
                 } else {
@@ -149,48 +157,44 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     protected List<Tuple<String, String>> monitoringTemplates() {
         return Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS)
-                    .map(id -> new Tuple<>(MonitoringTemplateUtils.templateName(id), MonitoringTemplateUtils.loadTemplate(id)))
-                    .collect(Collectors.toList());
+            .map(id -> new Tuple<>(MonitoringTemplateUtils.templateName(id), MonitoringTemplateUtils.loadTemplate(id)))
+            .collect(Collectors.toList());
     }
 
     protected List<String> monitoringTemplateNames() {
-        return Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS)
-                    .map(MonitoringTemplateUtils::templateName)
-                    .collect(Collectors.toList());
+        return Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS).map(MonitoringTemplateUtils::templateName).collect(Collectors.toList());
     }
 
     private Tuple<String, String> monitoringPipeline(final String pipelineId) {
         final XContentType json = XContentType.JSON;
 
-        return new Tuple<>(MonitoringTemplateUtils.pipelineName(pipelineId),
-                Strings.toString(MonitoringTemplateUtils.loadPipeline(pipelineId, json)));
+        return new Tuple<>(
+            MonitoringTemplateUtils.pipelineName(pipelineId),
+            Strings.toString(MonitoringTemplateUtils.loadPipeline(pipelineId, json))
+        );
     }
 
     protected List<Tuple<String, String>> monitoringPipelines() {
-        return Arrays.stream(MonitoringTemplateUtils.PIPELINE_IDS)
-                .map(this::monitoringPipeline)
-                .collect(Collectors.toList());
+        return Arrays.stream(MonitoringTemplateUtils.PIPELINE_IDS).map(this::monitoringPipeline).collect(Collectors.toList());
     }
 
     protected List<String> monitoringPipelineNames() {
-        return Arrays.stream(MonitoringTemplateUtils.PIPELINE_IDS)
-                .map(MonitoringTemplateUtils::pipelineName)
-                .collect(Collectors.toList());
+        return Arrays.stream(MonitoringTemplateUtils.PIPELINE_IDS).map(MonitoringTemplateUtils::pipelineName).collect(Collectors.toList());
     }
 
     protected List<Tuple<String, String>> monitoringWatches() {
         final ClusterService clusterService = clusterService();
 
         return Arrays.stream(ClusterAlertsUtil.WATCH_IDS)
-                .map(id -> new Tuple<>(id, ClusterAlertsUtil.loadWatch(clusterService, id)))
-                .collect(Collectors.toList());
+            .map(id -> new Tuple<>(id, ClusterAlertsUtil.loadWatch(clusterService, id)))
+            .collect(Collectors.toList());
     }
 
     protected void assertTemplateInstalled(String name) {
         boolean found = false;
         for (IndexTemplateMetadata template : client().admin().indices().prepareGetTemplates().get().getIndexTemplates()) {
             if (Regex.simpleMatch(name, template.getName())) {
-                found =  true;
+                found = true;
             }
         }
         assertTrue("failed to find a template matching [" + name + "]", found);
@@ -211,13 +215,21 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     }
 
     protected void enableMonitoringCollection() {
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-                    Settings.builder().put(MonitoringService.ENABLED.getKey(), true)));
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put(MonitoringService.ENABLED.getKey(), true))
+        );
     }
 
     protected void disableMonitoringCollection() {
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-                    Settings.builder().putNull(MonitoringService.ENABLED.getKey())));
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().putNull(MonitoringService.ENABLED.getKey()))
+        );
     }
 
 }

@@ -10,11 +10,11 @@ package org.elasticsearch.client.ml;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -33,15 +33,18 @@ public class ForecastJobRequest extends ActionRequest implements ToXContentObjec
     public static final ParseField EXPIRES_IN = new ParseField("expires_in");
     public static final ParseField MAX_MODEL_MEMORY = new ParseField("max_model_memory");
 
-    public static final ConstructingObjectParser<ForecastJobRequest, Void> PARSER =
-        new ConstructingObjectParser<>("forecast_job_request", (a) -> new ForecastJobRequest((String)a[0]));
+    public static final ConstructingObjectParser<ForecastJobRequest, Void> PARSER = new ConstructingObjectParser<>(
+        "forecast_job_request",
+        (a) -> new ForecastJobRequest((String) a[0])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
+        PARSER.declareString((request, val) -> request.setDuration(TimeValue.parseTimeValue(val, DURATION.getPreferredName())), DURATION);
         PARSER.declareString(
-            (request, val) -> request.setDuration(TimeValue.parseTimeValue(val, DURATION.getPreferredName())), DURATION);
-        PARSER.declareString(
-            (request, val) -> request.setExpiresIn(TimeValue.parseTimeValue(val, EXPIRES_IN.getPreferredName())), EXPIRES_IN);
+            (request, val) -> request.setExpiresIn(TimeValue.parseTimeValue(val, EXPIRES_IN.getPreferredName())),
+            EXPIRES_IN
+        );
         PARSER.declareField(ForecastJobRequest::setMaxModelMemory, (p, c) -> {
             if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
                 return ByteSizeValue.parseBytesSizeValue(p.text(), MAX_MODEL_MEMORY.getPreferredName());

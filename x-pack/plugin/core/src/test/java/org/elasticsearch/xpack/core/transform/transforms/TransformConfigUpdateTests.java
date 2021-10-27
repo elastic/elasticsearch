@@ -11,9 +11,9 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.AbstractWireSerializingTransformTestCase;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
@@ -163,8 +163,16 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             randomBoolean() ? null : Version.V_7_2_0.toString()
         );
 
-        TransformConfigUpdate update =
-            new TransformConfigUpdate(null, null, null, null, null, new SettingsConfig(4_000, null, (Boolean) null, null), null, null);
+        TransformConfigUpdate update = new TransformConfigUpdate(
+            null,
+            null,
+            null,
+            null,
+            null,
+            new SettingsConfig(4_000, null, (Boolean) null, null),
+            null,
+            null
+        );
         TransformConfig updatedConfig = update.apply(config);
 
         // for settings we allow partial updates, so changing 1 setting should not overwrite the other
@@ -174,8 +182,16 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
         assertThat(updatedConfig.getSettings().getDatesAsEpochMillis(), equalTo(config.getSettings().getDatesAsEpochMillis()));
         assertThat(updatedConfig.getSettings().getAlignCheckpoints(), equalTo(config.getSettings().getAlignCheckpoints()));
 
-        update =
-            new TransformConfigUpdate(null, null, null, null, null, new SettingsConfig(null, 43.244F, (Boolean) null, null), null, null);
+        update = new TransformConfigUpdate(
+            null,
+            null,
+            null,
+            null,
+            null,
+            new SettingsConfig(null, 43.244F, (Boolean) null, null),
+            null,
+            null
+        );
         updatedConfig = update.apply(updatedConfig);
         assertThat(updatedConfig.getSettings().getMaxPageSearchSize(), equalTo(4_000));
         assertThat(updatedConfig.getSettings().getDocsPerSecond(), equalTo(43.244F));

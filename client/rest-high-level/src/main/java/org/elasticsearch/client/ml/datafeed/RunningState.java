@@ -24,8 +24,8 @@ public class RunningState implements ToXContentObject {
     public static final ConstructingObjectParser<RunningState, Void> PARSER = new ConstructingObjectParser<>(
         "datafeed_running_state",
         true,
-        a -> new RunningState((Boolean)a[0], (Boolean)a[1])
-        );
+        a -> new RunningState((Boolean) a[0], (Boolean) a[1])
+    );
 
     static {
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), REAL_TIME_CONFIGURED);
@@ -80,6 +80,5 @@ public class RunningState implements ToXContentObject {
         builder.endObject();
         return builder;
     }
-
 
 }

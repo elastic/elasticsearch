@@ -75,51 +75,88 @@ public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
         String userSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "oldap-test");
         final Settings.Builder realmSettings = Settings.builder()
-                .put(LdapTestCase.buildLdapSettings(realmId, new String[]{OpenLdapTests.OPEN_LDAP_DNS_URL}, Strings.EMPTY_ARRAY,
-                        groupSearchBase, LdapSearchScope.ONE_LEVEL, null, false))
-                .put(getFullSettingKey(realmId.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), userSearchBase)
-                .put(getFullSettingKey(realmId.getName(), SearchGroupsResolverSettings.USER_ATTRIBUTE), "uid")
-                .put(getFullSettingKey(realmId, PoolingSessionFactorySettings.BIND_DN),
-                        "uid=blackwidow,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com")
-                .put(getFullSettingKey(realmId.getName(), LdapUserSearchSessionFactorySettings.POOL_ENABLED), randomBoolean())
-                .put(getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), "full");
+            .put(
+                LdapTestCase.buildLdapSettings(
+                    realmId,
+                    new String[] { OpenLdapTests.OPEN_LDAP_DNS_URL },
+                    Strings.EMPTY_ARRAY,
+                    groupSearchBase,
+                    LdapSearchScope.ONE_LEVEL,
+                    null,
+                    false
+                )
+            )
+            .put(getFullSettingKey(realmId.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), userSearchBase)
+            .put(getFullSettingKey(realmId.getName(), SearchGroupsResolverSettings.USER_ATTRIBUTE), "uid")
+            .put(
+                getFullSettingKey(realmId, PoolingSessionFactorySettings.BIND_DN),
+                "uid=blackwidow,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com"
+            )
+            .put(getFullSettingKey(realmId.getName(), LdapUserSearchSessionFactorySettings.POOL_ENABLED), randomBoolean())
+            .put(getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), "full");
         if (useSecureBindPassword) {
             final MockSecureSettings secureSettings = new MockSecureSettings();
-            secureSettings.setString(getFullSettingKey(realmId, PoolingSessionFactorySettings.SECURE_BIND_PASSWORD),
-                OpenLdapTests.PASSWORD);
+            secureSettings.setString(
+                getFullSettingKey(realmId, PoolingSessionFactorySettings.SECURE_BIND_PASSWORD),
+                OpenLdapTests.PASSWORD
+            );
             realmSettings.setSecureSettings(secureSettings);
         } else {
             realmSettings.put(getFullSettingKey(realmId, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD), OpenLdapTests.PASSWORD);
         }
         final Settings settings = realmSettings.put(globalSettings).build();
-        RealmConfig config = new RealmConfig(realmId, settings,
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        RealmConfig config = new RealmConfig(
+            realmId,
+            settings,
+            TestEnvironment.newEnvironment(globalSettings),
+            new ThreadContext(globalSettings)
+        );
 
         SSLService sslService = new SSLService(settings, TestEnvironment.newEnvironment(settings));
 
-        String[] users = new String[]{"cap", "hawkeye", "hulk", "ironman", "thor"};
+        String[] users = new String[] { "cap", "hawkeye", "hulk", "ironman", "thor" };
         try (LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, sslService, threadPool)) {
             for (String user : users) {
-                //auth
+                // auth
                 try (LdapSession ldap = session(sessionFactory, user, new SecureString(OpenLdapTests.PASSWORD))) {
-                    assertThat(ldap.userDn(), is(equalTo(new MessageFormat("uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com",
-                            Locale.ROOT).format(new Object[]{user}, new StringBuffer(), null).toString())));
+                    assertThat(
+                        ldap.userDn(),
+                        is(
+                            equalTo(
+                                new MessageFormat("uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com", Locale.ROOT).format(
+                                    new Object[] { user },
+                                    new StringBuffer(),
+                                    null
+                                ).toString()
+                            )
+                        )
+                    );
                     assertThat(groups(ldap), hasItem(containsString("Avengers")));
                 }
 
-                //lookup
+                // lookup
                 try (LdapSession ldap = unauthenticatedSession(sessionFactory, user)) {
-                    assertThat(ldap.userDn(), is(equalTo(new MessageFormat("uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com",
-                            Locale.ROOT).format(new Object[]{user}, new StringBuffer(), null).toString())));
+                    assertThat(
+                        ldap.userDn(),
+                        is(
+                            equalTo(
+                                new MessageFormat("uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com", Locale.ROOT).format(
+                                    new Object[] { user },
+                                    new StringBuffer(),
+                                    null
+                                ).toString()
+                            )
+                        )
+                    );
                     assertThat(groups(ldap), hasItem(containsString("Avengers")));
                 }
             }
         }
 
         if (useSecureBindPassword == false) {
-            assertSettingDeprecationsAndWarnings(new Setting<?>[]{
-                config.getConcreteSetting(PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD)
-            });
+            assertSettingDeprecationsAndWarnings(
+                new Setting<?>[] { config.getConcreteSetting(PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD) }
+            );
         }
     }
 

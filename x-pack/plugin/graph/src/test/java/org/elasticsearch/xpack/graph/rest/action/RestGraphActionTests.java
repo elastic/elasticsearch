@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.graph.rest.action;
 
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.util.HashMap;
@@ -27,16 +27,14 @@ public class RestGraphActionTests extends RestActionTestCase {
     }
 
     public void testTypeInPath() {
-        for (Tuple<RestRequest.Method, String> methodAndPath :
-            org.elasticsearch.core.List.of(
-                Tuple.tuple(RestRequest.Method.GET, "/some_index/some_type/_graph/explore"),
-                Tuple.tuple(RestRequest.Method.POST, "/some_index/some_type/_graph/explore"),
-                Tuple.tuple(RestRequest.Method.GET, "/some_index/some_type/_xpack/graph/_explore"),
-                Tuple.tuple(RestRequest.Method.POST, "/some_index/some_type/_xpack/graph/_explore")
-            )) {
+        for (Tuple<RestRequest.Method, String> methodAndPath : org.elasticsearch.core.List.of(
+            Tuple.tuple(RestRequest.Method.GET, "/some_index/some_type/_graph/explore"),
+            Tuple.tuple(RestRequest.Method.POST, "/some_index/some_type/_graph/explore"),
+            Tuple.tuple(RestRequest.Method.GET, "/some_index/some_type/_xpack/graph/_explore"),
+            Tuple.tuple(RestRequest.Method.POST, "/some_index/some_type/_xpack/graph/_explore")
+        )) {
 
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-                .withMethod(methodAndPath.v1())
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(methodAndPath.v1())
                 .withPath(methodAndPath.v2())
                 .withContent(new BytesArray("{}"), XContentType.JSON)
                 .build();

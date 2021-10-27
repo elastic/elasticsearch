@@ -45,8 +45,17 @@ public class UserAgentProcessor extends AbstractProcessor {
     private final boolean ignoreMissing;
     private final boolean useECS;
 
-    public UserAgentProcessor(String tag, String description, String field, String targetField, UserAgentParser parser,
-                              Set<Property> properties, boolean extractDeviceType, boolean ignoreMissing, boolean useECS) {
+    public UserAgentProcessor(
+        String tag,
+        String description,
+        String field,
+        String targetField,
+        UserAgentParser parser,
+        Set<Property> properties,
+        boolean extractDeviceType,
+        boolean ignoreMissing,
+        boolean useECS
+    ) {
         super(tag, description);
         this.field = field;
         this.targetField = targetField;
@@ -132,26 +141,26 @@ public class UserAgentProcessor extends AbstractProcessor {
                                 uaDetails.put("os", osDetails);
                             }
                         }
-                    break;
-                case DEVICE:
-                    Map<String, String> deviceDetails = new HashMap<>(1);
-                    if (uaClient.device != null && uaClient.device.name != null) {
-                        deviceDetails.put("name", uaClient.device.name);
-                        if (extractDeviceType) {
-                            deviceDetails.put("type", uaClient.deviceType);
-                        }
-                    } else {
-                        deviceDetails.put("name", "Other");
-                        if (extractDeviceType) {
-                            if (uaClient.deviceType != null) {
+                        break;
+                    case DEVICE:
+                        Map<String, String> deviceDetails = new HashMap<>(1);
+                        if (uaClient.device != null && uaClient.device.name != null) {
+                            deviceDetails.put("name", uaClient.device.name);
+                            if (extractDeviceType) {
                                 deviceDetails.put("type", uaClient.deviceType);
-                            } else {
-                                deviceDetails.put("type", "Other");
+                            }
+                        } else {
+                            deviceDetails.put("name", "Other");
+                            if (extractDeviceType) {
+                                if (uaClient.deviceType != null) {
+                                    deviceDetails.put("type", uaClient.deviceType);
+                                } else {
+                                    deviceDetails.put("type", "Other");
+                                }
                             }
                         }
-                    }
-                    uaDetails.put("device", deviceDetails);
-                    break;
+                        uaDetails.put("device", deviceDetails);
+                        break;
                 }
             }
         } else {
@@ -299,8 +308,12 @@ public class UserAgentProcessor extends AbstractProcessor {
         }
 
         @Override
-        public UserAgentProcessor create(Map<String, Processor.Factory> factories, String processorTag,
-                                         String description, Map<String, Object> config) throws Exception {
+        public UserAgentProcessor create(
+            Map<String, Processor.Factory> factories,
+            String processorTag,
+            String description,
+            Map<String, Object> config
+        ) throws Exception {
             String field = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "user_agent");
             String regexFilename = readStringProperty(TYPE, processorTag, config, "regex_file", IngestUserAgentPlugin.DEFAULT_PARSER_NAME);
@@ -311,8 +324,12 @@ public class UserAgentProcessor extends AbstractProcessor {
 
             UserAgentParser parser = userAgentParsers.get(regexFilename);
             if (parser == null) {
-                throw newConfigurationException(TYPE, processorTag,
-                        "regex_file", "regex file [" + regexFilename + "] doesn't exist (has to exist at node startup)");
+                throw newConfigurationException(
+                    TYPE,
+                    processorTag,
+                    "regex_file",
+                    "regex file [" + regexFilename + "] doesn't exist (has to exist at node startup)"
+                );
             }
 
             final Set<Property> properties;
@@ -330,9 +347,12 @@ public class UserAgentProcessor extends AbstractProcessor {
             }
 
             if (useECS == false) {
-                deprecationLogger.critical(DeprecationCategory.SETTINGS, "ecs_false_non_common_schema",
-                    "setting [ecs] to false for non-common schema " +
-                    "format is deprecated and will be removed in 8.0, set to true or remove to use the non-deprecated format");
+                deprecationLogger.critical(
+                    DeprecationCategory.SETTINGS,
+                    "ecs_false_non_common_schema",
+                    "setting [ecs] to false for non-common schema "
+                        + "format is deprecated and will be removed in 8.0, set to true or remove to use the non-deprecated format"
+                );
             }
 
             return new UserAgentProcessor(
@@ -353,16 +373,23 @@ public class UserAgentProcessor extends AbstractProcessor {
 
         NAME,
         // Deprecated in 6.7 (superceded by VERSION), to be removed in 8.0
-        @Deprecated MAJOR,
-        @Deprecated MINOR,
-        @Deprecated PATCH,
+        @Deprecated
+        MAJOR,
+        @Deprecated
+        MINOR,
+        @Deprecated
+        PATCH,
         OS,
         // Deprecated in 6.7 (superceded by just using OS), to be removed in 8.0
-        @Deprecated OS_NAME,
-        @Deprecated OS_MAJOR,
-        @Deprecated OS_MINOR,
+        @Deprecated
+        OS_NAME,
+        @Deprecated
+        OS_MAJOR,
+        @Deprecated
+        OS_MINOR,
         DEVICE,
-        @Deprecated BUILD, // Same deprecated as OS_* above
+        @Deprecated
+        BUILD, // Same deprecated as OS_* above
         ORIGINAL,
         VERSION;
 
@@ -383,14 +410,21 @@ public class UserAgentProcessor extends AbstractProcessor {
                 Property value = valueOf(propertyName.toUpperCase(Locale.ROOT));
                 if (DEPRECATED_PROPERTIES.contains(value)) {
                     final String key = "user_agent_processor_property_" + propertyName.replaceAll("[^\\w_]+", "_");
-                        deprecationLogger.critical(DeprecationCategory.PARSING, key,
-                        "the [{}] property is deprecated for the user-agent processor", propertyName);
+                    deprecationLogger.critical(
+                        DeprecationCategory.PARSING,
+                        key,
+                        "the [{}] property is deprecated for the user-agent processor",
+                        propertyName
+                    );
                 }
                 return value;
-            }
-            catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("illegal property value [" + propertyName + "]. valid values are " +
-                        Arrays.toString(EnumSet.allOf(Property.class).toArray()));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(
+                    "illegal property value ["
+                        + propertyName
+                        + "]. valid values are "
+                        + Arrays.toString(EnumSet.allOf(Property.class).toArray())
+                );
             }
         }
     }

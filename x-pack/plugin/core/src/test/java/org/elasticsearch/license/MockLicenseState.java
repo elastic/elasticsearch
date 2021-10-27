@@ -8,7 +8,6 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.common.settings.Settings;
-
 import org.mockito.Mockito;
 
 import java.util.function.Consumer;

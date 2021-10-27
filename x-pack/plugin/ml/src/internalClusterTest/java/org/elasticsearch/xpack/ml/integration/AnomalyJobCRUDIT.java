@@ -6,17 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
-import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.hamcrest.Matchers.containsString;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashSet;
-import java.util.List;
-
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
@@ -28,8 +17,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -47,20 +36,38 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.junit.Before;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.List;
+
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.hamcrest.Matchers.containsString;
+
 public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
 
     private JobResultsPersister jobResultsPersister;
+
     @Before
     public void createComponents() throws Exception {
         ThreadPool tp = mockThreadPool();
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY,
-            new HashSet<>(Arrays.asList(InferenceProcessor.MAX_INFERENCE_PROCESSORS,
-                MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
-                AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
-                OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
-                ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
-                ClusterService.USER_DEFINED_METADATA,
-                ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            new HashSet<>(
+                Arrays.asList(
+                    InferenceProcessor.MAX_INFERENCE_PROCESSORS,
+                    MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                    AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
+                    OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
+                    ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
+                    ClusterService.USER_DEFINED_METADATA,
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING
+                )
+            )
+        );
         ClusterService clusterService = new ClusterService(Settings.EMPTY, clusterSettings, tp);
 
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ML_ORIGIN);
@@ -79,55 +86,62 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
         String jobId = "memory-limit-established";
         createJob(jobId);
         jobResultsPersister.persistModelSizeStats(
-            new ModelSizeStats.Builder(jobId)
-                .setTimestamp(new Date())
-                .setLogTime(new Date())
-                .setModelBytes(10000000).build(), () -> false);
+            new ModelSizeStats.Builder(jobId).setTimestamp(new Date()).setLogTime(new Date()).setModelBytes(10000000).build(),
+            () -> false
+        );
         jobResultsPersister.commitResultWrites(jobId);
 
-        ElasticsearchStatusException iae = expectThrows(ElasticsearchStatusException.class, () -> client().execute(UpdateJobAction.INSTANCE,
-            new UpdateJobAction.Request(jobId,
-                new JobUpdate.Builder(jobId)
-                    .setAnalysisLimits(new AnalysisLimits(5L, 0L))
-                    .build())).actionGet());
+        ElasticsearchStatusException iae = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> client().execute(
+                UpdateJobAction.INSTANCE,
+                new UpdateJobAction.Request(jobId, new JobUpdate.Builder(jobId).setAnalysisLimits(new AnalysisLimits(5L, 0L)).build())
+            ).actionGet()
+        );
         assertThat(iae.getMessage(), containsString("model_memory_limit cannot be decreased below current usage"));
 
         // Shouldn't throw
-        client().execute(UpdateJobAction.INSTANCE,
-            new UpdateJobAction.Request(jobId,
-                new JobUpdate.Builder(jobId)
-                    .setAnalysisLimits(new AnalysisLimits(30L, 0L))
-                    .build())).actionGet();
+        client().execute(
+            UpdateJobAction.INSTANCE,
+            new UpdateJobAction.Request(jobId, new JobUpdate.Builder(jobId).setAnalysisLimits(new AnalysisLimits(30L, 0L)).build())
+        ).actionGet();
 
     }
 
     public void testCreateWithExistingCategorizerDocs() {
         String jobId = "job-id-with-existing-docs";
-        testCreateWithExistingDocs(client().prepareIndex(".ml-state-000001", SINGLE_MAPPING_NAME)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .setId(jobId + "_categorizer_state#1")
-            .setSource("{}", XContentType.JSON)
-            .request(),
-            jobId);
+        testCreateWithExistingDocs(
+            client().prepareIndex(".ml-state-000001", SINGLE_MAPPING_NAME)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .setId(jobId + "_categorizer_state#1")
+                .setSource("{}", XContentType.JSON)
+                .request(),
+            jobId
+        );
     }
 
     public void testCreateWithExistingQuantilesDocs() {
         String jobId = "job-id-with-existing-docs";
-        testCreateWithExistingDocs(client().prepareIndex(".ml-state-000001", SINGLE_MAPPING_NAME)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .setId(jobId + "_quantiles")
-            .setSource("{}", XContentType.JSON)
-            .request(), jobId);
+        testCreateWithExistingDocs(
+            client().prepareIndex(".ml-state-000001", SINGLE_MAPPING_NAME)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .setId(jobId + "_quantiles")
+                .setSource("{}", XContentType.JSON)
+                .request(),
+            jobId
+        );
     }
 
     public void testCreateWithExistingResultsDocs() {
         String jobId = "job-id-with-existing-docs";
-        testCreateWithExistingDocs(client().prepareIndex(".ml-anomalies-shared", SINGLE_MAPPING_NAME)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .setId(jobId + "_1464739200000_1")
-            .setSource("{\"job_id\": \"" + jobId + "\"}", XContentType.JSON)
-            .request(),
-            jobId);
+        testCreateWithExistingDocs(
+            client().prepareIndex(".ml-anomalies-shared", SINGLE_MAPPING_NAME)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .setId(jobId + "_1464739200000_1")
+                .setSource("{\"job_id\": \"" + jobId + "\"}", XContentType.JSON)
+                .request(),
+            jobId
+        );
     }
 
     public void testPutJobWithClosedResultsIndex() {
@@ -135,8 +149,10 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
         client().admin().indices().prepareCreate(".ml-anomalies-shared").get();
         client().admin().indices().prepareClose(".ml-anomalies-shared").get();
         ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class, () -> createJob(jobId));
-        assertThat(ex.getMessage(),
-            containsString("Cannot create job [job-with-closed-results-index] as it requires closed index [.ml-anomalies-*]"));
+        assertThat(
+            ex.getMessage(),
+            containsString("Cannot create job [job-with-closed-results-index] as it requires closed index [.ml-anomalies-*]")
+        );
         client().admin().indices().prepareDelete(".ml-anomalies-shared").get();
     }
 
@@ -145,8 +161,10 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
         client().admin().indices().prepareCreate(".ml-state-000001").get();
         client().admin().indices().prepareClose(".ml-state-000001").setWaitForActiveShards(0).get();
         ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class, () -> createJob(jobId));
-        assertThat(ex.getMessage(),
-            containsString("Cannot create job [job-with-closed-results-index] as it requires closed index [.ml-state*]"));
+        assertThat(
+            ex.getMessage(),
+            containsString("Cannot create job [job-with-closed-results-index] as it requires closed index [.ml-state*]")
+        );
         client().admin().indices().prepareDelete(".ml-state-000001").get();
     }
 

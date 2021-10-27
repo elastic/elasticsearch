@@ -12,12 +12,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -26,17 +26,17 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Objects;
 
-
 public class TransformMetadata implements XPackPlugin.XPackMetadataCustom {
     public static final String TYPE = "transform";
     public static final ParseField RESET_MODE = new ParseField("reset_mode");
 
     public static final TransformMetadata EMPTY_METADATA = new TransformMetadata(false);
     // This parser follows the pattern that metadata is parsed leniently (to allow for enhancements)
-    public static final ObjectParser<TransformMetadata.Builder, Void> LENIENT_PARSER = new ObjectParser<>("" +
-        "transform_metadata",
+    public static final ObjectParser<TransformMetadata.Builder, Void> LENIENT_PARSER = new ObjectParser<>(
+        "" + "transform_metadata",
         true,
-        TransformMetadata.Builder::new);
+        TransformMetadata.Builder::new
+    );
 
     static {
         LENIENT_PARSER.declareBoolean(TransformMetadata.Builder::isResetMode, RESET_MODE);
@@ -122,10 +122,8 @@ public class TransformMetadata implements XPackPlugin.XPackMetadataCustom {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         TransformMetadata that = (TransformMetadata) o;
         return resetMode == that.resetMode;
     }
@@ -148,8 +146,7 @@ public class TransformMetadata implements XPackPlugin.XPackMetadataCustom {
             return new TransformMetadata.Builder(previous);
         }
 
-        public Builder() {
-        }
+        public Builder() {}
 
         public Builder(@Nullable TransformMetadata previous) {
             if (previous != null) {

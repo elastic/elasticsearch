@@ -11,8 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.eql.execution.assembler.BoxedQueryRequest;
 import org.elasticsearch.xpack.eql.execution.assembler.Criterion;
@@ -99,10 +99,12 @@ public class TumblingWindow implements Executable {
         }
     }
 
-    public TumblingWindow(QueryClient client,
-                          List<Criterion<BoxedQueryRequest>> criteria,
-                          Criterion<BoxedQueryRequest> until,
-                          SequenceMatcher matcher) {
+    public TumblingWindow(
+        QueryClient client,
+        List<Criterion<BoxedQueryRequest>> criteria,
+        Criterion<BoxedQueryRequest> until,
+        SequenceMatcher matcher
+    ) {
         this.client = client;
 
         this.until = until;
@@ -145,8 +147,7 @@ public class TumblingWindow implements Executable {
             if (currentStage == 0) {
                 matcher.trim(null);
             }
-        }
-        else {
+        } else {
             // trim to last until the current window
             // that's because some stages can be sparse, other dense
             // and results from the sparse stage can be after those in the dense one
@@ -274,7 +275,7 @@ public class TumblingWindow implements Executable {
                     }
                 }
                 // for ASC queries continue if there are still matches available
-                else  {
+                else {
                     if (matcher.hasFollowingCandidates(baseStage)) {
                         next = () -> rebaseWindow(nextStage, listener);
                     }
@@ -451,7 +452,7 @@ public class TumblingWindow implements Executable {
     private List<SearchHit> trim(List<SearchHit> searchHits, Criterion<BoxedQueryRequest> criterion, Ordinal boundary) {
         int offset = 0;
 
-        for (int i = searchHits.size() - 1; i >= 0 ; i--) {
+        for (int i = searchHits.size() - 1; i >= 0; i--) {
             Ordinal ordinal = criterion.ordinal(searchHits.get(i));
             if (ordinal.after(boundary)) {
                 offset++;
@@ -501,14 +502,11 @@ public class TumblingWindow implements Executable {
         // check if it hasn't been set before
         if (from.equals(request.from()) == false) {
             // initialize the next request
-            request.from(from)
-                .nextAfter(from);
+            request.from(from).nextAfter(from);
 
             // initialize until (if available)
             if (until != null) {
-                until.queryRequest()
-                    .from(from)
-                    .nextAfter(from);
+                until.queryRequest().from(from).nextAfter(from);
             }
             // reset all sub queries
             for (int i = 2; i < maxStages; i++) {
@@ -599,9 +597,9 @@ public class TumblingWindow implements Executable {
 
     Iterable<List<HitReference>> hits(List<Sequence> sequences) {
         return () -> {
-            Iterator<Sequence> delegate = criteria.get(0).descending() != criteria.get(1).descending() ?
-                new ReversedIterator<>(sequences) :
-                sequences.iterator();
+            Iterator<Sequence> delegate = criteria.get(0).descending() != criteria.get(1).descending()
+                ? new ReversedIterator<>(sequences)
+                : sequences.iterator();
 
             return new Iterator<List<HitReference>>() {
 

@@ -103,8 +103,11 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            GeoIpDownloaderStats stats =
-                getNodes().stream().map(n -> n.stats).filter(Objects::nonNull).findFirst().orElse(GeoIpDownloaderStats.EMPTY);
+            GeoIpDownloaderStats stats = getNodes().stream()
+                .map(n -> n.stats)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(GeoIpDownloaderStats.EMPTY);
             builder.startObject();
             builder.field("stats", stats);
             builder.startObject("nodes");

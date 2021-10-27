@@ -27,7 +27,11 @@ public class MlConfigMigrationEligibilityCheck {
     private static final Version MIN_NODE_VERSION = Version.V_6_6_0;
 
     public static final Setting<Boolean> ENABLE_CONFIG_MIGRATION = Setting.boolSetting(
-        "xpack.ml.enable_config_migration", true, Setting.Property.OperatorDynamic, Setting.Property.NodeScope);
+        "xpack.ml.enable_config_migration",
+        true,
+        Setting.Property.OperatorDynamic,
+        Setting.Property.NodeScope
+    );
 
     private volatile boolean isConfigMigrationEnabled;
 
@@ -39,7 +43,6 @@ public class MlConfigMigrationEligibilityCheck {
     private void setConfigMigrationEnabled(boolean configMigrationEnabled) {
         this.isConfigMigrationEnabled = configMigrationEnabled;
     }
-
 
     /**
      * Can migration start? Returns:
@@ -102,8 +105,8 @@ public class MlConfigMigrationEligibilityCheck {
         }
 
         PersistentTasksCustomMetadata persistentTasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
-        return MlTasks.openJobIds(persistentTasks).contains(jobId) == false ||
-                MlTasks.unassignedJobIds(persistentTasks, clusterState.nodes()).contains(jobId);
+        return MlTasks.openJobIds(persistentTasks).contains(jobId) == false
+            || MlTasks.unassignedJobIds(persistentTasks, clusterState.nodes()).contains(jobId);
     }
 
     /**
@@ -130,6 +133,6 @@ public class MlConfigMigrationEligibilityCheck {
 
         PersistentTasksCustomMetadata persistentTasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         return MlTasks.startedDatafeedIds(persistentTasks).contains(datafeedId) == false
-                || MlTasks.unassignedDatafeedIds(persistentTasks, clusterState.nodes()).contains(datafeedId);
+            || MlTasks.unassignedDatafeedIds(persistentTasks, clusterState.nodes()).contains(datafeedId);
     }
 }

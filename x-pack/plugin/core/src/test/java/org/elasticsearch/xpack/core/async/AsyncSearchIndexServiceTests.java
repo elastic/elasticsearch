@@ -84,8 +84,9 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             TestAsyncResponse that = (TestAsyncResponse) o;
-            return expirationTimeMillis == that.expirationTimeMillis &&
-                Objects.equals(test, that.test) && Objects.equals(failure, that.failure);
+            return expirationTimeMillis == that.expirationTimeMillis
+                && Objects.equals(test, that.test)
+                && Objects.equals(failure, that.failure);
         }
 
         @Override
@@ -95,11 +96,16 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
 
         @Override
         public String toString() {
-            return "TestAsyncResponse{" +
-                "test='" + test + '\'' +
-                "failure='" + failure + '\'' +
-                ", expirationTimeMillis=" + expirationTimeMillis +
-                '}';
+            return "TestAsyncResponse{"
+                + "test='"
+                + test
+                + '\''
+                + "failure='"
+                + failure
+                + '\''
+                + ", expirationTimeMillis="
+                + expirationTimeMillis
+                + '}';
         }
 
         @Override
@@ -113,8 +119,16 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         BigArrays bigArrays = getInstanceFromNode(BigArrays.class);
         TransportService transportService = getInstanceFromNode(TransportService.class);
-        indexService = new AsyncTaskIndexService<>("test", clusterService, transportService.getThreadPool().getThreadContext(),
-            client(), ASYNC_SEARCH_ORIGIN, TestAsyncResponse::new, writableRegistry(), bigArrays);
+        indexService = new AsyncTaskIndexService<>(
+            "test",
+            clusterService,
+            transportService.getThreadPool().getThreadContext(),
+            client(),
+            ASYNC_SEARCH_ORIGIN,
+            TestAsyncResponse::new,
+            writableRegistry(),
+            bigArrays
+        );
     }
 
     public void testEncodeSearchResponse() throws IOException {
@@ -125,7 +139,8 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
             TestAsyncResponse initialResponse = new TestAsyncResponse(testMessage, expirationTime);
             AsyncExecutionId executionId = new AsyncExecutionId(
                 Long.toString(randomNonNegativeLong()),
-                new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()));
+                new TaskId(randomAlphaOfLength(10), randomNonNegativeLong())
+            );
 
             PlainActionFuture<IndexResponse> createFuture = new PlainActionFuture<>();
             indexService.createResponse(executionId.getDocId(), Collections.emptyMap(), initialResponse, createFuture);
@@ -175,8 +190,10 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
                 addWithoutBreaking(bytes);
             } else {
                 if (used + bytes > limit) {
-                    throw new CircuitBreakingException("Current used [" + used + "] and requesting bytes [" + bytes + "] " +
-                        "is greater than the limit [" + limit + "]", Durability.TRANSIENT);
+                    throw new CircuitBreakingException(
+                        "Current used [" + used + "] and requesting bytes [" + bytes + "] " + "is greater than the limit [" + limit + "]",
+                        Durability.TRANSIENT
+                    );
                 }
                 used += bytes;
             }
@@ -227,12 +244,21 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
         BigArrays bigArrays = new BigArrays(null, circuitBreakerService, CircuitBreaker.REQUEST);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         TransportService transportService = getInstanceFromNode(TransportService.class);
-        indexService = new AsyncTaskIndexService<>("test", clusterService, transportService.getThreadPool().getThreadContext(),
-            client(), ASYNC_SEARCH_ORIGIN, TestAsyncResponse::new, writableRegistry(), bigArrays);
+        indexService = new AsyncTaskIndexService<>(
+            "test",
+            clusterService,
+            transportService.getThreadPool().getThreadContext(),
+            client(),
+            ASYNC_SEARCH_ORIGIN,
+            TestAsyncResponse::new,
+            writableRegistry(),
+            bigArrays
+        );
 
         AsyncExecutionId executionId = new AsyncExecutionId(
             Long.toString(randomNonNegativeLong()),
-            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()));
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong())
+        );
         long expirationTime = randomLong();
         String testMessage = randomAlphaOfLength(10);
         {
@@ -306,8 +332,10 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
     public void testMaxAsyncSearchResponseSize() throws Exception {
         try {
             // successfully create an initial response
-            AsyncExecutionId executionId1 = new AsyncExecutionId(Long.toString(randomNonNegativeLong()),
-                new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()));
+            AsyncExecutionId executionId1 = new AsyncExecutionId(
+                Long.toString(randomNonNegativeLong()),
+                new TaskId(randomAlphaOfLength(10), randomNonNegativeLong())
+            );
             TestAsyncResponse initialResponse = new TestAsyncResponse(randomAlphaOfLength(130), randomLong());
             PlainActionFuture<IndexResponse> createFuture1 = new PlainActionFuture<>();
             indexService.createResponse(executionId1.getDocId(), Collections.emptyMap(), initialResponse, createFuture1);
@@ -318,8 +346,12 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
             ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
             updateSettingsRequest.transientSettings(Settings.builder().put("search.max_async_search_response_size", limit + "b"));
             assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
-            String expectedErrMsg = "Can't store an async search response larger than [" + limit + "] bytes. " +
-                "This limit can be set by changing the [" + MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.getKey() + "] setting.";
+            String expectedErrMsg = "Can't store an async search response larger than ["
+                + limit
+                + "] bytes. "
+                + "This limit can be set by changing the ["
+                + MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.getKey()
+                + "] setting.";
 
             // test that an update operation of the initial response fails
             PlainActionFuture<UpdateResponse> updateFuture = new PlainActionFuture<>();
@@ -333,8 +365,10 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
             assertEquals(expectedErrMsg, getFuture.actionGet().failure);
 
             // test that a create operation fails
-            AsyncExecutionId executionId2 = new AsyncExecutionId(Long.toString(randomNonNegativeLong()),
-                new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()));
+            AsyncExecutionId executionId2 = new AsyncExecutionId(
+                Long.toString(randomNonNegativeLong()),
+                new TaskId(randomAlphaOfLength(10), randomNonNegativeLong())
+            );
             PlainActionFuture<IndexResponse> createFuture = new PlainActionFuture<>();
             TestAsyncResponse initialResponse2 = new TestAsyncResponse(randomAlphaOfLength(130), randomLong());
             indexService.createResponse(executionId2.getDocId(), Collections.emptyMap(), initialResponse2, createFuture);

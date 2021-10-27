@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.spatial.search;
 
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.geo.GeoBoundingBoxQueryIntegTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 
 import java.io.IOException;
@@ -25,16 +25,19 @@ public class GeoBoundingBoxQueryGeoShapeWithDocValuesIT extends GeoBoundingBoxQu
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>>  nodePlugins() {
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(LocalStateSpatialPlugin.class);
     }
 
     @Override
     public XContentBuilder getMapping() throws IOException {
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("location").field("type", "geo_shape");
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type1")
+            .startObject("properties")
+            .startObject("location")
+            .field("type", "geo_shape");
         xContentBuilder.endObject().endObject().endObject().endObject();
         return xContentBuilder;
     }
 }
-

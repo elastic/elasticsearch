@@ -10,13 +10,13 @@ package org.elasticsearch.client.rollup.job.config;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -87,9 +87,10 @@ public class DateHistogramGroupConfig implements Validatable, ToXContentObject {
             DateHistogramInterval fixedInterval = (DateHistogramInterval) a[3];
 
             if (oldInterval != null) {
-                if  (calendarInterval != null || fixedInterval != null) {
-                    throw new IllegalArgumentException("Cannot use [interval] with [fixed_interval] or [calendar_interval] " +
-                        "configuration options.");
+                if (calendarInterval != null || fixedInterval != null) {
+                    throw new IllegalArgumentException(
+                        "Cannot use [interval] with [fixed_interval] or [calendar_interval] " + "configuration options."
+                    );
                 }
                 return new DateHistogramGroupConfig((String) a[0], oldInterval, (DateHistogramInterval) a[4], (String) a[5]);
             } else if (calendarInterval != null && fixedInterval == null) {
@@ -104,11 +105,19 @@ public class DateHistogramGroupConfig implements Validatable, ToXContentObject {
         });
         PARSER.declareString(constructorArg(), new ParseField(FIELD));
         PARSER.declareField(optionalConstructorArg(), p -> new DateHistogramInterval(p.text()), new ParseField(INTERVAL), ValueType.STRING);
-        PARSER.declareField(optionalConstructorArg(), p -> new DateHistogramInterval(p.text()),
-            new ParseField(CALENDAR_INTERVAL), ValueType.STRING);
-        PARSER.declareField(optionalConstructorArg(), p -> new DateHistogramInterval(p.text()),
-            new ParseField(FIXED_INTERVAL), ValueType.STRING);
-        PARSER.declareField(optionalConstructorArg(),  p -> new DateHistogramInterval(p.text()), new ParseField(DELAY), ValueType.STRING);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            p -> new DateHistogramInterval(p.text()),
+            new ParseField(CALENDAR_INTERVAL),
+            ValueType.STRING
+        );
+        PARSER.declareField(
+            optionalConstructorArg(),
+            p -> new DateHistogramInterval(p.text()),
+            new ParseField(FIXED_INTERVAL),
+            ValueType.STRING
+        );
+        PARSER.declareField(optionalConstructorArg(), p -> new DateHistogramInterval(p.text()), new ParseField(DELAY), ValueType.STRING);
         PARSER.declareString(optionalConstructorArg(), new ParseField(TIME_ZONE));
     }
 
@@ -153,8 +162,9 @@ public class DateHistogramGroupConfig implements Validatable, ToXContentObject {
         public CalendarInterval(String field, DateHistogramInterval interval, DateHistogramInterval delay, String timeZone) {
             super(field, interval, delay, timeZone);
             if (DATE_FIELD_UNITS.contains(interval.toString()) == false) {
-                throw new IllegalArgumentException("The supplied interval [" + interval +"] could not be parsed " +
-                    "as a calendar interval.");
+                throw new IllegalArgumentException(
+                    "The supplied interval [" + interval + "] could not be parsed " + "as a calendar interval."
+                );
             }
         }
 
@@ -192,10 +202,12 @@ public class DateHistogramGroupConfig implements Validatable, ToXContentObject {
      * @since 7.2.0
      */
     @Deprecated
-    public DateHistogramGroupConfig(final String field,
-                                    final DateHistogramInterval interval,
-                                    final @Nullable DateHistogramInterval delay,
-                                    final @Nullable String timeZone) {
+    public DateHistogramGroupConfig(
+        final String field,
+        final DateHistogramInterval interval,
+        final @Nullable DateHistogramInterval delay,
+        final @Nullable String timeZone
+    ) {
         this.field = field;
         this.interval = interval;
         this.delay = delay;

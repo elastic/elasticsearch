@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.ml.rest.calendar;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 
@@ -29,7 +29,8 @@ public class RestPutCalendarAction extends BaseRestHandler {
     public List<Route> routes() {
         return org.elasticsearch.core.List.of(
             Route.builder(PUT, BASE_PATH + "calendars/{" + Calendar.ID + "}")
-                .replaces(PUT, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}", RestApiVersion.V_7).build()
+                .replaces(PUT, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}", RestApiVersion.V_7)
+                .build()
         );
     }
 
@@ -54,4 +55,3 @@ public class RestPutCalendarAction extends BaseRestHandler {
         return channel -> client.execute(PutCalendarAction.INSTANCE, putCalendarRequest, new RestToXContentListener<>(channel));
     }
 }
-

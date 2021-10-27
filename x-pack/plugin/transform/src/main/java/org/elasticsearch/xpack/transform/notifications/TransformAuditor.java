@@ -49,13 +49,17 @@ public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
                 // legacy template implementation, to be removed in 8.x
                 try {
                     IndexTemplateMetadata templateMeta = TransformInternalIndex.getAuditIndexTemplateMetadata(
-                        clusterService.state().nodes().getMinNodeVersion());
+                        clusterService.state().nodes().getMinNodeVersion()
+                    );
 
                     PutIndexTemplateRequest request = new PutIndexTemplateRequest(templateMeta.name()).patterns(templateMeta.patterns())
                         .version(templateMeta.version())
                         .settings(templateMeta.settings())
-                        .mapping(templateMeta.mappings().iterator().next().key,
-                            templateMeta.mappings().iterator().next().value.uncompressed(), XContentType.JSON);
+                        .mapping(
+                            templateMeta.mappings().iterator().next().key,
+                            templateMeta.mappings().iterator().next().value.uncompressed(),
+                            XContentType.JSON
+                        );
 
                     for (ObjectObjectCursor<String, AliasMetadata> cursor : templateMeta.getAliases()) {
                         AliasMetadata meta = cursor.value;

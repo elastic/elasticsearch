@@ -43,8 +43,13 @@ public class TransportStopILMActionTests extends ESTestCase {
     public void testStopILMClusterStatePriorityIsImmediate() {
         ClusterService clusterService = mock(ClusterService.class);
 
-        TransportStopILMAction transportStopILMAction = new TransportStopILMAction(mock(TransportService.class),
-            clusterService, mock(ThreadPool.class), mock(ActionFilters.class), mock(IndexNameExpressionResolver.class));
+        TransportStopILMAction transportStopILMAction = new TransportStopILMAction(
+            mock(TransportService.class),
+            clusterService,
+            mock(ThreadPool.class),
+            mock(ActionFilters.class),
+            mock(IndexNameExpressionResolver.class)
+        );
         StopILMRequest request = new StopILMRequest();
         transportStopILMAction.masterOperation(request, ClusterState.EMPTY_STATE, EMPTY_LISTENER);
 

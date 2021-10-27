@@ -18,14 +18,14 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
@@ -71,10 +71,8 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
     private static final String USER_NAME = "some-user";
 
     @Before
-    public void setUpData()  {
-        client().admin().indices().prepareCreate(DATA_INDEX)
-                .addMapping(SINGLE_MAPPING_NAME, "time", "type=date,format=epoch_millis")
-                .get();
+    public void setUpData() {
+        client().admin().indices().prepareCreate(DATA_INDEX).addMapping(SINGLE_MAPPING_NAME, "time", "type=date,format=epoch_millis").get();
 
         // We are going to create 3 days of data ending 1 hr ago
         long latestBucketTime = System.currentTimeMillis() - TimeValue.timeValueHours(1).millis();
@@ -93,9 +91,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
             }
         }
 
-        BulkResponse bulkResponse = bulkRequestBuilder
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get();
+        BulkResponse bulkResponse = bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         assertThat(bulkResponse.hasFailures(), is(false));
     }
 
@@ -110,12 +106,12 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         client().execute(DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request()).get();
     }
 
-    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/62699")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/62699")
     public void testDeleteExpiredDataNoThrottle() throws Exception {
         testExpiredDeletion(null, 10010);
     }
 
-    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/62699")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/62699")
     public void testDeleteExpiredDataWithStandardThrottle() throws Exception {
         testExpiredDeletion(-1.0f, 100);
     }
@@ -126,26 +122,38 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < numUnusedState; i++) {
             String docId = "non_existing_job_" + randomFrom("model_state_1234567#" + i, "quantiles", "categorizer_state#" + i);
-            IndexRequest indexRequest =
-                new IndexRequest(mlStateIndexName)
-                    .id(docId)
-                    .source(Collections.emptyMap());
+            IndexRequest indexRequest = new IndexRequest(mlStateIndexName).id(docId).source(Collections.emptyMap());
             bulkRequestBuilder.add(indexRequest);
         }
         ActionFuture<BulkResponse> indexUnusedStateDocsResponse = bulkRequestBuilder.execute();
         List<Job.Builder> jobs = new ArrayList<>();
 
         // These jobs don't thin out model state; ModelSnapshotRetentionIT tests that
-        jobs.add(newJobBuilder("no-retention")
-            .setResultsRetentionDays(null).setModelSnapshotRetentionDays(1000L).setDailyModelSnapshotRetentionAfterDays(1000L));
-        jobs.add(newJobBuilder("results-retention")
-            .setResultsRetentionDays(1L).setModelSnapshotRetentionDays(1000L).setDailyModelSnapshotRetentionAfterDays(1000L));
-        jobs.add(newJobBuilder("snapshots-retention")
-            .setResultsRetentionDays(null).setModelSnapshotRetentionDays(2L).setDailyModelSnapshotRetentionAfterDays(2L));
-        jobs.add(newJobBuilder("snapshots-retention-with-retain")
-            .setResultsRetentionDays(null).setModelSnapshotRetentionDays(2L).setDailyModelSnapshotRetentionAfterDays(2L));
-        jobs.add(newJobBuilder("results-and-snapshots-retention")
-            .setResultsRetentionDays(1L).setModelSnapshotRetentionDays(2L).setDailyModelSnapshotRetentionAfterDays(2L));
+        jobs.add(
+            newJobBuilder("no-retention").setResultsRetentionDays(null)
+                .setModelSnapshotRetentionDays(1000L)
+                .setDailyModelSnapshotRetentionAfterDays(1000L)
+        );
+        jobs.add(
+            newJobBuilder("results-retention").setResultsRetentionDays(1L)
+                .setModelSnapshotRetentionDays(1000L)
+                .setDailyModelSnapshotRetentionAfterDays(1000L)
+        );
+        jobs.add(
+            newJobBuilder("snapshots-retention").setResultsRetentionDays(null)
+                .setModelSnapshotRetentionDays(2L)
+                .setDailyModelSnapshotRetentionAfterDays(2L)
+        );
+        jobs.add(
+            newJobBuilder("snapshots-retention-with-retain").setResultsRetentionDays(null)
+                .setModelSnapshotRetentionDays(2L)
+                .setDailyModelSnapshotRetentionAfterDays(2L)
+        );
+        jobs.add(
+            newJobBuilder("results-and-snapshots-retention").setResultsRetentionDays(1L)
+                .setModelSnapshotRetentionDays(2L)
+                .setDailyModelSnapshotRetentionAfterDays(2L)
+        );
 
         List<String> shortExpiryForecastIds = new ArrayList<>();
 
@@ -223,9 +231,13 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         long totalModelSizeStatsBeforeDelete = client().prepareSearch("*")
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
             .setQuery(QueryBuilders.termQuery("result_type", "model_size_stats"))
-            .get().getHits().getTotalHits().value;
-        long totalNotificationsCountBeforeDelete =
-            client().prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX).get().getHits().getTotalHits().value;
+            .get()
+            .getHits()
+            .getTotalHits().value;
+        long totalNotificationsCountBeforeDelete = client().prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX)
+            .get()
+            .getHits()
+            .getTotalHits().value;
         assertThat(totalModelSizeStatsBeforeDelete, greaterThan(0L));
         assertThat(totalNotificationsCountBeforeDelete, greaterThan(0L));
 
@@ -272,9 +284,13 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         long totalModelSizeStatsAfterDelete = client().prepareSearch("*")
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
             .setQuery(QueryBuilders.termQuery("result_type", "model_size_stats"))
-            .get().getHits().getTotalHits().value;
-        long totalNotificationsCountAfterDelete =
-            client().prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX).get().getHits().getTotalHits().value;
+            .get()
+            .getHits()
+            .getTotalHits().value;
+        long totalNotificationsCountAfterDelete = client().prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX)
+            .get()
+            .getHits()
+            .getTotalHits().value;
         assertThat(totalModelSizeStatsAfterDelete, equalTo(totalModelSizeStatsBeforeDelete));
         assertThat(totalNotificationsCountAfterDelete, greaterThanOrEqualTo(totalNotificationsCountBeforeDelete));
 
@@ -310,8 +326,11 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
                 }
             }
         }
-        assertThat("Documents for non_existing_job are still around; examples: " + nonExistingJobExampleIds,
-            nonExistingJobDocsCount, equalTo(0));
+        assertThat(
+            "Documents for non_existing_job are still around; examples: " + nonExistingJobExampleIds,
+            nonExistingJobDocsCount,
+            equalTo(0)
+        );
     }
 
     /**
@@ -338,18 +357,22 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         refresh();
 
         GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().setIndices(".ml-state*").get();
-        assertThat(Strings.toString(getIndexResponse),
+        assertThat(
+            Strings.toString(getIndexResponse),
             getIndexResponse.getIndices(),
-            is(arrayContaining(".ml-state", ".ml-state-000001", ".ml-state-000003", ".ml-state-000005", ".ml-state-000007")));
+            is(arrayContaining(".ml-state", ".ml-state-000001", ".ml-state-000003", ".ml-state-000005", ".ml-state-000007"))
+        );
 
         client().execute(DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request()).get();
         refresh();
 
         getIndexResponse = client().admin().indices().prepareGetIndex().setIndices(".ml-state*").get();
-        assertThat(Strings.toString(getIndexResponse),
+        assertThat(
+            Strings.toString(getIndexResponse),
             getIndexResponse.getIndices(),
             // Only non-empty or current indices should survive deletion process
-            is(arrayContaining(".ml-state-000001", ".ml-state-000005", ".ml-state-000007")));
+            is(arrayContaining(".ml-state-000001", ".ml-state-000005", ".ml-state-000007"))
+        );
     }
 
     public void testDeleteExpiresDataDeletesAnnotations() throws Exception {
@@ -359,22 +382,17 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         // No annotations so far
         assertThatNumberOfAnnotationsIsEqualTo(0);
 
-        Job.Builder job =
-            new Job.Builder(jobId)
-                .setResultsRetentionDays(1L)
-                .setAnalysisConfig(
-                    new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder().setFunction("count").build()))
-                        .setBucketSpan(TimeValue.timeValueHours(1)))
-                .setDataDescription(
-                    new DataDescription.Builder()
-                        .setTimeField(TIME_FIELD));
+        Job.Builder job = new Job.Builder(jobId).setResultsRetentionDays(1L)
+            .setAnalysisConfig(
+                new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder().setFunction("count").build())).setBucketSpan(
+                    TimeValue.timeValueHours(1)
+                )
+            )
+            .setDataDescription(new DataDescription.Builder().setTimeField(TIME_FIELD));
 
         putJob(job);
 
-        DatafeedConfig datafeed =
-            new DatafeedConfig.Builder(datafeedId, jobId)
-                .setIndices(Collections.singletonList(DATA_INDEX))
-                .build();
+        DatafeedConfig datafeed = new DatafeedConfig.Builder(datafeedId, jobId).setIndices(Collections.singletonList(DATA_INDEX)).build();
 
         putDatafeed(datafeed);
 
@@ -406,14 +424,11 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private static IndexRequest randomAnnotationIndexRequest(String jobId, Instant timestamp, String createUsername) throws IOException {
-        Annotation annotation =
-            new Annotation.Builder(randomAnnotation(jobId))
-                .setTimestamp(Date.from(timestamp))
-                .setCreateUsername(createUsername)
-                .build();
+        Annotation annotation = new Annotation.Builder(randomAnnotation(jobId)).setTimestamp(Date.from(timestamp))
+            .setCreateUsername(createUsername)
+            .build();
         try (XContentBuilder xContentBuilder = annotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
-            return new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME)
-                .source(xContentBuilder)
+            return new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME).source(xContentBuilder)
                 .setRequireAlias(true)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         }

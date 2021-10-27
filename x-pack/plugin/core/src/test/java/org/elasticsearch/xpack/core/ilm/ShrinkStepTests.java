@@ -39,7 +39,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         if (randomBoolean()) {
             numberOfShards = randomIntBetween(1, 20);
         } else {
-            maxPrimaryShardSize = new ByteSizeValue(between(1,100));
+            maxPrimaryShardSize = new ByteSizeValue(between(1, 100));
         }
         return new ShrinkStep(stepKey, nextStepKey, client, numberOfShards, maxPrimaryShardSize);
     }
@@ -52,22 +52,22 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         ByteSizeValue maxPrimaryShardSize = instance.getMaxPrimaryShardSize();
 
         switch (between(0, 2)) {
-        case 0:
-            key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            break;
-        case 1:
-            nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            break;
-        case 2:
-            if (numberOfShards != null) {
-                numberOfShards = numberOfShards + 1;
-            }
-            if (maxPrimaryShardSize != null) {
-                maxPrimaryShardSize = new ByteSizeValue(maxPrimaryShardSize.getBytes() + 1);
-            }
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+                break;
+            case 1:
+                nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+                break;
+            case 2:
+                if (numberOfShards != null) {
+                    numberOfShards = numberOfShards + 1;
+                }
+                if (maxPrimaryShardSize != null) {
+                    maxPrimaryShardSize = new ByteSizeValue(maxPrimaryShardSize.getBytes() + 1);
+                }
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
 
         return new ShrinkStep(key, nextKey, instance.getClient(), numberOfShards, maxPrimaryShardSize);
@@ -75,8 +75,13 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
 
     @Override
     public ShrinkStep copyInstance(ShrinkStep instance) {
-        return new ShrinkStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getNumberOfShards(),
-            instance.getMaxPrimaryShardSize());
+        return new ShrinkStep(
+            instance.getKey(),
+            instance.getNextStepKey(),
+            instance.getClient(),
+            instance.getNumberOfShards(),
+            instance.getMaxPrimaryShardSize()
+        );
     }
 
     public void testPerformAction() throws Exception {
@@ -88,11 +93,10 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         lifecycleState.setStep(step.getKey().getName());
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
-            .settings(settings(Version.CURRENT)
-                .put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName)
-            )
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
             .putAlias(AliasMetadata.builder("my_alias"))
             .build();
 
@@ -112,8 +116,10 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
             }
             assertThat(request.getTargetIndexRequest().settings(), equalTo(builder.build()));
             if (step.getNumberOfShards() != null) {
-                assertThat(request.getTargetIndexRequest().settings()
-                    .getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, -1), equalTo(step.getNumberOfShards()));
+                assertThat(
+                    request.getTargetIndexRequest().settings().getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, -1),
+                    equalTo(step.getNumberOfShards())
+                );
             }
             request.setMaxPrimaryShardSize(step.getMaxPrimaryShardSize());
             listener.onResponse(new ResizeResponse(true, true, sourceIndexMetadata.getIndex().getName()));
@@ -139,25 +145,27 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         String generatedShrunkenIndexName = GenerateUniqueIndexNameStep.generateValidIndexName(SHRUNKEN_INDEX_PREFIX, sourceIndexName);
         lifecycleState.setShrinkIndexName(generatedShrunkenIndexName);
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(sourceIndexName)
-            .settings(settings(Version.CURRENT)
-                .put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName)
-            )
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
             .putAlias(AliasMetadata.builder("my_alias"))
             .build();
 
-        IndexMetadata indexMetadata = IndexMetadata.builder(generatedShrunkenIndexName).settings(settings(Version.CURRENT))
-            .numberOfShards(1).numberOfReplicas(0).build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder().fPut(
-            generatedShrunkenIndexName, indexMetadata);
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().indices(indices.build()))
+        IndexMetadata indexMetadata = IndexMetadata.builder(generatedShrunkenIndexName)
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
+            .fPut(generatedShrunkenIndexName, indexMetadata);
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().indices(indices.build()))
             .build();
 
         step.performAction(sourceIndexMetadata, clusterState, null, new ActionListener<Void>() {
             @Override
-            public void onResponse(Void unused) {
-            }
+            public void onResponse(Void unused) {}
 
             @Override
             public void onFailure(Exception e) {
@@ -169,9 +177,12 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
     public void testPerformActionIsCompleteForUnAckedRequests() throws Exception {
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
-        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
+            .settings(settings(Version.CURRENT))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
         ShrinkStep step = createRandomInstance();
 
         Mockito.doAnswer(invocation -> {
@@ -191,9 +202,12 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
     public void testPerformActionFailure() throws Exception {
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
-        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
+            .settings(settings(Version.CURRENT))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
         Exception exception = new RuntimeException();
         ShrinkStep step = createRandomInstance();
 
@@ -204,8 +218,13 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
             return null;
         }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
 
-        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Void, Exception>get(
-            f -> step.performAction(indexMetadata, emptyClusterState(), null, f))));
+        assertSame(
+            exception,
+            expectThrows(
+                Exception.class,
+                () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f))
+            )
+        );
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();

@@ -18,8 +18,8 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import org.elasticsearch.xpack.core.ccr.CcrConstants;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
-import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.client.CcrClient;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
@@ -151,8 +151,11 @@ public class StatsCollectorTests extends BaseCollectorTestCase {
         assertThat(document.getId(), nullValue());
         assertThat(document.stats(), is(autoFollowStats));
 
-        assertWarnings(Level.WARN, "[xpack.monitoring.collection.ccr.stats.timeout] setting was deprecated in Elasticsearch and will " +
-            "be removed in a future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(
+            Level.WARN,
+            "[xpack.monitoring.collection.ccr.stats.timeout] setting was deprecated in Elasticsearch and will "
+                + "be removed in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     private List<FollowStatsAction.StatsResponse> mockStatuses() {
@@ -170,10 +173,12 @@ public class StatsCollectorTests extends BaseCollectorTestCase {
         return statuses;
     }
 
-    private StatsCollector createCollector(Settings settings,
-                                           ClusterService clusterService,
-                                           XPackLicenseState licenseState,
-                                           Client client) {
+    private StatsCollector createCollector(
+        Settings settings,
+        ClusterService clusterService,
+        XPackLicenseState licenseState,
+        Client client
+    ) {
         return new StatsCollector(settings, clusterService, licenseState, client);
     }
 

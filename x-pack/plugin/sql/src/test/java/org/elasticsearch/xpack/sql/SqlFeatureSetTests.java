@@ -14,10 +14,10 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xpack.core.sql.SqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.sql.plugin.SqlStatsAction;
@@ -59,8 +59,7 @@ public class SqlFeatureSetTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testUsageStats() throws Exception {
         doAnswer(mock -> {
-            ActionListener<SqlStatsResponse> listener =
-                    (ActionListener<SqlStatsResponse>) mock.getArguments()[2];
+            ActionListener<SqlStatsResponse> listener = (ActionListener<SqlStatsResponse>) mock.getArguments()[2];
 
             List<SqlStatsResponse.NodeStatsResponse> nodes = new ArrayList<>();
             DiscoveryNode first = new DiscoveryNode("first", buildNewFakeTransportAddress(), Version.CURRENT);

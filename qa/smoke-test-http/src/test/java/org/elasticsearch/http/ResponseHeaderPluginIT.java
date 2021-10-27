@@ -42,7 +42,7 @@ public class ResponseHeaderPluginIT extends HttpSmokeTestCase {
         try {
             getRestClient().performRequest(new Request("GET", "/_protected"));
             fail("request should have failed");
-        } catch(ResponseException e) {
+        } catch (ResponseException e) {
             Response response = e.getResponse();
             assertThat(response.getStatusLine().getStatusCode(), equalTo(401));
             assertThat(response.getHeader("Secret"), equalTo("required"));

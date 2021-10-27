@@ -43,8 +43,10 @@ public class RestStartDataFrameAnalyticsAction extends BaseRestHandler {
         } else {
             request = new StartDataFrameAnalyticsAction.Request(id);
             if (restRequest.hasParam(StartDataFrameAnalyticsAction.Request.TIMEOUT.getPreferredName())) {
-                TimeValue timeout = restRequest.paramAsTime(StartDataFrameAnalyticsAction.Request.TIMEOUT.getPreferredName(),
-                    request.getTimeout());
+                TimeValue timeout = restRequest.paramAsTime(
+                    StartDataFrameAnalyticsAction.Request.TIMEOUT.getPreferredName(),
+                    request.getTimeout()
+                );
                 request.setTimeout(timeout);
             }
         }

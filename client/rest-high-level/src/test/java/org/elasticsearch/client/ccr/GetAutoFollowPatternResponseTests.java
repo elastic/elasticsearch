@@ -41,8 +41,9 @@ public class GetAutoFollowPatternResponseTests extends AbstractResponseTestCase<
             List<String> leaderIndexPatterns = Collections.singletonList(randomAlphaOfLength(4));
             List<String> leaderIndexExclusionsPatterns = randomList(0, randomIntBetween(1, 10), () -> randomAlphaOfLength(4));
             String followIndexNamePattern = randomAlphaOfLength(4);
-            final Settings settings =
-                Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 4)).build();
+            final Settings settings = Settings.builder()
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 4))
+                .build();
             boolean active = randomBoolean();
 
             Integer maxOutstandingReadRequests = null;
@@ -77,7 +78,7 @@ public class GetAutoFollowPatternResponseTests extends AbstractResponseTestCase<
             if (randomBoolean()) {
                 maxWriteRequestSize = new ByteSizeValue(randomNonNegativeLong());
             }
-            TimeValue maxRetryDelay =  null;
+            TimeValue maxRetryDelay = null;
             if (randomBoolean()) {
                 maxRetryDelay = new TimeValue(randomNonNegativeLong());
             }

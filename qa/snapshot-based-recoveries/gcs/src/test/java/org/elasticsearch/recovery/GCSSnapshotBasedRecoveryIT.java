@@ -28,9 +28,6 @@ public class GCSSnapshotBasedRecoveryIT extends AbstractSnapshotBasedRecoveryRes
         final String basePath = System.getProperty("test.gcs.base_path");
         assertThat(basePath, not(blankOrNullString()));
 
-        return Settings.builder()
-            .put("client", "snapshot_based_recoveries")
-            .put("bucket", bucket).put("base_path", basePath)
-            .build();
+        return Settings.builder().put("client", "snapshot_based_recoveries").put("bucket", bucket).put("base_path", basePath).build();
     }
 }

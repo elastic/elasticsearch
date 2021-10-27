@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.supercsv.io.CsvListReader;
 import org.supercsv.prefs.CsvPreference;
 
@@ -56,9 +56,14 @@ class CsvDataToProcessWriter extends AbstractDataToProcessWriter {
      */
     private static final int MAX_LINES_PER_RECORD = 10000;
 
-    CsvDataToProcessWriter(boolean includeControlField, boolean includeTokensField, AutodetectProcess autodetectProcess,
-                           DataDescription dataDescription, AnalysisConfig analysisConfig,
-                           DataCountsReporter dataCountsReporter) {
+    CsvDataToProcessWriter(
+        boolean includeControlField,
+        boolean includeTokensField,
+        AutodetectProcess autodetectProcess,
+        DataDescription dataDescription,
+        AnalysisConfig analysisConfig,
+        DataCountsReporter dataCountsReporter
+    ) {
         super(includeControlField, includeTokensField, autodetectProcess, dataDescription, analysisConfig, dataCountsReporter, LOGGER);
     }
 
@@ -69,13 +74,17 @@ class CsvDataToProcessWriter extends AbstractDataToProcessWriter {
      * header a exception is thrown
      */
     @Override
-    public void write(InputStream inputStream, CategorizationAnalyzer categorizationAnalyzer, XContentType xContentType,
-                      BiConsumer<DataCounts, Exception> handler) throws IOException {
+    public void write(
+        InputStream inputStream,
+        CategorizationAnalyzer categorizationAnalyzer,
+        XContentType xContentType,
+        BiConsumer<DataCounts, Exception> handler
+    ) throws IOException {
         CsvPreference csvPref = new CsvPreference.Builder(
-                dataDescription.getQuoteCharacter(),
-                dataDescription.getFieldDelimiter(),
-                new String(new char[]{DataDescription.LINE_ENDING}))
-                .maxLinesPerRow(MAX_LINES_PER_RECORD).build();
+            dataDescription.getQuoteCharacter(),
+            dataDescription.getFieldDelimiter(),
+            new String(new char[] { DataDescription.LINE_ENDING })
+        ).maxLinesPerRow(MAX_LINES_PER_RECORD).build();
 
         dataCountsReporter.startNewIncrementalCount();
 
@@ -141,8 +150,12 @@ class CsvDataToProcessWriter extends AbstractDataToProcessWriter {
             }
             Integer index = inputFieldIndexes.get(field);
             if (index == null) {
-                String msg = String.format(Locale.ROOT, "Field configured for analysis '%s' is not in the CSV header '%s'",
-                        field, Arrays.toString(header));
+                String msg = String.format(
+                    Locale.ROOT,
+                    "Field configured for analysis '%s' is not in the CSV header '%s'",
+                    field,
+                    Arrays.toString(header)
+                );
 
                 LOGGER.error(msg);
                 throw new IllegalArgumentException(msg);

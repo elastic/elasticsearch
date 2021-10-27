@@ -47,7 +47,6 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-
 public class BatchedDocumentsIteratorTests extends ESTestCase {
 
     private static final String INDEX_NAME = ".ml-anomalies-foo";
@@ -79,9 +78,7 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
     }
 
     public void testCallingNextWhenHasNextIsFalseThrows() {
-        new ScrollResponsesMocker(client)
-            .addBatch(createJsonDoc("a"), createJsonDoc("b"), createJsonDoc("c"))
-            .finishMock();
+        new ScrollResponsesMocker(client).addBatch(createJsonDoc("a"), createJsonDoc("b"), createJsonDoc("c")).finishMock();
         testIterator.next();
         assertFalse(testIterator.hasNext());
 
@@ -89,9 +86,11 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
     }
 
     public void testQueryReturnsSingleBatch() {
-        ResponsesMocker scrollResponsesMocker = new ScrollResponsesMocker(client)
-            .addBatch(createJsonDoc("a"), createJsonDoc("b"), createJsonDoc("c"))
-            .finishMock();
+        ResponsesMocker scrollResponsesMocker = new ScrollResponsesMocker(client).addBatch(
+            createJsonDoc("a"),
+            createJsonDoc("b"),
+            createJsonDoc("c")
+        ).finishMock();
 
         assertTrue(testIterator.hasNext());
         Deque<String> batch = testIterator.next();
@@ -105,11 +104,11 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
     }
 
     public void testQueryReturnsThreeBatches() {
-        ResponsesMocker responsesMocker = new ScrollResponsesMocker(client)
-            .addBatch(createJsonDoc("a"), createJsonDoc("b"), createJsonDoc("c"))
-            .addBatch(createJsonDoc("d"), createJsonDoc("e"))
-            .addBatch(createJsonDoc("f"))
-            .finishMock();
+        ResponsesMocker responsesMocker = new ScrollResponsesMocker(client).addBatch(
+            createJsonDoc("a"),
+            createJsonDoc("b"),
+            createJsonDoc("c")
+        ).addBatch(createJsonDoc("d"), createJsonDoc("e")).addBatch(createJsonDoc("f")).finishMock();
 
         assertTrue(testIterator.hasNext());
 
@@ -169,7 +168,6 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
 
         abstract ResponsesMocker finishMock();
 
-
         protected SearchResponse createSearchResponseWithHits(String... hits) {
             SearchHits searchHits = createHits(hits);
             SearchResponse searchResponse = mock(SearchResponse.class);
@@ -190,7 +188,7 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
             List<SearchRequest> searchRequests = searchRequestCaptor.getAllValues();
             assertThat(searchRequests.size(), equalTo(1));
             SearchRequest searchRequest = searchRequests.get(0);
-            assertThat(searchRequest.indices(), equalTo(new String[] {indexName}));
+            assertThat(searchRequest.indices(), equalTo(new String[] { indexName }));
             assertThat(searchRequest.scroll().keepAlive(), equalTo(TimeValue.timeValueMinutes(5)));
             assertThat(searchRequest.source().query(), equalTo(QueryBuilders.matchAllQuery()));
             assertThat(searchRequest.source().trackTotalHitsUpTo(), is(SearchContext.TRACK_TOTAL_HITS_ACCURATE));
@@ -214,8 +212,7 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
 
         @Override
         @SuppressWarnings("unchecked")
-        ResponsesMocker finishMock()
-        {
+        ResponsesMocker finishMock() {
             if (batches.isEmpty()) {
                 givenInitialResponse();
                 return this;
@@ -255,8 +252,7 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
 
         @Override
         @SuppressWarnings("unchecked")
-        ResponsesMocker finishMock()
-        {
+        ResponsesMocker finishMock() {
             if (batches.isEmpty()) {
                 doAnswer(invocationOnMock -> {
                     ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[2];
@@ -280,7 +276,6 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
             return this;
         }
     }
-
 
     private static class TestIterator extends BatchedDocumentsIterator<String> {
         TestIterator(OriginSettingClient client, String jobId) {

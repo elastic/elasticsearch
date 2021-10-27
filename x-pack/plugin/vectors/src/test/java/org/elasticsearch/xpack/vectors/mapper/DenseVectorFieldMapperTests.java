@@ -12,13 +12,13 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.core.List;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.vectors.DenseVectorPlugin;
 
 import java.io.IOException;
@@ -49,9 +49,11 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
-        checker.registerConflictCheck("dims",
+        checker.registerConflictCheck(
+            "dims",
             fieldMapping(b -> b.field("type", "dense_vector").field("dims", 4)),
-            fieldMapping(b -> b.field("type", "dense_vector").field("dims", 5)));
+            fieldMapping(b -> b.field("type", "dense_vector").field("dims", 5))
+        );
     }
 
     @Override
@@ -65,20 +67,32 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 b.field("type", "dense_vector");
                 b.field("dims", 0);
             })));
-            assertThat(e.getMessage(), equalTo("Failed to parse mapping [_doc]: " +
-                "The number of dimensions for field [field] should be in the range [1, 2048] but was [0]"));
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "Failed to parse mapping [_doc]: "
+                        + "The number of dimensions for field [field] should be in the range [1, 2048] but was [0]"
+                )
+            );
         }
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
                 b.field("type", "dense_vector");
                 b.field("dims", 3000);
             })));
-            assertThat(e.getMessage(), equalTo("Failed to parse mapping [_doc]: " +
-                "The number of dimensions for field [field] should be in the range [1, 2048] but was [3000]"));
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "Failed to parse mapping [_doc]: "
+                        + "The number of dimensions for field [field] should be in the range [1, 2048] but was [3000]"
+                )
+            );
         }
         {
-            Exception e = expectThrows(MapperParsingException.class,
-                () -> createMapperService(fieldMapping(b -> b.field("type", "dense_vector"))));
+            Exception e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(fieldMapping(b -> b.field("type", "dense_vector")))
+            );
             assertThat(e.getMessage(), equalTo("Failed to parse mapping [_doc]: Missing required parameter [dims] for field [field]"));
         }
     }
@@ -87,9 +101,9 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3)));
 
-        float[] validVector = {-12.1f, 100.7f, -4};
+        float[] validVector = { -12.1f, 100.7f, -4 };
         double dotProduct = 0.0f;
-        for (float value: validVector) {
+        for (float value : validVector) {
             dotProduct += value * value;
         }
         float expectedMagnitude = (float) Math.sqrt(dotProduct);
@@ -103,20 +117,14 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         float[] decodedValues = decodeDenseVector(Version.CURRENT, vectorBR);
         float decodedMagnitude = VectorEncoderDecoder.decodeMagnitude(Version.CURRENT, vectorBR);
         assertEquals(expectedMagnitude, decodedMagnitude, 0.001f);
-        assertArrayEquals(
-            "Decoded dense vector values is not equal to the indexed one.",
-            validVector,
-            decodedValues,
-            0.001f
-        );
+        assertArrayEquals("Decoded dense vector values is not equal to the indexed one.", validVector, decodedValues, 0.001f);
     }
 
     public void testAddDocumentsToIndexBefore_V_7_5_0() throws Exception {
         Version indexVersion = Version.V_7_4_0;
-        DocumentMapper mapper
-            = createDocumentMapper(indexVersion, fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3)));
+        DocumentMapper mapper = createDocumentMapper(indexVersion, fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3)));
 
-        float[] validVector = {-12.1f, 100.7f, -4};
+        float[] validVector = { -12.1f, 100.7f, -4 };
         ParsedDocument doc1 = mapper.parse(source(b -> b.array("field", validVector)));
         IndexableField[] fields = doc1.rootDoc().getFields("field");
         assertEquals(1, fields.length);
@@ -124,12 +132,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         // assert that after decoding the indexed value is equal to expected
         BytesRef vectorBR = fields[0].binaryValue();
         float[] decodedValues = decodeDenseVector(indexVersion, vectorBR);
-        assertArrayEquals(
-            "Decoded dense vector values is not equal to the indexed one.",
-            validVector,
-            decodedValues,
-            0.001f
-        );
+        assertArrayEquals("Decoded dense vector values is not equal to the indexed one.", validVector, decodedValues, 0.001f);
     }
 
     private static float[] decodeDenseVector(Version indexVersion, BytesRef encodedVector) {
@@ -150,14 +153,18 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         // test that error is thrown when a document has number of dims more than defined in the mapping
         float[] invalidVector = new float[dims + 1];
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-            () -> mapper.parse(source(b -> b.array("field", invalidVector))));
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", invalidVector)))
+        );
         assertThat(e.getCause().getMessage(), containsString("has exceeded the number of dimensions [3] defined in mapping"));
 
         // test that error is thrown when a document has number of dims less than defined in the mapping
         float[] invalidVector2 = new float[dims - 1];
-        MapperParsingException e2 = expectThrows(MapperParsingException.class,
-            () -> mapper.parse(source(b -> b.array("field", invalidVector2))));
+        MapperParsingException e2 = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", invalidVector2)))
+        );
         assertThat(e2.getCause().getMessage(), containsString("has number of dimensions [2] less than defined in the mapping [3]"));
     }
 

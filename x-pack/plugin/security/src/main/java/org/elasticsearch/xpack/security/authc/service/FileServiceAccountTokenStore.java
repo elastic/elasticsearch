@@ -12,9 +12,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.FileWatcher;
@@ -50,8 +50,13 @@ public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStor
     private final CopyOnWriteArrayList<Runnable> refreshListeners;
     private volatile Map<String, char[]> tokenHashes;
 
-    public FileServiceAccountTokenStore(Environment env, ResourceWatcherService resourceWatcherService, ThreadPool threadPool,
-                                        ClusterService clusterService, CacheInvalidatorRegistry cacheInvalidatorRegistry) {
+    public FileServiceAccountTokenStore(
+        Environment env,
+        ResourceWatcherService resourceWatcherService,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        CacheInvalidatorRegistry cacheInvalidatorRegistry
+    ) {
         super(env.settings(), threadPool);
         this.clusterService = clusterService;
         file = resolveFile(env);
@@ -75,9 +80,11 @@ public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStor
     public void doAuthenticate(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener) {
         // This is done on the current thread instead of using a dedicated thread pool like API key does
         // because it is not expected to have a large number of service tokens.
-        listener.onResponse(Optional.ofNullable(tokenHashes.get(token.getQualifiedName()))
-            .map(hash -> new StoreAuthenticationResult(Hasher.verifyHash(token.getSecret(), hash), getTokenSource()))
-            .orElse(new StoreAuthenticationResult(false, getTokenSource())));
+        listener.onResponse(
+            Optional.ofNullable(tokenHashes.get(token.getQualifiedName()))
+                .map(hash -> new StoreAuthenticationResult(Hasher.verifyHash(token.getSecret(), hash), getTokenSource()))
+                .orElse(new StoreAuthenticationResult(false, getTokenSource()))
+        );
     }
 
     @Override
@@ -90,9 +97,12 @@ public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStor
         return tokenHashes.keySet()
             .stream()
             .filter(k -> k.startsWith(principal + "/"))
-            .map(k -> TokenInfo.fileToken(
-                Strings.substring(k, principal.length() + 1, k.length()),
-                org.elasticsearch.core.List.of(clusterService.localNode().getName())))
+            .map(
+                k -> TokenInfo.fileToken(
+                    Strings.substring(k, principal.length() + 1, k.length()),
+                    org.elasticsearch.core.List.of(clusterService.localNode().getName())
+                )
+            )
             .collect(Collectors.toList());
     }
 
@@ -131,8 +141,7 @@ public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStor
         try {
             return parseFile(path, logger);
         } catch (Exception e) {
-            logger.error("failed to parse service tokens file [{}]. skipping/removing all tokens...",
-                path.toAbsolutePath());
+            logger.error("failed to parse service tokens file [{}]. skipping/removing all tokens...", path.toAbsolutePath());
             return org.elasticsearch.core.Map.of();
         }
     }
@@ -172,7 +181,10 @@ public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStor
 
     static void writeFile(Path path, Map<String, char[]> tokenHashes) {
         SecurityFiles.writeFileAtomically(
-            path, tokenHashes, e -> String.format(Locale.ROOT, "%s:%s", e.getKey(), new String(e.getValue())));
+            path,
+            tokenHashes,
+            e -> String.format(Locale.ROOT, "%s:%s", e.getKey(), new String(e.getValue()))
+        );
     }
 
 }

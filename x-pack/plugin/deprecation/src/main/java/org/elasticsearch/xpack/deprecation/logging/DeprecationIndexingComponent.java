@@ -45,8 +45,12 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent {
     private final BulkProcessor processor;
     private final RateLimitingFilter rateLimitingFilterForIndexing;
 
-    public DeprecationIndexingComponent(Client client, Settings settings, RateLimitingFilter rateLimitingFilterForIndexing,
-                                        boolean enableDeprecationLogIndexingDefault) {
+    public DeprecationIndexingComponent(
+        Client client,
+        Settings settings,
+        RateLimitingFilter rateLimitingFilterForIndexing,
+        boolean enableDeprecationLogIndexingDefault
+    ) {
         this.rateLimitingFilterForIndexing = rateLimitingFilterForIndexing;
 
         this.processor = getBulkProcessor(new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN), settings);
@@ -61,8 +65,12 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent {
             .setConfiguration(configuration)
             .build();
 
-        this.appender = new DeprecationIndexingAppender("deprecation_indexing_appender",
-            rateLimitingFilterForIndexing, ecsLayout, consumer);
+        this.appender = new DeprecationIndexingAppender(
+            "deprecation_indexing_appender",
+            rateLimitingFilterForIndexing,
+            ecsLayout,
+            consumer
+        );
         enableDeprecationLogIndexing(enableDeprecationLogIndexingDefault);
     }
 
@@ -82,7 +90,6 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent {
     protected void doClose() {
         this.processor.close();
     }
-
 
     public void enableDeprecationLogIndexing(boolean newEnabled) {
         if (appender.isEnabled() != newEnabled) {
@@ -139,7 +146,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent {
             if (response.hasFailures()) {
                 List<String> failures = Arrays.stream(response.getItems())
                     .filter(BulkItemResponse::isFailed)
-                    .map(r -> r.getId() + " " + r.getFailureMessage() )
+                    .map(r -> r.getId() + " " + r.getFailureMessage())
                     .collect(Collectors.toList());
                 logger.error("Bulk write of deprecation logs encountered some failures: [{}]", failures);
             }

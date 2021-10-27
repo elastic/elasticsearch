@@ -76,11 +76,18 @@ public class TransportPutWatchActionTests extends ESTestCase {
             return null;
         }).when(client).execute(any(), any(), any());
 
-        action = new TransportPutWatchAction(transportService, threadPool, new ActionFilters(Collections.emptySet()),
-            new ClockMock(), TestUtils.newTestLicenseState(), parser, client);
+        action = new TransportPutWatchAction(
+            transportService,
+            threadPool,
+            new ActionFilters(Collections.emptySet()),
+            new ClockMock(),
+            TestUtils.newTestLicenseState(),
+            parser,
+            client
+        );
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testHeadersAreFilteredWhenPuttingWatches() throws Exception {
         // set up threadcontext with some arbitrary info
         String headerName = randomFrom(ClientHelper.SECURITY_HEADER_FILTERS);

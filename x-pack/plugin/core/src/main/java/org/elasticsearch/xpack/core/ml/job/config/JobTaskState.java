@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.core.ml.job.config;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.persistent.PersistentTaskState;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 
 import java.io.IOException;
@@ -32,9 +32,11 @@ public class JobTaskState implements PersistentTaskState {
     private static ParseField ALLOCATION_ID = new ParseField("allocation_id");
     private static ParseField REASON = new ParseField("reason");
 
-    private static final ConstructingObjectParser<JobTaskState, Void> PARSER =
-            new ConstructingObjectParser<>(NAME, true,
-                    args -> new JobTaskState((JobState) args[0], (Long) args[1], (String) args[2]));
+    private static final ConstructingObjectParser<JobTaskState, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        true,
+        args -> new JobTaskState((JobState) args[0], (Long) args[1], (String) args[2])
+    );
 
     static {
         PARSER.declareString(constructorArg(), JobState::fromString, STATE);
@@ -130,9 +132,7 @@ public class JobTaskState implements PersistentTaskState {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         JobTaskState that = (JobTaskState) o;
-        return state == that.state &&
-                Objects.equals(allocationId, that.allocationId) &&
-                Objects.equals(reason, that.reason);
+        return state == that.state && Objects.equals(allocationId, that.allocationId) && Objects.equals(reason, that.reason);
     }
 
     @Override

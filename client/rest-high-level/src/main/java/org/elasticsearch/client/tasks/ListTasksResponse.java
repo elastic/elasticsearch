@@ -26,9 +26,7 @@ public class ListTasksResponse {
     protected final List<TaskInfo> tasks = new ArrayList<>();
     protected final List<TaskGroup> taskGroups = new ArrayList<>();
 
-    ListTasksResponse(List<NodeData> nodesInfoData,
-                        List<TaskOperationFailure> taskFailures,
-                        List<ElasticsearchException> nodeFailures) {
+    ListTasksResponse(List<NodeData> nodesInfoData, List<TaskOperationFailure> taskFailures, List<ElasticsearchException> nodeFailures) {
         if (taskFailures != null) {
             this.taskFailures.addAll(taskFailures);
         }
@@ -38,12 +36,7 @@ public class ListTasksResponse {
         if (nodesInfoData != null) {
             this.nodesInfoData.addAll(nodesInfoData);
         }
-        this.tasks.addAll(this
-            .nodesInfoData
-            .stream()
-            .flatMap(nodeData -> nodeData.getTasks().stream())
-            .collect(toList())
-        );
+        this.tasks.addAll(this.nodesInfoData.stream().flatMap(nodeData -> nodeData.getTasks().stream()).collect(toList()));
         this.taskGroups.addAll(buildTaskGroups());
     }
 
@@ -80,9 +73,7 @@ public class ListTasksResponse {
     }
 
     public Map<String, List<TaskInfo>> getPerNodeTasks() {
-        return getTasks()
-            .stream()
-            .collect(groupingBy(TaskInfo::getNodeId));
+        return getTasks().stream().collect(groupingBy(TaskInfo::getNodeId));
     }
 
     public List<TaskOperationFailure> getTaskFailures() {
@@ -102,12 +93,11 @@ public class ListTasksResponse {
         if (this == o) return true;
         if ((o instanceof ListTasksResponse) == false) return false;
         ListTasksResponse response = (ListTasksResponse) o;
-        return nodesInfoData.equals(response.nodesInfoData) &&
-            Objects.equals
-                (getTaskFailures(), response.getTaskFailures()) &&
-            Objects.equals(getNodeFailures(), response.getNodeFailures()) &&
-            Objects.equals(getTasks(), response.getTasks()) &&
-            Objects.equals(getTaskGroups(), response.getTaskGroups());
+        return nodesInfoData.equals(response.nodesInfoData)
+            && Objects.equals(getTaskFailures(), response.getTaskFailures())
+            && Objects.equals(getNodeFailures(), response.getNodeFailures())
+            && Objects.equals(getTasks(), response.getTasks())
+            && Objects.equals(getTaskGroups(), response.getTaskGroups());
     }
 
     @Override
@@ -117,12 +107,17 @@ public class ListTasksResponse {
 
     @Override
     public String toString() {
-        return "CancelTasksResponse{" +
-            "nodesInfoData=" + nodesInfoData +
-            ", taskFailures=" + taskFailures +
-            ", nodeFailures=" + nodeFailures +
-            ", tasks=" + tasks +
-            ", taskGroups=" + taskGroups +
-            '}';
+        return "CancelTasksResponse{"
+            + "nodesInfoData="
+            + nodesInfoData
+            + ", taskFailures="
+            + taskFailures
+            + ", nodeFailures="
+            + nodeFailures
+            + ", tasks="
+            + tasks
+            + ", taskGroups="
+            + taskGroups
+            + '}';
     }
 }

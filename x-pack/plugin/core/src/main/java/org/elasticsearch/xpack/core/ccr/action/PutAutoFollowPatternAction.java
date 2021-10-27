@@ -46,8 +46,10 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
         // Note that Request should be the Value class here for this parser with a 'parameters' field that maps to
         // PutAutoFollowPatternParameters class. But since two minor version are already released with duplicate
         // follow parameters in several APIs, PutAutoFollowPatternParameters is now the Value class here.
-        private static final ObjectParser<PutAutoFollowPatternParameters, Void> PARSER =
-            new ObjectParser<>("put_auto_follow_pattern_request", PutAutoFollowPatternParameters::new);
+        private static final ObjectParser<PutAutoFollowPatternParameters, Void> PARSER = new ObjectParser<>(
+            "put_auto_follow_pattern_request",
+            PutAutoFollowPatternParameters::new
+        );
 
         static {
             PARSER.declareString((params, value) -> params.remoteCluster = value, REMOTE_CLUSTER_FIELD);
@@ -84,8 +86,7 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
         private FollowParameters parameters = new FollowParameters();
         private List<String> leaderIndexExclusionPatterns = Collections.emptyList();
 
-        public Request() {
-        }
+        public Request() {}
 
         @Override
         public ActionRequestValidationException validate() {
@@ -102,17 +103,23 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
                 }
                 int byteCount = name.getBytes(StandardCharsets.UTF_8).length;
                 if (byteCount > MAX_NAME_BYTES) {
-                    validationException = addValidationError("[name] name is too long (" + byteCount + " > " + MAX_NAME_BYTES + ")",
-                        validationException);
+                    validationException = addValidationError(
+                        "[name] name is too long (" + byteCount + " > " + MAX_NAME_BYTES + ")",
+                        validationException
+                    );
                 }
             }
             if (remoteCluster == null) {
-                validationException = addValidationError("[" + REMOTE_CLUSTER_FIELD.getPreferredName() +
-                    "] is missing", validationException);
+                validationException = addValidationError(
+                    "[" + REMOTE_CLUSTER_FIELD.getPreferredName() + "] is missing",
+                    validationException
+                );
             }
             if (leaderIndexPatterns == null || leaderIndexPatterns.isEmpty()) {
-                validationException = addValidationError("[" + AutoFollowPattern.LEADER_PATTERNS_FIELD.getPreferredName() +
-                    "] is missing", validationException);
+                validationException = addValidationError(
+                    "[" + AutoFollowPattern.LEADER_PATTERNS_FIELD.getPreferredName() + "] is missing",
+                    validationException
+                );
             }
             return validationException;
         }
@@ -262,12 +269,12 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(name, request.name) &&
-                Objects.equals(remoteCluster, request.remoteCluster) &&
-                Objects.equals(leaderIndexPatterns, request.leaderIndexPatterns) &&
-                Objects.equals(leaderIndexExclusionPatterns, request.leaderIndexExclusionPatterns) &&
-                Objects.equals(followIndexNamePattern, request.followIndexNamePattern) &&
-                Objects.equals(parameters, request.parameters);
+            return Objects.equals(name, request.name)
+                && Objects.equals(remoteCluster, request.remoteCluster)
+                && Objects.equals(leaderIndexPatterns, request.leaderIndexPatterns)
+                && Objects.equals(leaderIndexExclusionPatterns, request.leaderIndexExclusionPatterns)
+                && Objects.equals(followIndexNamePattern, request.followIndexNamePattern)
+                && Objects.equals(parameters, request.parameters);
         }
 
         @Override

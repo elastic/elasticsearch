@@ -7,13 +7,13 @@
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
@@ -35,27 +35,22 @@ public class NodeAttributes implements ToXContentObject, Writeable {
     public static final ParseField ATTRIBUTES = new ParseField("attributes");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<NodeAttributes, Void> PARSER =
-        new ConstructingObjectParser<>("node", true,
-            (a) -> {
-                int i = 0;
-                String id = (String) a[i++];
-                String name = (String) a[i++];
-                String ephemeralId = (String) a[i++];
-                String transportAddress = (String) a[i++];
-                Map<String, String> attributes = (Map<String, String>) a[i];
-                return new NodeAttributes(id, name, ephemeralId, transportAddress, attributes);
-            });
+    public static final ConstructingObjectParser<NodeAttributes, Void> PARSER = new ConstructingObjectParser<>("node", true, (a) -> {
+        int i = 0;
+        String id = (String) a[i++];
+        String name = (String) a[i++];
+        String ephemeralId = (String) a[i++];
+        String transportAddress = (String) a[i++];
+        Map<String, String> attributes = (Map<String, String>) a[i];
+        return new NodeAttributes(id, name, ephemeralId, transportAddress, attributes);
+    });
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ID);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), EPHEMERAL_ID);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TRANSPORT_ADDRESS);
-        PARSER.declareField(ConstructingObjectParser.constructorArg(),
-            (p, c) -> p.mapStrings(),
-            ATTRIBUTES,
-            ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), ATTRIBUTES, ObjectParser.ValueType.OBJECT);
     }
 
     private final String id;
@@ -65,12 +60,14 @@ public class NodeAttributes implements ToXContentObject, Writeable {
     private final Map<String, String> attributes;
 
     public static NodeAttributes fromDiscoveryNode(DiscoveryNode node) {
-        return new NodeAttributes(node.getId(),
+        return new NodeAttributes(
+            node.getId(),
             node.getName(),
             node.getEphemeralId(),
             node.getAddress().toString(),
             // TODO add data_frame attributes when/if they are added
-            Collections.emptyMap());
+            Collections.emptyMap()
+        );
     }
 
     public NodeAttributes(String id, String name, String ephemeralId, String transportAddress, Map<String, String> attributes) {
@@ -149,11 +146,11 @@ public class NodeAttributes implements ToXContentObject, Writeable {
         }
 
         NodeAttributes that = (NodeAttributes) other;
-        return Objects.equals(id, that.id) &&
-            Objects.equals(name, that.name) &&
-            Objects.equals(ephemeralId, that.ephemeralId) &&
-            Objects.equals(transportAddress, that.transportAddress) &&
-            Objects.equals(attributes, that.attributes);
+        return Objects.equals(id, that.id)
+            && Objects.equals(name, that.name)
+            && Objects.equals(ephemeralId, that.ephemeralId)
+            && Objects.equals(transportAddress, that.transportAddress)
+            && Objects.equals(attributes, that.attributes);
     }
 
     @Override

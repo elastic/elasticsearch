@@ -62,7 +62,6 @@ import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 
-
 public class ExpressionBuilder extends IdentifierBuilder {
 
     protected final ParserParams params;
@@ -258,8 +257,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
             // if it's too large, then quietly try to parse as a float instead
             try {
                 return new Literal(source, Double.valueOf(StringUtils.parseDouble(text)), DataTypes.DOUBLE);
-            } catch (QlIllegalArgumentException ignored) {
-            }
+            } catch (QlIllegalArgumentException ignored) {}
 
             throw new ParsingException(source, siae.getMessage());
         }

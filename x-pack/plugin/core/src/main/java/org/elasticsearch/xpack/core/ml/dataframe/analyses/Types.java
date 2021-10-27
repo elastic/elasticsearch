@@ -24,22 +24,21 @@ public final class Types {
 
     private Types() {}
 
-    private static final Set<String> CATEGORICAL_TYPES =
-        Collections.unmodifiableSet(
-            Stream.of(TextFieldMapper.CONTENT_TYPE, KeywordFieldMapper.CONTENT_TYPE, IpFieldMapper.CONTENT_TYPE)
-                .collect(Collectors.toSet()));
+    private static final Set<String> CATEGORICAL_TYPES = Collections.unmodifiableSet(
+        Stream.of(TextFieldMapper.CONTENT_TYPE, KeywordFieldMapper.CONTENT_TYPE, IpFieldMapper.CONTENT_TYPE).collect(Collectors.toSet())
+    );
 
-    private static final Set<String> NUMERICAL_TYPES =
-        Collections.unmodifiableSet(
-            Stream.concat(Stream.of(NumberType.values()).map(NumberType::typeName), Stream.of("scaled_float", "unsigned_long"))
-                .collect(Collectors.toSet()));
+    private static final Set<String> NUMERICAL_TYPES = Collections.unmodifiableSet(
+        Stream.concat(Stream.of(NumberType.values()).map(NumberType::typeName), Stream.of("scaled_float", "unsigned_long"))
+            .collect(Collectors.toSet())
+    );
 
-    private static final Set<String> DISCRETE_NUMERICAL_TYPES =
-        Collections.unmodifiableSet(
-            Stream.concat(
-                Stream.of(NumberType.BYTE, NumberType.SHORT, NumberType.INTEGER, NumberType.LONG).map(NumberType::typeName),
-                Stream.of("unsigned_long"))
-                .collect(Collectors.toSet()));
+    private static final Set<String> DISCRETE_NUMERICAL_TYPES = Collections.unmodifiableSet(
+        Stream.concat(
+            Stream.of(NumberType.BYTE, NumberType.SHORT, NumberType.INTEGER, NumberType.LONG).map(NumberType::typeName),
+            Stream.of("unsigned_long")
+        ).collect(Collectors.toSet())
+    );
 
     private static final Set<String> BOOL_TYPES = Collections.singleton(BooleanFieldMapper.CONTENT_TYPE);
 

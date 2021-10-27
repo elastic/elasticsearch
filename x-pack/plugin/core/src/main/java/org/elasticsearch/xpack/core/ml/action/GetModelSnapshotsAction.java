@@ -11,11 +11,11 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -77,8 +77,7 @@ public class GetModelSnapshotsAction extends ActionType<GetModelSnapshotsAction.
         private boolean desc = true;
         private PageParams pageParams = new PageParams();
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -202,11 +201,11 @@ public class GetModelSnapshotsAction extends ActionType<GetModelSnapshotsAction.
             }
             Request other = (Request) obj;
             return Objects.equals(jobId, other.jobId)
-                    && Objects.equals(snapshotId, other.snapshotId)
-                    && Objects.equals(start, other.start)
-                    && Objects.equals(end, other.end)
-                    && Objects.equals(sort, other.sort)
-                    && Objects.equals(desc, other.desc);
+                && Objects.equals(snapshotId, other.snapshotId)
+                && Objects.equals(start, other.start)
+                && Objects.equals(end, other.end)
+                && Objects.equals(sort, other.sort)
+                && Objects.equals(desc, other.desc);
         }
     }
 

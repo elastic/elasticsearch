@@ -10,8 +10,8 @@ package org.elasticsearch.client.ml;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -41,7 +41,9 @@ public class GetDatafeedRequest extends ActionRequest implements ToXContentObjec
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<GetDatafeedRequest, Void> PARSER = new ConstructingObjectParser<>(
         "get_datafeed_request",
-        true, a -> new GetDatafeedRequest(a[0] == null ? new ArrayList<>() : (List<String>) a[0]));
+        true,
+        a -> new GetDatafeedRequest(a[0] == null ? new ArrayList<>() : (List<String>) a[0])
+    );
 
     static {
         PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), DATAFEED_IDS);
@@ -129,9 +131,9 @@ public class GetDatafeedRequest extends ActionRequest implements ToXContentObjec
         }
 
         GetDatafeedRequest that = (GetDatafeedRequest) other;
-        return Objects.equals(datafeedIds, that.datafeedIds) &&
-            Objects.equals(allowNoMatch, that.allowNoMatch) &&
-            Objects.equals(excludeGenerated, that.excludeGenerated);
+        return Objects.equals(datafeedIds, that.datafeedIds)
+            && Objects.equals(allowNoMatch, that.allowNoMatch)
+            && Objects.equals(excludeGenerated, that.excludeGenerated);
     }
 
     @Override

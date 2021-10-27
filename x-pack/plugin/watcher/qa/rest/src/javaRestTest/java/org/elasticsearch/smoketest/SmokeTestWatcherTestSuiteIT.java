@@ -13,17 +13,17 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.watcher.WatcherRestTestCase;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
@@ -70,18 +70,37 @@ public class SmokeTestWatcherTestSuiteIT extends WatcherRestTestCase {
             // trigger
             builder.startObject("trigger").startObject("schedule").field("interval", "1s").endObject().endObject();
             // input
-            builder.startObject("input").startObject("http").startObject("request").field("host", host).field("port", port)
+            builder.startObject("input")
+                .startObject("http")
+                .startObject("request")
+                .field("host", host)
+                .field("port", port)
                 .field("path", "/_cluster/health")
                 .field("scheme", "http")
-                .startObject("auth").startObject("basic")
-                .field("username", TEST_ADMIN_USERNAME).field("password", TEST_ADMIN_PASSWORD)
-                .endObject().endObject()
-                .endObject().endObject().endObject();
+                .startObject("auth")
+                .startObject("basic")
+                .field("username", TEST_ADMIN_USERNAME)
+                .field("password", TEST_ADMIN_PASSWORD)
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
             // condition
-            builder.startObject("condition").startObject("compare").startObject("ctx.payload.number_of_data_nodes").field("lt", 10)
-                .endObject().endObject().endObject();
+            builder.startObject("condition")
+                .startObject("compare")
+                .startObject("ctx.payload.number_of_data_nodes")
+                .field("lt", 10)
+                .endObject()
+                .endObject()
+                .endObject();
             // actions
-            builder.startObject("actions").startObject("log").startObject("logging").field("text", "executed").endObject().endObject()
+            builder.startObject("actions")
+                .startObject("log")
+                .startObject("logging")
+                .field("text", "executed")
+                .endObject()
+                .endObject()
                 .endObject();
 
             builder.endObject();

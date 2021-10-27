@@ -13,17 +13,17 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.Evaluation;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -54,17 +54,19 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
         private static final ParseField QUERY = new ParseField("query");
         private static final ParseField EVALUATION = new ParseField("evaluation");
 
-        @SuppressWarnings({ "unchecked"})
+        @SuppressWarnings({ "unchecked" })
         private static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
             NAME,
-            a -> new Request((List<String>) a[0], (QueryProvider) a[1], (Evaluation) a[2]));
+            a -> new Request((List<String>) a[0], (QueryProvider) a[1], (Evaluation) a[2])
+        );
 
         static {
             PARSER.declareStringArray(constructorArg(), INDEX);
             PARSER.declareObject(
                 optionalConstructorArg(),
                 (p, c) -> QueryProvider.fromXContent(p, true, Messages.DATA_FRAME_ANALYTICS_BAD_QUERY_FORMAT),
-                QUERY);
+                QUERY
+            );
             PARSER.declareObject(constructorArg(), (p, c) -> parseEvaluation(p), EVALUATION);
         }
 
@@ -161,10 +163,7 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
             if (queryProvider != null) {
                 builder.field(QUERY.getPreferredName(), queryProvider.getQuery());
             }
-            builder
-                .startObject(EVALUATION.getPreferredName())
-                    .field(evaluation.getName(), evaluation)
-                .endObject();
+            builder.startObject(EVALUATION.getPreferredName()).field(evaluation.getName(), evaluation).endObject();
             builder.endObject();
             return builder;
         }

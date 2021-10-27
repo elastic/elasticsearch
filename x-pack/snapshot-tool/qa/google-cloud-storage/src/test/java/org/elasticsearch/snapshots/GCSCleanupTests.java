@@ -7,6 +7,7 @@
 package org.elasticsearch.snapshots;
 
 import joptsimple.OptionSet;
+
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.common.Strings;
@@ -58,12 +59,12 @@ public class GCSCleanupTests extends AbstractCleanupTests {
 
     @Override
     protected void createRepository(final String repoName) {
-        AcknowledgedResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
-                .setType("gcs")
-                .setSettings(Settings.builder()
-                        .put("bucket", getBucket())
-                        .put("base_path", getBasePath())
-                ).get();
+        AcknowledgedResponse putRepositoryResponse = client().admin()
+            .cluster()
+            .preparePutRepository("test-repo")
+            .setType("gcs")
+            .setSettings(Settings.builder().put("bucket", getBucket()).put("base_path", getBasePath()))
+            .get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
     }
 
@@ -90,22 +91,31 @@ public class GCSCleanupTests extends AbstractCleanupTests {
     @Override
     protected ThrowingRunnable commandRunnable(MockTerminal terminal, Map<String, String> nonDefaultArguments) {
         final CleanupGCSRepositoryCommand command = new CleanupGCSRepositoryCommand();
-        final OptionSet options = command.getParser().parse(
-                "--safety_gap_millis", nonDefaultArguments.getOrDefault("safety_gap_millis", "0"),
-                "--parallelism", nonDefaultArguments.getOrDefault("parallelism", "10"),
-                "--bucket", nonDefaultArguments.getOrDefault("bucket", getBucket()),
-                "--base_path", nonDefaultArguments.getOrDefault("base_path", getBasePath()),
-                "--base64_credentials", nonDefaultArguments.getOrDefault("base64_credentials", getBase64Credentials()),
-                "--endpoint", nonDefaultArguments.getOrDefault("endpoint", getEndpoint()),
-                "--token_uri", nonDefaultArguments.getOrDefault("token_uri", getTokenUri())
-                );
+        final OptionSet options = command.getParser()
+            .parse(
+                "--safety_gap_millis",
+                nonDefaultArguments.getOrDefault("safety_gap_millis", "0"),
+                "--parallelism",
+                nonDefaultArguments.getOrDefault("parallelism", "10"),
+                "--bucket",
+                nonDefaultArguments.getOrDefault("bucket", getBucket()),
+                "--base_path",
+                nonDefaultArguments.getOrDefault("base_path", getBasePath()),
+                "--base64_credentials",
+                nonDefaultArguments.getOrDefault("base64_credentials", getBase64Credentials()),
+                "--endpoint",
+                nonDefaultArguments.getOrDefault("endpoint", getEndpoint()),
+                "--token_uri",
+                nonDefaultArguments.getOrDefault("token_uri", getTokenUri())
+            );
         return () -> command.execute(terminal, options);
     }
 
     public void testNoCredentials() {
-        expectThrows(() ->
-                        executeCommand(false, Collections.singletonMap("base64_credentials", "")),
-                "base64_credentials option is required for cleaning up GCS repository");
+        expectThrows(
+            () -> executeCommand(false, Collections.singletonMap("base64_credentials", "")),
+            "base64_credentials option is required for cleaning up GCS repository"
+        );
     }
 
 }

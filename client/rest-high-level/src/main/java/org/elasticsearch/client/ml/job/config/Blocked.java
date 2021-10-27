@@ -8,12 +8,12 @@
 
 package org.elasticsearch.client.ml.job.config;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -22,7 +22,10 @@ import java.util.Objects;
 public class Blocked implements ToXContentObject {
 
     public enum Reason {
-        NONE, DELETE, RESET, REVERT;
+        NONE,
+        DELETE,
+        RESET,
+        REVERT;
 
         public static Reason fromString(String value) {
             return Reason.valueOf(value.toUpperCase(Locale.ROOT));
@@ -37,8 +40,11 @@ public class Blocked implements ToXContentObject {
     public static final ParseField REASON = new ParseField("reason");
     public static final ParseField TASK_ID = new ParseField("task_id");
 
-    public static final ConstructingObjectParser<Blocked, Void> PARSER = new ConstructingObjectParser<>("blocked", true,
-        a -> new Blocked((Reason) a[0], (TaskId) a[1]));
+    public static final ConstructingObjectParser<Blocked, Void> PARSER = new ConstructingObjectParser<>(
+        "blocked",
+        true,
+        a -> new Blocked((Reason) a[0], (TaskId) a[1])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Reason::fromString, REASON);

@@ -6,30 +6,28 @@
  */
 package org.elasticsearch.xpack.core.termsenum.rest;
 
+import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.termsenum.action.TermsEnumAction;
+import org.elasticsearch.xpack.core.termsenum.action.TermsEnumRequest;
+
+import java.io.IOException;
+import java.util.List;
+
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-import java.io.IOException;
-import java.util.List;
-
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.termsenum.action.TermsEnumAction;
-import org.elasticsearch.xpack.core.termsenum.action.TermsEnumRequest;
-
 public class RestTermsEnumAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/{index}/_terms_enum"),
-            new Route(POST, "/{index}/_terms_enum")));
+        return unmodifiableList(asList(new Route(GET, "/{index}/_terms_enum"), new Route(POST, "/{index}/_terms_enum")));
     }
 
     @Override
@@ -40,10 +38,11 @@ public class RestTermsEnumAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            TermsEnumRequest termEnumRequest = TermsEnumAction.fromXContent(parser,
-                Strings.splitStringByCommaToArray(request.param("index")));
-            return channel ->
-            client.execute(TermsEnumAction.INSTANCE, termEnumRequest, new RestToXContentListener<>(channel));
+            TermsEnumRequest termEnumRequest = TermsEnumAction.fromXContent(
+                parser,
+                Strings.splitStringByCommaToArray(request.param("index"))
+            );
+            return channel -> client.execute(TermsEnumAction.INSTANCE, termEnumRequest, new RestToXContentListener<>(channel));
         }
     }
 

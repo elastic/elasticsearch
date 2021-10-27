@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.core.monitoring.exporter;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
@@ -34,13 +34,15 @@ public abstract class MonitoringDoc implements ToXContentObject {
     private final String type;
     private final String id;
 
-    public MonitoringDoc(final String cluster,
-                         final long timestamp,
-                         final long intervalMillis,
-                         @Nullable final Node node,
-                         final MonitoredSystem system,
-                         final String type,
-                         @Nullable final String id) {
+    public MonitoringDoc(
+        final String cluster,
+        final long timestamp,
+        final long intervalMillis,
+        @Nullable final Node node,
+        final MonitoredSystem system,
+        final String type,
+        @Nullable final String id
+    ) {
 
         this.cluster = Objects.requireNonNull(cluster);
         this.timestamp = timestamp;
@@ -89,12 +91,12 @@ public abstract class MonitoringDoc implements ToXContentObject {
         }
         MonitoringDoc that = (MonitoringDoc) o;
         return timestamp == that.timestamp
-                && intervalMillis == that.intervalMillis
-                && Objects.equals(cluster, that.cluster)
-                && Objects.equals(node, that.node)
-                && system == that.system
-                && Objects.equals(type, that.type)
-                && Objects.equals(id, that.id);
+            && intervalMillis == that.intervalMillis
+            && Objects.equals(cluster, that.cluster)
+            && Objects.equals(node, that.node)
+            && system == that.system
+            && Objects.equals(type, that.type)
+            && Objects.equals(id, that.id);
     }
 
     @Override
@@ -141,12 +143,14 @@ public abstract class MonitoringDoc implements ToXContentObject {
         private final String name;
         private final long timestamp;
 
-        public Node(final String uuid,
-                    final String host,
-                    final String transportAddress,
-                    final String ip,
-                    final String name,
-                    final long timestamp) {
+        public Node(
+            final String uuid,
+            final String host,
+            final String transportAddress,
+            final String ip,
+            final String name,
+            final long timestamp
+        ) {
             this.uuid = uuid;
             this.host = host;
             this.transportAddress = transportAddress;
@@ -240,11 +244,11 @@ public abstract class MonitoringDoc implements ToXContentObject {
             }
             Node node = (Node) o;
             return Objects.equals(uuid, node.uuid)
-                    && Objects.equals(host, node.host)
-                    && Objects.equals(transportAddress, node.transportAddress)
-                    && Objects.equals(ip, node.ip)
-                    && Objects.equals(name, node.name)
-                    && Objects.equals(timestamp, node.timestamp);
+                && Objects.equals(host, node.host)
+                && Objects.equals(transportAddress, node.transportAddress)
+                && Objects.equals(ip, node.ip)
+                && Objects.equals(name, node.name)
+                && Objects.equals(timestamp, node.timestamp);
         }
 
         @Override

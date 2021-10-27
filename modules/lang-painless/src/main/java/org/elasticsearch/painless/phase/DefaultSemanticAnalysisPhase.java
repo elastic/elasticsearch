@@ -193,14 +193,24 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             userExpressionNode.visit(this, semanticScope);
 
             if (semanticScope.hasDecoration(userExpressionNode, PartialCanonicalTypeName.class)) {
-                throw userExpressionNode.createError(new IllegalArgumentException("cannot resolve symbol [" +
-                        semanticScope.getDecoration(userExpressionNode, PartialCanonicalTypeName.class).getPartialCanonicalTypeName() +
-                        "]"));
+                throw userExpressionNode.createError(
+                    new IllegalArgumentException(
+                        "cannot resolve symbol ["
+                            + semanticScope.getDecoration(userExpressionNode, PartialCanonicalTypeName.class).getPartialCanonicalTypeName()
+                            + "]"
+                    )
+                );
             }
 
             if (semanticScope.hasDecoration(userExpressionNode, StaticType.class)) {
-                throw userExpressionNode.createError(new IllegalArgumentException("value required: instead found unexpected type " +
-                        "[" + semanticScope.getDecoration(userExpressionNode, StaticType.class).getStaticCanonicalTypeName() + "]"));
+                throw userExpressionNode.createError(
+                    new IllegalArgumentException(
+                        "value required: instead found unexpected type "
+                            + "["
+                            + semanticScope.getDecoration(userExpressionNode, StaticType.class).getStaticCanonicalTypeName()
+                            + "]"
+                    )
+                );
             }
 
             if (semanticScope.hasDecoration(userExpressionNode, ValueType.class) == false) {
@@ -224,8 +234,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
      */
     public void visitFunction(SFunction userFunctionNode, ScriptScope scriptScope) {
         String functionName = userFunctionNode.getFunctionName();
-        LocalFunction localFunction =
-                scriptScope.getFunctionTable().getFunction(functionName, userFunctionNode.getCanonicalTypeNameParameters().size());
+        LocalFunction localFunction = scriptScope.getFunctionTable()
+            .getFunction(functionName, userFunctionNode.getCanonicalTypeNameParameters().size());
         Class<?> returnType = localFunction.getReturnType();
         List<Class<?>> typeParameters = localFunction.getTypeParameters();
         FunctionScope functionScope = newFunctionScope(scriptScope, localFunction.getReturnType());
@@ -239,9 +249,17 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         SBlock userBlockNode = userFunctionNode.getBlockNode();
 
         if (userBlockNode.getStatementNodes().isEmpty()) {
-            throw userFunctionNode.createError(new IllegalArgumentException("invalid function definition: " +
-                    "found no statements for function " +
-                    "[" + functionName + "] with [" + typeParameters.size() + "] parameters"));
+            throw userFunctionNode.createError(
+                new IllegalArgumentException(
+                    "invalid function definition: "
+                        + "found no statements for function "
+                        + "["
+                        + functionName
+                        + "] with ["
+                        + typeParameters.size()
+                        + "] parameters"
+                )
+            );
         }
 
         functionScope.setCondition(userBlockNode, LastSource.class);
@@ -250,9 +268,17 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         boolean isAutoReturnEnabled = userFunctionNode.isAutoReturnEnabled();
 
         if (methodEscape == false && isAutoReturnEnabled == false && returnType != void.class) {
-            throw userFunctionNode.createError(new IllegalArgumentException("invalid function definition: " +
-                    "not all paths provide a return value for function " +
-                    "[" + functionName + "] with [" + typeParameters.size() + "] parameters"));
+            throw userFunctionNode.createError(
+                new IllegalArgumentException(
+                    "invalid function definition: "
+                        + "not all paths provide a return value for function "
+                        + "["
+                        + functionName
+                        + "] with ["
+                        + typeParameters.size()
+                        + "] parameters"
+                )
+            );
         }
 
         if (methodEscape) {
@@ -387,28 +413,27 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.replicateCondition(userIfElseNode, userElseBlockNode, LastLoop.class);
         visit(userElseBlockNode, semanticScope.newLocalScope());
 
-        if (semanticScope.getCondition(userIfBlockNode, MethodEscape.class) &&
-            semanticScope.getCondition(userElseBlockNode, MethodEscape.class)) {
+        if (semanticScope.getCondition(userIfBlockNode, MethodEscape.class)
+            && semanticScope.getCondition(userElseBlockNode, MethodEscape.class)) {
             semanticScope.setCondition(userIfElseNode, MethodEscape.class);
         }
 
-        if (semanticScope.getCondition(userIfBlockNode, LoopEscape.class) &&
-            semanticScope.getCondition(userElseBlockNode, LoopEscape.class)) {
+        if (semanticScope.getCondition(userIfBlockNode, LoopEscape.class)
+            && semanticScope.getCondition(userElseBlockNode, LoopEscape.class)) {
             semanticScope.setCondition(userIfElseNode, LoopEscape.class);
         }
 
-        if (semanticScope.getCondition(userIfBlockNode, AllEscape.class) &&
-            semanticScope.getCondition(userElseBlockNode, AllEscape.class)) {
+        if (semanticScope.getCondition(userIfBlockNode, AllEscape.class)
+            && semanticScope.getCondition(userElseBlockNode, AllEscape.class)) {
             semanticScope.setCondition(userIfElseNode, AllEscape.class);
         }
 
-        if (semanticScope.getCondition(userIfBlockNode, AnyContinue.class) ||
-            semanticScope.getCondition(userElseBlockNode, AnyContinue.class)) {
+        if (semanticScope.getCondition(userIfBlockNode, AnyContinue.class)
+            || semanticScope.getCondition(userElseBlockNode, AnyContinue.class)) {
             semanticScope.setCondition(userIfElseNode, AnyContinue.class);
         }
 
-        if (    semanticScope.getCondition(userIfBlockNode, AnyBreak.class) ||
-                semanticScope.getCondition(userElseBlockNode, AnyBreak.class)) {
+        if (semanticScope.getCondition(userIfBlockNode, AnyBreak.class) || semanticScope.getCondition(userElseBlockNode, AnyBreak.class)) {
             semanticScope.setCondition(userIfElseNode, AnyBreak.class);
         }
     }
@@ -431,7 +456,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         boolean continuous = false;
 
         if (userConditionNode instanceof EBooleanConstant) {
-            continuous = ((EBooleanConstant)userConditionNode).getBool();
+            continuous = ((EBooleanConstant) userConditionNode).getBool();
 
             if (continuous == false) {
                 throw userWhileNode.createError(new IllegalArgumentException("extraneous while loop"));
@@ -449,8 +474,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             semanticScope.setCondition(userBlockNode, InLoop.class);
             visit(userBlockNode, semanticScope);
 
-            if (semanticScope.getCondition(userBlockNode, LoopEscape.class) &&
-                    semanticScope.getCondition(userBlockNode, AnyContinue.class) == false) {
+            if (semanticScope.getCondition(userBlockNode, LoopEscape.class)
+                && semanticScope.getCondition(userBlockNode, AnyContinue.class) == false) {
                 throw userWhileNode.createError(new IllegalArgumentException("extraneous while loop"));
             }
 
@@ -479,8 +504,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.setCondition(userBlockNode, InLoop.class);
         visit(userBlockNode, semanticScope);
 
-        if (semanticScope.getCondition(userBlockNode, LoopEscape.class) &&
-                semanticScope.getCondition(userBlockNode, AnyContinue.class) == false) {
+        if (semanticScope.getCondition(userBlockNode, LoopEscape.class)
+            && semanticScope.getCondition(userBlockNode, AnyContinue.class) == false) {
             throw userDoNode.createError(new IllegalArgumentException("extraneous do-while loop"));
         }
 
@@ -494,7 +519,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         boolean continuous;
 
         if (userConditionNode instanceof EBooleanConstant) {
-            continuous = ((EBooleanConstant)userConditionNode).getBool();
+            continuous = ((EBooleanConstant) userConditionNode).getBool();
 
             if (continuous == false) {
                 throw userDoNode.createError(new IllegalArgumentException("extraneous do-while loop"));
@@ -523,7 +548,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             if (userInitializerNode instanceof SDeclBlock) {
                 visit(userInitializerNode, semanticScope);
             } else if (userInitializerNode instanceof AExpression) {
-                checkedVisit((AExpression)userInitializerNode, semanticScope);
+                checkedVisit((AExpression) userInitializerNode, semanticScope);
             } else {
                 throw userForNode.createError(new IllegalStateException("illegal tree structure"));
             }
@@ -540,7 +565,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             decorateWithCast(userConditionNode, semanticScope);
 
             if (userConditionNode instanceof EBooleanConstant) {
-                continuous = ((EBooleanConstant)userConditionNode).getBool();
+                continuous = ((EBooleanConstant) userConditionNode).getBool();
 
                 if (continuous == false) {
                     throw userForNode.createError(new IllegalArgumentException("extraneous for loop"));
@@ -565,8 +590,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             semanticScope.setCondition(userBlockNode, InLoop.class);
             visit(userBlockNode, semanticScope);
 
-            if (semanticScope.getCondition(userBlockNode, LoopEscape.class) &&
-                    semanticScope.getCondition(userBlockNode, AnyContinue.class) == false) {
+            if (semanticScope.getCondition(userBlockNode, LoopEscape.class)
+                && semanticScope.getCondition(userBlockNode, AnyContinue.class) == false) {
                 throw userForNode.createError(new IllegalArgumentException("extraneous for loop"));
             }
 
@@ -591,8 +616,9 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         Class<?> type = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 
         if (type == null) {
-            throw userEachNode.createError(new IllegalArgumentException(
-                    "invalid foreach loop: type [" + canonicalTypeName + "] not found"));
+            throw userEachNode.createError(
+                new IllegalArgumentException("invalid foreach loop: type [" + canonicalTypeName + "] not found")
+            );
         }
 
         semanticScope = semanticScope.newLocalScope();
@@ -612,28 +638,37 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.setCondition(userBlockNode, InLoop.class);
         visit(userBlockNode, semanticScope);
 
-        if (semanticScope.getCondition(userBlockNode, LoopEscape.class) &&
-                semanticScope.getCondition(userBlockNode, AnyContinue.class) == false) {
+        if (semanticScope.getCondition(userBlockNode, LoopEscape.class)
+            && semanticScope.getCondition(userBlockNode, AnyContinue.class) == false) {
             throw userEachNode.createError(new IllegalArgumentException("extraneous foreach loop"));
         }
 
         Class<?> iterableValueType = semanticScope.getDecoration(userIterableNode, ValueType.class).getValueType();
 
         if (iterableValueType.isArray()) {
-            PainlessCast painlessCast =
-                    AnalyzerCaster.getLegalCast(location, iterableValueType.getComponentType(), variable.getType(), true, true);
+            PainlessCast painlessCast = AnalyzerCaster.getLegalCast(
+                location,
+                iterableValueType.getComponentType(),
+                variable.getType(),
+                true,
+                true
+            );
 
             if (painlessCast != null) {
                 semanticScope.putDecoration(userEachNode, new ExpressionPainlessCast(painlessCast));
             }
         } else if (iterableValueType == def.class || Iterable.class.isAssignableFrom(iterableValueType)) {
             if (iterableValueType != def.class) {
-                PainlessMethod method = semanticScope.getScriptScope().getPainlessLookup().
-                        lookupPainlessMethod(iterableValueType, false, "iterator", 0);
+                PainlessMethod method = semanticScope.getScriptScope()
+                    .getPainlessLookup()
+                    .lookupPainlessMethod(iterableValueType, false, "iterator", 0);
 
                 if (method == null) {
-                    throw userEachNode.createError(new IllegalArgumentException("invalid foreach loop: " +
-                            "method [" + typeToCanonicalTypeName(iterableValueType) + ", iterator/0] not found"));
+                    throw userEachNode.createError(
+                        new IllegalArgumentException(
+                            "invalid foreach loop: " + "method [" + typeToCanonicalTypeName(iterableValueType) + ", iterator/0] not found"
+                        )
+                    );
                 }
 
                 semanticScope.putDecoration(userEachNode, new IterablePainlessMethod(method));
@@ -645,8 +680,14 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                 semanticScope.putDecoration(userEachNode, new ExpressionPainlessCast(painlessCast));
             }
         } else {
-            throw userEachNode.createError(new IllegalArgumentException("invalid foreach loop: " +
-                    "cannot iterate over type [" + PainlessLookupUtility.typeToCanonicalTypeName(iterableValueType) + "]."));
+            throw userEachNode.createError(
+                new IllegalArgumentException(
+                    "invalid foreach loop: "
+                        + "cannot iterate over type ["
+                        + PainlessLookupUtility.typeToCanonicalTypeName(iterableValueType)
+                        + "]."
+                )
+            );
         }
     }
 
@@ -670,16 +711,18 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         String symbol = userDeclarationNode.getSymbol();
 
         if (scriptScope.getPainlessLookup().isValidCanonicalClassName(symbol)) {
-            throw userDeclarationNode.createError(new IllegalArgumentException(
-                    "invalid declaration: type [" + symbol + "] cannot be a name"));
+            throw userDeclarationNode.createError(
+                new IllegalArgumentException("invalid declaration: type [" + symbol + "] cannot be a name")
+            );
         }
 
         String canonicalTypeName = userDeclarationNode.getCanonicalTypeName();
         Class<?> type = scriptScope.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 
         if (type == null) {
-            throw userDeclarationNode.createError(new IllegalArgumentException(
-                    "invalid declaration: cannot resolve type [" + canonicalTypeName + "]"));
+            throw userDeclarationNode.createError(
+                new IllegalArgumentException("invalid declaration: cannot resolve type [" + canonicalTypeName + "]")
+            );
         }
 
         AExpression userValueNode = userDeclarationNode.getValueNode();
@@ -706,9 +749,17 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
         if (userValueNode == null) {
             if (semanticScope.getReturnType() != void.class) {
-                throw userReturnNode.createError(new ClassCastException("cannot cast from " +
-                        "[" + semanticScope.getReturnCanonicalTypeName() + "] to " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(void.class) + "]"));
+                throw userReturnNode.createError(
+                    new ClassCastException(
+                        "cannot cast from "
+                            + "["
+                            + semanticScope.getReturnCanonicalTypeName()
+                            + "] to "
+                            + "["
+                            + PainlessLookupUtility.typeToCanonicalTypeName(void.class)
+                            + "]"
+                    )
+                );
             }
         } else {
             semanticScope.setCondition(userValueNode, Read.class);
@@ -820,16 +871,18 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         String symbol = userCatchNode.getSymbol();
 
         if (scriptScope.getPainlessLookup().isValidCanonicalClassName(symbol)) {
-            throw userCatchNode.createError(new IllegalArgumentException(
-                    "invalid catch declaration: type [" + symbol + "] cannot be a name"));
+            throw userCatchNode.createError(
+                new IllegalArgumentException("invalid catch declaration: type [" + symbol + "] cannot be a name")
+            );
         }
 
         String canonicalTypeName = userCatchNode.getCanonicalTypeName();
         Class<?> type = scriptScope.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 
         if (type == null) {
-            throw userCatchNode.createError(new IllegalArgumentException(
-                    "invalid catch declaration: cannot resolve type [" + canonicalTypeName + "]"));
+            throw userCatchNode.createError(
+                new IllegalArgumentException("invalid catch declaration: cannot resolve type [" + canonicalTypeName + "]")
+            );
         }
 
         Location location = userCatchNode.getLocation();
@@ -838,9 +891,16 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         Class<?> baseException = userCatchNode.getBaseException();
 
         if (userCatchNode.getBaseException().isAssignableFrom(type) == false) {
-            throw userCatchNode.createError(new ClassCastException(
-                    "cannot cast from [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] " +
-                            "to [" + PainlessLookupUtility.typeToCanonicalTypeName(baseException) + "]"));
+            throw userCatchNode.createError(
+                new ClassCastException(
+                    "cannot cast from ["
+                        + PainlessLookupUtility.typeToCanonicalTypeName(type)
+                        + "] "
+                        + "to ["
+                        + PainlessLookupUtility.typeToCanonicalTypeName(baseException)
+                        + "]"
+                )
+            );
         }
 
         SBlock userBlockNode = userCatchNode.getBlockNode();
@@ -970,8 +1030,18 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             }
 
             if (compoundType == null || (isShift && shiftType == null)) {
-                throw userAssignmentNode.createError(new ClassCastException("invalid compound assignment: " +
-                        "cannot apply [" + operation.symbol + "=] to types [" + leftValueType + "] and [" + rightValueType + "]"));
+                throw userAssignmentNode.createError(
+                    new ClassCastException(
+                        "invalid compound assignment: "
+                            + "cannot apply ["
+                            + operation.symbol
+                            + "=] to types ["
+                            + leftValueType
+                            + "] and ["
+                            + rightValueType
+                            + "]"
+                    )
+                );
             }
 
             if (isConcatenation) {
@@ -1005,14 +1075,17 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             if (downcast != null) {
                 semanticScope.putDecoration(userAssignmentNode, new DowncastPainlessCast(downcast));
             }
-        // if the lhs node is a def optimized node we update the actual type to remove the need for a cast
+            // if the lhs node is a def optimized node we update the actual type to remove the need for a cast
         } else if (semanticScope.getCondition(userLeftNode, DefOptimized.class)) {
             checkedVisit(userRightNode, semanticScope);
             Class<?> rightValueType = semanticScope.getDecoration(userRightNode, ValueType.class).getValueType();
 
             if (rightValueType == void.class) {
-                throw userAssignmentNode.createError(new IllegalArgumentException(
-                        "invalid assignment: cannot assign type [" + PainlessLookupUtility.typeToCanonicalTypeName(void.class) + "]"));
+                throw userAssignmentNode.createError(
+                    new IllegalArgumentException(
+                        "invalid assignment: cannot assign type [" + PainlessLookupUtility.typeToCanonicalTypeName(void.class) + "]"
+                    )
+                );
             }
 
             semanticScope.putDecoration(userLeftNode, new ValueType(rightValueType));
@@ -1024,8 +1097,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             decorateWithCast(userRightNode, semanticScope);
         }
 
-        semanticScope.putDecoration(userAssignmentNode,
-                new ValueType(semanticScope.getCondition(userAssignmentNode, Read.class) ? leftValueType : void.class));
+        semanticScope.putDecoration(
+            userAssignmentNode,
+            new ValueType(semanticScope.getCondition(userAssignmentNode, Read.class) ? leftValueType : void.class)
+        );
     }
 
     /**
@@ -1038,13 +1113,19 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         Operation operation = userUnaryNode.getOperation();
 
         if (semanticScope.getCondition(userUnaryNode, Write.class)) {
-            throw userUnaryNode.createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
+            throw userUnaryNode.createError(
+                new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"
+                )
+            );
         }
 
         if (semanticScope.getCondition(userUnaryNode, Read.class) == false) {
-            throw userUnaryNode.createError(new IllegalArgumentException(
-                    "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
+            throw userUnaryNode.createError(
+                new IllegalArgumentException(
+                    "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"
+                )
+            );
         }
 
         AExpression userChildNode = userUnaryNode.getChildNode();
@@ -1080,9 +1161,19 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                 unaryType = AnalyzerCaster.promoteNumeric(childValueType, operation != Operation.BWNOT);
 
                 if (unaryType == null) {
-                    throw userUnaryNode.createError(new ClassCastException("cannot apply the " + operation.name + " operator " +
-                            "[" + operation.symbol + "] to the type " +
-                            "[" + PainlessLookupUtility.typeToCanonicalTypeName(childValueType) + "]"));
+                    throw userUnaryNode.createError(
+                        new ClassCastException(
+                            "cannot apply the "
+                                + operation.name
+                                + " operator "
+                                + "["
+                                + operation.symbol
+                                + "] to the type "
+                                + "["
+                                + PainlessLookupUtility.typeToCanonicalTypeName(childValueType)
+                                + "]"
+                        )
+                    );
                 }
 
                 semanticScope.putDecoration(userChildNode, new TargetType(unaryType));
@@ -1116,13 +1207,19 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         Operation operation = userBinaryNode.getOperation();
 
         if (semanticScope.getCondition(userBinaryNode, Write.class)) {
-            throw userBinaryNode.createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
+            throw userBinaryNode.createError(
+                new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"
+                )
+            );
         }
 
         if (semanticScope.getCondition(userBinaryNode, Read.class) == false) {
-            throw userBinaryNode.createError(new IllegalArgumentException(
-                    "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
+            throw userBinaryNode.createError(
+                new IllegalArgumentException(
+                    "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"
+                )
+            );
         }
 
         AExpression userLeftNode = userBinaryNode.getLeftNode();
@@ -1169,10 +1266,22 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             }
 
             if (binaryType == null) {
-                throw userBinaryNode.createError(new ClassCastException("cannot apply the " + operation.name + " operator " +
-                        "[" + operation.symbol + "] to the types " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(leftValueType) + "] and " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(rightValueType) + "]"));
+                throw userBinaryNode.createError(
+                    new ClassCastException(
+                        "cannot apply the "
+                            + operation.name
+                            + " operator "
+                            + "["
+                            + operation.symbol
+                            + "] to the types "
+                            + "["
+                            + PainlessLookupUtility.typeToCanonicalTypeName(leftValueType)
+                            + "] and "
+                            + "["
+                            + PainlessLookupUtility.typeToCanonicalTypeName(rightValueType)
+                            + "]"
+                    )
+                );
             }
 
             valueType = binaryType;
@@ -1219,13 +1328,19 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         Operation operation = userBooleanCompNode.getOperation();
 
         if (semanticScope.getCondition(userBooleanCompNode, Write.class)) {
-            throw userBooleanCompNode.createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
+            throw userBooleanCompNode.createError(
+                new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"
+                )
+            );
         }
 
         if (semanticScope.getCondition(userBooleanCompNode, Read.class) == false) {
-            throw userBooleanCompNode.createError(new IllegalArgumentException(
-                    "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
+            throw userBooleanCompNode.createError(
+                new IllegalArgumentException(
+                    "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"
+                )
+            );
         }
 
         AExpression userLeftNode = userBooleanCompNode.getLeftNode();
@@ -1252,13 +1367,19 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         Operation operation = userCompNode.getOperation();
 
         if (semanticScope.getCondition(userCompNode, Write.class)) {
-            throw userCompNode.createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
+            throw userCompNode.createError(
+                new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"
+                )
+            );
         }
 
         if (semanticScope.getCondition(userCompNode, Read.class) == false) {
-            throw userCompNode.createError(new IllegalArgumentException(
-                    "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
+            throw userCompNode.createError(
+                new IllegalArgumentException(
+                    "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"
+                )
+            );
         }
 
         AExpression userLeftNode = userCompNode.getLeftNode();
@@ -1282,14 +1403,27 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         }
 
         if (promotedType == null) {
-            throw userCompNode.createError(new ClassCastException("cannot apply the " + operation.name + " operator " +
-                    "[" + operation.symbol + "] to the types " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(leftValueType) + "] and " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(rightValueType) + "]"));
+            throw userCompNode.createError(
+                new ClassCastException(
+                    "cannot apply the "
+                        + operation.name
+                        + " operator "
+                        + "["
+                        + operation.symbol
+                        + "] to the types "
+                        + "["
+                        + PainlessLookupUtility.typeToCanonicalTypeName(leftValueType)
+                        + "] and "
+                        + "["
+                        + PainlessLookupUtility.typeToCanonicalTypeName(rightValueType)
+                        + "]"
+                )
+            );
         }
 
         if ((operation == Operation.EQ || operation == Operation.EQR || operation == Operation.NE || operation == Operation.NER)
-                && userLeftNode instanceof ENull && userRightNode instanceof ENull) {
+            && userLeftNode instanceof ENull
+            && userRightNode instanceof ENull) {
             throw userCompNode.createError(new IllegalArgumentException("extraneous comparison of [null] constants"));
         }
 
@@ -1313,13 +1447,19 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         String canonicalTypeName = userExplicitNode.getCanonicalTypeName();
 
         if (semanticScope.getCondition(userExplicitNode, Write.class)) {
-            throw userExplicitNode.createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to an explicit cast with target type [" + canonicalTypeName + "]"));
+            throw userExplicitNode.createError(
+                new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to an explicit cast with target type [" + canonicalTypeName + "]"
+                )
+            );
         }
 
         if (semanticScope.getCondition(userExplicitNode, Read.class) == false) {
-            throw userExplicitNode.createError(new IllegalArgumentException(
-                    "not a statement: result not used from explicit cast with target type [" + canonicalTypeName + "]"));
+            throw userExplicitNode.createError(
+                new IllegalArgumentException(
+                    "not a statement: result not used from explicit cast with target type [" + canonicalTypeName + "]"
+                )
+            );
         }
 
         Class<?> valueType = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
@@ -1347,13 +1487,19 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         String canonicalTypeName = userInstanceofNode.getCanonicalTypeName();
 
         if (semanticScope.getCondition(userInstanceofNode, Write.class)) {
-            throw userInstanceofNode.createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to instanceof with target type [" + canonicalTypeName + "]"));
+            throw userInstanceofNode.createError(
+                new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to instanceof with target type [" + canonicalTypeName + "]"
+                )
+            );
         }
 
         if (semanticScope.getCondition(userInstanceofNode, Read.class) == false) {
-            throw userInstanceofNode.createError(new IllegalArgumentException(
-                    "not a statement: result not used from instanceof with target type [" + canonicalTypeName + "]"));
+            throw userInstanceofNode.createError(
+                new IllegalArgumentException(
+                    "not a statement: result not used from instanceof with target type [" + canonicalTypeName + "]"
+                )
+            );
         }
 
         Class<?> instanceType = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
@@ -1377,13 +1523,15 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
     @Override
     public void visitConditional(EConditional userConditionalNode, SemanticScope semanticScope) {
         if (semanticScope.getCondition(userConditionalNode, Write.class)) {
-            throw userConditionalNode.createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to conditional operation [?:]"));
+            throw userConditionalNode.createError(
+                new IllegalArgumentException("invalid assignment: cannot assign a value to conditional operation [?:]")
+            );
         }
 
         if (semanticScope.getCondition(userConditionalNode, Read.class) == false) {
-            throw userConditionalNode.createError(new IllegalArgumentException(
-                    "not a statement: result not used from conditional operation [?:]"));
+            throw userConditionalNode.createError(
+                new IllegalArgumentException("not a statement: result not used from conditional operation [?:]")
+            );
         }
 
         AExpression userConditionNode = userConditionalNode.getConditionNode();
@@ -1415,9 +1563,17 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             Class<?> promote = AnalyzerCaster.promoteConditional(leftValueType, rightValueType);
 
             if (promote == null) {
-                throw userConditionalNode.createError(new ClassCastException("cannot apply the conditional operator [?:] to the types " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(leftValueType) + "] and " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(rightValueType) + "]"));
+                throw userConditionalNode.createError(
+                    new ClassCastException(
+                        "cannot apply the conditional operator [?:] to the types "
+                            + "["
+                            + PainlessLookupUtility.typeToCanonicalTypeName(leftValueType)
+                            + "] and "
+                            + "["
+                            + PainlessLookupUtility.typeToCanonicalTypeName(rightValueType)
+                            + "]"
+                    )
+                );
             }
 
             semanticScope.putDecoration(userTrueNode, new TargetType(promote));
@@ -1440,8 +1596,9 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
     @Override
     public void visitElvis(EElvis userElvisNode, SemanticScope semanticScope) {
         if (semanticScope.getCondition(userElvisNode, Write.class)) {
-            throw userElvisNode.createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to elvis operation [?:]"));
+            throw userElvisNode.createError(
+                new IllegalArgumentException("invalid assignment: cannot assign a value to elvis operation [?:]")
+            );
         }
 
         if (semanticScope.getCondition(userElvisNode, Read.class) == false) {
@@ -1473,11 +1630,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         if (userLeftNode instanceof ENull) {
             throw userElvisNode.createError(new IllegalArgumentException("Extraneous elvis operator. LHS is null."));
         }
-        if (    userLeftNode instanceof EBooleanConstant ||
-                userLeftNode instanceof ENumeric         ||
-                userLeftNode instanceof EDecimal         ||
-                userLeftNode instanceof EString
-        ) {
+        if (userLeftNode instanceof EBooleanConstant
+            || userLeftNode instanceof ENumeric
+            || userLeftNode instanceof EDecimal
+            || userLeftNode instanceof EString) {
             throw userElvisNode.createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a constant."));
         }
         if (leftValueType.isPrimitive()) {
@@ -1512,8 +1668,9 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
     @Override
     public void visitListInit(EListInit userListInitNode, SemanticScope semanticScope) {
         if (semanticScope.getCondition(userListInitNode, Write.class)) {
-            throw userListInitNode.createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to list initializer"));
+            throw userListInitNode.createError(
+                new IllegalArgumentException("invalid assignment: cannot assign a value to list initializer")
+            );
         }
 
         if (semanticScope.getCondition(userListInitNode, Read.class) == false) {
@@ -1525,8 +1682,9 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         PainlessConstructor constructor = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessConstructor(valueType, 0);
 
         if (constructor == null) {
-            throw userListInitNode.createError(new IllegalArgumentException(
-                    "constructor [" + typeToCanonicalTypeName(valueType) + ", <init>/0] not found"));
+            throw userListInitNode.createError(
+                new IllegalArgumentException("constructor [" + typeToCanonicalTypeName(valueType) + ", <init>/0] not found")
+            );
         }
 
         semanticScope.putDecoration(userListInitNode, new StandardPainlessConstructor(constructor));
@@ -1534,8 +1692,9 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         PainlessMethod method = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(valueType, false, "add", 1);
 
         if (method == null) {
-            throw userListInitNode.createError(new IllegalArgumentException(
-                    "method [" + typeToCanonicalTypeName(valueType) + ", add/1] not found"));
+            throw userListInitNode.createError(
+                new IllegalArgumentException("method [" + typeToCanonicalTypeName(valueType) + ", add/1] not found")
+            );
         }
 
         semanticScope.putDecoration(userListInitNode, new StandardPainlessMethod(method));
@@ -1558,8 +1717,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
     @Override
     public void visitMapInit(EMapInit userMapInitNode, SemanticScope semanticScope) {
         if (semanticScope.getCondition(userMapInitNode, Write.class)) {
-            throw userMapInitNode.createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to map initializer"));
+            throw userMapInitNode.createError(new IllegalArgumentException("invalid assignment: cannot assign a value to map initializer"));
         }
 
         if (semanticScope.getCondition(userMapInitNode, Read.class) == false) {
@@ -1571,8 +1729,9 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         PainlessConstructor constructor = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessConstructor(valueType, 0);
 
         if (constructor == null) {
-            throw userMapInitNode.createError(new IllegalArgumentException(
-                    "constructor [" + typeToCanonicalTypeName(valueType) + ", <init>/0] not found"));
+            throw userMapInitNode.createError(
+                new IllegalArgumentException("constructor [" + typeToCanonicalTypeName(valueType) + ", <init>/0] not found")
+            );
         }
 
         semanticScope.putDecoration(userMapInitNode, new StandardPainlessConstructor(constructor));
@@ -1580,8 +1739,9 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         PainlessMethod method = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(valueType, false, "put", 2);
 
         if (method == null) {
-            throw userMapInitNode.createError(new IllegalArgumentException(
-                    "method [" + typeToCanonicalTypeName(valueType) + ", put/2] not found"));
+            throw userMapInitNode.createError(
+                new IllegalArgumentException("method [" + typeToCanonicalTypeName(valueType) + ", put/2] not found")
+            );
         }
 
         semanticScope.putDecoration(userMapInitNode, new StandardPainlessMethod(method));
@@ -1636,8 +1796,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
         for (AExpression userValueNode : userNewArrayNode.getValueNodes()) {
             semanticScope.setCondition(userValueNode, Read.class);
-            semanticScope.putDecoration(userValueNode,
-                    new TargetType(userNewArrayNode.isInitializer() ? valueType.getComponentType() : int.class));
+            semanticScope.putDecoration(
+                userValueNode,
+                new TargetType(userNewArrayNode.isInitializer() ? valueType.getComponentType() : int.class)
+            );
             semanticScope.setCondition(userValueNode, Internal.class);
             checkedVisit(userValueNode, semanticScope);
             decorateWithCast(userValueNode, semanticScope);
@@ -1652,14 +1814,21 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
      */
     @Override
     public void visitNewObj(ENewObj userNewObjNode, SemanticScope semanticScope) {
-        String canonicalTypeName =  userNewObjNode.getCanonicalTypeName();
+        String canonicalTypeName = userNewObjNode.getCanonicalTypeName();
         List<AExpression> userArgumentNodes = userNewObjNode.getArgumentNodes();
         int userArgumentsSize = userArgumentNodes.size();
 
         if (semanticScope.getCondition(userNewObjNode, Write.class)) {
-            throw userNewObjNode.createError(new IllegalArgumentException(
-                    "invalid assignment cannot assign a value to new object with constructor " +
-                            "[" + canonicalTypeName + "/" + userArgumentsSize + "]"));
+            throw userNewObjNode.createError(
+                new IllegalArgumentException(
+                    "invalid assignment cannot assign a value to new object with constructor "
+                        + "["
+                        + canonicalTypeName
+                        + "/"
+                        + userArgumentsSize
+                        + "]"
+                )
+            );
         }
 
         ScriptScope scriptScope = semanticScope.getScriptScope();
@@ -1672,8 +1841,11 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         PainlessConstructor constructor = scriptScope.getPainlessLookup().lookupPainlessConstructor(valueType, userArgumentsSize);
 
         if (constructor == null) {
-            throw userNewObjNode.createError(new IllegalArgumentException(
-                    "constructor [" + typeToCanonicalTypeName(valueType) + ", <init>/" + userArgumentsSize + "] not found"));
+            throw userNewObjNode.createError(
+                new IllegalArgumentException(
+                    "constructor [" + typeToCanonicalTypeName(valueType) + ", <init>/" + userArgumentsSize + "] not found"
+                )
+            );
         }
 
         scriptScope.putDecoration(userNewObjNode, new StandardPainlessConstructor(constructor));
@@ -1683,9 +1855,18 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         constructor.typeParameters.toArray(types);
 
         if (constructor.typeParameters.size() != userArgumentsSize) {
-            throw userNewObjNode.createError(new IllegalArgumentException(
-                    "When calling constructor on type [" + PainlessLookupUtility.typeToCanonicalTypeName(valueType) + "] " +
-                    "expected [" + constructor.typeParameters.size() + "] arguments, but found [" + userArgumentsSize + "]."));
+            throw userNewObjNode.createError(
+                new IllegalArgumentException(
+                    "When calling constructor on type ["
+                        + PainlessLookupUtility.typeToCanonicalTypeName(valueType)
+                        + "] "
+                        + "expected ["
+                        + constructor.typeParameters.size()
+                        + "] arguments, but found ["
+                        + userArgumentsSize
+                        + "]."
+                )
+            );
         }
 
         for (int i = 0; i < userArgumentsSize; ++i) {
@@ -1712,8 +1893,11 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         int userArgumentsSize = userArgumentNodes.size();
 
         if (semanticScope.getCondition(userCallLocalNode, Write.class)) {
-            throw userCallLocalNode.createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to function call [" + methodName + "/" + userArgumentsSize + "]"));
+            throw userCallLocalNode.createError(
+                new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to function call [" + methodName + "/" + userArgumentsSize + "]"
+                )
+            );
         }
 
         ScriptScope scriptScope = semanticScope.getScriptScope();
@@ -1735,8 +1919,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         }
 
         if (localFunction == null) {
-            thisMethod = scriptScope.getPainlessLookup().lookupPainlessMethod(
-                    scriptScope.getScriptClassInfo().getBaseClass(), false, methodName, userArgumentsSize);
+            thisMethod = scriptScope.getPainlessLookup()
+                .lookupPainlessMethod(scriptScope.getScriptClassInfo().getBaseClass(), false, methodName, userArgumentsSize);
 
             if (thisMethod == null) {
                 importedMethod = scriptScope.getPainlessLookup().lookupImportedPainlessMethod(methodName, userArgumentsSize);
@@ -1745,23 +1929,24 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                     classBinding = scriptScope.getPainlessLookup().lookupPainlessClassBinding(methodName, userArgumentsSize);
 
                     // check to see if this class binding requires an implicit this reference
-                    if (classBinding != null && classBinding.typeParameters.isEmpty() == false &&
-                            classBinding.typeParameters.get(0) == scriptScope.getScriptClassInfo().getBaseClass()) {
+                    if (classBinding != null
+                        && classBinding.typeParameters.isEmpty() == false
+                        && classBinding.typeParameters.get(0) == scriptScope.getScriptClassInfo().getBaseClass()) {
                         classBinding = null;
                     }
 
                     if (classBinding == null) {
                         // This extra check looks for a possible match where the class binding requires an implicit this
-                        // reference.  This is a temporary solution to allow the class binding access to data from the
-                        // base script class without need for a user to add additional arguments.  A long term solution
+                        // reference. This is a temporary solution to allow the class binding access to data from the
+                        // base script class without need for a user to add additional arguments. A long term solution
                         // will likely involve adding a class instance binding where any instance can have a class binding
-                        // as part of its API.  However, the situation at run-time is difficult and will modifications that
+                        // as part of its API. However, the situation at run-time is difficult and will modifications that
                         // are a substantial change if even possible to do.
                         classBinding = scriptScope.getPainlessLookup().lookupPainlessClassBinding(methodName, userArgumentsSize + 1);
 
                         if (classBinding != null) {
-                            if (classBinding.typeParameters.isEmpty() == false &&
-                                    classBinding.typeParameters.get(0) == scriptScope.getScriptClassInfo().getBaseClass()) {
+                            if (classBinding.typeParameters.isEmpty() == false
+                                && classBinding.typeParameters.get(0) == scriptScope.getScriptClassInfo().getBaseClass()) {
                                 classBindingOffset = 1;
                             } else {
                                 classBinding = null;
@@ -1772,8 +1957,11 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                             instanceBinding = scriptScope.getPainlessLookup().lookupPainlessInstanceBinding(methodName, userArgumentsSize);
 
                             if (instanceBinding == null) {
-                                throw userCallLocalNode.createError(new IllegalArgumentException(
-                                        "Unknown call [" + methodName + "] with [" + userArgumentsSize + "] arguments."));
+                                throw userCallLocalNode.createError(
+                                    new IllegalArgumentException(
+                                        "Unknown call [" + methodName + "] with [" + userArgumentsSize + "] arguments."
+                                    )
+                                );
                             }
                         }
                     }
@@ -1842,13 +2030,15 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         boolean bool = userBooleanConstantNode.getBool();
 
         if (semanticScope.getCondition(userBooleanConstantNode, Write.class)) {
-            throw userBooleanConstantNode.createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to boolean constant [" + bool + "]"));
+            throw userBooleanConstantNode.createError(
+                new IllegalArgumentException("invalid assignment: cannot assign a value to boolean constant [" + bool + "]")
+            );
         }
 
         if (semanticScope.getCondition(userBooleanConstantNode, Read.class) == false) {
             throw userBooleanConstantNode.createError(
-                    new IllegalArgumentException("not a statement: boolean constant [" + bool + "] not used"));
+                new IllegalArgumentException("not a statement: boolean constant [" + bool + "] not used")
+            );
         }
 
         semanticScope.putDecoration(userBooleanConstantNode, new ValueType(boolean.class));
@@ -1868,13 +2058,13 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         }
 
         if (semanticScope.getCondition(userNumericNode, Write.class)) {
-            throw userNumericNode.createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to numeric constant [" + numeric + "]"));
+            throw userNumericNode.createError(
+                new IllegalArgumentException("invalid assignment: cannot assign a value to numeric constant [" + numeric + "]")
+            );
         }
 
         if (semanticScope.getCondition(userNumericNode, Read.class) == false) {
-            throw userNumericNode.createError(new IllegalArgumentException(
-                    "not a statement: numeric constant [" + numeric + "] not used"));
+            throw userNumericNode.createError(new IllegalArgumentException("not a statement: numeric constant [" + numeric + "] not used"));
         }
 
         int radix = userNumericNode.getRadix();
@@ -1917,13 +2107,13 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                 int integer = Integer.parseInt(numeric, radix);
 
                 if (sort == byte.class && integer >= Byte.MIN_VALUE && integer <= Byte.MAX_VALUE) {
-                    constant = (byte)integer;
+                    constant = (byte) integer;
                     valueType = byte.class;
                 } else if (sort == char.class && integer >= Character.MIN_VALUE && integer <= Character.MAX_VALUE) {
-                    constant = (char)integer;
+                    constant = (char) integer;
                     valueType = char.class;
                 } else if (sort == short.class && integer >= Short.MIN_VALUE && integer <= Short.MAX_VALUE) {
-                    constant = (short)integer;
+                    constant = (short) integer;
                     valueType = short.class;
                 } else {
                     constant = integer;
@@ -1933,8 +2123,11 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                 try {
                     // Check if we can parse as a long. If so then hint that the user might prefer that.
                     Long.parseLong(numeric, radix);
-                    throw userNumericNode.createError(new IllegalArgumentException(
-                            "Invalid int constant [" + numeric + "]. If you want a long constant then change it to [" + numeric + "L]."));
+                    throw userNumericNode.createError(
+                        new IllegalArgumentException(
+                            "Invalid int constant [" + numeric + "]. If you want a long constant then change it to [" + numeric + "L]."
+                        )
+                    );
                 } catch (NumberFormatException longNoGood) {
                     // Ignored
                 }
@@ -1959,8 +2152,9 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         }
 
         if (semanticScope.getCondition(userDecimalNode, Write.class)) {
-            throw userDecimalNode.createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to decimal constant [" + decimal + "]"));
+            throw userDecimalNode.createError(
+                new IllegalArgumentException("invalid assignment: cannot assign a value to decimal constant [" + decimal + "]")
+            );
         }
 
         if (semanticScope.getCondition(userDecimalNode, Read.class) == false) {
@@ -2003,8 +2197,9 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         String string = userStringNode.getString();
 
         if (semanticScope.getCondition(userStringNode, Write.class)) {
-            throw userStringNode.createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to string constant [" + string + "]"));
+            throw userStringNode.createError(
+                new IllegalArgumentException("invalid assignment: cannot assign a value to string constant [" + string + "]")
+            );
         }
 
         if (semanticScope.getCondition(userStringNode, Read.class) == false) {
@@ -2034,8 +2229,9 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
         if (targetType != null) {
             if (targetType.getTargetType().isPrimitive()) {
-                throw userNullNode.createError(new IllegalArgumentException(
-                        "Cannot cast null to a primitive type [" + targetType.getTargetCanonicalTypeName() + "]."));
+                throw userNullNode.createError(
+                    new IllegalArgumentException("Cannot cast null to a primitive type [" + targetType.getTargetCanonicalTypeName() + "].")
+                );
             }
 
             valueType = targetType.getTargetType();
@@ -2056,19 +2252,27 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         String flags = userRegexNode.getFlags();
 
         if (semanticScope.getCondition(userRegexNode, Write.class)) {
-            throw userRegexNode.createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to regex constant [" + pattern + "] with flags [" + flags + "]"));
+            throw userRegexNode.createError(
+                new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to regex constant [" + pattern + "] with flags [" + flags + "]"
+                )
+            );
         }
 
         if (semanticScope.getCondition(userRegexNode, Read.class) == false) {
-            throw userRegexNode.createError(new IllegalArgumentException(
-                    "not a statement: regex constant [" + pattern + "] with flags [" + flags + "] not used"));
+            throw userRegexNode.createError(
+                new IllegalArgumentException("not a statement: regex constant [" + pattern + "] with flags [" + flags + "] not used")
+            );
         }
 
         if (semanticScope.getScriptScope().getCompilerSettings().areRegexesEnabled() == CompilerSettings.RegexEnabled.FALSE) {
-            throw userRegexNode.createError(new IllegalStateException("Regexes are disabled. Set [script.painless.regex.enabled] to [true] "
-                    + "in elasticsearch.yaml to allow them. Be careful though, regexes break out of Painless's protection against deep "
-                    + "recursion and long loops."));
+            throw userRegexNode.createError(
+                new IllegalStateException(
+                    "Regexes are disabled. Set [script.painless.regex.enabled] to [true] "
+                        + "in elasticsearch.yaml to allow them. Be careful though, regexes break out of Painless's protection against deep "
+                        + "recursion and long loops."
+                )
+            );
         }
 
         Location location = userRegexNode.getLocation();
@@ -2113,8 +2317,17 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             compiled = Pattern.compile(pattern, regexFlags);
         } catch (PatternSyntaxException pse) {
             throw new Location(location.getSourceName(), location.getOffset() + 1 + pse.getIndex()).createError(
-                    new IllegalArgumentException("invalid regular expression: " +
-                            "could not compile regex constant [" + pattern + "] with flags [" + flags + "]: " + pse.getDescription(), pse));
+                new IllegalArgumentException(
+                    "invalid regular expression: "
+                        + "could not compile regex constant ["
+                        + pattern
+                        + "] with flags ["
+                        + flags
+                        + "]: "
+                        + pse.getDescription(),
+                    pse
+                )
+            );
         }
 
         semanticScope.putDecoration(userRegexNode, new ValueType(Pattern.class));
@@ -2166,13 +2379,20 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             // we know the method statically, infer return type and any unknown/def types
             interfaceMethod = scriptScope.getPainlessLookup().lookupFunctionalInterfacePainlessMethod(targetType.getTargetType());
             if (interfaceMethod == null) {
-                throw userLambdaNode.createError(new IllegalArgumentException("Cannot pass lambda to " +
-                        "[" + targetType.getTargetCanonicalTypeName() + "], not a functional interface"));
+                throw userLambdaNode.createError(
+                    new IllegalArgumentException(
+                        "Cannot pass lambda to " + "[" + targetType.getTargetCanonicalTypeName() + "], not a functional interface"
+                    )
+                );
             }
             // check arity before we manipulate parameters
-            if (interfaceMethod.typeParameters.size() != canonicalTypeNameParameters.size())
-                throw new IllegalArgumentException("Incorrect number of parameters for [" + interfaceMethod.javaMethod.getName() +
-                        "] in [" + targetType.getTargetCanonicalTypeName() + "]");
+            if (interfaceMethod.typeParameters.size() != canonicalTypeNameParameters.size()) throw new IllegalArgumentException(
+                "Incorrect number of parameters for ["
+                    + interfaceMethod.javaMethod.getName()
+                    + "] in ["
+                    + targetType.getTargetCanonicalTypeName()
+                    + "]"
+            );
             // for method invocation, its allowed to ignore the return value
             if (interfaceMethod.returnType == void.class) {
                 returnType = def.class;
@@ -2246,12 +2466,22 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         // setup method reference to synthetic method
         if (targetType == null) {
             valueType = String.class;
-            semanticScope.putDecoration(userLambdaNode,
-                    new EncodingDecoration(true, lambdaScope.usesInstanceMethod(), "this", name, capturedVariables.size()));
+            semanticScope.putDecoration(
+                userLambdaNode,
+                new EncodingDecoration(true, lambdaScope.usesInstanceMethod(), "this", name, capturedVariables.size())
+            );
         } else {
-            FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(),
-                    location, targetType.getTargetType(), "this", name, capturedVariables.size(),
-                    scriptScope.getCompilerSettings().asMap(), lambdaScope.usesInstanceMethod());
+            FunctionRef ref = FunctionRef.create(
+                scriptScope.getPainlessLookup(),
+                scriptScope.getFunctionTable(),
+                location,
+                targetType.getTargetType(),
+                "this",
+                name,
+                capturedVariables.size(),
+                scriptScope.getCompilerSettings().asMap(),
+                lambdaScope.usesInstanceMethod()
+            );
             valueType = targetType.getTargetType();
             semanticScope.putDecoration(userLambdaNode, new ReferenceDecoration(ref));
         }
@@ -2283,15 +2513,19 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         Class<?> valueType;
 
         boolean isInstanceReference = "this".equals(symbol);
-        if (isInstanceReference || type != null)  {
+        if (isInstanceReference || type != null) {
             if (semanticScope.getCondition(userFunctionRefNode, Write.class)) {
-                throw userFunctionRefNode.createError(new IllegalArgumentException(
-                        "invalid assignment: cannot assign a value to function reference [" + symbol + ":" + methodName + "]"));
+                throw userFunctionRefNode.createError(
+                    new IllegalArgumentException(
+                        "invalid assignment: cannot assign a value to function reference [" + symbol + ":" + methodName + "]"
+                    )
+                );
             }
 
             if (read == false) {
-                throw userFunctionRefNode.createError(new IllegalArgumentException(
-                        "not a statement: function reference [" + symbol + ":" + methodName + "] not used"));
+                throw userFunctionRefNode.createError(
+                    new IllegalArgumentException("not a statement: function reference [" + symbol + ":" + methodName + "] not used")
+                );
             }
 
             if (isInstanceReference) {
@@ -2301,21 +2535,35 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                 valueType = String.class;
                 semanticScope.putDecoration(userFunctionRefNode, new EncodingDecoration(true, isInstanceReference, symbol, methodName, 0));
             } else {
-                FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(),
-                        location, targetType.getTargetType(), symbol, methodName, 0,
-                        scriptScope.getCompilerSettings().asMap(), isInstanceReference);
+                FunctionRef ref = FunctionRef.create(
+                    scriptScope.getPainlessLookup(),
+                    scriptScope.getFunctionTable(),
+                    location,
+                    targetType.getTargetType(),
+                    symbol,
+                    methodName,
+                    0,
+                    scriptScope.getCompilerSettings().asMap(),
+                    isInstanceReference
+                );
                 valueType = targetType.getTargetType();
                 semanticScope.putDecoration(userFunctionRefNode, new ReferenceDecoration(ref));
             }
         } else {
             if (semanticScope.getCondition(userFunctionRefNode, Write.class)) {
-                throw userFunctionRefNode.createError(new IllegalArgumentException(
-                        "invalid assignment: cannot assign a value to capturing function reference [" + symbol + ":"  + methodName + "]"));
+                throw userFunctionRefNode.createError(
+                    new IllegalArgumentException(
+                        "invalid assignment: cannot assign a value to capturing function reference [" + symbol + ":" + methodName + "]"
+                    )
+                );
             }
 
             if (read == false) {
-                throw userFunctionRefNode.createError(new IllegalArgumentException(
-                        "not a statement: capturing function reference [" + symbol + ":"  + methodName + "] not used"));
+                throw userFunctionRefNode.createError(
+                    new IllegalArgumentException(
+                        "not a statement: capturing function reference [" + symbol + ":" + methodName + "] not used"
+                    )
+                );
             }
 
             SemanticScope.Variable captured = semanticScope.getVariable(location, symbol);
@@ -2340,9 +2588,17 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                 valueType = targetType.getTargetType();
                 // static case
                 if (captured.getType() != def.class) {
-                    FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(), location,
-                            targetType.getTargetType(), captured.getCanonicalTypeName(), methodName, 1,
-                            scriptScope.getCompilerSettings().asMap(), false);
+                    FunctionRef ref = FunctionRef.create(
+                        scriptScope.getPainlessLookup(),
+                        scriptScope.getFunctionTable(),
+                        location,
+                        targetType.getTargetType(),
+                        captured.getCanonicalTypeName(),
+                        methodName,
+                        1,
+                        scriptScope.getCompilerSettings().asMap(),
+                        false
+                    );
                     semanticScope.putDecoration(userFunctionRefNode, new ReferenceDecoration(ref));
                 }
             }
@@ -2361,13 +2617,19 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         String canonicalTypeName = userNewArrayFunctionRefNode.getCanonicalTypeName();
 
         if (semanticScope.getCondition(userNewArrayFunctionRefNode, Write.class)) {
-            throw userNewArrayFunctionRefNode.createError(new IllegalArgumentException(
-                    "cannot assign a value to new array function reference with target type [ + " + canonicalTypeName  + "]"));
+            throw userNewArrayFunctionRefNode.createError(
+                new IllegalArgumentException(
+                    "cannot assign a value to new array function reference with target type [ + " + canonicalTypeName + "]"
+                )
+            );
         }
 
         if (semanticScope.getCondition(userNewArrayFunctionRefNode, Read.class) == false) {
-            throw userNewArrayFunctionRefNode.createError(new IllegalArgumentException(
-                    "not a statement: new array function reference with target type [" + canonicalTypeName + "] not used"));
+            throw userNewArrayFunctionRefNode.createError(
+                new IllegalArgumentException(
+                    "not a statement: new array function reference with target type [" + canonicalTypeName + "] not used"
+                )
+            );
         }
 
         ScriptScope scriptScope = semanticScope.getScriptScope();
@@ -2389,9 +2651,17 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             valueType = String.class;
             scriptScope.putDecoration(userNewArrayFunctionRefNode, new EncodingDecoration(true, false, "this", name, 0));
         } else {
-            FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(),
-                    userNewArrayFunctionRefNode.getLocation(), targetType.getTargetType(), "this", name, 0,
-                    scriptScope.getCompilerSettings().asMap(), false);
+            FunctionRef ref = FunctionRef.create(
+                scriptScope.getPainlessLookup(),
+                scriptScope.getFunctionTable(),
+                userNewArrayFunctionRefNode.getLocation(),
+                targetType.getTargetType(),
+                "this",
+                name,
+                0,
+                scriptScope.getCompilerSettings().asMap(),
+                false
+            );
             valueType = targetType.getTargetType();
             semanticScope.putDecoration(userNewArrayFunctionRefNode, new ReferenceDecoration(ref));
         }
@@ -2411,15 +2681,24 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         String symbol = userSymbolNode.getSymbol();
         Class<?> staticType = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(symbol);
 
-        if (staticType != null)  {
+        if (staticType != null) {
             if (write) {
-                throw userSymbolNode.createError(new IllegalArgumentException("invalid assignment: " +
-                        "cannot write a value to a static type [" + PainlessLookupUtility.typeToCanonicalTypeName(staticType) + "]"));
+                throw userSymbolNode.createError(
+                    new IllegalArgumentException(
+                        "invalid assignment: "
+                            + "cannot write a value to a static type ["
+                            + PainlessLookupUtility.typeToCanonicalTypeName(staticType)
+                            + "]"
+                    )
+                );
             }
 
             if (read == false) {
-                throw userSymbolNode.createError(new IllegalArgumentException("not a statement: " +
-                        "static type [" + PainlessLookupUtility.typeToCanonicalTypeName(staticType) + "] not used"));
+                throw userSymbolNode.createError(
+                    new IllegalArgumentException(
+                        "not a statement: " + "static type [" + PainlessLookupUtility.typeToCanonicalTypeName(staticType) + "] not used"
+                    )
+                );
             }
 
             semanticScope.putDecoration(userSymbolNode, new StaticType(staticType));
@@ -2467,32 +2746,54 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         StaticType prefixStaticType = semanticScope.getDecoration(userPrefixNode, StaticType.class);
 
         if (prefixValueType != null && prefixStaticType != null) {
-            throw userDotNode.createError(new IllegalStateException("cannot have both " +
-                    "value [" + prefixValueType.getValueCanonicalTypeName() + "] " +
-                    "and type [" + prefixStaticType.getStaticCanonicalTypeName() + "]"));
+            throw userDotNode.createError(
+                new IllegalStateException(
+                    "cannot have both "
+                        + "value ["
+                        + prefixValueType.getValueCanonicalTypeName()
+                        + "] "
+                        + "and type ["
+                        + prefixStaticType.getStaticCanonicalTypeName()
+                        + "]"
+                )
+            );
         }
 
         if (semanticScope.hasDecoration(userPrefixNode, PartialCanonicalTypeName.class)) {
             if (prefixValueType != null) {
-                throw userDotNode.createError(new IllegalArgumentException("value required: instead found unexpected type " +
-                        "[" + prefixValueType.getValueCanonicalTypeName() + "]"));
+                throw userDotNode.createError(
+                    new IllegalArgumentException(
+                        "value required: instead found unexpected type " + "[" + prefixValueType.getValueCanonicalTypeName() + "]"
+                    )
+                );
             }
 
             if (prefixStaticType != null) {
-                throw userDotNode.createError(new IllegalArgumentException("value required: instead found unexpected type " +
-                        "[" + prefixStaticType.getStaticType() + "]"));
+                throw userDotNode.createError(
+                    new IllegalArgumentException(
+                        "value required: instead found unexpected type " + "[" + prefixStaticType.getStaticType() + "]"
+                    )
+                );
             }
 
-            String canonicalTypeName =
-                    semanticScope.getDecoration(userPrefixNode, PartialCanonicalTypeName.class).getPartialCanonicalTypeName() + "." + index;
+            String canonicalTypeName = semanticScope.getDecoration(userPrefixNode, PartialCanonicalTypeName.class)
+                .getPartialCanonicalTypeName()
+                + "."
+                + index;
             Class<?> staticType = scriptScope.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 
             if (staticType == null) {
                 semanticScope.putDecoration(userDotNode, new PartialCanonicalTypeName(canonicalTypeName));
             } else {
                 if (write) {
-                    throw userDotNode.createError(new IllegalArgumentException("invalid assignment: " +
-                            "cannot write a value to a static type [" + PainlessLookupUtility.typeToCanonicalTypeName(staticType) + "]"));
+                    throw userDotNode.createError(
+                        new IllegalArgumentException(
+                            "invalid assignment: "
+                                + "cannot write a value to a static type ["
+                                + PainlessLookupUtility.typeToCanonicalTypeName(staticType)
+                                + "]"
+                        )
+                    );
                 }
 
                 semanticScope.putDecoration(userDotNode, new StaticType(staticType));
@@ -2507,8 +2808,14 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
             if (staticType != null) {
                 if (write) {
-                    throw userDotNode.createError(new IllegalArgumentException("invalid assignment: " +
-                            "cannot write a value to a static type [" + PainlessLookupUtility.typeToCanonicalTypeName(staticType) + "]"));
+                    throw userDotNode.createError(
+                        new IllegalArgumentException(
+                            "invalid assignment: "
+                                + "cannot write a value to a static type ["
+                                + PainlessLookupUtility.typeToCanonicalTypeName(staticType)
+                                + "]"
+                        )
+                    );
                 }
 
                 semanticScope.putDecoration(userDotNode, new StaticType(staticType));
@@ -2518,20 +2825,27 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                 if (prefixValueType != null && prefixValueType.getValueType().isArray()) {
                     if ("length".equals(index)) {
                         if (write) {
-                            throw userDotNode.createError(new IllegalArgumentException(
-                                    "invalid assignment: cannot assign a value write to read-only field [length] for an array."));
+                            throw userDotNode.createError(
+                                new IllegalArgumentException(
+                                    "invalid assignment: cannot assign a value write to read-only field [length] for an array."
+                                )
+                            );
                         }
 
                         valueType = int.class;
                     } else {
-                        throw userDotNode.createError(new IllegalArgumentException(
-                                "Field [" + index + "] does not exist for type [" + prefixValueType.getValueCanonicalTypeName() + "]."));
+                        throw userDotNode.createError(
+                            new IllegalArgumentException(
+                                "Field [" + index + "] does not exist for type [" + prefixValueType.getValueCanonicalTypeName() + "]."
+                            )
+                        );
                     }
                 } else if (prefixValueType != null && prefixValueType.getValueType() == def.class) {
                     TargetType targetType = userDotNode.isNullSafe() ? null : semanticScope.getDecoration(userDotNode, TargetType.class);
                     // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
-                    valueType = targetType == null || targetType.getTargetType() == ZonedDateTime.class ||
-                            semanticScope.getCondition(userDotNode, Explicit.class) ? def.class : targetType.getTargetType();
+                    valueType = targetType == null
+                        || targetType.getTargetType() == ZonedDateTime.class
+                        || semanticScope.getCondition(userDotNode, Explicit.class) ? def.class : targetType.getTargetType();
 
                     if (write) {
                         semanticScope.setCondition(userDotNode, DefOptimized.class);
@@ -2553,33 +2867,55 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                         throw userDotNode.createError(new IllegalStateException("value required: instead found no value"));
                     }
 
-                    PainlessField field =
-                            semanticScope.getScriptScope().getPainlessLookup().lookupPainlessField(prefixType, isStatic, index);
+                    PainlessField field = semanticScope.getScriptScope()
+                        .getPainlessLookup()
+                        .lookupPainlessField(prefixType, isStatic, index);
 
                     if (field == null) {
                         PainlessMethod getter;
                         PainlessMethod setter;
 
-                        getter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixType, isStatic,
-                                "get" + Character.toUpperCase(index.charAt(0)) + index.substring(1), 0);
+                        getter = scriptScope.getPainlessLookup()
+                            .lookupPainlessMethod(
+                                prefixType,
+                                isStatic,
+                                "get" + Character.toUpperCase(index.charAt(0)) + index.substring(1),
+                                0
+                            );
 
                         if (getter == null) {
-                            getter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixType, isStatic,
-                                    "is" + Character.toUpperCase(index.charAt(0)) + index.substring(1), 0);
+                            getter = scriptScope.getPainlessLookup()
+                                .lookupPainlessMethod(
+                                    prefixType,
+                                    isStatic,
+                                    "is" + Character.toUpperCase(index.charAt(0)) + index.substring(1),
+                                    0
+                                );
                         }
 
-                        setter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixType, isStatic,
-                                "set" + Character.toUpperCase(index.charAt(0)) + index.substring(1), 0);
+                        setter = scriptScope.getPainlessLookup()
+                            .lookupPainlessMethod(
+                                prefixType,
+                                isStatic,
+                                "set" + Character.toUpperCase(index.charAt(0)) + index.substring(1),
+                                0
+                            );
 
                         if (getter != null || setter != null) {
                             if (getter != null && (getter.returnType == void.class || getter.typeParameters.isEmpty() == false)) {
-                                throw userDotNode.createError(new IllegalArgumentException(
-                                        "Illegal get shortcut on field [" + index + "] for type [" + prefixCanonicalTypeName + "]."));
+                                throw userDotNode.createError(
+                                    new IllegalArgumentException(
+                                        "Illegal get shortcut on field [" + index + "] for type [" + prefixCanonicalTypeName + "]."
+                                    )
+                                );
                             }
 
                             if (setter != null && (setter.returnType != void.class || setter.typeParameters.size() != 1)) {
-                                throw userDotNode.createError(new IllegalArgumentException(
-                                        "Illegal set shortcut on field [" + index + "] for type [" + prefixCanonicalTypeName + "]."));
+                                throw userDotNode.createError(
+                                    new IllegalArgumentException(
+                                        "Illegal set shortcut on field [" + index + "] for type [" + prefixCanonicalTypeName + "]."
+                                    )
+                                );
                             }
 
                             if (getter != null && setter != null && setter.typeParameters.get(0) != getter.returnType) {
@@ -2589,8 +2925,11 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                             if ((read == false || getter != null) && (write == false || setter != null)) {
                                 valueType = setter != null ? setter.typeParameters.get(0) : getter.returnType;
                             } else {
-                                throw userDotNode.createError(new IllegalArgumentException(
-                                        "Illegal shortcut on field [" + index + "] for type [" + prefixCanonicalTypeName + "]."));
+                                throw userDotNode.createError(
+                                    new IllegalArgumentException(
+                                        "Illegal shortcut on field [" + index + "] for type [" + prefixCanonicalTypeName + "]."
+                                    )
+                                );
                             }
 
                             if (getter != null) {
@@ -2608,26 +2947,30 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                                 setter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixType, false, "put", 2);
 
                                 if (getter != null && (getter.returnType == void.class || getter.typeParameters.size() != 1)) {
-                                    throw userDotNode.createError(new IllegalArgumentException(
-                                            "Illegal map get shortcut for type [" + prefixCanonicalTypeName + "]."));
+                                    throw userDotNode.createError(
+                                        new IllegalArgumentException("Illegal map get shortcut for type [" + prefixCanonicalTypeName + "].")
+                                    );
                                 }
 
                                 if (setter != null && setter.typeParameters.size() != 2) {
-                                    throw userDotNode.createError(new IllegalArgumentException(
-                                            "Illegal map set shortcut for type [" + prefixCanonicalTypeName + "]."));
+                                    throw userDotNode.createError(
+                                        new IllegalArgumentException("Illegal map set shortcut for type [" + prefixCanonicalTypeName + "].")
+                                    );
                                 }
 
-                                if (getter != null && setter != null &&
-                                        (getter.typeParameters.get(0).equals(setter.typeParameters.get(0)) == false ||
-                                        getter.returnType.equals(setter.typeParameters.get(1)) == false)) {
+                                if (getter != null
+                                    && setter != null
+                                    && (getter.typeParameters.get(0).equals(setter.typeParameters.get(0)) == false
+                                        || getter.returnType.equals(setter.typeParameters.get(1)) == false)) {
                                     throw userDotNode.createError(new IllegalArgumentException("Shortcut argument types must match."));
                                 }
 
                                 if ((read == false || getter != null) && (write == false || setter != null)) {
                                     valueType = setter != null ? setter.typeParameters.get(1) : getter.returnType;
                                 } else {
-                                    throw userDotNode.createError(new IllegalArgumentException(
-                                            "Illegal map shortcut for type [" + prefixCanonicalTypeName + "]."));
+                                    throw userDotNode.createError(
+                                        new IllegalArgumentException("Illegal map shortcut for type [" + prefixCanonicalTypeName + "].")
+                                    );
                                 }
 
                                 if (getter != null) {
@@ -2651,28 +2994,38 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                                 getter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixType, false, "get", 1);
                                 setter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixType, false, "set", 2);
 
-                                if (getter != null && (getter.returnType == void.class || getter.typeParameters.size() != 1 ||
-                                        getter.typeParameters.get(0) != int.class)) {
-                                    throw userDotNode.createError(new IllegalArgumentException(
-                                            "Illegal list get shortcut for type [" + prefixCanonicalTypeName + "]."));
+                                if (getter != null
+                                    && (getter.returnType == void.class
+                                        || getter.typeParameters.size() != 1
+                                        || getter.typeParameters.get(0) != int.class)) {
+                                    throw userDotNode.createError(
+                                        new IllegalArgumentException(
+                                            "Illegal list get shortcut for type [" + prefixCanonicalTypeName + "]."
+                                        )
+                                    );
                                 }
 
                                 if (setter != null && (setter.typeParameters.size() != 2 || setter.typeParameters.get(0) != int.class)) {
-                                    throw userDotNode.createError(new IllegalArgumentException(
-                                            "Illegal list set shortcut for type [" + prefixCanonicalTypeName + "]."));
+                                    throw userDotNode.createError(
+                                        new IllegalArgumentException(
+                                            "Illegal list set shortcut for type [" + prefixCanonicalTypeName + "]."
+                                        )
+                                    );
                                 }
 
-                                if (getter != null && setter != null &&
-                                        (getter.typeParameters.get(0).equals(setter.typeParameters.get(0)) == false
-                                            || getter.returnType.equals(setter.typeParameters.get(1)) == false)) {
+                                if (getter != null
+                                    && setter != null
+                                    && (getter.typeParameters.get(0).equals(setter.typeParameters.get(0)) == false
+                                        || getter.returnType.equals(setter.typeParameters.get(1)) == false)) {
                                     throw userDotNode.createError(new IllegalArgumentException("Shortcut argument types must match."));
                                 }
 
                                 if ((read == false || getter != null) && (write == false || setter != null)) {
                                     valueType = setter != null ? setter.typeParameters.get(1) : getter.returnType;
                                 } else {
-                                    throw userDotNode.createError(new IllegalArgumentException(
-                                            "Illegal list shortcut for type [" + prefixCanonicalTypeName + "]."));
+                                    throw userDotNode.createError(
+                                        new IllegalArgumentException("Illegal list shortcut for type [" + prefixCanonicalTypeName + "].")
+                                    );
                                 }
 
                                 if (getter != null) {
@@ -2689,17 +3042,26 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
                         if (valueType == null) {
                             if (prefixValueType != null) {
-                                throw userDotNode.createError(new IllegalArgumentException(
-                                        "field [" + prefixValueType.getValueCanonicalTypeName() + ", " + index + "] not found"));
+                                throw userDotNode.createError(
+                                    new IllegalArgumentException(
+                                        "field [" + prefixValueType.getValueCanonicalTypeName() + ", " + index + "] not found"
+                                    )
+                                );
                             } else {
-                                throw userDotNode.createError(new IllegalArgumentException(
-                                        "field [" + prefixStaticType.getStaticCanonicalTypeName() + ", " + index + "] not found"));
+                                throw userDotNode.createError(
+                                    new IllegalArgumentException(
+                                        "field [" + prefixStaticType.getStaticCanonicalTypeName() + ", " + index + "] not found"
+                                    )
+                                );
                             }
                         }
                     } else {
                         if (write && Modifier.isFinal(field.javaField.getModifiers())) {
-                            throw userDotNode.createError(new IllegalArgumentException(
-                                    "invalid assignment: cannot assign a value to read-only field [" + field.javaField.getName() + "]"));
+                            throw userDotNode.createError(
+                                new IllegalArgumentException(
+                                    "invalid assignment: cannot assign a value to read-only field [" + field.javaField.getName() + "]"
+                                )
+                            );
                         }
 
                         semanticScope.putDecoration(userDotNode, new StandardPainlessField(field));
@@ -2711,8 +3073,9 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
                 if (userDotNode.isNullSafe()) {
                     if (write) {
-                        throw userDotNode.createError(new IllegalArgumentException(
-                                "invalid assignment: cannot assign a value to a null safe operation [?.]"));
+                        throw userDotNode.createError(
+                            new IllegalArgumentException("invalid assignment: cannot assign a value to a null safe operation [?.]")
+                        );
                     }
 
                     if (valueType.isPrimitive()) {
@@ -2756,8 +3119,9 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             checkedVisit(userIndexNode, semanticScope);
             TargetType targetType = semanticScope.getDecoration(userBraceNode, TargetType.class);
             // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
-            valueType = targetType == null || targetType.getTargetType() == ZonedDateTime.class ||
-                    semanticScope.getCondition(userBraceNode, Explicit.class) ? def.class : targetType.getTargetType();
+            valueType = targetType == null
+                || targetType.getTargetType() == ZonedDateTime.class
+                || semanticScope.getCondition(userBraceNode, Explicit.class) ? def.class : targetType.getTargetType();
 
             if (write) {
                 semanticScope.setCondition(userBraceNode, DefOptimized.class);
@@ -2765,30 +3129,38 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         } else if (Map.class.isAssignableFrom(prefixValueType)) {
             String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(prefixValueType);
 
-            PainlessMethod getter =
-                    semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(prefixValueType, false, "get", 1);
-            PainlessMethod setter =
-                    semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(prefixValueType, false, "put", 2);
+            PainlessMethod getter = semanticScope.getScriptScope()
+                .getPainlessLookup()
+                .lookupPainlessMethod(prefixValueType, false, "get", 1);
+            PainlessMethod setter = semanticScope.getScriptScope()
+                .getPainlessLookup()
+                .lookupPainlessMethod(prefixValueType, false, "put", 2);
 
             if (getter != null && (getter.returnType == void.class || getter.typeParameters.size() != 1)) {
-                throw userBraceNode.createError(new IllegalArgumentException(
-                        "Illegal map get shortcut for type [" + canonicalClassName + "]."));
+                throw userBraceNode.createError(
+                    new IllegalArgumentException("Illegal map get shortcut for type [" + canonicalClassName + "].")
+                );
             }
 
             if (setter != null && setter.typeParameters.size() != 2) {
-                throw userBraceNode.createError(new IllegalArgumentException(
-                        "Illegal map set shortcut for type [" + canonicalClassName + "]."));
+                throw userBraceNode.createError(
+                    new IllegalArgumentException("Illegal map set shortcut for type [" + canonicalClassName + "].")
+                );
             }
 
-            if (getter != null && setter != null && (getter.typeParameters.get(0).equals(setter.typeParameters.get(0)) == false ||
-                    getter.returnType.equals(setter.typeParameters.get(1)) == false)) {
+            if (getter != null
+                && setter != null
+                && (getter.typeParameters.get(0).equals(setter.typeParameters.get(0)) == false
+                    || getter.returnType.equals(setter.typeParameters.get(1)) == false)) {
                 throw userBraceNode.createError(new IllegalArgumentException("Shortcut argument types must match."));
             }
 
             if ((read == false || getter != null) && (write == false || setter != null)) {
                 semanticScope.setCondition(userIndexNode, Read.class);
-                semanticScope.putDecoration(userIndexNode,
-                        new TargetType(setter != null ? setter.typeParameters.get(0) : getter.typeParameters.get(0)));
+                semanticScope.putDecoration(
+                    userIndexNode,
+                    new TargetType(setter != null ? setter.typeParameters.get(0) : getter.typeParameters.get(0))
+                );
                 checkedVisit(userIndexNode, semanticScope);
                 decorateWithCast(userIndexNode, semanticScope);
 
@@ -2802,31 +3174,38 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                     semanticScope.putDecoration(userBraceNode, new SetterPainlessMethod(setter));
                 }
             } else {
-                throw userBraceNode.createError(new IllegalArgumentException(
-                        "Illegal map shortcut for type [" + canonicalClassName + "]."));
+                throw userBraceNode.createError(
+                    new IllegalArgumentException("Illegal map shortcut for type [" + canonicalClassName + "].")
+                );
             }
 
             semanticScope.setCondition(userBraceNode, MapShortcut.class);
         } else if (List.class.isAssignableFrom(prefixValueType)) {
             String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(prefixValueType);
 
-            PainlessMethod getter =
-                    semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(prefixValueType, false, "get", 1);
-            PainlessMethod setter =
-                    semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(prefixValueType, false, "set", 2);
+            PainlessMethod getter = semanticScope.getScriptScope()
+                .getPainlessLookup()
+                .lookupPainlessMethod(prefixValueType, false, "get", 1);
+            PainlessMethod setter = semanticScope.getScriptScope()
+                .getPainlessLookup()
+                .lookupPainlessMethod(prefixValueType, false, "set", 2);
 
-            if (getter != null && (getter.returnType == void.class || getter.typeParameters.size() != 1 ||
-                    getter.typeParameters.get(0) != int.class)) {
-                throw userBraceNode.createError(new IllegalArgumentException(
-                        "Illegal list get shortcut for type [" + canonicalClassName + "]."));
+            if (getter != null
+                && (getter.returnType == void.class || getter.typeParameters.size() != 1 || getter.typeParameters.get(0) != int.class)) {
+                throw userBraceNode.createError(
+                    new IllegalArgumentException("Illegal list get shortcut for type [" + canonicalClassName + "].")
+                );
             }
 
             if (setter != null && (setter.typeParameters.size() != 2 || setter.typeParameters.get(0) != int.class)) {
-                throw userBraceNode.createError(new IllegalArgumentException(
-                        "Illegal list set shortcut for type [" + canonicalClassName + "]."));
+                throw userBraceNode.createError(
+                    new IllegalArgumentException("Illegal list set shortcut for type [" + canonicalClassName + "].")
+                );
             }
 
-            if (getter != null && setter != null && (getter.typeParameters.get(0).equals(setter.typeParameters.get(0)) == false
+            if (getter != null
+                && setter != null
+                && (getter.typeParameters.get(0).equals(setter.typeParameters.get(0)) == false
                     || getter.returnType.equals(setter.typeParameters.get(1)) == false)) {
                 throw userBraceNode.createError(new IllegalArgumentException("Shortcut argument types must match."));
             }
@@ -2847,14 +3226,18 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                     semanticScope.putDecoration(userBraceNode, new SetterPainlessMethod(setter));
                 }
             } else {
-                throw userBraceNode.createError(new IllegalArgumentException(
-                        "Illegal list shortcut for type [" + canonicalClassName + "]."));
+                throw userBraceNode.createError(
+                    new IllegalArgumentException("Illegal list shortcut for type [" + canonicalClassName + "].")
+                );
             }
 
             semanticScope.setCondition(userBraceNode, ListShortcut.class);
         } else {
-            throw userBraceNode.createError(new IllegalArgumentException("Illegal array access on type " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(prefixValueType) + "]."));
+            throw userBraceNode.createError(
+                new IllegalArgumentException(
+                    "Illegal array access on type " + "[" + PainlessLookupUtility.typeToCanonicalTypeName(prefixValueType) + "]."
+                )
+            );
         }
 
         semanticScope.putDecoration(userBraceNode, new ValueType(valueType));
@@ -2871,8 +3254,11 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         int userArgumentsSize = userArgumentNodes.size();
 
         if (semanticScope.getCondition(userCallNode, Write.class)) {
-            throw userCallNode.createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to method call [" + methodName + "/" + userArgumentsSize + "]"));
+            throw userCallNode.createError(
+                new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to method call [" + methodName + "/" + userArgumentsSize + "]"
+                )
+            );
         }
 
         AExpression userPrefixNode = userCallNode.getPrefixNode();
@@ -2882,14 +3268,28 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         StaticType prefixStaticType = semanticScope.getDecoration(userPrefixNode, StaticType.class);
 
         if (prefixValueType != null && prefixStaticType != null) {
-            throw userCallNode.createError(new IllegalStateException("cannot have both " +
-                    "value [" + prefixValueType.getValueCanonicalTypeName() + "] " +
-                    "and type [" + prefixStaticType.getStaticCanonicalTypeName() + "]"));
+            throw userCallNode.createError(
+                new IllegalStateException(
+                    "cannot have both "
+                        + "value ["
+                        + prefixValueType.getValueCanonicalTypeName()
+                        + "] "
+                        + "and type ["
+                        + prefixStaticType.getStaticCanonicalTypeName()
+                        + "]"
+                )
+            );
         }
 
         if (semanticScope.hasDecoration(userPrefixNode, PartialCanonicalTypeName.class)) {
-            throw userCallNode.createError(new IllegalArgumentException("cannot resolve symbol " +
-                    "[" + semanticScope.getDecoration(userPrefixNode, PartialCanonicalTypeName.class).getPartialCanonicalTypeName() + "]"));
+            throw userCallNode.createError(
+                new IllegalArgumentException(
+                    "cannot resolve symbol "
+                        + "["
+                        + semanticScope.getDecoration(userPrefixNode, PartialCanonicalTypeName.class).getPartialCanonicalTypeName()
+                        + "]"
+                )
+            );
         }
 
         boolean dynamic = false;
@@ -2905,24 +3305,45 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                 method = lookup.lookupPainlessMethod(type, false, methodName, userArgumentsSize);
 
                 if (method == null) {
-                    dynamic = lookup.lookupPainlessClass(type).annotations.containsKey(DynamicTypeAnnotation.class) &&
-                            lookup.lookupPainlessSubClassesMethod(type, methodName, userArgumentsSize) != null;
+                    dynamic = lookup.lookupPainlessClass(type).annotations.containsKey(DynamicTypeAnnotation.class)
+                        && lookup.lookupPainlessSubClassesMethod(type, methodName, userArgumentsSize) != null;
 
                     if (dynamic == false) {
-                        throw userCallNode.createError(new IllegalArgumentException("member method " +
-                                "[" + prefixValueType.getValueCanonicalTypeName() + ", " + methodName + "/" + userArgumentsSize + "] " +
-                                "not found"));
+                        throw userCallNode.createError(
+                            new IllegalArgumentException(
+                                "member method "
+                                    + "["
+                                    + prefixValueType.getValueCanonicalTypeName()
+                                    + ", "
+                                    + methodName
+                                    + "/"
+                                    + userArgumentsSize
+                                    + "] "
+                                    + "not found"
+                            )
+                        );
                     }
                 }
             }
         } else if (prefixStaticType != null) {
-            method = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(
-                    prefixStaticType.getStaticType(), true, methodName, userArgumentsSize);
+            method = semanticScope.getScriptScope()
+                .getPainlessLookup()
+                .lookupPainlessMethod(prefixStaticType.getStaticType(), true, methodName, userArgumentsSize);
 
             if (method == null) {
-                throw userCallNode.createError(new IllegalArgumentException("static method " +
-                        "[" + prefixStaticType.getStaticCanonicalTypeName() + ", " + methodName + "/" + userArgumentsSize + "] " +
-                        "not found"));
+                throw userCallNode.createError(
+                    new IllegalArgumentException(
+                        "static method "
+                            + "["
+                            + prefixStaticType.getStaticCanonicalTypeName()
+                            + ", "
+                            + methodName
+                            + "/"
+                            + userArgumentsSize
+                            + "] "
+                            + "not found"
+                    )
+                );
             }
         } else {
             throw userCallNode.createError(new IllegalStateException("value required: instead found no value"));
@@ -2938,15 +3359,17 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                 Class<?> argumentValueType = semanticScope.getDecoration(userArgumentNode, ValueType.class).getValueType();
 
                 if (argumentValueType == void.class) {
-                    throw userCallNode.createError(new IllegalArgumentException(
-                            "Argument(s) cannot be of [void] type when calling method [" + methodName + "]."));
+                    throw userCallNode.createError(
+                        new IllegalArgumentException("Argument(s) cannot be of [void] type when calling method [" + methodName + "].")
+                    );
                 }
             }
 
             TargetType targetType = userCallNode.isNullSafe() ? null : semanticScope.getDecoration(userCallNode, TargetType.class);
             // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
-            valueType = targetType == null || targetType.getTargetType() == ZonedDateTime.class ||
-                    semanticScope.getCondition(userCallNode, Explicit.class) ? def.class : targetType.getTargetType();
+            valueType = targetType == null
+                || targetType.getTargetType() == ZonedDateTime.class
+                || semanticScope.getCondition(userCallNode, Explicit.class) ? def.class : targetType.getTargetType();
 
             semanticScope.setCondition(userCallNode, DynamicInvocation.class);
         } else {

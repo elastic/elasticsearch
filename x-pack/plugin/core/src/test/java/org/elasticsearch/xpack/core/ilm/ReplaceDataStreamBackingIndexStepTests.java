@@ -59,34 +59,45 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
     public void testPerformActionThrowsExceptionIfIndexIsNotPartOfDataStream() {
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
-        IndexMetadata sourceIndexMetadata =
-            IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        IndexMetadata sourceIndexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
 
-        ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
-            Metadata.builder().put(sourceIndexMetadata, true).build()
-        ).build();
+        ClusterState clusterState = ClusterState.builder(emptyClusterState())
+            .metadata(Metadata.builder().put(sourceIndexMetadata, true).build())
+            .build();
 
-        expectThrows(IllegalStateException.class,
-            () -> createRandomInstance().performAction(sourceIndexMetadata.getIndex(), clusterState));
+        expectThrows(IllegalStateException.class, () -> createRandomInstance().performAction(sourceIndexMetadata.getIndex(), clusterState));
     }
 
     public void testPerformActionThrowsExceptionIfIndexIsTheDataStreamWriteIndex() {
         String dataStreamName = randomAlphaOfLength(10);
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         String policyName = "test-ilm-policy";
-        IndexMetadata sourceIndexMetadata =
-            IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        IndexMetadata sourceIndexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
 
-        ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
-            Metadata.builder().put(sourceIndexMetadata, true)
-                .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
-                    org.elasticsearch.core.List.of(sourceIndexMetadata.getIndex()))).build()
-        ).build();
+        ClusterState clusterState = ClusterState.builder(emptyClusterState())
+            .metadata(
+                Metadata.builder()
+                    .put(sourceIndexMetadata, true)
+                    .put(
+                        new DataStream(
+                            dataStreamName,
+                            createTimestampField("@timestamp"),
+                            org.elasticsearch.core.List.of(sourceIndexMetadata.getIndex())
+                        )
+                    )
+                    .build()
+            )
+            .build();
 
-        expectThrows(IllegalStateException.class,
-            () -> createRandomInstance().performAction(sourceIndexMetadata.getIndex(), clusterState));
+        expectThrows(IllegalStateException.class, () -> createRandomInstance().performAction(sourceIndexMetadata.getIndex(), clusterState));
     }
 
     public void testPerformActionThrowsExceptionIfTargetIndexIsMissing() {
@@ -95,27 +106,29 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
         String policyName = "test-ilm-policy";
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(indexName)
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
         String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
         IndexMetadata writeIndexMetadata = IndexMetadata.builder(writeIndexName)
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
-        List<Index> backingIndices = org.elasticsearch.core.List
-            .of(sourceIndexMetadata.getIndex(), writeIndexMetadata.getIndex());
-        ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
-            Metadata.builder()
-                .put(sourceIndexMetadata, true)
-                .put(writeIndexMetadata, true)
-                .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), backingIndices))
-                .build()
-        ).build();
+        List<Index> backingIndices = org.elasticsearch.core.List.of(sourceIndexMetadata.getIndex(), writeIndexMetadata.getIndex());
+        ClusterState clusterState = ClusterState.builder(emptyClusterState())
+            .metadata(
+                Metadata.builder()
+                    .put(sourceIndexMetadata, true)
+                    .put(writeIndexMetadata, true)
+                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), backingIndices))
+                    .build()
+            )
+            .build();
 
-        expectThrows(IllegalStateException.class,
-            () -> createRandomInstance().performAction(sourceIndexMetadata.getIndex(), clusterState));
+        expectThrows(IllegalStateException.class, () -> createRandomInstance().performAction(sourceIndexMetadata.getIndex(), clusterState));
     }
 
     public void testPerformActionIsNoOpIfIndexIsMissing() {
@@ -132,34 +145,43 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
         String policyName = "test-ilm-policy";
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(indexName)
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
         String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
         IndexMetadata writeIndexMetadata = IndexMetadata.builder(writeIndexName)
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
         String indexPrefix = "test-prefix-";
         String targetIndex = indexPrefix + indexName;
 
-        IndexMetadata targetIndexMetadata = IndexMetadata.builder(targetIndex).settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        IndexMetadata targetIndexMetadata = IndexMetadata.builder(targetIndex)
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
 
-        List<Index> backingIndices = org.elasticsearch.core.List
-            .of(sourceIndexMetadata.getIndex(), writeIndexMetadata.getIndex());
-        ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
-            Metadata.builder()
-                .put(sourceIndexMetadata, true)
-                .put(writeIndexMetadata, true)
-                .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), backingIndices))
-                .put(targetIndexMetadata, true)
-                .build()
-        ).build();
+        List<Index> backingIndices = org.elasticsearch.core.List.of(sourceIndexMetadata.getIndex(), writeIndexMetadata.getIndex());
+        ClusterState clusterState = ClusterState.builder(emptyClusterState())
+            .metadata(
+                Metadata.builder()
+                    .put(sourceIndexMetadata, true)
+                    .put(writeIndexMetadata, true)
+                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), backingIndices))
+                    .put(targetIndexMetadata, true)
+                    .build()
+            )
+            .build();
 
-        ReplaceDataStreamBackingIndexStep replaceSourceIndexStep =
-            new ReplaceDataStreamBackingIndexStep(randomStepKey(), randomStepKey(), (index, state) -> indexPrefix + index);
+        ReplaceDataStreamBackingIndexStep replaceSourceIndexStep = new ReplaceDataStreamBackingIndexStep(
+            randomStepKey(),
+            randomStepKey(),
+            (index, state) -> indexPrefix + index
+        );
         ClusterState newState = replaceSourceIndexStep.performAction(sourceIndexMetadata.getIndex(), clusterState);
         DataStream updatedDataStream = newState.metadata().dataStreams().get(dataStreamName);
         assertThat(updatedDataStream.getIndices().size(), is(2));
@@ -176,35 +198,42 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
         String policyName = "test-ilm-policy";
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(indexName)
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
         IndexMetadata writeIndexMetadata = IndexMetadata.builder(writeIndexName)
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
         String indexPrefix = "test-prefix-";
         String targetIndex = indexPrefix + indexName;
 
-        IndexMetadata targetIndexMetadata = IndexMetadata.builder(targetIndex).settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        IndexMetadata targetIndexMetadata = IndexMetadata.builder(targetIndex)
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
 
-        List<Index> backingIndices = org.elasticsearch.core.List.of(
-            sourceIndexMetadata.getIndex(),
-            writeIndexMetadata.getIndex()
+        List<Index> backingIndices = org.elasticsearch.core.List.of(sourceIndexMetadata.getIndex(), writeIndexMetadata.getIndex());
+        ClusterState clusterState = ClusterState.builder(emptyClusterState())
+            .metadata(
+                Metadata.builder()
+                    .put(sourceIndexMetadata, true)
+                    .put(writeIndexMetadata, true)
+                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), backingIndices))
+                    .put(targetIndexMetadata, true)
+                    .build()
+            )
+            .build();
+
+        ReplaceDataStreamBackingIndexStep replaceSourceIndexStep = new ReplaceDataStreamBackingIndexStep(
+            randomStepKey(),
+            randomStepKey(),
+            (index, state) -> indexPrefix + index
         );
-        ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
-            Metadata.builder()
-                .put(sourceIndexMetadata, true)
-                .put(writeIndexMetadata, true)
-                .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), backingIndices))
-                .put(targetIndexMetadata, true)
-                .build()
-        ).build();
-
-        ReplaceDataStreamBackingIndexStep replaceSourceIndexStep =
-            new ReplaceDataStreamBackingIndexStep(randomStepKey(), randomStepKey(), (index, state) -> indexPrefix + index);
         IllegalStateException ex = expectThrows(
             IllegalStateException.class,
             () -> replaceSourceIndexStep.performAction(sourceIndexMetadata.getIndex(), clusterState)

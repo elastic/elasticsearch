@@ -39,7 +39,7 @@ public class SingleNodeTests extends AbstractWatcherIntegrationTestCase {
     // this is the standard setup when starting watcher in a regular cluster
     // the index does not exist, a watch gets added
     // the watch should be executed properly, despite the index being created and the cluster state listener being reloaded
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/54096")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54096")
     public void testThatLoadingWithNonExistingIndexWorks() throws Exception {
         stopWatcher();
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
@@ -51,10 +51,11 @@ public class SingleNodeTests extends AbstractWatcherIntegrationTestCase {
         String watchId = randomAlphaOfLength(20);
         // now we start with an empty set up, store a watch and expected it to be executed
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch(watchId)
-            .setSource(watchBuilder()
-                .trigger(schedule(interval(1, IntervalSchedule.Interval.Unit.SECONDS)))
-                .input(simpleInput())
-                .addAction("_logger", loggingAction("logging of watch _name")))
+            .setSource(
+                watchBuilder().trigger(schedule(interval(1, IntervalSchedule.Interval.Unit.SECONDS)))
+                    .input(simpleInput())
+                    .addAction("_logger", loggingAction("logging of watch _name"))
+            )
             .get();
         assertThat(putWatchResponse.isCreated(), is(true));
 

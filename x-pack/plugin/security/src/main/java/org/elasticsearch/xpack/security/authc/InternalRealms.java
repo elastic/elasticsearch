@@ -123,10 +123,14 @@ public final class InternalRealms {
      *
      * @return A map from <em>realm-type</em> to <code>Factory</code>
      */
-    public static Map<String, Realm.Factory> getFactories(ThreadPool threadPool, ResourceWatcherService resourceWatcherService,
-                                                          SSLService sslService, NativeUsersStore nativeUsersStore,
-                                                          NativeRoleMappingStore nativeRoleMappingStore,
-                                                          SecurityIndexManager securityIndex) {
+    public static Map<String, Realm.Factory> getFactories(
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        SSLService sslService,
+        NativeUsersStore nativeUsersStore,
+        NativeRoleMappingStore nativeRoleMappingStore,
+        SecurityIndexManager securityIndex
+    ) {
 
         Map<String, Realm.Factory> map = new HashMap<>();
         map.put(FileRealmSettings.TYPE, config -> new FileRealm(config, resourceWatcherService, threadPool));
@@ -135,25 +139,31 @@ public final class InternalRealms {
             securityIndex.addStateListener(nativeRealm::onSecurityIndexStateChange);
             return nativeRealm;
         });
-        map.put(LdapRealmSettings.AD_TYPE, config -> new LdapRealm(config, sslService,
-            resourceWatcherService, nativeRoleMappingStore, threadPool));
-        map.put(LdapRealmSettings.LDAP_TYPE, config -> new LdapRealm(config,
-            sslService, resourceWatcherService, nativeRoleMappingStore, threadPool));
+        map.put(
+            LdapRealmSettings.AD_TYPE,
+            config -> new LdapRealm(config, sslService, resourceWatcherService, nativeRoleMappingStore, threadPool)
+        );
+        map.put(
+            LdapRealmSettings.LDAP_TYPE,
+            config -> new LdapRealm(config, sslService, resourceWatcherService, nativeRoleMappingStore, threadPool)
+        );
         map.put(PkiRealmSettings.TYPE, config -> new PkiRealm(config, resourceWatcherService, nativeRoleMappingStore));
         map.put(SamlRealmSettings.TYPE, config -> SamlRealm.create(config, sslService, resourceWatcherService, nativeRoleMappingStore));
         map.put(KerberosRealmSettings.TYPE, config -> new KerberosRealm(config, nativeRoleMappingStore, threadPool));
-        map.put(OpenIdConnectRealmSettings.TYPE, config -> new OpenIdConnectRealm(config, sslService, nativeRoleMappingStore,
-            resourceWatcherService));
+        map.put(
+            OpenIdConnectRealmSettings.TYPE,
+            config -> new OpenIdConnectRealm(config, sslService, nativeRoleMappingStore, resourceWatcherService)
+        );
         return Collections.unmodifiableMap(map);
     }
 
-    private InternalRealms() {
-    }
+    private InternalRealms() {}
 
     public static List<BootstrapCheck> getBootstrapChecks(final Settings globalSettings, final Environment env) {
         final Set<String> realmTypes = Sets.newHashSet(LdapRealmSettings.AD_TYPE, LdapRealmSettings.LDAP_TYPE, PkiRealmSettings.TYPE);
         final List<BootstrapCheck> checks = RealmSettings.getRealmSettings(globalSettings)
-            .keySet().stream()
+            .keySet()
+            .stream()
             .filter(id -> realmTypes.contains(id.getType()))
             .map(id -> new RealmConfig(id, globalSettings, env, null))
             .map(RoleMappingFileBootstrapCheck::create)

@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.sql.action.SqlClearCursorAction;
 import org.elasticsearch.xpack.sql.action.SqlClearCursorRequest;
 import org.elasticsearch.xpack.sql.proto.Protocol;
@@ -27,13 +27,15 @@ public class RestSqlClearCursorAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(Route.builder(POST, Protocol.CLEAR_CURSOR_REST_ENDPOINT)
-            .replaces(POST, Protocol.CLEAR_CURSOR_DEPRECATED_REST_ENDPOINT, RestApiVersion.V_7).build());
+        return singletonList(
+            Route.builder(POST, Protocol.CLEAR_CURSOR_REST_ENDPOINT)
+                .replaces(POST, Protocol.CLEAR_CURSOR_DEPRECATED_REST_ENDPOINT, RestApiVersion.V_7)
+                .build()
+        );
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client)
-            throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         SqlClearCursorRequest sqlRequest;
         try (XContentParser parser = request.contentParser()) {
             sqlRequest = SqlClearCursorRequest.fromXContent(parser);

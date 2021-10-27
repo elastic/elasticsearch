@@ -6,16 +6,6 @@
  */
 package org.elasticsearch.xpack.core.termsenum.action;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
-
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -26,8 +16,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -41,10 +29,22 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.usage.UsageService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.termsenum.rest.RestTermsEnumAction;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public class RestTermsEnumActionTests extends ESTestCase {
 
@@ -52,8 +52,7 @@ public class RestTermsEnumActionTests extends ESTestCase {
     private static NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
 
     private static UsageService usageService = new UsageService();
-    private static RestController controller = new RestController(emptySet(), null, client,
-        new NoneCircuitBreakerService(), usageService);
+    private static RestController controller = new RestController(emptySet(), null, client, new NoneCircuitBreakerService(), usageService);
     private static RestTermsEnumAction action = new RestTermsEnumAction();
 
     /**
@@ -131,7 +130,7 @@ public class RestTermsEnumActionTests extends ESTestCase {
     public void testRestTermEnumActionMissingField() throws Exception {
         // GIVEN an invalid query
         final String content = "{"
-//            + "\"field\":\"a\", "
+            // + "\"field\":\"a\", "
             + "\"string\":\"foo\", "
             + "\"index_filter\":{\"bool\":{\"must\":{\"term\":{\"user\":\"kimchy\"}}}}}";
 
@@ -147,10 +146,8 @@ public class RestTermsEnumActionTests extends ESTestCase {
         assertThat(channel.capturedResponse().content().utf8ToString(), containsString("field cannot be null"));
     }
 
-
     private RestRequest createRestRequest(String content) {
-        return new FakeRestRequest.Builder(xContentRegistry())
-            .withPath("index1/_terms_enum")
+        return new FakeRestRequest.Builder(xContentRegistry()).withPath("index1/_terms_enum")
             .withParams(emptyMap())
             .withContent(new BytesArray(content), XContentType.JSON)
             .build();

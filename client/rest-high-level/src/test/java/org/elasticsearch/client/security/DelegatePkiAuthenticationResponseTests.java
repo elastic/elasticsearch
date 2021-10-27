@@ -25,16 +25,19 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class DelegatePkiAuthenticationResponseTests extends
-    AbstractResponseTestCase<org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse,
-        DelegatePkiAuthenticationResponse> {
+public class DelegatePkiAuthenticationResponseTests extends AbstractResponseTestCase<
+    org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse,
+    DelegatePkiAuthenticationResponse> {
 
     @Override
     protected org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse createServerTestInstance(
-        XContentType xContentType) {
-        return new org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse(randomAlphaOfLength(6),
-                TimeValue.parseTimeValue(randomTimeValue(), getClass().getSimpleName() + ".expiresIn"),
-                createAuthentication());
+        XContentType xContentType
+    ) {
+        return new org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse(
+            randomAlphaOfLength(6),
+            TimeValue.parseTimeValue(randomTimeValue(), getClass().getSimpleName() + ".expiresIn"),
+            createAuthentication()
+        );
     }
 
     @Override
@@ -43,8 +46,10 @@ public class DelegatePkiAuthenticationResponseTests extends
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse serverTestInstance,
-            DelegatePkiAuthenticationResponse clientInstance) {
+    protected void assertInstances(
+        org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse serverTestInstance,
+        DelegatePkiAuthenticationResponse clientInstance
+    ) {
         assertThat(serverTestInstance.getAccessToken(), is(clientInstance.getAccessToken()));
         assertThat(serverTestInstance.getExpiresIn(), is(clientInstance.getExpiresIn()));
         assertThat(clientInstance.getType(), is("Bearer"));
@@ -80,20 +85,40 @@ public class DelegatePkiAuthenticationResponseTests extends
         return new Authentication(
             new User(username, roles, fullName, email, metadata, true),
             new Authentication.RealmRef(authenticationRealmName, authenticationRealmType, nodeName),
-            new Authentication.RealmRef(lookupRealmName, lookupRealmType, nodeName), Version.CURRENT, authenticationType, metadata);
+            new Authentication.RealmRef(lookupRealmName, lookupRealmType, nodeName),
+            Version.CURRENT,
+            authenticationType,
+            metadata
+        );
     }
 
-    AuthenticateResponse createServerAuthenticationResponse(Authentication authentication){
+    AuthenticateResponse createServerAuthenticationResponse(Authentication authentication) {
         User user = authentication.getUser();
-        org.elasticsearch.client.security.user.User cUser = new org.elasticsearch.client.security.user.User(user.principal(),
-            Arrays.asList(user.roles()), user.metadata(), user.fullName(), user.email());
-        AuthenticateResponse.RealmInfo authenticatedBy = new AuthenticateResponse.RealmInfo(authentication.getAuthenticatedBy().getName(),
-            authentication.getAuthenticatedBy().getType());
-        AuthenticateResponse.RealmInfo lookedUpBy = new AuthenticateResponse.RealmInfo(authentication.getLookedUpBy() == null?
-            authentication.getAuthenticatedBy().getName(): authentication.getLookedUpBy().getName(),
-            authentication.getLookedUpBy() == null?
-                authentication.getAuthenticatedBy().getType(): authentication.getLookedUpBy().getType());
-        return new AuthenticateResponse(cUser, user.enabled(), authenticatedBy, lookedUpBy,
-            authentication.getAuthenticationType().toString().toLowerCase(Locale.ROOT));
+        org.elasticsearch.client.security.user.User cUser = new org.elasticsearch.client.security.user.User(
+            user.principal(),
+            Arrays.asList(user.roles()),
+            user.metadata(),
+            user.fullName(),
+            user.email()
+        );
+        AuthenticateResponse.RealmInfo authenticatedBy = new AuthenticateResponse.RealmInfo(
+            authentication.getAuthenticatedBy().getName(),
+            authentication.getAuthenticatedBy().getType()
+        );
+        AuthenticateResponse.RealmInfo lookedUpBy = new AuthenticateResponse.RealmInfo(
+            authentication.getLookedUpBy() == null
+                ? authentication.getAuthenticatedBy().getName()
+                : authentication.getLookedUpBy().getName(),
+            authentication.getLookedUpBy() == null
+                ? authentication.getAuthenticatedBy().getType()
+                : authentication.getLookedUpBy().getType()
+        );
+        return new AuthenticateResponse(
+            cUser,
+            user.enabled(),
+            authenticatedBy,
+            lookedUpBy,
+            authentication.getAuthenticationType().toString().toLowerCase(Locale.ROOT)
+        );
     }
 }

@@ -9,14 +9,6 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ContextParser;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -64,6 +56,14 @@ import org.elasticsearch.search.aggregations.pipeline.ParsedSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.ParsedStatsBucket;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ContextParser;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
@@ -778,10 +778,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
             equalTo(Collections.singletonMap("top_answer", "fortytwo"))
         );
 
-        agg = new TestMultiValueAggregation(
-            "mv_metric",
-            org.elasticsearch.core.Map.of("ip", "192.168.1.1", "top_answer", "fortytwo")
-        );
+        agg = new TestMultiValueAggregation("mv_metric", org.elasticsearch.core.Map.of("ip", "192.168.1.1", "top_answer", "fortytwo"));
 
         assertThat(
             AggregationResultUtils.getExtractor(agg)
@@ -815,11 +812,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
 
         assertThat(
             AggregationResultUtils.getExtractor(agg)
-                .value(
-                    agg,
-                    org.elasticsearch.core.Map.of("mv_metric.approx_answer", "double", "mv_metric.exact_answer", "long"),
-                    ""
-                ),
+                .value(agg, org.elasticsearch.core.Map.of("mv_metric.approx_answer", "double", "mv_metric.exact_answer", "long"), ""),
             equalTo(org.elasticsearch.core.Map.of("approx_answer", Double.valueOf(42.2), "exact_answer", Long.valueOf(42)))
         );
 
@@ -827,12 +820,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
             AggregationResultUtils.getExtractor(agg)
                 .value(
                     agg,
-                    org.elasticsearch.core.Map.of(
-                        "filter.mv_metric.approx_answer",
-                        "double",
-                        "filter.mv_metric.exact_answer",
-                        "long"
-                    ),
+                    org.elasticsearch.core.Map.of("filter.mv_metric.approx_answer", "double", "filter.mv_metric.exact_answer", "long"),
                     "filter"
                 ),
             equalTo(org.elasticsearch.core.Map.of("approx_answer", Double.valueOf(42.2), "exact_answer", Long.valueOf(42)))

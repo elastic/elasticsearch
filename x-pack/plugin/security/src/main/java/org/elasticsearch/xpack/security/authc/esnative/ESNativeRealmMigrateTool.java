@@ -30,15 +30,15 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -65,6 +65,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+
 import javax.net.ssl.HttpsURLConnection;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -102,21 +103,17 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
 
         public MigrateUserOrRoles() {
             super("Migrates users or roles from file to native realm");
-            this.username = parser.acceptsAll(Arrays.asList("u", "username"),
-                    "User used to authenticate with Elasticsearch")
-                    .withRequiredArg().required();
-            this.password = parser.acceptsAll(Arrays.asList("p", "password"),
-                    "Password used to authenticate with Elasticsearch")
-                    .withRequiredArg().required();
-            this.url = parser.acceptsAll(Arrays.asList("U", "url"),
-                    "URL of Elasticsearch host")
-                    .withRequiredArg();
-            this.usersToMigrateCsv = parser.acceptsAll(Arrays.asList("n", "users"),
-                    "Users to migrate from file to native realm")
-                    .withRequiredArg();
-            this.rolesToMigrateCsv = parser.acceptsAll(Arrays.asList("r", "roles"),
-                    "Roles to migrate from file to native realm")
-                    .withRequiredArg();
+            this.username = parser.acceptsAll(Arrays.asList("u", "username"), "User used to authenticate with Elasticsearch")
+                .withRequiredArg()
+                .required();
+            this.password = parser.acceptsAll(Arrays.asList("p", "password"), "Password used to authenticate with Elasticsearch")
+                .withRequiredArg()
+                .required();
+            this.url = parser.acceptsAll(Arrays.asList("U", "url"), "URL of Elasticsearch host").withRequiredArg();
+            this.usersToMigrateCsv = parser.acceptsAll(Arrays.asList("n", "users"), "Users to migrate from file to native realm")
+                .withRequiredArg();
+            this.rolesToMigrateCsv = parser.acceptsAll(Arrays.asList("r", "roles"), "Roles to migrate from file to native realm")
+                .withRequiredArg();
         }
 
         // Visible for testing
@@ -142,8 +139,14 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
         }
 
         @SuppressForbidden(reason = "We call connect in doPrivileged and provide SocketPermission")
-        private String postURL(Settings settings, Environment env, String method, String urlString,
-                               OptionSet options, @Nullable String bodyString) throws Exception {
+        private String postURL(
+            Settings settings,
+            Environment env,
+            String method,
+            String urlString,
+            OptionSet options,
+            @Nullable String bodyString
+        ) throws Exception {
             URI uri = new URI(urlString);
             URL url = uri.toURL();
             HttpURLConnection conn;
@@ -164,9 +167,10 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
             conn.setRequestMethod(method);
             conn.setReadTimeout(30 * 1000); // 30 second timeout
             // Add basic-auth header
-            conn.setRequestProperty("Authorization",
-                    UsernamePasswordToken.basicAuthHeaderValue(username.value(options),
-                            new SecureString(password.value(options).toCharArray())));
+            conn.setRequestProperty(
+                "Authorization",
+                UsernamePasswordToken.basicAuthHeaderValue(username.value(options), new SecureString(password.value(options).toCharArray()))
+            );
             conn.setRequestProperty("Content-Type", XContentType.JSON.mediaType());
             conn.setDoOutput(true); // we'll be sending a body
             SocketAccess.doPrivileged(conn::connect);
@@ -207,8 +211,13 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
             Set<String> existingUsers = new HashSet<>();
             String allUsersJson = postURL(settings, env, "GET", this.url.value(options) + "/_security/user/", options, null);
             // EMPTY is safe here because we never use namedObject
-            try (XContentParser parser = JsonXContent.jsonXContent
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, allUsersJson)) {
+            try (
+                XContentParser parser = JsonXContent.jsonXContent.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.INSTANCE,
+                    allUsersJson
+                )
+            ) {
                 XContentParser.Token token = parser.nextToken();
                 String userName;
                 if (token == XContentParser.Token.START_OBJECT) {
@@ -277,8 +286,14 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
                 String reqBody = "n/a";
                 try {
                     reqBody = createUserJson(userToRoles.get(user), userToHashedPW.get(user));
-                    String resp = postURL(env.settings(), env, "POST",
-                        this.url.value(options) + "/_security/user/" + user, options, reqBody);
+                    String resp = postURL(
+                        env.settings(),
+                        env,
+                        "POST",
+                        this.url.value(options) + "/_security/user/" + user,
+                        options,
+                        reqBody
+                    );
                     terminal.println(resp);
                 } catch (Exception e) {
                     throw new ElasticsearchException("failed to migrate user [" + user + "] with body: " + reqBody, e);
@@ -290,8 +305,13 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
             Set<String> existingRoles = new HashSet<>();
             String allRolesJson = postURL(settings, env, "GET", this.url.value(options) + "/_security/role/", options, null);
             // EMPTY is safe here because we never use namedObject
-            try (XContentParser parser = JsonXContent.jsonXContent
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, allRolesJson)) {
+            try (
+                XContentParser parser = JsonXContent.jsonXContent.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.INSTANCE,
+                    allRolesJson
+                )
+            ) {
                 XContentParser.Token token = parser.nextToken();
                 String roleName;
                 if (token == XContentParser.Token.START_OBJECT) {
@@ -346,8 +366,14 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
                 String reqBody = "n/a";
                 try {
                     reqBody = createRoleJson(roles.get(roleName));
-                    String resp = postURL(env.settings(), env, "POST",
-                        this.url.value(options) + "/_security/role/" + roleName, options, reqBody);
+                    String resp = postURL(
+                        env.settings(),
+                        env,
+                        "POST",
+                        this.url.value(options) + "/_security/role/" + roleName,
+                        options,
+                        reqBody
+                    );
                     terminal.println(resp);
                 } catch (Exception e) {
                     throw new ElasticsearchException("failed to migrate role [" + roleName + "] with body: " + reqBody, e);
@@ -367,12 +393,15 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
         final Configuration config = ctx.getConfiguration();
 
         // create appender
-        final Appender appender = new AbstractAppender(ESNativeRealmMigrateTool.class.getName(), null,
-                PatternLayout.newBuilder()
-                    // Specify the configuration so log4j doesn't re-initialize
-                    .withConfiguration(config)
-                    .withPattern("%m")
-                    .build()) {
+        final Appender appender = new AbstractAppender(
+            ESNativeRealmMigrateTool.class.getName(),
+            null,
+            PatternLayout.newBuilder()
+                // Specify the configuration so log4j doesn't re-initialize
+                .withConfiguration(config)
+                .withPattern("%m")
+                .build()
+        ) {
             @Override
             public void append(LogEvent event) {
                 if (event.getLevel().equals(Level.OFF)) {

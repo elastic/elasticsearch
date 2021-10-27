@@ -30,7 +30,12 @@ public class IndexActionFactory extends ActionFactory {
 
     @Override
     public ExecutableIndexAction parseExecutable(String watchId, String actionId, XContentParser parser) throws IOException {
-        return new ExecutableIndexAction(IndexAction.parse(watchId, actionId, parser), actionLogger, client,
-                indexDefaultTimeout, bulkDefaultTimeout);
+        return new ExecutableIndexAction(
+            IndexAction.parse(watchId, actionId, parser),
+            actionLogger,
+            client,
+            indexDefaultTimeout,
+            bulkDefaultTimeout
+        );
     }
 }

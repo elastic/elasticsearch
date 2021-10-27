@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.security.authc.kerberos;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Tuple;
@@ -81,8 +81,12 @@ public class KerberosTicketValidator {
      *            service.
      * @param krbDebug if {@code true} enables jaas krb5 login module debug logs.
      */
-    public void validateTicket(final byte[] decodedToken, final Path keytabPath, final boolean krbDebug,
-            final ActionListener<Tuple<String, String>> actionListener) {
+    public void validateTicket(
+        final byte[] decodedToken,
+        final Path keytabPath,
+        final boolean krbDebug,
+        final ActionListener<Tuple<String, String>> actionListener
+    ) {
         final GSSManager gssManager = GSSManager.getInstance();
         GSSContext gssContext = null;
         LoginContext loginContext = null;
@@ -91,8 +95,12 @@ public class KerberosTicketValidator {
             GSSCredential serviceCreds = createCredentials(gssManager, loginContext.getSubject());
             gssContext = gssManager.createContext(serviceCreds);
             final String base64OutToken = encodeToString(acceptSecContext(decodedToken, gssContext, loginContext.getSubject()));
-            LOGGER.trace("validateTicket isGSSContextEstablished = {}, username = {}, outToken = {}", gssContext.isEstablished(),
-                    gssContext.getSrcName().toString(), base64OutToken);
+            LOGGER.trace(
+                "validateTicket isGSSContextEstablished = {}, username = {}, outToken = {}",
+                gssContext.isEstablished(),
+                gssContext.getSrcName().toString(),
+                base64OutToken
+            );
             actionListener.onResponse(new Tuple<>(gssContext.isEstablished() ? gssContext.getSrcName().toString() : null, base64OutToken));
         } catch (GSSException e) {
             actionListener.onFailure(e);
@@ -138,10 +146,12 @@ public class KerberosTicketValidator {
      * @see GSSContext#acceptSecContext(byte[], int, int)
      */
     private static byte[] acceptSecContext(final byte[] base64decodedTicket, final GSSContext gssContext, Subject subject)
-            throws PrivilegedActionException {
+        throws PrivilegedActionException {
         // process token with gss context
-        return doAsWrapper(subject,
-                (PrivilegedExceptionAction<byte[]>) () -> gssContext.acceptSecContext(base64decodedTicket, 0, base64decodedTicket.length));
+        return doAsWrapper(
+            subject,
+            (PrivilegedExceptionAction<byte[]>) () -> gssContext.acceptSecContext(base64decodedTicket, 0, base64decodedTicket.length)
+        );
     }
 
     /**
@@ -153,8 +163,15 @@ public class KerberosTicketValidator {
      * @throws PrivilegedActionException when privileged action threw exception
      */
     private static GSSCredential createCredentials(final GSSManager gssManager, final Subject subject) throws PrivilegedActionException {
-        return doAsWrapper(subject, (PrivilegedExceptionAction<GSSCredential>) () -> gssManager.createCredential(null,
-                GSSCredential.DEFAULT_LIFETIME, SUPPORTED_OIDS, GSSCredential.ACCEPT_ONLY));
+        return doAsWrapper(
+            subject,
+            (PrivilegedExceptionAction<GSSCredential>) () -> gssManager.createCredential(
+                null,
+                GSSCredential.DEFAULT_LIFETIME,
+                SUPPORTED_OIDS,
+                GSSCredential.ACCEPT_ONLY
+            )
+        );
     }
 
     /**
@@ -267,8 +284,12 @@ public class KerberosTicketValidator {
             options.put("isInitiator", Boolean.FALSE.toString());
             options.put("debug", Boolean.toString(krbDebug));
 
-            return new AppConfigurationEntry[] { new AppConfigurationEntry(SUN_KRB5_LOGIN_MODULE,
-                    AppConfigurationEntry.LoginModuleControlFlag.REQUIRED, Collections.unmodifiableMap(options)) };
+            return new AppConfigurationEntry[] {
+                new AppConfigurationEntry(
+                    SUN_KRB5_LOGIN_MODULE,
+                    AppConfigurationEntry.LoginModuleControlFlag.REQUIRED,
+                    Collections.unmodifiableMap(options)
+                ) };
         }
 
     }

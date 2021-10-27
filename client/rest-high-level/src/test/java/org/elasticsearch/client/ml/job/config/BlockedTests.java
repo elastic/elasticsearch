@@ -8,9 +8,9 @@
 
 package org.elasticsearch.client.ml.job.config;
 
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -18,8 +18,9 @@ public class BlockedTests extends AbstractXContentTestCase<Blocked> {
 
     public static Blocked createRandom() {
         Blocked.Reason reason = randomFrom(Blocked.Reason.values());
-        TaskId taskId = (reason != Blocked.Reason.NONE && randomBoolean()) ?
-            new TaskId(randomAlphaOfLength(10) + ":" + randomNonNegativeLong()) : null;
+        TaskId taskId = (reason != Blocked.Reason.NONE && randomBoolean())
+            ? new TaskId(randomAlphaOfLength(10) + ":" + randomNonNegativeLong())
+            : null;
         return new Blocked(reason, taskId);
     }
 

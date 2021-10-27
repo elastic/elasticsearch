@@ -32,37 +32,48 @@ import static org.hamcrest.Matchers.nullValue;
 public class InvalidateApiKeyRequestTests extends ESTestCase {
 
     public void testCannotSpecifyBothIdAndIds() {
-        final IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> new InvalidateApiKeyRequest(
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new InvalidateApiKeyRequest(
                 randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
                 randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
                 randomAlphaOfLength(12),
                 randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
                 false,
-                new String[]{randomAlphaOfLength(12)}));
+                new String[] { randomAlphaOfLength(12) }
+            )
+        );
         assertThat(e.getMessage(), containsString("Must use either [id] or [ids], not both at the same time"));
     }
 
     public void testNonNullIdsCannotBeEmptyNorContainBlankId() {
 
-        ActionRequestValidationException validationException =
-            expectThrows(ActionRequestValidationException.class, () -> new InvalidateApiKeyRequest(
+        ActionRequestValidationException validationException = expectThrows(
+            ActionRequestValidationException.class,
+            () -> new InvalidateApiKeyRequest(
                 randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
                 randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
                 randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
                 false,
-                new String[] {}));
+                new String[] {}
+            )
+        );
         assertThat(validationException.getMessage(), containsString("Field [ids] cannot be an empty array"));
 
-        validationException =
-            expectThrows(ActionRequestValidationException.class, () -> new InvalidateApiKeyRequest(
+        validationException = expectThrows(
+            ActionRequestValidationException.class,
+            () -> new InvalidateApiKeyRequest(
                 randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
                 randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
                 randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
                 false,
-                new String[] { randomAlphaOfLength(12), null }));
-        assertThat(validationException.getMessage(), containsString("Field [ids] must not contain blank id, "
-            + "but got blank id at index position: [1]"));
+                new String[] { randomAlphaOfLength(12), null }
+            )
+        );
+        assertThat(
+            validationException.getMessage(),
+            containsString("Field [ids] must not contain blank id, " + "but got blank id at index position: [1]")
+        );
     }
 
     public void testEmptyStringsAreCoercedToNull() {
@@ -126,7 +137,7 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
                 out.writeOptionalString(user);
                 if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
                     if (Strings.hasText(apiKeyId)) {
-                        out.writeOptionalStringArray(new String[]{apiKeyId});
+                        out.writeOptionalStringArray(new String[] { apiKeyId });
                     } else {
                         out.writeOptionalStringArray(null);
                     }
@@ -138,31 +149,32 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
             }
         }
 
-        String[][] inputs = new String[][]{
-            {randomNullOrEmptyString(), randomNullOrEmptyString(), randomNullOrEmptyString(),
-                randomNullOrEmptyString(), "false"},
-            {randomNullOrEmptyString(), "user", "api-kid", "api-kname", "false"},
-            {"realm", randomNullOrEmptyString(), "api-kid", "api-kname", "false"},
-            {"realm", "user", "api-kid", randomNullOrEmptyString(), "false"},
-            {randomNullOrEmptyString(), randomNullOrEmptyString(), "api-kid", "api-kname", "false"},
-            {"realm", randomNullOrEmptyString(), randomNullOrEmptyString(), randomNullOrEmptyString(), "true"},
-            {randomNullOrEmptyString(), "user", randomNullOrEmptyString(), randomNullOrEmptyString(), "true"},
-        };
-        String[][] expectedErrorMessages = new String[][]{
-            {"One of [api key id(s), api key name, username, realm name] must be specified if [owner] flag is false"},
-            {"username or realm name must not be specified when the api key id(s) or api key name are specified",
-                "only one of [api key id(s), api key name] can be specified"},
-            {"username or realm name must not be specified when the api key id(s) or api key name are specified",
-                "only one of [api key id(s), api key name] can be specified"},
-            {"username or realm name must not be specified when the api key id(s) or api key name are specified"},
-            {"only one of [api key id(s), api key name] can be specified"},
-            {"neither username nor realm-name may be specified when invalidating owned API keys"},
-            {"neither username nor realm-name may be specified when invalidating owned API keys"}
-        };
+        String[][] inputs = new String[][] {
+            { randomNullOrEmptyString(), randomNullOrEmptyString(), randomNullOrEmptyString(), randomNullOrEmptyString(), "false" },
+            { randomNullOrEmptyString(), "user", "api-kid", "api-kname", "false" },
+            { "realm", randomNullOrEmptyString(), "api-kid", "api-kname", "false" },
+            { "realm", "user", "api-kid", randomNullOrEmptyString(), "false" },
+            { randomNullOrEmptyString(), randomNullOrEmptyString(), "api-kid", "api-kname", "false" },
+            { "realm", randomNullOrEmptyString(), randomNullOrEmptyString(), randomNullOrEmptyString(), "true" },
+            { randomNullOrEmptyString(), "user", randomNullOrEmptyString(), randomNullOrEmptyString(), "true" }, };
+        String[][] expectedErrorMessages = new String[][] {
+            { "One of [api key id(s), api key name, username, realm name] must be specified if [owner] flag is false" },
+            {
+                "username or realm name must not be specified when the api key id(s) or api key name are specified",
+                "only one of [api key id(s), api key name] can be specified" },
+            {
+                "username or realm name must not be specified when the api key id(s) or api key name are specified",
+                "only one of [api key id(s), api key name] can be specified" },
+            { "username or realm name must not be specified when the api key id(s) or api key name are specified" },
+            { "only one of [api key id(s), api key name] can be specified" },
+            { "neither username nor realm-name may be specified when invalidating owned API keys" },
+            { "neither username nor realm-name may be specified when invalidating owned API keys" } };
 
         for (int caseNo = 0; caseNo < inputs.length; caseNo++) {
-            try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                 OutputStreamStreamOutput osso = new OutputStreamStreamOutput(bos)) {
+            try (
+                ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                OutputStreamStreamOutput osso = new OutputStreamStreamOutput(bos)
+            ) {
                 final Version streamVersion = randomVersionBetween(random(), Version.V_7_4_0, getPreviousVersion(Version.V_7_10_0));
                 Dummy d = new Dummy(inputs[caseNo]);
                 osso.setVersion(streamVersion);
@@ -231,7 +243,8 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
             randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
             randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
             false,
-            new String[]{randomAlphaOfLength(12), randomAlphaOfLength(12)});
+            new String[] { randomAlphaOfLength(12), randomAlphaOfLength(12) }
+        );
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
         out.setVersion(randomVersionBetween(random(), Version.V_7_4_0, getPreviousVersion(Version.V_7_10_0)));
@@ -240,7 +253,7 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
     }
 
     private static String randomNullOrEmptyString() {
-        return randomFrom(new String[]{"", null});
+        return randomFrom(new String[] { "", null });
     }
 
 }

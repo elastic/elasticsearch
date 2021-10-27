@@ -31,8 +31,7 @@ import java.nio.ByteBuffer;
 public class ESLZ4Decompressor extends LZ4FastDecompressor {
     public static final LZ4FastDecompressor INSTANCE = new ESLZ4Decompressor();
 
-    ESLZ4Decompressor() {
-    }
+    ESLZ4Decompressor() {}
 
     public int decompress(byte[] src, int srcOff, byte[] dest, int destOff, int destLen) {
         SafeUtils.checkRange(src, srcOff);
@@ -48,13 +47,13 @@ public class ESLZ4Decompressor extends LZ4FastDecompressor {
             int sOff = srcOff;
             int dOff = destOff;
 
-            while(true) {
+            while (true) {
                 int token = SafeUtils.readByte(src, sOff) & 255;
                 ++sOff;
                 int literalLen = token >>> 4;
                 if (literalLen == 15) {
                     byte len;
-                    for(boolean var11 = true; (len = SafeUtils.readByte(src, sOff++)) == -1; literalLen += 255) {
+                    for (boolean var11 = true; (len = SafeUtils.readByte(src, sOff++)) == -1; literalLen += 255) {
                     }
 
                     literalLen += len & 255;
@@ -83,7 +82,7 @@ public class ESLZ4Decompressor extends LZ4FastDecompressor {
                 int matchLen = token & 15;
                 if (matchLen == 15) {
                     byte len;
-                    for(boolean var15 = true; (len = SafeUtils.readByte(src, sOff++)) == -1; matchLen += 255) {
+                    for (boolean var15 = true; (len = SafeUtils.readByte(src, sOff++)) == -1; matchLen += 255) {
                     }
 
                     matchLen += len & 255;

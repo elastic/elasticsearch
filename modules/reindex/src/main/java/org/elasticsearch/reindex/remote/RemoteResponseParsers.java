@@ -10,23 +10,23 @@ package org.elasticsearch.reindex.remote;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentLocation;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.reindex.ScrollableHitSource.BasicHit;
 import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
 import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
 import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
@@ -47,15 +47,14 @@ final class RemoteResponseParsers {
     /**
      * Parser for an individual {@code hit} element.
      */
-    public static final ConstructingObjectParser<BasicHit, XContentType> HIT_PARSER =
-            new ConstructingObjectParser<>("hit", true, a -> {
-                int i = 0;
-                String index = (String) a[i++];
-                String type = (String) a[i++];
-                String id = (String) a[i++];
-                Long version = (Long) a[i++];
-                return new BasicHit(index, type, id, version == null ? -1 : version);
-            });
+    public static final ConstructingObjectParser<BasicHit, XContentType> HIT_PARSER = new ConstructingObjectParser<>("hit", true, a -> {
+        int i = 0;
+        String index = (String) a[i++];
+        String type = (String) a[i++];
+        String id = (String) a[i++];
+        Long version = (Long) a[i++];
+        return new BasicHit(index, type, id, version == null ? -1 : version);
+    });
     static {
         HIT_PARSER.declareString(constructorArg(), new ParseField("_index"));
         HIT_PARSER.declareString(constructorArg(), new ParseField("_type"));
@@ -85,9 +84,7 @@ final class RemoteResponseParsers {
             String routing;
         }
         ObjectParser<Fields, XContentType> fieldsParser = new ObjectParser<>("fields", Fields::new);
-        HIT_PARSER.declareObject((hit, fields) -> {
-            hit.setRouting(fields.routing);
-        }, fieldsParser, new ParseField("fields"));
+        HIT_PARSER.declareObject((hit, fields) -> { hit.setRouting(fields.routing); }, fieldsParser, new ParseField("fields"));
         fieldsParser.declareString((fields, routing) -> fields.routing = routing, routingField);
         fieldsParser.declareLong((fields, ttl) -> {}, ttlField); // ignore ttls since they have been removed
         fieldsParser.declareString((fields, parent) -> {}, parentField); // ignore parents since they have been removed
@@ -96,8 +93,7 @@ final class RemoteResponseParsers {
     /**
      * Parser for the {@code hits} element. Parsed to an array of {@code [total (Long), hits (List<Hit>)]}.
      */
-    public static final ConstructingObjectParser<Object[], XContentType> HITS_PARSER =
-            new ConstructingObjectParser<>("hits", true, a -> a);
+    public static final ConstructingObjectParser<Object[], XContentType> HITS_PARSER = new ConstructingObjectParser<>("hits", true, a -> a);
     static {
         HITS_PARSER.declareField(constructorArg(), (p, c) -> {
             if (p.currentToken() == XContentParser.Token.START_OBJECT) {
@@ -115,22 +111,25 @@ final class RemoteResponseParsers {
     /**
      * Parser for {@code failed} shards in the {@code _shards} elements.
      */
-    public static final ConstructingObjectParser<SearchFailure, Void> SEARCH_FAILURE_PARSER =
-            new ConstructingObjectParser<>("failure", true, a -> {
-                int i = 0;
-                String index = (String) a[i++];
-                Integer shardId = (Integer) a[i++];
-                String nodeId = (String) a[i++];
-                Object reason = a[i++];
+    public static final ConstructingObjectParser<SearchFailure, Void> SEARCH_FAILURE_PARSER = new ConstructingObjectParser<>(
+        "failure",
+        true,
+        a -> {
+            int i = 0;
+            String index = (String) a[i++];
+            Integer shardId = (Integer) a[i++];
+            String nodeId = (String) a[i++];
+            Object reason = a[i++];
 
-                Throwable reasonThrowable;
-                if (reason instanceof String) {
-                    reasonThrowable = new RuntimeException("Unknown remote exception with reason=[" + (String) reason + "]");
-                } else {
-                    reasonThrowable = (Throwable) reason;
-                }
-                return new SearchFailure(reasonThrowable, index, shardId, nodeId);
-            });
+            Throwable reasonThrowable;
+            if (reason instanceof String) {
+                reasonThrowable = new RuntimeException("Unknown remote exception with reason=[" + (String) reason + "]");
+            } else {
+                reasonThrowable = (Throwable) reason;
+            }
+            return new SearchFailure(reasonThrowable, index, shardId, nodeId);
+        }
+    );
     static {
         SEARCH_FAILURE_PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField("index"));
         SEARCH_FAILURE_PARSER.declareInt(optionalConstructorArg(), new ParseField("shard"));
@@ -148,44 +147,50 @@ final class RemoteResponseParsers {
      * Parser for the {@code _shards} element. Throws everything out except the errors array if there is one. If there isn't one then it
      * parses to an empty list.
      */
-    public static final ConstructingObjectParser<List<Throwable>, Void> SHARDS_PARSER =
-            new ConstructingObjectParser<>("_shards", true, a -> {
-                @SuppressWarnings("unchecked")
-                List<Throwable> failures = (List<Throwable>) a[0];
-                failures = failures == null ? emptyList() : failures;
-                return failures;
-            });
+    public static final ConstructingObjectParser<List<Throwable>, Void> SHARDS_PARSER = new ConstructingObjectParser<>(
+        "_shards",
+        true,
+        a -> {
+            @SuppressWarnings("unchecked")
+            List<Throwable> failures = (List<Throwable>) a[0];
+            failures = failures == null ? emptyList() : failures;
+            return failures;
+        }
+    );
     static {
         SHARDS_PARSER.declareObjectArray(optionalConstructorArg(), SEARCH_FAILURE_PARSER, new ParseField("failures"));
     }
 
-    public static final ConstructingObjectParser<Response, XContentType> RESPONSE_PARSER =
-            new ConstructingObjectParser<>("search_response", true, a -> {
-                int i = 0;
-                Throwable catastrophicFailure = (Throwable) a[i++];
-                if (catastrophicFailure != null) {
-                    return new Response(false, singletonList(new SearchFailure(catastrophicFailure)), 0, emptyList(), null);
-                }
-                boolean timedOut = (boolean) a[i++];
-                String scroll = (String) a[i++];
-                Object[] hitsElement = (Object[]) a[i++];
+    public static final ConstructingObjectParser<Response, XContentType> RESPONSE_PARSER = new ConstructingObjectParser<>(
+        "search_response",
+        true,
+        a -> {
+            int i = 0;
+            Throwable catastrophicFailure = (Throwable) a[i++];
+            if (catastrophicFailure != null) {
+                return new Response(false, singletonList(new SearchFailure(catastrophicFailure)), 0, emptyList(), null);
+            }
+            boolean timedOut = (boolean) a[i++];
+            String scroll = (String) a[i++];
+            Object[] hitsElement = (Object[]) a[i++];
+            @SuppressWarnings("unchecked")
+            List<SearchFailure> failures = (List<SearchFailure>) a[i++];
+
+            long totalHits = 0;
+            List<Hit> hits = emptyList();
+
+            // Pull apart the hits element if we got it
+            if (hitsElement != null) {
+                i = 0;
+                totalHits = (long) hitsElement[i++];
                 @SuppressWarnings("unchecked")
-                List<SearchFailure> failures = (List<SearchFailure>) a[i++];
+                List<Hit> h = (List<Hit>) hitsElement[i++];
+                hits = h;
+            }
 
-                long totalHits = 0;
-                List<Hit> hits = emptyList();
-
-                // Pull apart the hits element if we got it
-                if (hitsElement != null) {
-                    i = 0;
-                    totalHits = (long) hitsElement[i++];
-                    @SuppressWarnings("unchecked")
-                    List<Hit> h = (List<Hit>) hitsElement[i++];
-                    hits = h;
-                }
-
-                return new Response(timedOut, failures, totalHits, hits, scroll);
-            });
+            return new Response(timedOut, failures, totalHits, hits, scroll);
+        }
+    );
     static {
         RESPONSE_PARSER.declareObject(optionalConstructorArg(), (p, c) -> ThrowableBuilder.PARSER.apply(p, null), new ParseField("error"));
         RESPONSE_PARSER.declareBoolean(optionalConstructorArg(), new ParseField("timed_out"));
@@ -229,33 +234,37 @@ final class RemoteResponseParsers {
             requireNonNull(type, "[type] is required");
             requireNonNull(reason, "[reason] is required");
             switch (type) {
-            // Make some effort to use the right exceptions
-            case "es_rejected_execution_exception":
-                return new EsRejectedExecutionException(reason);
-            case "parsing_exception":
-                XContentLocation location = null;
-                if (line != null && column != null) {
-                    location = new XContentLocation(line, column);
-                }
-                return new ParsingException(location, reason);
-            // But it isn't worth trying to get it perfect....
-            default:
-                return new RuntimeException(type + ": " + reason);
+                // Make some effort to use the right exceptions
+                case "es_rejected_execution_exception":
+                    return new EsRejectedExecutionException(reason);
+                case "parsing_exception":
+                    XContentLocation location = null;
+                    if (line != null && column != null) {
+                        location = new XContentLocation(line, column);
+                    }
+                    return new ParsingException(location, reason);
+                // But it isn't worth trying to get it perfect....
+                default:
+                    return new RuntimeException(type + ": " + reason);
             }
         }
 
         public void setType(String type) {
             this.type = type;
         }
+
         public void setReason(String reason) {
             this.reason = reason;
         }
+
         public void setLine(Integer line) {
             this.line = line;
         }
+
         public void setColumn(Integer column) {
             this.column = column;
         }
+
         public void setCausedBy(Throwable causedBy) {
             this.causedBy = causedBy;
         }
@@ -265,14 +274,16 @@ final class RemoteResponseParsers {
      * Parses the main action to return just the {@linkplain Version} that it returns. We throw everything else out.
      */
     public static final ConstructingObjectParser<Version, XContentType> MAIN_ACTION_PARSER = new ConstructingObjectParser<>(
-            "/", true, a -> (Version) a[0]);
+        "/",
+        true,
+        a -> (Version) a[0]
+    );
     static {
         ConstructingObjectParser<Version, XContentType> versionParser = new ConstructingObjectParser<>(
-                "version", true, a -> Version.fromString(
-                    ((String) a[0])
-                        .replace("-SNAPSHOT", "")
-                        .replaceFirst("-(alpha\\d+|beta\\d+|rc\\d+)", "")
-        ));
+            "version",
+            true,
+            a -> Version.fromString(((String) a[0]).replace("-SNAPSHOT", "").replaceFirst("-(alpha\\d+|beta\\d+|rc\\d+)", ""))
+        );
         versionParser.declareString(constructorArg(), new ParseField("number"));
         MAIN_ACTION_PARSER.declareObject(constructorArg(), versionParser, new ParseField("version"));
     }

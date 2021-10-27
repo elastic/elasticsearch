@@ -22,9 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
-
 import org.elasticsearch.common.ValidationException;
-
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -192,7 +190,6 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         final ClientTransformIndexerBuilder indexerBuilder = new ClientTransformIndexerBuilder().setClient(buildTask.getParentTaskClient())
             .setTransformServices(transformServices);
 
-
         final SetOnce<TransformState> stateHolder = new SetOnce<>();
 
         ActionListener<StartTransformAction.Response> startTaskListener = ActionListener.wrap(
@@ -325,11 +322,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         );
 
         // <1> Check the latest internal index (IMPORTANT: according to _this_ node, which might be newer than master) is installed
-        TransformInternalIndex.createLatestVersionedIndexIfRequired(
-            clusterService,
-            buildTask.getParentTaskClient(),
-            templateCheckListener
-        );
+        TransformInternalIndex.createLatestVersionedIndexIfRequired(clusterService, buildTask.getParentTaskClient(), templateCheckListener);
     }
 
     private static IndexerState currentIndexerState(TransformState previousState) {

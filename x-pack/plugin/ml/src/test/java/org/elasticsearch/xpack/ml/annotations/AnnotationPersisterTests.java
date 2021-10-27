@@ -18,13 +18,13 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
@@ -87,8 +87,8 @@ public class AnnotationPersisterTests extends ESTestCase {
     }
 
     public void testPersistAnnotation_Create() throws IOException {
-        doAnswer(withResponse(new BulkResponse(new BulkItemResponse[]{ bulkItemSuccess(ANNOTATION_ID) }, 0L)))
-            .when(client).execute(eq(BulkAction.INSTANCE), any(), any());
+        doAnswer(withResponse(new BulkResponse(new BulkItemResponse[] { bulkItemSuccess(ANNOTATION_ID) }, 0L))).when(client)
+            .execute(eq(BulkAction.INSTANCE), any(), any());
 
         AnnotationPersister persister = new AnnotationPersister(resultsPersisterService);
         Annotation annotation = AnnotationTests.randomAnnotation(JOB_ID);
@@ -110,8 +110,8 @@ public class AnnotationPersisterTests extends ESTestCase {
     }
 
     public void testPersistAnnotation_Update() throws IOException {
-        doAnswer(withResponse(new BulkResponse(new BulkItemResponse[]{ bulkItemSuccess(ANNOTATION_ID) }, 0L)))
-            .when(client).execute(eq(BulkAction.INSTANCE), any(), any());
+        doAnswer(withResponse(new BulkResponse(new BulkItemResponse[] { bulkItemSuccess(ANNOTATION_ID) }, 0L))).when(client)
+            .execute(eq(BulkAction.INSTANCE), any(), any());
 
         AnnotationPersister persister = new AnnotationPersister(resultsPersisterService);
         Annotation annotation = AnnotationTests.randomAnnotation(JOB_ID);
@@ -133,8 +133,8 @@ public class AnnotationPersisterTests extends ESTestCase {
     }
 
     public void testPersistMultipleAnnotationsWithBulk() {
-        doAnswer(withResponse(new BulkResponse(new BulkItemResponse[]{ bulkItemSuccess(ANNOTATION_ID) }, 0L)))
-            .when(client).execute(eq(BulkAction.INSTANCE), any(), any());
+        doAnswer(withResponse(new BulkResponse(new BulkItemResponse[] { bulkItemSuccess(ANNOTATION_ID) }, 0L))).when(client)
+            .execute(eq(BulkAction.INSTANCE), any(), any());
 
         AnnotationPersister persister = new AnnotationPersister(resultsPersisterService);
         persister.bulkPersisterBuilder(JOB_ID)
@@ -153,8 +153,8 @@ public class AnnotationPersisterTests extends ESTestCase {
     }
 
     public void testPersistMultipleAnnotationsWithBulk_LowBulkLimit() {
-        doAnswer(withResponse(new BulkResponse(new BulkItemResponse[]{ bulkItemSuccess(ANNOTATION_ID) }, 0L)))
-            .when(client).execute(eq(BulkAction.INSTANCE), any(), any());
+        doAnswer(withResponse(new BulkResponse(new BulkItemResponse[] { bulkItemSuccess(ANNOTATION_ID) }, 0L))).when(client)
+            .execute(eq(BulkAction.INSTANCE), any(), any());
 
         AnnotationPersister persister = new AnnotationPersister(resultsPersisterService, 2);
         persister.bulkPersisterBuilder(JOB_ID)
@@ -180,10 +180,11 @@ public class AnnotationPersisterTests extends ESTestCase {
     }
 
     public void testPersistMultipleAnnotationsWithBulk_Failure() {
-        doAnswer(withResponse(new BulkResponse(new BulkItemResponse[]{bulkItemFailure("1"), bulkItemFailure("2")}, 0L)))  // (1)
-            .doAnswer(withResponse(new BulkResponse(new BulkItemResponse[]{bulkItemSuccess("1"), bulkItemFailure("2")}, 0L)))  // (2)
-            .doAnswer(withResponse(new BulkResponse(new BulkItemResponse[]{bulkItemFailure("2")}, 0L)))  // (3)
-            .when(client).execute(eq(BulkAction.INSTANCE), any(), any());
+        doAnswer(withResponse(new BulkResponse(new BulkItemResponse[] { bulkItemFailure("1"), bulkItemFailure("2") }, 0L)))  // (1)
+            .doAnswer(withResponse(new BulkResponse(new BulkItemResponse[] { bulkItemSuccess("1"), bulkItemFailure("2") }, 0L)))  // (2)
+            .doAnswer(withResponse(new BulkResponse(new BulkItemResponse[] { bulkItemFailure("2") }, 0L)))  // (3)
+            .when(client)
+            .execute(eq(BulkAction.INSTANCE), any(), any());
 
         AnnotationPersister persister = new AnnotationPersister(resultsPersisterService);
         AnnotationPersister.Builder persisterBuilder = persister.bulkPersisterBuilder(JOB_ID)
@@ -215,14 +216,16 @@ public class AnnotationPersisterTests extends ESTestCase {
         return BulkItemResponse.success(
             1,
             DocWriteRequest.OpType.INDEX,
-            new IndexResponse(new ShardId(AnnotationIndex.WRITE_ALIAS_NAME, "uuid", 1), "doc", docId, 0, 0, 1, true));
+            new IndexResponse(new ShardId(AnnotationIndex.WRITE_ALIAS_NAME, "uuid", 1), "doc", docId, 0, 0, 1, true)
+        );
     }
 
     private static BulkItemResponse bulkItemFailure(String docId) {
         return BulkItemResponse.failure(
             2,
             DocWriteRequest.OpType.INDEX,
-            new BulkItemResponse.Failure("my-index", "doc", docId, new Exception("boom")));
+            new BulkItemResponse.Failure("my-index", "doc", docId, new Exception("boom"))
+        );
     }
 
     private Annotation parseAnnotation(BytesReference source) throws IOException {

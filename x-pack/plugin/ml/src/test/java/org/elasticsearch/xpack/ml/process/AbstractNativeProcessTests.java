@@ -45,7 +45,7 @@ public class AbstractNativeProcessTests extends ESTestCase {
     private Consumer<String> onProcessCrash;
     private ExecutorService executorService;
     // This must be counted down at the point where a real native process would terminate, thus
-    // causing an end-of-file on the stream tailing its logs.  This will be:
+    // causing an end-of-file on the stream tailing its logs. This will be:
     // 1) After close() for jobs that stop gracefully
     // 2) After kill() for jobs that are forcefully terminated
     // 3) After a simulated crash when we test simulated crash
@@ -58,11 +58,10 @@ public class AbstractNativeProcessTests extends ESTestCase {
         mockNativeProcessLoggingStreamEnds = new CountDownLatch(1);
         // This answer blocks the thread on the executor service.
         // In order to unblock it, the test needs to call mockNativeProcessLoggingStreamEnds.countDown().
-        doAnswer(
-            invocationOnMock -> {
-                mockNativeProcessLoggingStreamEnds.await();
-                return null;
-            }).when(cppLogHandler).tailStream();
+        doAnswer(invocationOnMock -> {
+            mockNativeProcessLoggingStreamEnds.await();
+            return null;
+        }).when(cppLogHandler).tailStream();
         when(cppLogHandler.getErrors()).thenReturn("");
         inputStream = mock(OutputStream.class);
         outputStream = mock(InputStream.class);
@@ -104,9 +103,9 @@ public class AbstractNativeProcessTests extends ESTestCase {
             process.start(executorService);
             process.kill(randomBoolean());
             // This ends the logging stream immediately after the kill() instead of part
-            // way through the close sequence.  It is critical that this is done, otherwise
+            // way through the close sequence. It is critical that this is done, otherwise
             // we would not be accurately simulating what happens with the order streams
-            // receive end-of-file after a kill() of a real process.  The latch is counted
+            // receive end-of-file after a kill() of a real process. The latch is counted
             // down again during the close() call, but that is harmless.
             mockNativeProcessLoggingStreamEnds.countDown();
         }
@@ -142,7 +141,7 @@ public class AbstractNativeProcessTests extends ESTestCase {
     public void testWriteRecord() throws Exception {
         try (AbstractNativeProcess process = new TestNativeProcess()) {
             process.start(executorService);
-            process.writeRecord(new String[]{"a", "b", "c"});
+            process.writeRecord(new String[] { "a", "b", "c" });
             process.flushStream();
             verify(inputStream).write(any(), anyInt(), anyInt());
         }
@@ -152,7 +151,7 @@ public class AbstractNativeProcessTests extends ESTestCase {
         when(processPipes.getProcessInStream()).thenReturn(Optional.empty());
         try (AbstractNativeProcess process = new TestNativeProcess()) {
             process.start(executorService);
-            expectThrows(NullPointerException.class, () -> process.writeRecord(new String[]{"a", "b", "c"}));
+            expectThrows(NullPointerException.class, () -> process.writeRecord(new String[] { "a", "b", "c" }));
         }
     }
 
@@ -203,12 +202,10 @@ public class AbstractNativeProcessTests extends ESTestCase {
         }
 
         @Override
-        public void persistState() {
-        }
+        public void persistState() {}
 
         @Override
-        public void persistState(long snapshotTimestamp, String snapshotId, String snapshotDescription) {
-        }
+        public void persistState(long snapshotTimestamp, String snapshotId, String snapshotDescription) {}
 
         @Override
         protected void afterProcessInStreamClose() {

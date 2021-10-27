@@ -24,8 +24,6 @@ import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
@@ -35,6 +33,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.SSLContext;
 
 import static org.elasticsearch.common.settings.Setting.listSetting;
 import static org.elasticsearch.common.settings.Setting.simpleString;
@@ -50,7 +51,9 @@ public class ReindexSslConfig {
 
     static {
         Setting.Property[] defaultProperties = new Setting.Property[] { Setting.Property.NodeScope, Setting.Property.Filtered };
-        Setting.Property[] deprecatedProperties = new Setting.Property[] { Setting.Property.DeprecatedWarning, Setting.Property.NodeScope,
+        Setting.Property[] deprecatedProperties = new Setting.Property[] {
+            Setting.Property.DeprecatedWarning,
+            Setting.Property.NodeScope,
             Setting.Property.Filtered };
         for (String key : SslConfigurationKeys.getStringKeys()) {
             String settingName = "reindex.ssl." + key;

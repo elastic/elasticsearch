@@ -100,14 +100,14 @@ import org.elasticsearch.client.ml.job.config.MlFilterTests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -186,7 +186,7 @@ public class MLRequestConvertersTests extends ESTestCase {
         Request request = MLRequestConverters.openJob(openJobRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/anomaly_detectors/" + jobId + "/_open", request.getEndpoint());
-        assertEquals(requestEntityToString(request), "{\"job_id\":\""+ jobId +"\",\"timeout\":\"10m\"}");
+        assertEquals(requestEntityToString(request), "{\"job_id\":\"" + jobId + "\",\"timeout\":\"10m\"}");
     }
 
     public void testCloseJob() throws Exception {
@@ -205,17 +205,20 @@ public class MLRequestConvertersTests extends ESTestCase {
         request = MLRequestConverters.closeJob(closeJobRequest);
 
         assertEquals("/_ml/anomaly_detectors/" + jobId + ",otherjobs*/_close", request.getEndpoint());
-        assertEquals("{\"job_id\":\"somejobid,otherjobs*\",\"timeout\":\"10m\",\"force\":true,\"allow_no_match\":false}",
-            requestEntityToString(request));
+        assertEquals(
+            "{\"job_id\":\"somejobid,otherjobs*\",\"timeout\":\"10m\",\"force\":true,\"allow_no_match\":false}",
+            requestEntityToString(request)
+        );
     }
 
     public void testDeleteExpiredData() throws Exception {
-        float requestsPerSec = randomBoolean() ? -1.0f : (float)randomDoubleBetween(0.0, 100000.0, false);
+        float requestsPerSec = randomBoolean() ? -1.0f : (float) randomDoubleBetween(0.0, 100000.0, false);
         String jobId = randomBoolean() ? null : randomAlphaOfLength(8);
         DeleteExpiredDataRequest deleteExpiredDataRequest = new DeleteExpiredDataRequest(
             jobId,
             requestsPerSec,
-            TimeValue.timeValueHours(1));
+            TimeValue.timeValueHours(1)
+        );
 
         Request request = MLRequestConverters.deleteExpiredData(deleteExpiredDataRequest);
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
@@ -225,8 +228,10 @@ public class MLRequestConvertersTests extends ESTestCase {
         if (jobId == null) {
             assertEquals("{\"requests_per_second\":" + requestsPerSec + ",\"timeout\":\"1h\"}", requestEntityToString(request));
         } else {
-            assertEquals("{\"job_id\":\"" + jobId + "\",\"requests_per_second\":" + requestsPerSec + ",\"timeout\":\"1h\"}",
-                requestEntityToString(request));
+            assertEquals(
+                "{\"job_id\":\"" + jobId + "\",\"requests_per_second\":" + requestsPerSec + ",\"timeout\":\"1h\"}",
+                requestEntityToString(request)
+            );
         }
     }
 
@@ -282,9 +287,12 @@ public class MLRequestConvertersTests extends ESTestCase {
         flushJobRequest.setCalcInterim(true);
         request = MLRequestConverters.flushJob(flushJobRequest);
         assertEquals(
-                "{\"job_id\":\"" + jobId + "\",\"calc_interim\":true,\"start\":\"105\"," +
-                        "\"end\":\"200\",\"advance_time\":\"100\",\"skip_time\":\"1000\"}",
-                requestEntityToString(request));
+            "{\"job_id\":\""
+                + jobId
+                + "\",\"calc_interim\":true,\"start\":\"105\","
+                + "\"end\":\"200\",\"advance_time\":\"100\",\"skip_time\":\"1000\"}",
+            requestEntityToString(request)
+        );
     }
 
     public void testForecastJob() throws Exception {
@@ -381,9 +389,10 @@ public class MLRequestConvertersTests extends ESTestCase {
         datafeedRequest.setAllowNoMatch(true);
         Request request = MLRequestConverters.stopDatafeed(datafeedRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
-        assertEquals("/_ml/datafeeds/" +
-            Strings.collectionToCommaDelimitedString(datafeedRequest.getDatafeedIds()) +
-            "/_stop", request.getEndpoint());
+        assertEquals(
+            "/_ml/datafeeds/" + Strings.collectionToCommaDelimitedString(datafeedRequest.getDatafeedIds()) + "/_stop",
+            request.getEndpoint()
+        );
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
             StopDatafeedRequest parsedDatafeedRequest = StopDatafeedRequest.PARSER.apply(parser, null);
             assertThat(parsedDatafeedRequest, equalTo(datafeedRequest));
@@ -443,15 +452,14 @@ public class MLRequestConvertersTests extends ESTestCase {
 
         request = MLRequestConverters.deleteForecast(deleteForecastRequest);
         assertEquals(
-            "/_ml/anomaly_detectors/" +
-                jobId +
-                "/_forecast/" +
-                Strings.collectionToCommaDelimitedString(deleteForecastRequest.getForecastIds()),
-            request.getEndpoint());
-        assertEquals("10s",
-            request.getParameters().get(DeleteForecastRequest.TIMEOUT.getPreferredName()));
-        assertEquals(Boolean.toString(true),
-            request.getParameters().get(DeleteForecastRequest.ALLOW_NO_FORECASTS.getPreferredName()));
+            "/_ml/anomaly_detectors/"
+                + jobId
+                + "/_forecast/"
+                + Strings.collectionToCommaDelimitedString(deleteForecastRequest.getForecastIds()),
+            request.getEndpoint()
+        );
+        assertEquals("10s", request.getParameters().get(DeleteForecastRequest.TIMEOUT.getPreferredName()));
+        assertEquals(Boolean.toString(true), request.getParameters().get(DeleteForecastRequest.ALLOW_NO_FORECASTS.getPreferredName()));
     }
 
     public void testDeleteModelSnapshot() {
@@ -486,7 +494,6 @@ public class MLRequestConvertersTests extends ESTestCase {
         GetCategoriesRequest getCategoriesRequest = new GetCategoriesRequest(jobId);
         getCategoriesRequest.setPageParams(new PageParams(100, 300));
 
-
         Request request = MLRequestConverters.getCategories(getCategoriesRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/anomaly_detectors/" + jobId + "/results/categories", request.getEndpoint());
@@ -500,7 +507,6 @@ public class MLRequestConvertersTests extends ESTestCase {
         String jobId = randomAlphaOfLength(10);
         GetModelSnapshotsRequest getModelSnapshotsRequest = new GetModelSnapshotsRequest(jobId);
         getModelSnapshotsRequest.setPageParams(new PageParams(100, 300));
-
 
         Request request = MLRequestConverters.getModelSnapshots(getModelSnapshotsRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
@@ -534,10 +540,12 @@ public class MLRequestConvertersTests extends ESTestCase {
         boolean waitForCompletion = randomBoolean();
         boolean includeTimeout = randomBoolean();
         boolean includeWaitForCompletion = randomBoolean();
-        UpgradeJobModelSnapshotRequest upgradeJobModelSnapshotRequest = new UpgradeJobModelSnapshotRequest(jobId,
+        UpgradeJobModelSnapshotRequest upgradeJobModelSnapshotRequest = new UpgradeJobModelSnapshotRequest(
+            jobId,
             snapshotId,
             includeTimeout ? timeout : null,
-            includeWaitForCompletion ? waitForCompletion : null);
+            includeWaitForCompletion ? waitForCompletion : null
+        );
 
         Request request = MLRequestConverters.upgradeJobSnapshot(upgradeJobModelSnapshotRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
@@ -561,8 +569,7 @@ public class MLRequestConvertersTests extends ESTestCase {
 
         Request request = MLRequestConverters.revertModelSnapshot(revertModelSnapshotRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
-        assertEquals("/_ml/anomaly_detectors/" + jobId + "/model_snapshots/" + snapshotId + "/_revert",
-            request.getEndpoint());
+        assertEquals("/_ml/anomaly_detectors/" + jobId + "/model_snapshots/" + snapshotId + "/_revert", request.getEndpoint());
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
             RevertModelSnapshotRequest parsedRequest = RevertModelSnapshotRequest.PARSER.apply(parser, null);
             assertThat(parsedRequest, equalTo(revertModelSnapshotRequest));
@@ -734,9 +741,11 @@ public class MLRequestConvertersTests extends ESTestCase {
 
     public void testPostCalendarEvent() throws Exception {
         String calendarId = randomAlphaOfLength(10);
-        List<ScheduledEvent> events = Arrays.asList(ScheduledEventTests.testInstance(),
+        List<ScheduledEvent> events = Arrays.asList(
             ScheduledEventTests.testInstance(),
-            ScheduledEventTests.testInstance());
+            ScheduledEventTests.testInstance(),
+            ScheduledEventTests.testInstance()
+        );
         PostCalendarEventRequest postCalendarEventRequest = new PostCalendarEventRequest(calendarId, events);
 
         Request request = MLRequestConverters.postCalendarEvents(postCalendarEventRequest);
@@ -761,9 +770,8 @@ public class MLRequestConvertersTests extends ESTestCase {
         String byFieldName = randomAlphaOfLength(10);
         String influencerFieldName = randomAlphaOfLength(10);
         AnalysisConfig analysisConfig = AnalysisConfig.builder(
-            Collections.singletonList(
-                Detector.builder().setFunction("count").setByFieldName(byFieldName).build()
-            )).setInfluencers(Collections.singletonList(influencerFieldName)).build();
+            Collections.singletonList(Detector.builder().setFunction("count").setByFieldName(byFieldName).build())
+        ).setInfluencers(Collections.singletonList(influencerFieldName)).build();
         EstimateModelMemoryRequest estimateModelMemoryRequest = new EstimateModelMemoryRequest(analysisConfig);
         estimateModelMemoryRequest.setOverallCardinality(Collections.singletonMap(byFieldName, randomNonNegativeLong()));
         estimateModelMemoryRequest.setMaxBucketCardinality(Collections.singletonMap(influencerFieldName, randomNonNegativeLong()));
@@ -802,8 +810,7 @@ public class MLRequestConvertersTests extends ESTestCase {
         String configId1 = randomAlphaOfLength(10);
         String configId2 = randomAlphaOfLength(10);
         String configId3 = randomAlphaOfLength(10);
-        GetDataFrameAnalyticsRequest getRequest = new GetDataFrameAnalyticsRequest(configId1, configId2, configId3)
-            .setAllowNoMatch(false)
+        GetDataFrameAnalyticsRequest getRequest = new GetDataFrameAnalyticsRequest(configId1, configId2, configId3).setAllowNoMatch(false)
             .setPageParams(new PageParams(100, 300));
 
         Request request = MLRequestConverters.getDataFrameAnalytics(getRequest);
@@ -837,8 +844,9 @@ public class MLRequestConvertersTests extends ESTestCase {
     }
 
     public void testStartDataFrameAnalytics_WithTimeout() {
-        StartDataFrameAnalyticsRequest startRequest = new StartDataFrameAnalyticsRequest(randomAlphaOfLength(10))
-            .setTimeout(TimeValue.timeValueMinutes(1));
+        StartDataFrameAnalyticsRequest startRequest = new StartDataFrameAnalyticsRequest(randomAlphaOfLength(10)).setTimeout(
+            TimeValue.timeValueMinutes(1)
+        );
         Request request = MLRequestConverters.startDataFrameAnalytics(startRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/data_frame/analytics/" + startRequest.getId() + "/_start", request.getEndpoint());
@@ -855,17 +863,16 @@ public class MLRequestConvertersTests extends ESTestCase {
     }
 
     public void testStopDataFrameAnalytics_WithParams() {
-        StopDataFrameAnalyticsRequest stopRequest = new StopDataFrameAnalyticsRequest(randomAlphaOfLength(10))
-            .setTimeout(TimeValue.timeValueMinutes(1))
-            .setAllowNoMatch(false)
-            .setForce(true);
+        StopDataFrameAnalyticsRequest stopRequest = new StopDataFrameAnalyticsRequest(randomAlphaOfLength(10)).setTimeout(
+            TimeValue.timeValueMinutes(1)
+        ).setAllowNoMatch(false).setForce(true);
         Request request = MLRequestConverters.stopDataFrameAnalytics(stopRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/data_frame/analytics/" + stopRequest.getId() + "/_stop", request.getEndpoint());
-        assertThat(request.getParameters(), allOf(
-            hasEntry("timeout", "1m"),
-            hasEntry("allow_no_match", "false"),
-            hasEntry("force", "true")));
+        assertThat(
+            request.getParameters(),
+            allOf(hasEntry("timeout", "1m"), hasEntry("allow_no_match", "false"), hasEntry("force", "true"))
+        );
         assertNull(request.getEntity());
     }
 
@@ -935,8 +942,7 @@ public class MLRequestConvertersTests extends ESTestCase {
         String modelId1 = randomAlphaOfLength(10);
         String modelId2 = randomAlphaOfLength(10);
         String modelId3 = randomAlphaOfLength(10);
-        GetTrainedModelsRequest getRequest = new GetTrainedModelsRequest(modelId1, modelId2, modelId3)
-            .setAllowNoMatch(false)
+        GetTrainedModelsRequest getRequest = new GetTrainedModelsRequest(modelId1, modelId2, modelId3).setAllowNoMatch(false)
             .setDecompressDefinition(true)
             .includeDefinition()
             .setTags("tag1", "tag2")
@@ -945,7 +951,8 @@ public class MLRequestConvertersTests extends ESTestCase {
         Request request = MLRequestConverters.getTrainedModels(getRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/trained_models/" + modelId1 + "," + modelId2 + "," + modelId3, request.getEndpoint());
-        assertThat(request.getParameters(),
+        assertThat(
+            request.getParameters(),
             allOf(
                 hasEntry("from", "100"),
                 hasEntry("size", "300"),
@@ -953,7 +960,8 @@ public class MLRequestConvertersTests extends ESTestCase {
                 hasEntry("decompress_definition", "true"),
                 hasEntry("tags", "tag1,tag2"),
                 hasEntry("include", "definition")
-            ));
+            )
+        );
         assertNull(request.getEntity());
     }
 
@@ -961,19 +969,13 @@ public class MLRequestConvertersTests extends ESTestCase {
         String modelId1 = randomAlphaOfLength(10);
         String modelId2 = randomAlphaOfLength(10);
         String modelId3 = randomAlphaOfLength(10);
-        GetTrainedModelsStatsRequest getRequest = new GetTrainedModelsStatsRequest(modelId1, modelId2, modelId3)
-            .setAllowNoMatch(false)
+        GetTrainedModelsStatsRequest getRequest = new GetTrainedModelsStatsRequest(modelId1, modelId2, modelId3).setAllowNoMatch(false)
             .setPageParams(new PageParams(100, 300));
 
         Request request = MLRequestConverters.getTrainedModelsStats(getRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/trained_models/" + modelId1 + "," + modelId2 + "," + modelId3 + "/_stats", request.getEndpoint());
-        assertThat(request.getParameters(),
-            allOf(
-                hasEntry("from", "100"),
-                hasEntry("size", "300"),
-                hasEntry("allow_no_match", "false")
-            ));
+        assertThat(request.getParameters(), allOf(hasEntry("from", "100"), hasEntry("size", "300"), hasEntry("allow_no_match", "false")));
         assertNull(request.getEntity());
     }
 
@@ -1088,7 +1090,7 @@ public class MLRequestConvertersTests extends ESTestCase {
         Request request = MLRequestConverters.updateFilter(updateFilterRequest);
 
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
-        assertThat(request.getEndpoint(), equalTo("/_ml/filters/"+filterId+"/_update"));
+        assertThat(request.getEndpoint(), equalTo("/_ml/filters/" + filterId + "/_update"));
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
             UpdateFilterRequest parsedFilterRequest = UpdateFilterRequest.PARSER.apply(parser, null);
             assertThat(parsedFilterRequest, equalTo(updateFilterRequest));
@@ -1144,8 +1146,9 @@ public class MLRequestConvertersTests extends ESTestCase {
     }
 
     private static Job createValidJob(String jobId) {
-        AnalysisConfig.Builder analysisConfig = AnalysisConfig.builder(Collections.singletonList(
-                Detector.builder().setFunction("count").build()));
+        AnalysisConfig.Builder analysisConfig = AnalysisConfig.builder(
+            Collections.singletonList(Detector.builder().setFunction("count").build())
+        );
         Job.Builder jobBuilder = Job.builder(jobId);
         jobBuilder.setAnalysisConfig(analysisConfig);
         return jobBuilder.build();

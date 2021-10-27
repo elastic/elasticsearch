@@ -14,11 +14,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
@@ -64,8 +64,8 @@ public class GetServiceAccountCredentialsResponseTests extends ESTestCase {
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        final Map<String, Object> responseMap = XContentHelper.convertToMap(BytesReference.bytes(builder),
-            false, builder.contentType()).v2();
+        final Map<String, Object> responseMap = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType())
+            .v2();
 
         assertThat(responseMap.get("service_account"), equalTo(response.getPrincipal()));
         assertThat(responseMap.get("count"), equalTo(tokenInfos.size()));
@@ -120,10 +120,12 @@ public class GetServiceAccountCredentialsResponseTests extends ESTestCase {
         final DiscoveryNode discoveryNode = new DiscoveryNode(
             randomAlphaOfLength(8) + i,
             new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            Version.CURRENT);
+            Version.CURRENT
+        );
         return new GetServiceAccountCredentialsNodesResponse.Node(
             discoveryNode,
-            randomSubsetOf(randomIntBetween(0, tokenNames.length), tokenNames).toArray(new String[0]));
+            randomSubsetOf(randomIntBetween(0, tokenNames.length), tokenNames).toArray(new String[0])
+        );
     }
 
     private List<TokenInfo> getAllTokenInfos(GetServiceAccountCredentialsResponse response) {

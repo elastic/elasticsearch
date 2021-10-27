@@ -30,7 +30,7 @@ public class AuthenticateResponse extends ActionResponse {
         }
     }
 
-    public AuthenticateResponse(Authentication authentication){
+    public AuthenticateResponse(Authentication authentication) {
         this.authentication = authentication;
     }
 

@@ -19,13 +19,13 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
@@ -54,41 +54,56 @@ import static org.hamcrest.Matchers.hasSize;
 public class ClusterDeprecationChecksTests extends ESTestCase {
 
     public void testUserAgentEcsCheck() {
-        PutPipelineRequest ecsFalseRequest = new PutPipelineRequest("ecs_false",
-            new BytesArray("{\n" +
-                "  \"description\" : \"This has ecs set to false\",\n" +
-                "  \"processors\" : [\n" +
-                "    {\n" +
-                "      \"user_agent\" : {\n" +
-                "        \"field\" : \"agent\",\n" +
-                "        \"ecs\" : false\n" +
-                "      }\n" +
-                "    }\n" +
-                "  ]\n" +
-                "}"), XContentType.JSON);
-        PutPipelineRequest ecsNullRequest = new PutPipelineRequest("ecs_null",
-            new BytesArray("{\n" +
-                "  \"description\" : \"This has ecs set to false\",\n" +
-                "  \"processors\" : [\n" +
-                "    {\n" +
-                "      \"user_agent\" : {\n" +
-                "        \"field\" : \"agent\"\n" +
-                "      }\n" +
-                "    }\n" +
-                "  ]\n" +
-                "}"), XContentType.JSON);
-        PutPipelineRequest ecsTrueRequest = new PutPipelineRequest("ecs_true",
-            new BytesArray("{\n" +
-                "  \"description\" : \"This has ecs set to false\",\n" +
-                "  \"processors\" : [\n" +
-                "    {\n" +
-                "      \"user_agent\" : {\n" +
-                "        \"field\" : \"agent\",\n" +
-                "        \"ecs\" : true\n" +
-                "      }\n" +
-                "    }\n" +
-                "  ]\n" +
-                "}"), XContentType.JSON);
+        PutPipelineRequest ecsFalseRequest = new PutPipelineRequest(
+            "ecs_false",
+            new BytesArray(
+                "{\n"
+                    + "  \"description\" : \"This has ecs set to false\",\n"
+                    + "  \"processors\" : [\n"
+                    + "    {\n"
+                    + "      \"user_agent\" : {\n"
+                    + "        \"field\" : \"agent\",\n"
+                    + "        \"ecs\" : false\n"
+                    + "      }\n"
+                    + "    }\n"
+                    + "  ]\n"
+                    + "}"
+            ),
+            XContentType.JSON
+        );
+        PutPipelineRequest ecsNullRequest = new PutPipelineRequest(
+            "ecs_null",
+            new BytesArray(
+                "{\n"
+                    + "  \"description\" : \"This has ecs set to false\",\n"
+                    + "  \"processors\" : [\n"
+                    + "    {\n"
+                    + "      \"user_agent\" : {\n"
+                    + "        \"field\" : \"agent\"\n"
+                    + "      }\n"
+                    + "    }\n"
+                    + "  ]\n"
+                    + "}"
+            ),
+            XContentType.JSON
+        );
+        PutPipelineRequest ecsTrueRequest = new PutPipelineRequest(
+            "ecs_true",
+            new BytesArray(
+                "{\n"
+                    + "  \"description\" : \"This has ecs set to false\",\n"
+                    + "  \"processors\" : [\n"
+                    + "    {\n"
+                    + "      \"user_agent\" : {\n"
+                    + "        \"field\" : \"agent\",\n"
+                    + "        \"ecs\" : true\n"
+                    + "      }\n"
+                    + "    }\n"
+                    + "  ]\n"
+                    + "}"
+            ),
+            XContentType.JSON
+        );
 
         ClusterState state = ClusterState.builder(new ClusterName("test")).build();
         state = IngestService.innerPut(ecsTrueRequest, state);
@@ -98,11 +113,15 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         final ClusterState finalState = state;
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(finalState));
 
-        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
+        DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
             "The User-Agent ingest processor's ecs parameter is deprecated",
             "https://ela.st/es-deprecation-7-ingest-pipeline-ecs-option",
-            "Remove the ecs parameter from your ingest pipelines. The User-Agent ingest processor always returns Elastic Common Schema " +
-                "(ECS) fields in 8.0.", false, null);
+            "Remove the ecs parameter from your ingest pipelines. The User-Agent ingest processor always returns Elastic Common Schema "
+                + "(ECS) fields in 8.0.",
+            false,
+            null
+        );
         assertEquals(singletonList(expected), issues);
     }
 
@@ -146,34 +165,54 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         goodMappingBuilder.endObject();
 
         final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(5)))
-            .metadata(Metadata.builder()
-                .put(IndexTemplateMetadata.builder(tooManyFieldsTemplate)
-                    .patterns(Collections.singletonList(randomAlphaOfLength(5)))
-                    .putMapping("_doc", Strings.toString(badMappingBuilder))
-                    .build())
-                .put(IndexTemplateMetadata.builder(tooManyFieldsWithDefaultFieldsTemplate)
-                    .patterns(Collections.singletonList(randomAlphaOfLength(5)))
-                    .putMapping("_doc", Strings.toString(badMappingBuilder))
-                    .settings(Settings.builder()
-                        .put(IndexSettings.DEFAULT_FIELD_SETTING.getKey(),
-                            Collections.singletonList(randomAlphaOfLength(5)).toString()))
-                    .build())
-                .put(IndexTemplateMetadata.builder(goodTemplateName)
-                    .patterns(Collections.singletonList(randomAlphaOfLength(5)))
-                    .putMapping("_doc", Strings.toString(goodMappingBuilder))
-                    .build())
-                .build())
+            .metadata(
+                Metadata.builder()
+                    .put(
+                        IndexTemplateMetadata.builder(tooManyFieldsTemplate)
+                            .patterns(Collections.singletonList(randomAlphaOfLength(5)))
+                            .putMapping("_doc", Strings.toString(badMappingBuilder))
+                            .build()
+                    )
+                    .put(
+                        IndexTemplateMetadata.builder(tooManyFieldsWithDefaultFieldsTemplate)
+                            .patterns(Collections.singletonList(randomAlphaOfLength(5)))
+                            .putMapping("_doc", Strings.toString(badMappingBuilder))
+                            .settings(
+                                Settings.builder()
+                                    .put(
+                                        IndexSettings.DEFAULT_FIELD_SETTING.getKey(),
+                                        Collections.singletonList(randomAlphaOfLength(5)).toString()
+                                    )
+                            )
+                            .build()
+                    )
+                    .put(
+                        IndexTemplateMetadata.builder(goodTemplateName)
+                            .patterns(Collections.singletonList(randomAlphaOfLength(5)))
+                            .putMapping("_doc", Strings.toString(goodMappingBuilder))
+                            .build()
+                    )
+                    .build()
+            )
             .build();
 
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(state));
 
-        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
+        DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
             "Fields in index template exceed automatic field expansion limit",
             "https://ela.st/es-deprecation-7-number-of-auto-expanded-fields",
-            "Index templates " + Collections.singletonList(tooManyFieldsTemplate) + " have a number of fields which exceeds the " +
-                "automatic field expansion limit of [1024] and does not have [" + IndexSettings.DEFAULT_FIELD_SETTING.getKey() + "] set, " +
-                "which may cause queries which use automatic field expansion, such as query_string, simple_query_string, and multi_match " +
-                "to fail if fields are not explicitly specified in the query.", false, null);
+            "Index templates "
+                + Collections.singletonList(tooManyFieldsTemplate)
+                + " have a number of fields which exceeds the "
+                + "automatic field expansion limit of [1024] and does not have ["
+                + IndexSettings.DEFAULT_FIELD_SETTING.getKey()
+                + "] set, "
+                + "which may cause queries which use automatic field expansion, such as query_string, simple_query_string, and multi_match "
+                + "to fail if fields are not explicitly specified in the query.",
+            false,
+            null
+        );
         assertEquals(singletonList(expected), issues);
     }
 
@@ -230,12 +269,16 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
     private void assertFieldNamesEnabledTemplate(XContentBuilder templateBuilder, boolean expectIssue) throws IOException {
         String badTemplateName = randomAlphaOfLength(5);
         final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(5)))
-            .metadata(Metadata.builder()
-                .put(IndexTemplateMetadata.builder(badTemplateName)
-                    .patterns(Collections.singletonList(randomAlphaOfLength(5)))
-                    .putMapping("_doc", Strings.toString(templateBuilder))
-                    .build())
-                .build())
+            .metadata(
+                Metadata.builder()
+                    .put(
+                        IndexTemplateMetadata.builder(badTemplateName)
+                            .patterns(Collections.singletonList(randomAlphaOfLength(5)))
+                            .putMapping("_doc", Strings.toString(templateBuilder))
+                            .build()
+                    )
+                    .build()
+            )
             .build();
 
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(state));
@@ -243,13 +286,16 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             assertEquals(1, issues.size());
             DeprecationIssue issue = issues.get(0);
             assertEquals(DeprecationIssue.Level.WARNING, issue.getLevel());
-            assertEquals("https://ela.st/es-deprecation-7-field_names-settings"
-                    , issue.getUrl());
+            assertEquals("https://ela.st/es-deprecation-7-field_names-settings", issue.getUrl());
             assertEquals("Disabling the \"_field_names\" field in a template's index mappings is deprecated", issue.getMessage());
-            assertEquals("Remove the \"_field_names\" mapping that configures the enabled setting from the following templates: " +
-                "\"" + badTemplateName + "\". There's no longer a need to disable this field to reduce index overhead if you have a lot " +
-                    "of fields.",
-                issue.getDetails());
+            assertEquals(
+                "Remove the \"_field_names\" mapping that configures the enabled setting from the following templates: "
+                    + "\""
+                    + badTemplateName
+                    + "\". There's no longer a need to disable this field to reduce index overhead if you have a lot "
+                    + "of fields.",
+                issue.getDetails()
+            );
         } else {
             assertTrue(issues.isEmpty());
         }
@@ -259,19 +305,23 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         {
             final String tooLowInterval = randomTimeValue(1, 999, "ms", "micros", "nanos");
             Metadata badMetaDtata = Metadata.builder()
-                .persistentSettings(Settings.builder()
-                    .put(LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), tooLowInterval)
-                    .build())
+                .persistentSettings(Settings.builder().put(LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), tooLowInterval).build())
                 .build();
-            ClusterState badState = ClusterState.builder(new ClusterName("test"))
-                .metadata(badMetaDtata)
-                .build();
+            ClusterState badState = ClusterState.builder(new ClusterName("test")).metadata(badMetaDtata).build();
 
-            DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            DeprecationIssue expected = new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
                 "Index Lifecycle Management poll interval is set too low",
                 "https://ela.st/es-deprecation-7-indices-lifecycle-poll-interval-setting",
-                "The ILM [" + LIFECYCLE_POLL_INTERVAL_SETTING.getKey() + "] setting is set to [" + tooLowInterval + "]. " +
-                    "Set the interval to at least 1s.", false, null);
+                "The ILM ["
+                    + LIFECYCLE_POLL_INTERVAL_SETTING.getKey()
+                    + "] setting is set to ["
+                    + tooLowInterval
+                    + "]. "
+                    + "Set the interval to at least 1s.",
+                false,
+                null
+            );
             List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(badState));
             assertEquals(singletonList(expected), issues);
         }
@@ -280,13 +330,9 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         {
             final String okInterval = randomTimeValue(1, 9999, "d", "h", "s");
             Metadata okMetadata = Metadata.builder()
-                .persistentSettings(Settings.builder()
-                    .put(LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), okInterval)
-                    .build())
+                .persistentSettings(Settings.builder().put(LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), okInterval).build())
                 .build();
-            ClusterState okState = ClusterState.builder(new ClusterName("test"))
-                .metadata(okMetadata)
-                .build();
+            ClusterState okState = ClusterState.builder(new ClusterName("test")).metadata(okMetadata).build();
             List<DeprecationIssue> noIssues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(okState));
             assertThat(noIssues, hasSize(0));
         }
@@ -307,26 +353,26 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             .fPut("multiple-types", multipleTypes)
             .fPut("single-type", singleType)
             .build();
-        Metadata badMetadata = Metadata.builder()
-            .templates(templates)
-            .build();
+        Metadata badMetadata = Metadata.builder().templates(templates).build();
         ClusterState badState = ClusterState.builder(new ClusterName("test")).metadata(badMetadata).build();
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(badState));
         assertThat(issues, hasSize(1));
-        assertThat(issues.get(0).getDetails(),
-            equalTo("Update or remove the following index templates before upgrading to 8.0: [multiple-types]. See " +
-                "https://ela.st/es-deprecation-7-removal-of-types for alternatives to mapping types."));
-        assertWarnings("Index template multiple-types contains multiple typed mappings;" +
-            " templates in 8x will only support a single mapping");
+        assertThat(
+            issues.get(0).getDetails(),
+            equalTo(
+                "Update or remove the following index templates before upgrading to 8.0: [multiple-types]. See "
+                    + "https://ela.st/es-deprecation-7-removal-of-types for alternatives to mapping types."
+            )
+        );
+        assertWarnings(
+            "Index template multiple-types contains multiple typed mappings;" + " templates in 8x will only support a single mapping"
+        );
 
         Metadata goodMetadata = Metadata.builder()
             .templates(ImmutableOpenMap.<String, IndexTemplateMetadata>builder().fPut("single-type", singleType).build())
             .build();
         ClusterState goodState = ClusterState.builder(new ClusterName("test")).metadata(goodMetadata).build();
-        assertThat(
-            DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(goodState)),
-            hasSize(0)
-        );
+        assertThat(DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(goodState)), hasSize(0));
     }
 
     public void testClusterRoutingAllocationIncludeRelocationsSetting() {
@@ -344,24 +390,23 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             .metadata(metadataBuilder.transientSettings(deprecatedSetting).build())
             .build();
 
-
-        final DeprecationIssue expectedIssue = new DeprecationIssue(DeprecationIssue.Level.WARNING,
-            String.format(Locale.ROOT,
-                "Setting [%s] is deprecated",
-                settingKey),
+        final DeprecationIssue expectedIssue = new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            String.format(Locale.ROOT, "Setting [%s] is deprecated", settingKey),
             "https://ela.st/es-deprecation-7-cluster-routing-allocation-disk-include-relocations-setting",
-            String.format(Locale.ROOT,
-                "Remove the [%s] setting. Relocating shards are always taken into account in 8.0.",
-                settingKey),
+            String.format(Locale.ROOT, "Remove the [%s] setting. Relocating shards are always taken into account in 8.0.", settingKey),
             false,
             null
         );
 
-        final DeprecationIssue otherExpectedIssue = new DeprecationIssue(DeprecationIssue.Level.WARNING,
+        final DeprecationIssue otherExpectedIssue = new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
             "Transient cluster settings are deprecated",
             "https://ela.st/es-deprecation-7-transient-cluster-settings",
             "Use persistent settings to configure your cluster.",
-            false, null);
+            false,
+            null
+        );
 
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(clusterState));
 
@@ -369,10 +414,12 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         assertThat(issues, hasItem(expectedIssue));
         assertThat(issues, hasItem(otherExpectedIssue));
 
-        final String expectedWarning = String.format(Locale.ROOT,
-            "[%s] setting was deprecated in Elasticsearch and will be removed in a future release! " +
-                "See the breaking changes documentation for the next major version.",
-            settingKey);
+        final String expectedWarning = String.format(
+            Locale.ROOT,
+            "[%s] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                + "See the breaking changes documentation for the next major version.",
+            settingKey
+        );
 
         assertWarnings(expectedWarning);
     }
@@ -381,61 +428,75 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         // First, testing only an index template:
         IndexTemplateMetadata indexTemplateMetadata = IndexTemplateMetadata.builder("single-type")
             .patterns(Collections.singletonList("foo"))
-            .putMapping("_doc", "{\n" +
-                "   \"_doc\":{\n" +
-                "      \"properties\":{\n" +
-                "         \"nested_field\":{\n" +
-                "            \"type\":\"nested\",\n" +
-                "            \"properties\":{\n" +
-                "               \"location\":{\n" +
-                "                  \"type\":\"geo_shape\",\n" +
-                "                  \"strategy\":\"recursive\",\n" +
-                "                  \"points_only\":true\n" +
-                "               }\n" +
-                "            }\n" +
-                "         }\n" +
-                "      }\n" +
-                "   }\n" +
-                "}")
+            .putMapping(
+                "_doc",
+                "{\n"
+                    + "   \"_doc\":{\n"
+                    + "      \"properties\":{\n"
+                    + "         \"nested_field\":{\n"
+                    + "            \"type\":\"nested\",\n"
+                    + "            \"properties\":{\n"
+                    + "               \"location\":{\n"
+                    + "                  \"type\":\"geo_shape\",\n"
+                    + "                  \"strategy\":\"recursive\",\n"
+                    + "                  \"points_only\":true\n"
+                    + "               }\n"
+                    + "            }\n"
+                    + "         }\n"
+                    + "      }\n"
+                    + "   }\n"
+                    + "}"
+            )
             .build();
         ImmutableOpenMap<String, IndexTemplateMetadata> templates = ImmutableOpenMap.<String, IndexTemplateMetadata>builder()
             .fPut("single-type", indexTemplateMetadata)
             .build();
-        Metadata badMetadata = Metadata.builder()
-            .templates(templates)
-            .build();
+        Metadata badMetadata = Metadata.builder().templates(templates).build();
         ClusterState badState = ClusterState.builder(new ClusterName("test")).metadata(badMetadata).build();
         DeprecationIssue issue = ClusterDeprecationChecks.checkGeoShapeTemplates(badState);
 
-        assertThat(issue, equalTo(
-            new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                "[single-type] index template uses deprecated geo_shape properties",
-                "https://ela.st/es-deprecation-7-geo-shape-mappings",
-                "Remove the following deprecated geo_shape properties from the mappings: [parameter [points_only] in field [location]; " +
-                    "parameter [strategy] in field [location]].", false, null)
-        ));
+        assertThat(
+            issue,
+            equalTo(
+                new DeprecationIssue(
+                    DeprecationIssue.Level.CRITICAL,
+                    "[single-type] index template uses deprecated geo_shape properties",
+                    "https://ela.st/es-deprecation-7-geo-shape-mappings",
+                    "Remove the following deprecated geo_shape properties from the mappings: [parameter [points_only] in field [location]; "
+                        + "parameter [strategy] in field [location]].",
+                    false,
+                    null
+                )
+            )
+        );
 
         // Second, testing only a component template:
         String templateName = "my-template";
         Settings settings = Settings.builder().put("index.number_of_shards", 1).build();
-        CompressedXContent mappings = new CompressedXContent("{\"properties\":{\"location\":{\"type\":\"geo_shape\", " +
-            "\"strategy\":\"recursive\", \"points_only\":true}}}");
+        CompressedXContent mappings = new CompressedXContent(
+            "{\"properties\":{\"location\":{\"type\":\"geo_shape\", " + "\"strategy\":\"recursive\", \"points_only\":true}}}"
+        );
         AliasMetadata alias = AliasMetadata.builder("alias").writeIndex(true).build();
         Template template = new Template(settings, mappings, Collections.singletonMap("alias", alias));
         ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, new HashMap<>());
-        badMetadata = Metadata.builder()
-            .componentTemplates(Collections.singletonMap(templateName, componentTemplate))
-            .build();
+        badMetadata = Metadata.builder().componentTemplates(Collections.singletonMap(templateName, componentTemplate)).build();
         badState = ClusterState.builder(new ClusterName("test")).metadata(badMetadata).build();
         issue = ClusterDeprecationChecks.checkGeoShapeTemplates(badState);
 
-        assertThat(issue, equalTo(
-            new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                "[my-template] component template uses deprecated geo_shape properties",
-                "https://ela.st/es-deprecation-7-geo-shape-mappings",
-                "Remove the following deprecated geo_shape properties from the mappings: [parameter [points_only] in field [location]; " +
-                    "parameter [strategy] in field [location]].", false, null)
-        ));
+        assertThat(
+            issue,
+            equalTo(
+                new DeprecationIssue(
+                    DeprecationIssue.Level.CRITICAL,
+                    "[my-template] component template uses deprecated geo_shape properties",
+                    "https://ela.st/es-deprecation-7-geo-shape-mappings",
+                    "Remove the following deprecated geo_shape properties from the mappings: [parameter [points_only] in field [location]; "
+                        + "parameter [strategy] in field [location]].",
+                    false,
+                    null
+                )
+            )
+        );
 
         // Third, trying a component template and an index template:
         badMetadata = Metadata.builder()
@@ -445,54 +506,69 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         badState = ClusterState.builder(new ClusterName("test")).metadata(badMetadata).build();
         issue = ClusterDeprecationChecks.checkGeoShapeTemplates(badState);
 
-        assertThat(issue, equalTo(
-            new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                "[my-template] component template and [single-type] index template use deprecated geo_shape properties",
-                "https://ela.st/es-deprecation-7-geo-shape-mappings",
-                "Remove the following deprecated geo_shape properties from the mappings: [my-template: [parameter [points_only] in field" +
-                    " [location]; parameter [strategy] in field [location]]]; [single-type: [parameter [points_only] in field " +
-                    "[location]; parameter [strategy] in field [location]]].", false, null)
-        ));
+        assertThat(
+            issue,
+            equalTo(
+                new DeprecationIssue(
+                    DeprecationIssue.Level.CRITICAL,
+                    "[my-template] component template and [single-type] index template use deprecated geo_shape properties",
+                    "https://ela.st/es-deprecation-7-geo-shape-mappings",
+                    "Remove the following deprecated geo_shape properties from the mappings: [my-template: [parameter [points_only] in field"
+                        + " [location]; parameter [strategy] in field [location]]]; [single-type: [parameter [points_only] in field "
+                        + "[location]; parameter [strategy] in field [location]]].",
+                    false,
+                    null
+                )
+            )
+        );
     }
 
     public void testSparseVectorMappings() throws Exception {
         // First, testing only an index template:
         IndexTemplateMetadata indexTemplateMetadata = IndexTemplateMetadata.builder("single-type")
             .patterns(Collections.singletonList("foo"))
-            .putMapping("_doc", "{\n" +
-                "   \"_doc\":{\n" +
-                "      \"properties\":{\n" +
-                "         \"my_sparse_vector\":{\n" +
-                "            \"type\":\"sparse_vector\"\n" +
-                "         },\n" +
-                "         \"nested_field\":{\n" +
-                "            \"type\":\"nested\",\n" +
-                "            \"properties\":{\n" +
-                "               \"my_nested_sparse_vector\":{\n" +
-                "                  \"type\":\"sparse_vector\"\n" +
-                "               }\n" +
-                "            }\n" +
-                "         }\n" +
-                "      }\n" +
-                "   }\n" +
-                "}")
+            .putMapping(
+                "_doc",
+                "{\n"
+                    + "   \"_doc\":{\n"
+                    + "      \"properties\":{\n"
+                    + "         \"my_sparse_vector\":{\n"
+                    + "            \"type\":\"sparse_vector\"\n"
+                    + "         },\n"
+                    + "         \"nested_field\":{\n"
+                    + "            \"type\":\"nested\",\n"
+                    + "            \"properties\":{\n"
+                    + "               \"my_nested_sparse_vector\":{\n"
+                    + "                  \"type\":\"sparse_vector\"\n"
+                    + "               }\n"
+                    + "            }\n"
+                    + "         }\n"
+                    + "      }\n"
+                    + "   }\n"
+                    + "}"
+            )
             .build();
         ImmutableOpenMap<String, IndexTemplateMetadata> templates = ImmutableOpenMap.<String, IndexTemplateMetadata>builder()
             .fPut("single-type", indexTemplateMetadata)
             .build();
-        Metadata badMetadata = Metadata.builder()
-            .templates(templates)
-            .build();
+        Metadata badMetadata = Metadata.builder().templates(templates).build();
         ClusterState badState = ClusterState.builder(new ClusterName("test")).metadata(badMetadata).build();
         DeprecationIssue issue = ClusterDeprecationChecks.checkSparseVectorTemplates(badState);
 
-        assertThat(issue, equalTo(
-            new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                "[single-type] index template uses deprecated sparse_vector properties",
-                "https://ela.st/es-deprecation-7-sparse-vector",
-                "Remove the following deprecated sparse_vector properties from the mappings: [my_sparse_vector]; " +
-                    "[my_nested_sparse_vector].", false, null)
-        ));
+        assertThat(
+            issue,
+            equalTo(
+                new DeprecationIssue(
+                    DeprecationIssue.Level.CRITICAL,
+                    "[single-type] index template uses deprecated sparse_vector properties",
+                    "https://ela.st/es-deprecation-7-sparse-vector",
+                    "Remove the following deprecated sparse_vector properties from the mappings: [my_sparse_vector]; "
+                        + "[my_nested_sparse_vector].",
+                    false,
+                    null
+                )
+            )
+        );
 
         // Second, testing only a component template:
         String templateName = "my-template";
@@ -501,18 +577,23 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         AliasMetadata alias = AliasMetadata.builder("alias").writeIndex(true).build();
         Template template = new Template(settings, mappings, Collections.singletonMap("alias", alias));
         ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, new HashMap<>());
-        badMetadata = Metadata.builder()
-            .componentTemplates(Collections.singletonMap(templateName, componentTemplate))
-            .build();
+        badMetadata = Metadata.builder().componentTemplates(Collections.singletonMap(templateName, componentTemplate)).build();
         badState = ClusterState.builder(new ClusterName("test")).metadata(badMetadata).build();
         issue = ClusterDeprecationChecks.checkSparseVectorTemplates(badState);
 
-        assertThat(issue, equalTo(
-            new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                "[my-template] component template uses deprecated sparse_vector properties",
-                "https://ela.st/es-deprecation-7-sparse-vector",
-                "Remove the following deprecated sparse_vector properties from the mappings: [my_sparse_vector].", false, null)
-        ));
+        assertThat(
+            issue,
+            equalTo(
+                new DeprecationIssue(
+                    DeprecationIssue.Level.CRITICAL,
+                    "[my-template] component template uses deprecated sparse_vector properties",
+                    "https://ela.st/es-deprecation-7-sparse-vector",
+                    "Remove the following deprecated sparse_vector properties from the mappings: [my_sparse_vector].",
+                    false,
+                    null
+                )
+            )
+        );
 
         // Third, trying a component template and an index template:
         badMetadata = Metadata.builder()
@@ -522,13 +603,20 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         badState = ClusterState.builder(new ClusterName("test")).metadata(badMetadata).build();
         issue = ClusterDeprecationChecks.checkSparseVectorTemplates(badState);
 
-        assertThat(issue, equalTo(
-            new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                "[my-template] component template and [single-type] index template use deprecated sparse_vector properties",
-                "https://ela.st/es-deprecation-7-sparse-vector",
-                "Remove the following deprecated sparse_vector properties from the mappings: [my-template: " +
-                    "[my_sparse_vector]]; [single-type: [my_sparse_vector]; [my_nested_sparse_vector]].", false, null)
-        ));
+        assertThat(
+            issue,
+            equalTo(
+                new DeprecationIssue(
+                    DeprecationIssue.Level.CRITICAL,
+                    "[my-template] component template and [single-type] index template use deprecated sparse_vector properties",
+                    "https://ela.st/es-deprecation-7-sparse-vector",
+                    "Remove the following deprecated sparse_vector properties from the mappings: [my-template: "
+                        + "[my_sparse_vector]]; [single-type: [my_sparse_vector]; [my_nested_sparse_vector]].",
+                    false,
+                    null
+                )
+            )
+        );
     }
 
     public void testCheckILMFreezeActions() throws Exception {
@@ -549,23 +637,26 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         LifecyclePolicyMetadata policy2Metadata = new LifecyclePolicyMetadata(policy2, null, 0, 0);
         policies.put("policy2", policy2Metadata);
         Metadata.Custom lifecycle = new IndexLifecycleMetadata(policies, OperationMode.RUNNING);
-        Metadata badMetadata = Metadata.builder()
-            .putCustom("index_lifecycle", lifecycle)
-            .build();
+        Metadata badMetadata = Metadata.builder().putCustom("index_lifecycle", lifecycle).build();
         ClusterState badState = ClusterState.builder(new ClusterName("test")).metadata(badMetadata).build();
         DeprecationIssue issue = ClusterDeprecationChecks.checkILMFreezeActions(badState);
-        assertThat(issue, equalTo(
-            new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                "ILM policies use the deprecated freeze action",
-                "https://ela.st/es-deprecation-7-frozen-indices",
-                "Remove the freeze action from ILM policies: [policy1,policy2]", false, null)
-        ));
+        assertThat(
+            issue,
+            equalTo(
+                new DeprecationIssue(
+                    DeprecationIssue.Level.WARNING,
+                    "ILM policies use the deprecated freeze action",
+                    "https://ela.st/es-deprecation-7-frozen-indices",
+                    "Remove the freeze action from ILM policies: [policy1,policy2]",
+                    false,
+                    null
+                )
+            )
+        );
     }
 
     public void testCheckTransientSettingsExistence() {
-        Settings persistentSettings = Settings.builder()
-            .put("xpack.monitoring.collection.enabled", true)
-            .build();
+        Settings persistentSettings = Settings.builder().put("xpack.monitoring.collection.enabled", true).build();
 
         Settings transientSettings = Settings.builder()
             .put("indices.recovery.max_bytes_per_sec", "20mb")
@@ -579,20 +670,22 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
 
         ClusterState badState = ClusterState.builder(new ClusterName("test")).metadata(metadataWithTransientSettings).build();
         DeprecationIssue issue = ClusterDeprecationChecks.checkTransientSettingsExistence(badState);
-        assertThat(issue, equalTo(
-            new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                "Transient cluster settings are deprecated",
-                "https://ela.st/es-deprecation-7-transient-cluster-settings",
-                "Use persistent settings to configure your cluster.",
-                false, null)
-        ));
+        assertThat(
+            issue,
+            equalTo(
+                new DeprecationIssue(
+                    DeprecationIssue.Level.WARNING,
+                    "Transient cluster settings are deprecated",
+                    "https://ela.st/es-deprecation-7-transient-cluster-settings",
+                    "Use persistent settings to configure your cluster.",
+                    false,
+                    null
+                )
+            )
+        );
 
-        persistentSettings = Settings.builder()
-            .put("indices.recovery.max_bytes_per_sec", "20mb")
-            .build();
-        Metadata metadataWithoutTransientSettings = Metadata.builder()
-            .persistentSettings(persistentSettings)
-            .build();
+        persistentSettings = Settings.builder().put("indices.recovery.max_bytes_per_sec", "20mb").build();
+        Metadata metadataWithoutTransientSettings = Metadata.builder().persistentSettings(persistentSettings).build();
 
         ClusterState okState = ClusterState.builder(new ClusterName("test")).metadata(metadataWithoutTransientSettings).build();
         issue = ClusterDeprecationChecks.checkTransientSettingsExistence(okState);

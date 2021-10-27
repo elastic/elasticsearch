@@ -46,7 +46,7 @@ public class Set {
      */
     @SuppressWarnings("unchecked")
     public static <T> java.util.Set<T> of(T e1, T e2) {
-        return Set.of((T[]) new Object[]{e1, e2});
+        return Set.of((T[]) new Object[] { e1, e2 });
     }
 
     /**

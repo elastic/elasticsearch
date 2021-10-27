@@ -14,13 +14,13 @@ import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -227,7 +227,8 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
                     builder.field(
                         TIMING_STATS,
                         timingStats,
-                        new MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_CALCULATED_FIELDS, "true")));
+                        new MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_CALCULATED_FIELDS, "true"))
+                    );
                 }
                 if (runningState != null) {
                     builder.field(RUNNING_STATE, runningState);
@@ -373,11 +374,11 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
             }
 
             public Response build(PersistentTasksCustomMetadata tasksInProgress, ClusterState state) {
-                List<DatafeedStats> stats = statsBuilders.stream().map(statsBuilder-> {
+                List<DatafeedStats> stats = statsBuilders.stream().map(statsBuilder -> {
                     final String jobId = datafeedToJobId.get(statsBuilder.datafeedId);
-                    DatafeedTimingStats timingStats = jobId == null ?
-                        null :
-                        timingStatsMap.getOrDefault(jobId, new DatafeedTimingStats(jobId));
+                    DatafeedTimingStats timingStats = jobId == null
+                        ? null
+                        : timingStatsMap.getOrDefault(jobId, new DatafeedTimingStats(jobId));
                     PersistentTasksCustomMetadata.PersistentTask<?> maybeTask = MlTasks.getDatafeedTask(
                         statsBuilder.datafeedId,
                         tasksInProgress

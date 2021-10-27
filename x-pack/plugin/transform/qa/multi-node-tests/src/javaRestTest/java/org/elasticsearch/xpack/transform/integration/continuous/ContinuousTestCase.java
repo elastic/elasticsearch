@@ -17,12 +17,12 @@ import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.client.transform.transforms.TransformConfig;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -52,7 +52,10 @@ public abstract class ContinuousTestCase extends ESRestTestCase {
     public static final String INGEST_RUN_FIELD = "run_ingest";
     // mixture of fields to choose from, indexed and runtime
     public static final Set<String> METRIC_FIELDS = org.elasticsearch.core.Set.of("metric", "metric-rt-2x");
-    public static final Set<String> METRIC_TIMESTAMP_FIELDS = org.elasticsearch.core.Set.of("metric-timestamp", "metric-timestamp-5m-earlier");
+    public static final Set<String> METRIC_TIMESTAMP_FIELDS = org.elasticsearch.core.Set.of(
+        "metric-timestamp",
+        "metric-timestamp-5m-earlier"
+    );
     public static final Set<String> TERMS_FIELDS = org.elasticsearch.core.Set.of("event", "event-upper");
     public static final Set<String> TIMESTAMP_FIELDS = org.elasticsearch.core.Set.of("timestamp", "timestamp-at-runtime");
     public static final Set<String> OTHER_TIMESTAMP_FIELDS = org.elasticsearch.core.Set.of("some-timestamp", "some-timestamp-10m-earlier");

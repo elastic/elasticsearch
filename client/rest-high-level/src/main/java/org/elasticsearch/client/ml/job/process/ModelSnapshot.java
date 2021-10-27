@@ -10,9 +10,9 @@ package org.elasticsearch.client.ml.job.process;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.common.TimeUtil;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -42,27 +42,31 @@ public class ModelSnapshot implements ToXContentObject {
     static {
         PARSER.declareString(Builder::setJobId, Job.ID);
         PARSER.declareString(Builder::setMinVersion, MIN_VERSION);
-        PARSER.declareField(Builder::setTimestamp,
+        PARSER.declareField(
+            Builder::setTimestamp,
             (p) -> TimeUtil.parseTimeField(p, TIMESTAMP.getPreferredName()),
             TIMESTAMP,
-            ValueType.VALUE);
+            ValueType.VALUE
+        );
         PARSER.declareString(Builder::setDescription, DESCRIPTION);
         PARSER.declareString(Builder::setSnapshotId, SNAPSHOT_ID);
         PARSER.declareInt(Builder::setSnapshotDocCount, SNAPSHOT_DOC_COUNT);
-        PARSER.declareObject(Builder::setModelSizeStats, ModelSizeStats.PARSER,
-            ModelSizeStats.RESULT_TYPE_FIELD);
-        PARSER.declareField(Builder::setLatestRecordTimeStamp,
+        PARSER.declareObject(Builder::setModelSizeStats, ModelSizeStats.PARSER, ModelSizeStats.RESULT_TYPE_FIELD);
+        PARSER.declareField(
+            Builder::setLatestRecordTimeStamp,
             (p) -> TimeUtil.parseTimeField(p, LATEST_RECORD_TIME.getPreferredName()),
             LATEST_RECORD_TIME,
-            ValueType.VALUE);
-        PARSER.declareField(Builder::setLatestResultTimeStamp,
+            ValueType.VALUE
+        );
+        PARSER.declareField(
+            Builder::setLatestResultTimeStamp,
             (p) -> TimeUtil.parseTimeField(p, LATEST_RESULT_TIME.getPreferredName()),
             LATEST_RESULT_TIME,
-            ValueType.VALUE);
+            ValueType.VALUE
+        );
         PARSER.declareObject(Builder::setQuantiles, Quantiles.PARSER, QUANTILES);
         PARSER.declareBoolean(Builder::setRetain, RETAIN);
     }
-
 
     private final String jobId;
 
@@ -82,10 +86,19 @@ public class ModelSnapshot implements ToXContentObject {
     private final Quantiles quantiles;
     private final boolean retain;
 
-
-    private ModelSnapshot(String jobId, Version minVersion, Date timestamp, String description, String snapshotId, int snapshotDocCount,
-                          ModelSizeStats modelSizeStats, Date latestRecordTimeStamp, Date latestResultTimeStamp, Quantiles quantiles,
-                          boolean retain) {
+    private ModelSnapshot(
+        String jobId,
+        Version minVersion,
+        Date timestamp,
+        String description,
+        String snapshotId,
+        int snapshotDocCount,
+        ModelSizeStats modelSizeStats,
+        Date latestRecordTimeStamp,
+        Date latestResultTimeStamp,
+        Quantiles quantiles,
+        boolean retain
+    ) {
         this.jobId = jobId;
         this.minVersion = minVersion;
         this.timestamp = timestamp;
@@ -118,12 +131,18 @@ public class ModelSnapshot implements ToXContentObject {
             builder.field(ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName(), modelSizeStats);
         }
         if (latestRecordTimeStamp != null) {
-            builder.timeField(LATEST_RECORD_TIME.getPreferredName(), LATEST_RECORD_TIME.getPreferredName() + "_string",
-                latestRecordTimeStamp.getTime());
+            builder.timeField(
+                LATEST_RECORD_TIME.getPreferredName(),
+                LATEST_RECORD_TIME.getPreferredName() + "_string",
+                latestRecordTimeStamp.getTime()
+            );
         }
         if (latestResultTimeStamp != null) {
-            builder.timeField(LATEST_RESULT_TIME.getPreferredName(), LATEST_RESULT_TIME.getPreferredName() + "_string",
-                latestResultTimeStamp.getTime());
+            builder.timeField(
+                LATEST_RESULT_TIME.getPreferredName(),
+                LATEST_RESULT_TIME.getPreferredName() + "_string",
+                latestResultTimeStamp.getTime()
+            );
         }
         if (quantiles != null) {
             builder.field(QUANTILES.getPreferredName(), quantiles);
@@ -179,8 +198,19 @@ public class ModelSnapshot implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, minVersion, timestamp, description, snapshotId, quantiles, snapshotDocCount, modelSizeStats,
-            latestRecordTimeStamp, latestResultTimeStamp, retain);
+        return Objects.hash(
+            jobId,
+            minVersion,
+            timestamp,
+            description,
+            snapshotId,
+            quantiles,
+            snapshotDocCount,
+            modelSizeStats,
+            latestRecordTimeStamp,
+            latestResultTimeStamp,
+            retain
+        );
     }
 
     /**
@@ -227,9 +257,7 @@ public class ModelSnapshot implements ToXContentObject {
         private Quantiles quantiles;
         private boolean retain;
 
-
-        public Builder() {
-        }
+        public Builder() {}
 
         public Builder(String jobId) {
             this.jobId = jobId;
@@ -315,8 +343,19 @@ public class ModelSnapshot implements ToXContentObject {
         }
 
         public ModelSnapshot build() {
-            return new ModelSnapshot(jobId, minVersion, timestamp, description, snapshotId, snapshotDocCount, modelSizeStats,
-                latestRecordTimeStamp, latestResultTimeStamp, quantiles, retain);
+            return new ModelSnapshot(
+                jobId,
+                minVersion,
+                timestamp,
+                description,
+                snapshotId,
+                snapshotDocCount,
+                modelSizeStats,
+                latestRecordTimeStamp,
+                latestResultTimeStamp,
+                quantiles,
+                retain
+            );
         }
     }
 }

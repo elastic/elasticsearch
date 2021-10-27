@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -127,8 +127,11 @@ public class TransformAggregationsTests extends ESTestCase {
 
     public void testAggregationsVsTransforms() {
         // Note: if a new plugin is added, it must be added here
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Arrays.asList(new AnalyticsPlugin(Settings.EMPTY),
-            new MatrixAggregationPlugin()));
+        SearchModule searchModule = new SearchModule(
+            Settings.EMPTY,
+            false,
+            Arrays.asList(new AnalyticsPlugin(Settings.EMPTY), new MatrixAggregationPlugin())
+        );
         List<NamedWriteableRegistry.Entry> namedWriteables = searchModule.getNamedWriteables();
 
         List<String> aggregationNames = namedWriteables.stream()
@@ -248,9 +251,7 @@ public class TransformAggregationsTests extends ESTestCase {
         assertEquals("max", outputTypes.get("filter_1.max_2"));
         assertEquals("min", outputTypes.get("filter_1.filter_2.min_3"));
 
-        subFilterAggregationBuilder.subAggregation(
-            new PercentilesAggregationBuilder("percentiles").percentiles(33.3, 44.4, 88.8, 99.5)
-        );
+        subFilterAggregationBuilder.subAggregation(new PercentilesAggregationBuilder("percentiles").percentiles(33.3, 44.4, 88.8, 99.5));
         inputAndOutputTypes = TransformAggregations.getAggregationInputAndOutputTypes(filterAggregationBuilder);
         assertEquals(2, inputAndOutputTypes.v1().size());
 

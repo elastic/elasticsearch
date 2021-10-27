@@ -8,8 +8,8 @@
 
 package org.elasticsearch.client.watcher;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.joda.time.DateTime;
 
 import java.util.Objects;
@@ -17,13 +17,11 @@ import java.util.Objects;
 public class QueuedWatch {
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<QueuedWatch, Void> PARSER =
-        new ConstructingObjectParser<>("watcher_stats_node", true, (args, c) -> new QueuedWatch(
-            (String) args[0],
-            (String) args[1],
-            DateTime.parse((String) args[2]),
-            DateTime.parse((String) args[3])
-        ));
+    public static final ConstructingObjectParser<QueuedWatch, Void> PARSER = new ConstructingObjectParser<>(
+        "watcher_stats_node",
+        true,
+        (args, c) -> new QueuedWatch((String) args[0], (String) args[1], DateTime.parse((String) args[2]), DateTime.parse((String) args[3]))
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("watch_id"));
@@ -31,7 +29,6 @@ public class QueuedWatch {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("triggered_time"));
         PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("execution_time"));
     }
-
 
     private final String watchId;
     private final String watchRecordId;
@@ -66,10 +63,10 @@ public class QueuedWatch {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         QueuedWatch that = (QueuedWatch) o;
-        return Objects.equals(watchId, that.watchId) &&
-            Objects.equals(watchRecordId, that.watchRecordId) &&
-            Objects.equals(triggeredTime, that.triggeredTime) &&
-            Objects.equals(executionTime, that.executionTime);
+        return Objects.equals(watchId, that.watchId)
+            && Objects.equals(watchRecordId, that.watchRecordId)
+            && Objects.equals(triggeredTime, that.triggeredTime)
+            && Objects.equals(executionTime, that.executionTime);
     }
 
     @Override

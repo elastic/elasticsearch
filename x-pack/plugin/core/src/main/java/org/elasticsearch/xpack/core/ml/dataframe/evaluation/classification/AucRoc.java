@@ -7,14 +7,10 @@
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -24,6 +20,10 @@ import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.nested.Nested;
 import org.elasticsearch.search.aggregations.metrics.Percentiles;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
@@ -64,8 +64,10 @@ public class AucRoc extends AbstractAucRoc {
     public static final ParseField INCLUDE_CURVE = new ParseField("include_curve");
     public static final ParseField CLASS_NAME = new ParseField("class_name");
 
-    public static final ConstructingObjectParser<AucRoc, Void> PARSER =
-        new ConstructingObjectParser<>(NAME.getPreferredName(), a -> new AucRoc((Boolean) a[0], (String) a[1]));
+    public static final ConstructingObjectParser<AucRoc, Void> PARSER = new ConstructingObjectParser<>(
+        NAME.getPreferredName(),
+        a -> new AucRoc((Boolean) a[0], (String) a[1])
+    );
 
     static {
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), INCLUDE_CURVE);
@@ -124,7 +126,8 @@ public class AucRoc extends AbstractAucRoc {
         return Sets.newHashSet(
             EvaluationFields.ACTUAL_FIELD.getPreferredName(),
             EvaluationFields.PREDICTED_CLASS_FIELD.getPreferredName(),
-            EvaluationFields.PREDICTED_PROBABILITY_FIELD.getPreferredName());
+            EvaluationFields.PREDICTED_PROBABILITY_FIELD.getPreferredName()
+        );
     }
 
     @Override
@@ -132,8 +135,7 @@ public class AucRoc extends AbstractAucRoc {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AucRoc that = (AucRoc) o;
-        return includeCurve == that.includeCurve
-            && Objects.equals(className, that.className);
+        return includeCurve == that.includeCurve && Objects.equals(className, that.className);
     }
 
     @Override
@@ -142,8 +144,10 @@ public class AucRoc extends AbstractAucRoc {
     }
 
     @Override
-    public Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(EvaluationParameters parameters,
-                                                                                  EvaluationFields fields) {
+    public Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(
+        EvaluationParameters parameters,
+        EvaluationFields fields
+    ) {
         if (result.get() != null) {
             return Tuple.tuple(Arrays.asList(), Arrays.asList());
         }
@@ -151,30 +155,22 @@ public class AucRoc extends AbstractAucRoc {
         this.fields.trySet(fields);
 
         double[] percentiles = IntStream.range(1, 100).mapToDouble(v -> (double) v).toArray();
-        AggregationBuilder percentilesAgg =
-            AggregationBuilders
-                .percentiles(PERCENTILES_AGG_NAME)
-                .field(fields.getPredictedProbabilityField())
-                .percentiles(percentiles);
-        AggregationBuilder nestedAgg =
-            AggregationBuilders
-                .nested(NESTED_AGG_NAME, fields.getTopClassesField())
-                .subAggregation(
-                    AggregationBuilders
-                        .filter(NESTED_FILTER_AGG_NAME, QueryBuilders.termQuery(fields.getPredictedClassField(), className))
-                        .subAggregation(percentilesAgg));
+        AggregationBuilder percentilesAgg = AggregationBuilders.percentiles(PERCENTILES_AGG_NAME)
+            .field(fields.getPredictedProbabilityField())
+            .percentiles(percentiles);
+        AggregationBuilder nestedAgg = AggregationBuilders.nested(NESTED_AGG_NAME, fields.getTopClassesField())
+            .subAggregation(
+                AggregationBuilders.filter(NESTED_FILTER_AGG_NAME, QueryBuilders.termQuery(fields.getPredictedClassField(), className))
+                    .subAggregation(percentilesAgg)
+            );
         QueryBuilder actualIsTrueQuery = QueryBuilders.termQuery(fields.getActualField(), className);
-        AggregationBuilder percentilesForClassValueAgg =
-            AggregationBuilders
-                .filter(TRUE_AGG_NAME, actualIsTrueQuery)
-                .subAggregation(nestedAgg);
-        AggregationBuilder percentilesForRestAgg =
-            AggregationBuilders
-                .filter(NON_TRUE_AGG_NAME, QueryBuilders.boolQuery().mustNot(actualIsTrueQuery))
-                .subAggregation(nestedAgg);
-        return Tuple.tuple(
-            Arrays.asList(percentilesForClassValueAgg, percentilesForRestAgg),
-            Arrays.asList());
+        AggregationBuilder percentilesForClassValueAgg = AggregationBuilders.filter(TRUE_AGG_NAME, actualIsTrueQuery)
+            .subAggregation(nestedAgg);
+        AggregationBuilder percentilesForRestAgg = AggregationBuilders.filter(
+            NON_TRUE_AGG_NAME,
+            QueryBuilders.boolQuery().mustNot(actualIsTrueQuery)
+        ).subAggregation(nestedAgg);
+        return Tuple.tuple(Arrays.asList(percentilesForClassValueAgg, percentilesForRestAgg), Arrays.asList());
     }
 
     @Override
@@ -193,21 +189,32 @@ public class AucRoc extends AbstractAucRoc {
         if (classAgg.getDocCount() == 0) {
             throw ExceptionsHelper.badRequestException(
                 "[{}] requires at least one [{}] to have the value [{}]",
-                getName(), fields.get().getActualField(), className);
+                getName(),
+                fields.get().getActualField(),
+                className
+            );
         }
         if (restAgg.getDocCount() == 0) {
             throw ExceptionsHelper.badRequestException(
                 "[{}] requires at least one [{}] to have a different value than [{}]",
-                getName(), fields.get().getActualField(), className);
+                getName(),
+                fields.get().getActualField(),
+                className
+            );
         }
         long filteredDocCount = classNestedFilter.getDocCount() + restNestedFilter.getDocCount();
         long totalDocCount = classAgg.getDocCount() + restAgg.getDocCount();
         if (filteredDocCount < totalDocCount) {
             throw ExceptionsHelper.badRequestException(
                 "[{}] requires that [{}] appears as one of the [{}] for every document (appeared in {} out of {}). "
-                + "This is probably caused by the {} value being less than the total number of actual classes in the dataset.",
-                getName(), className, fields.get().getPredictedClassField(), filteredDocCount, totalDocCount,
-                org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification.NUM_TOP_CLASSES.getPreferredName());
+                    + "This is probably caused by the {} value being less than the total number of actual classes in the dataset.",
+                getName(),
+                className,
+                fields.get().getPredictedClassField(),
+                filteredDocCount,
+                totalDocCount,
+                org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification.NUM_TOP_CLASSES.getPreferredName()
+            );
         }
 
         Percentiles classPercentiles = classNestedFilter.getAggregations().get(PERCENTILES_AGG_NAME);

@@ -71,34 +71,49 @@ class NodeDeprecationChecks {
 
     static final String JAVA_DEPRECATION_MESSAGE = "Java 11 is required in 8.0";
 
-    static DeprecationIssue checkPidfile(final Settings settings, final PluginsAndModules pluginsAndModules,
-                                         final ClusterState clusterState, final XPackLicenseState licenseState) {
+    static DeprecationIssue checkPidfile(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return checkDeprecatedSetting(
             settings,
             pluginsAndModules,
             Environment.PIDFILE_SETTING,
             Environment.NODE_PIDFILE_SETTING,
-            "https://ela.st/es-deprecation-7-pidfile-setting");
+            "https://ela.st/es-deprecation-7-pidfile-setting"
+        );
     }
 
-    static DeprecationIssue checkProcessors(final Settings settings , final PluginsAndModules pluginsAndModules,
-                                            final ClusterState clusterState, final XPackLicenseState licenseState) {
+    static DeprecationIssue checkProcessors(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return checkDeprecatedSetting(
             settings,
             pluginsAndModules,
             EsExecutors.PROCESSORS_SETTING,
             EsExecutors.NODE_PROCESSORS_SETTING,
-            "https://ela.st/es-deprecation-7-processors-setting");
+            "https://ela.st/es-deprecation-7-processors-setting"
+        );
     }
 
-    static DeprecationIssue checkMissingRealmOrders(final Settings settings, final PluginsAndModules pluginsAndModules,
-                                                    final ClusterState clusterState, final XPackLicenseState licenseState) {
-        final Set<String> orderNotConfiguredRealms = RealmSettings.getRealmSettings(settings).entrySet()
-                .stream()
-                .filter(e -> false == e.getValue().hasValue(RealmSettings.ORDER_SETTING_KEY))
-                .filter(e -> e.getValue().getAsBoolean(RealmSettings.ENABLED_SETTING_KEY, true))
-                .map(e -> RealmSettings.realmSettingPrefix(e.getKey()) + RealmSettings.ORDER_SETTING_KEY)
-                .collect(Collectors.toSet());
+    static DeprecationIssue checkMissingRealmOrders(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        final Set<String> orderNotConfiguredRealms = RealmSettings.getRealmSettings(settings)
+            .entrySet()
+            .stream()
+            .filter(e -> false == e.getValue().hasValue(RealmSettings.ORDER_SETTING_KEY))
+            .filter(e -> e.getValue().getAsBoolean(RealmSettings.ENABLED_SETTING_KEY, true))
+            .map(e -> RealmSettings.realmSettingPrefix(e.getKey()) + RealmSettings.ORDER_SETTING_KEY)
+            .collect(Collectors.toSet());
 
         if (orderNotConfiguredRealms.isEmpty()) {
             return null;
@@ -107,7 +122,8 @@ class NodeDeprecationChecks {
         final String details = String.format(
             Locale.ROOT,
             "Specify the realm order for all realms [%s]. If no realm order is specified, the node will fail to start in 8.0. ",
-            String.join("; ", orderNotConfiguredRealms));
+            String.join("; ", orderNotConfiguredRealms)
+        );
         return new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "Realm order is required",
@@ -118,18 +134,28 @@ class NodeDeprecationChecks {
         );
     }
 
-    static DeprecationIssue checkUniqueRealmOrders(final Settings settings, final PluginsAndModules pluginsAndModules,
-                                                   final ClusterState clusterState, final XPackLicenseState licenseState) {
-        final Map<String, List<String>> orderToRealmSettings =
-            RealmSettings.getRealmSettings(settings).entrySet()
-                .stream()
-                .filter(e -> e.getValue().hasValue(RealmSettings.ORDER_SETTING_KEY))
-                .collect(Collectors.groupingBy(
+    static DeprecationIssue checkUniqueRealmOrders(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        final Map<String, List<String>> orderToRealmSettings = RealmSettings.getRealmSettings(settings)
+            .entrySet()
+            .stream()
+            .filter(e -> e.getValue().hasValue(RealmSettings.ORDER_SETTING_KEY))
+            .collect(
+                Collectors.groupingBy(
                     e -> e.getValue().get(RealmSettings.ORDER_SETTING_KEY),
-                    Collectors.mapping(e -> RealmSettings.realmSettingPrefix(e.getKey()) + RealmSettings.ORDER_SETTING_KEY,
-                        Collectors.toList())));
+                    Collectors.mapping(
+                        e -> RealmSettings.realmSettingPrefix(e.getKey()) + RealmSettings.ORDER_SETTING_KEY,
+                        Collectors.toList()
+                    )
+                )
+            );
 
-        Set<String> duplicateOrders = orderToRealmSettings.entrySet().stream()
+        Set<String> duplicateOrders = orderToRealmSettings.entrySet()
+            .stream()
             .filter(entry -> entry.getValue().size() > 1)
             .map(entry -> entry.getKey() + ": " + entry.getValue())
             .collect(Collectors.toSet());
@@ -140,81 +166,94 @@ class NodeDeprecationChecks {
 
         final String details = String.format(
             Locale.ROOT,
-            "The same order is configured for multiple realms: [%s]]. Configure a unique order for each realm. If duplicate realm orders " +
-                "exist, the node will fail to start in 8.0. ",
-            String.join("; ", duplicateOrders));
+            "The same order is configured for multiple realms: [%s]]. Configure a unique order for each realm. If duplicate realm orders "
+                + "exist, the node will fail to start in 8.0. ",
+            String.join("; ", duplicateOrders)
+        );
 
         return new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "Realm orders must be unique",
             "https://ela.st/es-deprecation-7-realm-orders-unique",
             details,
-           false, null
+            false,
+            null
         );
     }
 
-    static DeprecationIssue checkImplicitlyDisabledSecurityOnBasicAndTrial(final Settings settings,
-                                                                           final PluginsAndModules pluginsAndModules,
-                                                                           final ClusterState clusterState,
-                                                                           final XPackLicenseState licenseState) {
-        if ( XPackSettings.SECURITY_ENABLED.exists(settings) == false
+    static DeprecationIssue checkImplicitlyDisabledSecurityOnBasicAndTrial(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        if (XPackSettings.SECURITY_ENABLED.exists(settings) == false
             && (licenseState.getOperationMode().equals(License.OperationMode.BASIC)
-            || licenseState.getOperationMode().equals(License.OperationMode.TRIAL))) {
-          String details = "Security will no longer be disabled by default for Trial licenses in 8.0. The [xpack.security.enabled] " +
-              "setting will always default to \"true\". See https://ela.st/es-deprecation-7-security-minimal-setup to secure your cluster" +
-              ". To explicitly disable security, set [xpack.security.enabled] to \"false\" (not recommended).";
+                || licenseState.getOperationMode().equals(License.OperationMode.TRIAL))) {
+            String details = "Security will no longer be disabled by default for Trial licenses in 8.0. The [xpack.security.enabled] "
+                + "setting will always default to \"true\". See https://ela.st/es-deprecation-7-security-minimal-setup to secure your cluster"
+                + ". To explicitly disable security, set [xpack.security.enabled] to \"false\" (not recommended).";
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
                 "Security is enabled by default for all licenses",
                 "https://ela.st/es-deprecation-7-implicitly-disabled-security",
                 details,
-               false, null);
+                false,
+                null
+            );
         }
         return null;
     }
 
-    static DeprecationIssue checkImplicitlyDisabledBasicRealms(final Settings settings, final PluginsAndModules pluginsAndModules,
-                                                               final ClusterState clusterState, final XPackLicenseState licenseState) {
+    static DeprecationIssue checkImplicitlyDisabledBasicRealms(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         final Map<RealmConfig.RealmIdentifier, Settings> realmSettings = RealmSettings.getRealmSettings(settings);
         if (realmSettings.isEmpty()) {
             return null;
         }
 
         boolean anyRealmEnabled = false;
-        final Set<String> unconfiguredBasicRealms =
-            new HashSet<>(org.elasticsearch.core.Set.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE));
-        for (Map.Entry<RealmConfig.RealmIdentifier, Settings> realmSetting: realmSettings.entrySet()) {
+        final Set<String> unconfiguredBasicRealms = new HashSet<>(
+            org.elasticsearch.core.Set.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE)
+        );
+        for (Map.Entry<RealmConfig.RealmIdentifier, Settings> realmSetting : realmSettings.entrySet()) {
             anyRealmEnabled = anyRealmEnabled || realmSetting.getValue().getAsBoolean(RealmSettings.ENABLED_SETTING_KEY, true);
             unconfiguredBasicRealms.remove(realmSetting.getKey().getType());
         }
 
         final String details;
         if (false == anyRealmEnabled) {
-            final List<String> explicitlyDisabledBasicRealms =
-                Sets.difference(org.elasticsearch.core.Set.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE),
-                    unconfiguredBasicRealms).stream().sorted().collect(Collectors.toList());
+            final List<String> explicitlyDisabledBasicRealms = Sets.difference(
+                org.elasticsearch.core.Set.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE),
+                unconfiguredBasicRealms
+            ).stream().sorted().collect(Collectors.toList());
             if (explicitlyDisabledBasicRealms.isEmpty()) {
                 return null;
             }
             details = String.format(
                 Locale.ROOT,
-                "Found explicitly disabled basic %s: [%s]. But %s will be enabled because no other realms are configured or enabled. " +
-                    "In next major release, explicitly disabled basic realms will remain disabled.",
+                "Found explicitly disabled basic %s: [%s]. But %s will be enabled because no other realms are configured or enabled. "
+                    + "In next major release, explicitly disabled basic realms will remain disabled.",
                 explicitlyDisabledBasicRealms.size() == 1 ? "realm" : "realms",
                 Strings.collectionToDelimitedString(explicitlyDisabledBasicRealms, ","),
                 explicitlyDisabledBasicRealms.size() == 1 ? "it" : "they"
-                );
+            );
         } else {
             if (unconfiguredBasicRealms.isEmpty()) {
                 return null;
             }
             details = String.format(
                 Locale.ROOT,
-                "Found implicitly disabled basic %s: [%s]. %s disabled because there are other explicitly configured realms." +
-                    "In next major release, basic realms will always be enabled unless explicitly disabled.",
+                "Found implicitly disabled basic %s: [%s]. %s disabled because there are other explicitly configured realms."
+                    + "In next major release, basic realms will always be enabled unless explicitly disabled.",
                 unconfiguredBasicRealms.size() == 1 ? "realm" : "realms",
                 Strings.collectionToDelimitedString(unconfiguredBasicRealms, ","),
-                unconfiguredBasicRealms.size() == 1 ? "It is" : "They are");
+                unconfiguredBasicRealms.size() == 1 ? "It is" : "They are"
+            );
         }
         return new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
@@ -227,14 +266,18 @@ class NodeDeprecationChecks {
 
     }
 
-    static DeprecationIssue checkReservedPrefixedRealmNames(final Settings settings, final PluginsAndModules pluginsAndModules,
-                                                            final ClusterState clusterState, final XPackLicenseState licenseState) {
+    static DeprecationIssue checkReservedPrefixedRealmNames(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         final Map<RealmConfig.RealmIdentifier, Settings> realmSettings = RealmSettings.getRealmSettings(settings);
         if (realmSettings.isEmpty()) {
             return null;
         }
         List<RealmConfig.RealmIdentifier> reservedPrefixedRealmIdentifiers = new ArrayList<>();
-        for (RealmConfig.RealmIdentifier realmIdentifier: realmSettings.keySet()) {
+        for (RealmConfig.RealmIdentifier realmIdentifier : realmSettings.keySet()) {
             if (realmIdentifier.getName().startsWith(RESERVED_REALM_NAME_PREFIX)) {
                 reservedPrefixedRealmIdentifiers.add(realmIdentifier);
             }
@@ -246,13 +289,17 @@ class NodeDeprecationChecks {
                 DeprecationIssue.Level.WARNING,
                 "Prefixing realm names with an underscore (_) is deprecated",
                 "https://ela.st/es-deprecation-7-realm-names",
-                String.format(Locale.ROOT, "Rename the following realm%s in the realm chain: %s.",
+                String.format(
+                    Locale.ROOT,
+                    "Rename the following realm%s in the realm chain: %s.",
                     reservedPrefixedRealmIdentifiers.size() > 1 ? "s" : "",
                     reservedPrefixedRealmIdentifiers.stream()
                         .map(rid -> RealmSettings.PREFIX + rid.getType() + "." + rid.getName())
                         .sorted()
-                        .collect(Collectors.joining(", "))),
-               false, null
+                        .collect(Collectors.joining(", "))
+                ),
+                false,
+                null
             );
         }
     }
@@ -274,11 +321,16 @@ class NodeDeprecationChecks {
             settings,
             setting.get(),
             "https://ela.st/es-deprecation-7-thread-pool-listener-settings",
-            "The listener pool is no longer used in 8.0.");
+            "The listener pool is no longer used in 8.0."
+        );
     }
 
-    public static DeprecationIssue checkClusterRemoteConnectSetting(final Settings settings, final PluginsAndModules pluginsAndModules,
-                                                                    final ClusterState clusterState, final XPackLicenseState licenseState) {
+    public static DeprecationIssue checkClusterRemoteConnectSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return checkDeprecatedSetting(
             settings,
             pluginsAndModules,
@@ -287,13 +339,18 @@ class NodeDeprecationChecks {
                 "node.remote_cluster_client",
                 RemoteClusterService.ENABLE_REMOTE_CLUSTERS,
                 Property.Deprecated,
-                Property.NodeScope),
+                Property.NodeScope
+            ),
             "https://ela.st/es-deprecation-7-cluster-remote-connect-setting"
         );
     }
 
-    public static DeprecationIssue checkNodeLocalStorageSetting(final Settings settings, final PluginsAndModules pluginsAndModules,
-                                                                final ClusterState clusterState, final XPackLicenseState licenseState) {
+    public static DeprecationIssue checkNodeLocalStorageSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return checkRemovedSetting(
             settings,
             Node.NODE_LOCAL_STORAGE_SETTING,
@@ -322,28 +379,37 @@ class NodeDeprecationChecks {
         }
         String legacyRoleSettingKey = legacyRoleSetting.getKey();
         String role;
-        if (legacyRoleSettingKey.isEmpty() == false && legacyRoleSettingKey.contains(".")
+        if (legacyRoleSettingKey.isEmpty() == false
+            && legacyRoleSettingKey.contains(".")
             && legacyRoleSettingKey.indexOf(".") <= legacyRoleSettingKey.length() + 2) {
             role = legacyRoleSettingKey.substring(legacyRoleSettingKey.indexOf(".") + 1);
         } else {
-            role = "unknown"; //Should never get here, but putting these checks to avoid crashing the API just in case
+            role = "unknown"; // Should never get here, but putting these checks to avoid crashing the API just in case
         }
-        final String message = String.format(
-            Locale.ROOT,
-            "Setting [%s] is deprecated",
-            legacyRoleSettingKey);
+        final String message = String.format(Locale.ROOT, "Setting [%s] is deprecated", legacyRoleSettingKey);
         final String details = String.format(
             Locale.ROOT,
             "Remove the [%s] setting. Set [%s] and include the [%s] role.",
             legacyRoleSettingKey,
             NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-            role);
-        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message,
-            "https://ela.st/es-deprecation-7-node-roles", details, false, null);
+            role
+        );
+        return new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            message,
+            "https://ela.st/es-deprecation-7-node-roles",
+            details,
+            false,
+            null
+        );
     }
 
-    static DeprecationIssue checkBootstrapSystemCallFilterSetting(final Settings settings, final PluginsAndModules pluginsAndModules,
-                                                                  final ClusterState clusterState, final XPackLicenseState licenseState) {
+    static DeprecationIssue checkBootstrapSystemCallFilterSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return checkRemovedSetting(
             settings,
             BootstrapSettings.SYSTEM_CALL_FILTER_SETTING,
@@ -377,16 +443,14 @@ class NodeDeprecationChecks {
         final String deprecatedSettingKey = deprecatedSetting.getKey();
         final String replacementSettingKey = replacementSetting.getKey();
         final String value = deprecatedSetting.get(settings).toString();
-        final String message = String.format(
-            Locale.ROOT,
-            "Setting [%s] is deprecated",
-            deprecatedSettingKey);
+        final String message = String.format(Locale.ROOT, "Setting [%s] is deprecated", deprecatedSettingKey);
         final String details = String.format(
             Locale.ROOT,
             "Remove the [%s] setting and set [%s] to [%s].",
             deprecatedSettingKey,
             replacementSettingKey,
-            replacementValue.apply(value, settings));
+            replacementValue.apply(value, settings)
+        );
         return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
     }
 
@@ -417,45 +481,59 @@ class NodeDeprecationChecks {
         final String deprecatedSettingKey = deprecatedSetting.getKey();
         final String replacementSettingKey = replacementSetting.getKey();
         final String value = deprecatedSetting.get(settings).toString();
-        final String message = String.format(
-            Locale.ROOT,
-            "Setting [%s] is deprecated",
-            deprecatedSettingKey,
-            replacementSettingKey);
+        final String message = String.format(Locale.ROOT, "Setting [%s] is deprecated", deprecatedSettingKey, replacementSettingKey);
         final String details = String.format(
             Locale.ROOT,
             "Remove the [%s] setting. Set [%s] to [%s], where * is %s",
             deprecatedSettingKey,
             replacementSettingKey,
             replacementValue.apply(value, settings),
-            star);
+            star
+        );
         return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
     }
 
-    static DeprecationIssue checkRemovedSetting(final Settings settings, final Setting<?> removedSetting, final String url,
-                                                String additionalDetailMessage) {
+    static DeprecationIssue checkRemovedSetting(
+        final Settings settings,
+        final Setting<?> removedSetting,
+        final String url,
+        String additionalDetailMessage
+    ) {
         return checkRemovedSetting(settings, removedSetting, url, additionalDetailMessage, DeprecationIssue.Level.CRITICAL);
     }
 
-    static DeprecationIssue checkDeprecatedSetting(final Settings settings, final Setting<?> deprecatedSetting, final String url,
-                                                   final String whenRemoved) {
+    static DeprecationIssue checkDeprecatedSetting(
+        final Settings settings,
+        final Setting<?> deprecatedSetting,
+        final String url,
+        final String whenRemoved
+    ) {
         if (deprecatedSetting.exists(settings) == false) {
             return null;
         }
         final String deprecatedSettingKey = deprecatedSetting.getKey();
         final String value = deprecatedSetting.get(settings).toString();
-        final String message =
-            String.format(Locale.ROOT, "setting [%s] is deprecated and will be removed " + whenRemoved, deprecatedSettingKey);
-        final String details =
-            String.format(Locale.ROOT, "the setting [%s] is currently set to [%s], remove this setting", deprecatedSettingKey, value);
+        final String message = String.format(
+            Locale.ROOT,
+            "setting [%s] is deprecated and will be removed " + whenRemoved,
+            deprecatedSettingKey
+        );
+        final String details = String.format(
+            Locale.ROOT,
+            "the setting [%s] is currently set to [%s], remove this setting",
+            deprecatedSettingKey,
+            value
+        );
         return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, false, null);
     }
 
-    static DeprecationIssue checkRemovedSetting(final Settings settings,
-                                                final Setting<?> removedSetting,
-                                                final String url,
-                                                String additionalDetailMessage,
-                                                DeprecationIssue.Level deprecationLevel) {
+    static DeprecationIssue checkRemovedSetting(
+        final Settings settings,
+        final Setting<?> removedSetting,
+        final String url,
+        String additionalDetailMessage,
+        DeprecationIssue.Level deprecationLevel
+    ) {
         if (removedSetting.exists(settings) == false) {
             return null;
         }
@@ -467,92 +545,138 @@ class NodeDeprecationChecks {
         } else {
             value = removedSettingValue.toString();
         }
-        final String message =
-            String.format(Locale.ROOT, "Setting [%s] is deprecated", removedSettingKey);
-        final String details =
-            String.format(Locale.ROOT, "Remove the [%s] setting. %s", removedSettingKey, additionalDetailMessage);
+        final String message = String.format(Locale.ROOT, "Setting [%s] is deprecated", removedSettingKey);
+        final String details = String.format(Locale.ROOT, "Remove the [%s] setting. %s", removedSettingKey, additionalDetailMessage);
         return new DeprecationIssue(deprecationLevel, message, url, details, false, null);
     }
 
-    static DeprecationIssue javaVersionCheck(Settings nodeSettings, PluginsAndModules plugins, final ClusterState clusterState,
-                                             final XPackLicenseState licenseState) {
+    static DeprecationIssue javaVersionCheck(
+        Settings nodeSettings,
+        PluginsAndModules plugins,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         final JavaVersion javaVersion = JavaVersion.current();
 
         if (javaVersion.compareTo(JavaVersion.parse("11")) < 0) {
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            return new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
                 JAVA_DEPRECATION_MESSAGE,
                 "https://ela.st/es-deprecation-7-java-version",
-                "This node is running Java version [" + javaVersion.toString() + "]. Consider switching to a distribution of " +
-                    "Elasticsearch with a bundled JDK or upgrade. If you are already using a distribution with a bundled JDK, ensure the " +
-                    "JAVA_HOME environment variable is not set.",
-                false, null);
+                "This node is running Java version ["
+                    + javaVersion.toString()
+                    + "]. Consider switching to a distribution of "
+                    + "Elasticsearch with a bundled JDK or upgrade. If you are already using a distribution with a bundled JDK, ensure the "
+                    + "JAVA_HOME environment variable is not set.",
+                false,
+                null
+            );
         }
         return null;
     }
 
-    static DeprecationIssue checkMultipleDataPaths(Settings nodeSettings, PluginsAndModules plugins, final ClusterState clusterState,
-                                                   final XPackLicenseState licenseState) {
+    static DeprecationIssue checkMultipleDataPaths(
+        Settings nodeSettings,
+        PluginsAndModules plugins,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         List<String> dataPaths = Environment.PATH_DATA_SETTING.get(nodeSettings);
         if (dataPaths.size() > 1) {
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            return new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
                 "multiple [path.data] entries are deprecated, use a single data directory",
                 "https://ela.st/es-deprecation-7-multiple-paths",
                 "Multiple data paths are deprecated. Instead, use RAID or other system level features to utilize multiple disks.",
-            false, null);
+                false,
+                null
+            );
         }
         return null;
     }
 
-    static DeprecationIssue checkDataPathsList(Settings nodeSettings, PluginsAndModules plugins, final ClusterState clusterState,
-                                               final XPackLicenseState licenseState) {
+    static DeprecationIssue checkDataPathsList(
+        Settings nodeSettings,
+        PluginsAndModules plugins,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         if (Environment.dataPathUsesList(nodeSettings)) {
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            return new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
                 "Multiple data paths are not supported",
                 "https://ela.st/es-deprecation-7-multiple-paths",
-                "The [path.data] setting contains a list of paths. Specify a single path as a string. Use RAID or other system level " +
-                    "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0. ",
-                false, null);
+                "The [path.data] setting contains a list of paths. Specify a single path as a string. Use RAID or other system level "
+                    + "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0. ",
+                false,
+                null
+            );
         }
         return null;
     }
 
-    static DeprecationIssue checkSharedDataPathSetting(final Settings settings, final PluginsAndModules pluginsAndModules,
-                                                       final ClusterState clusterState, final XPackLicenseState licenseState) {
+    static DeprecationIssue checkSharedDataPathSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         if (Environment.PATH_SHARED_DATA_SETTING.exists(settings)) {
-            final String message = String.format(Locale.ROOT,
-                "Setting [%s] is deprecated", Environment.PATH_SHARED_DATA_SETTING.getKey());
+            final String message = String.format(Locale.ROOT, "Setting [%s] is deprecated", Environment.PATH_SHARED_DATA_SETTING.getKey());
             final String url = "https://ela.st/es-deprecation-7-shared-path-settings";
-            final String details = String.format(Locale.ROOT,
-                "Remove the [%s] setting. This setting has had no effect since 6.0.", Environment.PATH_SHARED_DATA_SETTING.getKey());
+            final String details = String.format(
+                Locale.ROOT,
+                "Remove the [%s] setting. This setting has had no effect since 6.0.",
+                Environment.PATH_SHARED_DATA_SETTING.getKey()
+            );
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
         }
         return null;
     }
 
-    static DeprecationIssue checkSingleDataNodeWatermarkSetting(final Settings settings, final PluginsAndModules pluginsAndModules,
-                                                                final ClusterState clusterState, final XPackLicenseState licenseState) {
+    static DeprecationIssue checkSingleDataNodeWatermarkSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         if (DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.get(settings) == false
             && DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.exists(settings)) {
             String key = DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey();
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            return new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
                 String.format(Locale.ROOT, "Setting [%s=false] is deprecated", key),
                 "https://ela.st/es-deprecation-7-disk-watermark-enable-for-single-node-setting",
-                String.format(Locale.ROOT, "Remove the [%s] setting. Disk watermarks are always enabled for single node clusters in 8.0.",
-                    key),false, null
+                String.format(
+                    Locale.ROOT,
+                    "Remove the [%s] setting. Disk watermarks are always enabled for single node clusters in 8.0.",
+                    key
+                ),
+                false,
+                null
             );
         }
 
         if (DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.get(settings) == false
-            && clusterState.getNodes().getDataNodes().size() == 1 && clusterState.getNodes().getLocalNode().isMasterNode()) {
+            && clusterState.getNodes().getDataNodes().size() == 1
+            && clusterState.getNodes().getLocalNode().isMasterNode()) {
             String key = DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey();
             String disableDiskDecider = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey();
-            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                String.format(Locale.ROOT, "Disabling disk watermarks for single node clusters is deprecated and no longer the default",
-                    key),
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                String.format(
+                    Locale.ROOT,
+                    "Disabling disk watermarks for single node clusters is deprecated and no longer the default",
+                    key
+                ),
                 "https://ela.st/es-deprecation-7-disk-watermark-enable-for-single-node-setting",
-                String.format(Locale.ROOT, "Disk watermarks are always enabled in 8.0, which will affect the behavior of this single node" +
-                        " cluster when you upgrade. You can set \"%s\" to false to disable" +
-                        " disk based allocation.", disableDiskDecider),
+                String.format(
+                    Locale.ROOT,
+                    "Disk watermarks are always enabled in 8.0, which will affect the behavior of this single node"
+                        + " cluster when you upgrade. You can set \"%s\" to false to disable"
+                        + " disk based allocation.",
+                    disableDiskDecider
+                ),
                 false,
                 null
             );
@@ -570,36 +694,39 @@ class NodeDeprecationChecks {
     ) {
         // Mimic the HttpExporter#AUTH_PASSWORD_SETTING setting here to avoid a dependency on monitoring module:
         // (just having the setting prefix and suffic here is sufficient to check on whether this setting is used)
-        final Setting.AffixSetting<String> AUTH_PASSWORD_SETTING =
-            Setting.affixKeySetting("xpack.monitoring.exporters.","auth.password", s -> Setting.simpleString(s));
+        final Setting.AffixSetting<String> AUTH_PASSWORD_SETTING = Setting.affixKeySetting(
+            "xpack.monitoring.exporters.",
+            "auth.password",
+            s -> Setting.simpleString(s)
+        );
         List<Setting<?>> passwords = AUTH_PASSWORD_SETTING.getAllConcreteSettings(settings)
-            .sorted(Comparator.comparing(Setting::getKey)).collect(Collectors.toList());
+            .sorted(Comparator.comparing(Setting::getKey))
+            .collect(Collectors.toList());
 
         if (passwords.isEmpty()) {
             return null;
         }
 
         final String passwordSettings = passwords.stream().map(Setting::getKey).collect(Collectors.joining(","));
-        final String message = String.format(
-            Locale.ROOT,
-            "Monitoring exporters must use secure passwords",
-            passwordSettings
-        );
+        final String message = String.format(Locale.ROOT, "Monitoring exporters must use secure passwords", passwordSettings);
         final String details = String.format(
             Locale.ROOT,
-            "Remove the non-secure monitoring exporter password settings: [%s]. Configure secure passwords with " +
-                "[xpack.monitoring.exporters.*.auth.secure_password].",
+            "Remove the non-secure monitoring exporter password settings: [%s]. Configure secure passwords with "
+                + "[xpack.monitoring.exporters.*.auth.secure_password].",
             passwordSettings
         );
         final String url = "https://ela.st/es-deprecation-7-monitoring-exporter-passwords";
         return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
     }
 
-    static DeprecationIssue checkJoinTimeoutSetting(final Settings settings,
-                                                    final PluginsAndModules pluginsAndModules,
-                                                    final ClusterState clusterState,
-                                                    final XPackLicenseState licenseState) {
-        return checkRemovedSetting(settings,
+    static DeprecationIssue checkJoinTimeoutSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        return checkRemovedSetting(
+            settings,
             JoinHelper.JOIN_TIMEOUT_SETTING,
             "https://ela.st/es-deprecation-7-cluster-join-timeout-setting",
             "Cluster join attempts never time out in 8.0.",
@@ -614,12 +741,21 @@ class NodeDeprecationChecks {
         XPackLicenseState licenseState
     ) {
         List<Setting<?>> remoteClusterSettings = new ArrayList<>();
-        remoteClusterSettings.addAll(SniffConnectionStrategy.SEARCH_REMOTE_CLUSTERS_SEEDS.getAllConcreteSettings(settings)
-            .sorted(Comparator.comparing(Setting::getKey)).collect(Collectors.toList()));
-        remoteClusterSettings.addAll(SniffConnectionStrategy.SEARCH_REMOTE_CLUSTERS_PROXY.getAllConcreteSettings(settings)
-            .sorted(Comparator.comparing(Setting::getKey)).collect(Collectors.toList()));
-        remoteClusterSettings.addAll(RemoteClusterService.SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE.getAllConcreteSettings(settings)
-            .sorted(Comparator.comparing(Setting::getKey)).collect(Collectors.toList()));
+        remoteClusterSettings.addAll(
+            SniffConnectionStrategy.SEARCH_REMOTE_CLUSTERS_SEEDS.getAllConcreteSettings(settings)
+                .sorted(Comparator.comparing(Setting::getKey))
+                .collect(Collectors.toList())
+        );
+        remoteClusterSettings.addAll(
+            SniffConnectionStrategy.SEARCH_REMOTE_CLUSTERS_PROXY.getAllConcreteSettings(settings)
+                .sorted(Comparator.comparing(Setting::getKey))
+                .collect(Collectors.toList())
+        );
+        remoteClusterSettings.addAll(
+            RemoteClusterService.SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE.getAllConcreteSettings(settings)
+                .sorted(Comparator.comparing(Setting::getKey))
+                .collect(Collectors.toList())
+        );
         if (SniffConnectionStrategy.SEARCH_REMOTE_CONNECTIONS_PER_CLUSTER.exists(settings)) {
             remoteClusterSettings.add(SniffConnectionStrategy.SEARCH_REMOTE_CONNECTIONS_PER_CLUSTER);
         }
@@ -646,11 +782,14 @@ class NodeDeprecationChecks {
         return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
     }
 
-    static DeprecationIssue checkClusterRoutingAllocationIncludeRelocationsSetting(final Settings settings,
-                                                                                   final PluginsAndModules pluginsAndModules,
-                                                                                   final ClusterState clusterState,
-                                                                                   final XPackLicenseState licenseState) {
-        return checkRemovedSetting(settings,
+    static DeprecationIssue checkClusterRoutingAllocationIncludeRelocationsSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        return checkRemovedSetting(
+            settings,
             CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING,
             "https://ela.st/es-deprecation-7-cluster-routing-allocation-disk-include-relocations-setting",
             "Relocating shards are always taken into account in 8.0.",
@@ -658,10 +797,12 @@ class NodeDeprecationChecks {
         );
     }
 
-    static DeprecationIssue checkFractionalByteValueSettings(final Settings settings,
-                                                             final PluginsAndModules pluginsAndModules,
-                                                             final ClusterState clusterState,
-                                                             final XPackLicenseState licenseState) {
+    static DeprecationIssue checkFractionalByteValueSettings(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         Map<String, String> fractionalByteSettings = new HashMap<>();
         for (String key : settings.keySet()) {
             try {
@@ -679,28 +820,41 @@ class NodeDeprecationChecks {
         }
         String url = "https://ela.st/es-deprecation-7-fractional-byte-settings";
         String message = "Configuring fractional byte sizes is deprecated";
-        String details = String.format(Locale.ROOT, "Set the following to whole numbers: [%s].",
-            fractionalByteSettings.entrySet().stream().map(fractionalByteSetting -> fractionalByteSetting.getKey())
-                .collect(Collectors.joining(", ")));
+        String details = String.format(
+            Locale.ROOT,
+            "Set the following to whole numbers: [%s].",
+            fractionalByteSettings.entrySet()
+                .stream()
+                .map(fractionalByteSetting -> fractionalByteSetting.getKey())
+                .collect(Collectors.joining(", "))
+        );
         return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, false, null);
     }
 
-    static DeprecationIssue checkFrozenCacheLeniency(final Settings settings,
-                                                     final PluginsAndModules pluginsAndModules,
-                                                     final ClusterState clusterState,
-                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkFrozenCacheLeniency(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         final String cacheSizeSettingKey = "xpack.searchable.snapshot.shared_cache.size";
-        Setting<ByteSizeValue> cacheSizeSetting =  Setting.byteSizeSetting(cacheSizeSettingKey,  ByteSizeValue.ZERO);
+        Setting<ByteSizeValue> cacheSizeSetting = Setting.byteSizeSetting(cacheSizeSettingKey, ByteSizeValue.ZERO);
         if (cacheSizeSetting.exists(settings)) {
             ByteSizeValue cacheSize = cacheSizeSetting.get(settings);
             if (cacheSize.getBytes() > 0) {
                 final List<DiscoveryNodeRole> roles = NodeRoleSettings.NODE_ROLES_SETTING.get(settings);
                 if (DataTier.isFrozenNode(new HashSet<>(roles)) == false) {
-                    String message = String.format(Locale.ROOT, "Only frozen nodes can have a [%s] greater than zero.",
-                        cacheSizeSettingKey);
+                    String message = String.format(
+                        Locale.ROOT,
+                        "Only frozen nodes can have a [%s] greater than zero.",
+                        cacheSizeSettingKey
+                    );
                     String url = "https://ela.st/es-deprecation-7-searchable-snapshot-shared-cache-setting";
-                    String details = String.format(Locale.ROOT, "Set [%s] to zero on any node that doesn't have the [data_frozen] role.",
-                        cacheSizeSettingKey);
+                    String details = String.format(
+                        Locale.ROOT,
+                        "Set [%s] to zero on any node that doesn't have the [data_frozen] role.",
+                        cacheSizeSettingKey
+                    );
                     return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
                 }
             }
@@ -708,20 +862,27 @@ class NodeDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue checkSslServerEnabled(final Settings settings,
-                                                   final PluginsAndModules pluginsAndModules,
-                                                   final ClusterState clusterState,
-                                                   final XPackLicenseState licenseState) {
+    static DeprecationIssue checkSslServerEnabled(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         List<String> details = new ArrayList<>();
-        for (String prefix : new String[] {"xpack.security.transport.ssl", "xpack.security.http.ssl"}) {
+        for (String prefix : new String[] { "xpack.security.transport.ssl", "xpack.security.http.ssl" }) {
             final String enabledSettingKey = prefix + ".enabled";
             String enabledSettingValue = settings.get(enabledSettingKey);
             Settings sslSettings = settings.filter(setting -> setting.startsWith(prefix));
             if (enabledSettingValue == null && sslSettings.size() > 0) {
                 String keys = sslSettings.keySet().stream().collect(Collectors.joining(","));
-                String detail = String.format(Locale.ROOT, "The [%s] setting is not configured, but the following SSL settings are: [%s]." +
-                        " To configure SSL, set [%s] or the node will fail to start in 8.0.",
-                    enabledSettingKey, keys, enabledSettingKey);
+                String detail = String.format(
+                    Locale.ROOT,
+                    "The [%s] setting is not configured, but the following SSL settings are: [%s]."
+                        + " To configure SSL, set [%s] or the node will fail to start in 8.0.",
+                    enabledSettingKey,
+                    keys,
+                    enabledSettingKey
+                );
                 details.add(detail);
             }
         }
@@ -735,12 +896,14 @@ class NodeDeprecationChecks {
         }
     }
 
-    static DeprecationIssue checkSslCertConfiguration(final Settings settings,
-                                                      final PluginsAndModules pluginsAndModules,
-                                                      final ClusterState clusterState,
-                                                      final XPackLicenseState licenseState) {
+    static DeprecationIssue checkSslCertConfiguration(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         List<String> details = new ArrayList<>();
-        for (String prefix : new String[]{"xpack.security.transport.ssl", "xpack.security.http.ssl"}) {
+        for (String prefix : new String[] { "xpack.security.transport.ssl", "xpack.security.http.ssl" }) {
             final String enabledSettingKey = prefix + ".enabled";
             boolean sslEnabled = settings.getAsBoolean(enabledSettingKey, false);
             if (sslEnabled) {
@@ -751,29 +914,48 @@ class NodeDeprecationChecks {
                 boolean keyPathSettingExists = settings.get(keyPathSettingKey) != null;
                 boolean certificatePathSettingExists = settings.get(certificatePathSettingKey) != null;
                 if (keystorePathSettingExists == false && keyPathSettingExists == false && certificatePathSettingExists == false) {
-                    String detail = String.format(Locale.ROOT, "None of [%s], [%s], or [%s] are set. If [%s] is true either use a " +
-                            "keystore, or configure [%s] and [%s].", keystorePathSettingKey, keyPathSettingKey,
-                        certificatePathSettingKey, enabledSettingKey, keyPathSettingKey, certificatePathSettingKey);
+                    String detail = String.format(
+                        Locale.ROOT,
+                        "None of [%s], [%s], or [%s] are set. If [%s] is true either use a " + "keystore, or configure [%s] and [%s].",
+                        keystorePathSettingKey,
+                        keyPathSettingKey,
+                        certificatePathSettingKey,
+                        enabledSettingKey,
+                        keyPathSettingKey,
+                        certificatePathSettingKey
+                    );
                     details.add(detail);
                 } else if (keystorePathSettingExists && keyPathSettingExists && certificatePathSettingExists) {
-                    String detail = String.format(Locale.ROOT, "All of [%s], [%s], and [%s] are set. Either use a keystore, or " +
-                            "configure [%s] and [%s].", keystorePathSettingKey, keyPathSettingKey, certificatePathSettingKey,
-                        keyPathSettingKey, certificatePathSettingKey);
+                    String detail = String.format(
+                        Locale.ROOT,
+                        "All of [%s], [%s], and [%s] are set. Either use a keystore, or " + "configure [%s] and [%s].",
+                        keystorePathSettingKey,
+                        keyPathSettingKey,
+                        certificatePathSettingKey,
+                        keyPathSettingKey,
+                        certificatePathSettingKey
+                    );
                     details.add(detail);
                 } else if (keystorePathSettingExists && (keyPathSettingExists || certificatePathSettingExists)) {
-                    String detail = String.format(Locale.ROOT, "Do not configure both [%s] and [%s]. Either" +
-                            " use a keystore, or configure [%s] and [%s].",
+                    String detail = String.format(
+                        Locale.ROOT,
+                        "Do not configure both [%s] and [%s]. Either" + " use a keystore, or configure [%s] and [%s].",
                         keystorePathSettingKey,
                         keyPathSettingExists ? keyPathSettingKey : certificatePathSettingKey,
-                        keyPathSettingKey, certificatePathSettingKey);
+                        keyPathSettingKey,
+                        certificatePathSettingKey
+                    );
                     details.add(detail);
-                } else if ((keyPathSettingExists && certificatePathSettingExists == false) ||
-                    (keyPathSettingExists == false && certificatePathSettingExists)) {
-                    String detail = String.format(Locale.ROOT, "[%s] is set but [%s] is not",
-                        keyPathSettingExists ? keyPathSettingKey : certificatePathSettingKey,
-                        keyPathSettingExists ? certificatePathSettingKey : keyPathSettingKey);
-                    details.add(detail);
-                }
+                } else if ((keyPathSettingExists && certificatePathSettingExists == false)
+                    || (keyPathSettingExists == false && certificatePathSettingExists)) {
+                        String detail = String.format(
+                            Locale.ROOT,
+                            "[%s] is set but [%s] is not",
+                            keyPathSettingExists ? keyPathSettingKey : certificatePathSettingKey,
+                            keyPathSettingExists ? certificatePathSettingKey : keyPathSettingKey
+                        );
+                        details.add(detail);
+                    }
             }
         }
         if (details.isEmpty()) {
@@ -786,11 +968,13 @@ class NodeDeprecationChecks {
         }
     }
 
-    static DeprecationIssue checkNoPermitHandshakeFromIncompatibleBuilds(final Settings settings,
-                                                                         final PluginsAndModules pluginsAndModules,
-                                                                         final ClusterState clusterState,
-                                                                         final XPackLicenseState licenseState,
-                                                                         Supplier<String> permitsHandshakesFromIncompatibleBuildsSupplier) {
+    static DeprecationIssue checkNoPermitHandshakeFromIncompatibleBuilds(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState,
+        Supplier<String> permitsHandshakesFromIncompatibleBuildsSupplier
+    ) {
         if (permitsHandshakesFromIncompatibleBuildsSupplier.get() != null) {
             final String message = String.format(
                 Locale.ROOT,
@@ -814,10 +998,14 @@ class NodeDeprecationChecks {
         ClusterState cs,
         XPackLicenseState licenseState
     ) {
-        final Setting.AffixSetting<String> transportTypeProfileSetting =
-            Setting.affixKeySetting("transport.profiles.","xpack.security.type", s -> Setting.simpleString(s));
+        final Setting.AffixSetting<String> transportTypeProfileSetting = Setting.affixKeySetting(
+            "transport.profiles.",
+            "xpack.security.type",
+            s -> Setting.simpleString(s)
+        );
         List<Setting<?>> transportProfiles = transportTypeProfileSetting.getAllConcreteSettings(settings)
-            .sorted(Comparator.comparing(Setting::getKey)).collect(Collectors.toList());
+            .sorted(Comparator.comparing(Setting::getKey))
+            .collect(Collectors.toList());
 
         if (transportProfiles.isEmpty()) {
             return null;
@@ -835,17 +1023,20 @@ class NodeDeprecationChecks {
         return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
     }
 
-    static DeprecationIssue checkDelayClusterStateRecoverySettings(final Settings settings,
-                                                                   final PluginsAndModules pluginsAndModules,
-                                                                   final ClusterState clusterState,
-                                                                   final XPackLicenseState licenseState) {
+    static DeprecationIssue checkDelayClusterStateRecoverySettings(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         List<Setting<Integer>> deprecatedSettings = new ArrayList<>();
         deprecatedSettings.add(GatewayService.EXPECTED_NODES_SETTING);
         deprecatedSettings.add(GatewayService.EXPECTED_MASTER_NODES_SETTING);
         deprecatedSettings.add(GatewayService.RECOVER_AFTER_NODES_SETTING);
         deprecatedSettings.add(GatewayService.RECOVER_AFTER_MASTER_NODES_SETTING);
-        List<Setting<Integer>> existingSettings =
-            deprecatedSettings.stream().filter(deprecatedSetting -> deprecatedSetting.exists(settings)).collect(Collectors.toList());
+        List<Setting<Integer>> existingSettings = deprecatedSettings.stream()
+            .filter(deprecatedSetting -> deprecatedSetting.exists(settings))
+            .collect(Collectors.toList());
         if (existingSettings.isEmpty()) {
             return null;
         }
@@ -857,18 +1048,20 @@ class NodeDeprecationChecks {
         );
         final String details = String.format(
             Locale.ROOT,
-            "Use gateway.expected_data_nodes to wait for a certain number of data nodes. Remove the following settings or the node will " +
-                "fail to start in 8.0: [%s]",
+            "Use gateway.expected_data_nodes to wait for a certain number of data nodes. Remove the following settings or the node will "
+                + "fail to start in 8.0: [%s]",
             settingNames
         );
         final String url = "https://ela.st/es-deprecation-7-deferred-cluster-state-recovery";
         return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
     }
 
-    static DeprecationIssue checkFixedAutoQueueSizeThreadpool(final Settings settings,
-                                                              final PluginsAndModules pluginsAndModules,
-                                                              final ClusterState clusterState,
-                                                              final XPackLicenseState licenseState) {
+    static DeprecationIssue checkFixedAutoQueueSizeThreadpool(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         List<Setting<Integer>> deprecatedSettings = new ArrayList<>();
         deprecatedSettings.add(Setting.intSetting("thread_pool.search.min_queue_size", 1, Setting.Property.Deprecated));
         deprecatedSettings.add(Setting.intSetting("thread_pool.search.max_queue_size", 1, Setting.Property.Deprecated));
@@ -878,8 +1071,9 @@ class NodeDeprecationChecks {
         deprecatedSettings.add(Setting.intSetting("thread_pool.search_throttled.max_queue_size", 1, Setting.Property.Deprecated));
         deprecatedSettings.add(Setting.intSetting("thread_pool.search_throttled.auto_queue_frame_size", 1, Setting.Property.Deprecated));
         deprecatedSettings.add(Setting.intSetting("thread_pool.search_throttled.target_response_time", 1, Setting.Property.Deprecated));
-        List<Setting<Integer>> existingSettings =
-            deprecatedSettings.stream().filter(deprecatedSetting -> deprecatedSetting.exists(settings)).collect(Collectors.toList());
+        List<Setting<Integer>> existingSettings = deprecatedSettings.stream()
+            .filter(deprecatedSetting -> deprecatedSetting.exists(settings))
+            .collect(Collectors.toList());
         if (existingSettings.isEmpty()) {
             return null;
         }
@@ -894,11 +1088,14 @@ class NodeDeprecationChecks {
         return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
     }
 
-    static DeprecationIssue checkClusterRoutingRequireSetting(final Settings settings,
-                                                              final PluginsAndModules pluginsAndModules,
-                                                              final ClusterState clusterState,
-                                                              final XPackLicenseState licenseState) {
-        return checkRemovedSetting(settings,
+    static DeprecationIssue checkClusterRoutingRequireSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        return checkRemovedSetting(
+            settings,
             CLUSTER_ROUTING_REQUIRE_SETTING,
             "https://ela.st/es-deprecation-7-tier-filtering-settings",
             "Use [index.routing.allocation.include._tier_preference] to control allocation to data tiers.",
@@ -906,11 +1103,14 @@ class NodeDeprecationChecks {
         );
     }
 
-    static DeprecationIssue checkClusterRoutingIncludeSetting(final Settings settings,
-                                                              final PluginsAndModules pluginsAndModules,
-                                                              final ClusterState clusterState,
-                                                              final XPackLicenseState licenseState) {
-        return checkRemovedSetting(settings,
+    static DeprecationIssue checkClusterRoutingIncludeSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        return checkRemovedSetting(
+            settings,
             CLUSTER_ROUTING_INCLUDE_SETTING,
             "https://ela.st/es-deprecation-7-tier-filtering-settings",
             "Use [index.routing.allocation.include._tier_preference] to control allocation to data tiers.",
@@ -918,11 +1118,14 @@ class NodeDeprecationChecks {
         );
     }
 
-    static DeprecationIssue checkClusterRoutingExcludeSetting(final Settings settings,
-                                                              final PluginsAndModules pluginsAndModules,
-                                                              final ClusterState clusterState,
-                                                              final XPackLicenseState licenseState) {
-        return checkRemovedSetting(settings,
+    static DeprecationIssue checkClusterRoutingExcludeSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        return checkRemovedSetting(
+            settings,
             CLUSTER_ROUTING_EXCLUDE_SETTING,
             "https://ela.st/es-deprecation-7-tier-filtering-settings",
             "Use [index.routing.allocation.include._tier_preference] to control allocation to data tiers.",
@@ -930,23 +1133,29 @@ class NodeDeprecationChecks {
         );
     }
 
-    static DeprecationIssue checkAcceptDefaultPasswordSetting(final Settings settings,
-                                                              final PluginsAndModules pluginsAndModules,
-                                                              final ClusterState clusterState,
-                                                              final XPackLicenseState licenseState) {
-        return checkRemovedSetting(settings,
-            Setting.boolSetting(SecurityField.setting("authc.accept_default_password"),true, Setting.Property.Deprecated),
+    static DeprecationIssue checkAcceptDefaultPasswordSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        return checkRemovedSetting(
+            settings,
+            Setting.boolSetting(SecurityField.setting("authc.accept_default_password"), true, Setting.Property.Deprecated),
             "https://ela.st/es-deprecation-7-accept-default-password-setting",
             "This setting has not had any effect since 6.0.",
             DeprecationIssue.Level.CRITICAL
         );
     }
 
-    static DeprecationIssue checkAcceptRolesCacheMaxSizeSetting(final Settings settings,
-                                                                final PluginsAndModules pluginsAndModules,
-                                                                final ClusterState clusterState,
-                                                                final XPackLicenseState licenseState) {
-        return checkRemovedSetting(settings,
+    static DeprecationIssue checkAcceptRolesCacheMaxSizeSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        return checkRemovedSetting(
+            settings,
             Setting.intSetting(SecurityField.setting("authz.store.roles.index.cache.max_size"), 10000, Setting.Property.Deprecated),
             "https://ela.st/es-deprecation-7-roles-index-cache-settings",
             "Native role cache settings have had no effect since 5.2.",
@@ -954,24 +1163,33 @@ class NodeDeprecationChecks {
         );
     }
 
-    static DeprecationIssue checkRolesCacheTTLSizeSetting(final Settings settings,
-                                                          final PluginsAndModules pluginsAndModules,
-                                                          final ClusterState clusterState,
-                                                          final XPackLicenseState licenseState) {
-        return checkRemovedSetting(settings,
-            Setting.timeSetting(SecurityField.setting("authz.store.roles.index.cache.ttl"), TimeValue.timeValueMinutes(20),
-                Setting.Property.Deprecated),
+    static DeprecationIssue checkRolesCacheTTLSizeSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        return checkRemovedSetting(
+            settings,
+            Setting.timeSetting(
+                SecurityField.setting("authz.store.roles.index.cache.ttl"),
+                TimeValue.timeValueMinutes(20),
+                Setting.Property.Deprecated
+            ),
             "https://ela.st/es-deprecation-7-roles-index-cache-settings",
             "Native role cache settings have had no effect since 5.2.",
             DeprecationIssue.Level.CRITICAL
         );
     }
 
-    static DeprecationIssue checkMaxLocalStorageNodesSetting(final Settings settings,
-                                                             final PluginsAndModules pluginsAndModules,
-                                                             final ClusterState clusterState,
-                                                             final XPackLicenseState licenseState) {
-        return checkRemovedSetting(settings,
+    static DeprecationIssue checkMaxLocalStorageNodesSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        return checkRemovedSetting(
+            settings,
             NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING,
             "https://ela.st/es-deprecation-7-node-local-storage-setting",
             "All nodes require local storage in 8.0 and cannot share data paths.",
@@ -979,126 +1197,172 @@ class NodeDeprecationChecks {
         );
     }
 
-    static DeprecationIssue checkSamlNameIdFormatSetting(final Settings settings,
-                                                         final PluginsAndModules pluginsAndModules,
-                                                         final ClusterState clusterState,
-                                                         final XPackLicenseState licenseState) {
+    static DeprecationIssue checkSamlNameIdFormatSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         final String principalKeySuffix = ".attributes.principal";
-        List<String> detailsList =
-            PRINCIPAL_ATTRIBUTE.getAttribute().getAllConcreteSettings(settings).sorted(Comparator.comparing(Setting::getKey))
-                .map(concreteSamlPrincipalSetting -> {
-                    String concreteSamlPrincipalSettingKey = concreteSamlPrincipalSetting.getKey();
-                    int principalKeySuffixIndex = concreteSamlPrincipalSettingKey.indexOf(principalKeySuffix);
-                    if (principalKeySuffixIndex > 0) {
-                        String realm = concreteSamlPrincipalSettingKey.substring(0, principalKeySuffixIndex);
-                        String concreteNameIdFormatSettingKey = realm + ".nameid_format";
-                        if (settings.get(concreteNameIdFormatSettingKey) == null) {
-                            return String.format(Locale.ROOT, "Configure \"%s\" for SAML realms: \"%s\".",
-                                concreteNameIdFormatSettingKey, realm);
-                        }
+        List<String> detailsList = PRINCIPAL_ATTRIBUTE.getAttribute()
+            .getAllConcreteSettings(settings)
+            .sorted(Comparator.comparing(Setting::getKey))
+            .map(concreteSamlPrincipalSetting -> {
+                String concreteSamlPrincipalSettingKey = concreteSamlPrincipalSetting.getKey();
+                int principalKeySuffixIndex = concreteSamlPrincipalSettingKey.indexOf(principalKeySuffix);
+                if (principalKeySuffixIndex > 0) {
+                    String realm = concreteSamlPrincipalSettingKey.substring(0, principalKeySuffixIndex);
+                    String concreteNameIdFormatSettingKey = realm + ".nameid_format";
+                    if (settings.get(concreteNameIdFormatSettingKey) == null) {
+                        return String.format(
+                            Locale.ROOT,
+                            "Configure \"%s\" for SAML realms: \"%s\".",
+                            concreteNameIdFormatSettingKey,
+                            realm
+                        );
                     }
-                    return null;
-                })
-                .filter(detail -> detail != null).collect(Collectors.toList());
+                }
+                return null;
+            })
+            .filter(detail -> detail != null)
+            .collect(Collectors.toList());
         if (detailsList.isEmpty()) {
             return null;
         } else {
-            String message = "The SAML nameid_format is not set and no longer defaults to " +
-                "\"urn:oasis:names:tc:SAML:2.0:nameid-format:transient\"";
+            String message = "The SAML nameid_format is not set and no longer defaults to "
+                + "\"urn:oasis:names:tc:SAML:2.0:nameid-format:transient\"";
             String url = "https://ela.st/es-deprecation-7-saml-nameid-format";
             String details = detailsList.stream().collect(Collectors.joining(" "));
             return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, false, null);
         }
     }
 
-    static DeprecationIssue checkScriptContextCache(final Settings settings,
-                                                    final PluginsAndModules pluginsAndModules,
-                                                    final ClusterState clusterState,
-                                                    final XPackLicenseState licenseState) {
+    static DeprecationIssue checkScriptContextCache(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         if (ScriptService.isUseContextCacheSet(settings)) {
-            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
                 ScriptService.USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE,
                 "https://ela.st/es-deprecation-7-script-context-cache",
-                "found deprecated script context caches in use, change setting to compilation rate or remove " +
-                    "setting to use the default",
-                false, null);
+                "found deprecated script context caches in use, change setting to compilation rate or remove "
+                    + "setting to use the default",
+                false,
+                null
+            );
         }
         return null;
     }
 
-    static DeprecationIssue checkScriptContextCompilationsRateLimitSetting(final Settings settings,
-                                                                           final PluginsAndModules pluginsAndModules,
-                                                                           final ClusterState clusterState,
-                                                                           final XPackLicenseState licenseState) {
+    static DeprecationIssue checkScriptContextCompilationsRateLimitSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         Setting.AffixSetting<?> maxSetting = ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING;
         Set<String> contextCompilationRates = maxSetting.getAsMap(settings).keySet();
         if (contextCompilationRates.isEmpty() == false) {
-            String maxSettings = contextCompilationRates.stream().sorted().map(
-                c -> maxSetting.getConcreteSettingForNamespace(c).getKey()
-            ).collect(Collectors.joining(","));
-            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                    String.format(Locale.ROOT,
+            String maxSettings = contextCompilationRates.stream()
+                .sorted()
+                .map(c -> maxSetting.getConcreteSettingForNamespace(c).getKey())
+                .collect(Collectors.joining(","));
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                String.format(
+                    Locale.ROOT,
                     "Setting context-specific rate limits [%s] is deprecated."
-                            + " Use [%s] to rate limit the compilation of user scripts."
-                            + " Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
-                        maxSettings, ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey()),
+                        + " Use [%s] to rate limit the compilation of user scripts."
+                        + " Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
+                    maxSettings,
+                    ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey()
+                ),
                 "https://ela.st/es-deprecation-7-script-context-cache",
                 String.format(Locale.ROOT, "[%s] is deprecated and will be removed in a future release", maxSettings),
-                false, null);
+                false,
+                null
+            );
         }
         return null;
     }
 
-    static DeprecationIssue checkScriptContextCacheSizeSetting(final Settings settings,
-                                                               final PluginsAndModules pluginsAndModules,
-                                                               final ClusterState clusterState,
-                                                               final XPackLicenseState licenseState) {
+    static DeprecationIssue checkScriptContextCacheSizeSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         Setting.AffixSetting<?> cacheSizeSetting = ScriptService.SCRIPT_CACHE_SIZE_SETTING;
         Set<String> contextCacheSizes = cacheSizeSetting.getAsMap(settings).keySet();
         if (contextCacheSizes.isEmpty() == false) {
-            String cacheSizeSettings = contextCacheSizes.stream().sorted().map(
-                c -> cacheSizeSetting.getConcreteSettingForNamespace(c).getKey()
-            ).collect(Collectors.joining(","));
-            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                String.format(Locale.ROOT,
+            String cacheSizeSettings = contextCacheSizes.stream()
+                .sorted()
+                .map(c -> cacheSizeSetting.getConcreteSettingForNamespace(c).getKey())
+                .collect(Collectors.joining(","));
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                String.format(
+                    Locale.ROOT,
                     "Setting a context-specific cache size [%s] is deprecated."
-                    + " Use [%s] to configure the size of the general cache for scripts."
-                    + " Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
-                    cacheSizeSettings, ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING.getKey()),
+                        + " Use [%s] to configure the size of the general cache for scripts."
+                        + " Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
+                    cacheSizeSettings,
+                    ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING.getKey()
+                ),
                 "https://ela.st/es-deprecation-7-script-context-cache",
                 String.format(Locale.ROOT, "[%s] is deprecated and will be removed in a future release", cacheSizeSettings),
-                false, null);
+                false,
+                null
+            );
         }
         return null;
     }
 
-    static DeprecationIssue checkScriptContextCacheExpirationSetting(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkScriptContextCacheExpirationSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         Setting.AffixSetting<?> cacheExpireSetting = ScriptService.SCRIPT_CACHE_EXPIRE_SETTING;
         Set<String> contextCacheExpires = cacheExpireSetting.getAsMap(settings).keySet();
         if (contextCacheExpires.isEmpty() == false) {
-            String cacheExpireSettings = contextCacheExpires.stream().sorted().map(
-                c -> cacheExpireSetting.getConcreteSettingForNamespace(c).getKey()
-            ).collect(Collectors.joining(","));
-            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                String.format(Locale.ROOT,
-                        "Setting a context-specific cache expiration [%s] is deprecated."
+            String cacheExpireSettings = contextCacheExpires.stream()
+                .sorted()
+                .map(c -> cacheExpireSetting.getConcreteSettingForNamespace(c).getKey())
+                .collect(Collectors.joining(","));
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                String.format(
+                    Locale.ROOT,
+                    "Setting a context-specific cache expiration [%s] is deprecated."
                         + " Use [%s] to configure the expiration of the general cache."
                         + " Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
-                        cacheExpireSettings, ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.getKey()),
+                    cacheExpireSettings,
+                    ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.getKey()
+                ),
                 "https://ela.st/es-deprecation-7-script-context-cache",
                 String.format(Locale.ROOT, "[%s] is deprecated and will be removed in a future release", cacheExpireSettings),
-                false, null);
+                false,
+                null
+            );
         }
         return null;
     }
 
-    private static DeprecationIssue deprecatedAffixSetting(Setting.AffixSetting<?> deprecatedAffixSetting, String detailPattern,
-                                                           String url, DeprecationIssue.Level warningLevel, Settings settings) {
+    private static DeprecationIssue deprecatedAffixSetting(
+        Setting.AffixSetting<?> deprecatedAffixSetting,
+        String detailPattern,
+        String url,
+        DeprecationIssue.Level warningLevel,
+        Settings settings
+    ) {
         List<Setting<?>> deprecatedConcreteSettings = deprecatedAffixSetting.getAllConcreteSettings(settings)
-            .sorted(Comparator.comparing(Setting::getKey)).collect(Collectors.toList());
+            .sorted(Comparator.comparing(Setting::getKey))
+            .collect(Collectors.toList());
 
         if (deprecatedConcreteSettings.isEmpty()) {
             return null;
@@ -1115,11 +1379,16 @@ class NodeDeprecationChecks {
         return new DeprecationIssue(warningLevel, message, url, details, false, null);
     }
 
-    private static DeprecationIssue deprecatedAffixGroupedSetting(Setting.AffixSetting<Settings> deprecatedAffixSetting,
-                                                                  String detailPattern, String url, DeprecationIssue.Level warningLevel,
-                                                                  Settings settings) {
+    private static DeprecationIssue deprecatedAffixGroupedSetting(
+        Setting.AffixSetting<Settings> deprecatedAffixSetting,
+        String detailPattern,
+        String url,
+        DeprecationIssue.Level warningLevel,
+        Settings settings
+    ) {
         List<Setting<Settings>> deprecatedConcreteSettings = deprecatedAffixSetting.getAllConcreteSettings(settings)
-            .sorted(Comparator.comparing(Setting::getKey)).collect(Collectors.toList());
+            .sorted(Comparator.comparing(Setting::getKey))
+            .collect(Collectors.toList());
 
         if (deprecatedConcreteSettings.isEmpty()) {
             return null;
@@ -1157,22 +1426,26 @@ class NodeDeprecationChecks {
 
     static DeprecationIssue genericMonitoringAffixSetting(final Settings settings, final String deprecatedSuffix) {
         return deprecatedAffixSetting(
-            Setting.affixKeySetting("xpack.monitoring.exporters.", deprecatedSuffix,
-                (Function<String, Setting<String>>) Setting::simpleString),
+            Setting.affixKeySetting(
+                "xpack.monitoring.exporters.",
+                deprecatedSuffix,
+                (Function<String, Setting<String>>) Setting::simpleString
+            ),
             "Remove the following settings from elasticsearch.yml: [%s]",
             MONITORING_SETTING_DEPRECATION_LINK,
             DeprecationIssue.Level.WARNING,
-            settings);
+            settings
+        );
     }
 
     static DeprecationIssue genericMonitoringAffixSecureSetting(final Settings settings, final String deprecatedSuffix) {
         return deprecatedAffixSetting(
-            Setting.affixKeySetting("xpack.monitoring.exporters.", deprecatedSuffix,
-                k -> SecureSetting.secureString(k, null)),
+            Setting.affixKeySetting("xpack.monitoring.exporters.", deprecatedSuffix, k -> SecureSetting.secureString(k, null)),
             "Remove the following settings from the keystore: [%s]",
             MONITORING_SETTING_DEPRECATION_LINK,
             DeprecationIssue.Level.WARNING,
-            settings);
+            settings
+        );
     }
 
     static DeprecationIssue genericMonitoringAffixGroupedSetting(final Settings settings, final String deprecatedSuffix) {
@@ -1181,261 +1454,339 @@ class NodeDeprecationChecks {
             "Remove the following settings from elasticsearch.yml: [%s]",
             MONITORING_SETTING_DEPRECATION_LINK,
             DeprecationIssue.Level.WARNING,
-            settings);
+            settings
+        );
     }
 
-    static DeprecationIssue checkMonitoringSettingHistoryDuration(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkMonitoringSettingHistoryDuration(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return genericMonitoringSetting(settings, Setting.simpleString("xpack.monitoring.history.duration"));
     }
 
-    static DeprecationIssue checkMonitoringSettingCollectIndexRecovery(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkMonitoringSettingCollectIndexRecovery(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return genericMonitoringSetting(settings, Setting.simpleString("xpack.monitoring.collection.index.recovery.active_only"));
     }
 
-    static DeprecationIssue checkMonitoringSettingCollectIndices(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkMonitoringSettingCollectIndices(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return genericMonitoringSetting(settings, Setting.simpleString("xpack.monitoring.collection.indices"));
     }
 
-    static DeprecationIssue checkMonitoringSettingCollectCcrTimeout(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkMonitoringSettingCollectCcrTimeout(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return genericMonitoringSetting(settings, Setting.simpleString("xpack.monitoring.collection.ccr.stats.timeout"));
     }
 
-    static DeprecationIssue checkMonitoringSettingCollectEnrichStatsTimeout(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkMonitoringSettingCollectEnrichStatsTimeout(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return genericMonitoringSetting(settings, Setting.simpleString("xpack.monitoring.collection.enrich.stats.timeout"));
     }
 
-    static DeprecationIssue checkMonitoringSettingCollectIndexRecoveryStatsTimeout(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkMonitoringSettingCollectIndexRecoveryStatsTimeout(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return genericMonitoringSetting(settings, Setting.simpleString("xpack.monitoring.collection.index.recovery.timeout"));
     }
 
-    static DeprecationIssue checkMonitoringSettingCollectIndexStatsTimeout(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkMonitoringSettingCollectIndexStatsTimeout(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return genericMonitoringSetting(settings, Setting.simpleString("xpack.monitoring.collection.index.stats.timeout"));
     }
 
-    static DeprecationIssue checkMonitoringSettingCollectMlJobStatsTimeout(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkMonitoringSettingCollectMlJobStatsTimeout(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return genericMonitoringSetting(settings, Setting.simpleString("xpack.monitoring.collection.ml.job.stats.timeout"));
     }
 
-    static DeprecationIssue checkMonitoringSettingCollectNodeStatsTimeout(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkMonitoringSettingCollectNodeStatsTimeout(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return genericMonitoringSetting(settings, Setting.simpleString("xpack.monitoring.collection.node.stats.timeout"));
     }
 
-    static DeprecationIssue checkMonitoringSettingCollectClusterStatsTimeout(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkMonitoringSettingCollectClusterStatsTimeout(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return genericMonitoringSetting(settings, Setting.simpleString("xpack.monitoring.collection.cluster.stats.timeout"));
     }
 
-    static DeprecationIssue checkMonitoringSettingExportersHost(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkMonitoringSettingExportersHost(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return genericMonitoringAffixSetting(settings, "host");
     }
 
-    static DeprecationIssue checkMonitoringSettingExportersBulkTimeout(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkMonitoringSettingExportersBulkTimeout(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return genericMonitoringAffixSetting(settings, "bulk.timeout");
     }
 
-    static DeprecationIssue checkMonitoringSettingExportersConnectionTimeout(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkMonitoringSettingExportersConnectionTimeout(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return genericMonitoringAffixSetting(settings, "connection.timeout");
     }
 
-    static DeprecationIssue checkMonitoringSettingExportersConnectionReadTimeout(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkMonitoringSettingExportersConnectionReadTimeout(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return genericMonitoringAffixSetting(settings, "connection.read_timeout");
     }
 
-    static DeprecationIssue checkMonitoringSettingExportersAuthUsername(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkMonitoringSettingExportersAuthUsername(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return genericMonitoringAffixSetting(settings, "auth.username");
     }
 
-    static DeprecationIssue checkMonitoringSettingExportersAuthPass(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkMonitoringSettingExportersAuthPass(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return genericMonitoringAffixSecureSetting(settings, "auth.secure_password");
     }
 
-    static DeprecationIssue checkMonitoringSettingExportersSSL(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkMonitoringSettingExportersSSL(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return genericMonitoringAffixGroupedSetting(settings, "ssl");
     }
 
-    static DeprecationIssue checkMonitoringSettingExportersProxyBase(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkMonitoringSettingExportersProxyBase(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return genericMonitoringAffixSetting(settings, "proxy.base_path");
     }
 
-    static DeprecationIssue checkMonitoringSettingExportersSniffEnabled(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkMonitoringSettingExportersSniffEnabled(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return genericMonitoringAffixSetting(settings, "sniff.enabled");
     }
 
-    static DeprecationIssue checkMonitoringSettingExportersHeaders(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkMonitoringSettingExportersHeaders(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return genericMonitoringAffixGroupedSetting(settings, "headers");
     }
 
-    static DeprecationIssue checkMonitoringSettingExportersTemplateTimeout(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkMonitoringSettingExportersTemplateTimeout(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return genericMonitoringAffixSetting(settings, "index.template.master_timeout");
     }
 
-    static DeprecationIssue checkMonitoringSettingExportersMasterTimeout(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkMonitoringSettingExportersMasterTimeout(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return genericMonitoringAffixSetting(settings, "wait_master.timeout");
     }
 
-    static DeprecationIssue checkMonitoringSettingExportersEnabled(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkMonitoringSettingExportersEnabled(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return genericMonitoringAffixSetting(settings, "enabled");
     }
 
-    static DeprecationIssue checkMonitoringSettingExportersType(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkMonitoringSettingExportersType(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return genericMonitoringAffixSetting(settings, "type");
     }
 
-    static DeprecationIssue checkMonitoringSettingExportersAlertsEnabled(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkMonitoringSettingExportersAlertsEnabled(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return genericMonitoringAffixSetting(settings, "cluster_alerts.management.enabled");
     }
 
-    static DeprecationIssue checkMonitoringSettingExportersAlertsBlacklist(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkMonitoringSettingExportersAlertsBlacklist(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return genericMonitoringAffixSetting(settings, "cluster_alerts.management.blacklist");
     }
 
-    static DeprecationIssue checkMonitoringSettingExportersIndexNameTimeFormat(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkMonitoringSettingExportersIndexNameTimeFormat(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return genericMonitoringAffixSetting(settings, "index.name.time_format");
     }
 
-    static DeprecationIssue checkMonitoringSettingDecommissionAlerts(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkMonitoringSettingDecommissionAlerts(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return genericMonitoringSetting(settings, Setting.simpleString("xpack.monitoring.migration.decommission_alerts"));
     }
 
-    static DeprecationIssue checkMonitoringSettingEsCollectionEnabled(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkMonitoringSettingEsCollectionEnabled(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return genericMonitoringSetting(settings, Setting.simpleString("xpack.monitoring.elasticsearch.collection.enabled"));
     }
 
-    static DeprecationIssue checkMonitoringSettingCollectionEnabled(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkMonitoringSettingCollectionEnabled(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return genericMonitoringSetting(settings, Setting.simpleString("xpack.monitoring.collection.enabled"));
     }
 
-    static DeprecationIssue checkMonitoringSettingCollectionInterval(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkMonitoringSettingCollectionInterval(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return genericMonitoringSetting(settings, Setting.simpleString("xpack.monitoring.collection.interval"));
     }
 
-    static DeprecationIssue checkExporterUseIngestPipelineSettings(final Settings settings,
-                                                                   final PluginsAndModules pluginsAndModules,
-                                                                   final ClusterState clusterState,
-                                                                   final XPackLicenseState licenseState) {
+    static DeprecationIssue checkExporterUseIngestPipelineSettings(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return deprecatedAffixSetting(
-            Setting.affixKeySetting("xpack.monitoring.exporters.","use_ingest", key -> Setting.boolSetting(key, true)),
+            Setting.affixKeySetting("xpack.monitoring.exporters.", "use_ingest", key -> Setting.boolSetting(key, true)),
             "Remove the following settings from elasticsearch.yml: [%s]",
             "https://ela.st/es-deprecation-7-monitoring-exporter-use-ingest-setting",
             DeprecationIssue.Level.WARNING,
-            settings);
+            settings
+        );
     }
 
-    static DeprecationIssue checkExporterPipelineMasterTimeoutSetting(final Settings settings,
-                                                                      final PluginsAndModules pluginsAndModules,
-                                                                      final ClusterState clusterState,
-                                                                      final XPackLicenseState licenseState) {
+    static DeprecationIssue checkExporterPipelineMasterTimeoutSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return deprecatedAffixSetting(
-            Setting.affixKeySetting("xpack.monitoring.exporters.","index.pipeline.master_timeout",
-                (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE)),
+            Setting.affixKeySetting(
+                "xpack.monitoring.exporters.",
+                "index.pipeline.master_timeout",
+                (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE)
+            ),
             "Remove the following settings from elasticsearch.yml: [%s]",
             "https://ela.st/es-deprecation-7-monitoring-exporter-pipeline-timeout-setting",
             DeprecationIssue.Level.WARNING,
-            settings);
+            settings
+        );
     }
 
-    static DeprecationIssue checkExporterCreateLegacyTemplateSetting(final Settings settings,
-                                                                     final PluginsAndModules pluginsAndModules,
-                                                                     final ClusterState clusterState,
-                                                                     final XPackLicenseState licenseState) {
+    static DeprecationIssue checkExporterCreateLegacyTemplateSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
         return deprecatedAffixSetting(
-            Setting.affixKeySetting("xpack.monitoring.exporters.","index.template.create_legacy_templates",
-                (key) -> Setting.boolSetting(key, true)),
+            Setting.affixKeySetting(
+                "xpack.monitoring.exporters.",
+                "index.template.create_legacy_templates",
+                (key) -> Setting.boolSetting(key, true)
+            ),
             "Remove the following settings from elasticsearch.yml: [%s]",
             "https://ela.st/es-deprecation-7-monitoring-exporter-create-legacy-template-setting",
             DeprecationIssue.Level.WARNING,
-            settings);
+            settings
+        );
     }
 }

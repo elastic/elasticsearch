@@ -103,8 +103,10 @@ public class TransformInternalIndexTests extends ESTestCase {
     public static ClusterState randomTransformAuditClusterState() {
         ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templateMapBuilder = ImmutableOpenMap.builder();
         try {
-            templateMapBuilder.put(TransformInternalIndexConstants.AUDIT_INDEX,
-                TransformInternalIndex.getAuditIndexTemplateMetadata(Version.CURRENT));
+            templateMapBuilder.put(
+                TransformInternalIndexConstants.AUDIT_INDEX,
+                TransformInternalIndex.getAuditIndexTemplateMetadata(Version.CURRENT)
+            );
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

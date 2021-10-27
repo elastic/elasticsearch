@@ -35,8 +35,14 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
         this(source, name, qualifier, null, unresolvedMessage, null);
     }
 
-    public UnresolvedAttribute(Source source, String name, String qualifier, NameId id, String unresolvedMessage,
-            Object resolutionMetadata) {
+    public UnresolvedAttribute(
+        Source source,
+        String name,
+        String qualifier,
+        NameId id,
+        String unresolvedMessage,
+        Object resolutionMetadata
+    ) {
         super(source, name, qualifier, id);
         this.customMessage = unresolvedMessage != null;
         this.unresolvedMsg = unresolvedMessage == null ? errorMessage(qualifiedName(), null) : unresolvedMessage;
@@ -45,8 +51,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     @Override
     protected NodeInfo<UnresolvedAttribute> info() {
-        return NodeInfo.create(this, UnresolvedAttribute::new,
-            name(), qualifier(), id(), unresolvedMsg, resolutionMetadata);
+        return NodeInfo.create(this, UnresolvedAttribute::new, name(), qualifier(), id(), unresolvedMsg, resolutionMetadata);
     }
 
     public Object resolutionMetadata() {
@@ -63,8 +68,15 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     @Override
-    protected Attribute clone(Source source, String name, DataType dataType, String qualifier, Nullability nullability,
-                              NameId id, boolean synthetic) {
+    protected Attribute clone(
+        Source source,
+        String name,
+        DataType dataType,
+        String qualifier,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic
+    ) {
         return this;
     }
 
@@ -100,8 +112,9 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     public static String errorMessage(String name, List<String> potentialMatches) {
         String msg = "Unknown column [" + name + "]";
         if (CollectionUtils.isEmpty(potentialMatches) == false) {
-            msg += ", did you mean " + (potentialMatches.size() == 1 ? "[" + potentialMatches.get(0)
-                    + "]": "any of " + potentialMatches.toString()) + "?";
+            msg += ", did you mean "
+                + (potentialMatches.size() == 1 ? "[" + potentialMatches.get(0) + "]" : "any of " + potentialMatches.toString())
+                + "?";
         }
         return msg;
     }

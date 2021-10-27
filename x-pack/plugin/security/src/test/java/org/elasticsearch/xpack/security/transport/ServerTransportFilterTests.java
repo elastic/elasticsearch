@@ -69,10 +69,11 @@ public class ServerTransportFilterTests extends ESTestCase {
         when(channel.getProfileName()).thenReturn(TransportSettings.DEFAULT_PROFILE);
         when(channel.getVersion()).thenReturn(Version.CURRENT);
         failDestructiveOperations = randomBoolean();
-        Settings settings = Settings.builder()
-                .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), failDestructiveOperations).build();
-        destructiveOperations = new DestructiveOperations(settings,
-                new ClusterSettings(settings, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING)));
+        Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), failDestructiveOperations).build();
+        destructiveOperations = new DestructiveOperations(
+            settings,
+            new ClusterSettings(settings, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
+        );
     }
 
     public void testInbound() throws Exception {
@@ -84,15 +85,16 @@ public class ServerTransportFilterTests extends ESTestCase {
         ServerTransportFilter filter = getClientOrNodeFilter();
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         filter.inbound("_action", request, channel, future);
-        //future.get(); // don't block it's not called really just mocked
+        // future.get(); // don't block it's not called really just mocked
         verify(authzService).authorize(eq(authentication), eq("_action"), eq(request), anyActionListener());
     }
 
     public void testInboundDestructiveOperations() throws Exception {
         String action = randomFrom(CloseIndexAction.NAME, OpenIndexAction.NAME, DeleteIndexAction.NAME);
         TransportRequest request = new MockIndicesRequest(
-                IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()),
-                randomFrom("*", "_all", "test*"));
+            IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()),
+            randomFrom("*", "_all", "test*")
+        );
         Authentication authentication = mock(Authentication.class);
         when(authentication.getVersion()).thenReturn(Version.CURRENT);
         when(authentication.getUser()).thenReturn(SystemUser.INSTANCE);
@@ -140,8 +142,8 @@ public class ServerTransportFilterTests extends ESTestCase {
         when(authentication.getVersion()).thenReturn(Version.CURRENT);
         when(authentication.getUser()).thenReturn(XPackUser.INSTANCE);
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        doThrow(authorizationError("authz failed"))
-            .when(authzService).authorize(eq(authentication), eq("_action"), eq(request), anyActionListener());
+        doThrow(authorizationError("authz failed")).when(authzService)
+            .authorize(eq(authentication), eq("_action"), eq(request), anyActionListener());
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
             filter.inbound("_action", request, channel, future);
             future.actionGet();
@@ -152,12 +154,20 @@ public class ServerTransportFilterTests extends ESTestCase {
     public void testClientProfileRejectsNodeActions() throws Exception {
         TransportRequest request = mock(TransportRequest.class);
         ServerTransportFilter filter = getClientFilter(true);
-        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-                () -> filter.inbound("internal:foo/bar", request, channel, new PlainActionFuture<>()));
+        ElasticsearchSecurityException e = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> filter.inbound("internal:foo/bar", request, channel, new PlainActionFuture<>())
+        );
         assertEquals("executing internal/shard actions is considered malicious and forbidden", e.getMessage());
-        e = expectThrows(ElasticsearchSecurityException.class,
-                () -> filter.inbound("indices:action" + randomFrom("[s]", "[p]", "[r]", "[n]", "[s][p]", "[s][r]", "[f]"),
-                        request, channel, new PlainActionFuture<>()));
+        e = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> filter.inbound(
+                "indices:action" + randomFrom("[s]", "[p]", "[r]", "[n]", "[s][p]", "[s][r]", "[f]"),
+                request,
+                channel,
+                new PlainActionFuture<>()
+            )
+        );
         assertEquals("executing internal/shard actions is considered malicious and forbidden", e.getMessage());
         verifyZeroInteractions(authcService);
     }
@@ -189,15 +199,31 @@ public class ServerTransportFilterTests extends ESTestCase {
     private ServerTransportFilter.ClientProfile getClientFilter(boolean reservedRealmEnabled) throws IOException {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         ThreadContext threadContext = new ThreadContext(settings);
-        return new ServerTransportFilter.ClientProfile(authcService, authzService, threadContext, false, destructiveOperations,
-                reservedRealmEnabled, new SecurityContext(settings, threadContext), new XPackLicenseState(settings, () -> 0));
+        return new ServerTransportFilter.ClientProfile(
+            authcService,
+            authzService,
+            threadContext,
+            false,
+            destructiveOperations,
+            reservedRealmEnabled,
+            new SecurityContext(settings, threadContext),
+            new XPackLicenseState(settings, () -> 0)
+        );
     }
 
     private ServerTransportFilter.NodeProfile getNodeFilter(boolean reservedRealmEnabled) throws IOException {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         ThreadContext threadContext = new ThreadContext(settings);
-        return new ServerTransportFilter.NodeProfile(authcService, authzService, threadContext, false, destructiveOperations,
-                reservedRealmEnabled, new SecurityContext(settings, threadContext), new XPackLicenseState(settings, () -> 0));
+        return new ServerTransportFilter.NodeProfile(
+            authcService,
+            authzService,
+            threadContext,
+            false,
+            destructiveOperations,
+            reservedRealmEnabled,
+            new SecurityContext(settings, threadContext),
+            new XPackLicenseState(settings, () -> 0)
+        );
     }
 
     private static Answer<Class<Void>> getAnswer(Authentication authentication) {

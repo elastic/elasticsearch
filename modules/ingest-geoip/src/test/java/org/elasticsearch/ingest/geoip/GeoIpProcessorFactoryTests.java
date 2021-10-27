@@ -182,8 +182,14 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         String asnProperty = RandomPicks.randomFrom(Randomness.get(), asnOnlyProperties).toString();
         config.put("properties", Collections.singletonList(asnProperty));
         Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));
-        assertThat(e.getMessage(), equalTo("[properties] illegal property value [" + asnProperty +
-            "]. valid values are [IP, COUNTRY_ISO_CODE, COUNTRY_NAME, CONTINENT_NAME]"));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "[properties] illegal property value ["
+                    + asnProperty
+                    + "]. valid values are [IP, COUNTRY_ISO_CODE, COUNTRY_NAME, CONTINENT_NAME]"
+            )
+        );
     }
 
     public void testBuildWithAsnDbAndCityFields() throws Exception {
@@ -196,8 +202,10 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         String cityProperty = RandomPicks.randomFrom(Randomness.get(), cityOnlyProperties).toString();
         config.put("properties", Collections.singletonList(cityProperty));
         Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));
-        assertThat(e.getMessage(), equalTo("[properties] illegal property value [" + cityProperty +
-            "]. valid values are [IP, ASN, ORGANIZATION_NAME, NETWORK]"));
+        assertThat(
+            e.getMessage(),
+            equalTo("[properties] illegal property value [" + cityProperty + "]. valid values are [IP, ASN, ORGANIZATION_NAME, NETWORK]")
+        );
     }
 
     public void testBuildNonExistingDbFile() throws Exception {
@@ -241,8 +249,13 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config1.put("field", "_field");
         config1.put("properties", Collections.singletonList("invalid"));
         Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config1));
-        assertThat(e.getMessage(), equalTo("[properties] illegal property value [invalid]. valid values are [IP, COUNTRY_ISO_CODE, " +
-            "COUNTRY_NAME, CONTINENT_NAME, REGION_ISO_CODE, REGION_NAME, CITY_NAME, TIMEZONE, LOCATION]"));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "[properties] illegal property value [invalid]. valid values are [IP, COUNTRY_ISO_CODE, "
+                    + "COUNTRY_NAME, CONTINENT_NAME, REGION_ISO_CODE, REGION_NAME, CITY_NAME, TIMEZONE, LOCATION]"
+            )
+        );
 
         Map<String, Object> config2 = new HashMap<>();
         config2.put("field", "_field");
@@ -433,10 +446,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     }
 
     private static void copyDatabaseFile(final Path path, final String databaseFilename) throws IOException {
-        Files.copy(
-            new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/" + databaseFilename)),
-            path.resolve(databaseFilename)
-        );
+        Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/" + databaseFilename)), path.resolve(databaseFilename));
     }
 
     static void copyDatabaseFiles(final Path path) throws IOException {

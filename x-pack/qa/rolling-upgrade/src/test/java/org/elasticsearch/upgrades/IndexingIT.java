@@ -10,17 +10,17 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.rest.action.document.RestBulkAction;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -35,32 +35,35 @@ public class IndexingIT extends AbstractUpgradeTestCase {
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79786")
     public void testIndexing() throws IOException {
         switch (CLUSTER_TYPE) {
-        case OLD:
-            break;
-        case MIXED:
-            ensureHealth((request -> {
-                request.addParameter("timeout", "70s");
-                request.addParameter("wait_for_nodes", "3");
-                request.addParameter("wait_for_status", "yellow");
-            }));
-            break;
-        case UPGRADED:
-            ensureHealth("test_index,index_with_replicas,empty_index", (request -> {
-                request.addParameter("wait_for_nodes", "3");
-                request.addParameter("wait_for_status", "green");
-                request.addParameter("timeout", "70s");
-                request.addParameter("level", "shards");
-            }));
-            break;
-        default:
-            throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+            case OLD:
+                break;
+            case MIXED:
+                ensureHealth((request -> {
+                    request.addParameter("timeout", "70s");
+                    request.addParameter("wait_for_nodes", "3");
+                    request.addParameter("wait_for_status", "yellow");
+                }));
+                break;
+            case UPGRADED:
+                ensureHealth("test_index,index_with_replicas,empty_index", (request -> {
+                    request.addParameter("wait_for_nodes", "3");
+                    request.addParameter("wait_for_status", "green");
+                    request.addParameter("timeout", "70s");
+                    request.addParameter("level", "shards");
+                }));
+                break;
+            default:
+                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
 
         if (CLUSTER_TYPE == ClusterType.OLD) {
             {
                 Version minimumIndexCompatibilityVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
-                assertThat("this branch is not needed if we aren't compatible with 6.0",
-                    minimumIndexCompatibilityVersion.onOrBefore(Version.V_6_0_0), equalTo(true));
+                assertThat(
+                    "this branch is not needed if we aren't compatible with 6.0",
+                    minimumIndexCompatibilityVersion.onOrBefore(Version.V_6_0_0),
+                    equalTo(true)
+                );
                 if (minimumIndexCompatibilityVersion.before(Version.V_7_0_0)) {
                     XContentBuilder template = jsonBuilder();
                     template.startObject();
@@ -81,8 +84,10 @@ public class IndexingIT extends AbstractUpgradeTestCase {
             createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
             useIgnoreMultipleMatchingTemplatesWarningsHandler(createTestIndex);
             client().performRequest(createTestIndex);
-            allowedWarnings("index [test_index] matches multiple legacy templates [global, xpack-prevent-bwc-deprecation-template], " +
-                "composable templates will only match a single template");
+            allowedWarnings(
+                "index [test_index] matches multiple legacy templates [global, xpack-prevent-bwc-deprecation-template], "
+                    + "composable templates will only match a single template"
+            );
 
             String recoverQuickly = "{\"settings\": {\"index.unassigned.node_left.delayed_timeout\": \"100ms\"}}";
             Request createIndexWithReplicas = new Request("PUT", "/index_with_replicas");
@@ -102,21 +107,21 @@ public class IndexingIT extends AbstractUpgradeTestCase {
 
         int expectedCount;
         switch (CLUSTER_TYPE) {
-        case OLD:
-            expectedCount = 5;
-            break;
-        case MIXED:
-            if (Booleans.parseBoolean(System.getProperty("tests.first_round"))) {
+            case OLD:
                 expectedCount = 5;
-            } else {
-                expectedCount = 10;
-            }
-            break;
-        case UPGRADED:
-            expectedCount = 15;
-            break;
-        default:
-            throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+                break;
+            case MIXED:
+                if (Booleans.parseBoolean(System.getProperty("tests.first_round"))) {
+                    expectedCount = 5;
+                } else {
+                    expectedCount = 10;
+                }
+                break;
+            case UPGRADED:
+                expectedCount = 15;
+                break;
+            default:
+                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
 
         assertCount("test_index", expectedCount);
@@ -157,7 +162,9 @@ public class IndexingIT extends AbstractUpgradeTestCase {
         searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
         searchTestIndexRequest.addParameter("filter_path", "hits.total");
         Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
-        assertEquals("{\"hits\":{\"total\":" + count + "}}",
-                EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8));
+        assertEquals(
+            "{\"hits\":{\"total\":" + count + "}}",
+            EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8)
+        );
     }
 }

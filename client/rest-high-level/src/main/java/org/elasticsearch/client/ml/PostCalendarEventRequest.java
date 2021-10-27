@@ -11,8 +11,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.calendars.ScheduledEvent;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -33,17 +33,18 @@ public class PostCalendarEventRequest extends ActionRequest implements ToXConten
     public static final ParseField EVENTS = new ParseField("events");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<PostCalendarEventRequest, Void> PARSER =
-        new ConstructingObjectParser<>("post_calendar_event_request",
-            a -> new PostCalendarEventRequest((String)a[0], (List<ScheduledEvent>)a[1]));
+    public static final ConstructingObjectParser<PostCalendarEventRequest, Void> PARSER = new ConstructingObjectParser<>(
+        "post_calendar_event_request",
+        a -> new PostCalendarEventRequest((String) a[0], (List<ScheduledEvent>) a[1])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Calendar.ID);
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
-            (p, c) -> ScheduledEvent.PARSER.apply(p, null), EVENTS);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> ScheduledEvent.PARSER.apply(p, null), EVENTS);
     }
-    public static final MapParams EXCLUDE_CALENDAR_ID_PARAMS =
-        new MapParams(Collections.singletonMap(INCLUDE_CALENDAR_ID_KEY, Boolean.toString(false)));
+    public static final MapParams EXCLUDE_CALENDAR_ID_PARAMS = new MapParams(
+        Collections.singletonMap(INCLUDE_CALENDAR_ID_KEY, Boolean.toString(false))
+    );
 
     /**
      * Create a new PostCalendarEventRequest with an existing non-null calendarId and a list of Scheduled events

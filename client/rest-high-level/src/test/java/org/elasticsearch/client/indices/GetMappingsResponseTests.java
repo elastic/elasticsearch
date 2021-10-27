@@ -10,12 +10,12 @@ package org.elasticsearch.client.indices;
 
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContent.Params;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContent.Params;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -37,16 +37,15 @@ public class GetMappingsResponseTests extends ESTestCase {
             this::createParser,
             GetMappingsResponseTests::createTestInstance,
             GetMappingsResponseTests::toXContent,
-            GetMappingsResponse::fromXContent)
-            .supportsUnknownFields(true)
+            GetMappingsResponse::fromXContent
+        ).supportsUnknownFields(true)
             .assertEqualsConsumer(GetMappingsResponseTests::assertEqualInstances)
             .randomFieldsExcludeFilter(randomFieldsExcludeFilter())
             .test();
     }
 
     private static GetMappingsResponse createTestInstance() {
-        Map<String, MappingMetadata> mappings = Collections.singletonMap(
-            "index-" + randomAlphaOfLength(5), randomMappingMetadata());
+        Map<String, MappingMetadata> mappings = Collections.singletonMap("index-" + randomAlphaOfLength(5), randomMappingMetadata());
         return new GetMappingsResponse(mappings);
     }
 
@@ -89,8 +88,7 @@ public class GetMappingsResponseTests extends ESTestCase {
     }
 
     private static void toXContent(GetMappingsResponse response, XContentBuilder builder) throws IOException {
-        Params params = new ToXContent.MapParams(
-            Collections.singletonMap(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, "false"));
+        Params params = new ToXContent.MapParams(Collections.singletonMap(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, "false"));
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetadata>> allMappings = ImmutableOpenMap.builder();
 
         for (Map.Entry<String, MappingMetadata> indexEntry : response.mappings().entrySet()) {

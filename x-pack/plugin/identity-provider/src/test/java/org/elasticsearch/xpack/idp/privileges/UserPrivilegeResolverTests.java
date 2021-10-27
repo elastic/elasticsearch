@@ -11,10 +11,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
@@ -59,8 +59,9 @@ public class UserPrivilegeResolverTests extends ESTestCase {
             final Object[] args = inv.getArguments();
             assertThat(args, arrayWithSize(2));
             ActionListener<Set<String>> listener = (ActionListener<Set<String>>) args[args.length - 1];
-            listener.onResponse(org.elasticsearch.core.Set.of(
-                "role:cluster:view", "role:cluster:admin", "role:cluster:operator", "role:cluster:monitor"));
+            listener.onResponse(
+                org.elasticsearch.core.Set.of("role:cluster:view", "role:cluster:admin", "role:cluster:operator", "role:cluster:monitor")
+            );
             return null;
         }).when(actionsResolver).getActions(anyString(), any(ActionListener.class));
         resolver = new UserPrivilegeResolver(client, securityContext, actionsResolver);
@@ -73,8 +74,10 @@ public class UserPrivilegeResolverTests extends ESTestCase {
         setupHasPrivileges(username, app);
         final PlainActionFuture<UserPrivilegeResolver.UserPrivileges> future = new PlainActionFuture<>();
         final Function<String, Set<String>> roleMapping = org.elasticsearch.core.Map.of(
-            "role:cluster:view", org.elasticsearch.core.Set.of("viewer"),
-            "role:cluster:admin", org.elasticsearch.core.Set.of("admin")
+            "role:cluster:view",
+            org.elasticsearch.core.Set.of("viewer"),
+            "role:cluster:admin",
+            org.elasticsearch.core.Set.of("admin")
         )::get;
         resolver.resolve(service(app, "cluster:" + randomLong(), roleMapping), future);
         final UserPrivilegeResolver.UserPrivileges privileges = future.get();
@@ -94,8 +97,10 @@ public class UserPrivilegeResolverTests extends ESTestCase {
         setupHasPrivileges(username, app, access(resource, viewerAction, false), access(resource, adminAction, false));
         final PlainActionFuture<UserPrivilegeResolver.UserPrivileges> future = new PlainActionFuture<>();
         final Function<String, Set<String>> roleMapping = org.elasticsearch.core.Map.of(
-            viewerAction, Collections.singleton("viewer"),
-            adminAction, Collections.singleton("admin")
+            viewerAction,
+            Collections.singleton("viewer"),
+            adminAction,
+            Collections.singleton("admin")
         )::get;
         resolver.resolve(service(app, resource, roleMapping), future);
         final UserPrivilegeResolver.UserPrivileges privileges = future.get();
@@ -116,8 +121,10 @@ public class UserPrivilegeResolverTests extends ESTestCase {
 
         final PlainActionFuture<UserPrivilegeResolver.UserPrivileges> future = new PlainActionFuture<>();
         final Function<String, Set<String>> roleMapping = org.elasticsearch.core.Map.of(
-            viewerAction, Collections.singleton("viewer"),
-            adminAction, Collections.singleton("admin")
+            viewerAction,
+            Collections.singleton("viewer"),
+            adminAction,
+            Collections.singleton("admin")
         )::get;
         resolver.resolve(service(app, resource, roleMapping), future);
         final UserPrivilegeResolver.UserPrivileges privileges = future.get();
@@ -136,7 +143,9 @@ public class UserPrivilegeResolverTests extends ESTestCase {
         final String monitorAction = "role:cluster:monitor";
 
         setupUser(username);
-        setupHasPrivileges(username, app,
+        setupHasPrivileges(
+            username,
+            app,
             access(resource, viewerAction, false),
             access(resource, adminAction, false),
             access(resource, operatorAction, true),
@@ -170,8 +179,11 @@ public class UserPrivilegeResolverTests extends ESTestCase {
 
     @SafeVarargs
     @SuppressWarnings("unchecked")
-    private final HasPrivilegesResponse setupHasPrivileges(String username, String appName,
-                                                     Tuple<String, Tuple<String, Boolean>>... resourceActionAccess) {
+    private final HasPrivilegesResponse setupHasPrivileges(
+        String username,
+        String appName,
+        Tuple<String, Tuple<String, Boolean>>... resourceActionAccess
+    ) {
         final boolean isCompleteMatch = randomBoolean();
         final Map<String, Map<String, Boolean>> resourcePrivilegeMap = new HashMap<>(resourceActionAccess.length);
         for (Tuple<String, Tuple<String, Boolean>> t : resourceActionAccess) {
@@ -180,13 +192,19 @@ public class UserPrivilegeResolverTests extends ESTestCase {
             final Boolean access = t.v2().v2();
             resourcePrivilegeMap.computeIfAbsent(resource, ignore -> new HashMap<>()).put(action, access);
         }
-        final Collection<ResourcePrivileges> privileges = resourcePrivilegeMap.entrySet().stream()
+        final Collection<ResourcePrivileges> privileges = resourcePrivilegeMap.entrySet()
+            .stream()
             .map(e -> ResourcePrivileges.builder(e.getKey()).addPrivileges(e.getValue()).build())
             .collect(Collectors.toList());
         final Map<String, Collection<ResourcePrivileges>> appPrivs = new HashMap<>();
         appPrivs.put(appName, privileges);
-        final HasPrivilegesResponse response =
-            new HasPrivilegesResponse(username, isCompleteMatch, Collections.emptyMap(), Collections.emptySet(), appPrivs);
+        final HasPrivilegesResponse response = new HasPrivilegesResponse(
+            username,
+            isCompleteMatch,
+            Collections.emptyMap(),
+            Collections.emptySet(),
+            appPrivs
+        );
 
         Mockito.doAnswer(inv -> {
             final Object[] args = inv.getArguments();

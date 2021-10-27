@@ -8,16 +8,16 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.index.rankeval.RatedDocument.DocumentKey;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.index.rankeval.RatedDocument.DocumentKey;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -115,8 +115,11 @@ public class EvalQueryQuality implements ToXContentFragment, Writeable {
     private static final ParseField UNRATED_DOCS_FIELD = new ParseField("unrated_docs");
     private static final ParseField HITS_FIELD = new ParseField("hits");
     private static final ParseField METRIC_DETAILS_FIELD = new ParseField("metric_details");
-    private static final ObjectParser<ParsedEvalQueryQuality, Void> PARSER = new ObjectParser<>("eval_query_quality",
-            true, ParsedEvalQueryQuality::new);
+    private static final ObjectParser<ParsedEvalQueryQuality, Void> PARSER = new ObjectParser<>(
+        "eval_query_quality",
+        true,
+        ParsedEvalQueryQuality::new
+    );
 
     private static class ParsedEvalQueryQuality {
         double evaluationResult;
@@ -126,8 +129,7 @@ public class EvalQueryQuality implements ToXContentFragment, Writeable {
 
     static {
         PARSER.declareDouble((obj, value) -> obj.evaluationResult = value, METRIC_SCORE_FIELD);
-        PARSER.declareObject((obj, value) -> obj.optionalMetricDetails = value, (p, c) -> parseMetricDetail(p),
-                METRIC_DETAILS_FIELD);
+        PARSER.declareObject((obj, value) -> obj.optionalMetricDetails = value, (p, c) -> parseMetricDetail(p), METRIC_DETAILS_FIELD);
         PARSER.declareObjectArray((obj, list) -> obj.ratedHits = list, (p, c) -> RatedSearchHit.parse(p), HITS_FIELD);
     }
 
@@ -152,10 +154,10 @@ public class EvalQueryQuality implements ToXContentFragment, Writeable {
             return false;
         }
         EvalQueryQuality other = (EvalQueryQuality) obj;
-        return Objects.equals(queryId, other.queryId) &&
-                Objects.equals(metricScore, other.metricScore) &&
-                Objects.equals(ratedHits, other.ratedHits) &&
-                Objects.equals(optionalMetricDetails, other.optionalMetricDetails);
+        return Objects.equals(queryId, other.queryId)
+            && Objects.equals(metricScore, other.metricScore)
+            && Objects.equals(ratedHits, other.ratedHits)
+            && Objects.equals(optionalMetricDetails, other.optionalMetricDetails);
     }
 
     @Override

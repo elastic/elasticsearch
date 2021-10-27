@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
@@ -54,10 +54,14 @@ public class SecurityFeatureSet implements XPackFeatureSet {
     private final IPFilter ipFilter;
 
     @Inject
-    public SecurityFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState,
-                              @Nullable Realms realms, @Nullable CompositeRolesStore rolesStore,
-                              @Nullable NativeRoleMappingStore roleMappingStore,
-                              @Nullable IPFilter ipFilter) {
+    public SecurityFeatureSet(
+        Settings settings,
+        @Nullable XPackLicenseState licenseState,
+        @Nullable Realms realms,
+        @Nullable CompositeRolesStore rolesStore,
+        @Nullable NativeRoleMappingStore roleMappingStore,
+        @Nullable IPFilter ipFilter
+    ) {
         this.licenseState = licenseState;
         this.realms = realms;
         this.rolesStore = rolesStore;
@@ -96,8 +100,10 @@ public class SecurityFeatureSet implements XPackFeatureSet {
         Map<String, Object> anonymousUsage = singletonMap("enabled", AnonymousUser.isAnonymousEnabled(settings));
         Map<String, Object> fips140Usage = fips140Usage(settings);
         Map<String, Object> operatorPrivilegesUsage = org.elasticsearch.core.Map.of(
-            "available", Security.OPERATOR_PRIVILEGES_FEATURE.checkWithoutTracking(licenseState),
-            "enabled", OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED.get(settings)
+            "available",
+            Security.OPERATOR_PRIVILEGES_FEATURE.checkWithoutTracking(licenseState),
+            "enabled",
+            OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED.get(settings)
         );
 
         final AtomicReference<Map<String, Object>> rolesUsageRef = new AtomicReference<>();
@@ -108,30 +114,40 @@ public class SecurityFeatureSet implements XPackFeatureSet {
         final CountDown countDown = new CountDown(3);
         final Runnable doCountDown = () -> {
             if (countDown.countDown()) {
-                listener.onResponse(new SecurityFeatureSetUsage(enabled(), realmsUsageRef.get(), rolesUsageRef.get(),
-                        roleMappingUsageRef.get(), sslUsage, auditUsage, ipFilterUsage, anonymousUsage, tokenServiceUsage,
-                        apiKeyServiceUsage, fips140Usage, operatorPrivilegesUsage));
+                listener.onResponse(
+                    new SecurityFeatureSetUsage(
+                        enabled(),
+                        realmsUsageRef.get(),
+                        rolesUsageRef.get(),
+                        roleMappingUsageRef.get(),
+                        sslUsage,
+                        auditUsage,
+                        ipFilterUsage,
+                        anonymousUsage,
+                        tokenServiceUsage,
+                        apiKeyServiceUsage,
+                        fips140Usage,
+                        operatorPrivilegesUsage
+                    )
+                );
             }
         };
 
-        final ActionListener<Map<String, Object>> rolesStoreUsageListener =
-                ActionListener.wrap(rolesStoreUsage -> {
-                    rolesUsageRef.set(rolesStoreUsage);
-                    doCountDown.run();
-                }, listener::onFailure);
+        final ActionListener<Map<String, Object>> rolesStoreUsageListener = ActionListener.wrap(rolesStoreUsage -> {
+            rolesUsageRef.set(rolesStoreUsage);
+            doCountDown.run();
+        }, listener::onFailure);
 
-        final ActionListener<Map<String, Object>> roleMappingStoreUsageListener =
-                ActionListener.wrap(nativeRoleMappingStoreUsage -> {
-                    Map<String, Object> usage = singletonMap("native", nativeRoleMappingStoreUsage);
-                    roleMappingUsageRef.set(usage);
-                    doCountDown.run();
-                }, listener::onFailure);
+        final ActionListener<Map<String, Object>> roleMappingStoreUsageListener = ActionListener.wrap(nativeRoleMappingStoreUsage -> {
+            Map<String, Object> usage = singletonMap("native", nativeRoleMappingStoreUsage);
+            roleMappingUsageRef.set(usage);
+            doCountDown.run();
+        }, listener::onFailure);
 
-        final ActionListener<Map<String, Object>> realmsUsageListener =
-            ActionListener.wrap(realmsUsage -> {
-                realmsUsageRef.set(realmsUsage);
-                doCountDown.run();
-            }, listener::onFailure);
+        final ActionListener<Map<String, Object>> realmsUsageListener = ActionListener.wrap(realmsUsage -> {
+            realmsUsageRef.set(realmsUsage);
+            doCountDown.run();
+        }, listener::onFailure);
 
         if (rolesStore == null || enabled == false) {
             rolesStoreUsageListener.onResponse(Collections.emptyMap());
@@ -152,7 +168,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
 
     static Map<String, Object> sslUsage(Settings settings) {
         // If security has been explicitly disabled in the settings, then SSL is also explicitly disabled, and we don't want to report
-        //  these http/transport settings as they would be misleading (they could report `true` even though they were ignored)
+        // these http/transport settings as they would be misleading (they could report `true` even though they were ignored)
         // But, if security has not been explicitly configured, but has defaulted to off due to the current license type,
         // then these SSL settings are still respected (that is SSL might be enabled, while the rest of security is disabled).
         if (XPackSettings.SECURITY_ENABLED.get(settings)) {

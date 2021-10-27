@@ -9,14 +9,14 @@ package org.elasticsearch.xpack.core.rest.action;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.action.XPackUsageRequestBuilder;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
@@ -46,17 +46,17 @@ public class RestXPackUsageAction extends XPackRestHandler {
         final TimeValue masterTimeout = request.paramAsTime("master_timeout", MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT);
         final HttpChannel httpChannel = request.getHttpChannel();
         return channel -> new XPackUsageRequestBuilder(new RestCancellableNodeClient((NodeClient) client.es(), httpChannel))
-                .setMasterNodeTimeout(masterTimeout)
-                .execute(new RestBuilderListener<XPackUsageResponse>(channel) {
-                    @Override
-                    public RestResponse buildResponse(XPackUsageResponse response, XContentBuilder builder) throws Exception {
-                        builder.startObject();
-                        for (XPackFeatureSet.Usage usage : response.getUsages()) {
-                            builder.field(usage.name(), usage);
-                        }
-                        builder.endObject();
-                        return new BytesRestResponse(OK, builder);
+            .setMasterNodeTimeout(masterTimeout)
+            .execute(new RestBuilderListener<XPackUsageResponse>(channel) {
+                @Override
+                public RestResponse buildResponse(XPackUsageResponse response, XContentBuilder builder) throws Exception {
+                    builder.startObject();
+                    for (XPackFeatureSet.Usage usage : response.getUsages()) {
+                        builder.field(usage.name(), usage);
                     }
-                });
+                    builder.endObject();
+                    return new BytesRestResponse(OK, builder);
+                }
+            });
     }
 }

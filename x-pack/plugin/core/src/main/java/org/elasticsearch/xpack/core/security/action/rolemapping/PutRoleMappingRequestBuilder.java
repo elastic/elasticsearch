@@ -24,7 +24,8 @@ import java.util.Map;
  *
  * see org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore
  */
-public class PutRoleMappingRequestBuilder extends ActionRequestBuilder<PutRoleMappingRequest, PutRoleMappingResponse> implements
+public class PutRoleMappingRequestBuilder extends ActionRequestBuilder<PutRoleMappingRequest, PutRoleMappingResponse>
+    implements
         WriteRequestBuilder<PutRoleMappingRequestBuilder> {
 
     public PutRoleMappingRequestBuilder(ElasticsearchClient client, PutRoleMappingAction action) {
@@ -34,8 +35,7 @@ public class PutRoleMappingRequestBuilder extends ActionRequestBuilder<PutRoleMa
     /**
      * Populate the put role request from the source and the role's name
      */
-    public PutRoleMappingRequestBuilder source(String name, BytesReference source,
-                                               XContentType xContentType) throws IOException {
+    public PutRoleMappingRequestBuilder source(String name, BytesReference source, XContentType xContentType) throws IOException {
         ExpressionRoleMapping mapping = ExpressionRoleMapping.parse(name, source, xContentType);
         request.setName(name);
         request.setEnabled(mapping.isEnabled());
@@ -55,6 +55,7 @@ public class PutRoleMappingRequestBuilder extends ActionRequestBuilder<PutRoleMa
         request.setRoles(Arrays.asList(roles));
         return this;
     }
+
     public PutRoleMappingRequestBuilder roleTemplates(TemplateRoleName... templates) {
         request.setRoleTemplates(Arrays.asList(templates));
         return this;

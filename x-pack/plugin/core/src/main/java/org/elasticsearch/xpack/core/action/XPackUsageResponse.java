@@ -36,10 +36,9 @@ public class XPackUsageResponse extends ActionResponse {
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         // we can only write the usages with version the coordinating node is compatible with otherwise it will not know the named writeable
-        final List<XPackFeatureSet.Usage> usagesToWrite = Collections.unmodifiableList(usages
-            .stream()
-            .filter(usage -> out.getVersion().onOrAfter(usage.getMinimalSupportedVersion()))
-            .collect(Collectors.toList()));
+        final List<XPackFeatureSet.Usage> usagesToWrite = Collections.unmodifiableList(
+            usages.stream().filter(usage -> out.getVersion().onOrAfter(usage.getMinimalSupportedVersion())).collect(Collectors.toList())
+        );
         writeTo(out, usagesToWrite);
     }
 

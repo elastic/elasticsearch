@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import java.io.IOException;
 import java.util.Objects;
 
-
 class RecordNormalizable extends AbstractLeafNormalizable {
     private final AnomalyRecord record;
 

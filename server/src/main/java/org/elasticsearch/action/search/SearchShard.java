@@ -54,8 +54,7 @@ public final class SearchShard implements Comparable<SearchShard> {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SearchShard that = (SearchShard) o;
-        return Objects.equals(clusterAlias, that.clusterAlias)
-            && shardId.equals(that.shardId);
+        return Objects.equals(clusterAlias, that.clusterAlias) && shardId.equals(that.shardId);
     }
 
     @Override
@@ -65,9 +64,6 @@ public final class SearchShard implements Comparable<SearchShard> {
 
     @Override
     public String toString() {
-        return "SearchShard{" +
-            "clusterAlias='" + clusterAlias + '\'' +
-            ", shardId=" + shardId +
-            '}';
+        return "SearchShard{" + "clusterAlias='" + clusterAlias + '\'' + ", shardId=" + shardId + '}';
     }
 }

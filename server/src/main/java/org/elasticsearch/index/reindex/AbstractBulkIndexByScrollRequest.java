@@ -9,16 +9,16 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 
-public abstract class AbstractBulkIndexByScrollRequest<Self extends AbstractBulkIndexByScrollRequest<Self>>
-        extends AbstractBulkByScrollRequest<Self> {
+public abstract class AbstractBulkIndexByScrollRequest<Self extends AbstractBulkIndexByScrollRequest<Self>> extends
+    AbstractBulkByScrollRequest<Self> {
     /**
      * Script to modify the documents before they are processed.
      */

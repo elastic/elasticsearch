@@ -31,8 +31,7 @@ public final class TopFieldGroups extends TopFieldDocs {
     /** The group value for each top doc */
     public final Object[] groupValues;
 
-    public TopFieldGroups(String field, TotalHits totalHits, ScoreDoc[] scoreDocs,
-                          SortField[] sortFields, Object[] values) {
+    public TopFieldGroups(String field, TotalHits totalHits, ScoreDoc[] scoreDocs, SortField[] sortFields, Object[] values) {
         super(totalHits, scoreDocs, sortFields);
         this.field = field;
         this.groupValues = values;
@@ -62,8 +61,9 @@ public final class TopFieldGroups extends TopFieldDocs {
         int getShardIndex(ScoreDoc scoreDoc) {
             if (useScoreDocIndex) {
                 if (scoreDoc.shardIndex == -1) {
-                    throw new IllegalArgumentException("setShardIndex is false but TopDocs["
-                        + shardIndex + "].scoreDocs[" + hitIndex + "] is not set");
+                    throw new IllegalArgumentException(
+                        "setShardIndex is false but TopDocs[" + shardIndex + "].scoreDocs[" + hitIndex + "] is not set"
+                    );
                 }
                 return scoreDoc.shardIndex;
             } else {
@@ -128,7 +128,7 @@ public final class TopFieldGroups extends TopFieldDocs {
 
         // Returns true if first is < second
         @Override
-        @SuppressWarnings({"rawtypes", "unchecked"})
+        @SuppressWarnings({ "rawtypes", "unchecked" })
         public boolean lessThan(ShardRef first, ShardRef second) {
             assert first != second;
             final FieldDoc firstFD = (FieldDoc) shardHits[first.shardIndex][first.hitIndex];
@@ -137,8 +137,7 @@ public final class TopFieldGroups extends TopFieldDocs {
             for (int compIDX = 0; compIDX < comparators.length; compIDX++) {
                 final FieldComparator comp = comparators[compIDX];
 
-                final int cmp =
-                    reverseMul[compIDX] * comp.compareValues(firstFD.fields[compIDX], secondFD.fields[compIDX]);
+                final int cmp = reverseMul[compIDX] * comp.compareValues(firstFD.fields[compIDX], secondFD.fields[compIDX]);
 
                 if (cmp != 0) {
                     return cmp < 0;
@@ -152,13 +151,11 @@ public final class TopFieldGroups extends TopFieldDocs {
      * Returns a new {@link TopFieldGroups}, containing topN results across the provided {@link TopFieldGroups},
      * sorting by the specified {@link Sort}.
      */
-    public static TopFieldGroups merge(Sort sort, int start, int size,
-                                       TopFieldGroups[] shardHits, boolean setShardIndex) {
+    public static TopFieldGroups merge(Sort sort, int start, int size, TopFieldGroups[] shardHits, boolean setShardIndex) {
         String groupField = shardHits[0].field;
         for (int i = 1; i < shardHits.length; i++) {
             if (groupField.equals(shardHits[i].field) == false) {
-                throw new IllegalArgumentException("group field differ across shards [" +
-                    groupField + "] != [" + shardHits[i].field + "]");
+                throw new IllegalArgumentException("group field differ across shards [" + groupField + "] != [" + shardHits[i].field + "]");
             }
         }
         final PriorityQueue<ShardRef> queue = new MergeSortQueue(sort, shardHits);
@@ -166,7 +163,7 @@ public final class TopFieldGroups extends TopFieldDocs {
         long totalHitCount = 0;
         int availHitCount = 0;
         TotalHits.Relation totalHitsRelation = TotalHits.Relation.EQUAL_TO;
-        for(int shardIDX=0;shardIDX<shardHits.length;shardIDX++) {
+        for (int shardIDX = 0; shardIDX < shardHits.length; shardIDX++) {
             final TopFieldGroups shard = shardHits[shardIDX];
             // totalHits can be non-zero even if no hits were
             // collected, when searchAfter was used:

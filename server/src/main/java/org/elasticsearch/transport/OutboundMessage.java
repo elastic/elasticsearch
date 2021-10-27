@@ -26,8 +26,14 @@ abstract class OutboundMessage extends NetworkMessage {
 
     protected final Writeable message;
 
-    OutboundMessage(ThreadContext threadContext, Version version, byte status, long requestId, Compression.Scheme compressionScheme,
-                    Writeable message) {
+    OutboundMessage(
+        ThreadContext threadContext,
+        Version version,
+        byte status,
+        long requestId,
+        Compression.Scheme compressionScheme,
+        Writeable message
+    ) {
         super(threadContext, version, status, requestId, compressionScheme);
         this.message = message;
     }
@@ -105,8 +111,15 @@ abstract class OutboundMessage extends NetworkMessage {
 
         private final String action;
 
-        Request(ThreadContext threadContext, Writeable message, Version version, String action, long requestId,
-                boolean isHandshake, Compression.Scheme compressionScheme) {
+        Request(
+            ThreadContext threadContext,
+            Writeable message,
+            Version version,
+            String action,
+            long requestId,
+            boolean isHandshake,
+            Compression.Scheme compressionScheme
+        ) {
             super(threadContext, version, setStatus(isHandshake), requestId, adjustCompressionScheme(compressionScheme, message), message);
             this.action = action;
         }
@@ -126,7 +139,7 @@ abstract class OutboundMessage extends NetworkMessage {
             if (message instanceof BytesTransportRequest) {
                 return null;
             } else {
-               return compressionScheme;
+                return compressionScheme;
             }
         }
 
@@ -140,7 +153,6 @@ abstract class OutboundMessage extends NetworkMessage {
             return status;
         }
 
-
         @Override
         public String toString() {
             return "Request{" + action + "}{" + requestId + "}{" + isError() + "}{" + isCompress() + "}{" + isHandshake() + "}";
@@ -149,8 +161,14 @@ abstract class OutboundMessage extends NetworkMessage {
 
     static class Response extends OutboundMessage {
 
-        Response(ThreadContext threadContext, Writeable message, Version version, long requestId, boolean isHandshake,
-                 Compression.Scheme compressionScheme) {
+        Response(
+            ThreadContext threadContext,
+            Writeable message,
+            Version version,
+            long requestId,
+            boolean isHandshake,
+            Compression.Scheme compressionScheme
+        ) {
             super(threadContext, version, setStatus(isHandshake, message), requestId, compressionScheme, message);
         }
 
@@ -169,8 +187,17 @@ abstract class OutboundMessage extends NetworkMessage {
 
         @Override
         public String toString() {
-            return "Response{" + requestId + "}{" + isError() + "}{" + isCompress() + "}{" + isHandshake() + "}{"
-                    + message.getClass() + "}";
+            return "Response{"
+                + requestId
+                + "}{"
+                + isError()
+                + "}{"
+                + isCompress()
+                + "}{"
+                + isHandshake()
+                + "}{"
+                + message.getClass()
+                + "}";
         }
     }
 }

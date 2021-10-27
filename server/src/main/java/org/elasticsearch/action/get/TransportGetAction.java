@@ -37,11 +37,25 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     private final ExecutorSelector executorSelector;
 
     @Inject
-    public TransportGetAction(ClusterService clusterService, TransportService transportService,
-                              IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
-                              IndexNameExpressionResolver indexNameExpressionResolver, ExecutorSelector executorSelector) {
-        super(GetAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                GetRequest::new, ThreadPool.Names.GET);
+    public TransportGetAction(
+        ClusterService clusterService,
+        TransportService transportService,
+        IndicesService indicesService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ExecutorSelector executorSelector
+    ) {
+        super(
+            GetAction.NAME,
+            threadPool,
+            clusterService,
+            transportService,
+            actionFilters,
+            indexNameExpressionResolver,
+            GetRequest::new,
+            ThreadPool.Names.GET
+        );
         this.indicesService = indicesService;
         this.executorSelector = executorSelector;
     }
@@ -54,8 +68,13 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     @Override
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
         return clusterService.operationRouting()
-                .getShards(clusterService.state(), request.concreteIndex(), request.request().id(), request.request().routing(),
-                    request.request().preference());
+            .getShards(
+                clusterService.state(),
+                request.concreteIndex(),
+                request.request().id(),
+                request.request().routing(),
+                request.request().preference()
+            );
     }
 
     @Override
@@ -90,8 +109,15 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
             indexShard.refresh("refresh_flag_get");
         }
 
-        GetResult result = indexShard.getService().get(request.id(), request.storedFields(),
-                request.realtime(), request.version(), request.versionType(), request.fetchSourceContext());
+        GetResult result = indexShard.getService()
+            .get(
+                request.id(),
+                request.storedFields(),
+                request.realtime(),
+                request.version(),
+                request.versionType(),
+                request.fetchSourceContext()
+            );
         return new GetResponse(result);
     }
 

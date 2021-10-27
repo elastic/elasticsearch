@@ -34,9 +34,13 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
-    public TransportMultiGetAction(TransportService transportService, ClusterService clusterService,
-                                   NodeClient client, ActionFilters actionFilters,
-                                   IndexNameExpressionResolver resolver) {
+    public TransportMultiGetAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        NodeClient client,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver resolver
+    ) {
         super(MultiGetAction.NAME, transportService, actionFilters, MultiGetRequest::new);
         this.clusterService = clusterService;
         this.client = client;
@@ -85,9 +89,11 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
         executeShardAction(listener, responses, shardRequests);
     }
 
-    protected void executeShardAction(ActionListener<MultiGetResponse> listener,
-                                      AtomicArray<MultiGetItemResponse> responses,
-                                      Map<ShardId, MultiGetShardRequest> shardRequests) {
+    protected void executeShardAction(
+        ActionListener<MultiGetResponse> listener,
+        AtomicArray<MultiGetItemResponse> responses,
+        Map<ShardId, MultiGetShardRequest> shardRequests
+    ) {
         final AtomicInteger counter = new AtomicInteger(shardRequests.size());
 
         for (final MultiGetShardRequest shardRequest : shardRequests.values()) {

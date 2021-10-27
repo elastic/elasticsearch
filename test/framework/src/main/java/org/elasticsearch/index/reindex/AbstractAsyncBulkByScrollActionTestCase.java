@@ -19,9 +19,8 @@ import org.junit.Before;
 import java.util.Collections;
 
 public abstract class AbstractAsyncBulkByScrollActionTestCase<
-                Request extends AbstractBulkByScrollRequest<Request>,
-                Response extends BulkByScrollResponse>
-        extends ESTestCase {
+    Request extends AbstractBulkByScrollRequest<Request>,
+    Response extends BulkByScrollResponse> extends ESTestCase {
     protected ThreadPool threadPool;
     protected BulkByScrollTask task;
 

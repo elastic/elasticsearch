@@ -291,6 +291,7 @@ public enum FieldData {
             public boolean advanceExact(int doc) throws IOException {
                 return values.advanceExact(doc);
             }
+
             @Override
             public void get(List<CharSequence> list) throws IOException {
                 for (int i = 0, count = values.docValueCount(); i < count; ++i) {
@@ -311,6 +312,7 @@ public enum FieldData {
             public boolean advanceExact(int doc) throws IOException {
                 return values.advanceExact(doc);
             }
+
             @Override
             public void get(List<CharSequence> list) throws IOException {
                 for (int i = 0, count = values.docValueCount(); i < count; ++i) {
@@ -334,7 +336,7 @@ public enum FieldData {
                 if (values.advanceExact(doc) == false) {
                     return false;
                 }
-                for (int i = 0; ; ++i) {
+                for (int i = 0;; ++i) {
                     if (values.nextOrd() == SortedSetDocValues.NO_MORE_ORDS) {
                         count = i;
                         break;
@@ -370,6 +372,7 @@ public enum FieldData {
             public boolean advanceExact(int doc) throws IOException {
                 return values.advanceExact(doc);
             }
+
             @Override
             public void get(List<CharSequence> list) throws IOException {
                 for (int i = 0, count = values.docValueCount(); i < count; ++i) {

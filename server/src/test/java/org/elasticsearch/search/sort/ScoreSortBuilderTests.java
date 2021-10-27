@@ -8,11 +8,10 @@
 
 package org.elasticsearch.search.sort;
 
-
 import org.apache.lucene.search.SortField;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
 
@@ -48,7 +47,7 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
      */
     public void testParseOrder() throws IOException {
         SortOrder order = randomBoolean() ? SortOrder.ASC : SortOrder.DESC;
-        String scoreSortString = "{ \"_score\": { \"order\": \""+ order.toString() +"\" }}";
+        String scoreSortString = "{ \"_score\": { \"order\": \"" + order.toString() + "\" }}";
         XContentParser parser = createParser(JsonXContent.jsonXContent, scoreSortString);
         // need to skip until parser is located on second START_OBJECT
         parser.nextToken();
@@ -68,8 +67,8 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
         parser.nextToken();
 
         try {
-          ScoreSortBuilder.fromXContent(parser, "_score");
-          fail("adding reverse sorting option should fail with an exception");
+            ScoreSortBuilder.fromXContent(parser, "_score");
+            fail("adding reverse sorting option should fail with an exception");
         } catch (IllegalArgumentException e) {
             // all good
         }

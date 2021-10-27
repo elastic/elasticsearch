@@ -57,9 +57,7 @@ public class LinearDecayFunctionBuilder extends DecayFunctionBuilder<LinearDecay
 
         @Override
         public Explanation explainFunction(String valueExpl, double value, double scale) {
-            return Explanation.match(
-                    (float) evaluate(value, scale),
-                    "max(0.0, ((" + scale + " - " + valueExpl + ")/" + scale + ")");
+            return Explanation.match((float) evaluate(value, scale), "max(0.0, ((" + scale + " - " + valueExpl + ")/" + scale + ")");
         }
 
         @Override

@@ -51,8 +51,8 @@ add time series mappings:
 ---
 can't shadow dimensions:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0 to be backported to 8.0.0
 
   - do:
       indices.create:
@@ -117,8 +117,8 @@ can't shadow dimensions:
 ---
 can't shadow metrics:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0 to be backported to 8.0.0
 
   - do:
       indices.create:

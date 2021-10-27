@@ -663,10 +663,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         }
         // TODO add specific tests to SearchExecutionTests similar to the ones in FieldTypeLookupTests
         MappingParserContext parserContext = mapperService.parserContext();
-        Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(
-            new HashMap<>(runtimeMappings),
-            parserContext,
-            false);
+        Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(new HashMap<>(runtimeMappings), parserContext, false);
         Map<String, MappedFieldType> runtimeFieldTypes = RuntimeField.collectFieldTypes(runtimeFields.values());
         if (false == indexSettings.getIndexMetadata().getRoutingPaths().isEmpty()) {
             for (String r : runtimeMappings.keySet()) {

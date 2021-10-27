@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.node;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.FailedNodeException;
@@ -65,8 +66,8 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
                 collector.doCollect(randomMonitoringNode(random()), randomNonNegativeLong(), clusterState));
         assertEquals(exception, e);
 
-        assertWarnings("[xpack.monitoring.collection.node.stats.timeout] setting was deprecated in Elasticsearch and will be removed " +
-            "in a future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(Level.WARN, "[xpack.monitoring.collection.node.stats.timeout] setting was deprecated in Elasticsearch and " +
+            "will be removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testDoCollect() throws Exception {
@@ -121,8 +122,8 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
         assertThat(document.getNodeStats(), is(nodeStats));
         assertThat(document.isMlockall(), equalTo(BootstrapInfo.isMemoryLocked()));
 
-        assertWarnings("[xpack.monitoring.collection.node.stats.timeout] setting was deprecated in Elasticsearch and will be removed " +
-            "in a future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(Level.WARN, "[xpack.monitoring.collection.node.stats.timeout] setting was deprecated in Elasticsearch " +
+            "and will be removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testDoCollectThrowsTimeout() throws Exception {
@@ -152,8 +153,8 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
 
         expectThrows(ElasticsearchTimeoutException.class, () -> collector.doCollect(node, interval, clusterState));
 
-        assertWarnings("[xpack.monitoring.collection.node.stats.timeout] setting was deprecated in Elasticsearch and will be removed " +
-            "in a future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(Level.WARN, "[xpack.monitoring.collection.node.stats.timeout] setting was deprecated in Elasticsearch " +
+            "and will be removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     private void thenReturnNodeStats(final Client client, final TimeValue timeout, final NodesStatsResponse nodesStatsResponse) {

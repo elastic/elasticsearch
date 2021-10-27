@@ -10,6 +10,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.StatusLine;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -545,7 +546,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         verifyDeleteWatches(EXPECTED_WATCHES);
         verifyNoMoreInteractions(client);
 
-        assertWarnings(
+        assertWarnings(Level.WARN,
             "[xpack.monitoring.exporters._http.index.template.create_legacy_templates] setting was deprecated in " +
                 "Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next " +
                 "major version.",
@@ -639,7 +640,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         verifyPutPipelines(unsuccessfulGetPipelines);
         verifyNoMoreInteractions(client);
 
-        assertWarnings("[xpack.monitoring.exporters._http.index.template.create_legacy_templates] setting was deprecated in " +
+        assertWarnings(Level.WARN, "[xpack.monitoring.exporters._http.index.template.create_legacy_templates] setting was deprecated in " +
             "Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next " +
             "major version.");
     }

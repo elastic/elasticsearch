@@ -114,7 +114,7 @@ public class SSLConfigurationSettings {
             Setting.affixKeySetting("xpack.security.authc.realms." + realmType + ".", "ssl.key", X509KeyPairSettings.KEY_PATH_TEMPLATE);
 
     public static final Function<String, Setting<SecureString>> LEGACY_TRUSTSTORE_PASSWORD_TEMPLATE = key ->
-            new Setting<>(key, "", SecureString::new, Property.Deprecated, Property.Filtered, Property.NodeScope);
+            new Setting<>(key, "", SecureString::new, Property.DeprecatedWarning, Property.Filtered, Property.NodeScope);
     public static final Setting<SecureString> LEGACY_TRUSTSTORE_PASSWORD_PROFILES = Setting.affixKeySetting("transport.profiles.",
             "xpack.security.ssl.truststore.password", LEGACY_TRUSTSTORE_PASSWORD_TEMPLATE);
     public static final Function<String, Setting.AffixSetting<SecureString>> LEGACY_TRUST_STORE_PASSWORD_REALM = realmType ->

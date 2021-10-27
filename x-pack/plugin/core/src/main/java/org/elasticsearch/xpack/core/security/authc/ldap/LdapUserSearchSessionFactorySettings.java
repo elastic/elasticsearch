@@ -21,7 +21,7 @@ public final class LdapUserSearchSessionFactorySettings {
     public static final Setting.AffixSetting<String> SEARCH_ATTRIBUTE = Setting.affixKeySetting(
             RealmSettings.realmSettingPrefix(LDAP_TYPE), "user_search.attribute",
             key -> new Setting<>(key, LdapUserSearchSessionFactorySettings.DEFAULT_USERNAME_ATTRIBUTE, Function.identity(),
-                    Setting.Property.NodeScope, Setting.Property.Deprecated));
+                    Setting.Property.NodeScope, Setting.Property.DeprecatedWarning));
 
     public static final Setting.AffixSetting<String> SEARCH_BASE_DN
             = RealmSettings.simpleString(LDAP_TYPE, "user_search.base_dn", Setting.Property.NodeScope);

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.ml;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.FailedNodeException;
@@ -142,8 +143,8 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
             assertThat(jobStatsMonitoringDoc.getJobStats(), is(jobStat));
         }
 
-        assertWarnings("[xpack.monitoring.collection.ml.job.stats.timeout] setting was deprecated in Elasticsearch and will be removed " +
-            "in a future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(Level.WARN, "[xpack.monitoring.collection.ml.job.stats.timeout] setting was deprecated in Elasticsearch " +
+            "and will be removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testDoCollectThrowsTimeoutException() throws Exception {
@@ -174,8 +175,8 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
 
         expectThrows(ElasticsearchTimeoutException.class, () -> collector.doCollect(node, interval, clusterState));
 
-        assertWarnings("[xpack.monitoring.collection.ml.job.stats.timeout] setting was deprecated in Elasticsearch and will be removed " +
-            "in a future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(Level.WARN, "[xpack.monitoring.collection.ml.job.stats.timeout] setting was deprecated in Elasticsearch " +
+            "and will be removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     private List<JobStats> mockJobStats() {

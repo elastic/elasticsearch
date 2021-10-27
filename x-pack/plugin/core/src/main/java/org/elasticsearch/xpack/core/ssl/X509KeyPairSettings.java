@@ -32,7 +32,7 @@ public class X509KeyPairSettings {
             Optional::ofNullable, Setting.Property.NodeScope, Setting.Property.Filtered);
 
     static final Function<String, Setting<SecureString>> LEGACY_KEYSTORE_PASSWORD_TEMPLATE = key -> new Setting<>(key, "",
-            SecureString::new, Setting.Property.Deprecated, Setting.Property.Filtered, Setting.Property.NodeScope);
+            SecureString::new, Setting.Property.DeprecatedWarning, Setting.Property.Filtered, Setting.Property.NodeScope);
     static final Function<String, Setting<SecureString>> KEYSTORE_PASSWORD_TEMPLATE = key -> SecureSetting.secureString(key,
             LEGACY_KEYSTORE_PASSWORD_TEMPLATE.apply(key.replace("keystore.secure_password", "keystore.password")));
 
@@ -44,7 +44,7 @@ public class X509KeyPairSettings {
             new Setting<>(key, s -> null, Optional::ofNullable, Setting.Property.NodeScope, Setting.Property.Filtered);
 
     static final Function<String, Setting<SecureString>> LEGACY_KEYSTORE_KEY_PASSWORD_TEMPLATE = key -> new Setting<>(key, "",
-            SecureString::new, Setting.Property.Deprecated, Setting.Property.Filtered, Setting.Property.NodeScope);
+            SecureString::new, Setting.Property.DeprecatedWarning, Setting.Property.Filtered, Setting.Property.NodeScope);
     static final Function<String, Setting<SecureString>> KEYSTORE_KEY_PASSWORD_TEMPLATE = key ->
             SecureSetting.secureString(key, LEGACY_KEYSTORE_KEY_PASSWORD_TEMPLATE.apply(key.replace("keystore.secure_key_password",
                     "keystore.key_password")));
@@ -56,7 +56,7 @@ public class X509KeyPairSettings {
             Optional::ofNullable, Setting.Property.NodeScope, Setting.Property.Filtered);
 
     static final Function<String, Setting<SecureString>> LEGACY_KEY_PASSWORD_TEMPLATE = key -> new Setting<>(key, "",
-            SecureString::new, Setting.Property.Deprecated, Setting.Property.Filtered, Setting.Property.NodeScope);
+            SecureString::new, Setting.Property.DeprecatedWarning, Setting.Property.Filtered, Setting.Property.NodeScope);
     static final Function<String, Setting<SecureString>> KEY_PASSWORD_TEMPLATE = key ->
             SecureSetting.secureString(key, LEGACY_KEY_PASSWORD_TEMPLATE.apply(key.replace("secure_key_passphrase",
                     "key_passphrase")));

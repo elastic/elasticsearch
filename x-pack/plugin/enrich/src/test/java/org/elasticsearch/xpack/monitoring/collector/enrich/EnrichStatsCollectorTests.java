@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.enrich;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -142,6 +143,7 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
         }
 
         assertWarnings(
+            Level.WARN,
             "[xpack.monitoring.collection.enrich.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
                 + "in a future release! See the breaking changes documentation for the next major version."
         );

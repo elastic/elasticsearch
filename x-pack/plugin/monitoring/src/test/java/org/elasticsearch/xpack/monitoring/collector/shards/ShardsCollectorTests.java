@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.shards;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -122,8 +123,8 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
 
         }
 
-        assertWarnings("[xpack.monitoring.collection.indices] setting was deprecated in Elasticsearch and will be removed in a" +
-            " future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(Level.WARN, "[xpack.monitoring.collection.indices] setting was deprecated in Elasticsearch and will be removed " +
+            "in a future release! See the breaking changes documentation for the next major version.");
     }
 
     private static RoutingTable mockRoutingTable() {

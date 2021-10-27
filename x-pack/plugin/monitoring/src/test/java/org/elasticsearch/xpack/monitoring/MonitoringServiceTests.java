@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.monitoring;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -118,8 +119,8 @@ public class MonitoringServiceTests extends ESTestCase {
 
         // take down threads
         monitoringService.setMonitoringActive(false);
-        assertWarnings("[xpack.monitoring.collection.interval] setting was deprecated in Elasticsearch and will be removed in " +
-            "a future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(Level.WARN, "[xpack.monitoring.collection.interval] setting was deprecated in Elasticsearch and will be removed " +
+            "in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testSkipExecution() throws Exception {
@@ -143,7 +144,7 @@ public class MonitoringServiceTests extends ESTestCase {
         latch.countDown();
 
         assertThat(exporter.getExportsCount(), equalTo(1));
-        assertWarnings(
+        assertWarnings(Level.WARN,
             "[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in " +
                 "a future release! See the breaking changes documentation for the next major version.",
             "[xpack.monitoring.collection.interval] setting was deprecated in Elasticsearch and will be removed in " +

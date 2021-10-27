@@ -10,6 +10,7 @@ import org.apache.http.client.CredentialsProvider;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -19,6 +20,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -120,7 +122,7 @@ public class HttpExporterTests extends ESTestCase {
         assertThat(e.getCause(), hasToString(containsString("host list for [" + prefix + ".host] is empty")));
         expectedWarnings.add("[xpack.monitoring.exporters.example.type] setting was deprecated in Elasticsearch and will be removed " +
             "in a future release! See the breaking changes documentation for the next major version.");
-        assertWarnings(expectedWarnings.toArray(new String[0]));
+        assertWarnings(Level.WARN, expectedWarnings.toArray(new String[0]));
     }
 
     public void testEmptyHostListOkayIfTypeNotSetDefault() {
@@ -140,8 +142,8 @@ public class HttpExporterTests extends ESTestCase {
         builder.putList(prefix + ".host", Collections.emptyList());
         final Settings settings = builder.build();
         HttpExporter.HOST_SETTING.getConcreteSetting(prefix + ".host").get(settings);
-        assertWarnings("[xpack.monitoring.exporters.example.host] setting was deprecated in Elasticsearch and will be removed in a " +
-            "future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(Level.WARN, "[xpack.monitoring.exporters.example.host] setting was deprecated in Elasticsearch and will be " +
+            "removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testHostListIsRejectedIfTypeIsNotHttp() {
@@ -153,7 +155,7 @@ public class HttpExporterTests extends ESTestCase {
             new ClusterSettings(settings, new HashSet<>(Arrays.asList(HttpExporter.HOST_SETTING, Exporter.TYPE_SETTING)));
         final SettingsException e = expectThrows(SettingsException.class, () -> clusterSettings.validate(settings, true));
         assertThat(e, hasToString(containsString("[" + prefix + ".host] is set but type is [local]")));
-        assertWarnings(
+        assertWarnings(Level.WARN,
             "[xpack.monitoring.exporters.example.type] setting was deprecated in Elasticsearch and will be removed in a future release! " +
                 "See the breaking changes documentation for the next major version.",
             "[xpack.monitoring.exporters.example.host] setting was deprecated in Elasticsearch and will be removed in a future release! " +
@@ -178,7 +180,7 @@ public class HttpExporterTests extends ESTestCase {
                 Stream.of(HttpExporter.AUTH_SECURE_PASSWORD_SETTING, Exporter.TYPE_SETTING).collect(Collectors.toSet()));
         final SettingsException e = expectThrows(SettingsException.class, () -> clusterSettings.validate(settings, true));
         assertThat(e, hasToString(containsString("[" + prefix + settingName + "] is set but type is [local]")));
-        assertWarnings(
+        assertWarnings(Level.WARN,
             "[xpack.monitoring.exporters.example.type] setting was deprecated in Elasticsearch and will be removed in a future release! " +
                 "See the breaking changes documentation for the next major version.",
             "[xpack.monitoring.exporters.example.auth.secure_password] setting was deprecated in Elasticsearch and will be removed in a " +
@@ -203,7 +205,7 @@ public class HttpExporterTests extends ESTestCase {
         assertThat(e.getCause(), hasToString(containsString("[" + prefix + ".host] invalid host: [" + host + "]")));
         assertThat(e.getCause().getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(e.getCause().getCause(), hasToString(containsString("HttpHosts do not use paths [/].")));
-        assertWarnings(
+        assertWarnings(Level.WARN,
             "[xpack.monitoring.exporters.example.host] setting was deprecated in Elasticsearch and will be removed in a future release! " +
                 "See the breaking changes documentation for the next major version.",
             "[xpack.monitoring.exporters.example.type] setting was deprecated in Elasticsearch and will be removed in a future release! " +
@@ -228,7 +230,7 @@ public class HttpExporterTests extends ESTestCase {
                 "Failed to parse value [[\"" + httpHost + "\",\"" + httpsHost + "\"]] for setting [" + prefix + ".host]")));
         assertThat(e.getCause(), instanceOf(SettingsException.class));
         assertThat(e.getCause(), hasToString(containsString("[" + prefix + ".host] must use a consistent scheme: http or https")));
-        assertWarnings(
+        assertWarnings(Level.WARN,
             "[xpack.monitoring.exporters.example.host] setting was deprecated in Elasticsearch and will be removed in a future release! " +
                 "See the breaking changes documentation for the next major version.",
             "[xpack.monitoring.exporters.example.type] setting was deprecated in Elasticsearch and will be removed in a future release! " +
@@ -257,7 +259,7 @@ public class HttpExporterTests extends ESTestCase {
 
         assertThat(exception.getMessage(), equalTo(expected));
 
-        assertWarnings(
+        assertWarnings(Level.WARN,
             "[xpack.monitoring.exporters._http.host] setting was deprecated in Elasticsearch and will be removed in a " +
                 "future release! See the breaking changes documentation for the next major version.",
             "[xpack.monitoring.exporters._http.type] setting was deprecated in Elasticsearch and will be removed in a future release! " +
@@ -284,7 +286,7 @@ public class HttpExporterTests extends ESTestCase {
                 expectThrows(SettingsException.class, () -> new HttpExporter(config, sslService, threadContext, coordinator));
 
         assertThat(exception.getMessage(), equalTo(expected));
-        assertWarnings(
+        assertWarnings(Level.WARN,
             "[xpack.monitoring.exporters._http.host] setting was deprecated in Elasticsearch and will be removed in a future release! " +
                 "See the breaking changes documentation for the next major version.",
             "[xpack.monitoring.exporters._http.type] setting was deprecated in Elasticsearch and will be removed in a future release! " +
@@ -306,8 +308,8 @@ public class HttpExporterTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> HttpExporter.AUTH_PASSWORD_SETTING.getConcreteSetting(prefix + ".auth.password").get(settings));
         assertThat(e, hasToString(containsString(expected)));
-        assertWarnings("[xpack.monitoring.exporters._http.auth.password] setting was deprecated in Elasticsearch and will be removed " +
-            "in a future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(Level.WARN, "[xpack.monitoring.exporters._http.auth.password] setting was deprecated in Elasticsearch and will " +
+            "be removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testExporterWithUnknownBlacklistedClusterAlerts() {
@@ -337,8 +339,8 @@ public class HttpExporterTests extends ESTestCase {
         assertThat(exception.getMessage(),
                    equalTo("[xpack.monitoring.exporters._http.cluster_alerts.management.blacklist] contains unrecognized Cluster " +
                            "Alert IDs [does_not_exist]"));
-        assertWarnings("[xpack.monitoring.exporters._http.cluster_alerts.management.blacklist] setting was deprecated in Elasticsearch" +
-            " and will be removed in a future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(Level.WARN, "[xpack.monitoring.exporters._http.cluster_alerts.management.blacklist] setting was deprecated in " +
+            "Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testExporterWithHostOnly() throws Exception {
@@ -353,7 +355,7 @@ public class HttpExporterTests extends ESTestCase {
         final MonitoringMigrationCoordinator coordinator = new MonitoringMigrationCoordinator();
 
         new HttpExporter(config, sslService, threadContext, coordinator).close();
-        assertWarnings(
+        assertWarnings(Level.WARN,
             "[xpack.monitoring.exporters._http.host] setting was deprecated in Elasticsearch and will be removed in a future release! " +
                 "See the breaking changes documentation for the next major version.",
             "[xpack.monitoring.exporters._http.type] setting was deprecated in Elasticsearch and will be removed in a future release! " +
@@ -382,8 +384,8 @@ public class HttpExporterTests extends ESTestCase {
 
         assertThat(e.getCause(), instanceOf(SettingsException.class));
         assertThat(e.getCause(), hasToString(containsString(expected)));
-        assertWarnings("[xpack.monitoring.exporters._http.proxy.base_path] setting was deprecated in Elasticsearch and will be removed " +
-            "in a future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(Level.WARN, "[xpack.monitoring.exporters._http.proxy.base_path] setting was deprecated in Elasticsearch and will " +
+            "be removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testCreateRestClient() throws IOException {
@@ -423,7 +425,7 @@ public class HttpExporterTests extends ESTestCase {
         HttpExporter.createRestClient(config, sslService, listener).close();
 
         if (expectedWarnings.size() > 0) {
-            assertWarnings(expectedWarnings.toArray(new String[0]));
+            assertWarnings(Level.WARN, expectedWarnings.toArray(new String[0]));
         }
     }
 
@@ -437,8 +439,8 @@ public class HttpExporterTests extends ESTestCase {
 
         assertNull(provider);
 
-        assertWarnings("[xpack.monitoring.exporters._http.type] setting was deprecated in Elasticsearch and will be removed in a " +
-            "future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(Level.WARN, "[xpack.monitoring.exporters._http.type] setting was deprecated in Elasticsearch and will be removed " +
+            "in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testCreateSnifferDisabledByDefault() {
@@ -478,7 +480,7 @@ public class HttpExporterTests extends ESTestCase {
 
         verifyNoMoreInteractions(client, listener);
 
-        assertWarnings(
+        assertWarnings(Level.WARN,
             "[xpack.monitoring.exporters._http.sniff.enabled] setting was deprecated in Elasticsearch and will be removed " +
                 "in a future release! See the breaking changes documentation for the next major version.",
             "[xpack.monitoring.exporters._http.host] setting was deprecated in Elasticsearch and will be removed in a future release!" +
@@ -497,42 +499,47 @@ public class HttpExporterTests extends ESTestCase {
 
         final Settings.Builder builder = Settings.builder()
                 .put("xpack.monitoring.exporters._http.type", "http");
-        List<String> expectedWarnings = new ArrayList<>();
+        List<DeprecationWarning> expectedWarnings = new ArrayList<>();
 
         if (useIngest == false) {
             builder.put("xpack.monitoring.exporters._http.use_ingest", false);
-            expectedWarnings.add("[xpack.monitoring.exporters._http.use_ingest] setting was deprecated in Elasticsearch and will be " +
-                "removed in a future release! See the breaking changes documentation for the next major version.");
+            expectedWarnings.add(new DeprecationWarning(DeprecationLogger.CRITICAL,
+                "[xpack.monitoring.exporters._http.use_ingest] setting was deprecated in Elasticsearch and will be " +
+                "removed in a future release! See the breaking changes documentation for the next major version."));
         }
 
         if (clusterAlertManagement == false) {
             builder.put("xpack.monitoring.exporters._http.cluster_alerts.management.enabled", false);
-            expectedWarnings.add("[xpack.monitoring.exporters._http.cluster_alerts.management.enabled] setting was deprecated in " +
+            expectedWarnings.add(new DeprecationWarning(Level.WARN,
+                "[xpack.monitoring.exporters._http.cluster_alerts.management.enabled] setting was deprecated in " +
                 "Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major " +
-                "version.");
+                "version."));
         }
 
         if (createOldTemplates == false) {
             builder.put("xpack.monitoring.exporters._http.index.template.create_legacy_templates", false);
-            expectedWarnings.add("[xpack.monitoring.exporters._http.index.template.create_legacy_templates] setting was deprecated in " +
+            expectedWarnings.add(new DeprecationWarning(Level.WARN,
+                "[xpack.monitoring.exporters._http.index.template.create_legacy_templates] setting was deprecated in " +
                 "Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next " +
-                "major version.");
+                "major version."));
         }
 
         if (templateTimeout != null) {
             builder.put("xpack.monitoring.exporters._http.index.template.master_timeout", templateTimeout.getStringRep());
-            expectedWarnings.add("[xpack.monitoring.exporters._http.index.template.master_timeout] setting was deprecated in " +
+            expectedWarnings.add(new DeprecationWarning(Level.WARN,
+                "[xpack.monitoring.exporters._http.index.template.master_timeout] setting was deprecated in " +
                 "Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major " +
-                "version.");
+                "version."));
         }
 
         // note: this shouldn't get used with useIngest == false, but it doesn't hurt to try to cause issues
         if (pipelineTimeout != null) {
             builder.put("xpack.monitoring.exporters._http.index.pipeline.master_timeout", pipelineTimeout.getStringRep());
             if (useIngest) {
-                expectedWarnings.add("[xpack.monitoring.exporters._http.index.pipeline.master_timeout] setting was deprecated in " +
+                expectedWarnings.add(new DeprecationWarning(Level.WARN,
+                    "[xpack.monitoring.exporters._http.index.pipeline.master_timeout] setting was deprecated in " +
                     "Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next " +
-                    "major version.");
+                    "major version."));
             }
         }
 
@@ -585,7 +592,7 @@ public class HttpExporterTests extends ESTestCase {
         assertThat(uniqueOwners.get(0), equalTo("xpack.monitoring.exporters._http"));
 
         if (expectedWarnings.size() > 0) {
-            assertWarnings(expectedWarnings.toArray(new String[0]));
+            assertWarnings(true, expectedWarnings.toArray(new DeprecationWarning[0]));
         }
     }
 
@@ -593,7 +600,7 @@ public class HttpExporterTests extends ESTestCase {
         final TimeValue bulkTimeout = randomFrom(TimeValue.timeValueSeconds(30), null);
         final boolean useIngest = randomBoolean();
 
-        List<String> expectedWarnings = new ArrayList<>();
+        List<DeprecationWarning> expectedWarnings = new ArrayList<>();
         final Settings.Builder builder = Settings.builder()
                 .put("xpack.monitoring.exporters._http.type", "http");
 
@@ -603,8 +610,9 @@ public class HttpExporterTests extends ESTestCase {
 
         if (useIngest == false) {
             builder.put("xpack.monitoring.exporters._http.use_ingest", false);
-            expectedWarnings.add("[xpack.monitoring.exporters._http.use_ingest] setting was deprecated in Elasticsearch and will be " +
-                "removed in a future release! See the breaking changes documentation for the next major version.");
+            expectedWarnings.add(new DeprecationWarning(DeprecationLogger.CRITICAL,
+                "[xpack.monitoring.exporters._http.use_ingest] setting was deprecated in Elasticsearch " +
+                    "and will be removed in a future release! See the breaking changes documentation for the next major version."));
         }
 
         final Config config = createConfig(builder.build());
@@ -615,8 +623,9 @@ public class HttpExporterTests extends ESTestCase {
 
         if (bulkTimeout != null) {
             assertThat(parameters.remove("timeout"), equalTo(bulkTimeout.toString()));
-            expectedWarnings.add("[xpack.monitoring.exporters._http.bulk.timeout] setting was deprecated in Elasticsearch and will be " +
-                "removed in a future release! See the breaking changes documentation for the next major version.");
+            expectedWarnings.add(new DeprecationWarning(Level.WARN,
+                "[xpack.monitoring.exporters._http.bulk.timeout] setting was deprecated in Elasticsearch and will be " +
+                "removed in a future release! See the breaking changes documentation for the next major version."));
         } else {
             assertNull(parameters.remove("timeout"));
         }
@@ -629,7 +638,7 @@ public class HttpExporterTests extends ESTestCase {
         // should have removed everything
         assertThat(parameters.size(), equalTo(0));
         if (expectedWarnings.size() > 0) {
-            assertWarnings(expectedWarnings.toArray(new String[0]));
+            assertWarnings(true, expectedWarnings.toArray(new DeprecationWarning[0]));
         }
     }
 

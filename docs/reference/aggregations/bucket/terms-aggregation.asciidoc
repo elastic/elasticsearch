@@ -114,34 +114,33 @@ memory usage.
 [[search-aggregations-bucket-terms-aggregation-size]]
 ==== Size
 
-By default the `terms` agg returns the ten buckets with the most documents but
-you can change that count the `size` parameter to return more buckets up to
-<<search-settings-max-buckets,max_buckets>> which defaults to 65,536. So if
-there aren't many unique terms it quite viable to return all of them with the
-`terms` aggregation. Read on about sorting if you are fine picking the "best"
-terms or have a look at the
-<<search-aggregations-bucket-composite-aggregation,Composite>> aggregation if
-you'd like to be able to page through all terms.
+By default, the `terms` aggregation returns the top ten buckets with the most
+documents. Use the `size` parameter to return more buckets, up to the
+<<search-settings-max-buckets,search.max_buckets>> limit. If
+there aren't many unique terms, you can return them all using the
+`terms` aggregation. If your data has a lot of unique terms, use the
+<<search-aggregations-bucket-composite-aggregation,composite aggregation>>
+instead.
 
 [[search-aggregations-bucket-terms-aggregation-shard-size]]
 ==== Shard Size
 
-It'd be reasonable to assume that `terms` picks the top terms by asking each
-shard to pick the top `size` terms and return them then we'd just combine them.
-But what if there's a bucket that has many documents on one shard but is just
-outside the `size` on all the others? If each shard only returned `size` buckets
-then we'd only return part of the bucket. Which'd be pretty terrible.
+It's reasonable to assume the `terms` aggregation gets the top `size` terms
+from each shard and combines the results.
+But what if a term has many documents on one shard but is just
+below the `size` threshold on all other shards? If each shard only returned `size` buckets,
+the aggregation would return an partial doc count for the bucket.
 
-We try to avoid this problem by having each shard return `shard_size` buckets
-which defaults to `(size * 1.5 + 10)`. So, for a `terms` agg with the default
+To avoid this problem, each shard returns `shard_size` buckets,
+which defaults to `(size * 1.5 + 10)`. For a `terms` aggregation with the default
 size of `10` each shard will return the top `25` buckets. This helps, but
-it's still quite possible to return partial buckets, it just takes buckets with
-more disparate per-shard sizes.
+it's still quite possible to return a partial doc count for a bucket. It just takes a bucket with
+more disparate per-shard doc counts.
 
-You can absolutely bump `shard_size` when you need to increase the accuracy of
+You can increase `shard_size` to improve the accuracy of
 the selection of top buckets. It is much cheaper to increase the `shard_size`
-than it is to increase the `size`. It still takes more bytes over the wire and
-waiting in memory on the coordinating node. But do it if you need it.
+than to increase the `size`. However, it still takes more bytes over the wire and
+waiting in memory on the coordinating node.
 
 IMPORTANT: See the note in <<search-aggregations-bucket-terms-aggregation-order>>
            if you are sorting by anything other than document count.

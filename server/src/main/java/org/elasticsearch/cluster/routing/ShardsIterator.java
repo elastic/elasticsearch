@@ -58,4 +58,3 @@ public interface ShardsIterator extends Iterable<ShardRouting>, Countable {
      */
     List<ShardRouting> getShardRoutings();
 }
-

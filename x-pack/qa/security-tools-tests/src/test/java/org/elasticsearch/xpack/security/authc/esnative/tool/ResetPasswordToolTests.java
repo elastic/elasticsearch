@@ -264,12 +264,7 @@ public class ResetPasswordToolTests extends CommandTestCase {
 
     public void testInvalidInvocation() throws Exception {
         Exception e = expectThrows(Exception.class, () -> execute(randomFrom("-i", "--interactive")));
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "Missing required option(s) [u/username]"
-            )
-        );
+        assertThat(e.getMessage(), containsString("Missing required option(s) [u/username]"));
         assertThat(terminal.getOutput(), is(emptyString()));
     }
 

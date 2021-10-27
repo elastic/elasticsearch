@@ -45,9 +45,13 @@ abstract class AbstractLZ4TestCase extends ESTestCase {
     public interface TesterBase<T> {
 
         T allocate(int length);
+
         T copyOf(byte[] array);
+
         byte[] copyOf(T data, int off, int len);
+
         int maxCompressedLength(int len);
+
         void fill(T instance, byte b);
 
         // Modified to remove redundant modifiers
@@ -131,49 +135,62 @@ abstract class AbstractLZ4TestCase extends ESTestCase {
     public interface Tester<T> extends TesterBase<T> {
 
         int compress(LZ4Compressor compressor, T src, int srcOff, int srcLen, T dest, int destOff, int maxDestLen);
+
         int decompress(LZ4FastDecompressor decompressor, T src, int srcOff, T dest, int destOff, int destLen);
+
         int decompress(LZ4SafeDecompressor decompressor, T src, int srcOff, int srcLen, T dest, int destOff, int maxDestLen);
 
         // Modified to remove redundant modifiers
         class ByteArrayTester extends ByteArrayTesterBase implements Tester<byte[]> {
 
             @Override
-            public int compress(LZ4Compressor compressor, byte[] src, int srcOff,
-                                int srcLen, byte[] dest, int destOff, int maxDestLen) {
+            public int compress(LZ4Compressor compressor, byte[] src, int srcOff, int srcLen, byte[] dest, int destOff, int maxDestLen) {
                 return compressor.compress(src, srcOff, srcLen, dest, destOff, maxDestLen);
             }
 
             @Override
-            public int decompress(LZ4FastDecompressor decompressor,
-                                  byte[] src, int srcOff, byte[] dest, int destOff, int destLen) {
+            public int decompress(LZ4FastDecompressor decompressor, byte[] src, int srcOff, byte[] dest, int destOff, int destLen) {
                 return decompressor.decompress(src, srcOff, dest, destOff, destLen);
             }
 
             @Override
-            public int decompress(LZ4SafeDecompressor decompressor,
-                                  byte[] src, int srcOff, int srcLen, byte[] dest, int destOff, int maxDestLen) {
+            public int decompress(
+                LZ4SafeDecompressor decompressor,
+                byte[] src,
+                int srcOff,
+                int srcLen,
+                byte[] dest,
+                int destOff,
+                int maxDestLen
+            ) {
                 return decompressor.decompress(src, srcOff, srcLen, dest, destOff, maxDestLen);
             }
         }
+
         // Modified to remove redundant modifiers
         Tester<byte[]> BYTE_ARRAY = new ByteArrayTester();
         // Modified to remove redundant modifiers
         Tester<byte[]> BYTE_ARRAY_WITH_LENGTH = new ByteArrayTester() {
             @Override
-            public int compress(LZ4Compressor compressor, byte[] src, int srcOff,
-                                int srcLen, byte[] dest, int destOff, int maxDestLen) {
+            public int compress(LZ4Compressor compressor, byte[] src, int srcOff, int srcLen, byte[] dest, int destOff, int maxDestLen) {
                 return new LZ4CompressorWithLength(compressor).compress(src, srcOff, srcLen, dest, destOff, maxDestLen);
             }
 
             @Override
-            public int decompress(LZ4FastDecompressor decompressor,
-                                  byte[] src, int srcOff, byte[] dest, int destOff, int destLen) {
+            public int decompress(LZ4FastDecompressor decompressor, byte[] src, int srcOff, byte[] dest, int destOff, int destLen) {
                 return new LZ4DecompressorWithLength(decompressor).decompress(src, srcOff, dest, destOff);
             }
 
             @Override
-            public int decompress(LZ4SafeDecompressor decompressor,
-                                  byte[] src, int srcOff, int srcLen, byte[] dest, int destOff, int maxDestLen) {
+            public int decompress(
+                LZ4SafeDecompressor decompressor,
+                byte[] src,
+                int srcOff,
+                int srcLen,
+                byte[] dest,
+                int destOff,
+                int maxDestLen
+            ) {
                 return new LZ4DecompressorWithLength(decompressor).decompress(src, srcOff, srcLen, dest, destOff);
             }
         };
@@ -182,42 +199,69 @@ abstract class AbstractLZ4TestCase extends ESTestCase {
         class ByteBufferTester extends ByteBufferTesterBase implements Tester<ByteBuffer> {
 
             @Override
-            public int compress(LZ4Compressor compressor, ByteBuffer src, int srcOff,
-                                int srcLen, ByteBuffer dest, int destOff, int maxDestLen) {
+            public int compress(
+                LZ4Compressor compressor,
+                ByteBuffer src,
+                int srcOff,
+                int srcLen,
+                ByteBuffer dest,
+                int destOff,
+                int maxDestLen
+            ) {
                 return compressor.compress(src, srcOff, srcLen, dest, destOff, maxDestLen);
             }
 
             @Override
-            public int decompress(LZ4FastDecompressor decompressor, ByteBuffer src,
-                                  int srcOff, ByteBuffer dest, int destOff, int destLen) {
+            public int decompress(LZ4FastDecompressor decompressor, ByteBuffer src, int srcOff, ByteBuffer dest, int destOff, int destLen) {
                 return decompressor.decompress(src, srcOff, dest, destOff, destLen);
             }
 
             @Override
-            public int decompress(LZ4SafeDecompressor decompressor, ByteBuffer src,
-                                  int srcOff, int srcLen, ByteBuffer dest, int destOff, int maxDestLen) {
+            public int decompress(
+                LZ4SafeDecompressor decompressor,
+                ByteBuffer src,
+                int srcOff,
+                int srcLen,
+                ByteBuffer dest,
+                int destOff,
+                int maxDestLen
+            ) {
                 return decompressor.decompress(src, srcOff, srcLen, dest, destOff, maxDestLen);
             }
         }
+
         // Modified to remove redundant modifiers
         Tester<ByteBuffer> BYTE_BUFFER = new ByteBufferTester();
         // Modified to remove redundant modifiers
         Tester<ByteBuffer> BYTE_BUFFER_WITH_LENGTH = new ByteBufferTester() {
             @Override
-            public int compress(LZ4Compressor compressor, ByteBuffer src, int srcOff,
-                                int srcLen, ByteBuffer dest, int destOff, int maxDestLen) {
+            public int compress(
+                LZ4Compressor compressor,
+                ByteBuffer src,
+                int srcOff,
+                int srcLen,
+                ByteBuffer dest,
+                int destOff,
+                int maxDestLen
+            ) {
                 return new LZ4CompressorWithLength(compressor).compress(src, srcOff, srcLen, dest, destOff, maxDestLen);
             }
 
             @Override
-            public int decompress(LZ4FastDecompressor decompressor, ByteBuffer src,
-                                  int srcOff, ByteBuffer dest, int destOff, int destLen) {
+            public int decompress(LZ4FastDecompressor decompressor, ByteBuffer src, int srcOff, ByteBuffer dest, int destOff, int destLen) {
                 return new LZ4DecompressorWithLength(decompressor).decompress(src, srcOff, dest, destOff);
             }
 
             @Override
-            public int decompress(LZ4SafeDecompressor decompressor, ByteBuffer src,
-                                  int srcOff, int srcLen, ByteBuffer dest, int destOff, int maxDestLen) {
+            public int decompress(
+                LZ4SafeDecompressor decompressor,
+                ByteBuffer src,
+                int srcOff,
+                int srcLen,
+                ByteBuffer dest,
+                int destOff,
+                int maxDestLen
+            ) {
                 return new LZ4DecompressorWithLength(decompressor).decompress(src, srcOff, srcLen, dest, destOff);
             }
         };
@@ -227,7 +271,9 @@ abstract class AbstractLZ4TestCase extends ESTestCase {
     public interface SrcDestTester<T> extends TesterBase<T> {
 
         int compress(LZ4Compressor compressor, T src, T dest);
+
         int decompress(LZ4FastDecompressor decompressor, T src, T dest);
+
         int decompress(LZ4SafeDecompressor decompressor, T src, T dest);
 
         // Modified to remove redundant modifiers
@@ -248,6 +294,7 @@ abstract class AbstractLZ4TestCase extends ESTestCase {
                 return decompressor.decompress(src, dest);
             }
         }
+
         // Modified to remove redundant modifiers
         SrcDestTester<byte[]> BYTE_ARRAY = new ByteArrayTester();
         // Modified to remove redundant modifiers
@@ -292,6 +339,7 @@ abstract class AbstractLZ4TestCase extends ESTestCase {
                 return dest.position() - pos;
             }
         }
+
         // Modified to remove redundant modifiers
         SrcDestTester<ByteBuffer> BYTE_BUFFER = new ByteBufferTester();
         // Modified to remove redundant modifiers
@@ -321,6 +369,7 @@ abstract class AbstractLZ4TestCase extends ESTestCase {
 
     protected class RandomBytes {
         private final byte[] bytes;
+
         RandomBytes(int n) {
             assert n > 0 && n <= 256;
             bytes = new byte[n];
@@ -328,6 +377,7 @@ abstract class AbstractLZ4TestCase extends ESTestCase {
                 bytes[i] = (byte) randomInt(255);
             }
         }
+
         byte next() {
             final int i = randomInt(bytes.length - 1);
             return bytes[i];

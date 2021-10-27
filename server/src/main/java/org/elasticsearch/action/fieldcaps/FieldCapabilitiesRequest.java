@@ -16,9 +16,9 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -54,8 +54,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         runtimeFields = in.readMap();
     }
 
-    public FieldCapabilitiesRequest() {
-    }
+    public FieldCapabilitiesRequest() {}
 
     /**
      * Returns <code>true</code> iff the results should be merged.
@@ -172,6 +171,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     public QueryBuilder indexFilter() {
         return indexFilter;
     }
+
     /**
      * Allows adding search runtime fields if provided.
      */
@@ -206,14 +206,14 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FieldCapabilitiesRequest that = (FieldCapabilitiesRequest) o;
-        return includeUnmapped == that.includeUnmapped &&
-            mergeResults == that.mergeResults &&
-            Arrays.equals(indices, that.indices) &&
-            indicesOptions.equals(that.indicesOptions) &&
-            Arrays.equals(fields, that.fields) &&
-            Objects.equals(indexFilter, that.indexFilter) &&
-            Objects.equals(nowInMillis, that.nowInMillis) &&
-            Objects.equals(runtimeFields, that.runtimeFields);
+        return includeUnmapped == that.includeUnmapped
+            && mergeResults == that.mergeResults
+            && Arrays.equals(indices, that.indices)
+            && indicesOptions.equals(that.indicesOptions)
+            && Arrays.equals(fields, that.fields)
+            && Objects.equals(indexFilter, that.indexFilter)
+            && Objects.equals(nowInMillis, that.nowInMillis)
+            && Objects.equals(runtimeFields, that.runtimeFields);
     }
 
     @Override

@@ -21,10 +21,8 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class BoundedBreakIteratorScannerTests extends ESTestCase {
-    private static final String[] WORD_BOUNDARIES =
-        new String[] { " ", "  ",  "\t", "#", "\n" };
-    private static final String[] SENTENCE_BOUNDARIES =
-        new String[] { "! ", "? ", ". ", ".\n", ".\n\n" };
+    private static final String[] WORD_BOUNDARIES = new String[] { " ", "  ", "\t", "#", "\n" };
+    private static final String[] SENTENCE_BOUNDARIES = new String[] { "! ", "? ", ". ", ".\n", ".\n\n" };
 
     private void testRandomAsciiTextCase(BreakIterator bi, int maxLen) {
         // Generate a random set of unique terms with ascii character
@@ -41,8 +39,8 @@ public class BoundedBreakIteratorScannerTests extends ESTestCase {
         // Generate a random text made of random terms separated with word-boundaries
         // and sentence-boundaries.
         StringBuilder text = new StringBuilder();
-        List<Integer> offsetList = new ArrayList<> ();
-        List<Integer> sizeList = new ArrayList<> ();
+        List<Integer> offsetList = new ArrayList<>();
+        List<Integer> sizeList = new ArrayList<>();
         // the number of sentences to generate
         int numSentences = randomIntBetween(10, 100);
         int maxTermLen = 0;
@@ -68,17 +66,17 @@ public class BoundedBreakIteratorScannerTests extends ESTestCase {
             text.append(boundary);
         }
 
-        int[] sizes = sizeList.stream().mapToInt(i->i).toArray();
-        int[] offsets = offsetList.stream().mapToInt(i->i).toArray();
+        int[] sizes = sizeList.stream().mapToInt(i -> i).toArray();
+        int[] offsets = offsetList.stream().mapToInt(i -> i).toArray();
 
         bi.setText(text.toString());
         int currentPos = randomIntBetween(0, 20);
         int lastEnd = -1;
-        int maxPassageLen = maxLen+(maxTermLen*2);
+        int maxPassageLen = maxLen + (maxTermLen * 2);
         while (currentPos < offsets.length) {
             // find the passage that contains the current term
             int nextOffset = offsets[currentPos];
-            int start = bi.preceding(nextOffset+1);
+            int start = bi.preceding(nextOffset + 1);
             int end = bi.following(nextOffset);
 
             // check that the passage is valid
@@ -86,21 +84,19 @@ public class BoundedBreakIteratorScannerTests extends ESTestCase {
             assertThat(end, greaterThan(start));
             assertThat(start, lessThanOrEqualTo(nextOffset));
             assertThat(end, greaterThanOrEqualTo(nextOffset));
-            int passageLen = end-start;
+            int passageLen = end - start;
             assertThat(passageLen, lessThanOrEqualTo(maxPassageLen));
 
             // checks that the start and end of the passage are on word boundaries.
             int startPos = Arrays.binarySearch(offsets, start);
             int endPos = Arrays.binarySearch(offsets, end);
             if (startPos < 0) {
-                int lastWordEnd =
-                    offsets[Math.abs(startPos)-2] + sizes[Math.abs(startPos)-2];
+                int lastWordEnd = offsets[Math.abs(startPos) - 2] + sizes[Math.abs(startPos) - 2];
                 assertThat(start, greaterThanOrEqualTo(lastWordEnd));
             }
             if (endPos < 0) {
-                if (Math.abs(endPos)-2 < offsets.length) {
-                    int lastWordEnd =
-                        offsets[Math.abs(endPos) - 2] + sizes[Math.abs(endPos) - 2];
+                if (Math.abs(endPos) - 2 < offsets.length) {
+                    int lastWordEnd = offsets[Math.abs(endPos) - 2] + sizes[Math.abs(endPos) - 2];
                     assertThat(end, greaterThanOrEqualTo(lastWordEnd));
                 }
                 // advance the position to the end of the current passage
@@ -118,10 +114,7 @@ public class BoundedBreakIteratorScannerTests extends ESTestCase {
     public void testBoundedSentence() {
         for (int i = 0; i < 20; i++) {
             int maxLen = randomIntBetween(10, 500);
-            testRandomAsciiTextCase(
-                BoundedBreakIteratorScanner.getSentence(Locale.ROOT, maxLen),
-                maxLen
-            );
+            testRandomAsciiTextCase(BoundedBreakIteratorScanner.getSentence(Locale.ROOT, maxLen), maxLen);
         }
     }
 }

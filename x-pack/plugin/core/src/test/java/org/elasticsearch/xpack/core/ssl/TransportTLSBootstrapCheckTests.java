@@ -19,10 +19,16 @@ import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
 public class TransportTLSBootstrapCheckTests extends AbstractBootstrapCheckTestCase {
     public void testBootstrapCheckOnEmptyMetadata() {
         assertTrue(new TransportTLSBootstrapCheck().check(emptyContext).isFailure());
-        assertTrue(new TransportTLSBootstrapCheck().check(createTestContext(Settings.builder().put("xpack.security.transport.ssl.enabled"
-            , false).build(), Metadata.EMPTY_METADATA)).isFailure());
-        assertTrue(new TransportTLSBootstrapCheck().check(createTestContext(Settings.builder().put("xpack.security.transport.ssl.enabled"
-            , true).build(), Metadata.EMPTY_METADATA)).isSuccess());
+        assertTrue(
+            new TransportTLSBootstrapCheck().check(
+                createTestContext(Settings.builder().put("xpack.security.transport.ssl.enabled", false).build(), Metadata.EMPTY_METADATA)
+            ).isFailure()
+        );
+        assertTrue(
+            new TransportTLSBootstrapCheck().check(
+                createTestContext(Settings.builder().put("xpack.security.transport.ssl.enabled", true).build(), Metadata.EMPTY_METADATA)
+            ).isSuccess()
+        );
     }
 
     public void testBootstrapCheckFailureOnAnyLicense() throws Exception {
@@ -46,10 +52,12 @@ public class TransportTLSBootstrapCheckTests extends AbstractBootstrapCheckTestC
 
         final BootstrapCheck.BootstrapCheckResult result = runBootstrapCheck(mode, settings);
         assertTrue("Expected bootstrap failure", result.isFailure());
-        assertEquals("Transport SSL must be enabled if security is enabled. Please set " +
-                "[xpack.security.transport.ssl.enabled] to [true] or disable security by setting " +
-                "[xpack.security.enabled] to [false]",
-            result.getMessage());
+        assertEquals(
+            "Transport SSL must be enabled if security is enabled. Please set "
+                + "[xpack.security.transport.ssl.enabled] to [true] or disable security by setting "
+                + "[xpack.security.enabled] to [false]",
+            result.getMessage()
+        );
     }
 
     public void testBootstrapCheckSucceedsWithTlsEnabledOnAnyLicense() throws Exception {

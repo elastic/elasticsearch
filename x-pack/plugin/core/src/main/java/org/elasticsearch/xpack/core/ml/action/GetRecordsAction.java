@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -74,8 +74,7 @@ public class GetRecordsAction extends ActionType<GetRecordsAction.Response> {
         private String sort = RECORD_SCORE_FILTER.getPreferredName();
         private boolean descending = true;
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -132,6 +131,7 @@ public class GetRecordsAction extends ActionType<GetRecordsAction.Response> {
         public void setPageParams(PageParams pageParams) {
             this.pageParams = pageParams;
         }
+
         public PageParams getPageParams() {
             return pageParams;
         }
@@ -199,14 +199,14 @@ public class GetRecordsAction extends ActionType<GetRecordsAction.Response> {
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(jobId, other.jobId) &&
-                    Objects.equals(start, other.start) &&
-                    Objects.equals(end, other.end) &&
-                    Objects.equals(sort, other.sort) &&
-                    Objects.equals(descending, other.descending) &&
-                    Objects.equals(recordScoreFilter, other.recordScoreFilter) &&
-                    Objects.equals(excludeInterim, other.excludeInterim) &&
-                    Objects.equals(pageParams, other.pageParams);
+            return Objects.equals(jobId, other.jobId)
+                && Objects.equals(start, other.start)
+                && Objects.equals(end, other.end)
+                && Objects.equals(sort, other.sort)
+                && Objects.equals(descending, other.descending)
+                && Objects.equals(recordScoreFilter, other.recordScoreFilter)
+                && Objects.equals(excludeInterim, other.excludeInterim)
+                && Objects.equals(pageParams, other.pageParams);
         }
     }
 

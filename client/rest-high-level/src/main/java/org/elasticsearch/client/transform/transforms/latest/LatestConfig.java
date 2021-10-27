@@ -8,8 +8,8 @@
 
 package org.elasticsearch.client.transform.transforms.latest;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -35,8 +35,11 @@ public class LatestConfig implements ToXContentObject {
     private final String sort;
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<LatestConfig, Void> PARSER =
-        new ConstructingObjectParser<>(NAME, true, args -> new LatestConfig((List<String>) args[0], (String) args[1]));
+    private static final ConstructingObjectParser<LatestConfig, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        true,
+        args -> new LatestConfig((List<String>) args[0], (String) args[1])
+    );
 
     static {
         PARSER.declareStringArray(constructorArg(), UNIQUE_KEY);

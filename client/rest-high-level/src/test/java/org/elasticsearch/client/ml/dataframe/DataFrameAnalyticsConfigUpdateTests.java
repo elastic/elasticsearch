@@ -10,10 +10,10 @@ package org.elasticsearch.client.ml.dataframe;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -23,9 +23,7 @@ import java.util.List;
 public class DataFrameAnalyticsConfigUpdateTests extends AbstractXContentTestCase<DataFrameAnalyticsConfigUpdate> {
 
     public static DataFrameAnalyticsConfigUpdate randomDataFrameAnalyticsConfigUpdate() {
-        DataFrameAnalyticsConfigUpdate.Builder builder =
-            DataFrameAnalyticsConfigUpdate.builder()
-                .setId(randomAlphaOfLengthBetween(1, 10));
+        DataFrameAnalyticsConfigUpdate.Builder builder = DataFrameAnalyticsConfigUpdate.builder().setId(randomAlphaOfLengthBetween(1, 10));
         if (randomBoolean()) {
             builder.setDescription(randomAlphaOfLength(20));
         }

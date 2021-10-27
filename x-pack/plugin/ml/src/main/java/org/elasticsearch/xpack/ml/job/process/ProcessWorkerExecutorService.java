@@ -120,7 +120,7 @@ public class ProcessWorkerExecutorService extends AbstractExecutorService {
                     String msg = "unable to process as " + processName + " worker service has shutdown";
                     for (Runnable runnable : notExecuted) {
                         if (runnable instanceof AbstractRunnable) {
-                            ((AbstractRunnable) runnable).onRejection( new EsRejectedExecutionException(msg, true));
+                            ((AbstractRunnable) runnable).onRejection(new EsRejectedExecutionException(msg, true));
                         }
                     }
                 }

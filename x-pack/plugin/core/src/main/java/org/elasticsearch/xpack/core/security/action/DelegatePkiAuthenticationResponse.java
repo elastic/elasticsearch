@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.core.security.action;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -34,7 +34,7 @@ public final class DelegatePkiAuthenticationResponse extends ActionResponse impl
     private TimeValue expiresIn;
     private Authentication authentication;
 
-    DelegatePkiAuthenticationResponse() { }
+    DelegatePkiAuthenticationResponse() {}
 
     public DelegatePkiAuthenticationResponse(String accessToken, TimeValue expiresIn, Authentication authentication) {
         this.accessToken = Objects.requireNonNull(accessToken);
@@ -78,9 +78,9 @@ public final class DelegatePkiAuthenticationResponse extends ActionResponse impl
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DelegatePkiAuthenticationResponse that = (DelegatePkiAuthenticationResponse) o;
-        return Objects.equals(accessToken, that.accessToken) &&
-            Objects.equals(expiresIn, that.expiresIn) &&
-            Objects.equals(authentication, that.authentication);
+        return Objects.equals(accessToken, that.accessToken)
+            && Objects.equals(expiresIn, that.expiresIn)
+            && Objects.equals(authentication, that.authentication);
     }
 
     @Override

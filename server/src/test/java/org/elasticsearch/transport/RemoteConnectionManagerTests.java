@@ -105,7 +105,6 @@ public class RemoteConnectionManagerTests extends ESTestCase {
 
         @Override
         public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-            throws TransportException {
-        }
+            throws TransportException {}
     }
 }

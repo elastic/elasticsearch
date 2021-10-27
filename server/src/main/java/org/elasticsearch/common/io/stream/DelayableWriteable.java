@@ -42,6 +42,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
     public static <T extends Writeable> DelayableWriteable<T> referencing(T reference) {
         return new Referencing<>(reference);
     }
+
     /**
      * Build a {@linkplain DelayableWriteable} that copies a buffer from
      * the provided {@linkplain StreamInput} and deserializes the buffer
@@ -130,7 +131,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
 
         @Override
         public void close() {
-            //noop
+            // noop
         }
     }
 
@@ -144,8 +145,12 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         private final NamedWriteableRegistry registry;
         private final ReleasableBytesReference serialized;
 
-        private Serialized(Writeable.Reader<T> reader, Version serializedAtVersion, NamedWriteableRegistry registry,
-                           ReleasableBytesReference serialized) {
+        private Serialized(
+            Writeable.Reader<T> reader,
+            Version serializedAtVersion,
+            NamedWriteableRegistry registry,
+            ReleasableBytesReference serialized
+        ) {
             this.reader = reader;
             this.serializedAtVersion = serializedAtVersion;
             this.registry = registry;
@@ -217,10 +222,17 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         }
     }
 
-    private static <T> T deserialize(Reader<T> reader, Version serializedAtVersion, NamedWriteableRegistry registry,
-                                     BytesReference serialized) throws IOException {
-        try (StreamInput in =
-                 registry == null ? serialized.streamInput() : new NamedWriteableAwareStreamInput(serialized.streamInput(), registry)) {
+    private static <T> T deserialize(
+        Reader<T> reader,
+        Version serializedAtVersion,
+        NamedWriteableRegistry registry,
+        BytesReference serialized
+    ) throws IOException {
+        try (
+            StreamInput in = registry == null
+                ? serialized.streamInput()
+                : new NamedWriteableAwareStreamInput(serialized.streamInput(), registry)
+        ) {
             in.setVersion(serializedAtVersion);
             return reader.read(in);
         }
@@ -231,7 +243,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
 
         @Override
         public void writeByte(byte b) throws IOException {
-            ++ size;
+            ++size;
         }
 
         @Override

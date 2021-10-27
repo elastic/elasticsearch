@@ -78,7 +78,7 @@ final class FieldTypeLookup {
         }
 
         for (MappedFieldType fieldType : RuntimeField.collectFieldTypes(runtimeFields).values()) {
-            //this will override concrete fields with runtime fields that have the same name
+            // this will override concrete fields with runtime fields that have the same name
             fullNameToFieldType.put(fieldType.name(), fieldType);
         }
     }
@@ -152,7 +152,9 @@ final class FieldTypeLookup {
             // no wildcards
             return get(pattern) == null ? Collections.emptySet() : Collections.singleton(pattern);
         }
-        return fullNameToFieldType.keySet().stream().filter(field -> Regex.simpleMatch(pattern, field))
+        return fullNameToFieldType.keySet()
+            .stream()
+            .filter(field -> Regex.simpleMatch(pattern, field))
             .collect(Collectors.toUnmodifiableSet());
     }
 
@@ -188,8 +190,6 @@ final class FieldTypeLookup {
             }
         }
 
-        return fieldToCopiedFields.containsKey(resolvedField)
-            ? fieldToCopiedFields.get(resolvedField)
-            : Set.of(resolvedField);
+        return fieldToCopiedFields.containsKey(resolvedField) ? fieldToCopiedFields.get(resolvedField) : Set.of(resolvedField);
     }
 }

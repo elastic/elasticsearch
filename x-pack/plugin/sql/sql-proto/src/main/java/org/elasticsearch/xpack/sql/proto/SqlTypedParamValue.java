@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.sql.proto;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentLocation;
@@ -24,10 +24,11 @@ import static org.elasticsearch.xpack.sql.proto.ProtoUtils.parseFieldsValue;
  * Represent a strongly typed parameter value
  */
 public class SqlTypedParamValue implements ToXContentObject {
-    private static final ConstructingObjectParser<SqlTypedParamValue, Void> PARSER =
-            new ConstructingObjectParser<>("params", true, objects ->
-            new SqlTypedParamValue((String) objects[1], objects[0]
-                    ));
+    private static final ConstructingObjectParser<SqlTypedParamValue, Void> PARSER = new ConstructingObjectParser<>(
+        "params",
+        true,
+        objects -> new SqlTypedParamValue((String) objects[1], objects[0])
+    );
 
     private static final ParseField VALUE = new ParseField("value");
     private static final ParseField TYPE = new ParseField("type");
@@ -91,8 +92,8 @@ public class SqlTypedParamValue implements ToXContentObject {
         }
         SqlTypedParamValue that = (SqlTypedParamValue) o;
         return Objects.equals(value, that.value)
-                && Objects.equals(type, that.type)
-                && Objects.equals(hasExplicitType, that.hasExplicitType);
+            && Objects.equals(type, that.type)
+            && Objects.equals(hasExplicitType, that.hasExplicitType);
     }
 
     @Override

@@ -19,10 +19,9 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.nio.NioEventLoopGroup;
+
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.netty4.CopyBytesServerSocketChannel;
-import org.elasticsearch.transport.netty4.CopyBytesSocketChannel;
 
 import java.io.IOException;
 import java.net.InetAddress;

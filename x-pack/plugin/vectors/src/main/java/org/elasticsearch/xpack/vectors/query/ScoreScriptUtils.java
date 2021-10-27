@@ -5,7 +5,6 @@
  * 2.0.
  */
 
-
 package org.elasticsearch.xpack.vectors.query;
 
 import org.elasticsearch.ExceptionsHelper;
@@ -21,9 +20,7 @@ public class ScoreScriptUtils {
         final float[] queryVector;
         final DenseVectorScriptDocValues docValues;
 
-        public DenseVectorFunction(ScoreScript scoreScript,
-                                   List<Number> queryVector,
-                                   String field) {
+        public DenseVectorFunction(ScoreScript scoreScript, List<Number> queryVector, String field) {
             this(scoreScript, queryVector, field, false);
         }
 
@@ -34,16 +31,18 @@ public class ScoreScriptUtils {
          * @param queryVector The query vector.
          * @param normalizeQuery Whether the provided query should be normalized to unit length.
          */
-        public DenseVectorFunction(ScoreScript scoreScript,
-                                   List<Number> queryVector,
-                                   String field,
-                                   boolean normalizeQuery) {
+        public DenseVectorFunction(ScoreScript scoreScript, List<Number> queryVector, String field, boolean normalizeQuery) {
             this.scoreScript = scoreScript;
             this.docValues = (DenseVectorScriptDocValues) scoreScript.getDoc().get(field);
 
-            if (docValues.dims() != queryVector.size()){
-                throw new IllegalArgumentException("The query vector has a different number of dimensions [" +
-                    queryVector.size() + "] than the document vectors [" + docValues.dims() + "].");
+            if (docValues.dims() != queryVector.size()) {
+                throw new IllegalArgumentException(
+                    "The query vector has a different number of dimensions ["
+                        + queryVector.size()
+                        + "] than the document vectors ["
+                        + docValues.dims()
+                        + "]."
+                );
             }
 
             this.queryVector = new float[queryVector.size()];

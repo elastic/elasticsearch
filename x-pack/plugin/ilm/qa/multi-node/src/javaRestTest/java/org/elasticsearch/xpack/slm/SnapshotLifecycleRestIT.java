@@ -21,17 +21,17 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
@@ -81,8 +81,14 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
     }
 
     public void testMissingRepo() throws Exception {
-        SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("missing-repo-policy", "snap",
-            "0 0/15 * * * ?", "missing-repo", Collections.emptyMap(), SnapshotRetentionConfiguration.EMPTY);
+        SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
+            "missing-repo-policy",
+            "snap",
+            "0 0/15 * * * ?",
+            "missing-repo",
+            Collections.emptyMap(),
+            SnapshotRetentionConfiguration.EMPTY
+        );
 
         Request putLifecycle = new Request("PUT", "/_slm/policy/missing-repo-policy");
         XContentBuilder lifecycleBuilder = JsonXContent.contentBuilder();
@@ -220,8 +226,10 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @TestIssueLogging(value = "org.elasticsearch.xpack.slm:TRACE,org.elasticsearch.xpack.core.slm:TRACE,org.elasticsearch.snapshots:DEBUG",
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/48531")
+    @TestIssueLogging(
+        value = "org.elasticsearch.xpack.slm:TRACE,org.elasticsearch.xpack.core.slm:TRACE,org.elasticsearch.snapshots:DEBUG",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/48531"
+    )
     public void testPolicyManualExecution() throws Exception {
         final String indexName = "test";
         final String policyName = "manual-policy";
@@ -238,10 +246,14 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
 
         createSnapshotPolicy(policyName, "snap", NEVER_EXECUTE_CRON_SCHEDULE, repoId, indexName, true);
 
-        ResponseException badResp = expectThrows(ResponseException.class,
-            () -> client().performRequest(new Request("POST", "/_slm/policy/" + policyName + "-bad/_execute")));
-        assertThat(EntityUtils.toString(badResp.getResponse().getEntity()),
-            containsString("no such snapshot lifecycle policy [" + policyName + "-bad]"));
+        ResponseException badResp = expectThrows(
+            ResponseException.class,
+            () -> client().performRequest(new Request("POST", "/_slm/policy/" + policyName + "-bad/_execute"))
+        );
+        assertThat(
+            EntityUtils.toString(badResp.getResponse().getEntity()),
+            containsString("no such snapshot lifecycle policy [" + policyName + "-bad]")
+        );
 
         final String snapshotName = executePolicy(policyName);
 
@@ -274,7 +286,6 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         });
     }
 
-
     @SuppressWarnings("unchecked")
     public void testStartStopStatus() throws Exception {
         final String indexName = "test";
@@ -293,13 +304,22 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
 
         assertBusy(() -> {
             logger.info("--> waiting for SLM to stop");
-            assertThat(EntityUtils.toString(client().performRequest(new Request("GET", "/_slm/status")).getEntity()),
-                containsString("STOPPED"));
+            assertThat(
+                EntityUtils.toString(client().performRequest(new Request("GET", "/_slm/status")).getEntity()),
+                containsString("STOPPED")
+            );
         });
 
         try {
-            createSnapshotPolicy(policyName, "snap", "0 0/15 * * * ?", repoId, indexName, true,
-                new SnapshotRetentionConfiguration(TimeValue.ZERO, null, null));
+            createSnapshotPolicy(
+                policyName,
+                "snap",
+                "0 0/15 * * * ?",
+                repoId,
+                indexName,
+                true,
+                new SnapshotRetentionConfiguration(TimeValue.ZERO, null, null)
+            );
             long start = System.currentTimeMillis();
             final String snapshotName = executePolicy(policyName);
 
@@ -360,15 +380,19 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
 
             assertBusy(() -> {
                 logger.info("--> waiting for SLM to start");
-                assertThat(EntityUtils.toString(client().performRequest(new Request("GET", "/_slm/status")).getEntity()),
-                    containsString("RUNNING"));
+                assertThat(
+                    EntityUtils.toString(client().performRequest(new Request("GET", "/_slm/status")).getEntity()),
+                    containsString("RUNNING")
+                );
             });
         }
     }
 
     @SuppressWarnings("unchecked")
-    @TestIssueLogging(value = "org.elasticsearch.xpack.slm:TRACE,org.elasticsearch.xpack.core.slm:TRACE,org.elasticsearch.snapshots:TRACE",
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/48017")
+    @TestIssueLogging(
+        value = "org.elasticsearch.xpack.slm:TRACE,org.elasticsearch.xpack.core.slm:TRACE,org.elasticsearch.snapshots:TRACE",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/48017"
+    )
     public void testBasicTimeBasedRetention() throws Exception {
         final String indexName = "test";
         final String policyName = "basic-time-policy";
@@ -384,8 +408,15 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         initializeRepo(repoId);
 
         // Create a policy with a retention period of 1 millisecond
-        createSnapshotPolicy(policyName, "snap", NEVER_EXECUTE_CRON_SCHEDULE, repoId, indexName, true,
-            new SnapshotRetentionConfiguration(TimeValue.timeValueMillis(1), null, null));
+        createSnapshotPolicy(
+            policyName,
+            "snap",
+            NEVER_EXECUTE_CRON_SCHEDULE,
+            repoId,
+            indexName,
+            true,
+            new SnapshotRetentionConfiguration(TimeValue.timeValueMillis(1), null, null)
+        );
 
         // Manually create a snapshot
         final String snapshotName = executePolicy(policyName);
@@ -467,13 +498,13 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         String repoId = "ds-repo";
         String policyName = "ds-policy";
 
-        String mapping = "{\n" +
-            "      \"properties\": {\n" +
-            "        \"@timestamp\": {\n" +
-            "          \"type\": \"date\"\n" +
-            "        }\n" +
-            "      }\n" +
-            "    }";
+        String mapping = "{\n"
+            + "      \"properties\": {\n"
+            + "        \"@timestamp\": {\n"
+            + "          \"type\": \"date\"\n"
+            + "        }\n"
+            + "      }\n"
+            + "    }";
         Template template = new Template(null, new CompressedXContent(mapping), null);
         createComposableTemplate(client(), "ds-template", dataStreamName, template);
 
@@ -525,8 +556,15 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         // Create a snapshot repo
         initializeRepo("repo");
         // Create a policy with a retention period of 1 millisecond
-        createSnapshotPolicy("policy", "snap", NEVER_EXECUTE_CRON_SCHEDULE, "repo", "*", true,
-            new SnapshotRetentionConfiguration(TimeValue.timeValueMillis(1), null, null));
+        createSnapshotPolicy(
+            "policy",
+            "snap",
+            NEVER_EXECUTE_CRON_SCHEDULE,
+            "repo",
+            "*",
+            true,
+            new SnapshotRetentionConfiguration(TimeValue.timeValueMillis(1), null, null)
+        );
         final String snapshotName = executePolicy("policy");
 
         // Check that the executed snapshot is created
@@ -564,8 +602,13 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
     public Map<String, Object> getLocation(String path) {
         try {
             Response executeRepsonse = client().performRequest(new Request("GET", path));
-            try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, EntityUtils.toByteArray(executeRepsonse.getEntity()))) {
+            try (
+                XContentParser parser = JsonXContent.jsonXContent.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    EntityUtils.toByteArray(executeRepsonse.getEntity())
+                )
+            ) {
                 return parser.map();
             }
         } catch (Exception e) {
@@ -580,8 +623,13 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
     private String executePolicy(String policyId) {
         try {
             Response executeRepsonse = client().performRequest(new Request("POST", "/_slm/policy/" + policyId + "/_execute"));
-            try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, EntityUtils.toByteArray(executeRepsonse.getEntity()))) {
+            try (
+                XContentParser parser = JsonXContent.jsonXContent.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    EntityUtils.toByteArray(executeRepsonse.getEntity())
+                )
+            ) {
                 return parser.mapStrings().get("snapshot_name");
             }
         } catch (Exception e) {
@@ -620,34 +668,44 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     private void assertHistoryIsPresent(String policyName, boolean success, String repository, String operation) throws IOException {
         final Request historySearchRequest = new Request("GET", ".slm-history*/_search");
-        historySearchRequest.setJsonEntity("{\n" +
-            "  \"query\": {\n" +
-            "    \"bool\": {\n" +
-            "      \"must\": [\n" +
-            "        {\n" +
-            "          \"term\": {\n" +
-            "            \"policy\": \"" + policyName + "\"\n" +
-            "          }\n" +
-            "        },\n" +
-            "        {\n" +
-            "          \"term\": {\n" +
-            "            \"success\": " + success + "\n" +
-            "          }\n" +
-            "        },\n" +
-            "        {\n" +
-            "          \"term\": {\n" +
-            "            \"repository\": \"" + repository + "\"\n" +
-            "          }\n" +
-            "        },\n" +
-            "        {\n" +
-            "          \"term\": {\n" +
-            "            \"operation\": \"" + operation + "\"\n" +
-            "          }\n" +
-            "        }\n" +
-            "      ]\n" +
-            "    }\n" +
-            "  }\n" +
-            "}");
+        historySearchRequest.setJsonEntity(
+            "{\n"
+                + "  \"query\": {\n"
+                + "    \"bool\": {\n"
+                + "      \"must\": [\n"
+                + "        {\n"
+                + "          \"term\": {\n"
+                + "            \"policy\": \""
+                + policyName
+                + "\"\n"
+                + "          }\n"
+                + "        },\n"
+                + "        {\n"
+                + "          \"term\": {\n"
+                + "            \"success\": "
+                + success
+                + "\n"
+                + "          }\n"
+                + "        },\n"
+                + "        {\n"
+                + "          \"term\": {\n"
+                + "            \"repository\": \""
+                + repository
+                + "\"\n"
+                + "          }\n"
+                + "        },\n"
+                + "        {\n"
+                + "          \"term\": {\n"
+                + "            \"operation\": \""
+                + operation
+                + "\"\n"
+                + "          }\n"
+                + "        }\n"
+                + "      ]\n"
+                + "    }\n"
+                + "  }\n"
+                + "}"
+        );
         Response historyResponse;
         try {
             historyResponse = client().performRequest(historySearchRequest);
@@ -655,8 +713,10 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
             try (InputStream is = historyResponse.getEntity().getContent()) {
                 historyResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
             }
-            assertThat((int)((Map<String, Object>) ((Map<String, Object>) historyResponseMap.get("hits")).get("total")).get("value"),
-                greaterThanOrEqualTo(1));
+            assertThat(
+                (int) ((Map<String, Object>) ((Map<String, Object>) historyResponseMap.get("hits")).get("total")).get("value"),
+                greaterThanOrEqualTo(1)
+            );
         } catch (ResponseException e) {
             // Throw AssertionError instead of an exception if the search fails so that assertBusy works as expected
             logger.error(e);
@@ -674,28 +734,55 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         assertEquals(WaitForRolloverReadyStep.NAME, stepKey.getName());
     }
 
-    private void createSnapshotPolicy(String policyName, String snapshotNamePattern, String schedule, String repoId,
-                                      String indexPattern, boolean ignoreUnavailable) throws IOException {
-        createSnapshotPolicy(policyName, snapshotNamePattern, schedule, repoId, indexPattern,
-            ignoreUnavailable, SnapshotRetentionConfiguration.EMPTY);
+    private void createSnapshotPolicy(
+        String policyName,
+        String snapshotNamePattern,
+        String schedule,
+        String repoId,
+        String indexPattern,
+        boolean ignoreUnavailable
+    ) throws IOException {
+        createSnapshotPolicy(
+            policyName,
+            snapshotNamePattern,
+            schedule,
+            repoId,
+            indexPattern,
+            ignoreUnavailable,
+            SnapshotRetentionConfiguration.EMPTY
+        );
     }
 
-    private void createSnapshotPolicy(String policyName, String snapshotNamePattern, String schedule, String repoId,
-                                      String indexPattern, boolean ignoreUnavailable,
-                                      SnapshotRetentionConfiguration retention) throws IOException {
+    private void createSnapshotPolicy(
+        String policyName,
+        String snapshotNamePattern,
+        String schedule,
+        String repoId,
+        String indexPattern,
+        boolean ignoreUnavailable,
+        SnapshotRetentionConfiguration retention
+    ) throws IOException {
         Map<String, Object> snapConfig = new HashMap<>();
         snapConfig.put("indices", Collections.singletonList(indexPattern));
         snapConfig.put("ignore_unavailable", ignoreUnavailable);
         if (randomBoolean()) {
             Map<String, Object> metadata = new HashMap<>();
-            int fieldCount = randomIntBetween(2,5);
+            int fieldCount = randomIntBetween(2, 5);
             for (int i = 0; i < fieldCount; i++) {
-                metadata.put(randomValueOtherThanMany(key -> "policy".equals(key) || metadata.containsKey(key),
-                    () -> randomAlphaOfLength(5)), randomAlphaOfLength(4));
+                metadata.put(
+                    randomValueOtherThanMany(key -> "policy".equals(key) || metadata.containsKey(key), () -> randomAlphaOfLength(5)),
+                    randomAlphaOfLength(4)
+                );
             }
         }
-        SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(policyName, snapshotNamePattern, schedule,
-            repoId, snapConfig, retention);
+        SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
+            policyName,
+            snapshotNamePattern,
+            schedule,
+            repoId,
+            snapConfig,
+            retention
+        );
 
         Request putLifecycle = new Request("PUT", "/_slm/policy/" + policyName);
         XContentBuilder lifecycleBuilder = JsonXContent.contentBuilder();
@@ -723,16 +810,19 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
 
     private void initializeRepo(String repoName, String maxBytesPerSecond) throws IOException {
         Request request = new Request("PUT", "/_snapshot/" + repoName);
-        request.setJsonEntity(Strings
-            .toString(JsonXContent.contentBuilder()
-                .startObject()
-                .field("type", "fs")
-                .startObject("settings")
-                .field("compress", randomBoolean())
-                .field("location", System.getProperty("tests.path.repo"))
-                .field("max_snapshot_bytes_per_sec", maxBytesPerSecond)
-                .endObject()
-                .endObject()));
+        request.setJsonEntity(
+            Strings.toString(
+                JsonXContent.contentBuilder()
+                    .startObject()
+                    .field("type", "fs")
+                    .startObject("settings")
+                    .field("compress", randomBoolean())
+                    .field("location", System.getProperty("tests.path.repo"))
+                    .field("max_snapshot_bytes_per_sec", maxBytesPerSecond)
+                    .endObject()
+                    .endObject()
+            )
+        );
         assertOK(client().performRequest(request));
     }
 
@@ -749,11 +839,13 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     private static Map<String, Object> policyStatsAsMap(Map<String, Object> stats) {
-        return ((List<Map<String, Object>>) stats.get(SnapshotLifecycleStats.POLICY_STATS.getPreferredName()))
-            .stream()
-            .collect(Collectors.toMap(
-                m -> (String) m.get(SnapshotLifecycleStats.SnapshotPolicyStats.POLICY_ID.getPreferredName()),
-                Function.identity()));
+        return ((List<Map<String, Object>>) stats.get(SnapshotLifecycleStats.POLICY_STATS.getPreferredName())).stream()
+            .collect(
+                Collectors.toMap(
+                    m -> (String) m.get(SnapshotLifecycleStats.SnapshotPolicyStats.POLICY_ID.getPreferredName()),
+                    Function.identity()
+                )
+            );
     }
 
     private void assertAcked(Response response) throws IOException {
@@ -766,7 +858,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
     }
 
     private void logSLMPolicies() throws IOException {
-        Request request = new Request("GET" , "/_slm/policy?human");
+        Request request = new Request("GET", "/_slm/policy?human");
         Response response = client().performRequest(request);
         assertOK(response);
         logger.info("SLM policies: {}", EntityUtils.toString(response.getEntity()));

@@ -6,7 +6,6 @@
  * Side Public License, v 1.
  */
 
-
 package org.elasticsearch.xcontent.support.filtering;
 
 import org.elasticsearch.core.Glob;
@@ -91,7 +90,7 @@ public class FilterPath {
     private static FilterPath parse(final String filter, final String segment) {
         int end = segment.length();
 
-        for (int i = 0; i < end; ) {
+        for (int i = 0; i < end;) {
             char c = segment.charAt(i);
 
             if (c == '.') {

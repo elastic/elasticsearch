@@ -88,10 +88,7 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
 
                     fieldCaps.put(
                         field,
-                        Collections.singletonMap(
-                            type,
-                            new FieldCapabilities(field, type, false, true, true, null, null, null, emptyMap())
-                        )
+                        Collections.singletonMap(type, new FieldCapabilities(field, type, false, true, true, null, null, null, emptyMap()))
                     );
                 }
 

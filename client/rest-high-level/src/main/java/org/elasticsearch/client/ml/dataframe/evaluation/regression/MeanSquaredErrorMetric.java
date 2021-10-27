@@ -9,9 +9,9 @@ package org.elasticsearch.client.ml.dataframe.evaluation.regression;
 
 import org.elasticsearch.client.ml.dataframe.Regression.LossFunction;
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -71,8 +71,11 @@ public class MeanSquaredErrorMetric implements EvaluationMetric {
             return PARSER.apply(parser, null);
         }
 
-        private static final ConstructingObjectParser<Result, Void> PARSER =
-            new ConstructingObjectParser<>(NAME + "_result", true, args -> new Result((double) args[0]));
+        private static final ConstructingObjectParser<Result, Void> PARSER = new ConstructingObjectParser<>(
+            NAME + "_result",
+            true,
+            args -> new Result((double) args[0])
+        );
 
         static {
             PARSER.declareDouble(constructorArg(), VALUE);

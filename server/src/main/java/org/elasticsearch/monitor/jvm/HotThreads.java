@@ -48,17 +48,23 @@ public class HotThreads {
     private boolean ignoreIdleThreads = true;
 
     private static final List<String[]> knownIdleStackFrames = Arrays.asList(
-        new String[] {"java.util.concurrent.ThreadPoolExecutor", "getTask"},
-        new String[] {"sun.nio.ch.SelectorImpl", "select"},
-        new String[] {"org.elasticsearch.threadpool.ThreadPool$CachedTimeThread", "run"},
-        new String[] {"org.elasticsearch.indices.ttl.IndicesTTLService$Notifier", "await"},
-        new String[] {"java.util.concurrent.LinkedTransferQueue", "poll"},
-        new String[] {"com.sun.jmx.remote.internal.ServerCommunicatorAdmin$Timeout", "run"}
+        new String[] { "java.util.concurrent.ThreadPoolExecutor", "getTask" },
+        new String[] { "sun.nio.ch.SelectorImpl", "select" },
+        new String[] { "org.elasticsearch.threadpool.ThreadPool$CachedTimeThread", "run" },
+        new String[] { "org.elasticsearch.indices.ttl.IndicesTTLService$Notifier", "await" },
+        new String[] { "java.util.concurrent.LinkedTransferQueue", "poll" },
+        new String[] { "com.sun.jmx.remote.internal.ServerCommunicatorAdmin$Timeout", "run" }
     );
 
     // NOTE: these are JVM dependent and JVM version dependent
     private static final List<String> knownJDKInternalThreads = Arrays.asList(
-        "Signal Dispatcher", "Finalizer", "Reference Handler", "Notification Thread", "Common-Cleaner", "process reaper", "DestroyJavaVM"
+        "Signal Dispatcher",
+        "Finalizer",
+        "Reference Handler",
+        "Notification Thread",
+        "Common-Cleaner",
+        "process reaper",
+        "DestroyJavaVM"
     );
 
     public enum ReportType {
@@ -154,25 +160,20 @@ public class HotThreads {
 
     public String detect() throws Exception {
         synchronized (mutex) {
-            return innerDetect(
-                ManagementFactory.getThreadMXBean(),
-                SunThreadInfo.INSTANCE,
-                Thread.currentThread().getId(),
-                (interval) -> {
-                    Thread.sleep(interval);
-                    return null;
-                });
+            return innerDetect(ManagementFactory.getThreadMXBean(), SunThreadInfo.INSTANCE, Thread.currentThread().getId(), (interval) -> {
+                Thread.sleep(interval);
+                return null;
+            });
         }
     }
 
     static boolean isKnownJDKThread(ThreadInfo threadInfo) {
-        return (knownJDKInternalThreads.stream().anyMatch(jvmThread ->
-            threadInfo.getThreadName() != null && threadInfo.getThreadName().equals(jvmThread)));
+        return (knownJDKInternalThreads.stream()
+            .anyMatch(jvmThread -> threadInfo.getThreadName() != null && threadInfo.getThreadName().equals(jvmThread)));
     }
 
     static boolean isKnownIdleStackFrame(String className, String methodName) {
-        return (knownIdleStackFrames.stream().anyMatch(pair ->
-            pair[0].equals(className) && pair[1].equals(methodName)));
+        return (knownIdleStackFrames.stream().anyMatch(pair -> pair[0].equals(className) && pair[1].equals(methodName)));
     }
 
     static boolean isIdleThread(ThreadInfo threadInfo) {
@@ -233,11 +234,8 @@ public class HotThreads {
         return (((double) time) / interval.nanos()) * 100;
     }
 
-    String innerDetect(
-        ThreadMXBean threadBean,
-        SunThreadInfo sunThreadInfo,
-        long currentThreadId,
-        SleepFunction<Long, Void> threadSleep) throws Exception {
+    String innerDetect(ThreadMXBean threadBean, SunThreadInfo sunThreadInfo, long currentThreadId, SleepFunction<Long, Void> threadSleep)
+        throws Exception {
         if (threadBean.isThreadCpuTimeSupported() == false) {
             throw new ElasticsearchException("thread CPU time is not supported on this JDK");
         }
@@ -252,8 +250,7 @@ public class HotThreads {
             throw new ElasticsearchException("thread wait/blocked time accounting is not supported on this JDK");
         }
 
-        StringBuilder sb = new StringBuilder()
-            .append("Hot threads at ")
+        StringBuilder sb = new StringBuilder().append("Hot threads at ")
             .append(DATE_TIME_FORMATTER.format(LocalDateTime.now(Clock.systemUTC())))
             .append(", interval=")
             .append(interval)
@@ -274,13 +271,15 @@ public class HotThreads {
         List<ThreadTimeAccumulator> topThreads = new ArrayList<>(latestThreadInfos.values());
 
         // Special comparator for CPU mode with TOTAL sort type only. Otherwise, we simply use the value.
-        if (type == ReportType.CPU && sortOrder == SortOrder.TOTAL)  {
-            CollectionUtil.introSort(topThreads,
+        if (type == ReportType.CPU && sortOrder == SortOrder.TOTAL) {
+            CollectionUtil.introSort(
+                topThreads,
                 Comparator.comparingLong(ThreadTimeAccumulator::getRunnableTime)
-                    .thenComparingLong(ThreadTimeAccumulator::getCpuTime).reversed());
+                    .thenComparingLong(ThreadTimeAccumulator::getCpuTime)
+                    .reversed()
+            );
         } else {
-            CollectionUtil.introSort(topThreads,
-                Comparator.comparingLong(ThreadTimeAccumulator.valueGetterForReportType(type)).reversed());
+            CollectionUtil.introSort(topThreads, Comparator.comparingLong(ThreadTimeAccumulator.valueGetterForReportType(type)).reversed());
         }
 
         topThreads = topThreads.subList(0, Math.min(busiestThreads, topThreads.size()));
@@ -309,23 +308,46 @@ public class HotThreads {
 
             switch (type) {
                 case MEM:
-                    sb.append(String.format(Locale.ROOT, "%n%s memory allocated by thread '%s'%n",
-                        new ByteSizeValue(topThread.getAllocatedBytes()), threadName));
+                    sb.append(
+                        String.format(
+                            Locale.ROOT,
+                            "%n%s memory allocated by thread '%s'%n",
+                            new ByteSizeValue(topThread.getAllocatedBytes()),
+                            threadName
+                        )
+                    );
                     break;
                 case CPU:
                     double percentCpu = getTimeSharePercentage(topThread.getCpuTime());
                     double percentOther = getTimeSharePercentage(topThread.getOtherTime());
-                    sb.append(String.format(Locale.ROOT,
-                        "%n%4.1f%% [cpu=%1.1f%%, other=%1.1f%%] (%s out of %s) %s usage by thread '%s'%n",
-                        percentOther + percentCpu, percentCpu, percentOther,
-                        TimeValue.timeValueNanos(topThread.getCpuTime() + topThread.getOtherTime()),
-                        interval, type.getTypeValue(), threadName));
+                    sb.append(
+                        String.format(
+                            Locale.ROOT,
+                            "%n%4.1f%% [cpu=%1.1f%%, other=%1.1f%%] (%s out of %s) %s usage by thread '%s'%n",
+                            percentOther + percentCpu,
+                            percentCpu,
+                            percentOther,
+                            TimeValue.timeValueNanos(topThread.getCpuTime() + topThread.getOtherTime()),
+                            interval,
+                            type.getTypeValue(),
+                            threadName
+                        )
+                    );
                     break;
                 default:
                     long time = ThreadTimeAccumulator.valueGetterForReportType(type).applyAsLong(topThread);
                     double percent = getTimeSharePercentage(time);
-                    sb.append(String.format(Locale.ROOT, "%n%4.1f%% (%s out of %s) %s usage by thread '%s'%n",
-                        percent, TimeValue.timeValueNanos(time), interval, type.getTypeValue(), threadName));
+                    sb.append(
+                        String.format(
+                            Locale.ROOT,
+                            "%n%4.1f%% (%s out of %s) %s usage by thread '%s'%n",
+                            percent,
+                            TimeValue.timeValueNanos(time),
+                            interval,
+                            type.getTypeValue(),
+                            threadName
+                        )
+                    );
                     break;
             }
 
@@ -361,8 +383,15 @@ public class HotThreads {
                             sb.append(String.format(Locale.ROOT, "    %s%n", frame));
                         }
                     } else {
-                        sb.append(String.format(Locale.ROOT, "  %d/%d snapshots sharing following %d elements%n",
-                            count, threadElementsSnapshotCount, maxSim));
+                        sb.append(
+                            String.format(
+                                Locale.ROOT,
+                                "  %d/%d snapshots sharing following %d elements%n",
+                                count,
+                                threadElementsSnapshotCount,
+                                maxSim
+                            )
+                        );
                         for (int l = show.length - maxSim; l < show.length; l++) {
                             sb.append(String.format(Locale.ROOT, "    %s%n", show[l]));
                         }

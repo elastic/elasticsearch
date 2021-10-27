@@ -37,21 +37,37 @@ public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNo
     private static final Logger logger = LogManager.getLogger(TransportWatcherServiceAction.class);
 
     @Inject
-    public TransportWatcherServiceAction(TransportService transportService, ClusterService clusterService,
-                                         ThreadPool threadPool, ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(WatcherServiceAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            WatcherServiceRequest::new, indexNameExpressionResolver, ThreadPool.Names.MANAGEMENT);
+    public TransportWatcherServiceAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            WatcherServiceAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            WatcherServiceRequest::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.MANAGEMENT
+        );
     }
 
     @Override
-    protected void masterOperation(Task task, WatcherServiceRequest request, ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        WatcherServiceRequest request,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         final boolean manuallyStopped = request.getCommand() == WatcherServiceRequest.Command.STOP;
         final String source = manuallyStopped ? "update_watcher_manually_stopped" : "update_watcher_manually_started";
 
         // TODO: make WatcherServiceRequest a real AckedRequest so that we have both a configurable timeout and master node timeout like
-        //       we do elsewhere
+        // we do elsewhere
         clusterService.submitStateUpdateTask(source, new AckedClusterStateUpdateTask(new AckedRequest() {
             @Override
             public TimeValue ackTimeout() {
@@ -75,16 +91,17 @@ public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNo
                     return clusterState;
                 } else {
                     ClusterState.Builder builder = new ClusterState.Builder(clusterState);
-                    builder.metadata(Metadata.builder(clusterState.getMetadata())
-                        .putCustom(WatcherMetadata.TYPE, newWatcherMetadata));
+                    builder.metadata(Metadata.builder(clusterState.getMetadata()).putCustom(WatcherMetadata.TYPE, newWatcherMetadata));
                     return builder.build();
                 }
             }
 
             @Override
             public void onFailure(String source, Exception e) {
-                logger.error(new ParameterizedMessage("could not update watcher stopped status to [{}], source [{}]",
-                    manuallyStopped, source), e);
+                logger.error(
+                    new ParameterizedMessage("could not update watcher stopped status to [{}], source [{}]", manuallyStopped, source),
+                    e
+                );
                 listener.onFailure(e);
             }
         });

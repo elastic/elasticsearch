@@ -34,8 +34,7 @@ public final class InternalContext {
 
     @SuppressWarnings("unchecked")
     public <T> ConstructionContext<T> getConstructionContext(Object key) {
-        ConstructionContext<T> constructionContext
-                = (ConstructionContext<T>) constructionContexts.get(key);
+        ConstructionContext<T> constructionContext = (ConstructionContext<T>) constructionContexts.get(key);
         if (constructionContext == null) {
             constructionContext = new ConstructionContext<>();
             constructionContexts.put(key, constructionContext);

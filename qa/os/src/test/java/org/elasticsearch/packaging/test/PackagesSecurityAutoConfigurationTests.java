@@ -224,7 +224,7 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
             "cluster.name: testclustername"
         );
         allLines.add("node.name: testnodename");
-        Files.write(yml, List.of(), TRUNCATE_EXISTING);
+        Files.write(yml, allLines, TRUNCATE_EXISTING);
 
         // We cannot run two packaged installations simultaneously here so that we can test that the second node enrolls successfully
         // We trigger with an invalid enrollment token, to verify that we removed the existing auto-configuration

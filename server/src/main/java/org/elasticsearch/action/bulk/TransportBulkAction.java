@@ -532,6 +532,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             prohibitCustomRoutingOnDataStream(docWriteRequest, metadata);
                             IndexRequest indexRequest = (IndexRequest) docWriteRequest;
                             indexRequest.resolveRouting(metadata);
+                            indexRequest.process();
                             break;
                         case UPDATE:
                             docWriteRequest.routing(metadata.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));

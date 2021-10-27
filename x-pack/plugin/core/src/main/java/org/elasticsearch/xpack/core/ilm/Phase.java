@@ -39,7 +39,7 @@ public class Phase implements ToXContentObject, Writeable {
     public static final ParseField MIN_AGE = new ParseField("min_age");
     public static final ParseField ACTIONS_FIELD = new ParseField("actions");
 
-    @SuppressWarnings({"unchecked"})
+    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<Phase, String> PARSER = new ConstructingObjectParser<>("phase", false,
             (a, name) -> {
                 final List<LifecycleAction> lifecycleActions = (List<LifecycleAction>) a[1];

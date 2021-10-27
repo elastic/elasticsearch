@@ -61,6 +61,7 @@ public class RestRequest implements ToXContent.Params {
     private final HttpChannel httpChannel;
     private final ParsedMediaType parsedAccept;
     private final ParsedMediaType parsedContentType;
+    private final RestApiVersion restApiVersion;
     private HttpRequest httpRequest;
 
     private boolean contentConsumed = false;
@@ -92,9 +93,10 @@ public class RestRequest implements ToXContent.Params {
             throw new MediaTypeHeaderException(e, "Content-Type");
         }
         this.httpRequest = httpRequest;
-        this.parserConfig = parserConfig.withRestApiVersion(
-            RestCompatibleVersionHelper.getCompatibleVersion(parsedAccept, parsedContentType, hasContent())
-        );
+        this.restApiVersion = RestCompatibleVersionHelper.getCompatibleVersion(parsedAccept, parsedContentType, hasContent());
+        this.parserConfig = parserConfig.restApiVersion().equals(restApiVersion)
+            ? parserConfig
+            : parserConfig.withRestApiVersion(restApiVersion);
         this.httpChannel = httpChannel;
         this.params = params;
         this.rawPath = path;
@@ -103,8 +105,10 @@ public class RestRequest implements ToXContent.Params {
     }
 
     protected RestRequest(RestRequest other) {
+        assert other.parserConfig.restApiVersion().equals(other.restApiVersion);
         this.parsedAccept = other.parsedAccept;
         this.parsedContentType = other.parsedContentType;
+        this.restApiVersion = other.restApiVersion;
         this.parserConfig = other.parserConfig;
         this.httpRequest = other.httpRequest;
         this.httpChannel = other.httpChannel;
@@ -571,7 +575,7 @@ public class RestRequest implements ToXContent.Params {
      * The requested version of the REST API.
      */
     public RestApiVersion getRestApiVersion() {
-        return parserConfig.restApiVersion();
+        return restApiVersion;
     }
 
     public static class MediaTypeHeaderException extends RuntimeException {

@@ -58,7 +58,7 @@ public class OpenLdapTests extends ESTestCase {
 
     /**
      *
-     * ip.es.io is magic that will any IP-like DNS name into the embedded IP
+     * ip.es.io is magic that will resolve any IP-like DNS name into the embedded IP
      * This allows us to have an extra DNS name to our local container.
      * This is needed because as of v5.1.2 the LDAP-SDK always trusts
      * connections to loopback addresses if they were made using an IP address,

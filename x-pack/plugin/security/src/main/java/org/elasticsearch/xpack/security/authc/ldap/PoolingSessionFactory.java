@@ -144,7 +144,7 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
         boolean success = false;
         try {
             pool = LdapUtils.privilegedConnect(() -> new LDAPConnectionPool(serverSet, bindRequest, initialSize, size));
-            pool.setConnectionPoolName("ldap-pool-" + config.type() + "-" + config.name());
+            pool.setConnectionPoolName("ldap-pool-" + config.identifier());
             pool.setRetryFailedOperationsDueToInvalidConnections(true);
             if (config.getSetting(PoolingSessionFactorySettings.HEALTH_CHECK_ENABLED)) {
                 String entryDn = config.getSetting(PoolingSessionFactorySettings.HEALTH_CHECK_DN).orElseGet(healthCheckDnSupplier);

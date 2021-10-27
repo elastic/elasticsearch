@@ -38,6 +38,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
+@SuppressWarnings("removal")
 public class LatestIT extends TransformIntegTestCase {
 
     private static final String SOURCE_INDEX_NAME = "basic-crud-latest-reviews";

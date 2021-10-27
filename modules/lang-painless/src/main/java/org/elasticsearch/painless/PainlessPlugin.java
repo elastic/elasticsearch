@@ -75,7 +75,8 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         "java.util.txt",
         "java.util.function.txt",
         "java.util.regex.txt",
-        "java.util.stream.txt"
+        "java.util.stream.txt",
+        "java.nio.txt"
     };
     public static final List<Whitelist> BASE_WHITELISTS =
             Collections.singletonList(WhitelistLoader.loadFromResourceFiles(

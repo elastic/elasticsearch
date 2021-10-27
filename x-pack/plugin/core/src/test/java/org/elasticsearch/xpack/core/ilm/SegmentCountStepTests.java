@@ -31,7 +31,7 @@ import java.util.Map;
 import java.util.Spliterator;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 
 public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep> {
 

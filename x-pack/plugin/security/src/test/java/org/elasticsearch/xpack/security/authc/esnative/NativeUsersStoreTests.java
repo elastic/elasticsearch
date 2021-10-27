@@ -61,7 +61,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -146,15 +146,15 @@ public class NativeUsersStoreTests extends ESTestCase {
         final SecureString password = new SecureString(randomAlphaOfLengthBetween(8, 16).toCharArray());
         final String[] roles = generateRandomStringArray(4, 12, false, false);
 
-        final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         nativeUsersStore.verifyPassword(username, password, future);
 
         respondToGetUserRequest(username, password, roles);
 
-        final AuthenticationResult result = future.get();
+        final AuthenticationResult<User> result = future.get();
         assertThat(result, notNullValue());
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
-        final User user = result.getUser();
+        final User user = result.getValue();
         assertThat(user, notNullValue());
         assertThat(user.enabled(), equalTo(true));
         assertThat(user.principal(), equalTo(username));
@@ -169,15 +169,15 @@ public class NativeUsersStoreTests extends ESTestCase {
         final SecureString incorrectPassword = new SecureString(randomAlphaOfLengthBetween(8, 10).toCharArray());
         final String[] roles = generateRandomStringArray(4, 12, false, false);
 
-        final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         nativeUsersStore.verifyPassword(username, incorrectPassword, future);
 
         respondToGetUserRequest(username, correctPassword, roles);
 
-        final AuthenticationResult result = future.get();
+        final AuthenticationResult<User> result = future.get();
         assertThat(result, notNullValue());
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
-        assertThat(result.getUser(), nullValue());
+        assertThat(result.getValue(), nullValue());
         assertThat(result.getMessage(), containsString("authentication failed"));
     }
 
@@ -186,7 +186,7 @@ public class NativeUsersStoreTests extends ESTestCase {
         final String username = randomAlphaOfLengthBetween(4, 12);
         final SecureString password = new SecureString(randomAlphaOfLengthBetween(8, 16).toCharArray());
 
-        final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         nativeUsersStore.verifyPassword(username, password, future);
 
         final GetResult getResult = new GetResult(
@@ -200,10 +200,10 @@ public class NativeUsersStoreTests extends ESTestCase {
 
         actionRespond(GetRequest.class, new GetResponse(getResult));
 
-        final AuthenticationResult result = future.get();
+        final AuthenticationResult<User> result = future.get();
         assertThat(result, notNullValue());
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
-        assertThat(result.getUser(), nullValue());
+        assertThat(result.getValue(), nullValue());
         assertThat(result.getMessage(), nullValue());
     }
 

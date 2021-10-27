@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -128,6 +129,7 @@ public class SecurityTests extends ESTestCase {
 
     private Collection<Object> createComponentsUtil(Settings settings, SecurityExtension... extensions) throws Exception {
         Environment env = TestEnvironment.newEnvironment(settings);
+        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(8), Version.CURRENT);
         licenseState = new TestUtils.UpdatableLicenseState(settings);
         SSLService sslService = new SSLService(env);
         security = new Security(settings, null, Arrays.asList(extensions)) {
@@ -155,7 +157,7 @@ public class SecurityTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
         return security.createComponents(client, threadPool, clusterService, mock(ResourceWatcherService.class), mock(ScriptService.class),
-            xContentRegistry(), env, TestIndexNameExpressionResolver.newInstance(threadContext));
+            xContentRegistry(), env, nodeMetadata, TestIndexNameExpressionResolver.newInstance(threadContext));
     }
 
     private Collection<Object> createComponents(Settings testSettings, SecurityExtension... extensions) throws Exception {

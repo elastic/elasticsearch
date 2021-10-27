@@ -143,7 +143,8 @@ than to increase the `size`. However, it still takes more bytes over the wire an
 waiting in memory on the coordinating node.
 
 IMPORTANT: See the note in <<search-aggregations-bucket-terms-aggregation-order>>
-           if you are sorting by anything other than document count.
+           if you are sorting by anything other than document count in
+           descending order.
 
 NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sense). When it is, Elasticsearch will
         override it and reset it to be equal to `size`.

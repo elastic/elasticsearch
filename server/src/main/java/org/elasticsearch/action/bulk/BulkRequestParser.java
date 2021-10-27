@@ -297,12 +297,18 @@ public final class BulkRequestParser {
                 try {
                     token = parser.nextToken();
                     if (token != XContentParser.Token.END_OBJECT) {
-                        deprecationLogger.compatibleCritical("bulk_request_strict_action_parsing","A bulk action contained " +
-                            "follow-on fields after its declaration. Strict parsing of bulk actions will be enabled in a future version.");
+                        deprecationLogger.compatibleCritical(
+                            "bulk_request_strict_action_parsing",
+                            "A bulk action contained "
+                                + "follow-on fields after its declaration. Strict parsing of bulk actions will be enabled in a future version."
+                        );
                     }
                 } catch (JsonEOFException ignore) {
-                    deprecationLogger.compatibleCritical("bulk_request_strict_action_parsing","A bulk action wasn't closed " +
-                        "properly with a curly brace. Strict parsing of bulk actions will be enabled in a future version.");
+                    deprecationLogger.compatibleCritical(
+                        "bulk_request_strict_action_parsing",
+                        "A bulk action wasn't closed "
+                            + "properly with a curly brace. Strict parsing of bulk actions will be enabled in a future version."
+                    );
                 }
                 if ("delete".equals(action)) {
                     if (dynamicTemplates.isEmpty() == false) {

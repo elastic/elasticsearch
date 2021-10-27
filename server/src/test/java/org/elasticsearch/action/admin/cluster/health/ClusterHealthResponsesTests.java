@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
-import org.apache.logging.log4j.Level;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -58,7 +57,6 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
         for (int i = 0; i < 5; i++) {
             res.setTimedOut(randomBoolean());
             assertEquals(RestStatus.OK, res.status(RestApiVersion.V_8));
-            assertWarnings(true, new DeprecationWarning(Level.WARN, ClusterHealthResponse.CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG));
         }
     }
 

@@ -16,13 +16,10 @@ import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -59,7 +56,6 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     private static final String INITIALIZING_SHARDS = "initializing_shards";
     private static final String UNASSIGNED_SHARDS = "unassigned_shards";
     private static final String INDICES = "indices";
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchAction.class);
 
     private static final ConstructingObjectParser<ClusterHealthResponse, Void> PARSER = new ConstructingObjectParser<>(
         "cluster_health_response",
@@ -124,11 +120,6 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         XContentParser parser,
         Void context,
         String index) -> ClusterIndexHealth.innerFromXContent(parser, index);
-    static final String ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200_KEY = "return_200_for_cluster_health_timeout";
-    static final String CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG = "the ["
-        + ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200_KEY
-        + "] "
-        + "parameter is deprecated and will be removed in a future release.";
 
     static {
         // ClusterStateHealth fields
@@ -360,13 +351,6 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         // Legacy behaviour
         if (isTimedOut() && restApiVersion == RestApiVersion.V_7 && return200ForClusterHealthTimeout == false) {
             return RestStatus.REQUEST_TIMEOUT;
-        }
-        if (return200ForClusterHealthTimeout && restApiVersion == RestApiVersion.V_8) {
-            deprecationLogger.warn(
-                DeprecationCategory.API,
-                "cluster_health_request_timeout",
-                CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG
-            );
         }
         return RestStatus.OK;
     }

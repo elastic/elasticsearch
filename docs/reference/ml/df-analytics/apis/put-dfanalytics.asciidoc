@@ -22,7 +22,7 @@ Instantiates a {dfanalytics-job}.
 
 Requires the following privileges:
 
-* cluster: `manage_ml` (the `machine_learning_admin` built-in role grants this 
+* cluster: `manage_ml` (the `machine_learning_admin` built-in role grants this
   privilege)
 * source indices: `read`, `view_index_metadata`
 * destination index: `read`, `create_index`, `manage` and `index`
@@ -259,12 +259,12 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=max-trees]
 Defines the number of categories for which the predicted probabilities are
 reported. It must be non-negative or -1. If it is -1 or greater than the total
 number of categories, probabilities are reported for all categories; if you have
-a large number of categories, there could be a significant effect on the size of your destination index. Defaults to 2. 
+a large number of categories, there could be a significant effect on the size of your destination index. Defaults to 2.
 +
 --
 NOTE: To use the
-{ml-docs}/ml-dfa-classification.html#ml-dfanalytics-class-aucroc[AUC ROC] 
-evaluation method, `num_top_classes` must be set to `-1` or a value greater than 
+{ml-docs}/ml-dfa-classification.html#ml-dfanalytics-class-aucroc[AUC ROC]
+evaluation method, `num_top_classes` must be set to `-1` or a value greater than
 or equal to the total number of categories.
 
 --
@@ -657,7 +657,7 @@ PUT _ml/data_frame/analytics/loganalytics
   }
 }
 --------------------------------------------------
-// TEST[setup:setup_logdata]
+// TEST[skip:"AwaitsFix https://github.com/elastic/elasticsearch/issues/79931"]
 
 
 The API returns the following result:

@@ -176,11 +176,6 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
             failIfNoDocValues();
             return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG);
         }
-
-        @Override
-        public boolean isInternalField() {
-            return true;
-        }
     }
 
     private SeqNoFieldMapper() {

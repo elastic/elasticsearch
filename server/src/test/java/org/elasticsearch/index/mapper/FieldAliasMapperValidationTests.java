@@ -120,8 +120,7 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
         FieldMapper[] fieldMappers = new FieldMapper[] {
             FieldNamesFieldMapper.PARSER.getDefault(context),
             NestedPathFieldMapper.PARSER.getDefault(context),
-            SourceFieldMapper.PARSER.getDefault(context),
-            SeqNoFieldMapper.PARSER.getDefault(context) };
+            SourceFieldMapper.PARSER.getDefault(context)};
         for (FieldMapper mapper : fieldMappers) {
             FieldAliasMapper invalidAlias = new FieldAliasMapper("invalid-alias", "invalid-alias", mapper.name());
 

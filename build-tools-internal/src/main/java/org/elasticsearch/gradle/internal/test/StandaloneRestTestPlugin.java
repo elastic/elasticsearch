@@ -22,7 +22,9 @@ import org.gradle.api.tasks.testing.Test;
 import org.gradle.plugins.ide.eclipse.model.EclipseModel;
 import org.gradle.plugins.ide.idea.model.IdeaModel;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -61,7 +63,8 @@ public class StandaloneRestTestPlugin implements Plugin<Project> {
         eclipse.getClasspath().setSourceSets(Arrays.asList(testSourceSet));
         eclipse.getClasspath()
             .setPlusConfigurations(
-                Arrays.asList(project.getConfigurations().getByName(JavaPlugin.TEST_RUNTIME_CLASSPATH_CONFIGURATION_NAME))
+                // we can mutate this in GradleUtils to create configuration for eclipse
+                new ArrayList<>(Arrays.asList(project.getConfigurations().getByName(JavaPlugin.TEST_RUNTIME_CLASSPATH_CONFIGURATION_NAME)))
             );
 
         IdeaModel idea = project.getExtensions().getByType(IdeaModel.class);

@@ -12,7 +12,6 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -27,7 +26,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -110,16 +108,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     }
 
     @Override
-    protected void resolveRequest(ClusterState state, UpdateRequest request) {
-        resolveAndValidateRouting(state.metadata(), request.concreteIndex(), request);
-    }
-
-    public static void resolveAndValidateRouting(Metadata metadata, String concreteIndex, UpdateRequest request) {
-        request.routing((metadata.resolveWriteIndexRouting(request.routing(), request.index())));
-        // Fail fast on the node that received the request, rather than failing when translating on the index or delete request.
-        if (request.routing() == null && metadata.routingRequired(concreteIndex)) {
-            throw new RoutingMissingException(concreteIndex, request.id());
-        }
+    protected void resolveRequest(ClusterState state, UpdateRequest docWriteRequest) {
+        docWriteRequest.routing(state.metadata().resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
     }
 
     @Override

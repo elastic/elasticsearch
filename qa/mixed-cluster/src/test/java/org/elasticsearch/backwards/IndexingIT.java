@@ -283,6 +283,7 @@ public class IndexingIT extends ESRestTestCase {
         request.setJsonEntity("{\"indices\": \"" + index + "\"}");
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79930")
     public void testSyncedFlushTransition() throws Exception {
         Nodes nodes = buildNodeAndVersions();
         assertTrue("bwc version is on 7.x", nodes.getBWCVersion().before(Version.V_8_0_0));

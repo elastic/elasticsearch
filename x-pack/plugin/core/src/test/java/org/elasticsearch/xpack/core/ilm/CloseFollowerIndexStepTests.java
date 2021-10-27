@@ -102,7 +102,7 @@ public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollo
             .build();
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
         PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f));
-        Mockito.verifyZeroInteractions(client);
+        Mockito.verifyNoMoreInteractions(client);
     }
 
     @Override

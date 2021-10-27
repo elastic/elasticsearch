@@ -161,7 +161,11 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         assert assertConsistentRoutingNodes(routingTable, nodes, routingNodes);
     }
 
-    private boolean assertConsistentRoutingNodes(RoutingTable routingTable, DiscoveryNodes nodes, @Nullable RoutingNodes routingNodes) {
+    private static boolean assertConsistentRoutingNodes(
+        RoutingTable routingTable,
+        DiscoveryNodes nodes,
+        @Nullable RoutingNodes routingNodes
+    ) {
         if (routingNodes == null) {
             return true;
         }

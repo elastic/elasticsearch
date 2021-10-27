@@ -94,7 +94,8 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
 
     @Override
     public CacheHelper getReaderCacheHelper() {
-        throw new UnsupportedOperationException();
+        // this reader is used for fast operations that don't require caching
+        return null;
     }
 
     // except of a couple of selected methods everything else will

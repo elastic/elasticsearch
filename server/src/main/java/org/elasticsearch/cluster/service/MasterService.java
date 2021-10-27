@@ -368,6 +368,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         if (previousClusterState != newClusterState) {
             // only the master controls the version numbers
+            final var previousIndicesLookup = newClusterState.metadata().getIndicesLookup();
             Builder builder = incrementVersion(newClusterState);
             if (previousClusterState.routingTable() != newClusterState.routingTable()) {
                 builder.routingTable(RoutingTable.builder(newClusterState.routingTable())
@@ -378,6 +379,7 @@ public class MasterService extends AbstractLifecycleComponent {
             }
 
             newClusterState = builder.build();
+            assert previousIndicesLookup == newClusterState.metadata().getIndicesLookup();
         }
 
         return newClusterState;

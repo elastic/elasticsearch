@@ -57,8 +57,9 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER =
-        new FixedTypeParser(c -> c.indexVersionCreated().before(Version.V_8_0_0) ? INSTANCE_PRE_V8 : INSTANCE);
+    public static final TypeParser PARSER = new FixedTypeParser(
+        c -> c.indexVersionCreated().before(Version.V_8_0_0) ? INSTANCE_PRE_V8 : INSTANCE
+    );
 
     public static final class NestedPathFieldType extends StringFieldType {
 

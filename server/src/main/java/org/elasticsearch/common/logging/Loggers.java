@@ -31,15 +31,23 @@ public class Loggers {
 
     public static final String SPACE = " ";
 
-    public static final Setting<Level> LOG_DEFAULT_LEVEL_SETTING =
-        new Setting<>("logger.level", Level.INFO.name(), Level::valueOf, Setting.Property.NodeScope);
-    public static final Setting.AffixSetting<Level> LOG_LEVEL_SETTING =
-        Setting.prefixKeySetting("logger.", (key) -> new Setting<>(key, Level.INFO.name(), Level::valueOf, Setting.Property.Dynamic,
-            Setting.Property.NodeScope));
+    public static final Setting<Level> LOG_DEFAULT_LEVEL_SETTING = new Setting<>(
+        "logger.level",
+        Level.INFO.name(),
+        Level::valueOf,
+        Setting.Property.NodeScope
+    );
+    public static final Setting.AffixSetting<Level> LOG_LEVEL_SETTING = Setting.prefixKeySetting(
+        "logger.",
+        (key) -> new Setting<>(key, Level.INFO.name(), Level::valueOf, Setting.Property.Dynamic, Setting.Property.NodeScope)
+    );
 
     public static Logger getLogger(Class<?> clazz, ShardId shardId, String... prefixes) {
-        return getLogger(clazz, shardId.getIndex(), Stream.concat(Stream.of(Integer.toString(shardId.id())),
-            Arrays.stream(prefixes)).toArray(String[]::new));
+        return getLogger(
+            clazz,
+            shardId.getIndex(),
+            Stream.concat(Stream.of(Integer.toString(shardId.id())), Arrays.stream(prefixes)).toArray(String[]::new)
+        );
     }
 
     /**
@@ -62,7 +70,7 @@ public class Loggers {
     public static Logger getLogger(Logger parentLogger, String s) {
         Logger inner = LogManager.getLogger(parentLogger.getName() + s);
         if (parentLogger instanceof PrefixLogger) {
-            return new PrefixLogger(inner, ((PrefixLogger)parentLogger).prefix());
+            return new PrefixLogger(inner, ((PrefixLogger) parentLogger).prefix());
         }
         return inner;
     }

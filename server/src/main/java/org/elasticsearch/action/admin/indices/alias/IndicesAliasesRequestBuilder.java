@@ -19,8 +19,10 @@ import java.util.Map;
 /**
  * Builder for request to modify many aliases at once.
  */
-public class IndicesAliasesRequestBuilder
-        extends AcknowledgedRequestBuilder<IndicesAliasesRequest, AcknowledgedResponse, IndicesAliasesRequestBuilder> {
+public class IndicesAliasesRequestBuilder extends AcknowledgedRequestBuilder<
+    IndicesAliasesRequest,
+    AcknowledgedResponse,
+    IndicesAliasesRequestBuilder> {
 
     public IndicesAliasesRequestBuilder(ElasticsearchClient client, IndicesAliasesAction action) {
         super(client, action, new IndicesAliasesRequest());

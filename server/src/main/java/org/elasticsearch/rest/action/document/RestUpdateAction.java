@@ -35,10 +35,8 @@ public class RestUpdateAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(POST, "/{index}/_update/{id}"),
-            Route.builder(POST, "/{index}/{type}/{id}/_update")
-                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
-                .build()
-            );
+            Route.builder(POST, "/{index}/{type}/{id}/_update").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+        );
     }
 
     @Override
@@ -68,8 +66,10 @@ public class RestUpdateAction extends BaseRestHandler {
         updateRequest.retryOnConflict(request.paramAsInt("retry_on_conflict", updateRequest.retryOnConflict()));
         if (request.hasParam("version") || request.hasParam("version_type")) {
             final ActionRequestValidationException versioningError = new ActionRequestValidationException();
-            versioningError.addValidationError("internal versioning can not be used for optimistic concurrency control. " +
-                "Please use `if_seq_no` and `if_primary_term` instead");
+            versioningError.addValidationError(
+                "internal versioning can not be used for optimistic concurrency control. "
+                    + "Please use `if_seq_no` and `if_primary_term` instead"
+            );
             throw versioningError;
         }
 
@@ -93,8 +93,10 @@ public class RestUpdateAction extends BaseRestHandler {
             }
         });
 
-        return channel ->
-                client.update(updateRequest, new RestStatusToXContentListener<>(channel, r -> r.getLocation(updateRequest.routing())));
+        return channel -> client.update(
+            updateRequest,
+            new RestStatusToXContentListener<>(channel, r -> r.getLocation(updateRequest.routing()))
+        );
     }
 
 }

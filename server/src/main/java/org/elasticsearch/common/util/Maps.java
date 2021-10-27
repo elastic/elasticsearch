@@ -87,7 +87,9 @@ public class Maps {
         Objects.requireNonNull(map);
         Objects.requireNonNull(key);
         assert checkIsImmutableMap(map, key, map.get(key));
-        return map.entrySet().stream().filter(k -> key.equals(k.getKey()) == false)
+        return map.entrySet()
+            .stream()
+            .filter(k -> key.equals(k.getKey()) == false)
             .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
@@ -108,8 +110,7 @@ public class Maps {
         try {
             map.put(key, value);
             return false;
-        } catch (final UnsupportedOperationException ignored) {
-        }
+        } catch (final UnsupportedOperationException ignored) {}
         return true;
     }
 
@@ -123,7 +124,8 @@ public class Maps {
      * @return an immutable map containing the specified entries
      */
     public static <K, V> Map<K, V> ofEntries(final Collection<Map.Entry<K, V>> entries) {
-        @SuppressWarnings("unchecked") final Map<K, V> map = Map.ofEntries(entries.toArray(Map.Entry[]::new));
+        @SuppressWarnings("unchecked")
+        final Map<K, V> map = Map.ofEntries(entries.toArray(Map.Entry[]::new));
         return map;
     }
 
@@ -142,7 +144,8 @@ public class Maps {
         if (left == null || right == null || left.size() != right.size()) {
             return false;
         }
-        return left.entrySet().stream()
+        return left.entrySet()
+            .stream()
             .allMatch(e -> right.containsKey(e.getKey()) && Objects.deepEquals(e.getValue(), right.get(e.getKey())));
     }
 
@@ -203,11 +206,19 @@ public class Maps {
      * @param <T> the type of the input elements
      * @return an unmodifiable {@link NavigableMap} where the underlying map is sorted
      */
-    public static <T, K, V> Collector<T, ?, NavigableMap<K, V>> toUnmodifiableSortedMap(Function<T, ? extends K> keyMapper,
-                                                                                        Function<T, ? extends V> valueMapper) {
-        return Collectors.collectingAndThen(Collectors.toMap(keyMapper, valueMapper, (v1, v2) -> {
-            throw new IllegalStateException("Duplicate key (attempted merging values " + v1 + "  and " + v2 + ")");
-        }, () -> new TreeMap<K, V>()), Collections::unmodifiableNavigableMap);
+    public static <T, K, V> Collector<T, ?, NavigableMap<K, V>> toUnmodifiableSortedMap(
+        Function<T, ? extends K> keyMapper,
+        Function<T, ? extends V> valueMapper
+    ) {
+        return Collectors.collectingAndThen(
+            Collectors.toMap(
+                keyMapper,
+                valueMapper,
+                (v1, v2) -> { throw new IllegalStateException("Duplicate key (attempted merging values " + v1 + "  and " + v2 + ")"); },
+                () -> new TreeMap<K, V>()
+            ),
+            Collections::unmodifiableNavigableMap
+        );
     }
 
     /**
@@ -217,11 +228,19 @@ public class Maps {
      * @param <T> the type of the input elements
      * @return an unmodifiable {@link Map} where the underlying map has a consistent order
      */
-    public static <T, K, V> Collector<T, ?, Map<K, V>> toUnmodifiableOrderedMap(Function<T, ? extends K> keyMapper,
-                                                                                Function<T, ? extends V> valueMapper) {
-        return Collectors.collectingAndThen(Collectors.toMap(keyMapper, valueMapper, (v1, v2) -> {
-            throw new IllegalStateException("Duplicate key (attempted merging values " + v1 + "  and " + v2 + ")");
-        }, (Supplier<LinkedHashMap<K, V>>) LinkedHashMap::new), Collections::unmodifiableMap);
+    public static <T, K, V> Collector<T, ?, Map<K, V>> toUnmodifiableOrderedMap(
+        Function<T, ? extends K> keyMapper,
+        Function<T, ? extends V> valueMapper
+    ) {
+        return Collectors.collectingAndThen(
+            Collectors.toMap(
+                keyMapper,
+                valueMapper,
+                (v1, v2) -> { throw new IllegalStateException("Duplicate key (attempted merging values " + v1 + "  and " + v2 + ")"); },
+                (Supplier<LinkedHashMap<K, V>>) LinkedHashMap::new
+            ),
+            Collections::unmodifiableMap
+        );
     }
 
 }

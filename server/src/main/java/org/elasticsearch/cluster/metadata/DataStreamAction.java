@@ -54,9 +54,12 @@ public class DataStreamAction implements Writeable, ToXContentObject {
 
         public static Type fromValue(byte value) {
             switch (value) {
-                case 0: return ADD_BACKING_INDEX;
-                case 1: return REMOVE_BACKING_INDEX;
-                default: throw new IllegalArgumentException("no data stream action type for [" + value + "]");
+                case 0:
+                    return ADD_BACKING_INDEX;
+                case 1:
+                    return REMOVE_BACKING_INDEX;
+                default:
+                    throw new IllegalArgumentException("no data stream action type for [" + value + "]");
             }
         }
     }
@@ -146,11 +149,19 @@ public class DataStreamAction implements Writeable, ToXContentObject {
         () -> new DataStreamAction(Type.REMOVE_BACKING_INDEX)
     );
     static {
-        ADD_BACKING_INDEX_PARSER.declareField(DataStreamAction::setDataStream, XContentParser::text, DATA_STREAM,
-            ObjectParser.ValueType.STRING);
+        ADD_BACKING_INDEX_PARSER.declareField(
+            DataStreamAction::setDataStream,
+            XContentParser::text,
+            DATA_STREAM,
+            ObjectParser.ValueType.STRING
+        );
         ADD_BACKING_INDEX_PARSER.declareField(DataStreamAction::setIndex, XContentParser::text, INDEX, ObjectParser.ValueType.STRING);
-        REMOVE_BACKING_INDEX_PARSER.declareField(DataStreamAction::setDataStream, XContentParser::text, DATA_STREAM,
-            ObjectParser.ValueType.STRING);
+        REMOVE_BACKING_INDEX_PARSER.declareField(
+            DataStreamAction::setDataStream,
+            XContentParser::text,
+            DATA_STREAM,
+            ObjectParser.ValueType.STRING
+        );
         REMOVE_BACKING_INDEX_PARSER.declareField(DataStreamAction::setIndex, XContentParser::text, INDEX, ObjectParser.ValueType.STRING);
     }
 
@@ -160,20 +171,22 @@ public class DataStreamAction implements Writeable, ToXContentObject {
     }
 
     public static final ConstructingObjectParser<DataStreamAction, Void> PARSER = new ConstructingObjectParser<>(
-        "data_stream_action", a -> {
-        // Take the first action and error if there is more than one action
-        DataStreamAction action = null;
-        for (Object o : a) {
-            if (o != null) {
-                if (action == null) {
-                    action = (DataStreamAction) o;
-                } else {
-                    throw new IllegalArgumentException("too many data stream operations declared on operation entry");
+        "data_stream_action",
+        a -> {
+            // Take the first action and error if there is more than one action
+            DataStreamAction action = null;
+            for (Object o : a) {
+                if (o != null) {
+                    if (action == null) {
+                        action = (DataStreamAction) o;
+                    } else {
+                        throw new IllegalArgumentException("too many data stream operations declared on operation entry");
+                    }
                 }
             }
+            return action;
         }
-        return action;
-    });
+    );
     static {
         PARSER.declareObject(optionalConstructorArg(), ADD_BACKING_INDEX_PARSER, ADD_BACKING_INDEX);
         PARSER.declareObject(optionalConstructorArg(), REMOVE_BACKING_INDEX_PARSER, REMOVE_BACKING_INDEX);
@@ -185,9 +198,7 @@ public class DataStreamAction implements Writeable, ToXContentObject {
             return false;
         }
         DataStreamAction other = (DataStreamAction) obj;
-        return Objects.equals(type, other.type)
-            && Objects.equals(dataStream, other.dataStream)
-            && Objects.equals(index, other.index);
+        return Objects.equals(type, other.type) && Objects.equals(dataStream, other.dataStream) && Objects.equals(index, other.index);
     }
 
     @Override

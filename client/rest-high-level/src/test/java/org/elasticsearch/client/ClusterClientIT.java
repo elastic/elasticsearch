@@ -9,7 +9,6 @@
 package org.elasticsearch.client;
 
 import org.apache.http.util.EntityUtils;
-import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;

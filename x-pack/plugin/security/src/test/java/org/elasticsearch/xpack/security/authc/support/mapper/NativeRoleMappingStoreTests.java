@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRe
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
@@ -37,7 +38,6 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
-import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.hamcrest.Matchers;
 
@@ -60,39 +60,71 @@ import static org.mockito.Mockito.when;
 
 public class NativeRoleMappingStoreTests extends ESTestCase {
     private final String concreteSecurityIndexName = randomFrom(
-        RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6, RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7);
+        RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6,
+        RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7
+    );
 
     public void testResolveRoles() throws Exception {
         // Does match DN
-        final ExpressionRoleMapping mapping1 = new ExpressionRoleMapping("dept_h",
-                new FieldExpression("dn", Collections.singletonList(new FieldValue("*,ou=dept_h,o=forces,dc=gc,dc=ca"))),
-                Arrays.asList("dept_h", "defence"), Collections.emptyList(), Collections.emptyMap(), true);
-        // Does not match - user is not in this group
-        final ExpressionRoleMapping mapping2 = new ExpressionRoleMapping("admin",
-            new FieldExpression("groups", Collections.singletonList(
-                new FieldValue(randomiseDn("cn=esadmin,ou=groups,ou=dept_h,o=forces,dc=gc,dc=ca")))),
-            Arrays.asList("admin"), Collections.emptyList(), Collections.emptyMap(), true);
-        // Does match - user is one of these groups
-        final ExpressionRoleMapping mapping3 = new ExpressionRoleMapping("flight",
-                new FieldExpression("groups", Arrays.asList(
-                        new FieldValue(randomiseDn("cn=alphaflight,ou=groups,ou=dept_h,o=forces,dc=gc,dc=ca")),
-                        new FieldValue(randomiseDn("cn=betaflight,ou=groups,ou=dept_h,o=forces,dc=gc,dc=ca")),
-                        new FieldValue(randomiseDn("cn=gammaflight,ou=groups,ou=dept_h,o=forces,dc=gc,dc=ca"))
-                )),
+        final ExpressionRoleMapping mapping1 = new ExpressionRoleMapping(
+            "dept_h",
+            new FieldExpression("dn", Collections.singletonList(new FieldValue("*,ou=dept_h,o=forces,dc=gc,dc=ca"))),
+            Arrays.asList("dept_h", "defence"),
             Collections.emptyList(),
-            Arrays.asList(new TemplateRoleName(new BytesArray("{ \"source\":\"{{metadata.extra_group}}\" }"),
-                TemplateRoleName.Format.STRING)),
-            Collections.emptyMap(), true);
+            Collections.emptyMap(),
+            true
+        );
+        // Does not match - user is not in this group
+        final ExpressionRoleMapping mapping2 = new ExpressionRoleMapping(
+            "admin",
+            new FieldExpression(
+                "groups",
+                Collections.singletonList(new FieldValue(randomiseDn("cn=esadmin,ou=groups,ou=dept_h,o=forces,dc=gc,dc=ca")))
+            ),
+            Arrays.asList("admin"),
+            Collections.emptyList(),
+            Collections.emptyMap(),
+            true
+        );
+        // Does match - user is one of these groups
+        final ExpressionRoleMapping mapping3 = new ExpressionRoleMapping(
+            "flight",
+            new FieldExpression(
+                "groups",
+                Arrays.asList(
+                    new FieldValue(randomiseDn("cn=alphaflight,ou=groups,ou=dept_h,o=forces,dc=gc,dc=ca")),
+                    new FieldValue(randomiseDn("cn=betaflight,ou=groups,ou=dept_h,o=forces,dc=gc,dc=ca")),
+                    new FieldValue(randomiseDn("cn=gammaflight,ou=groups,ou=dept_h,o=forces,dc=gc,dc=ca"))
+                )
+            ),
+            Collections.emptyList(),
+            Arrays.asList(
+                new TemplateRoleName(new BytesArray("{ \"source\":\"{{metadata.extra_group}}\" }"), TemplateRoleName.Format.STRING)
+            ),
+            Collections.emptyMap(),
+            true
+        );
         // Does not match - mapping is not enabled
-        final ExpressionRoleMapping mapping4 = new ExpressionRoleMapping("mutants",
-                new FieldExpression("groups", Collections.singletonList(
-                        new FieldValue(randomiseDn("cn=mutants,ou=groups,ou=dept_h,o=forces,dc=gc,dc=ca")))),
-            Arrays.asList("mutants"), Collections.emptyList(), Collections.emptyMap(), false);
+        final ExpressionRoleMapping mapping4 = new ExpressionRoleMapping(
+            "mutants",
+            new FieldExpression(
+                "groups",
+                Collections.singletonList(new FieldValue(randomiseDn("cn=mutants,ou=groups,ou=dept_h,o=forces,dc=gc,dc=ca")))
+            ),
+            Arrays.asList("mutants"),
+            Collections.emptyList(),
+            Collections.emptyMap(),
+            false
+        );
 
         final Client client = mock(Client.class);
         SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
-        ScriptService scriptService  = new ScriptService(Settings.EMPTY,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS, () -> 1L);
+        ScriptService scriptService = new ScriptService(
+            Settings.EMPTY,
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L
+        );
         when(securityIndex.isAvailable()).thenReturn(true);
 
         final NativeRoleMappingStore store = new NativeRoleMappingStore(Settings.EMPTY, client, securityIndex, scriptService) {
@@ -106,17 +138,21 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
 
         RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("ldap", "ldap1");
         final Settings settings = Settings.builder()
-            .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build();
-        final RealmConfig realm = new RealmConfig(realmIdentifier, settings,
-                mock(Environment.class), new ThreadContext(settings));
+            .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0)
+            .build();
+        final RealmConfig realm = new RealmConfig(realmIdentifier, settings, mock(Environment.class), new ThreadContext(settings));
 
         final PlainActionFuture<Set<String>> future = new PlainActionFuture<>();
-        final UserRoleMapper.UserData user = new UserRoleMapper.UserData("sasquatch",
-                randomiseDn("cn=walter.langowski,ou=people,ou=dept_h,o=forces,dc=gc,dc=ca"),
-                List.of(
-                        randomiseDn("cn=alphaflight,ou=groups,ou=dept_h,o=forces,dc=gc,dc=ca"),
-                        randomiseDn("cn=mutants,ou=groups,ou=dept_h,o=forces,dc=gc,dc=ca")
-                ), Map.of("extra_group", "flight"), realm);
+        final UserRoleMapper.UserData user = new UserRoleMapper.UserData(
+            "sasquatch",
+            randomiseDn("cn=walter.langowski,ou=people,ou=dept_h,o=forces,dc=gc,dc=ca"),
+            List.of(
+                randomiseDn("cn=alphaflight,ou=groups,ou=dept_h,o=forces,dc=gc,dc=ca"),
+                randomiseDn("cn=mutants,ou=groups,ou=dept_h,o=forces,dc=gc,dc=ca")
+            ),
+            Map.of("extra_group", "flight"),
+            realm
+        );
 
         logger.info("UserData is [{}]", user);
         store.resolveRoles(user, future);
@@ -152,7 +188,16 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
 
     private SecurityIndexManager.State indexState(boolean isUpToDate, ClusterHealthStatus healthStatus) {
         return new SecurityIndexManager.State(
-            Instant.now(), isUpToDate, true, true, null, concreteSecurityIndexName, healthStatus, IndexMetadata.State.OPEN, null, "my_uuid"
+            Instant.now(),
+            isUpToDate,
+            true,
+            true,
+            null,
+            concreteSecurityIndexName,
+            healthStatus,
+            IndexMetadata.State.OPEN,
+            null,
+            "my_uuid"
         );
     }
 
@@ -187,8 +232,9 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
 
         // green to yellow or yellow to green
         previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        currentState = dummyState(previousState.indexHealth == ClusterHealthStatus.GREEN ?
-            ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN);
+        currentState = dummyState(
+            previousState.indexHealth == ClusterHealthStatus.GREEN ? ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN
+        );
         store.onSecurityIndexStateChange(previousState, currentState);
         assertEquals(expectedInvalidation, numInvalidation.get());
     }
@@ -219,12 +265,14 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         final TemplateRoleName templateRoleName = mock(TemplateRoleName.class);
         final ScriptService scriptService = mock(ScriptService.class);
         when(putRoleMappingRequest.getRoleTemplates()).thenReturn(Collections.singletonList(templateRoleName));
-        doAnswer(invocationOnMock -> {
-            throw new IllegalArgumentException();
-        }).when(templateRoleName).validate(scriptService);
+        doAnswer(invocationOnMock -> { throw new IllegalArgumentException(); }).when(templateRoleName).validate(scriptService);
 
-        final NativeRoleMappingStore nativeRoleMappingStore =
-            new NativeRoleMappingStore(Settings.EMPTY, mock(Client.class), mock(SecurityIndexManager.class), scriptService);
+        final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(
+            Settings.EMPTY,
+            mock(Client.class),
+            mock(SecurityIndexManager.class),
+            scriptService
+        );
         expectThrows(IllegalArgumentException.class, () -> nativeRoleMappingStore.putRoleMapping(putRoleMappingRequest, null));
     }
 
@@ -252,16 +300,22 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(ClearRealmCacheAction.INSTANCE), any(ClearRealmCacheRequest.class), anyActionListener());
 
-        final NativeRoleMappingStore store = new NativeRoleMappingStore(Settings.EMPTY, client, mock(SecurityIndexManager.class),
-            mock(ScriptService.class));
+        final NativeRoleMappingStore store = new NativeRoleMappingStore(
+            Settings.EMPTY,
+            client,
+            mock(SecurityIndexManager.class),
+            mock(ScriptService.class)
+        );
 
         if (attachRealm) {
             final Environment env = TestEnvironment.newEnvironment(settings);
             final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier("ldap", realmName);
-            final RealmConfig realmConfig = new RealmConfig(identifier,
-                Settings.builder().put(settings)
-                    .put(RealmSettings.getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0).build(),
-                env, threadContext);
+            final RealmConfig realmConfig = new RealmConfig(
+                identifier,
+                Settings.builder().put(settings).put(RealmSettings.getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0).build(),
+                env,
+                threadContext
+            );
             final CachingUsernamePasswordRealm mockRealm = new CachingUsernamePasswordRealm(realmConfig, threadPool) {
                 @Override
                 protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult<User>> listener) {

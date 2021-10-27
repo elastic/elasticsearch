@@ -14,13 +14,13 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -85,10 +85,10 @@ public class PutComposableIndexTemplateAction extends ActionType<AcknowledgedRes
                 validationException = addValidationError("an index template is required", validationException);
             } else {
                 if (indexTemplate.template() != null && indexTemplate.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern)) {
-                    if (indexTemplate.template().settings() != null &&
-                        IndexMetadata.INDEX_HIDDEN_SETTING.exists(indexTemplate.template().settings())) {
-                        validationException = addValidationError("global composable templates may not specify the setting "
-                                + IndexMetadata.INDEX_HIDDEN_SETTING.getKey(),
+                    if (indexTemplate.template().settings() != null
+                        && IndexMetadata.INDEX_HIDDEN_SETTING.exists(indexTemplate.template().settings())) {
+                        validationException = addValidationError(
+                            "global composable templates may not specify the setting " + IndexMetadata.INDEX_HIDDEN_SETTING.getKey(),
                             validationException
                         );
                     }
@@ -180,10 +180,10 @@ public class PutComposableIndexTemplateAction extends ActionType<AcknowledgedRes
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(this.name, other.name) &&
-                Objects.equals(this.cause, other.cause) &&
-                Objects.equals(this.indexTemplate, other.indexTemplate) &&
-                this.create == other.create;
+            return Objects.equals(this.name, other.name)
+                && Objects.equals(this.cause, other.cause)
+                && Objects.equals(this.indexTemplate, other.indexTemplate)
+                && this.create == other.create;
         }
     }
 

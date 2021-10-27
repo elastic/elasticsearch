@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml.job.stats;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -25,15 +25,14 @@ public class SimpleStats implements ToXContentObject {
     public static final ParseField AVG = new ParseField("avg");
     public static final ParseField TOTAL = new ParseField("total");
 
-    public static final ConstructingObjectParser<SimpleStats, Void> PARSER = new ConstructingObjectParser<>("simple_stats", true,
-        (a) -> {
+    public static final ConstructingObjectParser<SimpleStats, Void> PARSER = new ConstructingObjectParser<>("simple_stats", true, (a) -> {
         int i = 0;
-        double total = (double)a[i++];
-            double min = (double)a[i++];
-            double max = (double)a[i++];
-            double avg = (double)a[i++];
-            return new SimpleStats(total, min, max, avg);
-        });
+        double total = (double) a[i++];
+        double min = (double) a[i++];
+        double max = (double) a[i++];
+        double avg = (double) a[i++];
+        return new SimpleStats(total, min, max, avg);
+    });
 
     static {
         PARSER.declareDouble(ConstructingObjectParser.constructorArg(), TOTAL);
@@ -86,10 +85,10 @@ public class SimpleStats implements ToXContentObject {
         }
 
         SimpleStats other = (SimpleStats) obj;
-        return Objects.equals(total, other.total) &&
-            Objects.equals(min, other.min) &&
-            Objects.equals(avg, other.avg) &&
-            Objects.equals(max, other.max);
+        return Objects.equals(total, other.total)
+            && Objects.equals(min, other.min)
+            && Objects.equals(avg, other.avg)
+            && Objects.equals(max, other.max);
     }
 
     @Override
@@ -103,4 +102,3 @@ public class SimpleStats implements ToXContentObject {
         return builder;
     }
 }
-

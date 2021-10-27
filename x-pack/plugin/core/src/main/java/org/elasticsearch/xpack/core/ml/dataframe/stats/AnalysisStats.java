@@ -12,5 +12,4 @@ import org.elasticsearch.xcontent.ToXContentObject;
 /**
  * Statistics for the data frame analysis
  */
-public interface AnalysisStats extends ToXContentObject, NamedWriteable {
-}
+public interface AnalysisStats extends ToXContentObject, NamedWriteable {}

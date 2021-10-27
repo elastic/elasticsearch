@@ -6,7 +6,6 @@
  * Side Public License, v 1.
  */
 
-
 package org.elasticsearch.script.field;
 
 /** A field in a document accessible via scripting. */

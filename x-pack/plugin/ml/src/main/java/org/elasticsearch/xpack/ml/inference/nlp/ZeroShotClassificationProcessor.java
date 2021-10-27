@@ -174,7 +174,7 @@ public class ZeroShotClassificationProcessor implements NlpTask.Processor {
                     }
                     // assume entailment is `0`, softmax between entailment and contradiction
                     normalizedScores[v++] = NlpHelpers.convertToProbabilitiesBySoftMax(
-                        new double[]{vals[entailmentPos], vals[contraPos]}
+                        new double[] { vals[entailmentPos], vals[contraPos] }
                     )[0];
                 }
             } else {
@@ -194,16 +194,14 @@ public class ZeroShotClassificationProcessor implements NlpTask.Processor {
             }
             int[] sortedIndices = IntStream.range(0, normalizedScores.length)
                 .boxed()
-                .sorted(Comparator.comparing(i -> normalizedScores[(Integer)i]).reversed())
+                .sorted(Comparator.comparing(i -> normalizedScores[(Integer) i]).reversed())
                 .mapToInt(i -> i)
                 .toArray();
 
             return new ClassificationInferenceResults(
                 sortedIndices[0],
                 labels[sortedIndices[0]],
-                Arrays.stream(sortedIndices)
-                    .mapToObj(i -> new TopClassEntry(labels[i], normalizedScores[i]))
-                    .collect(Collectors.toList()),
+                Arrays.stream(sortedIndices).mapToObj(i -> new TopClassEntry(labels[i], normalizedScores[i])).collect(Collectors.toList()),
                 List.of(),
                 DEFAULT_TOP_CLASSES_RESULTS_FIELD,
                 Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD),

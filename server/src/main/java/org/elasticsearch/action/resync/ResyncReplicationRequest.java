@@ -22,7 +22,8 @@ import java.util.Objects;
  * Represents a batch of operations sent from the primary to its replicas during the primary-replica resync.
  */
 public final class ResyncReplicationRequest extends ReplicatedWriteRequest<ResyncReplicationRequest>
-    implements RawIndexingDataTransportRequest {
+    implements
+        RawIndexingDataTransportRequest {
 
     private final long trimAboveSeqNo;
     private final Translog.Operation[] operations;
@@ -35,8 +36,12 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
         operations = in.readArray(Translog.Operation::readOperation, Translog.Operation[]::new);
     }
 
-    public ResyncReplicationRequest(final ShardId shardId, final long trimAboveSeqNo, final long maxSeenAutoIdTimestampOnPrimary,
-                                    final Translog.Operation[]operations) {
+    public ResyncReplicationRequest(
+        final ShardId shardId,
+        final long trimAboveSeqNo,
+        final long maxSeenAutoIdTimestampOnPrimary,
+        final Translog.Operation[] operations
+    ) {
         super(shardId);
         this.trimAboveSeqNo = trimAboveSeqNo;
         this.maxSeenAutoIdTimestampOnPrimary = maxSeenAutoIdTimestampOnPrimary;
@@ -68,7 +73,8 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         final ResyncReplicationRequest that = (ResyncReplicationRequest) o;
-        return trimAboveSeqNo == that.trimAboveSeqNo && maxSeenAutoIdTimestampOnPrimary == that.maxSeenAutoIdTimestampOnPrimary
+        return trimAboveSeqNo == that.trimAboveSeqNo
+            && maxSeenAutoIdTimestampOnPrimary == that.maxSeenAutoIdTimestampOnPrimary
             && Arrays.equals(operations, that.operations);
     }
 
@@ -79,14 +85,21 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
 
     @Override
     public String toString() {
-        return "TransportResyncReplicationAction.Request{" +
-            "shardId=" + shardId +
-            ", timeout=" + timeout +
-            ", index='" + index + '\'' +
-            ", trimAboveSeqNo=" + trimAboveSeqNo +
-            ", maxSeenAutoIdTimestampOnPrimary=" + maxSeenAutoIdTimestampOnPrimary +
-            ", ops=" + operations.length +
-            "}";
+        return "TransportResyncReplicationAction.Request{"
+            + "shardId="
+            + shardId
+            + ", timeout="
+            + timeout
+            + ", index='"
+            + index
+            + '\''
+            + ", trimAboveSeqNo="
+            + trimAboveSeqNo
+            + ", maxSeenAutoIdTimestampOnPrimary="
+            + maxSeenAutoIdTimestampOnPrimary
+            + ", ops="
+            + operations.length
+            + "}";
     }
 
 }

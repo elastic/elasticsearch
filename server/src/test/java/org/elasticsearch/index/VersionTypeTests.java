@@ -24,15 +24,12 @@ public class VersionTypeTests extends ESTestCase {
         assertFalse(VersionType.INTERNAL.isVersionConflictForWrites(Versions.NOT_FOUND, Versions.MATCH_ANY, randomBoolean()));
         assertFalse(VersionType.INTERNAL.isVersionConflictForReads(Versions.NOT_FOUND, Versions.MATCH_ANY));
 
-        assertEquals("current version [1] is different than the one provided [2]",
-            VersionType.INTERNAL.explainConflictForReads(1, 2));
-        assertEquals("document does not exist (expected version [2])",
-            VersionType.INTERNAL.explainConflictForReads(Versions.NOT_FOUND, 2));
+        assertEquals("current version [1] is different than the one provided [2]", VersionType.INTERNAL.explainConflictForReads(1, 2));
+        assertEquals("document does not exist (expected version [2])", VersionType.INTERNAL.explainConflictForReads(Versions.NOT_FOUND, 2));
 
         // deletes
         assertFalse(VersionType.INTERNAL.isVersionConflictForWrites(Versions.NOT_FOUND, Versions.MATCH_DELETED, true));
         assertFalse(VersionType.INTERNAL.isVersionConflictForWrites(10, Versions.MATCH_DELETED, true));
-
 
         // and the stupid usual case
         assertFalse(VersionType.INTERNAL.isVersionConflictForWrites(10, 10, randomBoolean()));
@@ -42,18 +39,18 @@ public class VersionTypeTests extends ESTestCase {
         assertTrue(VersionType.INTERNAL.isVersionConflictForWrites(10, 9, randomBoolean()));
         assertTrue(VersionType.INTERNAL.isVersionConflictForReads(10, 9));
 
-// Old indexing code, dictating behavior
-//        if (expectedVersion != Versions.MATCH_ANY && currentVersion != Versions.NOT_SET) {
-//            // an explicit version is provided, see if there is a conflict
-//            // if we did not find anything, and a version is provided, so we do expect to find a doc under that version
-//            // this is important, since we don't allow to preset a version in order to handle deletes
-//            if (currentVersion == Versions.NOT_FOUND) {
-//                throw new VersionConflictEngineException(shardId, index.type(), index.id(), Versions.NOT_FOUND, expectedVersion);
-//            } else if (expectedVersion != currentVersion) {
-//                throw new VersionConflictEngineException(shardId, index.type(), index.id(), currentVersion, expectedVersion);
-//            }
-//        }
-//        updatedVersion = (currentVersion == Versions.NOT_SET || currentVersion == Versions.NOT_FOUND) ? 1 : currentVersion + 1;
+        // Old indexing code, dictating behavior
+        // if (expectedVersion != Versions.MATCH_ANY && currentVersion != Versions.NOT_SET) {
+        // // an explicit version is provided, see if there is a conflict
+        // // if we did not find anything, and a version is provided, so we do expect to find a doc under that version
+        // // this is important, since we don't allow to preset a version in order to handle deletes
+        // if (currentVersion == Versions.NOT_FOUND) {
+        // throw new VersionConflictEngineException(shardId, index.type(), index.id(), Versions.NOT_FOUND, expectedVersion);
+        // } else if (expectedVersion != currentVersion) {
+        // throw new VersionConflictEngineException(shardId, index.type(), index.id(), currentVersion, expectedVersion);
+        // }
+        // }
+        // updatedVersion = (currentVersion == Versions.NOT_SET || currentVersion == Versions.NOT_FOUND) ? 1 : currentVersion + 1;
     }
 
     public void testVersionValidation() {
@@ -64,10 +61,8 @@ public class VersionTypeTests extends ESTestCase {
         assertTrue(VersionType.EXTERNAL.validateVersionForReads(randomIntBetween(1, Integer.MAX_VALUE)));
         assertFalse(VersionType.EXTERNAL.validateVersionForReads(randomIntBetween(Integer.MIN_VALUE, -1)));
 
-        assertEquals("current version [1] is different than the one provided [2]",
-            VersionType.EXTERNAL.explainConflictForReads(1, 2));
-        assertEquals("document does not exist (expected version [2])",
-            VersionType.EXTERNAL.explainConflictForReads(Versions.NOT_FOUND, 2));
+        assertEquals("current version [1] is different than the one provided [2]", VersionType.EXTERNAL.explainConflictForReads(1, 2));
+        assertEquals("document does not exist (expected version [2])", VersionType.EXTERNAL.explainConflictForReads(Versions.NOT_FOUND, 2));
 
         assertTrue(VersionType.EXTERNAL_GTE.validateVersionForWrites(randomIntBetween(1, Integer.MAX_VALUE)));
         assertFalse(VersionType.EXTERNAL_GTE.validateVersionForWrites(Versions.MATCH_ANY));
@@ -76,10 +71,11 @@ public class VersionTypeTests extends ESTestCase {
         assertTrue(VersionType.EXTERNAL_GTE.validateVersionForReads(randomIntBetween(1, Integer.MAX_VALUE)));
         assertFalse(VersionType.EXTERNAL_GTE.validateVersionForReads(randomIntBetween(Integer.MIN_VALUE, -1)));
 
-        assertEquals("current version [1] is different than the one provided [2]",
-            VersionType.EXTERNAL_GTE.explainConflictForReads(1, 2));
-        assertEquals("document does not exist (expected version [2])",
-            VersionType.EXTERNAL_GTE.explainConflictForReads(Versions.NOT_FOUND, 2));
+        assertEquals("current version [1] is different than the one provided [2]", VersionType.EXTERNAL_GTE.explainConflictForReads(1, 2));
+        assertEquals(
+            "document does not exist (expected version [2])",
+            VersionType.EXTERNAL_GTE.explainConflictForReads(Versions.NOT_FOUND, 2)
+        );
 
         assertTrue(VersionType.INTERNAL.validateVersionForWrites(randomIntBetween(1, Integer.MAX_VALUE)));
         assertTrue(VersionType.INTERNAL.validateVersionForWrites(Versions.MATCH_ANY));
@@ -112,16 +108,15 @@ public class VersionTypeTests extends ESTestCase {
         assertTrue(VersionType.EXTERNAL.isVersionConflictForReads(10, 9));
         assertFalse(VersionType.EXTERNAL.isVersionConflictForReads(10, Versions.MATCH_ANY));
 
-
-// Old indexing code, dictating behavior
-//        // an external version is provided, just check, if a local version exists, that its higher than it
-//        // the actual version checking is one in an external system, and we just want to not index older versions
-//        if (currentVersion >= 0) { // we can check!, its there
-//            if (currentVersion >= index.version()) {
-//                throw new VersionConflictEngineException(shardId, index.type(), index.id(), currentVersion, index.version());
-//            }
-//        }
-//        updatedVersion = index.version();
+        // Old indexing code, dictating behavior
+        // // an external version is provided, just check, if a local version exists, that its higher than it
+        // // the actual version checking is one in an external system, and we just want to not index older versions
+        // if (currentVersion >= 0) { // we can check!, its there
+        // if (currentVersion >= index.version()) {
+        // throw new VersionConflictEngineException(shardId, index.type(), index.id(), currentVersion, index.version());
+        // }
+        // }
+        // updatedVersion = index.version();
     }
 
     public void testExternalGTEVersionConflict() throws Exception {
@@ -136,7 +131,6 @@ public class VersionTypeTests extends ESTestCase {
         assertTrue(VersionType.EXTERNAL_GTE.isVersionConflictForReads(Versions.NOT_FOUND, Versions.NOT_FOUND));
         assertTrue(VersionType.EXTERNAL_GTE.isVersionConflictForReads(Versions.NOT_FOUND, 10));
         assertFalse(VersionType.EXTERNAL_GTE.isVersionConflictForReads(Versions.NOT_FOUND, Versions.MATCH_ANY));
-
 
         // and the standard behavior
         assertFalse(VersionType.EXTERNAL_GTE.isVersionConflictForWrites(10, 10, randomBoolean()));
@@ -155,7 +149,6 @@ public class VersionTypeTests extends ESTestCase {
         assertThat(VersionType.INTERNAL.updateVersion(1, 1), equalTo(2L));
         assertThat(VersionType.INTERNAL.updateVersion(2, Versions.MATCH_ANY), equalTo(3L));
 
-
         assertThat(VersionType.EXTERNAL.updateVersion(Versions.NOT_FOUND, 10), equalTo(10L));
         assertThat(VersionType.EXTERNAL.updateVersion(1, 10), equalTo(10L));
 
@@ -163,11 +156,11 @@ public class VersionTypeTests extends ESTestCase {
         assertThat(VersionType.EXTERNAL_GTE.updateVersion(1, 10), equalTo(10L));
         assertThat(VersionType.EXTERNAL_GTE.updateVersion(10, 10), equalTo(10L));
 
-// Old indexing code
-//        if (index.versionType() == VersionType.INTERNAL) { // internal version type
-//            updatedVersion = (currentVersion == Versions.NOT_SET || currentVersion == Versions.NOT_FOUND) ? 1 : currentVersion + 1;
-//        } else { // external version type
-//            updatedVersion = expectedVersion;
-//        }
+        // Old indexing code
+        // if (index.versionType() == VersionType.INTERNAL) { // internal version type
+        // updatedVersion = (currentVersion == Versions.NOT_SET || currentVersion == Versions.NOT_FOUND) ? 1 : currentVersion + 1;
+        // } else { // external version type
+        // updatedVersion = expectedVersion;
+        // }
     }
 }

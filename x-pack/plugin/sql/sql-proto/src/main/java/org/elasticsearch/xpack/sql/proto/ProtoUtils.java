@@ -19,8 +19,7 @@ import java.util.Locale;
 
 public final class ProtoUtils {
 
-    private ProtoUtils() {
-    }
+    private ProtoUtils() {}
 
     /**
      * Parses a generic value from the XContent stream
@@ -28,7 +27,7 @@ public final class ProtoUtils {
     public static Object parseFieldsValue(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_STRING) {
-            //binary values will be parsed back and returned as base64 strings when reading from json and yaml
+            // binary values will be parsed back and returned as base64 strings when reading from json and yaml
             return parser.text();
         } else if (token == XContentParser.Token.VALUE_NUMBER) {
             return parser.numberValue();

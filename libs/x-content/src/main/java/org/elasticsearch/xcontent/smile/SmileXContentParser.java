@@ -9,6 +9,7 @@
 package org.elasticsearch.xcontent.smile;
 
 import com.fasterxml.jackson.core.JsonParser;
+
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -18,14 +19,16 @@ import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
 public class SmileXContentParser extends JsonXContentParser {
 
-    public SmileXContentParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, JsonParser parser) {
+    public SmileXContentParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, JsonParser parser) {
         super(xContentRegistry, deprecationHandler, parser);
     }
 
-    public SmileXContentParser(NamedXContentRegistry xContentRegistry,
-                               DeprecationHandler deprecationHandler, JsonParser parser,
-                               RestApiVersion restApiVersion) {
+    public SmileXContentParser(
+        NamedXContentRegistry xContentRegistry,
+        DeprecationHandler deprecationHandler,
+        JsonParser parser,
+        RestApiVersion restApiVersion
+    ) {
         super(xContentRegistry, deprecationHandler, parser, restApiVersion);
     }
 

@@ -67,7 +67,6 @@ public final class ExpressionTranslators {
     public static final String DATE_FORMAT = "strict_date_optional_time_nanos";
     public static final String TIME_FORMAT = "strict_hour_minute_second_fraction";
 
-
     public static final List<ExpressionTranslator<?>> QUERY_TRANSLATORS = List.of(
         new BinaryComparisons(),
         new Ranges(),
@@ -199,9 +198,9 @@ public final class ExpressionTranslators {
         public static Query doTranslate(Not not, TranslatorHandler handler) {
             Expression e = not.field();
             Query wrappedQuery = handler.asQuery(not.field());
-            Query q = wrappedQuery instanceof ScriptQuery ?
-                    new ScriptQuery(not.source(), not.asScript()) :
-                    new NotQuery(not.source(), wrappedQuery);
+            Query q = wrappedQuery instanceof ScriptQuery
+                ? new ScriptQuery(not.source(), not.asScript())
+                : new NotQuery(not.source(), wrappedQuery);
 
             return wrapIfNested(q, e);
         }
@@ -248,10 +247,14 @@ public final class ExpressionTranslators {
         }
 
         public static void checkBinaryComparison(BinaryComparison bc) {
-            Check.isTrue(bc.right().foldable(),
-                         "Line {}:{}: Comparisons against fields are not (currently) supported; offender [{}] in [{}]",
-                         bc.right().sourceLocation().getLineNumber(), bc.right().sourceLocation().getColumnNumber(),
-                         Expressions.name(bc.right()), bc.symbol());
+            Check.isTrue(
+                bc.right().foldable(),
+                "Line {}:{}: Comparisons against fields are not (currently) supported; offender [{}] in [{}]",
+                bc.right().sourceLocation().getLineNumber(),
+                bc.right().sourceLocation().getColumnNumber(),
+                Expressions.name(bc.right()),
+                bc.symbol()
+            );
         }
 
         public static Query doTranslate(BinaryComparison bc, TranslatorHandler handler) {
@@ -319,8 +322,7 @@ public final class ExpressionTranslators {
                 return query;
             }
 
-            throw new QlIllegalArgumentException("Don't know how to translate binary comparison [{}] in [{}]", bc.right().nodeString(),
-                    bc);
+            throw new QlIllegalArgumentException("Don't know how to translate binary comparison [{}] in [{}]", bc.right().nodeString(), bc);
         }
     }
 
@@ -361,7 +363,15 @@ public final class ExpressionTranslators {
                 format = formatter.pattern();
             }
             return new RangeQuery(
-                r.source(), handler.nameOf(r.value()), lower, r.includeLower(), upper, r.includeUpper(), format, r.zoneId());
+                r.source(),
+                handler.nameOf(r.value()),
+                lower,
+                r.includeLower(),
+                upper,
+                r.includeUpper(),
+                format,
+                r.zoneId()
+            );
         }
     }
 
@@ -405,8 +415,7 @@ public final class ExpressionTranslators {
                 queries.add(new TermsQuery(in.source(), fieldName, terms));
             }
 
-            return queries.stream()
-                .reduce((q1, q2) -> or(in.source(), q1, q2)).get();
+            return queries.stream().reduce((q1, q2) -> or(in.source(), q1, q2)).get();
         }
     }
 

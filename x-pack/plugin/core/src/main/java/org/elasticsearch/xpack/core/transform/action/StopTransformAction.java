@@ -14,14 +14,14 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 
@@ -55,12 +55,14 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
         private final boolean waitForCheckpoint;
         private Set<String> expandedIds;
 
-        public Request(String id,
-                       boolean waitForCompletion,
-                       boolean force,
-                       @Nullable TimeValue timeout,
-                       boolean allowNoMatch,
-                       boolean waitForCheckpoint) {
+        public Request(
+            String id,
+            boolean waitForCompletion,
+            boolean force,
+            @Nullable TimeValue timeout,
+            boolean allowNoMatch,
+            boolean waitForCheckpoint
+        ) {
             this.id = ExceptionsHelper.requireNonNull(id, TransformField.ID.getPreferredName());
             this.waitForCompletion = waitForCompletion;
             this.force = force;
@@ -107,7 +109,7 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
             return expandedIds;
         }
 
-        public void setExpandedIds(Set<String> expandedIds ) {
+        public void setExpandedIds(Set<String> expandedIds) {
             this.expandedIds = expandedIds;
         }
 
@@ -141,11 +143,14 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
         @Override
         public ActionRequestValidationException validate() {
             if (force && waitForCheckpoint) {
-                return addValidationError(new ParameterizedMessage(
-                    "cannot set both [{}] and [{}] to true",
+                return addValidationError(
+                    new ParameterizedMessage(
+                        "cannot set both [{}] and [{}] to true",
                         TransformField.FORCE,
-                        TransformField.WAIT_FOR_CHECKPOINT).getFormattedMessage(),
-                    null);
+                        TransformField.WAIT_FOR_CHECKPOINT
+                    ).getFormattedMessage(),
+                    null
+                );
             }
             return null;
         }
@@ -172,12 +177,12 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
                 return false;
             }
 
-            return Objects.equals(id, other.id) &&
-                    Objects.equals(waitForCompletion, other.waitForCompletion) &&
-                    Objects.equals(force, other.force) &&
-                    Objects.equals(expandedIds, other.expandedIds) &&
-                    Objects.equals(waitForCheckpoint, other.waitForCheckpoint) &&
-                    allowNoMatch == other.allowNoMatch;
+            return Objects.equals(id, other.id)
+                && Objects.equals(waitForCompletion, other.waitForCompletion)
+                && Objects.equals(force, other.force)
+                && Objects.equals(expandedIds, other.expandedIds)
+                && Objects.equals(waitForCheckpoint, other.waitForCheckpoint)
+                && allowNoMatch == other.allowNoMatch;
         }
 
         @Override
@@ -207,9 +212,11 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
             this.acknowledged = acknowledged;
         }
 
-        public Response(List<TaskOperationFailure> taskFailures,
-                        List<? extends ElasticsearchException> nodeFailures,
-                        boolean acknowledged) {
+        public Response(
+            List<TaskOperationFailure> taskFailures,
+            List<? extends ElasticsearchException> nodeFailures,
+            boolean acknowledged
+        ) {
             super(taskFailures, nodeFailures);
             this.acknowledged = acknowledged;
         }
@@ -235,10 +242,8 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
 
         @Override
         public boolean equals(Object o) {
-            if (this == o)
-                return true;
-            if (o == null || getClass() != o.getClass())
-                return false;
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
             return acknowledged == response.acknowledged;
         }

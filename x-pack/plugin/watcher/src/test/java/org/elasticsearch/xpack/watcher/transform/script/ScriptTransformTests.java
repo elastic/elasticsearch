@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.watcher.transform.script;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptException;
@@ -16,6 +14,8 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.transform.Transform;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
@@ -149,16 +149,23 @@ public class ScriptTransformTests extends ESTestCase {
     public void testScriptConditionParserBadScript() throws Exception {
         ScriptService scriptService = mock(ScriptService.class);
         String errorMessage = "expected error message";
-        ScriptException scriptException = new ScriptException(errorMessage, new RuntimeException("foo"),
-                Collections.emptyList(), "whatever", "whatever");
+        ScriptException scriptException = new ScriptException(
+            errorMessage,
+            new RuntimeException("foo"),
+            Collections.emptyList(),
+            "whatever",
+            "whatever"
+        );
         when(scriptService.compile(anyObject(), eq(WatcherTransformScript.CONTEXT))).thenThrow(scriptException);
 
         ScriptTransformFactory transformFactory = new ScriptTransformFactory(scriptService);
 
         XContentBuilder builder = jsonBuilder().startObject()
-                .field(scriptTypeField(randomFrom(ScriptType.values())), "whatever")
-                .startObject("params").field("key", "value").endObject()
-                .endObject();
+            .field(scriptTypeField(randomFrom(ScriptType.values())), "whatever")
+            .startObject("params")
+            .field("key", "value")
+            .endObject()
+            .endObject();
 
         XContentParser parser = createParser(builder);
         parser.nextToken();
@@ -171,11 +178,12 @@ public class ScriptTransformTests extends ESTestCase {
         ScriptTransformFactory transformFactory = new ScriptTransformFactory(createScriptService());
         String script = "return true";
         XContentBuilder builder = jsonBuilder().startObject()
-                .field(scriptTypeField(ScriptType.INLINE), script)
-                .field("lang", "not_a_valid_lang")
-                .startObject("params").field("key", "value").endObject()
-                .endObject();
-
+            .field(scriptTypeField(ScriptType.INLINE), script)
+            .field("lang", "not_a_valid_lang")
+            .startObject("params")
+            .field("key", "value")
+            .endObject()
+            .endObject();
 
         XContentParser parser = createParser(builder);
         parser.nextToken();
@@ -186,17 +194,17 @@ public class ScriptTransformTests extends ESTestCase {
 
     static String scriptTypeField(ScriptType type) {
         switch (type) {
-            case INLINE: return "source";
-            case STORED: return "id";
+            case INLINE:
+                return "source";
+            case STORED:
+                return "id";
             default:
                 throw illegalArgument("unsupported script type [{}]", type);
         }
     }
 
     public static ScriptService createScriptService() throws Exception {
-        Settings settings = Settings.builder()
-                .put("path.home", createTempDir())
-                .build();
+        Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         Map<String, ScriptContext<?>> contexts = new HashMap<>(ScriptModule.CORE_CONTEXTS);
         contexts.put(WatcherTransformScript.CONTEXT.name, WatcherTransformScript.CONTEXT);
         contexts.put(Watcher.SCRIPT_TEMPLATE_CONTEXT.name, Watcher.SCRIPT_TEMPLATE_CONTEXT);

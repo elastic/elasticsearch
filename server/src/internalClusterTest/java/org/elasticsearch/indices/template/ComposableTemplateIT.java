@@ -22,54 +22,99 @@ public class ComposableTemplateIT extends ESIntegTestCase {
 
     // See: https://github.com/elastic/elasticsearch/issues/58643
     public void testComponentTemplatesCanBeUpdatedAfterRestart() throws Exception {
-        ComponentTemplate ct = new ComponentTemplate(new Template(null, new CompressedXContent("{\n" +
-            "      \"dynamic\": false,\n" +
-            "      \"properties\": {\n" +
-            "        \"foo\": {\n" +
-            "          \"type\": \"text\"\n" +
-            "        }\n" +
-            "      }\n" +
-            "    }"), null), 3L, Collections.singletonMap("eggplant", "potato"));
+        ComponentTemplate ct = new ComponentTemplate(
+            new Template(
+                null,
+                new CompressedXContent(
+                    "{\n"
+                        + "      \"dynamic\": false,\n"
+                        + "      \"properties\": {\n"
+                        + "        \"foo\": {\n"
+                        + "          \"type\": \"text\"\n"
+                        + "        }\n"
+                        + "      }\n"
+                        + "    }"
+                ),
+                null
+            ),
+            3L,
+            Collections.singletonMap("eggplant", "potato")
+        );
         client().execute(PutComponentTemplateAction.INSTANCE, new PutComponentTemplateAction.Request("my-ct").componentTemplate(ct)).get();
 
-        ComposableIndexTemplate cit = new ComposableIndexTemplate(Collections.singletonList("coleslaw"),
-            new Template(null, new CompressedXContent("{\n" +
-                "      \"dynamic\": false,\n" +
-                "      \"properties\": {\n" +
-                "        \"foo\": {\n" +
-                "          \"type\": \"keyword\"\n" +
-                "        }\n" +
-                "      }\n" +
-                "    }"), null), Collections.singletonList("my-ct"),
-            4L, 5L, Collections.singletonMap("egg", "bread"));
-        client().execute(PutComposableIndexTemplateAction.INSTANCE,
-            new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(cit)).get();
+        ComposableIndexTemplate cit = new ComposableIndexTemplate(
+            Collections.singletonList("coleslaw"),
+            new Template(
+                null,
+                new CompressedXContent(
+                    "{\n"
+                        + "      \"dynamic\": false,\n"
+                        + "      \"properties\": {\n"
+                        + "        \"foo\": {\n"
+                        + "          \"type\": \"keyword\"\n"
+                        + "        }\n"
+                        + "      }\n"
+                        + "    }"
+                ),
+                null
+            ),
+            Collections.singletonList("my-ct"),
+            4L,
+            5L,
+            Collections.singletonMap("egg", "bread")
+        );
+        client().execute(
+            PutComposableIndexTemplateAction.INSTANCE,
+            new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(cit)
+        ).get();
 
         internalCluster().fullRestart();
         ensureGreen();
 
-        ComponentTemplate ct2 = new ComponentTemplate(new Template(null, new CompressedXContent("{\n" +
-            "      \"dynamic\": true,\n" +
-            "      \"properties\": {\n" +
-            "        \"foo\": {\n" +
-            "          \"type\": \"keyword\"\n" +
-            "        }\n" +
-            "      }\n" +
-            "    }"), null), 3L, Collections.singletonMap("eggplant", "potato"));
-        client().execute(PutComponentTemplateAction.INSTANCE,
-            new PutComponentTemplateAction.Request("my-ct").componentTemplate(ct2)).get();
+        ComponentTemplate ct2 = new ComponentTemplate(
+            new Template(
+                null,
+                new CompressedXContent(
+                    "{\n"
+                        + "      \"dynamic\": true,\n"
+                        + "      \"properties\": {\n"
+                        + "        \"foo\": {\n"
+                        + "          \"type\": \"keyword\"\n"
+                        + "        }\n"
+                        + "      }\n"
+                        + "    }"
+                ),
+                null
+            ),
+            3L,
+            Collections.singletonMap("eggplant", "potato")
+        );
+        client().execute(PutComponentTemplateAction.INSTANCE, new PutComponentTemplateAction.Request("my-ct").componentTemplate(ct2)).get();
 
-        ComposableIndexTemplate cit2 = new ComposableIndexTemplate(Collections.singletonList("coleslaw"),
-            new Template(null, new CompressedXContent("{\n" +
-                "      \"dynamic\": true,\n" +
-                "      \"properties\": {\n" +
-                "        \"foo\": {\n" +
-                "          \"type\": \"integer\"\n" +
-                "        }\n" +
-                "      }\n" +
-                "    }"), null), Collections.singletonList("my-ct"),
-            4L, 5L, Collections.singletonMap("egg", "bread"));
-        client().execute(PutComposableIndexTemplateAction.INSTANCE,
-            new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(cit2)).get();
+        ComposableIndexTemplate cit2 = new ComposableIndexTemplate(
+            Collections.singletonList("coleslaw"),
+            new Template(
+                null,
+                new CompressedXContent(
+                    "{\n"
+                        + "      \"dynamic\": true,\n"
+                        + "      \"properties\": {\n"
+                        + "        \"foo\": {\n"
+                        + "          \"type\": \"integer\"\n"
+                        + "        }\n"
+                        + "      }\n"
+                        + "    }"
+                ),
+                null
+            ),
+            Collections.singletonList("my-ct"),
+            4L,
+            5L,
+            Collections.singletonMap("egg", "bread")
+        );
+        client().execute(
+            PutComposableIndexTemplateAction.INSTANCE,
+            new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(cit2)
+        ).get();
     }
 }

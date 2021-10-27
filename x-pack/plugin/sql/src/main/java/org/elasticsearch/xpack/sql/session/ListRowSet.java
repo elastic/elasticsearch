@@ -27,7 +27,6 @@ public class ListRowSet extends AbstractRowSet implements SchemaRowSet {
         this.list = list;
     }
 
-
     @Override
     protected boolean doHasCurrent() {
         return pos < size();

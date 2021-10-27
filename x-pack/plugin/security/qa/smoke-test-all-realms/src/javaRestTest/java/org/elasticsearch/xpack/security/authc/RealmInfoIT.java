@@ -28,8 +28,7 @@ public class RealmInfoIT extends SecurityRealmSmokeTestCase {
         Map<String, Object> realms = ObjectPath.evaluate(usage, "security.realms");
         realms.forEach((type, config) -> {
             assertThat(config, Matchers.instanceOf(Map.class));
-            assertThat("Realm type [" + type + "] is not enabled",
-                ((Map<?, ?>) config).get("enabled"), Matchers.equalTo(true));
+            assertThat("Realm type [" + type + "] is not enabled", ((Map<?, ?>) config).get("enabled"), Matchers.equalTo(true));
         });
     }
 

@@ -111,10 +111,12 @@ public class AnnotationPersister {
                 return null;
             }
             logger.trace("[{}] ES API CALL: bulk request with {} actions", () -> jobId, () -> bulkRequest.numberOfActions());
-            BulkResponse bulkResponse =
-                resultsPersisterService.bulkIndexWithRetry(
-                    bulkRequest, jobId, shouldRetry,
-                    retryMessage -> logger.debug("[{}] Bulk indexing of annotations failed {}", jobId, retryMessage));
+            BulkResponse bulkResponse = resultsPersisterService.bulkIndexWithRetry(
+                bulkRequest,
+                jobId,
+                shouldRetry,
+                retryMessage -> logger.debug("[{}] Bulk indexing of annotations failed {}", jobId, retryMessage)
+            );
             bulkRequest = new BulkRequest(AnnotationIndex.WRITE_ALIAS_NAME);
             return bulkResponse;
         }

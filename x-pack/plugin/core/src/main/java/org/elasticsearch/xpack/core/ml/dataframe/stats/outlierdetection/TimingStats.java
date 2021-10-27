@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -28,9 +28,11 @@ public class TimingStats implements Writeable, ToXContentObject {
     }
 
     private static ConstructingObjectParser<TimingStats, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<TimingStats, Void> parser = new ConstructingObjectParser<>("outlier_detection_timing_stats",
+        ConstructingObjectParser<TimingStats, Void> parser = new ConstructingObjectParser<>(
+            "outlier_detection_timing_stats",
             ignoreUnknownFields,
-            a -> new TimingStats(TimeValue.timeValueMillis((long) a[0])));
+            a -> new TimingStats(TimeValue.timeValueMillis((long) a[0]))
+        );
 
         parser.declareLong(ConstructingObjectParser.constructorArg(), ELAPSED_TIME);
         return parser;

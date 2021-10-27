@@ -33,13 +33,24 @@ public class GraphInfoTransportActionTests extends ESTestCase {
 
     public void testAvailable() throws Exception {
         GraphInfoTransportAction featureSet = new GraphInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            Settings.EMPTY,
+            licenseState
+        );
         boolean available = randomBoolean();
         when(licenseState.isAllowed(Graph.GRAPH_FEATURE)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
 
-        var usageAction = new GraphUsageTransportAction(mock(TransportService.class), null, null,
-            mock(ActionFilters.class), null, Settings.EMPTY, licenseState);
+        var usageAction = new GraphUsageTransportAction(
+            mock(TransportService.class),
+            null,
+            null,
+            mock(ActionFilters.class),
+            null,
+            Settings.EMPTY,
+            licenseState
+        );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, null, future);
         XPackFeatureSet.Usage usage = future.get().getUsage();
@@ -62,11 +73,22 @@ public class GraphInfoTransportActionTests extends ESTestCase {
             settings.put("xpack.graph.enabled", enabled);
         }
         GraphInfoTransportAction featureSet = new GraphInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            settings.build(),
+            licenseState
+        );
         assertThat(featureSet.enabled(), is(enabled));
 
-        GraphUsageTransportAction usageAction = new GraphUsageTransportAction(mock(TransportService.class),
-            null, null, mock(ActionFilters.class), null, settings.build(), licenseState);
+        GraphUsageTransportAction usageAction = new GraphUsageTransportAction(
+            mock(TransportService.class),
+            null,
+            null,
+            mock(ActionFilters.class),
+            null,
+            settings.build(),
+            licenseState
+        );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, null, future);
         XPackFeatureSet.Usage usage = future.get().getUsage();

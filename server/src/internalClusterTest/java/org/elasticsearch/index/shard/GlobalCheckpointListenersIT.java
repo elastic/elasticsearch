@@ -10,10 +10,10 @@ package org.elasticsearch.index.shard;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 
 import java.util.concurrent.CountDownLatch;
@@ -40,9 +40,7 @@ public class GlobalCheckpointListenersIT extends ESSingleNodeTestCase {
     }
 
     public void testGlobalCheckpointListeners() throws Exception {
-        createIndex("test", Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0).build());
+        createIndex("test", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
         ensureGreen();
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexService test = indicesService.indexService(resolveIndex("test"));
@@ -51,52 +49,7 @@ public class GlobalCheckpointListenersIT extends ESSingleNodeTestCase {
         for (int i = 0; i < numberOfUpdates; i++) {
             final int index = i;
             final AtomicLong globalCheckpoint = new AtomicLong();
-            shard.addGlobalCheckpointListener(
-                i,
-                new GlobalCheckpointListeners.GlobalCheckpointListener() {
-
-                    @Override
-                    public Executor executor() {
-                        return executor;
-                    }
-
-                    @Override
-                    public void accept(final long g, final Exception e) {
-                        assertThat(g, greaterThanOrEqualTo(NO_OPS_PERFORMED));
-                        assertNull(e);
-                        globalCheckpoint.set(g);
-                    }
-
-                },
-                null);
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
-            assertBusy(() -> assertThat(globalCheckpoint.get(), equalTo((long) index)));
-            // adding a listener expecting a lower global checkpoint should fire immediately
-            final AtomicLong immediateGlobalCheckpint = new AtomicLong();
-            shard.addGlobalCheckpointListener(
-                randomLongBetween(0, i),
-                new GlobalCheckpointListeners.GlobalCheckpointListener() {
-
-                    @Override
-                    public Executor executor() {
-                        return executor;
-                    }
-
-                    @Override
-                    public void accept(final long g, final Exception e) {
-                        assertThat(g, greaterThanOrEqualTo(NO_OPS_PERFORMED));
-                        assertNull(e);
-                        immediateGlobalCheckpint.set(g);
-                    }
-
-                },
-                null);
-            assertBusy(() -> assertThat(immediateGlobalCheckpint.get(), equalTo((long) index)));
-        }
-        final AtomicBoolean invoked = new AtomicBoolean();
-        shard.addGlobalCheckpointListener(
-            numberOfUpdates,
-            new GlobalCheckpointListeners.GlobalCheckpointListener() {
+            shard.addGlobalCheckpointListener(i, new GlobalCheckpointListeners.GlobalCheckpointListener() {
 
                 @Override
                 public Executor executor() {
@@ -105,22 +58,56 @@ public class GlobalCheckpointListenersIT extends ESSingleNodeTestCase {
 
                 @Override
                 public void accept(final long g, final Exception e) {
-                    invoked.set(true);
-                    assertThat(g, equalTo(UNASSIGNED_SEQ_NO));
-                    assertThat(e, instanceOf(IndexShardClosedException.class));
-                    assertThat(((IndexShardClosedException)e).getShardId(), equalTo(shard.shardId()));
+                    assertThat(g, greaterThanOrEqualTo(NO_OPS_PERFORMED));
+                    assertNull(e);
+                    globalCheckpoint.set(g);
                 }
 
-            },
-            null);
+            }, null);
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            assertBusy(() -> assertThat(globalCheckpoint.get(), equalTo((long) index)));
+            // adding a listener expecting a lower global checkpoint should fire immediately
+            final AtomicLong immediateGlobalCheckpint = new AtomicLong();
+            shard.addGlobalCheckpointListener(randomLongBetween(0, i), new GlobalCheckpointListeners.GlobalCheckpointListener() {
+
+                @Override
+                public Executor executor() {
+                    return executor;
+                }
+
+                @Override
+                public void accept(final long g, final Exception e) {
+                    assertThat(g, greaterThanOrEqualTo(NO_OPS_PERFORMED));
+                    assertNull(e);
+                    immediateGlobalCheckpint.set(g);
+                }
+
+            }, null);
+            assertBusy(() -> assertThat(immediateGlobalCheckpint.get(), equalTo((long) index)));
+        }
+        final AtomicBoolean invoked = new AtomicBoolean();
+        shard.addGlobalCheckpointListener(numberOfUpdates, new GlobalCheckpointListeners.GlobalCheckpointListener() {
+
+            @Override
+            public Executor executor() {
+                return executor;
+            }
+
+            @Override
+            public void accept(final long g, final Exception e) {
+                invoked.set(true);
+                assertThat(g, equalTo(UNASSIGNED_SEQ_NO));
+                assertThat(e, instanceOf(IndexShardClosedException.class));
+                assertThat(((IndexShardClosedException) e).getShardId(), equalTo(shard.shardId()));
+            }
+
+        }, null);
         shard.close("closed", randomBoolean());
         assertBusy(() -> assertTrue(invoked.get()));
     }
 
     public void testGlobalCheckpointListenerTimeout() throws InterruptedException {
-        createIndex("test", Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0).build());
+        createIndex("test", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
         ensureGreen();
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexService test = indicesService.indexService(resolveIndex("test"));
@@ -128,30 +115,27 @@ public class GlobalCheckpointListenersIT extends ESSingleNodeTestCase {
         final AtomicBoolean notified = new AtomicBoolean();
         final CountDownLatch latch = new CountDownLatch(1);
         final TimeValue timeout = TimeValue.timeValueMillis(randomIntBetween(1, 50));
-        shard.addGlobalCheckpointListener(
-            0,
-            new GlobalCheckpointListeners.GlobalCheckpointListener() {
+        shard.addGlobalCheckpointListener(0, new GlobalCheckpointListeners.GlobalCheckpointListener() {
 
-                @Override
-                public Executor executor() {
-                    return executor;
+            @Override
+            public Executor executor() {
+                return executor;
+            }
+
+            @Override
+            public void accept(final long g, final Exception e) {
+                try {
+                    notified.set(true);
+                    assertThat(g, equalTo(UNASSIGNED_SEQ_NO));
+                    assertNotNull(e);
+                    assertThat(e, instanceOf(TimeoutException.class));
+                    assertThat(e.getMessage(), equalTo(timeout.getStringRep()));
+                } finally {
+                    latch.countDown();
                 }
+            }
 
-                @Override
-                public void accept(final long g, final Exception e) {
-                    try {
-                        notified.set(true);
-                        assertThat(g, equalTo(UNASSIGNED_SEQ_NO));
-                        assertNotNull(e);
-                        assertThat(e, instanceOf(TimeoutException.class));
-                        assertThat(e.getMessage(), equalTo(timeout.getStringRep()));
-                    } finally {
-                        latch.countDown();
-                    }
-                }
-
-            },
-            timeout);
+        }, timeout);
         latch.await();
         assertTrue(notified.get());
     }

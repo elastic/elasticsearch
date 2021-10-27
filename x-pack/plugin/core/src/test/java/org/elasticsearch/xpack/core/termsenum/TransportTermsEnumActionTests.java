@@ -38,7 +38,7 @@ public class TransportTermsEnumActionTests extends ESSingleNodeTestCase {
             }
 
         };
-        client().execute(TermsEnumAction.INSTANCE, new TermsEnumRequest("non-existent-index"),listener);
+        client().execute(TermsEnumAction.INSTANCE, new TermsEnumRequest("non-existent-index"), listener);
         assertThat(invoked.get(), equalTo(true)); // ensure that onFailure was invoked
     }
 

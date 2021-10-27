@@ -18,9 +18,9 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
@@ -110,45 +110,43 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
     public void testNoDocs() throws IOException {
         testCase(new MatchAllDocsQuery(), FIELD_NAME, randomPrecision(), null, iw -> {
             // Intentionally not writing any docs
-        }, geoGrid -> {
-            assertEquals(0, geoGrid.getBuckets().size());
-        });
+        }, geoGrid -> { assertEquals(0, geoGrid.getBuckets().size()); });
     }
 
     public void testUnmapped() throws IOException {
-        testCase(new MatchAllDocsQuery(), "wrong_field", randomPrecision(), null, iw -> {
-            iw.addDocument(
-                Collections.singleton(GeoTestUtils.binaryGeoShapeDocValuesField(FIELD_NAME, new Point(10D, 10D)))
-            );
-        }, geoGrid -> {
-            assertEquals(0, geoGrid.getBuckets().size());
-        });
+        testCase(
+            new MatchAllDocsQuery(),
+            "wrong_field",
+            randomPrecision(),
+            null,
+            iw -> { iw.addDocument(Collections.singleton(GeoTestUtils.binaryGeoShapeDocValuesField(FIELD_NAME, new Point(10D, 10D)))); },
+            geoGrid -> { assertEquals(0, geoGrid.getBuckets().size()); }
+        );
     }
-
 
     public void testUnmappedMissingGeoShape() throws IOException {
         // default value type for agg is GEOPOINT, so missing value is parsed as a GEOPOINT
-        GeoGridAggregationBuilder builder = createBuilder("_name")
-            .field("wrong_field")
-            .missing("-34.0,53.4");
-        testCase(new MatchAllDocsQuery(), 1, null,
-            iw -> {
-                iw.addDocument(
-                    Collections.singleton(GeoTestUtils.binaryGeoShapeDocValuesField(FIELD_NAME, new Point(10D, 10D)))
-                );
-            },
-            geoGrid -> assertEquals(1, geoGrid.getBuckets().size()), builder);
+        GeoGridAggregationBuilder builder = createBuilder("_name").field("wrong_field").missing("-34.0,53.4");
+        testCase(
+            new MatchAllDocsQuery(),
+            1,
+            null,
+            iw -> { iw.addDocument(Collections.singleton(GeoTestUtils.binaryGeoShapeDocValuesField(FIELD_NAME, new Point(10D, 10D)))); },
+            geoGrid -> assertEquals(1, geoGrid.getBuckets().size()),
+            builder
+        );
     }
 
     public void testMappedMissingGeoShape() throws IOException {
-        GeoGridAggregationBuilder builder = createBuilder("_name")
-            .field(FIELD_NAME)
-            .missing("LINESTRING (30 10, 10 30, 40 40)");
-        testCase(new MatchAllDocsQuery(), 1, null,
-            iw -> {
-                iw.addDocument(Collections.singleton(new SortedSetDocValuesField("string", new BytesRef("a"))));
-            },
-            geoGrid -> assertEquals(1, geoGrid.getBuckets().size()), builder);
+        GeoGridAggregationBuilder builder = createBuilder("_name").field(FIELD_NAME).missing("LINESTRING (30 10, 10 30, 40 40)");
+        testCase(
+            new MatchAllDocsQuery(),
+            1,
+            null,
+            iw -> { iw.addDocument(Collections.singleton(new SortedSetDocValuesField("string", new BytesRef("a")))); },
+            geoGrid -> assertEquals(1, geoGrid.getBuckets().size()),
+            builder
+        );
     }
 
     public void testGeoShapeBounds() throws IOException {
@@ -190,10 +188,11 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
             Rectangle pointTile = getTile(x, y, precision);
 
             GeoShapeValues.GeoShapeValue value = geoShapeValue(p);
-            GeoRelation tileRelation =  value.relate(pointTile);
-            boolean intersectsBounds = boundsTop > pointTile.getMinY() && boundsBottom < pointTile.getMaxY()
+            GeoRelation tileRelation = value.relate(pointTile);
+            boolean intersectsBounds = boundsTop > pointTile.getMinY()
+                && boundsBottom < pointTile.getMaxY()
                 && (boundsEastLeft < pointTile.getMaxX() && boundsEastRight > pointTile.getMinX()
-                || (crossesDateline && boundsWestLeft < pointTile.getMaxX() && boundsWestRight > pointTile.getMinX()));
+                    || (crossesDateline && boundsWestLeft < pointTile.getMaxX() && boundsWestRight > pointTile.getMinX()));
             if (tileRelation != GeoRelation.QUERY_DISJOINT && intersectsBounds) {
                 numDocsWithin += 1;
             }
@@ -204,18 +203,17 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
         final long numDocsInBucket = numDocsWithin;
 
         testCase(new MatchAllDocsQuery(), FIELD_NAME, precision, bbox, iw -> {
-                for (BinaryGeoShapeDocValuesField docField : docs) {
-                    iw.addDocument(Collections.singletonList(docField));
-                }
-            },
-            geoGrid -> {
-                assertThat(AggregationInspectionHelper.hasValue(geoGrid), equalTo(numDocsInBucket > 0));
-                long docCount = 0;
-                for (int i = 0; i < geoGrid.getBuckets().size(); i++) {
-                    docCount += geoGrid.getBuckets().get(i).getDocCount();
-                }
-                assertThat(docCount, equalTo(numDocsInBucket));
-            });
+            for (BinaryGeoShapeDocValuesField docField : docs) {
+                iw.addDocument(Collections.singletonList(docField));
+            }
+        }, geoGrid -> {
+            assertThat(AggregationInspectionHelper.hasValue(geoGrid), equalTo(numDocsInBucket > 0));
+            long docCount = 0;
+            for (int i = 0; i < geoGrid.getBuckets().size(); i++) {
+                docCount += geoGrid.getBuckets().get(i).getDocCount();
+            }
+            assertThat(docCount, equalTo(numDocsInBucket));
+        });
     }
 
     public void testGeoShapeWithSeveralDocs() throws IOException {
@@ -267,17 +265,26 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
         });
     }
 
-    private void testCase(Query query, String field, int precision, GeoBoundingBox geoBoundingBox,
-                          CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                          Consumer<InternalGeoGrid<T>> verify) throws IOException {
+    private void testCase(
+        Query query,
+        String field,
+        int precision,
+        GeoBoundingBox geoBoundingBox,
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+        Consumer<InternalGeoGrid<T>> verify
+    ) throws IOException {
         testCase(query, precision, geoBoundingBox, buildIndex, verify, createBuilder("_name").field(field));
     }
 
     @SuppressWarnings("unchecked")
-    private void testCase(Query query, int precision, GeoBoundingBox geoBoundingBox,
-                          CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                          Consumer<InternalGeoGrid<T>> verify,
-                          GeoGridAggregationBuilder aggregationBuilder) throws IOException {
+    private void testCase(
+        Query query,
+        int precision,
+        GeoBoundingBox geoBoundingBox,
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+        Consumer<InternalGeoGrid<T>> verify,
+        GeoGridAggregationBuilder aggregationBuilder
+    ) throws IOException {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         buildIndex.accept(indexWriter);
@@ -292,8 +299,15 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
             assertThat(aggregationBuilder.geoBoundingBox(), equalTo(geoBoundingBox));
         }
 
-        MappedFieldType fieldType
-            = new GeoShapeWithDocValuesFieldType(FIELD_NAME, true, true, Orientation.RIGHT, null, null, Collections.emptyMap());
+        MappedFieldType fieldType = new GeoShapeWithDocValuesFieldType(
+            FIELD_NAME,
+            true,
+            true,
+            Orientation.RIGHT,
+            null,
+            null,
+            Collections.emptyMap()
+        );
 
         Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();

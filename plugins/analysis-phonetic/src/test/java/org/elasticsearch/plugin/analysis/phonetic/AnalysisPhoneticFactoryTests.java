@@ -14,8 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
-import org.elasticsearch.plugin.analysis.phonetic.AnalysisPhoneticPlugin;
-import org.elasticsearch.plugin.analysis.phonetic.PhoneticTokenFilterFactory;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
 
@@ -47,8 +45,7 @@ public class AnalysisPhoneticFactoryTests extends AnalysisFactoryTestCase {
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
 
-        TokenFilterFactory tff
-            = plugin.getTokenFilters().get("phonetic").get(idxSettings, null, "phonetic", settings);
+        TokenFilterFactory tff = plugin.getTokenFilters().get("phonetic").get(idxSettings, null, "phonetic", settings);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, tff::getSynonymFilter);
         assertEquals("Token filter [phonetic] cannot be used to parse synonyms", e.getMessage());
     }

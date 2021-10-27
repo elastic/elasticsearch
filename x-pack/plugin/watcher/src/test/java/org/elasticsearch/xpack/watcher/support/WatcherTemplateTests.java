@@ -7,14 +7,15 @@
 package org.elasticsearch.xpack.watcher.support;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-import org.elasticsearch.core.Nullable;
+
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
@@ -39,8 +40,10 @@ public class WatcherTemplateTests extends ESTestCase {
     public void init() throws Exception {
         MustacheScriptEngine engine = new MustacheScriptEngine();
         Map<String, ScriptEngine> engines = Collections.singletonMap(engine.getType(), engine);
-        Map<String, ScriptContext<?>> contexts =
-            Collections.singletonMap(Watcher.SCRIPT_TEMPLATE_CONTEXT.name, Watcher.SCRIPT_TEMPLATE_CONTEXT);
+        Map<String, ScriptContext<?>> contexts = Collections.singletonMap(
+            Watcher.SCRIPT_TEMPLATE_CONTEXT.name,
+            Watcher.SCRIPT_TEMPLATE_CONTEXT
+        );
         ScriptService scriptService = new ScriptService(Settings.EMPTY, engines, contexts, () -> 1L);
         textTemplateEngine = new TextTemplateEngine(scriptService);
     }
@@ -50,12 +53,12 @@ public class WatcherTemplateTests extends ESTestCase {
         if (rarely()) {
             contentType = null;
         }
-        Character[] specialChars = new Character[]{'\f', '\n', '\r', '"', '\\', (char) 11, '\t', '\b' };
+        Character[] specialChars = new Character[] { '\f', '\n', '\r', '"', '\\', (char) 11, '\t', '\b' };
         int iters = scaledRandomIntBetween(100, 1000);
         for (int i = 0; i < iters; i++) {
             int rounds = scaledRandomIntBetween(1, 20);
-            StringWriter escaped = new StringWriter(); //This will be escaped as it is constructed
-            StringWriter unescaped = new StringWriter(); //This will be escaped at the end
+            StringWriter escaped = new StringWriter(); // This will be escaped as it is constructed
+            StringWriter unescaped = new StringWriter(); // This will be escaped at the end
 
             for (int j = 0; j < rounds; j++) {
                 String s = getChars();
@@ -78,8 +81,7 @@ public class WatcherTemplateTests extends ESTestCase {
 
             if (contentType == XContentType.JSON) {
                 assertThat(escaped.toString(), equalTo(new String(JsonStringEncoder.getInstance().quoteAsString(unescaped.toString()))));
-            }
-            else {
+            } else {
                 assertThat(escaped.toString(), equalTo(unescaped.toString()));
             }
 
@@ -108,37 +110,47 @@ public class WatcherTemplateTests extends ESTestCase {
 
     public void testSimpleParameterReplace() {
         {
-            String template = "__json__::GET _search {\"query\": " + "{\"boosting\": {" + "\"positive\": {\"match\": {\"body\": \"gift\"}},"
-                    + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}" + "}}, \"negative_boost\": {{boost_val}} } }}";
+            String template = "__json__::GET _search {\"query\": "
+                + "{\"boosting\": {"
+                + "\"positive\": {\"match\": {\"body\": \"gift\"}},"
+                + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}"
+                + "}}, \"negative_boost\": {{boost_val}} } }}";
             Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
             String result = textTemplateEngine.render(new TextTemplate(template), vars);
-            assertEquals("GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
-                            + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}}}, \"negative_boost\": 0.3 } }}",
-                        result);
+            assertEquals(
+                "GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
+                    + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}}}, \"negative_boost\": 0.3 } }}",
+                result
+            );
         }
         {
-            String template = "__json__::GET _search {\"query\": " + "{\"boosting\": {" + "\"positive\": {\"match\": {\"body\": \"gift\"}},"
-                    + "\"negative\": {\"term\": {\"body\": {\"value\": \"{{body_val}}\"}" + "}}, \"negative_boost\": {{boost_val}} } }}";
+            String template = "__json__::GET _search {\"query\": "
+                + "{\"boosting\": {"
+                + "\"positive\": {\"match\": {\"body\": \"gift\"}},"
+                + "\"negative\": {\"term\": {\"body\": {\"value\": \"{{body_val}}\"}"
+                + "}}, \"negative_boost\": {{boost_val}} } }}";
             Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
             vars.put("body_val", "\"quick brown\"");
             String result = textTemplateEngine.render(new TextTemplate(template), vars);
-            assertEquals("GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
-                            + "\"negative\": {\"term\": {\"body\": {\"value\": \"\\\"quick brown\\\"\"}}}, \"negative_boost\": 0.3 } }}",
-                    result);
+            assertEquals(
+                "GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
+                    + "\"negative\": {\"term\": {\"body\": {\"value\": \"\\\"quick brown\\\"\"}}}, \"negative_boost\": 0.3 } }}",
+                result
+            );
         }
     }
 
     public void testInvalidPrefixes() throws Exception {
-        String[] specialStrings = new String[]{"\f", "\n", "\r", "\"", "\\", "\t", "\b", "__::", "__" };
+        String[] specialStrings = new String[] { "\f", "\n", "\r", "\"", "\\", "\t", "\b", "__::", "__" };
         String prefix = randomFrom("", "__", "____::", "___::", "____", "::", "++json__::", "__json__", "+_json__::", "__json__:");
         String template = prefix + " {{test_var1}} {{test_var2}}";
         Map<String, Object> vars = new HashMap<>();
         Writer var1Writer = new StringWriter();
         Writer var2Writer = new StringWriter();
 
-        for(int i = 0; i < scaledRandomIntBetween(10,1000); ++i) {
+        for (int i = 0; i < scaledRandomIntBetween(10, 1000); ++i) {
             var1Writer.write(randomRealisticUnicodeOfCodepointLengthBetween(0, 10));
             var2Writer.write(randomRealisticUnicodeOfCodepointLengthBetween(0, 10));
             var1Writer.append(randomFrom(specialStrings));
@@ -148,7 +160,7 @@ public class WatcherTemplateTests extends ESTestCase {
         vars.put("test_var1", var1Writer.toString());
         vars.put("test_var2", var2Writer.toString());
         String s1 = textTemplateEngine.render(new TextTemplate(template), vars);
-        String s2 =  prefix + " " + var1Writer.toString() + " " + var2Writer.toString();
+        String s2 = prefix + " " + var1Writer.toString() + " " + var2Writer.toString();
         assertThat(s1, equalTo(s2));
     }
 
@@ -160,11 +172,10 @@ public class WatcherTemplateTests extends ESTestCase {
         if (contentType == null) {
             return template;
         }
-        return new StringBuilder("__")
-                .append(contentType.queryParameter().toLowerCase(Locale.ROOT))
-                .append("__::")
-                .append(template)
-                .toString();
+        return new StringBuilder("__").append(contentType.queryParameter().toLowerCase(Locale.ROOT))
+            .append("__::")
+            .append(template)
+            .toString();
     }
 
 }

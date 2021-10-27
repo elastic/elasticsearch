@@ -62,17 +62,18 @@ public class InternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
      */
     public void maybeCreateNodeEnrollmentToken(Consumer<String> consumer) {
         // the enrollment token can only be used against the node that generated it
-        final NodesInfoRequest nodesInfoRequest =
-            new NodesInfoRequest().nodesIds("_local").addMetrics(NodesInfoRequest.Metric.HTTP.metricName(),
-                NodesInfoRequest.Metric.TRANSPORT.metricName());
+        final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest().nodesIds("_local")
+            .addMetrics(NodesInfoRequest.Metric.HTTP.metricName(), NodesInfoRequest.Metric.TRANSPORT.metricName());
         client.execute(NodesInfoAction.INSTANCE, nodesInfoRequest, ActionListener.wrap(response -> {
             assert response.getNodes().size() == 1;
             NodeInfo nodeInfo = response.getNodes().get(0);
             TransportInfo transportInfo = nodeInfo.getInfo(TransportInfo.class);
             boolean noNonLocalTransportAddresses = splitAddresses(getAllTransportAddresses(transportInfo)).v2().isEmpty();
             if (noNonLocalTransportAddresses) {
-                LOGGER.info("Will not generate node enrollment token because node is only bound on localhost for transport " +
-                    "and cannot connect to nodes from other hosts");
+                LOGGER.info(
+                    "Will not generate node enrollment token because node is only bound on localhost for transport "
+                        + "and cannot connect to nodes from other hosts"
+                );
                 // empty enrollment token when skip
                 consumer.accept("");
                 return;
@@ -80,8 +81,10 @@ public class InternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
             HttpInfo httpInfo = nodeInfo.getInfo(HttpInfo.class);
             boolean noNonLocalHttpAddresses = splitAddresses(getAllHttpAddresses(httpInfo)).v2().isEmpty();
             if (noNonLocalHttpAddresses) {
-                LOGGER.info("Will not generate node enrollment token because node is only bound on localhost for HTTPS " +
-                    "and cannot enroll nodes from other hosts");
+                LOGGER.info(
+                    "Will not generate node enrollment token because node is only bound on localhost for HTTPS "
+                        + "and cannot enroll nodes from other hosts"
+                );
                 // empty enrollment token when skip
                 consumer.accept("");
                 return;
@@ -130,8 +133,14 @@ public class InternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
 
     private void assembleToken(EnrollmentTokenType enrollTokenType, HttpInfo httpInfo, Consumer<EnrollmentToken> consumer) {
         if (false == ENROLLMENT_ENABLED.get(environment.settings())) {
-            LOGGER.error("Cannot create enrollment token [" + enrollTokenType + "] because enrollment is disabled " +
-                "with setting [" + ENROLLMENT_ENABLED.getKey() + "] set to [false]");
+            LOGGER.error(
+                "Cannot create enrollment token ["
+                    + enrollTokenType
+                    + "] because enrollment is disabled "
+                    + "with setting ["
+                    + ENROLLMENT_ENABLED.getKey()
+                    + "] set to [false]"
+            );
             consumer.accept(null);
             return;
         }
@@ -139,8 +148,10 @@ public class InternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
         try {
             fingerprint = getHttpsCaFingerprint();
         } catch (Exception e) {
-            LOGGER.error("Failed to create enrollment token when computing HTTPS CA fingerprint, possibly the certs are not auto-generated",
-                e);
+            LOGGER.error(
+                "Failed to create enrollment token when computing HTTPS CA fingerprint, possibly the certs are not auto-generated",
+                e
+            );
             consumer.accept(null);
             return;
         }
@@ -160,12 +171,7 @@ public class InternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
         );
         client.execute(CreateApiKeyAction.INSTANCE, apiKeyRequest, ActionListener.wrap(createApiKeyResponse -> {
             final String apiKey = createApiKeyResponse.getId() + ":" + createApiKeyResponse.getKey().toString();
-            final EnrollmentToken enrollmentToken = new EnrollmentToken(
-                apiKey,
-                fingerprint,
-                Version.CURRENT.toString(),
-                tokenAddresses
-            );
+            final EnrollmentToken enrollmentToken = new EnrollmentToken(apiKey, fingerprint, Version.CURRENT.toString(), tokenAddresses);
             consumer.accept(enrollmentToken);
         }, e -> {
             LOGGER.error("Failed to create enrollment token when generating API key", e);
@@ -186,16 +192,13 @@ public class InternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
     private static List<String> getAllTransportAddresses(TransportInfo transportInfo) {
         final List<String> transportAddressesList = new ArrayList<>();
         collectAllAddresses(transportInfo.getAddress(), transportAddressesList);
-        transportInfo.getProfileAddresses().values().forEach(profileAddress ->
-            collectAllAddresses(profileAddress, transportAddressesList));
+        transportInfo.getProfileAddresses().values().forEach(profileAddress -> collectAllAddresses(profileAddress, transportAddressesList));
         return transportAddressesList;
     }
 
     private static void collectAllAddresses(BoundTransportAddress address, List<String> collectedAddressesList) {
         collectedAddressesList.add(address.publishAddress().toString());
-        Arrays.stream(address.boundAddresses())
-            .map(TransportAddress::toString)
-            .forEach(collectedAddressesList::add);
+        Arrays.stream(address.boundAddresses()).map(TransportAddress::toString).forEach(collectedAddressesList::add);
     }
 
     private enum EnrollmentTokenType {

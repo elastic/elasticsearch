@@ -9,6 +9,7 @@
 package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.geoip2.model.CityResponse;
+
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -126,8 +127,11 @@ public class ConfigDatabasesTests extends ESTestCase {
             assertThat(cache.count(), equalTo(1));
         }
 
-        Files.copy(ConfigDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"), configDir.resolve("GeoLite2-City.mmdb"),
-            StandardCopyOption.REPLACE_EXISTING);
+        Files.copy(
+            ConfigDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"),
+            configDir.resolve("GeoLite2-City.mmdb"),
+            StandardCopyOption.REPLACE_EXISTING
+        );
         assertBusy(() -> {
             assertThat(configDatabases.getConfigDatabases().size(), equalTo(1));
             assertThat(cache.count(), equalTo(0));

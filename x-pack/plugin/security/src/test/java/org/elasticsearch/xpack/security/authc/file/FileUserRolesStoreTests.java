@@ -55,10 +55,7 @@ public class FileUserRolesStoreTests extends ESTestCase {
 
     @Before
     public void init() {
-        settings = Settings.builder()
-                .put("resource.reload.interval.high", "100ms")
-                .put("path.home", createTempDir())
-                .build();
+        settings = Settings.builder().put("resource.reload.interval.high", "100ms").put("path.home", createTempDir()).build();
         env = TestEnvironment.newEnvironment(settings);
         threadPool = new TestThreadPool("test");
     }
@@ -77,9 +74,12 @@ public class FileUserRolesStoreTests extends ESTestCase {
         Files.write(file, lines, StandardCharsets.UTF_16);
 
         RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("file", "file-test");
-        RealmConfig config = new RealmConfig(realmId,
+        RealmConfig config = new RealmConfig(
+            realmId,
             Settings.builder().put(settings).put(RealmSettings.getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0).build(),
-            env, new ThreadContext(Settings.EMPTY));
+            env,
+            new ThreadContext(Settings.EMPTY)
+        );
         try (ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool)) {
             FileUserRolesStore store = new FileUserRolesStore(config, watcherService);
             assertThat(store.entriesCount(), is(0));
@@ -92,9 +92,12 @@ public class FileUserRolesStoreTests extends ESTestCase {
         Files.copy(users, tmp, StandardCopyOption.REPLACE_EXISTING);
 
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("file", "file-test");
-        RealmConfig config = new RealmConfig(realmId,
+        RealmConfig config = new RealmConfig(
+            realmId,
             Settings.builder().put(settings).put(RealmSettings.getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0).build(),
-            env, new ThreadContext(Settings.EMPTY));
+            env,
+            new ThreadContext(Settings.EMPTY)
+        );
         try (ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool)) {
             final CountDownLatch latch = new CountDownLatch(1);
 
@@ -139,9 +142,12 @@ public class FileUserRolesStoreTests extends ESTestCase {
         Files.copy(users, tmp, StandardCopyOption.REPLACE_EXISTING);
 
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("file", "file-test");
-        RealmConfig config = new RealmConfig(realmId,
+        RealmConfig config = new RealmConfig(
+            realmId,
             Settings.builder().put(settings).put(RealmSettings.getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0).build(),
-            env, new ThreadContext(Settings.EMPTY));
+            env,
+            new ThreadContext(Settings.EMPTY)
+        );
         try (ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool)) {
             final CountDownLatch latch = new CountDownLatch(1);
 
@@ -225,10 +231,10 @@ public class FileUserRolesStoreTests extends ESTestCase {
 
             final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("file", "file-test");
             Settings settings = Settings.builder()
-                    .put(XPackSettings.WATCHER_ENABLED.getKey(), "false")
-                    .put("path.home", createTempDir())
-                    .put(RealmSettings.getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
-                    .build();
+                .put(XPackSettings.WATCHER_ENABLED.getKey(), "false")
+                .put("path.home", createTempDir())
+                .put(RealmSettings.getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
+                .build();
 
             Environment env = TestEnvironment.newEnvironment(settings);
             RealmConfig config = new RealmConfig(realmId, settings, env, new ThreadContext(Settings.EMPTY));

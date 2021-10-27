@@ -10,15 +10,15 @@ package org.elasticsearch.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
@@ -42,14 +42,17 @@ public final class TaskOperationFailure implements Writeable, ToXContentFragment
 
     private final RestStatus status;
 
-    private static final ConstructingObjectParser<TaskOperationFailure, Void> PARSER =
-            new ConstructingObjectParser<>("task_info", true, constructorObjects -> {
-                int i = 0;
-                String nodeId = (String) constructorObjects[i++];
-                long taskId = (long) constructorObjects[i++];
-                ElasticsearchException reason = (ElasticsearchException) constructorObjects[i];
-                return new TaskOperationFailure(nodeId, taskId, reason);
-            });
+    private static final ConstructingObjectParser<TaskOperationFailure, Void> PARSER = new ConstructingObjectParser<>(
+        "task_info",
+        true,
+        constructorObjects -> {
+            int i = 0;
+            String nodeId = (String) constructorObjects[i++];
+            long taskId = (long) constructorObjects[i++];
+            ElasticsearchException reason = (ElasticsearchException) constructorObjects[i];
+            return new TaskOperationFailure(nodeId, taskId, reason);
+        }
+    );
 
     static {
         PARSER.declareString(constructorArg(), new ParseField(NODE_ID));

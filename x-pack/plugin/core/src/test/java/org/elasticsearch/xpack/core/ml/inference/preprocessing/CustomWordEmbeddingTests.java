@@ -11,7 +11,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-
 public class CustomWordEmbeddingTests extends PreProcessingTests<CustomWordEmbedding> {
 
     @Override

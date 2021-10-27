@@ -11,9 +11,9 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 import org.mockito.ArgumentCaptor;
 
@@ -80,40 +80,43 @@ public class TransformIndexTests extends ESTestCase {
             TransformIndex.createMappingsFromStringMap(singletonMap("a", "long")),
             is(equalTo(singletonMap("a", singletonMap("type", "long"))))
         );
-        assertThat(
-            TransformIndex.createMappingsFromStringMap(new HashMap<>() {{
+        assertThat(TransformIndex.createMappingsFromStringMap(new HashMap<>() {
+            {
                 put("a", "long");
                 put("b", "keyword");
-            }}),
-            is(equalTo(new HashMap<>() {{
+            }
+        }), is(equalTo(new HashMap<>() {
+            {
                 put("a", singletonMap("type", "long"));
                 put("b", singletonMap("type", "keyword"));
-            }}))
-        );
-        assertThat(
-            TransformIndex.createMappingsFromStringMap(new HashMap<>() {{
+            }
+        })));
+        assertThat(TransformIndex.createMappingsFromStringMap(new HashMap<>() {
+            {
                 put("a", "long");
                 put("a.b", "keyword");
-            }}),
-            is(equalTo(new HashMap<>() {{
+            }
+        }), is(equalTo(new HashMap<>() {
+            {
                 put("a", singletonMap("type", "long"));
                 put("a.b", singletonMap("type", "keyword"));
-            }}))
-        );
-        assertThat(
-            TransformIndex.createMappingsFromStringMap(new HashMap<>() {{
+            }
+        })));
+        assertThat(TransformIndex.createMappingsFromStringMap(new HashMap<>() {
+            {
                 put("a", "long");
                 put("a.b", "text");
                 put("a.b.c", "keyword");
-            }}),
-            is(equalTo(new HashMap<>() {{
+            }
+        }), is(equalTo(new HashMap<>() {
+            {
                 put("a", singletonMap("type", "long"));
                 put("a.b", singletonMap("type", "text"));
                 put("a.b.c", singletonMap("type", "keyword"));
-            }}))
-        );
-        assertThat(
-            TransformIndex.createMappingsFromStringMap(new HashMap<>() {{
+            }
+        })));
+        assertThat(TransformIndex.createMappingsFromStringMap(new HashMap<>() {
+            {
                 put("a", "object");
                 put("a.b", "long");
                 put("c", "nested");
@@ -122,8 +125,9 @@ public class TransformIndexTests extends ESTestCase {
                 put("f.g", "object");
                 put("f.g.h", "text");
                 put("f.g.h.i", "text");
-            }}),
-            is(equalTo(new HashMap<>() {{
+            }
+        }), is(equalTo(new HashMap<>() {
+            {
                 put("a", singletonMap("type", "object"));
                 put("a.b", singletonMap("type", "long"));
                 put("c", singletonMap("type", "nested"));
@@ -132,7 +136,7 @@ public class TransformIndexTests extends ESTestCase {
                 put("f.g", singletonMap("type", "object"));
                 put("f.g.h", singletonMap("type", "text"));
                 put("f.g.h.i", singletonMap("type", "text"));
-            }}))
-        );
+            }
+        })));
     }
 }

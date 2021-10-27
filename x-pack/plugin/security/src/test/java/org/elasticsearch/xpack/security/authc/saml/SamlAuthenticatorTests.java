@@ -10,10 +10,10 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.NamedFormatter;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.hamcrest.Matchers;
@@ -51,14 +51,9 @@ import org.opensaml.xmlsec.encryption.support.KeyEncryptionParameters;
 import org.opensaml.xmlsec.signature.support.SignatureException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
-
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 
-import javax.crypto.KeyGenerator;
-import javax.crypto.SecretKey;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
 import java.io.IOException;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
@@ -73,6 +68,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -115,18 +115,22 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         throws Exception {
         final IdpConfiguration idp = new IdpConfiguration(IDP_ENTITY_ID, credentials);
 
-        final SigningConfiguration signingConfiguration = new SigningConfiguration(Collections.singleton("*"),
-            (X509Credential) buildOpenSamlCredential(spSigningCertificatePair).get(0));
-        final List<X509Credential> spEncryptionCredentials = buildOpenSamlCredential(spEncryptionCertificatePairs).stream()
-            .map((cred) -> (X509Credential) cred).collect(Collectors.<X509Credential>toList());
-        final SpConfiguration sp = new SpConfiguration(SP_ENTITY_ID, SP_ACS_URL, null, signingConfiguration, spEncryptionCredentials,
-            reqAuthnCtxClassRef);
-        return new SamlAuthenticator(
-            clock,
-            idp,
-            sp,
-            maxSkew
+        final SigningConfiguration signingConfiguration = new SigningConfiguration(
+            Collections.singleton("*"),
+            (X509Credential) buildOpenSamlCredential(spSigningCertificatePair).get(0)
         );
+        final List<X509Credential> spEncryptionCredentials = buildOpenSamlCredential(spEncryptionCertificatePairs).stream()
+            .map((cred) -> (X509Credential) cred)
+            .collect(Collectors.<X509Credential>toList());
+        final SpConfiguration sp = new SpConfiguration(
+            SP_ENTITY_ID,
+            SP_ACS_URL,
+            null,
+            signingConfiguration,
+            spEncryptionCredentials,
+            reqAuthnCtxClassRef
+        );
+        return new SamlAuthenticator(clock, idp, sp, maxSkew);
     }
 
     public void testParseEmptyContentIsRejected() throws Exception {
@@ -272,11 +276,9 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
          * would decrypt the EncryptedAttribute, there would be no NS declaration for saml2 and parsing would fail with
          * org.xml.sax.SAXParseException: The prefix "saml2" for element "saml2:Attribute" is not bound.
          */
-        xml = xml.replace("<saml2:Attribute ",
-            "<Attribute xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\" ")
+        xml = xml.replace("<saml2:Attribute ", "<Attribute xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\" ")
             .replace("</saml2:Attribute>", "</Attribute>")
-            .replace("<saml2:AttributeValue ",
-                "<AttributeValue xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\" ")
+            .replace("<saml2:AttributeValue ", "<AttributeValue xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\" ")
             .replace("</saml2:AttributeValue>", "</AttributeValue>");
         final Response encrypted = encryptAttributes(xml, randomFrom(spEncryptionCertificatePairs));
         String encryptedString = SamlUtils.getXmlContent(encrypted, false);
@@ -408,8 +410,13 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
     public void testIncorrectRecipientIsRejected() throws Exception {
         Instant now = clock.instant();
         final Response response = getSimpleResponse(now);
-        response.getAssertions().get(0).getSubject().getSubjectConfirmations().get(0).getSubjectConfirmationData()
-            .setRecipient(SP_ACS_URL+"/fake");
+        response.getAssertions()
+            .get(0)
+            .getSubject()
+            .getSubjectConfirmations()
+            .get(0)
+            .getSubjectConfirmationData()
+            .setRecipient(SP_ACS_URL + "/fake");
         final String xml = SamlUtils.getXmlContent(response, false);
 
         SamlToken token = token(signResponse(xml));
@@ -471,8 +478,10 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         Instant now = clock.instant();
         String xml = getSimpleResponseAsString(now);
 
-        SamlAuthenticator authenticatorWithReqAuthnCtx = buildAuthenticator(() -> buildOpenSamlCredential(idpSigningCertificatePair),
-            Arrays.asList(X509_AUTHN_CTX, KERBEROS_AUTHN_CTX));
+        SamlAuthenticator authenticatorWithReqAuthnCtx = buildAuthenticator(
+            () -> buildOpenSamlCredential(idpSigningCertificatePair),
+            Arrays.asList(X509_AUTHN_CTX, KERBEROS_AUTHN_CTX)
+        );
         SamlToken token = token(signResponse(xml));
         final ElasticsearchSecurityException exception = expectSamlException(() -> authenticatorWithReqAuthnCtx.authenticate(token));
         assertThat(exception.getMessage(), containsString("Rejecting SAML assertion as the AuthnContextClassRef"));
@@ -518,8 +527,13 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
     public void testIncorrectSubjectConfirmationDataInResponseToIsRejected() throws Exception {
         Instant now = clock.instant();
         Response response = getSimpleResponse(now);
-        response.getAssertions().get(0).getSubject().getSubjectConfirmations().get(0).getSubjectConfirmationData().setInResponseTo(
-            "incorrectId");
+        response.getAssertions()
+            .get(0)
+            .getSubject()
+            .getSubjectConfirmations()
+            .get(0)
+            .getSubjectConfirmationData()
+            .setInResponseTo("incorrectId");
         final String xml = SamlUtils.getXmlContent(response, false);
         SamlToken token = token(signResponse(xml));
         final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
@@ -671,8 +685,10 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
     public void testContentIsRejectedIfRestrictedToADifferentAudience() throws Exception {
         final String audience = "https://some.other.sp/SAML2";
         final Response response = getSimpleResponse(Instant.now());
-        AudienceRestriction audienceRestriction = SamlUtils.buildObject(AudienceRestriction.class,
-            AudienceRestriction.DEFAULT_ELEMENT_NAME);
+        AudienceRestriction audienceRestriction = SamlUtils.buildObject(
+            AudienceRestriction.class,
+            AudienceRestriction.DEFAULT_ELEMENT_NAME
+        );
         Audience falseAudience = SamlUtils.buildObject(Audience.class, Audience.DEFAULT_ELEMENT_NAME);
         falseAudience.setURI(audience);
         audienceRestriction.getAudiences().add(falseAudience);
@@ -692,8 +708,10 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         final String similarAudienceString = SP_ENTITY_ID.replaceFirst("/$", ":80/");
         final String wrongAudienceString = "http://" + randomAlphaOfLengthBetween(4, 12) + "." + randomAlphaOfLengthBetween(6, 8) + "/";
         final Response response = getSimpleResponse(Instant.now());
-        AudienceRestriction invalidAudienceRestriction = SamlUtils.buildObject(AudienceRestriction.class,
-            AudienceRestriction.DEFAULT_ELEMENT_NAME);
+        AudienceRestriction invalidAudienceRestriction = SamlUtils.buildObject(
+            AudienceRestriction.class,
+            AudienceRestriction.DEFAULT_ELEMENT_NAME
+        );
         Audience similarAudience = SamlUtils.buildObject(Audience.class, Audience.DEFAULT_ELEMENT_NAME);
         similarAudience.setURI(similarAudienceString);
         Audience wrongAudience = SamlUtils.buildObject(Audience.class, Audience.DEFAULT_ELEMENT_NAME);
@@ -711,19 +729,28 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         try {
             Loggers.addAppender(samlLogger, mockAppender);
 
-            mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
-                "similar audience",
-                authenticator.getClass().getName(),
-                Level.INFO,
-                "Audience restriction [" + similarAudienceString + "] does not match required audience [" + SP_ENTITY_ID +
-                    "] (difference starts at character [#" + (SP_ENTITY_ID.length() - 1) + "] [:80/] vs [/])"
-            ));
-            mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
-                "not similar audience",
-                authenticator.getClass().getName(),
-                Level.INFO,
-                "Audience restriction [" + wrongAudienceString + "] does not match required audience [" + SP_ENTITY_ID + "]"
-            ));
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "similar audience",
+                    authenticator.getClass().getName(),
+                    Level.INFO,
+                    "Audience restriction ["
+                        + similarAudienceString
+                        + "] does not match required audience ["
+                        + SP_ENTITY_ID
+                        + "] (difference starts at character [#"
+                        + (SP_ENTITY_ID.length() - 1)
+                        + "] [:80/] vs [/])"
+                )
+            );
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "not similar audience",
+                    authenticator.getClass().getName(),
+                    Level.INFO,
+                    "Audience restriction [" + wrongAudienceString + "] does not match required audience [" + SP_ENTITY_ID + "]"
+                )
+            );
             final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
             assertThat(exception.getMessage(), containsString("required audience"));
             mockAppender.assertAllExpectationsMatched();
@@ -770,11 +797,11 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         */
         final Element response = (Element) legitimateDocument.getElementsByTagNameNS(SAML20P_NS, "Response").item(0);
         final Element clonedResponse = (Element) response.cloneNode(true);
-        final Element clonedSignature = (Element) clonedResponse.
-            getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature").item(0);
+        final Element clonedSignature = (Element) clonedResponse.getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature")
+            .item(0);
         clonedResponse.removeChild(clonedSignature);
-        final Element legitimateSignature = (Element) response.
-            getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature").item(0);
+        final Element legitimateSignature = (Element) response.getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature")
+            .item(0);
         legitimateSignature.appendChild(clonedResponse);
         response.setAttribute("ID", "_forged_ID");
         final SamlToken forgedToken = token(SamlUtils.toString((legitimateDocument.getDocumentElement())));
@@ -804,11 +831,11 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         */
         final Element response = (Element) legitimateDocument.getElementsByTagNameNS(SAML20P_NS, "Response").item(0);
         final Element clonedResponse = (Element) response.cloneNode(true);
-        final Element clonedSignature = (Element) clonedResponse.
-            getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature").item(0);
+        final Element clonedSignature = (Element) clonedResponse.getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature")
+            .item(0);
         clonedResponse.removeChild(clonedSignature);
-        final Element legitimateSignature = (Element) response.
-            getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature").item(0);
+        final Element legitimateSignature = (Element) response.getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature")
+            .item(0);
         response.insertBefore(clonedResponse, legitimateSignature);
         response.setAttribute("ID", "_forged_ID");
         final SamlToken forgedToken = token(SamlUtils.toString((legitimateDocument.getDocumentElement())));
@@ -841,12 +868,11 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
            </Response>
         */
         final Element response = (Element) legitimateDocument.getElementsByTagNameNS(SAML20P_NS, "Response").item(0);
-        final Element assertion = (Element) legitimateDocument.
-            getElementsByTagNameNS(SAML20_NS, "Assertion").item(0);
+        final Element assertion = (Element) legitimateDocument.getElementsByTagNameNS(SAML20_NS, "Assertion").item(0);
         final Element forgedAssertion = (Element) assertion.cloneNode(true);
         forgedAssertion.setAttribute("ID", "_forged_assertion_id");
-        final Element clonedSignature = (Element) forgedAssertion.
-            getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature").item(0);
+        final Element clonedSignature = (Element) forgedAssertion.getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature")
+            .item(0);
         forgedAssertion.removeChild(clonedSignature);
         response.insertBefore(forgedAssertion, assertion);
         final SamlToken forgedToken = token(SamlUtils.toString((legitimateDocument.getDocumentElement())));
@@ -856,7 +882,6 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         assertThat(SamlUtils.isSamlException(exception), is(true));
 
     }
-
 
     public void testSignatureWrappingAttackFour() throws Exception {
         final Instant now = clock.instant();
@@ -883,8 +908,8 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         final Element assertion = (Element) legitimateDocument.getElementsByTagNameNS(SAML20_NS, "Assertion").item(0);
         final Element forgedAssertion = (Element) assertion.cloneNode(true);
         forgedAssertion.setAttribute("ID", "_forged_assertion_id");
-        final Element clonedSignature = (Element) forgedAssertion.
-            getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature").item(0);
+        final Element clonedSignature = (Element) forgedAssertion.getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature")
+            .item(0);
         forgedAssertion.removeChild(clonedSignature);
         response.appendChild(forgedAssertion);
         forgedAssertion.appendChild(assertion);
@@ -916,8 +941,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         */
         final Element response = (Element) legitimateDocument.getElementsByTagNameNS(SAML20P_NS, "Response").item(0);
         final Element assertion = (Element) legitimateDocument.getElementsByTagNameNS(SAML20_NS, "Assertion").item(0);
-        final Element signature = (Element) assertion.
-            getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature").item(0);
+        final Element signature = (Element) assertion.getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature").item(0);
         assertion.removeChild(signature);
         final Element forgedAssertion = (Element) assertion.cloneNode(true);
         forgedAssertion.setAttribute("ID", "_forged_assertion_id");
@@ -954,10 +978,9 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         final Element assertion = (Element) legitimateDocument.getElementsByTagNameNS(SAML20_NS, "Assertion").item(0);
         final Element forgedAssertion = (Element) assertion.cloneNode(true);
         forgedAssertion.setAttribute("ID", "_forged_assertion_id");
-        final Element signature = (Element) assertion.
-            getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature").item(0);
-        final Element forgedSignature = (Element) forgedAssertion.
-            getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature").item(0);
+        final Element signature = (Element) assertion.getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature").item(0);
+        final Element forgedSignature = (Element) forgedAssertion.getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature")
+            .item(0);
         forgedAssertion.removeChild(forgedSignature);
         assertion.removeChild(signature);
         final Element issuer = (Element) forgedAssertion.getElementsByTagNameNS(SAML20_NS, "Issuer").item(0);
@@ -997,8 +1020,8 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         response.insertBefore(extensions, assertion);
         final Element forgedAssertion = (Element) assertion.cloneNode(true);
         forgedAssertion.setAttribute("ID", "_forged_assertion_id");
-        final Element forgedSignature = (Element) forgedAssertion.
-            getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature").item(0);
+        final Element forgedSignature = (Element) forgedAssertion.getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature")
+            .item(0);
         forgedAssertion.removeChild(forgedSignature);
         extensions.appendChild(forgedAssertion);
         final SamlToken forgedToken = token(SamlUtils.toString((legitimateDocument.getDocumentElement())));
@@ -1034,10 +1057,9 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         final Element assertion = (Element) legitimateDocument.getElementsByTagNameNS(SAML20_NS, "Assertion").item(0);
         final Element forgedAssertion = (Element) assertion.cloneNode(true);
         forgedAssertion.setAttribute("ID", "_forged_assertion_id");
-        final Element signature = (Element) assertion.
-            getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature").item(0);
-        final Element forgedSignature = (Element) forgedAssertion.
-            getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature").item(0);
+        final Element signature = (Element) assertion.getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature").item(0);
+        final Element forgedSignature = (Element) forgedAssertion.getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature")
+            .item(0);
         forgedAssertion.removeChild(forgedSignature);
         assertion.removeChild(signature);
         final Element issuer = (Element) forgedAssertion.getElementsByTagNameNS(SAML20_NS, "Issuer").item(0);
@@ -1054,9 +1076,9 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
     }
 
     public void testXXE() throws Exception {
-        String xml = "<?xml version='1.0' encoding='UTF-8'?>\n" +
-            "<!DOCTYPE foo [<!ELEMENT foo ANY > <!ENTITY xxe SYSTEM \"file:///etc/passwd\" >]>" +
-            "<foo>&xxe;</foo>";
+        String xml = "<?xml version='1.0' encoding='UTF-8'?>\n"
+            + "<!DOCTYPE foo [<!ELEMENT foo ANY > <!ENTITY xxe SYSTEM \"file:///etc/passwd\" >]>"
+            + "<foo>&xxe;</foo>";
         final SamlToken token = token(xml);
         final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getCause(), instanceOf(SAXException.class));
@@ -1065,11 +1087,11 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
 
     public void testBillionLaughsAttack() throws Exception {
         // There is no need to go up to N iterations
-        String xml = "<!DOCTYPE lolz [\n" +
-            " <!ENTITY lol \"lol\">\n" +
-            " <!ENTITY lol1 \"&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;\">\n" +
-            "]>\n" +
-            "<attack>&lol1;</attack>";
+        String xml = "<!DOCTYPE lolz [\n"
+            + " <!ENTITY lol \"lol\">\n"
+            + " <!ENTITY lol1 \"&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;\">\n"
+            + "]>\n"
+            + "<attack>&lol1;</attack>";
         final SamlToken token = token(xml);
         final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getCause(), instanceOf(SAXException.class));
@@ -1114,7 +1136,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
 
     public void testIgnoredCommentsInResponseUsingCanonicalizationWithComments() throws Exception {
         assumeFalse("Can't run in a FIPS JVM, there is no DOM XMLSignature Factory so we can't sign XML documents", inFipsJvm());
-        assumeFalse("Can't run in Azul Zulu JVM",System.getProperty("java.vendor", "").contains("Azul"));
+        assumeFalse("Can't run in Azul Zulu JVM", System.getProperty("java.vendor", "").contains("Azul"));
 
         final String nameId = "user<!-- this is a comment -->admin@example.com";
         final String sanitizedNameId = "useradmin@example.com";
@@ -1144,7 +1166,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         assertThat(exception.getCause(), nullValue());
         assertThat(exception.getMessage(), containsString("SAML Signature"));
         assertThat(exception.getMessage(), containsString("could not be validated"));
-        //Restore the authenticator with credentials for the rest of the test cases
+        // Restore the authenticator with credentials for the rest of the test cases
         authenticator = buildAuthenticator(() -> buildOpenSamlCredential(idpSigningCertificatePair), emptyList());
     }
 
@@ -1156,7 +1178,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         assertThat(exception.getCause(), nullValue());
         assertThat(exception.getMessage(), containsString("SAML Signature"));
         assertThat(exception.getMessage(), containsString("could not be validated"));
-        //Restore the authenticator with credentials for the rest of the test cases
+        // Restore the authenticator with credentials for the rest of the test cases
         authenticator = buildAuthenticator(() -> buildOpenSamlCredential(idpSigningCertificatePair), emptyList());
     }
 
@@ -1213,14 +1235,14 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         final Response response = toResponse(xml);
         final Encrypter samlEncrypter = getEncrypter(keyPair);
         final AttributeStatement attributeStatement = response.getAssertions().get(0).getAttributeStatements().get(0);
-        for (Attribute plaintextAttribute: attributeStatement.getAttributes()) {
+        for (Attribute plaintextAttribute : attributeStatement.getAttributes()) {
             attributeStatement.getEncryptedAttributes().add(samlEncrypter.encrypt(plaintextAttribute));
         }
         attributeStatement.getAttributes().clear();
         return response;
     }
 
-    private Encrypter getEncrypter(Tuple<X509Certificate, PrivateKey> keyPair) throws Exception{
+    private Encrypter getEncrypter(Tuple<X509Certificate, PrivateKey> keyPair) throws Exception {
         final int keyLength = randomFrom(supportedAesKeyLengths);
         final KeyGenerator aesGenerator = KeyGenerator.getInstance("AES");
         aesGenerator.init(keyLength);
@@ -1233,8 +1255,9 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         final Credential keyEncryptionCredential = new BasicCredential(keyPair.v1().getPublicKey(), keyPair.v2());
         KeyEncryptionParameters keyEncryptionParameters = new KeyEncryptionParameters();
         keyEncryptionParameters.setEncryptionCredential(keyEncryptionCredential);
-        keyEncryptionParameters.setAlgorithm(randomFrom(EncryptionConstants.ALGO_ID_KEYTRANSPORT_RSAOAEP,
-            EncryptionConstants.ALGO_ID_KEYTRANSPORT_RSA15));
+        keyEncryptionParameters.setAlgorithm(
+            randomFrom(EncryptionConstants.ALGO_ID_KEYTRANSPORT_RSAOAEP, EncryptionConstants.ALGO_ID_KEYTRANSPORT_RSA15)
+        );
 
         final Encrypter samlEncrypter = new Encrypter(encryptionParameters, keyEncryptionParameters);
         samlEncrypter.setKeyPlacement(Encrypter.KeyPlacement.INLINE);
@@ -1286,8 +1309,13 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         return getSimpleResponse(now, nameId, sessionindex, subjectConfirmationValidUntil, sessionValidUntil);
     }
 
-    private Response getSimpleResponse(Instant now, String nameId, String sessionindex, Instant subjectConfirmationValidUntil,
-                                       Instant sessionValidUntil) {
+    private Response getSimpleResponse(
+        Instant now,
+        String nameId,
+        String sessionindex,
+        Instant subjectConfirmationValidUntil,
+        Instant sessionValidUntil
+    ) {
         final Response response = SamlUtils.buildObject(Response.class, Response.DEFAULT_ELEMENT_NAME);
         response.setDestination(SP_ACS_URL);
         response.setID(randomId());
@@ -1307,8 +1335,10 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         final Issuer assertionIssuer = SamlUtils.buildObject(Issuer.class, Issuer.DEFAULT_ELEMENT_NAME);
         assertionIssuer.setValue(IDP_ENTITY_ID);
         assertion.setIssuer(assertionIssuer);
-        AudienceRestriction audienceRestriction = SamlUtils.buildObject(AudienceRestriction.class,
-            AudienceRestriction.DEFAULT_ELEMENT_NAME);
+        AudienceRestriction audienceRestriction = SamlUtils.buildObject(
+            AudienceRestriction.class,
+            AudienceRestriction.DEFAULT_ELEMENT_NAME
+        );
         Audience audience = SamlUtils.buildObject(Audience.class, Audience.DEFAULT_ELEMENT_NAME);
         audience.setURI(SP_ENTITY_ID);
         audienceRestriction.getAudiences().add(audience);
@@ -1321,10 +1351,14 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         nameIDElement.setNameQualifier(IDP_ENTITY_ID);
         nameIDElement.setSPNameQualifier(SP_ENTITY_ID);
         nameIDElement.setValue(nameId);
-        final SubjectConfirmation subjectConfirmation = SamlUtils.buildObject(SubjectConfirmation.class,
-            SubjectConfirmation.DEFAULT_ELEMENT_NAME);
-        final SubjectConfirmationData subjectConfirmationData = SamlUtils.buildObject(SubjectConfirmationData.class,
-            SubjectConfirmationData.DEFAULT_ELEMENT_NAME);
+        final SubjectConfirmation subjectConfirmation = SamlUtils.buildObject(
+            SubjectConfirmation.class,
+            SubjectConfirmation.DEFAULT_ELEMENT_NAME
+        );
+        final SubjectConfirmationData subjectConfirmationData = SamlUtils.buildObject(
+            SubjectConfirmationData.class,
+            SubjectConfirmationData.DEFAULT_ELEMENT_NAME
+        );
         subjectConfirmationData.setNotOnOrAfter(subjectConfirmationValidUntil);
         subjectConfirmationData.setRecipient(SP_ACS_URL);
         subjectConfirmationData.setInResponseTo(requestId);
@@ -1333,8 +1367,10 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         subject.setNameID(nameIDElement);
         subject.getSubjectConfirmations().add(subjectConfirmation);
         assertion.setSubject(subject);
-        final AuthnContextClassRef authnContextClassRef = SamlUtils.buildObject(AuthnContextClassRef.class,
-            AuthnContextClassRef.DEFAULT_ELEMENT_NAME);
+        final AuthnContextClassRef authnContextClassRef = SamlUtils.buildObject(
+            AuthnContextClassRef.class,
+            AuthnContextClassRef.DEFAULT_ELEMENT_NAME
+        );
         authnContextClassRef.setURI(PASSWORD_AUTHN_CTX);
         final AuthnContext authnContext = SamlUtils.buildObject(AuthnContext.class, AuthnContext.DEFAULT_ELEMENT_NAME);
         authnContext.setAuthnContextClassRef(authnContextClassRef);
@@ -1344,8 +1380,10 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         authnStatement.setSessionIndex(sessionindex);
         authnStatement.setSessionNotOnOrAfter(sessionValidUntil);
         assertion.getAuthnStatements().add(authnStatement);
-        final AttributeStatement attributeStatement = SamlUtils.buildObject(AttributeStatement.class,
-            AttributeStatement.DEFAULT_ELEMENT_NAME);
+        final AttributeStatement attributeStatement = SamlUtils.buildObject(
+            AttributeStatement.class,
+            AttributeStatement.DEFAULT_ELEMENT_NAME
+        );
         final Attribute attribute1 = SamlUtils.buildObject(Attribute.class, Attribute.DEFAULT_ELEMENT_NAME);
         attribute1.setNameFormat("urn:oasis:names:tc:SAML:2.0:attrname-format:uri");
         attribute1.setName(UID_OID);

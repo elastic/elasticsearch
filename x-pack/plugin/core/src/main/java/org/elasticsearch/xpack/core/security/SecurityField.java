@@ -17,16 +17,25 @@ public final class SecurityField {
 
     public static final String NAME4 = XPackField.SECURITY + "4";
     public static final String NIO = XPackField.SECURITY + "-nio";
-    public static final Setting<Optional<String>> USER_SETTING =
-            new Setting<>(setting("user"), (String) null, Optional::ofNullable, Setting.Property.NodeScope);
+    public static final Setting<Optional<String>> USER_SETTING = new Setting<>(
+        setting("user"),
+        (String) null,
+        Optional::ofNullable,
+        Setting.Property.NodeScope
+    );
 
     // Document and Field Level Security are Platinum+
-    private static final String DLS_FLS_FEATURE_FAMILY  = "security-dls-fls";
-    public static final LicensedFeature.Momentary DOCUMENT_LEVEL_SECURITY_FEATURE =
-        LicensedFeature.momentary(DLS_FLS_FEATURE_FAMILY, "dls", License.OperationMode.PLATINUM);
-    public static final LicensedFeature.Momentary FIELD_LEVEL_SECURITY_FEATURE =
-        LicensedFeature.momentary(DLS_FLS_FEATURE_FAMILY, "fls", License.OperationMode.PLATINUM);
-
+    private static final String DLS_FLS_FEATURE_FAMILY = "security-dls-fls";
+    public static final LicensedFeature.Momentary DOCUMENT_LEVEL_SECURITY_FEATURE = LicensedFeature.momentary(
+        DLS_FLS_FEATURE_FAMILY,
+        "dls",
+        License.OperationMode.PLATINUM
+    );
+    public static final LicensedFeature.Momentary FIELD_LEVEL_SECURITY_FEATURE = LicensedFeature.momentary(
+        DLS_FLS_FEATURE_FAMILY,
+        "fls",
+        License.OperationMode.PLATINUM
+    );
 
     private SecurityField() {
         // Assert that DLS and FLS have identical license requirement so that license check can be simplified to just

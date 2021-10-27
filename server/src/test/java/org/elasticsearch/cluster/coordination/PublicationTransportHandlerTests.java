@@ -63,7 +63,8 @@ public class PublicationTransportHandlerTests extends ESTestCase {
             mock(TransportService.class),
             writableRegistry(),
             pu -> null,
-            (pu, l) -> {});
+            (pu, l) -> {}
+        );
 
         final DiscoveryNode otherNode = new DiscoveryNode("otherNode", buildNewFakeTransportAddress(), Version.CURRENT);
         final ClusterState clusterState = CoordinationStateTests.clusterState(
@@ -72,7 +73,8 @@ public class PublicationTransportHandlerTests extends ESTestCase {
             DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(localNode.getId()).build(),
             VotingConfiguration.EMPTY_CONFIG,
             VotingConfiguration.EMPTY_CONFIG,
-            0L);
+            0L
+        );
 
         final ClusterState unserializableClusterState = new ClusterState(clusterState.version(), clusterState.stateUUID(), clusterState) {
             @Override
@@ -95,12 +97,8 @@ public class PublicationTransportHandlerTests extends ESTestCase {
 
         final ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
-            () -> handler.newPublicationContext(new ClusterStatePublicationEvent(
-                "test",
-                clusterState,
-                unserializableClusterState,
-                0L,
-                0L)));
+            () -> handler.newPublicationContext(new ClusterStatePublicationEvent("test", clusterState, unserializableClusterState, 0L, 0L))
+        );
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IOException.class));
         assertThat(e.getCause().getMessage(), containsString("Simulated failure of diff serialization"));
@@ -142,7 +140,8 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                                 randomNonNegativeLong(),
                                 UUIDs.randomBase64UUID(random()),
                                 randomNonNegativeLong(),
-                                UUIDs.randomBase64UUID(random()));
+                                UUIDs.randomBase64UUID(random())
+                            );
                         }
 
                         if (simulateFailures && randomBoolean()) {
@@ -161,13 +160,11 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                             requestId,
                             new PublishWithJoinResponse(
                                 new PublishResponse(randomNonNegativeLong(), randomNonNegativeLong()),
-                                Optional.empty()));
+                                Optional.empty()
+                            )
+                        );
                     } else {
-                        handleError(requestId, new RemoteTransportException(
-                            node.getName(),
-                            node.getAddress(),
-                            action,
-                            exception));
+                        handleError(requestId, new RemoteTransportException(node.getName(), node.getAddress(), action, exception));
                     }
                 }
             };
@@ -177,23 +174,27 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> localNode,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                Collections.emptySet());
+                Collections.emptySet()
+            );
             final PublicationTransportHandler handler = new PublicationTransportHandler(
                 new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()),
                 transportService,
                 writableRegistry(),
                 pu -> null,
-                (pu, l) -> {
-                });
+                (pu, l) -> {}
+            );
             transportService.start();
             transportService.acceptIncomingRequests();
 
             final List<DiscoveryNode> allNodes = new ArrayList<>();
             while (allNodes.size() < 10) {
-                allNodes.add(new DiscoveryNode(
-                    "node-" + allNodes.size(),
-                    buildNewFakeTransportAddress(),
-                    VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)));
+                allNodes.add(
+                    new DiscoveryNode(
+                        "node-" + allNodes.size(),
+                        buildNewFakeTransportAddress(),
+                        VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)
+                    )
+                );
             }
 
             final DiscoveryNodes.Builder prevNodes = DiscoveryNodes.builder();
@@ -212,7 +213,8 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 prevNodes.build(),
                 VotingConfiguration.EMPTY_CONFIG,
                 VotingConfiguration.EMPTY_CONFIG,
-                0L);
+                0L
+            );
 
             final ClusterState nextClusterState = new ClusterState(
                 randomNonNegativeLong(),
@@ -223,7 +225,9 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                     nextNodes.build(),
                     VotingConfiguration.EMPTY_CONFIG,
                     VotingConfiguration.EMPTY_CONFIG,
-                    0L)) {
+                    0L
+                )
+            ) {
 
                 @Override
                 public void writeTo(StreamOutput out) throws IOException {
@@ -260,7 +264,8 @@ public class PublicationTransportHandlerTests extends ESTestCase {
             final PublicationTransportHandler.PublicationContext context;
             try {
                 context = handler.newPublicationContext(
-                    new ClusterStatePublicationEvent("test", prevClusterState, nextClusterState, 0L, 0L));
+                    new ClusterStatePublicationEvent("test", prevClusterState, nextClusterState, 0L, 0L)
+                );
             } catch (ElasticsearchException e) {
                 assertTrue(simulateFailures);
                 assertThat(e.getCause(), instanceOf(IOException.class));
@@ -276,13 +281,13 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                     context.sendPublishRequest(
                         discoveryNode,
                         new PublishRequest(nextClusterState),
-                        ActionListener.runAfter(ActionListener.wrap(r -> {
-                        }, e -> {
+                        ActionListener.runAfter(ActionListener.wrap(r -> {}, e -> {
                             assert simulateFailures;
                             final Throwable inner = ExceptionsHelper.unwrap(e, IOException.class);
                             assert inner instanceof IOException : e;
                             assertThat(inner.getMessage(), equalTo("simulated failure"));
-                        }), responsesLatch::countDown));
+                        }), responsesLatch::countDown)
+                    );
                     requestsLatch.countDown();
                 });
             }

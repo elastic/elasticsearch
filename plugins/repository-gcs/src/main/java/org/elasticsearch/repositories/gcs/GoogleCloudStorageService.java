@@ -19,14 +19,15 @@ import com.google.cloud.ServiceOptions;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -79,9 +80,8 @@ public class GoogleCloudStorageService {
      * @return a cached client storage instance that can be used to manage objects
      *         (blobs)
      */
-    public Storage client(final String clientName,
-                          final String repositoryName,
-                          final GoogleCloudStorageOperationsStats stats) throws IOException {
+    public Storage client(final String clientName, final String repositoryName, final GoogleCloudStorageOperationsStats stats)
+        throws IOException {
         {
             final Storage storage = clientCache.get(repositoryName);
             if (storage != null) {
@@ -98,12 +98,17 @@ public class GoogleCloudStorageService {
             final GoogleCloudStorageClientSettings settings = clientSettings.get(clientName);
 
             if (settings == null) {
-                throw new IllegalArgumentException("Unknown client name [" + clientName + "]. Existing client configs: "
-                    + Strings.collectionToDelimitedString(clientSettings.keySet(), ","));
+                throw new IllegalArgumentException(
+                    "Unknown client name ["
+                        + clientName
+                        + "]. Existing client configs: "
+                        + Strings.collectionToDelimitedString(clientSettings.keySet(), ",")
+                );
             }
 
-            logger.debug(() -> new ParameterizedMessage("creating GCS client with client_name [{}], endpoint [{}]", clientName,
-                settings.getHost()));
+            logger.debug(
+                () -> new ParameterizedMessage("creating GCS client with client_name [{}], endpoint [{}]", clientName, settings.getHost())
+            );
             final Storage storage = createClient(settings, stats);
             clientCache = Maps.copyMapWithAddedEntry(clientCache, repositoryName, storage);
             return storage;
@@ -122,8 +127,8 @@ public class GoogleCloudStorageService {
      * @return a new client storage instance that can be used to manage objects
      *         (blobs)
      */
-    private Storage createClient(GoogleCloudStorageClientSettings clientSettings,
-                                 GoogleCloudStorageOperationsStats stats) throws IOException {
+    private Storage createClient(GoogleCloudStorageClientSettings clientSettings, GoogleCloudStorageOperationsStats stats)
+        throws IOException {
         final HttpTransport httpTransport = SocketAccess.doPrivilegedIOException(() -> {
             final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
             // requires java.lang.RuntimePermission "setFactory"
@@ -140,18 +145,19 @@ public class GoogleCloudStorageService {
 
         final GoogleCloudStorageHttpStatsCollector httpStatsCollector = new GoogleCloudStorageHttpStatsCollector(stats);
 
-        final HttpTransportOptions httpTransportOptions = new HttpTransportOptions(HttpTransportOptions.newBuilder()
-            .setConnectTimeout(toTimeout(clientSettings.getConnectTimeout()))
-            .setReadTimeout(toTimeout(clientSettings.getReadTimeout()))
-            .setHttpTransportFactory(() -> httpTransport)) {
+        final HttpTransportOptions httpTransportOptions = new HttpTransportOptions(
+            HttpTransportOptions.newBuilder()
+                .setConnectTimeout(toTimeout(clientSettings.getConnectTimeout()))
+                .setReadTimeout(toTimeout(clientSettings.getReadTimeout()))
+                .setHttpTransportFactory(() -> httpTransport)
+        ) {
 
             @Override
             public HttpRequestInitializer getHttpRequestInitializer(ServiceOptions<?, ?> serviceOptions) {
                 HttpRequestInitializer requestInitializer = super.getHttpRequestInitializer(serviceOptions);
 
                 return (httpRequest) -> {
-                    if (requestInitializer != null)
-                        requestInitializer.initialize(httpRequest);
+                    if (requestInitializer != null) requestInitializer.initialize(httpRequest);
 
                     httpRequest.setResponseInterceptor(httpStatsCollector);
                 };
@@ -162,17 +168,19 @@ public class GoogleCloudStorageService {
         return storageOptions.getService();
     }
 
-    StorageOptions createStorageOptions(final GoogleCloudStorageClientSettings clientSettings,
-                                        final HttpTransportOptions httpTransportOptions) {
+    StorageOptions createStorageOptions(
+        final GoogleCloudStorageClientSettings clientSettings,
+        final HttpTransportOptions httpTransportOptions
+    ) {
         final StorageOptions.Builder storageOptionsBuilder = StorageOptions.newBuilder()
-                .setTransportOptions(httpTransportOptions)
-                .setHeaderProvider(() -> {
-                    final MapBuilder<String, String> mapBuilder = MapBuilder.newMapBuilder();
-                    if (Strings.hasLength(clientSettings.getApplicationName())) {
-                        mapBuilder.put("user-agent", clientSettings.getApplicationName());
-                    }
-                    return mapBuilder.immutableMap();
-                });
+            .setTransportOptions(httpTransportOptions)
+            .setHeaderProvider(() -> {
+                final MapBuilder<String, String> mapBuilder = MapBuilder.newMapBuilder();
+                if (Strings.hasLength(clientSettings.getApplicationName())) {
+                    mapBuilder.put("user-agent", clientSettings.getApplicationName());
+                }
+                return mapBuilder.immutableMap();
+            });
         if (Strings.hasLength(clientSettings.getHost())) {
             storageOptionsBuilder.setHost(clientSettings.getHost());
         }

@@ -12,6 +12,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.KnnVectorField;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -42,6 +43,8 @@ import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.index.TermsEnum.SeekStatus;
+import org.apache.lucene.index.VectorValues;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TestUtil;
@@ -58,11 +61,11 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -175,6 +178,38 @@ public class FieldSubsetReaderTests extends ESTestCase {
             }
         });
         assertTrue(sawDoc.get());
+
+        TestUtil.checkReader(ir);
+        IOUtils.close(ir, iw, dir);
+    }
+
+    public void testKnnVectors() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = new IndexWriterConfig(null);
+        IndexWriter iw = new IndexWriter(dir, iwc);
+
+        Document doc = new Document();
+        doc.add(new KnnVectorField("fieldA", new float[] {0.1f, 0.2f, 0.3f}));
+        doc.add(new KnnVectorField("fieldB", new float[] {3.0f, 2.0f, 1.0f}));
+        iw.addDocument(doc);
+
+        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
+        LeafReader leafReader = ir.leaves().get(0).reader();
+
+        // Check that fieldA behaves as normal
+        VectorValues vectorValues = leafReader.getVectorValues("fieldA");
+        assertEquals(3, vectorValues.dimension());
+        assertEquals(1, vectorValues.size());
+        assertEquals(0, vectorValues.nextDoc());
+        assertNotNull(vectorValues.binaryValue());
+
+        TopDocs topDocs = leafReader.searchNearestVectors("fieldA", new float[] {1.0f, 1.0f, 1.0f}, 5, null);
+        assertNotNull(topDocs);
+        assertEquals(1, topDocs.scoreDocs.length);
+
+        // Check that we can't see fieldB
+        assertNull(leafReader.getVectorValues("fieldB"));
+        assertNull(leafReader.searchNearestVectors("fieldB", new float[] {1.0f, 1.0f, 1.0f}, 5, null));
 
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);

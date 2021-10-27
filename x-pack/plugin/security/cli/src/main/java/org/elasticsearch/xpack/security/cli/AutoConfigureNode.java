@@ -195,57 +195,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             if (false == inEnrollmentMode) {
                 throw new UserException(ExitCodes.USAGE, "enrollment-token is a mandatory parameter.");
             }
-            // We remove the existing auto-configuration stanza from elasticsearch.yml, the elastisearch.keystore and
-            // the directory with the auto-configured TLS key material, and then proceed as if elasticsearch is started
-            // with --enrolment-token token, in the first place.
-            final String autoConfigDirName = getAutoConfigDirName(env);
-            final List<String> existingConfigLines;
-            try {
-                existingConfigLines = Files.readAllLines(ymlPath, StandardCharsets.UTF_8);
-            } catch (IOException e) {
-                throw new UserException(ExitCodes.IO_ERROR, "Aborting enrolling to cluster. Unable to read elasticsearch.yml.", e);
-            }
-            final List<String> existingConfigWithoutAutoconfiguration = removePreviousAutoconfiguration(existingConfigLines);
-            if (existingConfigLines.equals(existingConfigWithoutAutoconfiguration) == false) {
-                terminal.println("");
-                terminal.println(
-                    "This node will be reconfigured to join an existing cluster, using the enrollment token that you provided."
-                );
-                terminal.println("This operation will overwrite the existing configuration. Specifically: ");
-                terminal.println("  - Security auto configuration will be removed from elasticsearch.yml");
-                terminal.println("  - The " + autoConfigDirName + " directory will be removed");
-                terminal.println("  - Security auto configuration related secure settings will be removed from the elasticsearch.keystore");
-                final boolean shouldContinue = terminal.promptYesNo("Do you want to continue with the reconfiguration process", false);
-                if (shouldContinue == false) {
-                    throw new UserException(ExitCodes.OK, "User cancelled operation");
-                }
-                removeAutoConfigurationFromKeystore(env, terminal);
-                try {
-                    fullyWriteFile(env.configFile(), "elasticsearch.yml", true, stream -> {
-                        try (BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8))) {
-                            for (String l : existingConfigWithoutAutoconfiguration) {
-                                bw.write(l);
-                                bw.newLine();
-                            }
-                        }
-                    });
-                    deleteDirectory(env.configFile().resolve(autoConfigDirName));
-                } catch (Throwable t) {
-                    throw new UserException(
-                        ExitCodes.IO_ERROR,
-                        "Aborting enrolling to cluster. Unable to remove existing security configuration.",
-                        t
-                    );
-                }
-                // rebuild the environment after removing the settings that were added in auto-configuration.
-                env = createEnv(Map.of("path.home", env.settings().get("path.home")));
-            } else {
-                throw new UserException(
-                    ExitCodes.USAGE,
-                    "Aborting enrolling to cluster. This node doesn't appear to be auto-configured for security. "
-                        + "Expected configuration is missing from elasticsearch.yml."
-                );
-            }
+            possibleReconfigureNode(env, terminal);
         }
 
         // only perform auto-configuration if the existing configuration is not conflicting (eg Security already enabled)
@@ -737,6 +687,61 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         Files.deleteIfExists(keystoreBackupPath);
     }
 
+    private void possibleReconfigureNode(Environment env, Terminal terminal) throws UserException{
+        // We remove the existing auto-configuration stanza from elasticsearch.yml, the elastisearch.keystore and
+        // the directory with the auto-configured TLS key material, and then proceed as if elasticsearch is started
+        // with --enrolment-token token, in the first place.
+        final String autoConfigDirName = getAutoConfigDirName(env);
+        final List<String> existingConfigLines;
+        try {
+            existingConfigLines = Files.readAllLines(env.configFile().resolve("elasticsearch.yml"), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            // This shouldn't happen, we would have failed earlier but we need to catch the exception
+            throw new UserException(ExitCodes.IO_ERROR, "Aborting enrolling to cluster. Unable to read elasticsearch.yml.", e);
+        }
+        final List<String> existingConfigWithoutAutoconfiguration = removePreviousAutoconfiguration(existingConfigLines);
+        if (existingConfigLines.equals(existingConfigWithoutAutoconfiguration) == false) {
+            terminal.println("");
+            terminal.println(
+                "This node will be reconfigured to join an existing cluster, using the enrollment token that you provided."
+            );
+            terminal.println("This operation will overwrite the existing configuration. Specifically: ");
+            terminal.println("  - Security auto configuration will be removed from elasticsearch.yml");
+            terminal.println("  - The " + autoConfigDirName + " directory will be removed");
+            terminal.println("  - Security auto configuration related secure settings will be removed from the elasticsearch.keystore");
+            final boolean shouldContinue = terminal.promptYesNo("Do you want to continue with the reconfiguration process", false);
+            if (shouldContinue == false) {
+                throw new UserException(ExitCodes.OK, "User cancelled operation");
+            }
+            removeAutoConfigurationFromKeystore(env, terminal);
+            try {
+                fullyWriteFile(env.configFile(), "elasticsearch.yml", true, stream -> {
+                    try (BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8))) {
+                        for (String l : existingConfigWithoutAutoconfiguration) {
+                            bw.write(l);
+                            bw.newLine();
+                        }
+                    }
+                });
+                deleteDirectory(env.configFile().resolve(autoConfigDirName));
+            } catch (Throwable t) {
+                throw new UserException(
+                    ExitCodes.IO_ERROR,
+                    "Aborting enrolling to cluster. Unable to remove existing security configuration.",
+                    t
+                );
+            }
+            // rebuild the environment after removing the settings that were added in auto-configuration.
+            env = createEnv(Map.of("path.home", env.settings().get("path.home")));
+        } else {
+            throw new UserException(
+                ExitCodes.USAGE,
+                "Aborting enrolling to cluster. This node doesn't appear to be auto-configured for security. "
+                    + "Expected configuration is missing from elasticsearch.yml."
+            );
+        }
+    }
+
     private void notifyOfFailure(boolean inEnrollmentMode, Terminal terminal, Terminal.Verbosity verbosity, int exitCode, String message)
         throws UserException {
         if (inEnrollmentMode) {
@@ -961,12 +966,21 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         return (List<String>) responseMap.get("nodes_addresses");
     }
 
-    private String getAutoConfigDirName(Environment env) throws Exception {
-        List<String> autoConfigDirNameList = Files.list(env.configFile())
-            .map(Path::getFileName)
-            .map(Path::toString)
-            .filter(name -> name.startsWith(TLS_CONFIG_DIR_NAME_PREFIX))
-            .collect(Collectors.toList());
+    private String getAutoConfigDirName(Environment env) throws UserException {
+        final List<String> autoConfigDirNameList;
+        try {
+            autoConfigDirNameList = Files.list(env.configFile())
+                .map(Path::getFileName)
+                .map(Path::toString)
+                .filter(name -> name.startsWith(TLS_CONFIG_DIR_NAME_PREFIX))
+                .collect(Collectors.toList());
+        } catch (IOException e) {
+            throw new UserException(
+                ExitCodes.USAGE,
+                "Aborting enrolling to cluster. Error attempting to find the directory with generated keys and certificates for TLS",
+                e
+            );
+        }
         if (autoConfigDirNameList.isEmpty()) {
             throw new UserException(
                 ExitCodes.USAGE,
@@ -1036,7 +1050,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         return existingConfigLines;
     }
 
-    private void removeAutoConfigurationFromKeystore(Environment env, Terminal terminal) throws Exception {
+    private void removeAutoConfigurationFromKeystore(Environment env, Terminal terminal) throws UserException {
         if (Files.exists(KeyStoreWrapper.keystorePath(env.configFile()))) {
             try (
                 KeyStoreWrapper existingKeystore = KeyStoreWrapper.load(env.configFile());
@@ -1071,14 +1085,13 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 existingKeystore.save(env.configFile(), keystorePassword.getChars());
             } catch (Exception e) {
                 terminal.errorPrintln(Terminal.Verbosity.VERBOSE, "");
-                terminal.errorPrintln(
-                    Terminal.Verbosity.VERBOSE,
-                    "Aborting enrolling to cluster. Unable to remove existing security configuration. Error was: " + e.getMessage()
-                );
-                terminal.errorPrintln(Terminal.Verbosity.VERBOSE, "");
                 terminal.errorPrintln(Terminal.Verbosity.VERBOSE, ExceptionsHelper.stackTrace(e));
                 terminal.errorPrintln(Terminal.Verbosity.VERBOSE, "");
-                throw new UserException(ExitCodes.IO_ERROR, "Aborting enrolling to cluster. Unable to remove existing secure settings.", e);
+                throw new UserException(
+                    ExitCodes.IO_ERROR,
+                    "Aborting enrolling to cluster. Unable to remove existing secure settings. Error was: " + e.getMessage(),
+                    e
+                );
             }
         }
     }

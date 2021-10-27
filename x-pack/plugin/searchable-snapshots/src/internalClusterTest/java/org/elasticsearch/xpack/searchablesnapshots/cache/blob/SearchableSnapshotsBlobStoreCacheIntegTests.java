@@ -304,7 +304,8 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
                     .build();
             }
         });
-        ensureGreen(restoredAgainIndex);
+
+        ensureGreen("restored-*");
 
         assertRecoveryStats(restoredAgainIndex, false);
         assertExecutorIsIdle(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);

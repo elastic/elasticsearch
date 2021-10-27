@@ -41,6 +41,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.WarmerStats;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -138,8 +139,13 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
         if (mockClientForCheckpointing == null) {
             mockClientForCheckpointing = new MockClientForCheckpointing("TransformCheckpointServiceNodeTests");
         }
-
-        transformsConfigManager = new IndexBasedTransformConfigManager(client(), xContentRegistry());
+        ClusterService clusterService = mock(ClusterService.class);
+        transformsConfigManager = new IndexBasedTransformConfigManager(
+            clusterService,
+            TestIndexNameExpressionResolver.newInstance(),
+            client(),
+            xContentRegistry()
+        );
 
         // use a mock for the checkpoint service
         TransformAuditor mockAuditor = mock(TransformAuditor.class);

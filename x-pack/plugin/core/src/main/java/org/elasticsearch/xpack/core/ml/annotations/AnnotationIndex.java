@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.core.ml.annotations;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -58,10 +58,13 @@ public class AnnotationIndex {
             final ClusterHealthRequest request = Requests.clusterHealthRequest(READ_ALIAS_NAME)
                 .waitForYellowStatus()
                 .masterNodeTimeout(masterNodeTimeout);
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request,
-                ActionListener.<ClusterHealthResponse>wrap(
-                    r -> finalListener.onResponse(r.isTimedOut() == false), finalListener::onFailure),
-                client.admin().cluster()::health);
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                ClusterHealthAction.INSTANCE,
+                request,
+                ActionListener.wrap(r -> finalListener.onResponse(r.isTimedOut() == false), finalListener::onFailure)
+            );
         }, finalListener::onFailure);
 
         createAnnotationsIndexIfNecessary(client, state, masterNodeTimeout, annotationsIndexCreatedListener);

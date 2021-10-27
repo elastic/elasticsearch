@@ -573,6 +573,14 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
+     * Marks this context as not cacheable.
+     * This method fails if {@link #freezeContext()} is called before on this context.
+     */
+    public void disableCache() {
+        failIfFrozen();
+    }
+
+    /**
      * This method fails if {@link #freezeContext()} is called before on this
      * context. This is used to <i>seal</i>.
      *

@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -133,7 +134,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
             return;
         }
 
-        recursiveExpandTransformIdsAndUpgrade(request.isDryRun(), ActionListener.wrap(updatesByStatus -> {
+        recursiveExpandTransformIdsAndUpgrade(request.isDryRun(), request.timeout(), ActionListener.wrap(updatesByStatus -> {
             final long updated = updatesByStatus.getOrDefault(UpdateResult.Status.UPDATED, 0L);
             final long noAction = updatesByStatus.getOrDefault(UpdateResult.Status.NONE, 0L);
             final long needsUpdate = updatesByStatus.getOrDefault(UpdateResult.Status.NEEDS_UPDATE, 0L);
@@ -157,7 +158,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
-    private void updateOneTransform(String id, boolean dryRun, ActionListener<UpdateResult> listener) {
+    private void updateOneTransform(String id, boolean dryRun, TimeValue timeout, ActionListener<UpdateResult> listener) {
         final ClusterState clusterState = clusterService.state();
 
         transformConfigManager.getTransformConfigurationForUpdate(id, ActionListener.wrap(configAndVersion -> {
@@ -192,6 +193,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
                 false, // defer validation
                 dryRun,
                 false, // check access,
+                timeout,
                 listener
             );
         }, listener::onFailure));
@@ -201,6 +203,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         Deque<String> transformsToUpgrade,
         Map<UpdateResult.Status, Long> updatesByStatus,
         boolean dryRun,
+        TimeValue timeout,
         ActionListener<Void> listener
     ) {
         String next = transformsToUpgrade.pollFirst();
@@ -211,21 +214,25 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
             return;
         }
 
-        updateOneTransform(next, dryRun, ActionListener.wrap(updateResponse -> {
+        updateOneTransform(next, dryRun, timeout, ActionListener.wrap(updateResponse -> {
             TransformConfig updatedConfig = updateResponse.getConfig();
             auditor.info(updatedConfig.getId(), "Updated transform.");
             logger.debug("[{}] Updated transform [{}]", updatedConfig.getId(), updateResponse.getStatus());
             updatesByStatus.compute(updateResponse.getStatus(), (k, v) -> (v == null) ? 1 : v + 1L);
 
             if (transformsToUpgrade.isEmpty() == false) {
-                recursiveUpdate(transformsToUpgrade, updatesByStatus, dryRun, listener);
+                recursiveUpdate(transformsToUpgrade, updatesByStatus, dryRun, timeout, listener);
             } else {
                 listener.onResponse(null);
             }
         }, listener::onFailure));
     }
 
-    private void recursiveExpandTransformIdsAndUpgrade(boolean dryRun, ActionListener<Map<UpdateResult.Status, Long>> listener) {
+    private void recursiveExpandTransformIdsAndUpgrade(
+        boolean dryRun,
+        TimeValue timeout,
+        ActionListener<Map<UpdateResult.Status, Long>> listener
+    ) {
         transformConfigManager.getAllOutdatedTransformIds(ActionListener.wrap(totalAndIds -> {
 
             // exit quickly if there is nothing to do
@@ -243,6 +250,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
                 ids,
                 updatesByStatus,
                 dryRun,
+                timeout,
                 ActionListener.wrap(r -> listener.onResponse(updatesByStatus), listener::onFailure)
             );
         }, listener::onFailure));

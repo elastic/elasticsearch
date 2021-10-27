@@ -38,7 +38,7 @@ public class RestFleetSearchAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Arrays.asList(new Route(GET, "/{index}/_fleet/_search"), new Route(POST, "/{index}/_fleet/_search"));
+        return Arrays.asList(new Route(GET, "/{index}/_fleet/_fleet_search"), new Route(POST, "/{index}/_fleet/_fleet_search"));
     }
 
     @Override

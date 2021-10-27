@@ -34,6 +34,7 @@ import static java.util.Collections.unmodifiableSet;
 /**
  * Tests a random number of queries that increase various (most of the times, one query will "touch" multiple metrics values) metrics.
  */
+@SuppressWarnings("removal")
 public abstract class EqlUsageRestTestCase extends ESRestTestCase {
 
     private RestHighLevelClient highLevelClient;

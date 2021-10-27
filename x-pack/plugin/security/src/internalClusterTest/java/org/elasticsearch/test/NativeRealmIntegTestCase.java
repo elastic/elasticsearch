@@ -31,6 +31,7 @@ import java.util.List;
 /**
  * Test case with method to handle the starting and stopping the stores for native users and roles
  */
+@SuppressWarnings("removal")
 public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
 
     @Before

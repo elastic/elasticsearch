@@ -149,7 +149,6 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78158")
     public void testValidateColdPhase() {
         LifecycleAction invalidAction = null;
         Map<String, LifecycleAction> actions = randomSubsetOf(VALID_COLD_ACTIONS)
@@ -168,10 +167,10 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 equalTo("invalid action [" + invalidAction.getWriteableName() + "] defined in phase [cold]"));
         } else {
             TimeseriesLifecycleType.INSTANCE.validate(coldPhase.values());
-        }
-        if (actions.containsKey(FreezeAction.NAME)) {
-            assertSettingDeprecationsAndWarnings(new Setting<?>[0],
-                new DeprecationWarning(DeprecationLogger.CRITICAL, TimeseriesLifecycleType.FREEZE_ACTION_DEPRECATION_WARNING));
+            if (actions.containsKey(FreezeAction.NAME)) {
+                assertSettingDeprecationsAndWarnings(new Setting<?>[0],
+                    new DeprecationWarning(DeprecationLogger.CRITICAL, TimeseriesLifecycleType.FREEZE_ACTION_DEPRECATION_WARNING));
+            }
         }
     }
 

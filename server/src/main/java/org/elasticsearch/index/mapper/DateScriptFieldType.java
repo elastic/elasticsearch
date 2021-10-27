@@ -119,7 +119,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         Map<String, String> meta
     ) {
         super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, dateTimeFormatter),
-            script, meta);
+            script, scriptFactory.isResultDeterministic(), meta);
         this.dateTimeFormatter = dateTimeFormatter;
     }
 
@@ -156,7 +156,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
 
     @Override
     public Query distanceFeatureQuery(Object origin, String pivot, SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return DateFieldType.handleNow(context, now -> {
             long originLong = DateFieldType.parseToLong(
                 origin,
@@ -179,7 +179,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
 
     @Override
     public Query existsQuery(SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new LongScriptFieldExistsQuery(script, leafFactory(context)::newInstance, name());
     }
 
@@ -194,7 +194,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         SearchExecutionContext context
     ) {
         parser = parser == null ? dateTimeFormatter.toDateMathParser() : parser;
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return DateFieldType.dateRangeQuery(
             lowerTerm,
             upperTerm,
@@ -219,7 +219,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
                 now,
                 DateFieldMapper.Resolution.MILLISECONDS
             );
-            checkAllowExpensiveQueries(context);
+            applyScriptContext(context);
             return new LongScriptFieldTermQuery(script, leafFactory(context)::newInstance, name(), l);
         });
     }
@@ -243,7 +243,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
                     )
                 );
             }
-            checkAllowExpensiveQueries(context);
+            applyScriptContext(context);
             return new LongScriptFieldTermsQuery(script, leafFactory(context)::newInstance, name(), terms);
         });
     }

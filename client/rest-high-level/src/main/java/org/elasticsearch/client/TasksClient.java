@@ -25,7 +25,13 @@ import static java.util.Collections.emptySet;
  * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Tasks API.
  * <p>
  * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html">Task Management API on elastic.co</a>
+ *
+ * @deprecated The High Level Rest Client is deprecated in favor of the
+ * <a href="https://www.elastic.co/guide/en/elasticsearch/client/java-api-client/current/introduction.html">
+ * Elasticsearch Java API Client</a>
  */
+@Deprecated
+@SuppressWarnings("removal")
 public final class TasksClient {
     private final RestHighLevelClient restHighLevelClient;
 

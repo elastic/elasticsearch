@@ -93,7 +93,6 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS") // Don't randomly add 'extra' files to directory.
@@ -324,7 +323,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
         // Subsequent updates shouldn't trigger a reload.
         databaseNodeService.updateDatabase("_name", "_md5", geoIpTmpDir.resolve("some-file"));
-        verifyZeroInteractions(ingestService);
+        verifyNoMoreInteractions(ingestService);
     }
 
     private String mockSearches(String databaseName, int firstChunk, int lastChunk) throws IOException {

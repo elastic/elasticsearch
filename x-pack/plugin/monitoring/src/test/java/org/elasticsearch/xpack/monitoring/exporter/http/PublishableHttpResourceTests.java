@@ -37,7 +37,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -509,12 +508,12 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
 
         if (expected == Boolean.TRUE) {
             verify(responseChecker).apply(response);
-            verifyZeroInteractions(dneResponseChecker);
+            verifyNoMoreInteractions(dneResponseChecker);
         } else if (expected == Boolean.FALSE) {
-            verifyZeroInteractions(responseChecker);
+            verifyNoMoreInteractions(responseChecker);
             verify(dneResponseChecker).apply(response);
         } else {
-            verifyZeroInteractions(responseChecker, dneResponseChecker);
+            verifyNoMoreInteractions(responseChecker, dneResponseChecker);
         }
 
         verifyCheckListener(expected);

@@ -1339,7 +1339,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     protected final XContentParserConfiguration parserConfig() {
-        XContentParserConfiguration config = XContentParserConfiguration.PLAIN.withRegistry(xContentRegistry())
+        XContentParserConfiguration config = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry())
             .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         return randomBoolean() ? config : config.withRestApiVersion(RestApiVersion.minimumSupported());
     }

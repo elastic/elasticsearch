@@ -155,7 +155,7 @@ public class PersistedClusterStateService {
                                         ClusterSettings clusterSettings, LongSupplier relativeTimeMillisSupplier) {
         this.dataPaths = dataPaths;
         this.nodeId = nodeId;
-        this.parserConfig = XContentParserConfiguration.PLAIN.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
+        this.parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
             .withRegistry(namedXContentRegistry);
         this.bigArrays = bigArrays;
         this.relativeTimeMillisSupplier = relativeTimeMillisSupplier;

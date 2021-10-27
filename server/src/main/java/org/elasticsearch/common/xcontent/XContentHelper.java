@@ -52,7 +52,7 @@ public class XContentHelper {
     @Deprecated
     public static XContentParser createParser(NamedXContentRegistry registry, DeprecationHandler deprecation, BytesReference bytes)
         throws IOException {
-        return createParser(XContentParserConfiguration.PLAIN.withRegistry(registry).withDeprecationHandler(deprecation), bytes);
+        return createParser(XContentParserConfiguration.EMPTY.withRegistry(registry).withDeprecationHandler(deprecation), bytes);
     }
 
     /**
@@ -86,7 +86,7 @@ public class XContentHelper {
         BytesReference bytes,
         XContentType xContentType
     ) throws IOException {
-        return createParser(XContentParserConfiguration.PLAIN.withRegistry(registry).withDeprecationHandler(deprecation), bytes);
+        return createParser(XContentParserConfiguration.EMPTY.withRegistry(registry).withDeprecationHandler(deprecation), bytes);
     }
 
     /**
@@ -221,7 +221,7 @@ public class XContentHelper {
             @Nullable Set<String> include,
             @Nullable Set<String> exclude
     ) throws ElasticsearchParseException {
-        try (XContentParser parser = xContent.createParser(XContentParserConfiguration.PLAIN.withFiltering(include, exclude), input)) {
+        try (XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY.withFiltering(include, exclude), input)) {
             return ordered ? parser.mapOrdered() : parser.map();
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);
@@ -254,7 +254,7 @@ public class XContentHelper {
             @Nullable Set<String> exclude
     ) throws ElasticsearchParseException {
         try (XContentParser parser = xContent.createParser(
-            XContentParserConfiguration.PLAIN.withFiltering(include, exclude),
+            XContentParserConfiguration.EMPTY.withFiltering(include, exclude),
                 bytes,
                 offset,
                 length)
@@ -302,14 +302,14 @@ public class XContentHelper {
         if (bytes.hasArray()) {
             try (
                 XContentParser parser = XContentFactory.xContent(xContentType)
-                    .createParser(XContentParserConfiguration.PLAIN, bytes.array(), bytes.arrayOffset(), bytes.length())
+                    .createParser(XContentParserConfiguration.EMPTY, bytes.array(), bytes.arrayOffset(), bytes.length())
             ) {
                 return toJsonString(prettyPrint, parser);
             }
         } else {
             try (
                 InputStream stream = bytes.streamInput();
-                XContentParser parser = XContentFactory.xContent(xContentType).createParser(XContentParserConfiguration.PLAIN, stream)
+                XContentParser parser = XContentFactory.xContent(xContentType).createParser(XContentParserConfiguration.EMPTY, stream)
             ) {
                 return toJsonString(prettyPrint, parser);
             }

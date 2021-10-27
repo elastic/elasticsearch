@@ -56,7 +56,7 @@ public interface XContent {
     @Deprecated
     default XContentParser createParser(NamedXContentRegistry registry, DeprecationHandler deprecationHandler, String content)
         throws IOException {
-        return createParser(XContentParserConfiguration.PLAIN.withRegistry(registry).withDeprecationHandler(deprecationHandler), content);
+        return createParser(XContentParserConfiguration.EMPTY.withRegistry(registry).withDeprecationHandler(deprecationHandler), content);
     }
 
     /**
@@ -71,7 +71,7 @@ public interface XContent {
     @Deprecated
     default XContentParser createParser(NamedXContentRegistry registry, DeprecationHandler deprecationHandler, InputStream is)
         throws IOException {
-        return createParser(XContentParserConfiguration.PLAIN.withRegistry(registry).withDeprecationHandler(deprecationHandler), is);
+        return createParser(XContentParserConfiguration.EMPTY.withRegistry(registry).withDeprecationHandler(deprecationHandler), is);
     }
 
     /**
@@ -88,7 +88,7 @@ public interface XContent {
     @Deprecated
     default XContentParser createParser(NamedXContentRegistry registry, DeprecationHandler deprecationHandler, byte[] data)
         throws IOException {
-        return createParser(XContentParserConfiguration.PLAIN.withRegistry(registry).withDeprecationHandler(deprecationHandler), data);
+        return createParser(XContentParserConfiguration.EMPTY.withRegistry(registry).withDeprecationHandler(deprecationHandler), data);
     }
 
     /**
@@ -108,6 +108,6 @@ public interface XContent {
     @Deprecated
     default XContentParser createParser(NamedXContentRegistry registry, DeprecationHandler deprecationHandler, Reader reader)
         throws IOException {
-        return createParser(XContentParserConfiguration.PLAIN.withRegistry(registry).withDeprecationHandler(deprecationHandler), reader);
+        return createParser(XContentParserConfiguration.EMPTY.withRegistry(registry).withDeprecationHandler(deprecationHandler), reader);
     }
 }

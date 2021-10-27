@@ -97,7 +97,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         this.networkService = networkService;
         this.bigArrays = bigArrays;
         this.threadPool = threadPool;
-        this.parserConfig = XContentParserConfiguration.PLAIN.withRegistry(xContentRegistry)
+        this.parserConfig = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
             .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         this.dispatcher = dispatcher;
         this.handlingSettings = HttpHandlingSettings.fromSettings(settings);

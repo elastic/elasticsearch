@@ -74,7 +74,7 @@ public final class BulkRequestParser {
      */
     public BulkRequestParser(boolean deprecateOrErrorOnType, RestApiVersion restApiVersion) {
         this.deprecateOrErrorOnType = deprecateOrErrorOnType;
-        this.config = XContentParserConfiguration.PLAIN.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
+        this.config = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
             .withRestApiVersion(restApiVersion);
     }
 

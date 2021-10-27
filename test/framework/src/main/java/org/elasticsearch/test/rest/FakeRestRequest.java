@@ -32,7 +32,7 @@ public class FakeRestRequest extends RestRequest {
 
     public FakeRestRequest() {
         this(
-            XContentParserConfiguration.PLAIN.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+            XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
             new FakeHttpRequest(Method.GET, "", BytesArray.EMPTY, new HashMap<>()),
             new HashMap<>(),
             new FakeHttpChannel(null)
@@ -194,7 +194,7 @@ public class FakeRestRequest extends RestRequest {
         private Exception inboundException;
 
         public Builder(NamedXContentRegistry registry) {
-            this.parserConfig = XContentParserConfiguration.PLAIN.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
+            this.parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
                 .withRegistry(registry);
         }
 

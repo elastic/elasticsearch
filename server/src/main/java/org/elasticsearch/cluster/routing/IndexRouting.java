@@ -201,7 +201,7 @@ public abstract class IndexRouting {
         ExtractFromSource(int routingNumShards, int routingFactor, String indexName, List<String> routingPaths) {
             super(routingNumShards, routingFactor);
             this.indexName = indexName;
-            this.parserConfig = XContentParserConfiguration.PLAIN.withFiltering(Set.copyOf(routingPaths), null);
+            this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Set.copyOf(routingPaths), null);
         }
 
         @Override

@@ -21,7 +21,13 @@ import java.util.Set;
  * Configuration for {@link XContentParser}.
  */
 public class XContentParserConfiguration {
-    public static final XContentParserConfiguration PLAIN = new XContentParserConfiguration(
+    /**
+     * Creates parsers that don't support {@link XContentParser#namedObject},
+     * throw an exception when they see deprecated fields, that return the
+     * {@link RestApiVersion#current() current version} from
+     * {@link XContentParser#getRestApiVersion}, and do no filtering.  
+     */
+    public static final XContentParserConfiguration EMPTY = new XContentParserConfiguration(
         NamedXContentRegistry.EMPTY,
         DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
         RestApiVersion.current(),
@@ -49,6 +55,9 @@ public class XContentParserConfiguration {
         this.excludes = excludes;
     }
 
+    /**
+     * Replace the registry backing {@link XContentParser#namedObject}.
+     */
     public XContentParserConfiguration withRegistry(NamedXContentRegistry registry) {
         return new XContentParserConfiguration(registry, deprecationHandler, restApiVersion, includes, excludes);
     }
@@ -57,6 +66,10 @@ public class XContentParserConfiguration {
         return registry;
     }
 
+    /**
+     * Replace the behavior of {@link XContentParser} when it encounters
+     * a deprecated field.
+     */
     public XContentParserConfiguration withDeprecationHandler(DeprecationHandler deprecationHandler) {
         return new XContentParserConfiguration(registry, deprecationHandler, restApiVersion, includes, excludes);
     }
@@ -65,6 +78,10 @@ public class XContentParserConfiguration {
         return deprecationHandler;
     }
 
+    /**
+     * Replace the {@link XContentParser#getRestApiVersion() claimed}
+     * {@link RestApiVersion}.
+     */
     public XContentParserConfiguration withRestApiVersion(RestApiVersion restApiVersion) {
         return new XContentParserConfiguration(registry, deprecationHandler, restApiVersion, includes, excludes);
     }
@@ -73,6 +90,9 @@ public class XContentParserConfiguration {
         return restApiVersion;
     }
 
+    /**
+     * Replace the configured filtering.
+     */
     public XContentParserConfiguration withFiltering(Set<String> includes, Set<String> excludes) {
         return new XContentParserConfiguration(
             registry,

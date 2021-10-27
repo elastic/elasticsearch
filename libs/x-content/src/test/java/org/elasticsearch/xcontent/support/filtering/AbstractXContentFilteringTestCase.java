@@ -74,7 +74,7 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
             BytesReference sampleBytes = BytesReference.bytes(builtSample);
             try (
                 XContentParser parser = getXContentType().xContent()
-                    .createParser(XContentParserConfiguration.PLAIN.withFiltering(includes, excludes), sampleBytes.streamInput());
+                    .createParser(XContentParserConfiguration.EMPTY.withFiltering(includes, excludes), sampleBytes.streamInput());
             ) {
                 XContentBuilder result = createBuilder();
                 if (sampleBytes.get(sampleBytes.length() - 1) == '\n') {

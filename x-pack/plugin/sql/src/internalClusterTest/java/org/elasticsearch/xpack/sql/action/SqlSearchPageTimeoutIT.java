@@ -39,7 +39,6 @@ public class SqlSearchPageTimeoutIT extends AbstractSqlIntegTestCase {
             .pageTimeout(TimeValue.timeValueMillis(500))
             .get();
 
-        assertEquals(1, response.size());
         assertTrue(response.hasCursor());
         assertEquals(1, getNumberOfSearchContexts());
 

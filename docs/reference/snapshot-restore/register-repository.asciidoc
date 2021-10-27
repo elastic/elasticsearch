@@ -1,5 +1,4 @@
 [[snapshots-register-repository]]
-[testenv="basic"]
 == Register a snapshot repository
 ++++
 <titleabbrev>Register a repository</titleabbrev>
@@ -192,7 +191,6 @@ NOTE: URLs using the `ftp`, `http`, `https`, or `jar` protocols do not need to
 be registered in the `path.repo` setting.
 
 [discrete]
-[role="xpack"]
 [[snapshots-source-only-repository]]
 === Source only repository
 

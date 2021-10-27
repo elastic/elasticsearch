@@ -268,7 +268,6 @@ class RestTestsFromSnippetsTask extends SnippetsTask {
                     switch (test.testEnv) {
                     case 'basic':
                     case 'gold':
-                    case 'gold+':
                     case 'platinum':
                     case 'enterprise':
                         current.println("        - xpack")

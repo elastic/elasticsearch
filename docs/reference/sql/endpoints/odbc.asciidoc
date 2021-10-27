@@ -1,7 +1,6 @@
 :odbc: {es-sql} ODBC Driver
 [testenv="platinum"]
 
-[role="xpack"]
 [[sql-odbc]]
 == SQL ODBC
 

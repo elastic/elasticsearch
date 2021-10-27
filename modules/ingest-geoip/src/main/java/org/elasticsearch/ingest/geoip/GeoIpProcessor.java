@@ -401,7 +401,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             }
 
             DatabaseReaderLazyLoader lazyLoader = databaseNodeService.getDatabase(databaseFile);
-            if (useDatabaseUnavailableProcessor(lazyLoader, databaseNodeService.getAvailableDatabases())) {
+            if (useDatabaseUnavailableProcessor(lazyLoader, databaseFile)) {
                 return new DatabaseUnavailableProcessor(processorTag, description, databaseFile);
             } else if (lazyLoader == null) {
                 throw newConfigurationException(TYPE, processorTag,
@@ -439,7 +439,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             }
             CheckedSupplier<DatabaseReaderLazyLoader, IOException> supplier = () -> {
                 DatabaseReaderLazyLoader loader = databaseNodeService.getDatabase(databaseFile);
-                if (useDatabaseUnavailableProcessor(loader, databaseNodeService.getAvailableDatabases())) {
+                if (useDatabaseUnavailableProcessor(loader, databaseFile)) {
                     return null;
                 } else if (loader == null) {
                     throw new ResourceNotFoundException("database file [" + databaseFile + "] doesn't exist");
@@ -480,8 +480,12 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 firstOnly, databaseFile);
         }
 
-        private static boolean useDatabaseUnavailableProcessor(DatabaseReaderLazyLoader loader, Set<String> availableDatabases) {
-            return loader == null && availableDatabases.isEmpty();
+        private static boolean useDatabaseUnavailableProcessor(DatabaseReaderLazyLoader loader, String databaseName) {
+            // If there is no loader for a database we should fail with a config error, but
+            // if there is no loader for a builtin database that we manage via GeoipDownloader then don't fail.
+            // In the latter case the database should become available at a later moment, so a processor impl
+            // is returned that tags documents instead.
+            return loader == null && IngestGeoIpPlugin.DEFAULT_DATABASE_FILENAMES.contains(databaseName);
         }
 
     }

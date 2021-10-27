@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -302,19 +301,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
             }
         });
 
-        assertFalse(
-            client().admin()
-                .cluster()
-                .prepareHealth()
-                .setIndices("restored-*")
-                .setWaitForGreenStatus()
-                .setWaitForEvents(Priority.LANGUID)
-                .setWaitForNoRelocatingShards(true)
-                .setWaitForNoInitializingShards(true)
-                .setWaitForNodes(Integer.toString(cluster().size()))
-                .get()
-                .isTimedOut()
-        );
+        ensureGreen("restored-*");
 
         assertRecoveryStats(restoredAgainIndex, false);
         assertExecutorIsIdle(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);

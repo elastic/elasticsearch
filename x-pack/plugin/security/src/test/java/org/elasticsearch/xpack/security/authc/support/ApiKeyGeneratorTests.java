@@ -11,8 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -27,9 +27,9 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anySetOf;
-import static org.mockito.Matchers.same;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anySetOf;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
@@ -44,7 +44,8 @@ public class ApiKeyGeneratorTests extends ESTestCase {
         final Authentication authentication = new Authentication(
             new User("test", userRoleNames.toArray(String[]::new)),
             new Authentication.RealmRef("realm-name", "realm-type", "node-name"),
-            null);
+            null
+        );
         final CreateApiKeyRequest request = new CreateApiKeyRequest("name", null, null);
 
         final Set<RoleDescriptor> roleDescriptors = randomSubsetOf(userRoleNames).stream()
@@ -64,7 +65,11 @@ public class ApiKeyGeneratorTests extends ESTestCase {
         }).when(rolesStore).getRoleDescriptors(anySetOf(String.class), any(ActionListener.class));
 
         CreateApiKeyResponse response = new CreateApiKeyResponse(
-            "name", randomAlphaOfLength(18), new SecureString(randomAlphaOfLength(24).toCharArray()), null);
+            "name",
+            randomAlphaOfLength(18),
+            new SecureString(randomAlphaOfLength(24).toCharArray()),
+            null
+        );
         doAnswer(inv -> {
             final Object[] args = inv.getArguments();
             assertThat(args, arrayWithSize(4));

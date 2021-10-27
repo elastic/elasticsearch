@@ -36,9 +36,9 @@ import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.NOOP_
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -75,16 +75,18 @@ public class OperatorPrivilegesTests extends ESTestCase {
     public void testWillNotCheckWhenLicenseDoesNotSupport() {
         when(xPackLicenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(false);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        final ElasticsearchSecurityException e =
-            operatorPrivilegesService.check(mock(Authentication.class), "cluster:action", mock(TransportRequest.class), threadContext);
+        final ElasticsearchSecurityException e = operatorPrivilegesService.check(
+            mock(Authentication.class),
+            "cluster:action",
+            mock(TransportRequest.class),
+            threadContext
+        );
         assertNull(e);
         verifyZeroInteractions(operatorOnlyRegistry);
     }
 
     public void testMarkOperatorUser() throws IllegalAccessException {
-        final Settings settings = Settings.builder()
-            .put("xpack.security.operator_privileges.enabled", true)
-            .build();
+        final Settings settings = Settings.builder().put("xpack.security.operator_privileges.enabled", true).build();
         when(xPackLicenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(true);
         final Authentication operatorAuth = mock(Authentication.class);
         final Authentication nonOperatorAuth = mock(Authentication.class);
@@ -112,8 +114,10 @@ public class OperatorPrivilegesTests extends ESTestCase {
                 )
             );
             operatorPrivilegesService.maybeMarkOperatorUser(operatorAuth, threadContext);
-            assertEquals(AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR,
-                threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY));
+            assertEquals(
+                AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR,
+                threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY)
+            );
             appender.assertAllExpectationsMatched();
         } finally {
             Loggers.removeAppender(logger, appender);
@@ -126,7 +130,8 @@ public class OperatorPrivilegesTests extends ESTestCase {
         operatorPrivilegesService.maybeMarkOperatorUser(nonOperatorAuth, threadContext);
         assertThat(
             threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY),
-            equalTo(AuthenticationField.PRIVILEGE_CATEGORY_VALUE_EMPTY));
+            equalTo(AuthenticationField.PRIVILEGE_CATEGORY_VALUE_EMPTY)
+        );
 
         // Will mark empty for run_as user
         final Authentication runAsAuth = mock(Authentication.class);
@@ -137,13 +142,15 @@ public class OperatorPrivilegesTests extends ESTestCase {
         operatorPrivilegesService.maybeMarkOperatorUser(runAsAuth, threadContext);
         assertThat(
             threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY),
-            equalTo(AuthenticationField.PRIVILEGE_CATEGORY_VALUE_EMPTY));
+            equalTo(AuthenticationField.PRIVILEGE_CATEGORY_VALUE_EMPTY)
+        );
         verify(fileOperatorUsersStore, never()).isOperatorUser(any());
 
         // Will not mark for internal users
         final Authentication internalAuth = mock(Authentication.class);
         when(internalAuth.getUser()).thenReturn(
-            randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE));
+            randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE)
+        );
         threadContext = new ThreadContext(settings);
         operatorPrivilegesService.maybeMarkOperatorUser(internalAuth, threadContext);
         assertNull(threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY));
@@ -159,9 +166,7 @@ public class OperatorPrivilegesTests extends ESTestCase {
     }
 
     public void testCheck() {
-        final Settings settings = Settings.builder()
-            .put("xpack.security.operator_privileges.enabled", true)
-            .build();
+        final Settings settings = Settings.builder().put("xpack.security.operator_privileges.enabled", true).build();
         when(xPackLicenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(true);
 
         final String operatorAction = "cluster:operator_only/action";
@@ -178,7 +183,11 @@ public class OperatorPrivilegesTests extends ESTestCase {
             assertNull(operatorPrivilegesService.check(authentication, operatorAction, mock(TransportRequest.class), threadContext));
         } else {
             final ElasticsearchSecurityException e = operatorPrivilegesService.check(
-                authentication, operatorAction, mock(TransportRequest.class), threadContext);
+                authentication,
+                operatorAction,
+                mock(TransportRequest.class),
+                threadContext
+            );
             assertNotNull(e);
             assertThat(e.getMessage(), containsString("Operator privileges are required for " + message));
         }
@@ -190,9 +199,16 @@ public class OperatorPrivilegesTests extends ESTestCase {
         when(xPackLicenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(true);
         final Authentication internalAuth = mock(Authentication.class);
         when(internalAuth.getUser()).thenReturn(
-            randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE));
-        assertNull(operatorPrivilegesService.check(
-            internalAuth, randomAlphaOfLengthBetween(20, 30), mock(TransportRequest.class), new ThreadContext(Settings.EMPTY)));
+            randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE)
+        );
+        assertNull(
+            operatorPrivilegesService.check(
+                internalAuth,
+                randomAlphaOfLengthBetween(20, 30),
+                mock(TransportRequest.class),
+                new ThreadContext(Settings.EMPTY)
+            )
+        );
         verify(operatorOnlyRegistry, never()).check(anyString(), any());
     }
 
@@ -240,8 +256,9 @@ public class OperatorPrivilegesTests extends ESTestCase {
         assertNull(threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY));
 
         final TransportRequest request = mock(TransportRequest.class);
-        assertNull(NOOP_OPERATOR_PRIVILEGES_SERVICE.check(
-            mock(Authentication.class), randomAlphaOfLengthBetween(10, 20), request, threadContext));
+        assertNull(
+            NOOP_OPERATOR_PRIVILEGES_SERVICE.check(mock(Authentication.class), randomAlphaOfLengthBetween(10, 20), request, threadContext)
+        );
         verifyZeroInteractions(request);
     }
 

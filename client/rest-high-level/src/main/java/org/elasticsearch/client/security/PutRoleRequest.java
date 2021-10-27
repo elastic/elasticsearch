@@ -56,8 +56,7 @@ public final class PutRoleRequest implements Validatable, ToXContentObject {
         }
         final PutRoleRequest other = (PutRoleRequest) obj;
 
-        return (refreshPolicy == other.getRefreshPolicy()) &&
-               Objects.equals(role, other.role);
+        return (refreshPolicy == other.getRefreshPolicy()) && Objects.equals(role, other.role);
     }
 
     @Override

@@ -35,7 +35,6 @@ public class NoriPartOfSpeechStopFilterFactory extends AbstractTokenFilterFactor
         return new KoreanPartOfSpeechStopFilter(tokenStream, stopTags);
     }
 
-
     static Set<POS.Tag> resolvePOSList(List<String> tagList) {
         Set<POS.Tag> stopTags = new HashSet<>();
         for (String tag : tagList) {

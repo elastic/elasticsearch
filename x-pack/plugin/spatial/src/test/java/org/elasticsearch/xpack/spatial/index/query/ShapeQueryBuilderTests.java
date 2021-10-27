@@ -18,20 +18,20 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.junit.After;
 
@@ -141,8 +141,7 @@ public abstract class ShapeQueryBuilderTests extends AbstractQueryTestCase<Shape
     }
 
     public void testNoIndexedShape() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new ShapeQueryBuilder(fieldName(), null, null));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new ShapeQueryBuilder(fieldName(), null, null));
         assertEquals("either shape or indexedShapeId is required", e.getMessage());
     }
 
@@ -154,20 +153,19 @@ public abstract class ShapeQueryBuilderTests extends AbstractQueryTestCase<Shape
     }
 
     public void testFromJson() throws IOException {
-        String json =
-            "{\n" +
-                "  \"shape\" : {\n" +
-                "    \"geometry\" : {\n" +
-                "      \"shape\" : {\n" +
-                "        \"type\" : \"envelope\",\n" +
-                "        \"coordinates\" : [ [ 1300.0, 5300.0 ], [ 1400.0, 5200.0 ] ]\n" +
-                "      },\n" +
-                "      \"relation\" : \"intersects\"\n" +
-                "    },\n" +
-                "    \"ignore_unmapped\" : false,\n" +
-                "    \"boost\" : 42.0\n" +
-                "  }\n" +
-                "}";
+        String json = "{\n"
+            + "  \"shape\" : {\n"
+            + "    \"geometry\" : {\n"
+            + "      \"shape\" : {\n"
+            + "        \"type\" : \"envelope\",\n"
+            + "        \"coordinates\" : [ [ 1300.0, 5300.0 ], [ 1400.0, 5200.0 ] ]\n"
+            + "      },\n"
+            + "      \"relation\" : \"intersects\"\n"
+            + "    },\n"
+            + "    \"ignore_unmapped\" : false,\n"
+            + "    \"boost\" : 42.0\n"
+            + "  }\n"
+            + "}";
         ShapeQueryBuilder parsed = (ShapeQueryBuilder) parseQuery(json);
         checkGeneratedJson(json.replaceAll("envelope", "Envelope"), parsed);
         assertEquals(json, 42.0, parsed.boost(), 0.0001);
@@ -177,8 +175,10 @@ public abstract class ShapeQueryBuilderTests extends AbstractQueryTestCase<Shape
     public void testMustRewrite() {
         ShapeQueryBuilder query = doCreateTestQueryBuilder(true);
 
-        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
-            () -> query.toQuery(createSearchExecutionContext()));
+        UnsupportedOperationException e = expectThrows(
+            UnsupportedOperationException.class,
+            () -> query.toQuery(createSearchExecutionContext())
+        );
         assertEquals("query must be rewritten first", e.getMessage());
         QueryBuilder rewrite = rewriteAndFetch(query, createSearchExecutionContext());
         ShapeQueryBuilder geoShapeQueryBuilder = new ShapeQueryBuilder(fieldName(), indexedShapeToReturn);
@@ -188,17 +188,13 @@ public abstract class ShapeQueryBuilderTests extends AbstractQueryTestCase<Shape
 
     public void testMultipleRewrite() {
         ShapeQueryBuilder shape = doCreateTestQueryBuilder(true);
-        QueryBuilder builder = new BoolQueryBuilder()
-            .should(shape)
-            .should(shape);
+        QueryBuilder builder = new BoolQueryBuilder().should(shape).should(shape);
 
         builder = rewriteAndFetch(builder, createSearchExecutionContext());
 
         ShapeQueryBuilder expectedShape = new ShapeQueryBuilder(fieldName(), indexedShapeToReturn);
         expectedShape.relation(shape.relation());
-        QueryBuilder expected = new BoolQueryBuilder()
-            .should(expectedShape)
-            .should(expectedShape);
+        QueryBuilder expected = new BoolQueryBuilder().should(expectedShape).should(expectedShape);
         assertEquals(expected, builder);
     }
 
@@ -265,8 +261,7 @@ public abstract class ShapeQueryBuilderTests extends AbstractQueryTestCase<Shape
         } catch (IOException ex) {
             throw new ElasticsearchException("boom", ex);
         }
-        return new GetResponse(new GetResult(indexedShapeIndex, indexedShapeId, 0, 1, 0, true, new BytesArray(json),
-            null, null));
+        return new GetResponse(new GetResult(indexedShapeIndex, indexedShapeId, 0, 1, 0, true, new BytesArray(json), null, null));
     }
 
     @Override

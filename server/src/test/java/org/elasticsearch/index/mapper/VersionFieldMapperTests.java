@@ -27,11 +27,9 @@ public class VersionFieldMapperTests extends MapperServiceTestCase {
     public void testIncludeInObjectNotAllowed() throws Exception {
         DocumentMapper docMapper = createDocumentMapper(mapping(b -> {}));
 
-        Exception e = expectThrows(MapperParsingException.class,
-            () -> docMapper.parse(source(b -> b.field("_version", 1))));
+        Exception e = expectThrows(MapperParsingException.class, () -> docMapper.parse(source(b -> b.field("_version", 1))));
 
-        assertThat(e.getCause().getMessage(),
-            containsString("Field [_version] is a metadata field and cannot be added inside a document"));
+        assertThat(e.getCause().getMessage(), containsString("Field [_version] is a metadata field and cannot be added inside a document"));
     }
 
     public void testDefaults() throws IOException {
@@ -44,9 +42,7 @@ public class VersionFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testFetchFieldValue() throws IOException {
-        MapperService mapperService = createMapperService(
-            fieldMapping(b -> b.field("type", "keyword"))
-        );
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword")));
         long version = randomLongBetween(1, 1000);
         withLuceneIndex(mapperService, iw -> {
             ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(b -> b.field("field", "value")));
@@ -64,7 +60,5 @@ public class VersionFieldMapperTests extends MapperServiceTestCase {
             assertEquals(List.of(version), valueFetcher.fetchValues(lookup.source(), Collections.emptyList()));
         });
     }
-
-
 
 }

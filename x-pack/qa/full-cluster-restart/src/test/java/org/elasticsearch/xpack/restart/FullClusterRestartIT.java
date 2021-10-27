@@ -69,12 +69,12 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     protected Settings restClientSettings() {
         String token = "Basic " + Base64.getEncoder().encodeToString("test_user:x-pack-test-password".getBytes(StandardCharsets.UTF_8));
         return Settings.builder()
-                .put(ThreadContext.PREFIX + ".Authorization", token)
-                // we increase the timeout here to 90 seconds to handle long waits for a green
-                // cluster health. the waits for green need to be longer than a minute to
-                // account for delayed shards
-                .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "90s")
-                .build();
+            .put(ThreadContext.PREFIX + ".Authorization", token)
+            // we increase the timeout here to 90 seconds to handle long waits for a green
+            // cluster health. the waits for green need to be longer than a minute to
+            // account for delayed shards
+            .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "90s")
+            .build();
     }
 
     /**
@@ -102,8 +102,12 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         } else {
             waitForYellow(".security");
             final Request getSettingsRequest = new Request("GET", "/.security/_settings/index.format");
-            getSettingsRequest.setOptions(expectWarnings("this request accesses system indices: [.security-7], but in a future major " +
-                "version, direct access to system indices will be prevented by default"));
+            getSettingsRequest.setOptions(
+                expectWarnings(
+                    "this request accesses system indices: [.security-7], but in a future major "
+                        + "version, direct access to system indices will be prevented by default"
+                )
+            );
             Response settingsResponse = client().performRequest(getSettingsRequest);
             Map<String, Object> settingsResponseMap = entityAsMap(settingsResponse);
             logger.info("settings response map {}", settingsResponseMap);
@@ -116,7 +120,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 Map<?, ?> settingsMap = (Map<?, ?>) indexSettingsMap.get("settings");
                 logger.info("settings map {}", settingsMap);
                 if (settingsMap.containsKey("index")) {
-                    int format = Integer.parseInt(String.valueOf(((Map<?, ?>)settingsMap.get("index")).get("format")));
+                    int format = Integer.parseInt(String.valueOf(((Map<?, ?>) settingsMap.get("index")).get("format")));
                     assertEquals("The security index needs to be upgraded", SECURITY_EXPECTED_INDEX_FORMAT_VERSION, format);
                 }
             }
@@ -207,15 +211,18 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         if (isRunningAgainstOldCluster()) {
             final Request createApiKeyRequest = new Request("PUT", "/_security/api_key");
-            createApiKeyRequest.setJsonEntity("{\"name\":\"key-1\",\"role_descriptors\":" +
-                "{\"r\":{\"cluster\":[\"all\"],\"indices\":[{\"names\":[\"*\"],\"privileges\":[\"all\"]}]}}}");
+            createApiKeyRequest.setJsonEntity(
+                "{\"name\":\"key-1\",\"role_descriptors\":"
+                    + "{\"r\":{\"cluster\":[\"all\"],\"indices\":[{\"names\":[\"*\"],\"privileges\":[\"all\"]}]}}}"
+            );
             final Response response = client().performRequest(createApiKeyRequest);
             final Map<String, Object> createApiKeyResponse = entityAsMap(response);
 
             Request createWatchWithApiKeyRequest = new Request("PUT", "/_watcher/watch/watch_with_api_key");
             createWatchWithApiKeyRequest.setJsonEntity(loadWatch("logging-watch.json"));
-            final byte[] keyBytes =
-                (createApiKeyResponse.get("id") + ":" + createApiKeyResponse.get("api_key")).getBytes(StandardCharsets.UTF_8);
+            final byte[] keyBytes = (createApiKeyResponse.get("id") + ":" + createApiKeyResponse.get("api_key")).getBytes(
+                StandardCharsets.UTF_8
+            );
             final String authHeader = "ApiKey " + Base64.getEncoder().encodeToString(keyBytes);
             createWatchWithApiKeyRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authHeader));
             client().performRequest(createWatchWithApiKeyRequest);
@@ -255,8 +262,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                     if (false == executed.get() && "executed".equals(newStatus.get("execution_state"))) {
                         executed.set(true);
                     }
-                    assertThat("version increased: [" + versionIncreased.get() + "], executed: [" + executed.get() + "]",
-                        versionIncreased.get() && executed.get(), is(true));
+                    assertThat(
+                        "version increased: [" + versionIncreased.get() + "], executed: [" + executed.get() + "]",
+                        versionIncreased.get() && executed.get(),
+                        is(true)
+                    );
                 });
             } finally {
                 stopWatcher();
@@ -277,8 +287,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             createApiKeyRequest.setJsonEntity("{\"name\":\"key-1\"}");
             final Response createApiKeyResponse = client().performRequest(createApiKeyRequest);
             final Map<String, Object> createApiKeyResponseMap = entityAsMap(createApiKeyResponse);
-            final String authHeader = "ApiKey " + Base64.getEncoder().encodeToString(
-                (createApiKeyResponseMap.get("id") + ":" + createApiKeyResponseMap.get("api_key")).getBytes(StandardCharsets.UTF_8));
+            final String authHeader = "ApiKey "
+                + Base64.getEncoder()
+                    .encodeToString(
+                        (createApiKeyResponseMap.get("id") + ":" + createApiKeyResponseMap.get("api_key")).getBytes(StandardCharsets.UTF_8)
+                    );
 
             final Request indexRequest = new Request("PUT", "/api_keys/_doc/key-1");
             indexRequest.setJsonEntity("{\"auth_header\":\"" + authHeader + "\"}");
@@ -297,8 +310,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             final Request getUserRequest = new Request("GET", "/_security/user");
             getUserRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authHeader));
-            final ResponseException e =
-                expectThrows(ResponseException.class, () -> client().performRequest(getUserRequest));
+            final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(getUserRequest));
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
             assertThat(e.getMessage(), containsString("is unauthorized"));
         }
@@ -335,7 +347,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 intervalType = "interval";
             }
 
-            createRollupJobRequest.setJsonEntity("{"
+            createRollupJobRequest.setJsonEntity(
+                "{"
                     + "\"index_pattern\":\"rollup-*\","
                     + "\"rollup_index\":\"results-rollup\","
                     + "\"cron\":\"*/30 * * * * ?\","
@@ -343,13 +356,16 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                     + "\"groups\":{"
                     + "    \"date_histogram\":{"
                     + "        \"field\":\"timestamp\","
-                    + "        \"" + intervalType + "\":\"5m\""
+                    + "        \""
+                    + intervalType
+                    + "\":\"5m\""
                     + "      }"
                     + "},"
                     + "\"metrics\":["
                     + "    {\"field\":\"value\",\"metrics\":[\"min\",\"max\",\"sum\"]}"
                     + "]"
-                    + "}");
+                    + "}"
+            );
 
             Map<String, Object> createRollupJobResponse = entityAsMap(client().performRequest(createRollupJobRequest));
             assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
@@ -375,16 +391,17 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     public void testSlmPolicyAndStats() throws IOException {
-        SnapshotLifecyclePolicy slmPolicy = new SnapshotLifecyclePolicy("test-policy", "test-policy", "* * * 31 FEB ? *", "test-repo",
-            Collections.singletonMap("indices", Collections.singletonList("*")), null);
+        SnapshotLifecyclePolicy slmPolicy = new SnapshotLifecyclePolicy(
+            "test-policy",
+            "test-policy",
+            "* * * 31 FEB ? *",
+            "test-repo",
+            Collections.singletonMap("indices", Collections.singletonList("*")),
+            null
+        );
         if (isRunningAgainstOldCluster() && getOldClusterVersion().onOrAfter(Version.V_7_4_0)) {
             Request createRepoRequest = new Request("PUT", "_snapshot/test-repo");
-            String repoCreateJson = "{" +
-                " \"type\": \"fs\"," +
-                " \"settings\": {" +
-                "   \"location\": \"test-repo\"" +
-                "  }" +
-                "}";
+            String repoCreateJson = "{" + " \"type\": \"fs\"," + " \"settings\": {" + "   \"location\": \"test-repo\"" + "  }" + "}";
             createRepoRequest.setJsonEntity(repoCreateJson);
             Request createSlmPolicyRequest = new Request("PUT", "_slm/policy/test-policy");
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
@@ -396,7 +413,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             client().performRequest(createSlmPolicyRequest);
         }
 
-        if(isRunningAgainstOldCluster() == false && getOldClusterVersion().onOrAfter(Version.V_7_4_0)){
+        if (isRunningAgainstOldCluster() == false && getOldClusterVersion().onOrAfter(Version.V_7_4_0)) {
             Request getSlmPolicyRequest = new Request("GET", "_slm/policy/test-policy");
             Response response = client().performRequest(getSlmPolicyRequest);
             Map<String, Object> responseMap = entityAsMap(response);
@@ -410,8 +427,14 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         if (isRunningAgainstOldCluster() == false) {
             Response response = client().performRequest(new Request("GET", "_slm/stats"));
             XContentType xContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
-            try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, response.getEntity().getContent())) {
+            try (
+                XContentParser parser = xContentType.xContent()
+                    .createParser(
+                        NamedXContentRegistry.EMPTY,
+                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                        response.getEntity().getContent()
+                    )
+            ) {
                 assertEquals(new SnapshotLifecycleStats(), SnapshotLifecycleStats.parse(parser));
             }
         }
@@ -460,10 +483,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertThat(bwcWatch.get("found"), equalTo(true));
         source = (Map<?, ?>) bwcWatch.get("watch");
 
-
         Map<String, Object> attachments = ObjectPath.eval("actions.work.email.attachments", source);
         Map<?, ?> attachment = (Map<?, ?>) attachments.get("test_report.pdf");
-        Map<String, Object>  request =  ObjectPath.eval("http.request", attachment);
+        Map<String, Object> request = ObjectPath.eval("http.request", attachment);
         assertEquals(timeout, request.get("read_timeout_millis"));
         assertEquals("https", request.get("scheme"));
         assertEquals("example.com", request.get("host"));
@@ -483,9 +505,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     private void assertBasicWatchInteractions() throws Exception {
-        String watch = "{\"trigger\":{\"schedule\":{\"interval\":\"1s\"}},\"input\":{\"none\":{}}," +
-            "\"condition\":{\"always\":{}}," +
-            "\"actions\":{\"awesome\":{\"logging\":{\"level\":\"info\",\"text\":\"test\"}}}}";
+        String watch = "{\"trigger\":{\"schedule\":{\"interval\":\"1s\"}},\"input\":{\"none\":{}},"
+            + "\"condition\":{\"always\":{}},"
+            + "\"actions\":{\"awesome\":{\"logging\":{\"level\":\"info\",\"text\":\"test\"}}}}";
         Request createWatchRequest = new Request("PUT", "_watcher/watch/new_watch");
         createWatchRequest.setJsonEntity(watch);
         Map<String, Object> createWatch = entityAsMap(client().performRequest(createWatchRequest));
@@ -502,7 +524,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Map<String, Object> get = entityAsMap(client().performRequest(new Request("GET", "_watcher/watch/new_watch")));
         assertThat(get.get("found"), equalTo(true));
         Map<?, ?> source = (Map<?, ?>) get.get("watch");
-        Map<String, Object>  logging = ObjectPath.eval("actions.awesome.logging", source);
+        Map<String, Object> logging = ObjectPath.eval("actions.awesome.logging", source);
         assertEquals("info", logging.get("level"));
         assertEquals("test", logging.get("text"));
     }
@@ -550,8 +572,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertThat(startWatchResponse.get("acknowledged"), equalTo(Boolean.TRUE));
         assertBusy(() -> {
             Map<String, Object> statsWatchResponse = entityAsMap(client().performRequest(new Request("GET", "_watcher/stats")));
-            List<?> states = ((List<?>) statsWatchResponse.get("stats"))
-                .stream().map(o -> ((Map<?, ?>) o).get("watcher_state")).collect(Collectors.toList());
+            List<?> states = ((List<?>) statsWatchResponse.get("stats")).stream()
+                .map(o -> ((Map<?, ?>) o).get("watcher_state"))
+                .collect(Collectors.toList());
             assertThat(states, everyItem(is("started")));
         });
     }
@@ -560,10 +583,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Map<String, Object> stopWatchResponse = entityAsMap(client().performRequest(new Request("POST", "_watcher/_stop")));
         assertThat(stopWatchResponse.get("acknowledged"), equalTo(Boolean.TRUE));
         assertBusy(() -> {
-            Map<String, Object> statsStoppedWatchResponse = entityAsMap(client().performRequest(
-                new Request("GET", "_watcher/stats")));
-            List<?> states = ((List<?>) statsStoppedWatchResponse.get("stats"))
-                .stream().map(o -> ((Map<?, ?>) o).get("watcher_state")).collect(Collectors.toList());
+            Map<String, Object> statsStoppedWatchResponse = entityAsMap(client().performRequest(new Request("GET", "_watcher/stats")));
+            List<?> states = ((List<?>) statsStoppedWatchResponse.get("stats")).stream()
+                .map(o -> ((Map<?, ?>) o).get("watcher_state"))
+                .collect(Collectors.toList());
             assertThat(states, everyItem(is("stopped")));
         });
     }
@@ -576,13 +599,18 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         final String id = oldCluster ? "preupgrade_user" : "postupgrade_user";
         Request request = new Request("PUT", "/_security/user/" + id);
         request.setJsonEntity(
-            "{\n" +
-            "   \"password\" : \"l0ng-r4nd0m-p@ssw0rd\",\n" +
-            "   \"roles\" : [ \"admin\", \"other_role1\" ],\n" +
-            "   \"full_name\" : \"" + randomAlphaOfLength(5) + "\",\n" +
-            "   \"email\" : \"" + id + "@example.com\",\n" +
-            "   \"enabled\": true\n" +
-            "}");
+            "{\n"
+                + "   \"password\" : \"l0ng-r4nd0m-p@ssw0rd\",\n"
+                + "   \"roles\" : [ \"admin\", \"other_role1\" ],\n"
+                + "   \"full_name\" : \""
+                + randomAlphaOfLength(5)
+                + "\",\n"
+                + "   \"email\" : \""
+                + id
+                + "@example.com\",\n"
+                + "   \"enabled\": true\n"
+                + "}"
+        );
         client().performRequest(request);
     }
 
@@ -590,26 +618,28 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         final String id = oldCluster ? "preupgrade_role" : "postupgrade_role";
         Request request = new Request("PUT", "/_security/role/" + id);
         request.setJsonEntity(
-            "{\n" +
-            "  \"run_as\": [ \"abc\" ],\n" +
-            "  \"cluster\": [ \"monitor\" ],\n" +
-            "  \"indices\": [\n" +
-            "    {\n" +
-            "      \"names\": [ \"events-*\" ],\n" +
-            "      \"privileges\": [ \"read\" ],\n" +
-            "      \"field_security\" : {\n" +
-            "        \"grant\" : [ \"category\", \"@timestamp\", \"message\" ]\n" +
-            "      },\n" +
-            "      \"query\": \"{\\\"match\\\": {\\\"category\\\": \\\"click\\\"}}\"\n" +
-            "    }\n" +
-            "  ]\n" +
-            "}");
+            "{\n"
+                + "  \"run_as\": [ \"abc\" ],\n"
+                + "  \"cluster\": [ \"monitor\" ],\n"
+                + "  \"indices\": [\n"
+                + "    {\n"
+                + "      \"names\": [ \"events-*\" ],\n"
+                + "      \"privileges\": [ \"read\" ],\n"
+                + "      \"field_security\" : {\n"
+                + "        \"grant\" : [ \"category\", \"@timestamp\", \"message\" ]\n"
+                + "      },\n"
+                + "      \"query\": \"{\\\"match\\\": {\\\"category\\\": \\\"click\\\"}}\"\n"
+                + "    }\n"
+                + "  ]\n"
+                + "}"
+        );
         client().performRequest(request);
     }
 
     private void assertUserInfo(final boolean oldCluster) throws Exception {
         final String user = oldCluster ? "preupgrade_user" : "postupgrade_user";
-        Request request = new Request("GET", "/_security/user/" + user);;
+        Request request = new Request("GET", "/_security/user/" + user);
+        ;
         Map<String, Object> response = entityAsMap(client().performRequest(request));
         Map<?, ?> userInfo = (Map<?, ?>) response.get(user);
         assertEquals(user + "@example.com", userInfo.get("email"));
@@ -619,9 +649,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     private void assertRoleInfo(final boolean oldCluster) throws Exception {
         final String role = oldCluster ? "preupgrade_role" : "postupgrade_role";
-        Map<?, ?> response = (Map<?, ?>) entityAsMap(
-            client().performRequest(new Request("GET", "/_security/role/" + role))
-        ).get(role);
+        Map<?, ?> response = (Map<?, ?>) entityAsMap(client().performRequest(new Request("GET", "/_security/role/" + role))).get(role);
         assertNotNull(response.get("run_as"));
         assertNotNull(response.get("cluster"));
         assertNotNull(response.get("indices"));
@@ -659,8 +687,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             if (ObjectPath.eval("id", task).equals(rollupJob)) {
                 hasRollupTask = true;
                 final String jobStateField = "task.xpack/rollup/job.state.job_state";
-                assertThat("Expected field [" + jobStateField + "] to be started or indexing in " + task.get("id"),
-                    ObjectPath.eval(jobStateField, task), expectedStates);
+                assertThat(
+                    "Expected field [" + jobStateField + "] to be started or indexing in " + task.get("id"),
+                    ObjectPath.eval(jobStateField, task),
+                    expectedStates
+                );
                 break;
             }
         }
@@ -709,9 +740,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             createComposableTemplate(client(), "dst", "ds");
 
             Request indexRequest = new Request("POST", "/ds/_doc/1?op_type=create&refresh");
-            XContentBuilder
-                builder =
-                JsonXContent.contentBuilder().startObject().field("f", "v").field("@timestamp", System.currentTimeMillis()).endObject();
+            XContentBuilder builder = JsonXContent.contentBuilder()
+                .startObject()
+                .field("f", "v")
+                .field("@timestamp", System.currentTimeMillis())
+                .endObject();
             indexRequest.setJsonEntity(Strings.toString(builder));
             assertOK(client().performRequest(indexRequest));
         }
@@ -738,19 +771,18 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         List<Map<String, String>> indices = (List<Map<String, String>>) ds.get("indices");
         assertEquals("ds", ds.get("name"));
         assertEquals(1, indices.size());
-        assertEquals(DataStreamTestHelper.getLegacyDefaultBackingIndexName("ds", 1, timestamp, getOldClusterVersion()),
-            indices.get(0).get("index_name"));
+        assertEquals(
+            DataStreamTestHelper.getLegacyDefaultBackingIndexName("ds", 1, timestamp, getOldClusterVersion()),
+            indices.get(0).get("index_name")
+        );
         assertNumHits("ds", 1, 1);
     }
 
-    private static void createComposableTemplate(RestClient client, String templateName, String indexPattern)
-        throws IOException {
+    private static void createComposableTemplate(RestClient client, String templateName, String indexPattern) throws IOException {
         StringEntity templateJSON = new StringEntity(
-            String.format(Locale.ROOT, "{\n" +
-                "  \"index_patterns\": \"%s\",\n" +
-                "  \"data_stream\": {}\n" +
-                "}", indexPattern),
-            ContentType.APPLICATION_JSON);
+            String.format(Locale.ROOT, "{\n" + "  \"index_patterns\": \"%s\",\n" + "  \"data_stream\": {}\n" + "}", indexPattern),
+            ContentType.APPLICATION_JSON
+        );
         Request createIndexTemplateRequest = new Request("PUT", "_index_template/" + templateName);
         createIndexTemplateRequest.setEntity(templateJSON);
         client.performRequest(createIndexTemplateRequest);

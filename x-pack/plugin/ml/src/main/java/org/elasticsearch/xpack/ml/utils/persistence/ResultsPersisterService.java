@@ -28,14 +28,14 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 
@@ -58,19 +58,21 @@ public class ResultsPersisterService {
     /**
      * List of rest statuses that we consider irrecoverable
      */
-    public static final Set<RestStatus> IRRECOVERABLE_REST_STATUSES = Collections.unmodifiableSet(new HashSet<>(
-        Arrays.asList(
-            RestStatus.GONE,
-            RestStatus.NOT_IMPLEMENTED,
-            // Not found is returned when we require an alias but the index is NOT an alias.
-            RestStatus.NOT_FOUND,
-            RestStatus.BAD_REQUEST,
-            RestStatus.UNAUTHORIZED,
-            RestStatus.FORBIDDEN,
-            RestStatus.METHOD_NOT_ALLOWED,
-            RestStatus.NOT_ACCEPTABLE
+    public static final Set<RestStatus> IRRECOVERABLE_REST_STATUSES = Collections.unmodifiableSet(
+        new HashSet<>(
+            Arrays.asList(
+                RestStatus.GONE,
+                RestStatus.NOT_IMPLEMENTED,
+                // Not found is returned when we require an alias but the index is NOT an alias.
+                RestStatus.NOT_FOUND,
+                RestStatus.BAD_REQUEST,
+                RestStatus.UNAUTHORIZED,
+                RestStatus.FORBIDDEN,
+                RestStatus.METHOD_NOT_ALLOWED,
+                RestStatus.NOT_ACCEPTABLE
+            )
         )
-    ));
+    );
 
     private static final Logger LOGGER = LogManager.getLogger(ResultsPersisterService.class);
 
@@ -80,8 +82,9 @@ public class ResultsPersisterService {
         0,
         50,
         Setting.Property.OperatorDynamic,
-        Setting.Property.NodeScope);
-    private static final int MAX_RETRY_SLEEP_MILLIS = (int)Duration.ofMinutes(15).toMillis();
+        Setting.Property.NodeScope
+    );
+    private static final int MAX_RETRY_SLEEP_MILLIS = (int) Duration.ofMinutes(15).toMillis();
     private static final int MIN_RETRY_SLEEP_MILLIS = 50;
     // Having an exponent higher than this causes integer overflow
     private static final int MAX_RETRY_EXPONENT = 24;
@@ -95,15 +98,11 @@ public class ResultsPersisterService {
     private volatile boolean isResetMode = false;
 
     // Visible for testing
-    public ResultsPersisterService(ThreadPool threadPool,
-                                   OriginSettingClient client,
-                                   ClusterService clusterService,
-                                   Settings settings) {
+    public ResultsPersisterService(ThreadPool threadPool, OriginSettingClient client, ClusterService clusterService, Settings settings) {
         this.threadPool = threadPool;
         this.client = client;
         this.maxFailureRetries = PERSIST_RESULTS_MAX_RETRIES.get(settings);
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(PERSIST_RESULTS_MAX_RETRIES, this::setMaxFailureRetries);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(PERSIST_RESULTS_MAX_RETRIES, this::setMaxFailureRetries);
         clusterService.addLifecycleListener(new LifecycleListener() {
             @Override
             public void beforeStop() {
@@ -144,15 +143,17 @@ public class ResultsPersisterService {
         this.maxFailureRetries = value;
     }
 
-    public BulkResponse indexWithRetry(String jobId,
-                                       String indexName,
-                                       ToXContent object,
-                                       ToXContent.Params params,
-                                       WriteRequest.RefreshPolicy refreshPolicy,
-                                       String id,
-                                       boolean requireAlias,
-                                       Supplier<Boolean> shouldRetry,
-                                       Consumer<String> retryMsgHandler) throws IOException {
+    public BulkResponse indexWithRetry(
+        String jobId,
+        String indexName,
+        ToXContent object,
+        ToXContent.Params params,
+        WriteRequest.RefreshPolicy refreshPolicy,
+        String id,
+        boolean requireAlias,
+        Supplier<Boolean> shouldRetry,
+        Consumer<String> retryMsgHandler
+    ) throws IOException {
         BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(refreshPolicy);
         try (XContentBuilder content = object.toXContent(XContentFactory.jsonBuilder(), params)) {
             bulkRequest.add(new IndexRequest(indexName).id(id).source(content).setRequireAlias(requireAlias));
@@ -160,23 +161,24 @@ public class ResultsPersisterService {
         return bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler);
     }
 
-    public BulkResponse bulkIndexWithRetry(BulkRequest bulkRequest,
-                                           String jobId,
-                                           Supplier<Boolean> shouldRetry,
-                                           Consumer<String> retryMsgHandler) {
-        return bulkIndexWithRetry(bulkRequest,
-            jobId,
-            shouldRetry,
-            retryMsgHandler,
-            client::bulk);
+    public BulkResponse bulkIndexWithRetry(
+        BulkRequest bulkRequest,
+        String jobId,
+        Supplier<Boolean> shouldRetry,
+        Consumer<String> retryMsgHandler
+    ) {
+        return bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler, client::bulk);
     }
 
-    public BulkResponse bulkIndexWithHeadersWithRetry(Map<String, String> headers,
-                                                      BulkRequest bulkRequest,
-                                                      String jobId,
-                                                      Supplier<Boolean> shouldRetry,
-                                                      Consumer<String> retryMsgHandler) {
-        return bulkIndexWithRetry(bulkRequest,
+    public BulkResponse bulkIndexWithHeadersWithRetry(
+        Map<String, String> headers,
+        BulkRequest bulkRequest,
+        String jobId,
+        Supplier<Boolean> shouldRetry,
+        Consumer<String> retryMsgHandler
+    ) {
+        return bulkIndexWithRetry(
+            bulkRequest,
             jobId,
             shouldRetry,
             retryMsgHandler,
@@ -186,14 +188,18 @@ public class ResultsPersisterService {
                 client,
                 BulkAction.INSTANCE,
                 providedBulkRequest,
-                listener));
+                listener
+            )
+        );
     }
 
-    private BulkResponse bulkIndexWithRetry(BulkRequest bulkRequest,
-                                            String jobId,
-                                            Supplier<Boolean> shouldRetry,
-                                            Consumer<String> retryMsgHandler,
-                                            BiConsumer<BulkRequest, ActionListener<BulkResponse>> actionExecutor) {
+    private BulkResponse bulkIndexWithRetry(
+        BulkRequest bulkRequest,
+        String jobId,
+        Supplier<Boolean> shouldRetry,
+        Consumer<String> retryMsgHandler,
+        BiConsumer<BulkRequest, ActionListener<BulkResponse>> actionExecutor
+    ) {
         if (isShutdown || isResetMode) {
             throw new ElasticsearchException(
                 "Bulk indexing has failed as {}",
@@ -217,17 +223,21 @@ public class ResultsPersisterService {
         onGoingRetryableBulkActions.put(key, bulkRetryableAction);
         bulkRetryableAction.run();
         if (isShutdown || isResetMode) {
-            bulkRetryableAction.cancel(new CancellableThreads.ExecutionCancelledException(
-                isShutdown ? "Node is shutting down" : "Machine learning feature is being reset"
-            ));
+            bulkRetryableAction.cancel(
+                new CancellableThreads.ExecutionCancelledException(
+                    isShutdown ? "Node is shutting down" : "Machine learning feature is being reset"
+                )
+            );
         }
         return getResponse.actionGet();
     }
 
-    public SearchResponse searchWithRetry(SearchRequest searchRequest,
-                                          String jobId,
-                                          Supplier<Boolean> shouldRetry,
-                                          Consumer<String> retryMsgHandler) {
+    public SearchResponse searchWithRetry(
+        SearchRequest searchRequest,
+        String jobId,
+        Supplier<Boolean> shouldRetry,
+        Consumer<String> retryMsgHandler
+    ) {
         final PlainActionFuture<SearchResponse> getResponse = PlainActionFuture.newFuture();
         final Object key = new Object();
         final ActionListener<SearchResponse> removeListener = ActionListener.runBefore(
@@ -240,7 +250,8 @@ public class ResultsPersisterService {
             client,
             () -> (isShutdown == false) && shouldRetry.get(),
             retryMsgHandler,
-            removeListener);
+            removeListener
+        );
         onGoingRetryableSearchActions.put(key, mlRetryableAction);
         mlRetryableAction.run();
         if (isShutdown) {
@@ -249,12 +260,14 @@ public class ResultsPersisterService {
         return getResponse.actionGet();
     }
 
-    static class RecoverableException extends Exception { }
+    static class RecoverableException extends Exception {}
+
     static class IrrecoverableException extends ElasticsearchStatusException {
         IrrecoverableException(String msg, RestStatus status, Throwable cause, Object... args) {
             super(msg, status, cause, args);
         }
     }
+
     /**
      * @param ex The exception to check
      * @return true when the failure will persist no matter how many times we retry.
@@ -267,6 +280,7 @@ public class ResultsPersisterService {
     @SuppressWarnings("NonAtomicOperationOnVolatileField")
     private static class BulkRequestRewriter {
         private volatile BulkRequest bulkRequest;
+
         BulkRequestRewriter(BulkRequest initialRequest) {
             this.bulkRequest = initialRequest;
         }
@@ -286,44 +300,52 @@ public class ResultsPersisterService {
 
     private class BulkRetryableAction extends MlRetryableAction<BulkRequest, BulkResponse> {
         private final BulkRequestRewriter bulkRequestRewriter;
-        BulkRetryableAction(String jobId,
-                            BulkRequestRewriter bulkRequestRewriter,
-                            Supplier<Boolean> shouldRetry,
-                            Consumer<String> msgHandler,
-                            BiConsumer<BulkRequest, ActionListener<BulkResponse>> actionExecutor,
-                            ActionListener<BulkResponse> listener) {
-            super(jobId,
+
+        BulkRetryableAction(
+            String jobId,
+            BulkRequestRewriter bulkRequestRewriter,
+            Supplier<Boolean> shouldRetry,
+            Consumer<String> msgHandler,
+            BiConsumer<BulkRequest, ActionListener<BulkResponse>> actionExecutor,
+            ActionListener<BulkResponse> listener
+        ) {
+            super(
+                jobId,
                 shouldRetry,
                 msgHandler,
-                (request, retryableListener) -> actionExecutor.accept(request, ActionListener.wrap(
-                    bulkResponse -> {
-                        if (bulkResponse.hasFailures() == false) {
-                            retryableListener.onResponse(bulkResponse);
-                            return;
-                        }
-                        for (BulkItemResponse itemResponse : bulkResponse.getItems()) {
-                            if (itemResponse.isFailed() && isIrrecoverable(itemResponse.getFailure().getCause())) {
-                                Throwable unwrappedParticular = ExceptionsHelper.unwrapCause(itemResponse.getFailure().getCause());
-                                LOGGER.warn(new ParameterizedMessage(
-                                        "[{}] experienced failure that cannot be automatically retried. Bulk failure message [{}]",
-                                        jobId,
-                                        bulkResponse.buildFailureMessage()),
-                                    unwrappedParticular);
-                                retryableListener.onFailure(new IrrecoverableException(
+                (request, retryableListener) -> actionExecutor.accept(request, ActionListener.wrap(bulkResponse -> {
+                    if (bulkResponse.hasFailures() == false) {
+                        retryableListener.onResponse(bulkResponse);
+                        return;
+                    }
+                    for (BulkItemResponse itemResponse : bulkResponse.getItems()) {
+                        if (itemResponse.isFailed() && isIrrecoverable(itemResponse.getFailure().getCause())) {
+                            Throwable unwrappedParticular = ExceptionsHelper.unwrapCause(itemResponse.getFailure().getCause());
+                            LOGGER.warn(
+                                new ParameterizedMessage(
+                                    "[{}] experienced failure that cannot be automatically retried. Bulk failure message [{}]",
+                                    jobId,
+                                    bulkResponse.buildFailureMessage()
+                                ),
+                                unwrappedParticular
+                            );
+                            retryableListener.onFailure(
+                                new IrrecoverableException(
                                     "{} experienced failure that cannot be automatically retried. See logs for bulk failures",
                                     status(unwrappedParticular),
                                     unwrappedParticular,
-                                    jobId));
-                                return;
-                            }
+                                    jobId
+                                )
+                            );
+                            return;
                         }
-                        bulkRequestRewriter.rewriteRequest(bulkResponse);
-                        // Let the listener attempt again with the new bulk request
-                        retryableListener.onFailure(new RecoverableException());
-                    },
-                    retryableListener::onFailure
-                )),
-                listener);
+                    }
+                    bulkRequestRewriter.rewriteRequest(bulkResponse);
+                    // Let the listener attempt again with the new bulk request
+                    retryableListener.onFailure(new RecoverableException());
+                }, retryableListener::onFailure)),
+                listener
+            );
             this.bulkRequestRewriter = bulkRequestRewriter;
         }
 
@@ -342,32 +364,31 @@ public class ResultsPersisterService {
     private class SearchRetryableAction extends MlRetryableAction<SearchRequest, SearchResponse> {
 
         private final SearchRequest searchRequest;
-        SearchRetryableAction(String jobId,
-                              SearchRequest searchRequest,
-                              // Pass the client to work around https://bugs.eclipse.org/bugs/show_bug.cgi?id=569557
-                              OriginSettingClient client,
-                              Supplier<Boolean> shouldRetry,
-                              Consumer<String> msgHandler,
-                              ActionListener<SearchResponse> listener) {
-            super(jobId,
+
+        SearchRetryableAction(
+            String jobId,
+            SearchRequest searchRequest,
+            // Pass the client to work around https://bugs.eclipse.org/bugs/show_bug.cgi?id=569557
+            OriginSettingClient client,
+            Supplier<Boolean> shouldRetry,
+            Consumer<String> msgHandler,
+            ActionListener<SearchResponse> listener
+        ) {
+            super(
+                jobId,
                 shouldRetry,
                 msgHandler,
-                (request, retryableListener) -> client.search(request, ActionListener.wrap(
-                    searchResponse -> {
-                        if (RestStatus.OK.equals(searchResponse.status())) {
-                            retryableListener.onResponse(searchResponse);
-                            return;
-                        }
-                        retryableListener.onFailure(
-                            new ElasticsearchStatusException(
-                                "search failed with status {}",
-                                searchResponse.status(),
-                                searchResponse.status())
-                        );
-                    },
-                    retryableListener::onFailure
-                )),
-                listener);
+                (request, retryableListener) -> client.search(request, ActionListener.wrap(searchResponse -> {
+                    if (RestStatus.OK.equals(searchResponse.status())) {
+                        retryableListener.onResponse(searchResponse);
+                        return;
+                    }
+                    retryableListener.onFailure(
+                        new ElasticsearchStatusException("search failed with status {}", searchResponse.status(), searchResponse.status())
+                    );
+                }, retryableListener::onFailure)),
+                listener
+            );
             this.searchRequest = searchRequest;
         }
 
@@ -392,18 +413,21 @@ public class ResultsPersisterService {
         volatile int currentAttempt = 0;
         volatile long currentMax = MIN_RETRY_SLEEP_MILLIS;
 
-        MlRetryableAction(String jobId,
-                          Supplier<Boolean> shouldRetry,
-                          Consumer<String> msgHandler,
-                          BiConsumer<Request, ActionListener<Response>> action,
-                          ActionListener<Response> listener) {
+        MlRetryableAction(
+            String jobId,
+            Supplier<Boolean> shouldRetry,
+            Consumer<String> msgHandler,
+            BiConsumer<Request, ActionListener<Response>> action,
+            ActionListener<Response> listener
+        ) {
             super(
                 LOGGER,
                 threadPool,
                 TimeValue.timeValueMillis(MIN_RETRY_SLEEP_MILLIS),
                 TimeValue.MAX_VALUE,
                 listener,
-                UTILITY_THREAD_POOL_NAME);
+                UTILITY_THREAD_POOL_NAME
+            );
             this.jobId = jobId;
             this.shouldRetry = shouldRetry;
             this.msgHandler = msgHandler;
@@ -429,23 +453,16 @@ public class ResultsPersisterService {
 
             // If the outside conditions have changed and retries are no longer needed, do not retry.
             if (shouldRetry.get() == false) {
-                LOGGER.info(() -> new ParameterizedMessage(
-                    "[{}] should not retry {} after [{}] attempts",
-                    jobId,
-                    getName(),
-                    currentAttempt
-                ), e);
+                LOGGER.info(
+                    () -> new ParameterizedMessage("[{}] should not retry {} after [{}] attempts", jobId, getName(), currentAttempt),
+                    e
+                );
                 return false;
             }
 
             // If the configured maximum number of retries has been reached, do not retry.
             if (currentAttempt > maxFailureRetries) {
-                LOGGER.warn(() -> new ParameterizedMessage(
-                    "[{}] failed to {} after [{}] attempts.",
-                    jobId,
-                    getName(),
-                    currentAttempt
-                ), e);
+                LOGGER.warn(() -> new ParameterizedMessage("[{}] failed to {} after [{}] attempts.", jobId, getName(), currentAttempt), e);
                 return false;
             }
             return true;
@@ -456,10 +473,7 @@ public class ResultsPersisterService {
             // Exponential backoff calculation taken from: https://en.wikipedia.org/wiki/Exponential_backoff
             int uncappedBackoff = ((1 << Math.min(currentAttempt, MAX_RETRY_EXPONENT)) - 1) * (50);
             currentMax = Math.min(uncappedBackoff, MAX_RETRY_SLEEP_MILLIS);
-            String msg = new ParameterizedMessage(
-                "failed to {} after [{}] attempts. Will attempt again.",
-                getName(),
-                currentAttempt)
+            String msg = new ParameterizedMessage("failed to {} after [{}] attempts. Will attempt again.", getName(), currentAttempt)
                 .getFormattedMessage();
             LOGGER.warn(() -> new ParameterizedMessage("[{}] {}", jobId, msg));
             msgHandler.accept(msg);

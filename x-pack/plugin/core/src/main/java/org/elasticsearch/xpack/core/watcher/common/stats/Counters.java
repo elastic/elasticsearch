@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.watcher.common.stats;
 
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
+
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -34,7 +35,7 @@ public class Counters implements Writeable {
         }
     }
 
-    public Counters(String ... names) {
+    public Counters(String... names) {
         for (String name : names) {
             set(name);
         }

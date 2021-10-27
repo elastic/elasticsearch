@@ -21,35 +21,26 @@ import java.util.concurrent.TimeUnit;
 public class MockSinglePrioritizingExecutor extends PrioritizedEsThreadPoolExecutor {
 
     public MockSinglePrioritizingExecutor(String name, DeterministicTaskQueue deterministicTaskQueue, ThreadPool threadPool) {
-        super(
-            name,
-            0,
-            1,
-            0L,
-            TimeUnit.MILLISECONDS,
-            r -> new Thread() {
-                @Override
-                public void start() {
-                    deterministicTaskQueue.scheduleNow(new Runnable() {
-                        @Override
-                        public void run() {
-                            try {
-                                r.run();
-                            } catch (KillWorkerError kwe) {
-                                // hacks everywhere
-                            }
+        super(name, 0, 1, 0L, TimeUnit.MILLISECONDS, r -> new Thread() {
+            @Override
+            public void start() {
+                deterministicTaskQueue.scheduleNow(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            r.run();
+                        } catch (KillWorkerError kwe) {
+                            // hacks everywhere
                         }
+                    }
 
-                        @Override
-                        public String toString() {
-                            return r.toString();
-                        }
-                    });
-                }
-            },
-            threadPool.getThreadContext(),
-            threadPool.scheduler(),
-            StarvationWatcher.NOOP_STARVATION_WATCHER);
+                    @Override
+                    public String toString() {
+                        return r.toString();
+                    }
+                });
+            }
+        }, threadPool.getThreadContext(), threadPool.scheduler(), StarvationWatcher.NOOP_STARVATION_WATCHER);
     }
 
     @Override

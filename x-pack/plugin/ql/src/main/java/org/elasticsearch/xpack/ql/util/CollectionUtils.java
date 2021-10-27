@@ -53,8 +53,7 @@ public abstract class CollectionUtils {
                 for (T t : col) {
                     list.add(t);
                 }
-            }
-            else {
+            } else {
                 list.addAll(col);
             }
         }

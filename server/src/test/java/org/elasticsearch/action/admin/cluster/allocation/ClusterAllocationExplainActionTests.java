@@ -24,11 +24,11 @@ import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.time.Instant;
 import java.util.Collections;
@@ -49,8 +49,14 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         ShardRoutingState shardRoutingState = randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.RELOCATING);
         ClusterState clusterState = ClusterStateCreationUtils.state("idx", randomBoolean(), shardRoutingState);
         ShardRouting shard = clusterState.getRoutingTable().index("idx").shard(0).primaryShard();
-        RoutingAllocation allocation = new RoutingAllocation(new AllocationDeciders(Collections.emptyList()),
-            clusterState.getRoutingNodes(), clusterState, null, null, System.nanoTime());
+        RoutingAllocation allocation = new RoutingAllocation(
+            new AllocationDeciders(Collections.emptyList()),
+            clusterState.getRoutingNodes(),
+            clusterState,
+            null,
+            null,
+            System.nanoTime()
+        );
         ClusterAllocationExplanation cae = TransportClusterAllocationExplainAction.explainShard(
             shard,
             allocation,
@@ -71,7 +77,8 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
                         throw new UnsupportedOperationException("cannot explain");
                     }
                 }
-            }, null, null));
+            }, null, null)
+        );
 
         assertEquals(shard.currentNodeId(), cae.getCurrentNode().getId());
         assertTrue(cae.isSpecificShard());
@@ -82,26 +89,40 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         cae.toXContent(builder, ToXContent.EMPTY_PARAMS);
         String explanation;
         if (shardRoutingState == ShardRoutingState.RELOCATING) {
-            explanation = "the shard is in the process of relocating from node [] to node [], wait until " +
-                              "relocation has completed";
+            explanation = "the shard is in the process of relocating from node [] to node [], wait until " + "relocation has completed";
         } else {
-            explanation = "the shard is in the process of initializing on node [], " +
-                              "wait until initialization has completed";
+            explanation = "the shard is in the process of initializing on node [], " + "wait until initialization has completed";
         }
-        assertEquals("{\"index\":\"idx\",\"shard\":0,\"primary\":true,\"current_state\":\"" +
-                         shardRoutingState.toString().toLowerCase(Locale.ROOT) + "\"" +
-                        (shard.unassignedInfo() != null ?
-                            ",\"unassigned_info\":{"
-                                + "\"reason\":\"" + shard.unassignedInfo().getReason() + "\","
-                                + "\"at\":\""+ UnassignedInfo.DATE_TIME_FORMATTER.format(
-                                    Instant.ofEpochMilli(shard.unassignedInfo().getUnassignedTimeInMillis())) + "\","
-                                + "\"last_allocation_status\":\"" + AllocationDecision.fromAllocationStatus(
-                                    shard.unassignedInfo().getLastAllocationStatus()) + "\"}"
-                            : "")
-                        + ",\"current_node\":" +
-                         "{\"id\":\"" + cae.getCurrentNode().getId() + "\",\"name\":\"" + cae.getCurrentNode().getName() +
-                         "\",\"transport_address\":\"" + cae.getCurrentNode().getAddress() +
-                         "\"},\"explanation\":\"" + explanation + "\"}", Strings.toString(builder));
+        assertEquals(
+            "{\"index\":\"idx\",\"shard\":0,\"primary\":true,\"current_state\":\""
+                + shardRoutingState.toString().toLowerCase(Locale.ROOT)
+                + "\""
+                + (shard.unassignedInfo() != null
+                    ? ",\"unassigned_info\":{"
+                        + "\"reason\":\""
+                        + shard.unassignedInfo().getReason()
+                        + "\","
+                        + "\"at\":\""
+                        + UnassignedInfo.DATE_TIME_FORMATTER.format(
+                            Instant.ofEpochMilli(shard.unassignedInfo().getUnassignedTimeInMillis())
+                        )
+                        + "\","
+                        + "\"last_allocation_status\":\""
+                        + AllocationDecision.fromAllocationStatus(shard.unassignedInfo().getLastAllocationStatus())
+                        + "\"}"
+                    : "")
+                + ",\"current_node\":"
+                + "{\"id\":\""
+                + cae.getCurrentNode().getId()
+                + "\",\"name\":\""
+                + cae.getCurrentNode().getName()
+                + "\",\"transport_address\":\""
+                + cae.getCurrentNode().getAddress()
+                + "\"},\"explanation\":\""
+                + explanation
+                + "\"}",
+            Strings.toString(builder)
+        );
     }
 
     public void testFindAnyUnassignedShardToExplain() {
@@ -118,7 +139,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         assertEquals(clusterState.getRoutingTable().index("idx").shard(0).replicaShards().get(0), shard);
 
         // prefer unassigned primary to replica
-        clusterState = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(new String[]{"idx1", "idx2"}, 1, 1);
+        clusterState = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(new String[] { "idx1", "idx2" }, 1, 1);
         final String redIndex = randomBoolean() ? "idx1" : "idx2";
         final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(clusterState.routingTable());
         for (final IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
@@ -128,9 +149,9 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
                 for (final ShardRouting shardRouting : indexShardRoutingTable) {
                     if (shardRouting.primary() == false || indexRoutingTable.getIndex().getName().equals(redIndex)) {
                         // move all replicas and one primary to unassigned
-                        shardBuilder.addShard(shardRouting.moveToUnassigned(new UnassignedInfo(
-                            UnassignedInfo.Reason.ALLOCATION_FAILED,
-                            "test")));
+                        shardBuilder.addShard(
+                            shardRouting.moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "test"))
+                        );
                     } else {
                         shardBuilder.addShard(shardRouting);
                     }
@@ -145,16 +166,24 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         assertEquals(clusterState.getRoutingTable().index(redIndex).shard(0).primaryShard(), shard);
 
         // no unassigned shard to explain
-        final ClusterState allStartedClusterState = ClusterStateCreationUtils.state("idx", randomBoolean(),
-            ShardRoutingState.STARTED, ShardRoutingState.STARTED);
+        final ClusterState allStartedClusterState = ClusterStateCreationUtils.state(
+            "idx",
+            randomBoolean(),
+            ShardRoutingState.STARTED,
+            ShardRoutingState.STARTED
+        );
         final ClusterAllocationExplainRequest anyUnassignedShardsRequest = new ClusterAllocationExplainRequest();
-        assertThat(expectThrows(
-            IllegalArgumentException.class,
-            () -> findShardToExplain(anyUnassignedShardsRequest, routingAllocation(allStartedClusterState))).getMessage(),
+        assertThat(
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> findShardToExplain(anyUnassignedShardsRequest, routingAllocation(allStartedClusterState))
+            ).getMessage(),
             allOf(
                 // no point in asserting the precise wording of the message into this test, but we care that it contains these bits:
                 containsString("No shard was specified in the request"),
-                containsString("specify the target shard in the request")));
+                containsString("specify the target shard in the request")
+            )
+        );
     }
 
     public void testFindPrimaryShardToExplain() {
@@ -166,20 +195,41 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
 
     public void testFindAnyReplicaToExplain() {
         // prefer unassigned replicas to started replicas
-        ClusterState clusterState = ClusterStateCreationUtils.state("idx", randomBoolean(), ShardRoutingState.STARTED,
-            ShardRoutingState.STARTED, ShardRoutingState.UNASSIGNED);
+        ClusterState clusterState = ClusterStateCreationUtils.state(
+            "idx",
+            randomBoolean(),
+            ShardRoutingState.STARTED,
+            ShardRoutingState.STARTED,
+            ShardRoutingState.UNASSIGNED
+        );
         ClusterAllocationExplainRequest request = new ClusterAllocationExplainRequest("idx", 0, false, null);
         ShardRouting shard = findShardToExplain(request, routingAllocation(clusterState));
-        assertEquals(clusterState.getRoutingTable().index("idx").shard(0).replicaShards()
-                         .stream().filter(ShardRouting::unassigned).findFirst().get(), shard);
+        assertEquals(
+            clusterState.getRoutingTable()
+                .index("idx")
+                .shard(0)
+                .replicaShards()
+                .stream()
+                .filter(ShardRouting::unassigned)
+                .findFirst()
+                .get(),
+            shard
+        );
 
         // prefer started replicas to initializing/relocating replicas
-        clusterState = ClusterStateCreationUtils.state("idx", randomBoolean(), ShardRoutingState.STARTED,
-            randomFrom(ShardRoutingState.RELOCATING, ShardRoutingState.INITIALIZING), ShardRoutingState.STARTED);
+        clusterState = ClusterStateCreationUtils.state(
+            "idx",
+            randomBoolean(),
+            ShardRoutingState.STARTED,
+            randomFrom(ShardRoutingState.RELOCATING, ShardRoutingState.INITIALIZING),
+            ShardRoutingState.STARTED
+        );
         request = new ClusterAllocationExplainRequest("idx", 0, false, null);
         shard = findShardToExplain(request, routingAllocation(clusterState));
-        assertEquals(clusterState.getRoutingTable().index("idx").shard(0).replicaShards()
-                         .stream().filter(ShardRouting::started).findFirst().get(), shard);
+        assertEquals(
+            clusterState.getRoutingTable().index("idx").shard(0).replicaShards().stream().filter(ShardRouting::started).findFirst().get(),
+            shard
+        );
     }
 
     public void testFindShardAssignedToNode() {
@@ -190,8 +240,9 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             replicaStates = new ShardRoutingState[] { ShardRoutingState.STARTED };
         }
         ClusterState clusterState = ClusterStateCreationUtils.state("idx", randomBoolean(), ShardRoutingState.STARTED, replicaStates);
-        ShardRouting shardToExplain = primary ? clusterState.getRoutingTable().index("idx").shard(0).primaryShard() :
-                                          clusterState.getRoutingTable().index("idx").shard(0).replicaShards().get(0);
+        ShardRouting shardToExplain = primary
+            ? clusterState.getRoutingTable().index("idx").shard(0).primaryShard()
+            : clusterState.getRoutingTable().index("idx").shard(0).replicaShards().get(0);
         ClusterAllocationExplainRequest request = new ClusterAllocationExplainRequest("idx", 0, primary, shardToExplain.currentNodeId());
         RoutingAllocation allocation = routingAllocation(clusterState);
         ShardRouting foundShard = findShardToExplain(request, allocation);

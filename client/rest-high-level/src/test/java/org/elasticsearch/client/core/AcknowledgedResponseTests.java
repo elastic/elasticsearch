@@ -16,7 +16,8 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.is;
 
-public class AcknowledgedResponseTests extends AbstractResponseTestCase<org.elasticsearch.action.support.master.AcknowledgedResponse,
+public class AcknowledgedResponseTests extends AbstractResponseTestCase<
+    org.elasticsearch.action.support.master.AcknowledgedResponse,
     AcknowledgedResponse> {
 
     @Override
@@ -30,8 +31,10 @@ public class AcknowledgedResponseTests extends AbstractResponseTestCase<org.elas
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.action.support.master.AcknowledgedResponse serverTestInstance,
-                                   AcknowledgedResponse clientInstance) {
+    protected void assertInstances(
+        org.elasticsearch.action.support.master.AcknowledgedResponse serverTestInstance,
+        AcknowledgedResponse clientInstance
+    ) {
         assertThat(clientInstance.isAcknowledged(), is(serverTestInstance.isAcknowledged()));
     }
 

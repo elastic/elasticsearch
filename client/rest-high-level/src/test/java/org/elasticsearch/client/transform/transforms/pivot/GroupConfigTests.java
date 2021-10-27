@@ -9,11 +9,11 @@
 package org.elasticsearch.client.transform.transforms.pivot;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.HashSet;

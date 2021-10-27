@@ -17,28 +17,68 @@ import java.util.regex.Pattern;
 public class BasicAPITests extends ScriptTestCase {
 
     public void testListIterator() {
-        assertEquals(3, exec("List x = new ArrayList(); x.add(2); x.add(3); x.add(-2); Iterator y = x.iterator(); " +
-            "int total = 0; while (y.hasNext()) total += y.next(); return total;"));
-        assertEquals("abc", exec("List x = new ArrayList(); x.add(\"a\"); x.add(\"b\"); x.add(\"c\"); " +
-            "Iterator y = x.iterator(); String total = \"\"; while (y.hasNext()) total += y.next(); return total;"));
-        assertEquals(3, exec("def x = new ArrayList(); x.add(2); x.add(3); x.add(-2); def y = x.iterator(); " +
-            "def total = 0; while (y.hasNext()) total += y.next(); return total;"));
+        assertEquals(
+            3,
+            exec(
+                "List x = new ArrayList(); x.add(2); x.add(3); x.add(-2); Iterator y = x.iterator(); "
+                    + "int total = 0; while (y.hasNext()) total += y.next(); return total;"
+            )
+        );
+        assertEquals(
+            "abc",
+            exec(
+                "List x = new ArrayList(); x.add(\"a\"); x.add(\"b\"); x.add(\"c\"); "
+                    + "Iterator y = x.iterator(); String total = \"\"; while (y.hasNext()) total += y.next(); return total;"
+            )
+        );
+        assertEquals(
+            3,
+            exec(
+                "def x = new ArrayList(); x.add(2); x.add(3); x.add(-2); def y = x.iterator(); "
+                    + "def total = 0; while (y.hasNext()) total += y.next(); return total;"
+            )
+        );
     }
 
     public void testSetIterator() {
-        assertEquals(3, exec("Set x = new HashSet(); x.add(2); x.add(3); x.add(-2); Iterator y = x.iterator(); " +
-            "int total = 0; while (y.hasNext()) total += y.next(); return total;"));
-        assertEquals("abc", exec("Set x = new HashSet(); x.add(\"a\"); x.add(\"b\"); x.add(\"c\"); " +
-            "Iterator y = x.iterator(); String total = \"\"; while (y.hasNext()) total += y.next(); return total;"));
-        assertEquals(3, exec("def x = new HashSet(); x.add(2); x.add(3); x.add(-2); def y = x.iterator(); " +
-            "def total = 0; while (y.hasNext()) total += (int)y.next(); return total;"));
+        assertEquals(
+            3,
+            exec(
+                "Set x = new HashSet(); x.add(2); x.add(3); x.add(-2); Iterator y = x.iterator(); "
+                    + "int total = 0; while (y.hasNext()) total += y.next(); return total;"
+            )
+        );
+        assertEquals(
+            "abc",
+            exec(
+                "Set x = new HashSet(); x.add(\"a\"); x.add(\"b\"); x.add(\"c\"); "
+                    + "Iterator y = x.iterator(); String total = \"\"; while (y.hasNext()) total += y.next(); return total;"
+            )
+        );
+        assertEquals(
+            3,
+            exec(
+                "def x = new HashSet(); x.add(2); x.add(3); x.add(-2); def y = x.iterator(); "
+                    + "def total = 0; while (y.hasNext()) total += (int)y.next(); return total;"
+            )
+        );
     }
 
     public void testMapIterator() {
-        assertEquals(3, exec("Map x = new HashMap(); x.put(2, 2); x.put(3, 3); x.put(-2, -2); Iterator y = x.keySet().iterator(); " +
-            "int total = 0; while (y.hasNext()) total += (int)y.next(); return total;"));
-        assertEquals(3, exec("Map x = new HashMap(); x.put(2, 2); x.put(3, 3); x.put(-2, -2); Iterator y = x.values().iterator(); " +
-            "int total = 0; while (y.hasNext()) total += (int)y.next(); return total;"));
+        assertEquals(
+            3,
+            exec(
+                "Map x = new HashMap(); x.put(2, 2); x.put(3, 3); x.put(-2, -2); Iterator y = x.keySet().iterator(); "
+                    + "int total = 0; while (y.hasNext()) total += (int)y.next(); return total;"
+            )
+        );
+        assertEquals(
+            3,
+            exec(
+                "Map x = new HashMap(); x.put(2, 2); x.put(3, 3); x.put(-2, -2); Iterator y = x.values().iterator(); "
+                    + "int total = 0; while (y.hasNext()) total += (int)y.next(); return total;"
+            )
+        );
     }
 
     /** Test loads and stores with a map */
@@ -59,8 +99,7 @@ public class BasicAPITests extends ScriptTestCase {
         ctx.put("_source", _source);
         params.put("ctx", ctx);
 
-        assertEquals("testvalue", exec("params.ctx._source['load'].5 = params.ctx._source['load'].remove('load5')",
-            params, true));
+        assertEquals("testvalue", exec("params.ctx._source['load'].5 = params.ctx._source['load'].remove('load5')", params, true));
     }
 
     /** Test loads and stores with a list */
@@ -119,8 +158,13 @@ public class BasicAPITests extends ScriptTestCase {
     }
 
     public void testPublicMemberAccess() {
-        assertEquals(5, exec("org.elasticsearch.painless.FeatureTestObject ft = new org.elasticsearch.painless.FeatureTestObject();" +
-            "ft.z = 5; return ft.z;"));
+        assertEquals(
+            5,
+            exec(
+                "org.elasticsearch.painless.FeatureTestObject ft = new org.elasticsearch.painless.FeatureTestObject();"
+                    + "ft.z = 5; return ft.z;"
+            )
+        );
     }
 
     public void testNoSemicolon() {
@@ -134,17 +178,19 @@ public class BasicAPITests extends ScriptTestCase {
 
     public void testRandomUUID() {
         assertTrue(
-                Pattern.compile("\\p{XDigit}{8}(-\\p{XDigit}{4}){3}-\\p{XDigit}{12}").matcher(
-                    (String)exec(
-                            "UUID a = UUID.randomUUID();" +
-                            "String s = a.toString(); " +
-                            "UUID b = UUID.fromString(s);" +
-                            "if (a.equals(b) == false) {" +
-                            "   throw new RuntimeException('uuids did not match');" +
-                            "}" +
-                            "return s;"
+            Pattern.compile("\\p{XDigit}{8}(-\\p{XDigit}{4}){3}-\\p{XDigit}{12}")
+                .matcher(
+                    (String) exec(
+                        "UUID a = UUID.randomUUID();"
+                            + "String s = a.toString(); "
+                            + "UUID b = UUID.fromString(s);"
+                            + "if (a.equals(b) == false) {"
+                            + "   throw new RuntimeException('uuids did not match');"
+                            + "}"
+                            + "return s;"
                     )
-                ).matches()
+                )
+                .matches()
         );
     }
 

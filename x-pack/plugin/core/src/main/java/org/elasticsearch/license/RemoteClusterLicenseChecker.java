@@ -198,8 +198,10 @@ public final class RemoteClusterLicenseChecker {
 
     private void remoteClusterLicense(final String clusterAlias, final ActionListener<XPackInfoResponse> listener) {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
-        final ContextPreservingActionListener<XPackInfoResponse> contextPreservingActionListener =
-                new ContextPreservingActionListener<>(threadContext.newRestorableContext(false), listener);
+        final ContextPreservingActionListener<XPackInfoResponse> contextPreservingActionListener = new ContextPreservingActionListener<>(
+            threadContext.newRestorableContext(false),
+            listener
+        );
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             // we stash any context here since this is an internal execution and should not leak any existing context information
             threadContext.markAsSystemContext();
@@ -256,12 +258,12 @@ public final class RemoteClusterLicenseChecker {
      */
     public static List<String> remoteClusterAliases(final Set<String> remoteClusters, final List<String> indices) {
         return indices.stream()
-                .filter(RemoteClusterLicenseChecker::isRemoteIndex)
-                .map(index -> index.substring(0, index.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR)))
-                .distinct()
-                .flatMap(clusterExpression -> clusterNameExpressionResolver.resolveClusterNames(remoteClusters, clusterExpression).stream())
-                .distinct()
-                .collect(Collectors.toList());
+            .filter(RemoteClusterLicenseChecker::isRemoteIndex)
+            .map(index -> index.substring(0, index.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR)))
+            .distinct()
+            .flatMap(clusterExpression -> clusterNameExpressionResolver.resolveClusterNames(remoteClusters, clusterExpression).stream())
+            .distinct()
+            .collect(Collectors.toList());
     }
 
     /**

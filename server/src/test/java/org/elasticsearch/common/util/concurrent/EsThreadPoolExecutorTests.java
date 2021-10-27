@@ -23,12 +23,12 @@ public class EsThreadPoolExecutorTests extends ESSingleNodeTestCase {
     @Override
     protected Settings nodeSettings() {
         return Settings.builder()
-                .put("node.name", "es-thread-pool-executor-tests")
-                .put("thread_pool.write.size", 1)
-                .put("thread_pool.write.queue_size", 0)
-                .put("thread_pool.search.size", 1)
-                .put("thread_pool.search.queue_size", 1)
-                .build();
+            .put("node.name", "es-thread-pool-executor-tests")
+            .put("thread_pool.write.size", 1)
+            .put("thread_pool.write.queue_size", 0)
+            .put("thread_pool.search.size", 1)
+            .put("thread_pool.search.queue_size", 1)
+            .build();
     }
 
     public void testRejectedExecutionExceptionContainsNodeName() {

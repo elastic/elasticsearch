@@ -32,7 +32,8 @@ public class RestRethrottleAction extends BaseRestHandler {
         return List.of(
             new Route(POST, "/_update_by_query/{taskId}/_rethrottle"),
             new Route(POST, "/_delete_by_query/{taskId}/_rethrottle"),
-            new Route(POST, "/_reindex/{taskId}/_rethrottle"));
+            new Route(POST, "/_reindex/{taskId}/_rethrottle")
+        );
     }
 
     @Override
@@ -50,7 +51,10 @@ public class RestRethrottleAction extends BaseRestHandler {
         }
         internalRequest.setRequestsPerSecond(requestsPerSecond);
         final String groupBy = request.param("group_by", "nodes");
-        return channel ->
-            client.execute(RethrottleAction.INSTANCE, internalRequest, listTasksResponseListener(nodesInCluster, groupBy, channel));
+        return channel -> client.execute(
+            RethrottleAction.INSTANCE,
+            internalRequest,
+            listTasksResponseListener(nodesInCluster, groupBy, channel)
+        );
     }
 }

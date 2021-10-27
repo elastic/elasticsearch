@@ -41,8 +41,7 @@ public class WordDelimiterGraphTokenFilterFactory extends AbstractTokenFilterFac
     private final CharArraySet protoWords;
     private final boolean adjustOffsets;
 
-    public WordDelimiterGraphTokenFilterFactory(IndexSettings indexSettings, Environment env,
-            String name, Settings settings) {
+    public WordDelimiterGraphTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
 
         // Sample Format for the type table:

@@ -127,7 +127,7 @@ public class TrainedModelAllocationMetadata implements Metadata.Custom {
 
     public static class Builder {
 
-        public static Builder empty(){
+        public static Builder empty() {
             return new Builder();
         }
 
@@ -155,10 +155,8 @@ public class TrainedModelAllocationMetadata implements Metadata.Custom {
 
         public Builder addNewAllocation(String modelId, TrainedModelAllocation.Builder allocation) {
             if (modelRoutingEntries.containsKey(modelId)) {
-                throw new ResourceAlreadyExistsException(
-                    "[{}] allocation already exists",
-                    modelId
-                );            }
+                throw new ResourceAlreadyExistsException("[{}] allocation already exists", modelId);
+            }
             modelRoutingEntries.put(modelId, allocation);
             isChanged = true;
             return this;

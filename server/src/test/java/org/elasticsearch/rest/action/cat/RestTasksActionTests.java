@@ -14,11 +14,11 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.List;
 import java.util.Map;
@@ -29,9 +29,9 @@ public class RestTasksActionTests extends ESTestCase {
 
     public void testConsumesParameters() throws Exception {
         RestTasksAction action = new RestTasksAction(() -> DiscoveryNodes.EMPTY_NODES);
-        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-            .withParams(Map.of("parent_task_id", "the node:3", "nodes", "node1,node2", "actions", "*"))
-            .build();
+        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(
+            Map.of("parent_task_id", "the node:3", "nodes", "node1,node2", "actions", "*")
+        ).build();
         FakeRestChannel fakeRestChannel = new FakeRestChannel(fakeRestRequest, false, 1);
         try (NoOpNodeClient nodeClient = buildNodeClient()) {
             action.handleRequest(fakeRestRequest, fakeRestChannel, nodeClient);
@@ -45,8 +45,11 @@ public class RestTasksActionTests extends ESTestCase {
         return new NoOpNodeClient(getTestName()) {
             @Override
             @SuppressWarnings("unchecked")
-            public <Request extends ActionRequest, Response extends ActionResponse>
-            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
                 listener.onResponse((Response) new ListTasksResponse(List.of(), List.of(), List.of()));
             }
         };

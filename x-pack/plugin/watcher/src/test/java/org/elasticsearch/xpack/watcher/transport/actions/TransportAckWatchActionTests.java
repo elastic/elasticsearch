@@ -42,13 +42,13 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.anyObject;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@SuppressWarnings({"unchecked", "rawtypes"})
+@SuppressWarnings({ "unchecked", "rawtypes" })
 public class TransportAckWatchActionTests extends ESTestCase {
 
     private TransportAckWatchAction action;
@@ -63,23 +63,48 @@ public class TransportAckWatchActionTests extends ESTestCase {
         WatchParser watchParser = mock(WatchParser.class);
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
-        action = new TransportAckWatchAction(transportService, new ActionFilters(Collections.emptySet()),
-            new ClockHolder(Clock.systemUTC()), TestUtils.newTestLicenseState(), watchParser, client);
+        action = new TransportAckWatchAction(
+            transportService,
+            new ActionFilters(Collections.emptySet()),
+            new ClockHolder(Clock.systemUTC()),
+            TestUtils.newTestLicenseState(),
+            watchParser,
+            client
+        );
     }
 
     public void testWatchNotFound() {
         String watchId = "my_watch_id";
         doAnswer(invocation -> {
             ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocation.getArguments()[1];
-            listener.onResponse(new GetResponse(new GetResult(Watch.INDEX, watchId, UNASSIGNED_SEQ_NO,
-                0, -1, false, BytesArray.EMPTY, Collections.emptyMap(), Collections.emptyMap())));
+            listener.onResponse(
+                new GetResponse(
+                    new GetResult(
+                        Watch.INDEX,
+                        watchId,
+                        UNASSIGNED_SEQ_NO,
+                        0,
+                        -1,
+                        false,
+                        BytesArray.EMPTY,
+                        Collections.emptyMap(),
+                        Collections.emptyMap()
+                    )
+                )
+            );
             return null;
         }).when(client).get(anyObject(), anyObject());
 
         doAnswer(invocation -> {
             ContextPreservingActionListener listener = (ContextPreservingActionListener) invocation.getArguments()[2];
-            listener.onResponse(new WatcherStatsResponse(new ClusterName("clusterName"), new WatcherMetadata(false),
-                Collections.emptyList(), Collections.emptyList()));
+            listener.onResponse(
+                new WatcherStatsResponse(
+                    new ClusterName("clusterName"),
+                    new WatcherMetadata(false),
+                    Collections.emptyList(),
+                    Collections.emptyList()
+                )
+            );
             return null;
         }).when(client).execute(eq(WatcherStatsAction.INSTANCE), anyObject(), anyObject());
 
@@ -102,8 +127,14 @@ public class TransportAckWatchActionTests extends ESTestCase {
             WatchExecutionSnapshot snapshot = mock(WatchExecutionSnapshot.class);
             when(snapshot.watchId()).thenReturn(watchId);
             node.setSnapshots(Collections.singletonList(snapshot));
-            listener.onResponse(new WatcherStatsResponse(new ClusterName("clusterName"),
-                new WatcherMetadata(false), Collections.singletonList(node), Collections.emptyList()));
+            listener.onResponse(
+                new WatcherStatsResponse(
+                    new ClusterName("clusterName"),
+                    new WatcherMetadata(false),
+                    Collections.singletonList(node),
+                    Collections.emptyList()
+                )
+            );
             return null;
         }).when(client).execute(eq(WatcherStatsAction.INSTANCE), anyObject(), anyObject());
 

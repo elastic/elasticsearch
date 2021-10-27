@@ -32,21 +32,17 @@ public class OperatorPrivilegesPartiallyEnabledIntegTestCase extends SecurityInt
 
     @Override
     protected String configUsers() {
-        return super.configUsers()
-            + OPERATOR_USER_NAME + ":" + TEST_PASSWORD_HASHED + "\n";
+        return super.configUsers() + OPERATOR_USER_NAME + ":" + TEST_PASSWORD_HASHED + "\n";
     }
 
     @Override
     protected String configUsersRoles() {
-        return super.configUsersRoles()
-            + "superuser:" + OPERATOR_USER_NAME + "\n";
+        return super.configUsersRoles() + "superuser:" + OPERATOR_USER_NAME + "\n";
     }
 
     @Override
     protected String configOperatorUsers() {
-        return super.configOperatorUsers()
-            + "operator:\n"
-            + "  - usernames: ['" + OPERATOR_USER_NAME + "']\n";
+        return super.configOperatorUsers() + "operator:\n" + "  - usernames: ['" + OPERATOR_USER_NAME + "']\n";
     }
 
     @Override

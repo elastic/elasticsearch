@@ -78,8 +78,10 @@ public class UnusedStateRemover implements MlDataRemover {
     private List<String> findUnusedStateDocIds() {
         Set<String> jobIds = getJobIds();
         List<String> stateDocIdsToDelete = new ArrayList<>();
-        BatchedStateDocIdsIterator stateDocIdsIterator = new BatchedStateDocIdsIterator(client,
-            AnomalyDetectorsIndex.jobStateIndexPattern());
+        BatchedStateDocIdsIterator stateDocIdsIterator = new BatchedStateDocIdsIterator(
+            client,
+            AnomalyDetectorsIndex.jobStateIndexPattern()
+        );
         while (stateDocIdsIterator.hasNext()) {
             Deque<String> stateDocIds = stateDocIdsIterator.next();
             for (String stateDocId : stateDocIds) {
@@ -106,8 +108,11 @@ public class UnusedStateRemover implements MlDataRemover {
     private Set<String> getAnomalyDetectionJobIds() {
         Set<String> jobIds = new HashSet<>();
 
-        DocIdBatchedDocumentIterator iterator = new DocIdBatchedDocumentIterator(client, MlConfigIndex.indexName(),
-            QueryBuilders.termQuery(Job.JOB_TYPE.getPreferredName(), Job.ANOMALY_DETECTOR_JOB_TYPE));
+        DocIdBatchedDocumentIterator iterator = new DocIdBatchedDocumentIterator(
+            client,
+            MlConfigIndex.indexName(),
+            QueryBuilders.termQuery(Job.JOB_TYPE.getPreferredName(), Job.ANOMALY_DETECTOR_JOB_TYPE)
+        );
         while (iterator.hasNext()) {
             Deque<String> docIds = iterator.next();
             docIds.stream().map(Job::extractJobIdFromDocumentId).filter(Objects::nonNull).forEach(jobIds::add);
@@ -118,8 +123,11 @@ public class UnusedStateRemover implements MlDataRemover {
     private Set<String> getDataFrameAnalyticsJobIds() {
         Set<String> jobIds = new HashSet<>();
 
-        DocIdBatchedDocumentIterator iterator = new DocIdBatchedDocumentIterator(client, MlConfigIndex.indexName(),
-            QueryBuilders.termQuery(DataFrameAnalyticsConfig.CONFIG_TYPE.getPreferredName(), DataFrameAnalyticsConfig.TYPE));
+        DocIdBatchedDocumentIterator iterator = new DocIdBatchedDocumentIterator(
+            client,
+            MlConfigIndex.indexName(),
+            QueryBuilders.termQuery(DataFrameAnalyticsConfig.CONFIG_TYPE.getPreferredName(), DataFrameAnalyticsConfig.TYPE)
+        );
         while (iterator.hasNext()) {
             Deque<String> docIds = iterator.next();
             docIds.stream().map(DataFrameAnalyticsConfig::extractJobIdFromDocId).filter(Objects::nonNull).forEach(jobIds::add);
@@ -128,8 +136,7 @@ public class UnusedStateRemover implements MlDataRemover {
     }
 
     private void executeDeleteUnusedStateDocs(List<String> unusedDocIds, float requestsPerSec, ActionListener<Boolean> listener) {
-        LOGGER.info("Found [{}] unused state documents; attempting to delete",
-                unusedDocIds.size());
+        LOGGER.info("Found [{}] unused state documents; attempting to delete", unusedDocIds.size());
         DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexPattern())
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
@@ -141,22 +148,22 @@ public class UnusedStateRemover implements MlDataRemover {
         deleteByQueryRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
         deleteByQueryRequest.setParentTask(parentTaskId);
 
-        client.execute(DeleteByQueryAction.INSTANCE, deleteByQueryRequest, ActionListener.wrap(
-            response -> {
-                if (response.getBulkFailures().size() > 0 || response.getSearchFailures().size() > 0) {
-                    LOGGER.error("Some unused state documents could not be deleted due to failures: {}",
-                        Strings.collectionToCommaDelimitedString(response.getBulkFailures()) +
-                            "," + Strings.collectionToCommaDelimitedString(response.getSearchFailures()));
-                } else {
-                    LOGGER.info("Successfully deleted all unused state documents");
-                }
-                listener.onResponse(true);
-            },
-            e -> {
-                LOGGER.error("Error deleting unused model state documents: ", e);
-                listener.onFailure(e);
+        client.execute(DeleteByQueryAction.INSTANCE, deleteByQueryRequest, ActionListener.wrap(response -> {
+            if (response.getBulkFailures().size() > 0 || response.getSearchFailures().size() > 0) {
+                LOGGER.error(
+                    "Some unused state documents could not be deleted due to failures: {}",
+                    Strings.collectionToCommaDelimitedString(response.getBulkFailures())
+                        + ","
+                        + Strings.collectionToCommaDelimitedString(response.getSearchFailures())
+                );
+            } else {
+                LOGGER.info("Successfully deleted all unused state documents");
             }
-        ));
+            listener.onResponse(true);
+        }, e -> {
+            LOGGER.error("Error deleting unused model state documents: ", e);
+            listener.onFailure(e);
+        }));
     }
 
     private static class JobIdExtractor {

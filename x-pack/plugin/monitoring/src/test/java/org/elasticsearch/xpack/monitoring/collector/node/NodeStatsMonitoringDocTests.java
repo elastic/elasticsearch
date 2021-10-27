@@ -13,10 +13,7 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -31,6 +28,9 @@ import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.threadpool.ThreadPoolStats;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.BaseFilteredMonitoringDocTestCase;
@@ -67,8 +67,15 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
     }
 
     @Override
-    protected NodeStatsMonitoringDoc createMonitoringDoc(String cluster, long timestamp, long interval, MonitoringDoc.Node node,
-                                                         MonitoredSystem system, String type, String id) {
+    protected NodeStatsMonitoringDoc createMonitoringDoc(
+        String cluster,
+        long timestamp,
+        long interval,
+        MonitoringDoc.Node node,
+        MonitoredSystem system,
+        String type,
+        String id
+    ) {
         return new NodeStatsMonitoringDoc(cluster, timestamp, interval, node, nodeId, isMaster, nodeStats, mlockall);
     }
 
@@ -90,13 +97,17 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
     }
 
     public void testConstructorNodeIdMustNotBeNull() {
-        expectThrows(NullPointerException.class, () ->
-                new NodeStatsMonitoringDoc(cluster, timestamp, interval, node, null, isMaster, nodeStats, mlockall));
+        expectThrows(
+            NullPointerException.class,
+            () -> new NodeStatsMonitoringDoc(cluster, timestamp, interval, node, null, isMaster, nodeStats, mlockall)
+        );
     }
 
     public void testConstructorNodeStatsMustNotBeNull() {
-        expectThrows(NullPointerException.class, () ->
-                new NodeStatsMonitoringDoc(cluster, timestamp, interval, node, nodeId, isMaster, null, mlockall));
+        expectThrows(
+            NullPointerException.class,
+            () -> new NodeStatsMonitoringDoc(cluster, timestamp, interval, node, nodeId, isMaster, null, mlockall)
+        );
     }
 
     @Override
@@ -104,8 +115,16 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
         final NodeStats nodeStats = mockNodeStats();
 
-        final NodeStatsMonitoringDoc doc =
-                new NodeStatsMonitoringDoc("_cluster", 1502107402133L, 1506593717631L, node, "_node_id", true, nodeStats, false);
+        final NodeStatsMonitoringDoc doc = new NodeStatsMonitoringDoc(
+            "_cluster",
+            1502107402133L,
+            1506593717631L,
+            node,
+            "_node_id",
+            true,
+            nodeStats,
+            false
+        );
 
         final BytesReference xContent;
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
@@ -328,18 +347,46 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         final NodeIndicesStats indices = new NodeIndicesStats(indicesCommonStats, emptyMap());
 
         // Filesystem
-        final FsInfo.DeviceStats ioStatsOne = new FsInfo.DeviceStats((int) no, (int) no, null, ++iota, ++iota, ++iota, ++iota,++iota, null);
-        final FsInfo.DeviceStats ioStatsTwo = new FsInfo.DeviceStats((int) no, (int) no, null, ++iota, ++iota, ++iota, ++iota, ++iota,
-            ioStatsOne);
+        final FsInfo.DeviceStats ioStatsOne = new FsInfo.DeviceStats(
+            (int) no,
+            (int) no,
+            null,
+            ++iota,
+            ++iota,
+            ++iota,
+            ++iota,
+            ++iota,
+            null
+        );
+        final FsInfo.DeviceStats ioStatsTwo = new FsInfo.DeviceStats(
+            (int) no,
+            (int) no,
+            null,
+            ++iota,
+            ++iota,
+            ++iota,
+            ++iota,
+            ++iota,
+            ioStatsOne
+        );
 
-        final FsInfo.IoStats ioStats = new FsInfo.IoStats(new FsInfo.DeviceStats[]{ioStatsTwo});
-        final FsInfo fs = new FsInfo(no, ioStats, new FsInfo.Path[]{new FsInfo.Path(null, null, ++iota, ++iota, ++iota)});
+        final FsInfo.IoStats ioStats = new FsInfo.IoStats(new FsInfo.DeviceStats[] { ioStatsTwo });
+        final FsInfo fs = new FsInfo(no, ioStats, new FsInfo.Path[] { new FsInfo.Path(null, null, ++iota, ++iota, ++iota) });
 
         // Os
-        final OsStats.Cpu osCpu = new OsStats.Cpu((short) no, new double[]{++iota, ++iota, ++iota});
+        final OsStats.Cpu osCpu = new OsStats.Cpu((short) no, new double[] { ++iota, ++iota, ++iota });
         final OsStats.Cgroup.CpuStat osCpuStat = new OsStats.Cgroup.CpuStat(++iota, ++iota, ++iota);
-        final OsStats.Cgroup osCgroup = new OsStats.Cgroup("_cpu_acct_ctrl_group", ++iota, "_cpu_ctrl_group", ++iota, ++iota, osCpuStat,
-                "_memory_ctrl_group", "2000000000", "1000000000");
+        final OsStats.Cgroup osCgroup = new OsStats.Cgroup(
+            "_cpu_acct_ctrl_group",
+            ++iota,
+            "_cpu_ctrl_group",
+            ++iota,
+            ++iota,
+            osCpuStat,
+            "_memory_ctrl_group",
+            "2000000000",
+            "1000000000"
+        );
 
         final OsStats.Mem osMem = new OsStats.Mem(0, 0, 0);
         final OsStats.Swap osSwap = new OsStats.Swap(0, 0);
@@ -353,9 +400,11 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         final JvmStats.Threads jvmThreads = new JvmStats.Threads((int) no, (int) no);
         final JvmStats.Classes jvmClasses = new JvmStats.Classes(no, no, no);
         final JvmStats.Mem jvmMem = new JvmStats.Mem(no, ++iota, ++iota, no, no, emptyList());
-        final JvmStats.GarbageCollectors gcs = new JvmStats.GarbageCollectors(new JvmStats.GarbageCollector[]{
+        final JvmStats.GarbageCollectors gcs = new JvmStats.GarbageCollectors(
+            new JvmStats.GarbageCollector[] {
                 new JvmStats.GarbageCollector("young", ++iota, ++iota),
-                new JvmStats.GarbageCollector("old", ++iota, ++iota)});
+                new JvmStats.GarbageCollector("old", ++iota, ++iota) }
+        );
         final JvmStats jvm = new JvmStats(no, no, jvmMem, jvmThreads, gcs, emptyList(), jvmClasses);
 
         // Threadpools
@@ -368,17 +417,36 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         threadpools.add(new ThreadPoolStats.Stats("write", (int) ++iota, (int) ++iota, (int) no, ++iota, (int) no, no));
         final ThreadPoolStats threadPool = new ThreadPoolStats(threadpools);
 
-        final DiscoveryNode discoveryNode = new DiscoveryNode("_node_name",
-                                                                "_node_id",
-                                                                "_ephemeral_id",
-                                                                "_host_name",
-                                                                "_host_address",
-                                                                new TransportAddress(TransportAddress.META_ADDRESS, 1234),
-                                                                emptyMap(),
-                                                                emptySet(),
-                                                                Version.CURRENT);
+        final DiscoveryNode discoveryNode = new DiscoveryNode(
+            "_node_name",
+            "_node_id",
+            "_ephemeral_id",
+            "_host_name",
+            "_host_address",
+            new TransportAddress(TransportAddress.META_ADDRESS, 1234),
+            emptyMap(),
+            emptySet(),
+            Version.CURRENT
+        );
 
-        return new NodeStats(discoveryNode, no, indices, os, process, jvm, threadPool, fs, null, null, null, null, null, null, null, null,
-            null);
+        return new NodeStats(
+            discoveryNode,
+            no,
+            indices,
+            os,
+            process,
+            jvm,
+            threadPool,
+            fs,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
     }
 }

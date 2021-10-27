@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.ml.dataframe.process.results;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.classification.ClassificationStats;
@@ -36,18 +36,20 @@ public class AnalyticsResult implements ToXContentObject {
     private static final ParseField REGRESSION_STATS = new ParseField("regression_stats");
     private static final ParseField MODEL_METADATA = new ParseField("model_metadata");
 
-    public static final ConstructingObjectParser<AnalyticsResult, Void> PARSER = new ConstructingObjectParser<>(TYPE.getPreferredName(),
-            a -> new AnalyticsResult(
-                (RowResults) a[0],
-                (PhaseProgress) a[1],
-                (MemoryUsage) a[2],
-                (OutlierDetectionStats) a[3],
-                (ClassificationStats) a[4],
-                (RegressionStats) a[5],
-                (ModelSizeInfo) a[6],
-                (TrainedModelDefinitionChunk) a[7],
-                (ModelMetadata) a[8]
-            ));
+    public static final ConstructingObjectParser<AnalyticsResult, Void> PARSER = new ConstructingObjectParser<>(
+        TYPE.getPreferredName(),
+        a -> new AnalyticsResult(
+            (RowResults) a[0],
+            (PhaseProgress) a[1],
+            (MemoryUsage) a[2],
+            (OutlierDetectionStats) a[3],
+            (ClassificationStats) a[4],
+            (RegressionStats) a[5],
+            (ModelSizeInfo) a[6],
+            (TrainedModelDefinitionChunk) a[7],
+            (ModelMetadata) a[8]
+        )
+    );
 
     static {
         PARSER.declareObject(optionalConstructorArg(), RowResults.PARSER, RowResults.TYPE);
@@ -71,15 +73,17 @@ public class AnalyticsResult implements ToXContentObject {
     private final TrainedModelDefinitionChunk trainedModelDefinitionChunk;
     private final ModelMetadata modelMetadata;
 
-    private AnalyticsResult(@Nullable RowResults rowResults,
-                            @Nullable PhaseProgress phaseProgress,
-                            @Nullable MemoryUsage memoryUsage,
-                            @Nullable OutlierDetectionStats outlierDetectionStats,
-                            @Nullable ClassificationStats classificationStats,
-                            @Nullable RegressionStats regressionStats,
-                            @Nullable ModelSizeInfo modelSizeInfo,
-                            @Nullable TrainedModelDefinitionChunk trainedModelDefinitionChunk,
-                            @Nullable ModelMetadata modelMetadata) {
+    private AnalyticsResult(
+        @Nullable RowResults rowResults,
+        @Nullable PhaseProgress phaseProgress,
+        @Nullable MemoryUsage memoryUsage,
+        @Nullable OutlierDetectionStats outlierDetectionStats,
+        @Nullable ClassificationStats classificationStats,
+        @Nullable RegressionStats regressionStats,
+        @Nullable ModelSizeInfo modelSizeInfo,
+        @Nullable TrainedModelDefinitionChunk trainedModelDefinitionChunk,
+        @Nullable ModelMetadata modelMetadata
+    ) {
         this.rowResults = rowResults;
         this.phaseProgress = phaseProgress;
         this.memoryUsage = memoryUsage;
@@ -184,8 +188,17 @@ public class AnalyticsResult implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(rowResults, phaseProgress, memoryUsage, outlierDetectionStats, classificationStats,
-            regressionStats, modelSizeInfo, trainedModelDefinitionChunk, modelMetadata);
+        return Objects.hash(
+            rowResults,
+            phaseProgress,
+            memoryUsage,
+            outlierDetectionStats,
+            classificationStats,
+            regressionStats,
+            modelSizeInfo,
+            trainedModelDefinitionChunk,
+            modelMetadata
+        );
     }
 
     public static Builder builder() {

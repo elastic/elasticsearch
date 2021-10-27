@@ -70,8 +70,19 @@ public class ConnectionConfiguration {
     private static final String CATALOG = "catalog";
 
     protected static final Set<String> OPTION_NAMES = new LinkedHashSet<>(
-            Arrays.asList(PROPERTIES_VALIDATION, BINARY_COMMUNICATION, CONNECT_TIMEOUT, NETWORK_TIMEOUT, QUERY_TIMEOUT, PAGE_TIMEOUT,
-                    PAGE_SIZE, AUTH_USER, AUTH_PASS, CATALOG));
+        Arrays.asList(
+            PROPERTIES_VALIDATION,
+            BINARY_COMMUNICATION,
+            CONNECT_TIMEOUT,
+            NETWORK_TIMEOUT,
+            QUERY_TIMEOUT,
+            PAGE_TIMEOUT,
+            PAGE_SIZE,
+            AUTH_USER,
+            AUTH_PASS,
+            CATALOG
+        )
+    );
 
     static {
         OPTION_NAMES.addAll(SslConfig.OPTION_NAMES);
@@ -102,14 +113,20 @@ public class ConnectionConfiguration {
         this.connectionString = connectionString;
         Properties settings = props != null ? props : new Properties();
 
-        validateProperties = parseValue(PROPERTIES_VALIDATION, settings.getProperty(PROPERTIES_VALIDATION, PROPERTIES_VALIDATION_DEFAULT),
-                Boolean::parseBoolean);
+        validateProperties = parseValue(
+            PROPERTIES_VALIDATION,
+            settings.getProperty(PROPERTIES_VALIDATION, PROPERTIES_VALIDATION_DEFAULT),
+            Boolean::parseBoolean
+        );
         if (validateProperties) {
             checkPropertyNames(settings, optionNames());
         }
 
-        binaryCommunication = parseValue(BINARY_COMMUNICATION, settings.getProperty(BINARY_COMMUNICATION, BINARY_COMMUNICATION_DEFAULT),
-                Boolean::parseBoolean);
+        binaryCommunication = parseValue(
+            BINARY_COMMUNICATION,
+            settings.getProperty(BINARY_COMMUNICATION, BINARY_COMMUNICATION_DEFAULT),
+            Boolean::parseBoolean
+        );
 
         connectTimeout = parseValue(CONNECT_TIMEOUT, settings.getProperty(CONNECT_TIMEOUT, CONNECT_TIMEOUT_DEFAULT), Long::parseLong);
         networkTimeout = parseValue(NETWORK_TIMEOUT, settings.getProperty(NETWORK_TIMEOUT, NETWORK_TIMEOUT_DEFAULT), Long::parseLong);
@@ -128,9 +145,21 @@ public class ConnectionConfiguration {
         this.baseURI = normalizeSchema(baseURI, connectionString, sslConfig.isEnabled());
     }
 
-    public ConnectionConfiguration(URI baseURI, String connectionString, boolean validateProperties, boolean binaryCommunication,
-                                   long connectTimeout, long networkTimeout, long queryTimeout, long pageTimeout, int pageSize,
-                                   String user, String pass, SslConfig sslConfig, ProxyConfig proxyConfig) throws ClientException {
+    public ConnectionConfiguration(
+        URI baseURI,
+        String connectionString,
+        boolean validateProperties,
+        boolean binaryCommunication,
+        long connectTimeout,
+        long networkTimeout,
+        long queryTimeout,
+        long pageTimeout,
+        int pageSize,
+        String user,
+        String pass,
+        SslConfig sslConfig,
+        ProxyConfig proxyConfig
+    ) throws ClientException {
         this.validateProperties = validateProperties;
         this.binaryCommunication = binaryCommunication;
         this.connectionString = connectionString;
@@ -150,11 +179,17 @@ public class ConnectionConfiguration {
         this.baseURI = baseURI;
     }
 
-
-    private static URI normalizeSchema(URI uri, String connectionString, boolean isSSLEnabled)  {
+    private static URI normalizeSchema(URI uri, String connectionString, boolean isSSLEnabled) {
         try {
-            return new URI(isSSLEnabled ? "https" : "http", null, uri.getHost(), uri.getPort(), uri.getPath(), uri.getQuery(),
-                    uri.getFragment());
+            return new URI(
+                isSSLEnabled ? "https" : "http",
+                null,
+                uri.getHost(),
+                uri.getPort(),
+                uri.getPath(),
+                uri.getQuery(),
+                uri.getFragment()
+            );
         } catch (URISyntaxException ex) {
             throw new ClientException("Cannot parse process baseURI [" + connectionString + "] " + ex.getMessage());
         }

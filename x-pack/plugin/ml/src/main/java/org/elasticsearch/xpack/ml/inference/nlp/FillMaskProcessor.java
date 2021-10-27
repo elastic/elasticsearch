@@ -79,8 +79,7 @@ public class FillMaskProcessor implements NlpTask.Processor {
         int numResults,
         String resultsField
     ) {
-        if (tokenization.getTokenizations().isEmpty() ||
-            tokenization.getTokenizations().get(0).getTokens().length == 0) {
+        if (tokenization.getTokenizations().isEmpty() || tokenization.getTokenizations().get(0).getTokens().length == 0) {
             return new WarningInferenceResults("No valid tokens for inference");
         }
 
@@ -103,10 +102,10 @@ public class FillMaskProcessor implements NlpTask.Processor {
         return new FillMaskResults(
             scoreAndIndices[0].index,
             tokenization.getFromVocab(scoreAndIndices[0].index),
-            tokenization.getTokenizations().get(0).getInput().replace(
-                BertTokenizer.MASK_TOKEN,
-                tokenization.getFromVocab(scoreAndIndices[0].index)
-            ),
+            tokenization.getTokenizations()
+                .get(0)
+                .getInput()
+                .replace(BertTokenizer.MASK_TOKEN, tokenization.getFromVocab(scoreAndIndices[0].index)),
             results,
             DEFAULT_TOP_CLASSES_RESULTS_FIELD,
             Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD),

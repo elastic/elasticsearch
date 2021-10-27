@@ -32,15 +32,14 @@ public class GetFeatureUpgradeStatusResponse {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<GetFeatureUpgradeStatusResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "get_feature_upgrade_response", true, (a, ctx) -> new GetFeatureUpgradeStatusResponse(
-        (List<FeatureUpgradeStatus>) a[0], (String) a[1])
+        "get_feature_upgrade_response",
+        true,
+        (a, ctx) -> new GetFeatureUpgradeStatusResponse((List<FeatureUpgradeStatus>) a[0], (String) a[1])
     );
 
     static {
-        PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(),
-            FeatureUpgradeStatus::parse, FEATURE_UPGRADE_STATUSES);
-        PARSER.declareField(ConstructingObjectParser.constructorArg(),
-            (p, c) -> p.text(), UPGRADE_STATUS, ObjectParser.ValueType.STRING);
+        PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), FeatureUpgradeStatus::parse, FEATURE_UPGRADE_STATUSES);
+        PARSER.declareField(ConstructingObjectParser.constructorArg(), (p, c) -> p.text(), UPGRADE_STATUS, ObjectParser.ValueType.STRING);
     }
 
     /**
@@ -81,16 +80,25 @@ public class GetFeatureUpgradeStatusResponse {
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<FeatureUpgradeStatus, Void> PARSER = new ConstructingObjectParser<>(
-            "feature_upgrade_status", true, (a, ctx) -> new FeatureUpgradeStatus(
-            (String) a[0], (String) a[1], (String) a[2], (List<IndexVersion>) a[3]));
+            "feature_upgrade_status",
+            true,
+            (a, ctx) -> new FeatureUpgradeStatus((String) a[0], (String) a[1], (String) a[2], (List<IndexVersion>) a[3])
+        );
 
         static {
-            PARSER.declareField(ConstructingObjectParser.constructorArg(),
-                (p, c) -> p.text(), FEATURE_NAME, ObjectParser.ValueType.STRING);
-            PARSER.declareField(ConstructingObjectParser.constructorArg(),
-                (p, c) -> p.text(), MINIMUM_INDEX_VERSION, ObjectParser.ValueType.STRING);
-            PARSER.declareField(ConstructingObjectParser.constructorArg(),
-                (p, c) -> p.text(), UPGRADE_STATUS, ObjectParser.ValueType.STRING);
+            PARSER.declareField(ConstructingObjectParser.constructorArg(), (p, c) -> p.text(), FEATURE_NAME, ObjectParser.ValueType.STRING);
+            PARSER.declareField(
+                ConstructingObjectParser.constructorArg(),
+                (p, c) -> p.text(),
+                MINIMUM_INDEX_VERSION,
+                ObjectParser.ValueType.STRING
+            );
+            PARSER.declareField(
+                ConstructingObjectParser.constructorArg(),
+                (p, c) -> p.text(),
+                UPGRADE_STATUS,
+                ObjectParser.ValueType.STRING
+            );
             PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), IndexVersion::parse, INDEX_VERSIONS);
         }
 
@@ -171,14 +179,14 @@ public class GetFeatureUpgradeStatusResponse {
         private static final ParseField VERSION = new ParseField("version");
 
         private static final ConstructingObjectParser<IndexVersion, Void> PARSER = new ConstructingObjectParser<>(
-            "index_version", true, (a, ctx) -> new IndexVersion((String) a[0], (String) a[1])
+            "index_version",
+            true,
+            (a, ctx) -> new IndexVersion((String) a[0], (String) a[1])
         );
 
         static {
-            PARSER.declareField(ConstructingObjectParser.constructorArg(),
-                (p, c) -> p.text(), INDEX_NAME, ObjectParser.ValueType.STRING);
-            PARSER.declareField(ConstructingObjectParser.constructorArg(),
-                (p, c) -> p.text(), VERSION, ObjectParser.ValueType.STRING);
+            PARSER.declareField(ConstructingObjectParser.constructorArg(), (p, c) -> p.text(), INDEX_NAME, ObjectParser.ValueType.STRING);
+            PARSER.declareField(ConstructingObjectParser.constructorArg(), (p, c) -> p.text(), VERSION, ObjectParser.ValueType.STRING);
         }
 
         public static IndexVersion parse(XContentParser parser, Void ctx) {

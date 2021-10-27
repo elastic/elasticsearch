@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.core.rollup.job;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.persistent.PersistentTaskParams;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -40,8 +40,10 @@ public class RollupJob extends AbstractDiffable<RollupJob> implements Persistent
     private static final ParseField HEADERS = new ParseField("headers");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<RollupJob, Void> PARSER
-            = new ConstructingObjectParser<>(NAME, a -> new RollupJob((RollupJobConfig) a[0], (Map<String, String>) a[1]));
+    public static final ConstructingObjectParser<RollupJob, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        a -> new RollupJob((RollupJobConfig) a[0], (Map<String, String>) a[1])
+    );
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> RollupJobConfig.fromXContent(p, null), CONFIG);
@@ -107,8 +109,7 @@ public class RollupJob extends AbstractDiffable<RollupJob> implements Persistent
 
         RollupJob that = (RollupJob) other;
 
-        return Objects.equals(this.config, that.config)
-                && Objects.equals(this.headers, that.headers);
+        return Objects.equals(this.config, that.config) && Objects.equals(this.headers, that.headers);
     }
 
     @Override

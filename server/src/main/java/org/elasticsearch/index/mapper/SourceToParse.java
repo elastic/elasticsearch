@@ -8,9 +8,9 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
@@ -30,8 +30,14 @@ public class SourceToParse {
 
     private final Map<String, String> dynamicTemplates;
 
-    public SourceToParse(String index, String id, BytesReference source, XContentType xContentType, @Nullable String routing,
-                         Map<String, String> dynamicTemplates) {
+    public SourceToParse(
+        String index,
+        String id,
+        BytesReference source,
+        XContentType xContentType,
+        @Nullable String routing,
+        Map<String, String> dynamicTemplates
+    ) {
         this.index = Objects.requireNonNull(index);
         this.id = Objects.requireNonNull(id);
         // we always convert back to byte array, since we store it and Field only supports bytes..

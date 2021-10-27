@@ -60,14 +60,16 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     }
 
     public static final String ENABLED_DEPRECATION_MESSAGE =
-        "Disabling _field_names is not necessary because it no longer carries a large index overhead. Support for the `enabled` " +
-        "setting will be removed in a future major version. Please remove it from your mappings and templates.";
-
+        "Disabling _field_names is not necessary because it no longer carries a large index overhead. Support for the `enabled` "
+            + "setting will be removed in a future major version. Please remove it from your mappings and templates.";
 
     static class Builder extends MetadataFieldMapper.Builder {
 
-        private final Parameter<Explicit<Boolean>> enabled
-            = updateableBoolParam("enabled", m -> toType(m).enabled, Defaults.ENABLED.value());
+        private final Parameter<Explicit<Boolean>> enabled = updateableBoolParam(
+            "enabled",
+            m -> toType(m).enabled,
+            Defaults.ENABLED.value()
+        );
 
         private final Version indexVersionCreated;
 
@@ -85,11 +87,12 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         public FieldNamesFieldMapper build() {
             if (enabled.getValue().explicit()) {
                 if (indexVersionCreated.onOrAfter(Version.V_8_0_0)) {
-                    throw new MapperParsingException("The `enabled` setting for the `_field_names` field has been deprecated and "
-                        + "removed. Please remove it from your mappings and templates.");
+                    throw new MapperParsingException(
+                        "The `enabled` setting for the `_field_names` field has been deprecated and "
+                            + "removed. Please remove it from your mappings and templates."
+                    );
                 } else {
-                    deprecationLogger.critical(DeprecationCategory.TEMPLATES,
-                        "field_names_enabled_parameter", ENABLED_DEPRECATION_MESSAGE);
+                    deprecationLogger.critical(DeprecationCategory.TEMPLATES, "field_names_enabled_parameter", ENABLED_DEPRECATION_MESSAGE);
                 }
             }
             return new FieldNamesFieldMapper(enabled.getValue(), indexVersionCreated);
@@ -147,8 +150,11 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             if (isEnabled() == false) {
                 throw new IllegalStateException("Cannot run [exists] queries if the [_field_names] field is disabled");
             }
-            deprecationLogger.critical(DeprecationCategory.MAPPINGS, "terms_query_on_field_names",
-                "terms query on the _field_names field is deprecated and will be removed, use exists query instead");
+            deprecationLogger.critical(
+                DeprecationCategory.MAPPINGS,
+                "terms_query_on_field_names",
+                "terms query on the _field_names field is deprecated and will be removed, use exists query instead"
+            );
             return super.termQuery(value, context);
         }
     }

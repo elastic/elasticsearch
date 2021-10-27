@@ -6,8 +6,10 @@
  * Side Public License, v 1.
  */
 package org.elasticsearch.client.tasks;
+
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -59,7 +61,7 @@ public class ElasticsearchException {
         return suppressed;
     }
 
-    void addSuppressed(List<ElasticsearchException> suppressed){
+    void addSuppressed(List<ElasticsearchException> suppressed) {
         this.suppressed.addAll(suppressed);
     }
 
@@ -167,7 +169,7 @@ public class ElasticsearchException {
     }
 
     void addHeader(String key, List<String> value) {
-        headers.put(key,value);
+        headers.put(key, value);
 
     }
 
@@ -191,10 +193,10 @@ public class ElasticsearchException {
         if (this == o) return true;
         if ((o instanceof ElasticsearchException) == false) return false;
         ElasticsearchException that = (ElasticsearchException) o;
-        return Objects.equals(getMsg(), that.getMsg()) &&
-            Objects.equals(getCause(), that.getCause()) &&
-            Objects.equals(getHeaders(), that.getHeaders()) &&
-            Objects.equals(getSuppressed(), that.getSuppressed());
+        return Objects.equals(getMsg(), that.getMsg())
+            && Objects.equals(getCause(), that.getCause())
+            && Objects.equals(getHeaders(), that.getHeaders())
+            && Objects.equals(getSuppressed(), that.getSuppressed());
     }
 
     @Override
@@ -204,11 +206,16 @@ public class ElasticsearchException {
 
     @Override
     public String toString() {
-        return "ElasticsearchException{" +
-            "msg='" + msg + '\'' +
-            ", cause=" + cause +
-            ", headers=" + headers +
-            ", suppressed=" + suppressed +
-            '}';
+        return "ElasticsearchException{"
+            + "msg='"
+            + msg
+            + '\''
+            + ", cause="
+            + cause
+            + ", headers="
+            + headers
+            + ", suppressed="
+            + suppressed
+            + '}';
     }
 }

@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.watcher.actions.slack;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.execution.Wid;
@@ -78,12 +78,11 @@ public class SlackActionTests extends ESTestCase {
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
 
         Wid wid = new Wid(randomAlphaOfLength(5), now);
-        WatchExecutionContext ctx = mockExecutionContextBuilder(wid.watchId())
-                .wid(wid)
-                .payload(payload)
-                .time(wid.watchId(), now)
-                .metadata(metadata)
-                .buildMock();
+        WatchExecutionContext ctx = mockExecutionContextBuilder(wid.watchId()).wid(wid)
+            .payload(payload)
+            .time(wid.watchId(), now)
+            .metadata(metadata)
+            .buildMock();
 
         Map<String, Object> triggerModel = new HashMap<>();
         triggerModel.put("triggered_time", now);
@@ -98,11 +97,11 @@ public class SlackActionTests extends ESTestCase {
         ctxModel.put("vars", emptyMap());
         Map<String, Object> expectedModel = singletonMap("ctx", ctxModel);
 
-        when(messageTemplate.render(eq(wid.watchId()), eq("_action"), eq(templateEngine), eq(expectedModel),
-                any(SlackMessageDefaults.class))).thenReturn(message);
+        when(
+            messageTemplate.render(eq(wid.watchId()), eq("_action"), eq(templateEngine), eq(expectedModel), any(SlackMessageDefaults.class))
+        ).thenReturn(message);
         SlackAccount account = mock(SlackAccount.class);
         when(service.getAccount(accountName)).thenReturn(account);
-
 
         List<SentMessages.SentMessage> messages = new ArrayList<>();
         boolean hasError = false;
@@ -131,10 +130,9 @@ public class SlackActionTests extends ESTestCase {
         SentMessages sentMessages = new SentMessages(accountName, messages);
         when(account.send(message, eq(any()))).thenReturn(sentMessages);
 
-        Action.Result.Status expectedStatus = hasError == false ? Action.Result.Status.SUCCESS :
-                hasSuccess == false ? Action.Result.Status.FAILURE :
-                        Action.Result.Status.PARTIAL_FAILURE;
-
+        Action.Result.Status expectedStatus = hasError == false ? Action.Result.Status.SUCCESS
+            : hasSuccess == false ? Action.Result.Status.FAILURE
+            : Action.Result.Status.PARTIAL_FAILURE;
 
         Action.Result result = executable.execute("_action", ctx, payload);
 

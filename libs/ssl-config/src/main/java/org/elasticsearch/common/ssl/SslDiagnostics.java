@@ -10,7 +10,6 @@ package org.elasticsearch.common.ssl;
 
 import org.elasticsearch.core.Nullable;
 
-import javax.net.ssl.SSLSession;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;
@@ -25,8 +24,9 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class SslDiagnostics {
+import javax.net.ssl.SSLSession;
 
+public class SslDiagnostics {
 
     public static List<String> describeValidHostnames(X509Certificate certificate) {
         try {
@@ -57,7 +57,8 @@ public class SslDiagnostics {
     }
 
     public enum PeerType {
-        CLIENT, SERVER
+        CLIENT,
+        SERVER
     }
 
     private static class IssuerTrust {
@@ -158,12 +159,12 @@ public class SslDiagnostics {
         "decipherOnly" };
 
     private enum ExtendedKeyUsage {
-        serverAuth ("1.3.6.1.5.5.7.3.1"),
-        clientAuth ("1.3.6.1.5.5.7.3.2"),
-        codeSigning ("1.3.6.1.5.5.7.3.3"),
-        emailProtection ("1.3.6.1.5.5.7.3.4"),
-        timeStamping ("1.3.6.1.5.5.7.3.8"),
-        ocspSigning ("1.3.6.1.5.5.7.3.9");
+        serverAuth("1.3.6.1.5.5.7.3.1"),
+        clientAuth("1.3.6.1.5.5.7.3.2"),
+        codeSigning("1.3.6.1.5.5.7.3.3"),
+        emailProtection("1.3.6.1.5.5.7.3.4"),
+        timeStamping("1.3.6.1.5.5.7.3.8"),
+        ocspSigning("1.3.6.1.5.5.7.3.9");
 
         private String oid;
 
@@ -186,12 +187,16 @@ public class SslDiagnostics {
      * @param trustedIssuers A Map of DN to Certificate, for the issuers that were trusted in the context in which this failure occurred
      *                       (see {@link javax.net.ssl.X509TrustManager#getAcceptedIssuers()})
      */
-    public static String getTrustDiagnosticFailure(X509Certificate[] chain, PeerType peerType, SSLSession session,
-                                                   String contextName, @Nullable Map<String, List<X509Certificate>> trustedIssuers) {
+    public static String getTrustDiagnosticFailure(
+        X509Certificate[] chain,
+        PeerType peerType,
+        SSLSession session,
+        String contextName,
+        @Nullable Map<String, List<X509Certificate>> trustedIssuers
+    ) {
         final String peerAddress = Optional.ofNullable(session).map(SSLSession::getPeerHost).orElse("<unknown host>");
 
-        final StringBuilder message = new StringBuilder("failed to establish trust with ")
-            .append(peerType.name().toLowerCase(Locale.ROOT))
+        final StringBuilder message = new StringBuilder("failed to establish trust with ").append(peerType.name().toLowerCase(Locale.ROOT))
             .append(" at [")
             .append(peerAddress)
             .append("]; ");
@@ -237,8 +242,7 @@ public class SslDiagnostics {
         }
 
         if (isSelfIssued(peerCert)) {
-            message.append("; the certificate is ")
-                .append(describeSelfIssuedCertificate(peerCert, contextName, trustedIssuers));
+            message.append("; the certificate is ").append(describeSelfIssuedCertificate(peerCert, contextName, trustedIssuers));
         } else {
             final String issuerName = peerCert.getIssuerX500Principal().getName();
             message.append("; the certificate is issued by [").append(issuerName).append("]");
@@ -246,7 +250,7 @@ public class SslDiagnostics {
                 message.append(" but the ")
                     .append(peerType.name().toLowerCase(Locale.ROOT))
                     .append(" did not provide a copy of the issuing certificate in the certificate chain")
-                .append(describeIssuerTrust(contextName, trustedIssuers, peerCert, issuerName));
+                    .append(describeIssuerTrust(contextName, trustedIssuers, peerCert, issuerName));
             }
         }
 
@@ -281,8 +285,12 @@ public class SslDiagnostics {
         return message.toString();
     }
 
-    private static CharSequence describeIssuerTrust(String contextName, @Nullable Map<String, List<X509Certificate>> trustedIssuers,
-                                                    X509Certificate certificate, String issuerName) {
+    private static CharSequence describeIssuerTrust(
+        String contextName,
+        @Nullable Map<String, List<X509Certificate>> trustedIssuers,
+        X509Certificate certificate,
+        String issuerName
+    ) {
         if (trustedIssuers == null) {
             return "";
         }
@@ -303,16 +311,15 @@ public class SslDiagnostics {
                 .append(contextName)
                 .append("]) trusts [")
                 .append(trust.issuerCerts.size())
-                .append("] ").append(trust.issuerCerts.size() == 1 ? "certificate" : "certificates")
+                .append("] ")
+                .append(trust.issuerCerts.size() == 1 ? "certificate" : "certificates")
                 .append(" with subject name [")
                 .append(issuerName)
                 .append("] and ")
                 .append(fingerprintDescription(trust.issuerCerts))
                 .append(" but the signatures do not match");
         } else {
-            message.append("; this ssl context ([")
-                .append(contextName)
-                .append("]) is not configured to trust that issuer");
+            message.append("; this ssl context ([").append(contextName).append("]) is not configured to trust that issuer");
 
             if (trustedIssuers.isEmpty()) {
                 message.append(" or any other issuer");
@@ -324,9 +331,7 @@ public class SslDiagnostics {
                         .append("] with ")
                         .append(fingerprintDescription(trustedIssuers.get(trustedIssuer)));
                 } else {
-                    message.append(" but trusts [")
-                        .append(trustedIssuers.size())
-                        .append("] other issuers");
+                    message.append(" but trusts [").append(trustedIssuers.size()).append("] other issuers");
                     if (trustedIssuers.size() < 10) {
                         // 10 is an arbitrary number, but printing out hundreds of trusted issuers isn't helpful
                         message.append(" ([")
@@ -339,16 +344,23 @@ public class SslDiagnostics {
         return message;
     }
 
-    private static CharSequence describeSelfIssuedCertificate(X509Certificate certificate, String contextName,
-                                                              @Nullable Map<String, List<X509Certificate>> trustedIssuers) {
+    private static CharSequence describeSelfIssuedCertificate(
+        X509Certificate certificate,
+        String contextName,
+        @Nullable Map<String, List<X509Certificate>> trustedIssuers
+    ) {
         if (trustedIssuers == null) {
             return "self-issued";
         }
         final StringBuilder message = new StringBuilder();
         final CertificateTrust trust = resolveCertificateTrust(trustedIssuers, certificate);
-        message.append("self-issued; the [").append(certificate.getIssuerX500Principal().getName()).append("] certificate ")
+        message.append("self-issued; the [")
+            .append(certificate.getIssuerX500Principal().getName())
+            .append("] certificate ")
             .append(trust.isTrusted() ? "is" : "is not")
-            .append(" trusted in this ssl context ([").append(contextName).append("])");
+            .append(" trusted in this ssl context ([")
+            .append(contextName)
+            .append("])");
         if (trust.isTrusted()) {
             if (trust.isSameCertificate() == false) {
                 if (trust.trustedCertificates.size() == 1) {
@@ -466,23 +478,12 @@ public class SslDiagnostics {
     }
 
     private static Optional<String> generateExtendedKeyUsageDescription(List<String> oids) {
-        return oids.stream()
-            .map(ExtendedKeyUsage::decodeOid)
-            .reduce((x, y) -> x + ", " + y)
-            .map(str -> "extendedKeyUsage [" + str + "]");
+        return oids.stream().map(ExtendedKeyUsage::decodeOid).reduce((x, y) -> x + ", " + y).map(str -> "extendedKeyUsage [" + str + "]");
     }
 
     private static void addSessionDescription(SSLSession session, StringBuilder message) {
-        String cipherSuite = Optional.ofNullable(session)
-            .map(SSLSession::getCipherSuite)
-            .orElse("<unknown cipherSuite>");
-        String protocol = Optional.ofNullable(session)
-            .map(SSLSession::getProtocol)
-            .orElse("<unknown protocol>");
-        message.append("; the session uses cipher suite [")
-            .append(cipherSuite)
-            .append("] and protocol [")
-            .append(protocol)
-            .append("]");
+        String cipherSuite = Optional.ofNullable(session).map(SSLSession::getCipherSuite).orElse("<unknown cipherSuite>");
+        String protocol = Optional.ofNullable(session).map(SSLSession::getProtocol).orElse("<unknown protocol>");
+        message.append("; the session uses cipher suite [").append(cipherSuite).append("] and protocol [").append(protocol).append("]");
     }
 }

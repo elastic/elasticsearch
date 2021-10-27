@@ -29,10 +29,23 @@ import org.elasticsearch.xpack.ilm.OperationModeUpdateTask;
 public class TransportStartILMAction extends AcknowledgedTransportMasterNodeAction<StartILMRequest> {
 
     @Inject
-    public TransportStartILMAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(StartILMAction.NAME, transportService, clusterService, threadPool, actionFilters, StartILMRequest::new,
-            indexNameExpressionResolver, ThreadPool.Names.SAME);
+    public TransportStartILMAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            StartILMAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            StartILMRequest::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
     }
 
     @Override

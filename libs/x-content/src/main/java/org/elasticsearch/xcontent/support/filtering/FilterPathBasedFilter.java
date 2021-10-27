@@ -85,7 +85,6 @@ public class FilterPathBasedFilter extends TokenFilter {
         return NO_MATCHING;
     }
 
-
     @Override
     public TokenFilter includeProperty(String name) {
         TokenFilter filter = evaluate(name, filters);

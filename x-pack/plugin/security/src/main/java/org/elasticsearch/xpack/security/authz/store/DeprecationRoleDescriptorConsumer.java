@@ -61,9 +61,9 @@ import java.util.function.Consumer;
 public final class DeprecationRoleDescriptorConsumer implements Consumer<Collection<RoleDescriptor>> {
 
     private static final String ROLE_PERMISSION_DEPRECATION_STANZA = "Role [%s] contains index privileges covering the [%s] alias but"
-            + " which do not cover some of the indices that it points to [%s]. Granting privileges over an alias and hence granting"
-            + " privileges over all the indices that the alias points to is deprecated and will be removed in a future version of"
-            + " Elasticsearch. Instead define permissions exclusively on index names or index name patterns.";
+        + " which do not cover some of the indices that it points to [%s]. Granting privileges over an alias and hence granting"
+        + " privileges over all the indices that the alias points to is deprecated and will be removed in a future version of"
+        + " Elasticsearch. Instead define permissions exclusively on index names or index name patterns.";
 
     private static final Logger logger = LogManager.getLogger(DeprecationRoleDescriptorConsumer.class);
 
@@ -169,12 +169,10 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
                 final String aliasOrIndexName = aliasOrIndex.getKey();
                 if (matcher.test(aliasOrIndexName)) {
                     if (aliasOrIndex.getValue().getType() == IndexAbstraction.Type.ALIAS) {
-                        final Set<String> privilegesByAlias = privilegesByAliasMap.computeIfAbsent(aliasOrIndexName,
-                                k -> new HashSet<>());
+                        final Set<String> privilegesByAlias = privilegesByAliasMap.computeIfAbsent(aliasOrIndexName, k -> new HashSet<>());
                         privilegesByAlias.addAll(Arrays.asList(indexPrivilege.getPrivileges()));
                     } else {
-                        final Set<String> privilegesByIndex = privilegesByIndexMap.computeIfAbsent(aliasOrIndexName,
-                                k -> new HashSet<>());
+                        final Set<String> privilegesByIndex = privilegesByIndexMap.computeIfAbsent(aliasOrIndexName, k -> new HashSet<>());
                         privilegesByIndex.addAll(Arrays.asList(indexPrivilege.getPrivileges()));
                     }
                 }
@@ -193,8 +191,10 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
                 // null iff the index does not have *any* privilege
                 if (indexPrivileges != null) {
                     // compute automaton once per index no matter how many times it is pointed to
-                    final Automaton indexPrivilegeAutomaton = indexAutomatonMap.computeIfAbsent(index.getName(),
-                            i -> IndexPrivilege.get(indexPrivileges).getAutomaton());
+                    final Automaton indexPrivilegeAutomaton = indexAutomatonMap.computeIfAbsent(
+                        index.getName(),
+                        i -> IndexPrivilege.get(indexPrivileges).getAutomaton()
+                    );
                     if (false == Operations.subsetOf(indexPrivilegeAutomaton, aliasPrivilegeAutomaton)) {
                         inferiorIndexNames.add(index.getName());
                     }
@@ -204,8 +204,13 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
             }
             // log inferior indices for this role, for this alias
             if (false == inferiorIndexNames.isEmpty()) {
-                final String logMessage = String.format(Locale.ROOT, ROLE_PERMISSION_DEPRECATION_STANZA, roleDescriptor.getName(),
-                        aliasName, String.join(", ", inferiorIndexNames));
+                final String logMessage = String.format(
+                    Locale.ROOT,
+                    ROLE_PERMISSION_DEPRECATION_STANZA,
+                    roleDescriptor.getName(),
+                    aliasName,
+                    String.join(", ", inferiorIndexNames)
+                );
                 deprecationLogger.critical(DeprecationCategory.SECURITY, "index_permissions_on_alias", logMessage);
             }
         }

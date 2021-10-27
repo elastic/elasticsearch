@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
@@ -48,9 +48,7 @@ public class TreeInferenceModelTests extends ESTestCase {
 
     public static TreeInferenceModel serializeFromTrainedModel(Tree tree) throws IOException {
         NamedXContentRegistry registry = new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
-        TreeInferenceModel model = deserializeFromTrainedModel(tree,
-            registry,
-            TreeInferenceModel::fromXContent);
+        TreeInferenceModel model = deserializeFromTrainedModel(tree, registry, TreeInferenceModel::fromXContent);
         model.rewriteFeatureIndices(Collections.emptyMap());
         return model;
     }
@@ -66,9 +64,10 @@ public class TreeInferenceModelTests extends ESTestCase {
     public void testCtorWithNullTargetType() {
         TreeInferenceModel treeInferenceModel = new TreeInferenceModel(
             Collections.emptyList(),
-            Collections.singletonList(new TreeInferenceModel.NodeBuilder().setLeafValue(new double[]{1.0}).setNumberSamples(100L)),
+            Collections.singletonList(new TreeInferenceModel.NodeBuilder().setLeafValue(new double[] { 1.0 }).setNumberSamples(100L)),
             null,
-            Collections.emptyList());
+            Collections.emptyList()
+        );
         assertThat(treeInferenceModel.targetType(), equalTo(TargetType.REGRESSION));
     }
 
@@ -82,9 +81,7 @@ public class TreeInferenceModelTests extends ESTestCase {
     public void testInferenceWithoutPreparing() throws IOException {
         Tree tree = TreeTests.createRandom(randomFrom(TargetType.values()));
 
-        TreeInferenceModel model = deserializeFromTrainedModel(tree,
-            xContentRegistry(),
-            TreeInferenceModel::fromXContent);
+        TreeInferenceModel model = deserializeFromTrainedModel(tree, xContentRegistry(), TreeInferenceModel::fromXContent);
         expectThrows(ElasticsearchException.class, () -> model.infer(Collections.emptyMap(), RegressionConfig.EMPTY_PARAMS, null));
     }
 
@@ -94,16 +91,18 @@ public class TreeInferenceModelTests extends ESTestCase {
         builder.setFeatureNames(Collections.emptyList());
 
         Tree treeObject = builder.build();
-        TreeInferenceModel tree = deserializeFromTrainedModel(treeObject,
-            xContentRegistry(),
-            TreeInferenceModel::fromXContent);
+        TreeInferenceModel tree = deserializeFromTrainedModel(treeObject, xContentRegistry(), TreeInferenceModel::fromXContent);
         tree.rewriteFeatureIndices(Collections.emptyMap());
         List<String> featureNames = Arrays.asList("foo", "bar");
         List<Double> featureVector = Arrays.asList(0.6, 0.0);
         Map<String, Object> featureMap = zipObjMap(featureNames, featureVector); // does not really matter as this is a stump
-        assertThat(42.0,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS, Collections.emptyMap())).value(),
-                0.00001));
+        assertThat(
+            42.0,
+            closeTo(
+                ((SingleValueInferenceResults) tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS, Collections.emptyMap())).value(),
+                0.00001
+            )
+        );
     }
 
     public void testInfer() throws IOException {
@@ -118,48 +117,68 @@ public class TreeInferenceModelTests extends ESTestCase {
 
         List<String> featureNames = Arrays.asList("foo", "bar");
         Tree treeObject = builder.setFeatureNames(featureNames).build();
-        TreeInferenceModel tree = deserializeFromTrainedModel(treeObject,
-            xContentRegistry(),
-            TreeInferenceModel::fromXContent);
+        TreeInferenceModel tree = deserializeFromTrainedModel(treeObject, xContentRegistry(), TreeInferenceModel::fromXContent);
         tree.rewriteFeatureIndices(Collections.emptyMap());
         // This feature vector should hit the right child of the root node
         List<Double> featureVector = Arrays.asList(0.6, 0.0);
         Map<String, Object> featureMap = zipObjMap(featureNames, featureVector);
-        assertThat(0.3,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS, Collections.emptyMap())).value(),
-                0.00001));
+        assertThat(
+            0.3,
+            closeTo(
+                ((SingleValueInferenceResults) tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS, Collections.emptyMap())).value(),
+                0.00001
+            )
+        );
 
         // This should hit the left child of the left child of the root node
         // i.e. it takes the path left, left
         featureVector = Arrays.asList(0.3, 0.7);
         featureMap = zipObjMap(featureNames, featureVector);
-        assertThat(0.1,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS, Collections.emptyMap())).value(),
-                0.00001));
+        assertThat(
+            0.1,
+            closeTo(
+                ((SingleValueInferenceResults) tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS, Collections.emptyMap())).value(),
+                0.00001
+            )
+        );
 
         // This should hit the right child of the left child of the root node
         // i.e. it takes the path left, right
         featureVector = Arrays.asList(0.3, 0.9);
         featureMap = zipObjMap(featureNames, featureVector);
-        assertThat(0.2,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS, Collections.emptyMap())).value(),
-                0.00001));
+        assertThat(
+            0.2,
+            closeTo(
+                ((SingleValueInferenceResults) tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS, Collections.emptyMap())).value(),
+                0.00001
+            )
+        );
 
         // This should still work if the internal values are strings
         List<String> featureVectorStrings = Arrays.asList("0.3", "0.9");
         featureMap = zipObjMap(featureNames, featureVectorStrings);
-        assertThat(0.2,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS, Collections.emptyMap())).value(),
-                0.00001));
+        assertThat(
+            0.2,
+            closeTo(
+                ((SingleValueInferenceResults) tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS, Collections.emptyMap())).value(),
+                0.00001
+            )
+        );
 
         // This should handle missing values and take the default_left path
-        featureMap = new HashMap<>(2, 1.0f) {{
-            put("foo", 0.3);
-            put("bar", null);
-        }};
-        assertThat(0.1,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS, Collections.emptyMap())).value(),
-                0.00001));
+        featureMap = new HashMap<>(2, 1.0f) {
+            {
+                put("foo", 0.3);
+                put("bar", null);
+            }
+        };
+        assertThat(
+            0.1,
+            closeTo(
+                ((SingleValueInferenceResults) tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS, Collections.emptyMap())).value(),
+                0.00001
+            )
+        );
     }
 
     public void testTreeClassificationProbability() throws IOException {
@@ -174,9 +193,7 @@ public class TreeInferenceModelTests extends ESTestCase {
 
         List<String> featureNames = Arrays.asList("foo", "bar");
         Tree treeObject = builder.setFeatureNames(featureNames).setClassificationLabels(Arrays.asList("cat", "dog")).build();
-        TreeInferenceModel tree = deserializeFromTrainedModel(treeObject,
-            xContentRegistry(),
-            TreeInferenceModel::fromXContent);
+        TreeInferenceModel tree = deserializeFromTrainedModel(treeObject, xContentRegistry(), TreeInferenceModel::fromXContent);
         tree.rewriteFeatureIndices(Collections.emptyMap());
         double eps = 0.000001;
         // This feature vector should hit the right child of the root node
@@ -184,10 +201,12 @@ public class TreeInferenceModelTests extends ESTestCase {
         List<Double> expectedProbs = Arrays.asList(1.0, 0.0);
         List<String> expectedFields = Arrays.asList("dog", "cat");
         Map<String, Object> featureMap = zipObjMap(featureNames, featureVector);
-        List<TopClassEntry> probabilities =
-            ((ClassificationInferenceResults)tree.infer(featureMap, new ClassificationConfig(2), Collections.emptyMap()))
-                .getTopClasses();
-        for(int i = 0; i < expectedProbs.size(); i++) {
+        List<TopClassEntry> probabilities = ((ClassificationInferenceResults) tree.infer(
+            featureMap,
+            new ClassificationConfig(2),
+            Collections.emptyMap()
+        )).getTopClasses();
+        for (int i = 0; i < expectedProbs.size(); i++) {
             assertThat(probabilities.get(i).getProbability(), closeTo(expectedProbs.get(i), eps));
             assertThat(probabilities.get(i).getClassification(), equalTo(expectedFields.get(i)));
         }
@@ -196,23 +215,23 @@ public class TreeInferenceModelTests extends ESTestCase {
         // i.e. it takes the path left, left
         featureVector = Arrays.asList(0.3, 0.7);
         featureMap = zipObjMap(featureNames, featureVector);
-        probabilities =
-            ((ClassificationInferenceResults)tree.infer(featureMap, new ClassificationConfig(2), Collections.emptyMap()))
-                .getTopClasses();
-        for(int i = 0; i < expectedProbs.size(); i++) {
+        probabilities = ((ClassificationInferenceResults) tree.infer(featureMap, new ClassificationConfig(2), Collections.emptyMap()))
+            .getTopClasses();
+        for (int i = 0; i < expectedProbs.size(); i++) {
             assertThat(probabilities.get(i).getProbability(), closeTo(expectedProbs.get(i), eps));
             assertThat(probabilities.get(i).getClassification(), equalTo(expectedFields.get(i)));
         }
 
         // This should handle missing values and take the default_left path
-        featureMap = new HashMap<>(2) {{
-            put("foo", 0.3);
-            put("bar", null);
-        }};
-        probabilities =
-            ((ClassificationInferenceResults)tree.infer(featureMap, new ClassificationConfig(2), Collections.emptyMap()))
-                .getTopClasses();
-        for(int i = 0; i < expectedProbs.size(); i++) {
+        featureMap = new HashMap<>(2) {
+            {
+                put("foo", 0.3);
+                put("bar", null);
+            }
+        };
+        probabilities = ((ClassificationInferenceResults) tree.infer(featureMap, new ClassificationConfig(2), Collections.emptyMap()))
+            .getTopClasses();
+        for (int i = 0; i < expectedProbs.size(); i++) {
             assertThat(probabilities.get(i).getProbability(), closeTo(expectedProbs.get(i), eps));
             assertThat(probabilities.get(i).getClassification(), equalTo(expectedFields.get(i)));
         }
@@ -247,26 +266,26 @@ public class TreeInferenceModelTests extends ESTestCase {
                 TreeNode.builder(3).setLeafValue(3.0).setNumberSamples(1L),
                 TreeNode.builder(4).setLeafValue(8.0).setNumberSamples(1L),
                 TreeNode.builder(5).setLeafValue(13.0).setNumberSamples(1L),
-                TreeNode.builder(6).setLeafValue(18.0).setNumberSamples(1L)).build();
+                TreeNode.builder(6).setLeafValue(18.0).setNumberSamples(1L)
+            )
+            .build();
 
-        TreeInferenceModel tree = deserializeFromTrainedModel(treeObject,
-            xContentRegistry(),
-            TreeInferenceModel::fromXContent);
+        TreeInferenceModel tree = deserializeFromTrainedModel(treeObject, xContentRegistry(), TreeInferenceModel::fromXContent);
         tree.rewriteFeatureIndices(Collections.emptyMap());
 
-        double[][] featureImportance = tree.featureImportance(new double[]{0.25, 0.25});
+        double[][] featureImportance = tree.featureImportance(new double[] { 0.25, 0.25 });
         assertThat(featureImportance[0][0], closeTo(-5.0, eps));
         assertThat(featureImportance[1][0], closeTo(-2.5, eps));
 
-        featureImportance = tree.featureImportance(new double[]{0.25, 0.75});
+        featureImportance = tree.featureImportance(new double[] { 0.25, 0.75 });
         assertThat(featureImportance[0][0], closeTo(-5.0, eps));
         assertThat(featureImportance[1][0], closeTo(2.5, eps));
 
-        featureImportance = tree.featureImportance(new double[]{0.75, 0.25});
+        featureImportance = tree.featureImportance(new double[] { 0.75, 0.25 });
         assertThat(featureImportance[0][0], closeTo(5.0, eps));
         assertThat(featureImportance[1][0], closeTo(-2.5, eps));
 
-        featureImportance = tree.featureImportance(new double[]{0.75, 0.75});
+        featureImportance = tree.featureImportance(new double[] { 0.75, 0.75 });
         assertThat(featureImportance[0][0], closeTo(5.0, eps));
         assertThat(featureImportance[1][0], closeTo(2.5, eps));
     }

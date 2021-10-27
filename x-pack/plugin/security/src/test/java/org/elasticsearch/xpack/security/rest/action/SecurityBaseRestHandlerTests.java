@@ -34,7 +34,8 @@ public class SecurityBaseRestHandlerTests extends ESTestCase {
         final AtomicBoolean consumerCalled = new AtomicBoolean(false);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.getOperationMode()).thenReturn(
-            randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD, License.OperationMode.GOLD));
+            randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD, License.OperationMode.GOLD)
+        );
         SecurityBaseRestHandler handler = new SecurityBaseRestHandler(settings, licenseState) {
 
             @Override

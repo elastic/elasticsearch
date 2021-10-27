@@ -8,8 +8,8 @@
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.ml.job.results.Bucket;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -24,8 +24,11 @@ public class GetBucketsResponse extends AbstractResultResponse<Bucket> {
     public static final ParseField BUCKETS = new ParseField("buckets");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<GetBucketsResponse, Void> PARSER = new ConstructingObjectParser<>("get_buckets_response",
-            true, a -> new GetBucketsResponse((List<Bucket>) a[0], (long) a[1]));
+    public static final ConstructingObjectParser<GetBucketsResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "get_buckets_response",
+        true,
+        a -> new GetBucketsResponse((List<Bucket>) a[0], (long) a[1])
+    );
 
     static {
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), Bucket.PARSER, BUCKETS);

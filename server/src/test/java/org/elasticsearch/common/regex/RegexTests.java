@@ -20,10 +20,27 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class RegexTests extends ESTestCase {
     public void testFlags() {
-        String[] supportedFlags = new String[]{"CASE_INSENSITIVE", "MULTILINE", "DOTALL", "UNICODE_CASE", "CANON_EQ", "UNIX_LINES",
-                "LITERAL", "COMMENTS", "UNICODE_CHAR_CLASS", "UNICODE_CHARACTER_CLASS"};
-        int[] flags = new int[]{Pattern.CASE_INSENSITIVE, Pattern.MULTILINE, Pattern.DOTALL, Pattern.UNICODE_CASE, Pattern.CANON_EQ,
-                Pattern.UNIX_LINES, Pattern.LITERAL, Pattern.COMMENTS, Regex.UNICODE_CHARACTER_CLASS};
+        String[] supportedFlags = new String[] {
+            "CASE_INSENSITIVE",
+            "MULTILINE",
+            "DOTALL",
+            "UNICODE_CASE",
+            "CANON_EQ",
+            "UNIX_LINES",
+            "LITERAL",
+            "COMMENTS",
+            "UNICODE_CHAR_CLASS",
+            "UNICODE_CHARACTER_CLASS" };
+        int[] flags = new int[] {
+            Pattern.CASE_INSENSITIVE,
+            Pattern.MULTILINE,
+            Pattern.DOTALL,
+            Pattern.UNICODE_CASE,
+            Pattern.CANON_EQ,
+            Pattern.UNIX_LINES,
+            Pattern.LITERAL,
+            Pattern.COMMENTS,
+            Regex.UNICODE_CHARACTER_CLASS };
         Random random = random();
         int num = 10 + random.nextInt(100);
         for (int i = 0; i < num; i++) {
@@ -73,8 +90,10 @@ public class RegexTests extends ESTestCase {
                 pattern = pattern.substring(0, shrinkStart) + "*" + pattern.substring(shrinkEnd);
             }
             assertTrue("[" + pattern + "] should match [" + matchingString + "]", Regex.simpleMatch(pattern, matchingString));
-            assertTrue("[" + pattern + "] should match [" + matchingString.toUpperCase(Locale.ROOT) + "]",
-                Regex.simpleMatch(pattern, matchingString.toUpperCase(Locale.ROOT), true));
+            assertTrue(
+                "[" + pattern + "] should match [" + matchingString.toUpperCase(Locale.ROOT) + "]",
+                Regex.simpleMatch(pattern, matchingString.toUpperCase(Locale.ROOT), true)
+            );
 
             // construct a pattern that does not match this string by inserting a non-matching character (a digit)
             final int insertPos = between(0, pattern.length());

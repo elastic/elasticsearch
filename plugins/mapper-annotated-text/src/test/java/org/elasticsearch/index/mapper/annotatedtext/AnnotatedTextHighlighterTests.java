@@ -8,14 +8,6 @@
 
 package org.elasticsearch.index.mapper.annotatedtext;
 
-import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
-import static org.hamcrest.CoreMatchers.equalTo;
-
-import java.net.URLEncoder;
-import java.text.BreakIterator;
-import java.util.ArrayList;
-import java.util.Locale;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
@@ -36,33 +28,62 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.uhighlight.CustomSeparatorBreakIterator;
-import org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
-import org.elasticsearch.lucene.search.uhighlight.Snippet;
 import org.apache.lucene.search.uhighlight.SplittingBreakIterator;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.index.mapper.annotatedtext.AnnotatedPassageFormatter;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedHighlighterAnalyzer;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotationAnalyzerWrapper;
+import org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
+import org.elasticsearch.lucene.search.uhighlight.Snippet;
 import org.elasticsearch.search.fetch.subphase.highlight.LimitTokenOffsetAnalyzer;
 import org.elasticsearch.test.ESTestCase;
 
+import java.net.URLEncoder;
+import java.text.BreakIterator;
+import java.util.ArrayList;
+import java.util.Locale;
+
+import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
+import static org.hamcrest.CoreMatchers.equalTo;
+
 public class AnnotatedTextHighlighterTests extends ESTestCase {
 
-    private void assertHighlightOneDoc(String fieldName, String[] markedUpInputs,
-                                       Query query, Locale locale, BreakIterator breakIterator,
-                                       int noMatchSize, String[] expectedPassages) throws Exception {
+    private void assertHighlightOneDoc(
+        String fieldName,
+        String[] markedUpInputs,
+        Query query,
+        Locale locale,
+        BreakIterator breakIterator,
+        int noMatchSize,
+        String[] expectedPassages
+    ) throws Exception {
 
-        assertHighlightOneDoc(fieldName, markedUpInputs, query, locale, breakIterator, noMatchSize, expectedPassages,
-                Integer.MAX_VALUE, null);
+        assertHighlightOneDoc(
+            fieldName,
+            markedUpInputs,
+            query,
+            locale,
+            breakIterator,
+            noMatchSize,
+            expectedPassages,
+            Integer.MAX_VALUE,
+            null
+        );
     }
 
-    private void assertHighlightOneDoc(String fieldName, String []markedUpInputs,
-            Query query, Locale locale, BreakIterator breakIterator,
-            int noMatchSize, String[] expectedPassages,
-            int maxAnalyzedOffset, Integer queryMaxAnalyzedOffset) throws Exception {
+    private void assertHighlightOneDoc(
+        String fieldName,
+        String[] markedUpInputs,
+        Query query,
+        Locale locale,
+        BreakIterator breakIterator,
+        int noMatchSize,
+        String[] expectedPassages,
+        int maxAnalyzedOffset,
+        Integer queryMaxAnalyzedOffset
+    ) throws Exception {
 
         try (Directory dir = newDirectory()) {
             // Annotated fields wrap the usual analyzer with one that injects extra tokens
@@ -109,20 +130,20 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
                 assertThat(topDocs.totalHits.value, equalTo(1L));
                 String rawValue = Strings.collectionToDelimitedString(plainTextForHighlighter, String.valueOf(MULTIVAL_SEP_CHAR));
                 CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
-                        searcher,
-                        hiliteAnalyzer,
-                        UnifiedHighlighter.OffsetSource.ANALYSIS,
-                        passageFormatter,
-                        locale,
-                        breakIterator,
-                        "index",
-                        "text",
-                        query,
-                        noMatchSize,
-                        expectedPassages.length,
-                        name -> "text".equals(name),
-                        maxAnalyzedOffset,
-                        queryMaxAnalyzedOffset
+                    searcher,
+                    hiliteAnalyzer,
+                    UnifiedHighlighter.OffsetSource.ANALYSIS,
+                    passageFormatter,
+                    locale,
+                    breakIterator,
+                    "index",
+                    "text",
+                    query,
+                    noMatchSize,
+                    expectedPassages.length,
+                    name -> "text".equals(name),
+                    maxAnalyzedOffset,
+                    queryMaxAnalyzedOffset
                 );
                 highlighter.setFieldMatcher((name) -> "text".equals(name));
                 final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);
@@ -141,37 +162,49 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
         String url = "https://en.wikipedia.org/wiki/Key_Word_in_Context";
         String encodedUrl = URLEncoder.encode(url, "UTF-8");
         String annotatedWord = "[highlighting](" + encodedUrl + ")";
-        String highlightedAnnotatedWord = "[highlighting](" + AnnotatedPassageFormatter.SEARCH_HIT_TYPE + "=" + encodedUrl + "&"
-                + encodedUrl + ")";
-        final String[] markedUpInputs = { "This is a test. Just a test1 " + annotatedWord + " from [annotated](bar) highlighter.",
-                "This is the second " + annotatedWord + " value to perform highlighting on a longer text that gets scored lower." };
+        String highlightedAnnotatedWord = "[highlighting]("
+            + AnnotatedPassageFormatter.SEARCH_HIT_TYPE
+            + "="
+            + encodedUrl
+            + "&"
+            + encodedUrl
+            + ")";
+        final String[] markedUpInputs = {
+            "This is a test. Just a test1 " + annotatedWord + " from [annotated](bar) highlighter.",
+            "This is the second " + annotatedWord + " value to perform highlighting on a longer text that gets scored lower." };
 
         String[] expectedPassages = {
-                "This is a test. Just a test1 " + highlightedAnnotatedWord + " from [annotated](bar) highlighter.",
-                "This is the second " + highlightedAnnotatedWord + " value to perform highlighting on a"
-                        + " longer text that gets scored lower." };
+            "This is a test. Just a test1 " + highlightedAnnotatedWord + " from [annotated](bar) highlighter.",
+            "This is the second "
+                + highlightedAnnotatedWord
+                + " value to perform highlighting on a"
+                + " longer text that gets scored lower." };
         Query query = new TermQuery(new Term("text", url));
         BreakIterator breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
         assertHighlightOneDoc("text", markedUpInputs, query, Locale.ROOT, breakIterator, 0, expectedPassages);
     }
 
     public void testAnnotatedTextOverlapsWithUnstructuredSearchTerms() throws Exception {
-        final String[] markedUpInputs = { "[Donald Trump](Donald+Trump) visited Singapore",
-                "Donald duck is a [Disney](Disney+Inc) invention" };
+        final String[] markedUpInputs = {
+            "[Donald Trump](Donald+Trump) visited Singapore",
+            "Donald duck is a [Disney](Disney+Inc) invention" };
 
-        String[] expectedPassages = { "[Donald](_hit_term=donald) Trump visited Singapore",
-                "[Donald](_hit_term=donald) duck is a [Disney](Disney+Inc) invention" };
+        String[] expectedPassages = {
+            "[Donald](_hit_term=donald) Trump visited Singapore",
+            "[Donald](_hit_term=donald) duck is a [Disney](Disney+Inc) invention" };
         Query query = new TermQuery(new Term("text", "donald"));
         BreakIterator breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
         assertHighlightOneDoc("text", markedUpInputs, query, Locale.ROOT, breakIterator, 0, expectedPassages);
     }
 
     public void testAnnotatedTextMultiFieldWithBreakIterator() throws Exception {
-        final String[] markedUpInputs = { "[Donald Trump](Donald+Trump) visited Singapore. Kim shook hands with Donald",
-                "Donald duck is a [Disney](Disney+Inc) invention" };
-        String[] expectedPassages = { "[Donald](_hit_term=donald) Trump visited Singapore",
-                "Kim shook hands with [Donald](_hit_term=donald)",
-                "[Donald](_hit_term=donald) duck is a [Disney](Disney+Inc) invention" };
+        final String[] markedUpInputs = {
+            "[Donald Trump](Donald+Trump) visited Singapore. Kim shook hands with Donald",
+            "Donald duck is a [Disney](Disney+Inc) invention" };
+        String[] expectedPassages = {
+            "[Donald](_hit_term=donald) Trump visited Singapore",
+            "Kim shook hands with [Donald](_hit_term=donald)",
+            "[Donald](_hit_term=donald) duck is a [Disney](Disney+Inc) invention" };
         Query query = new TermQuery(new Term("text", "donald"));
         BreakIterator breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
         breakIterator = new SplittingBreakIterator(breakIterator, '.');
@@ -179,9 +212,10 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
     }
 
     public void testAnnotatedTextSingleFieldWithBreakIterator() throws Exception {
-        final String[] markedUpInputs = { "[Donald Trump](Donald+Trump) visited Singapore. Kim shook hands with Donald"};
-        String[] expectedPassages = { "[Donald](_hit_term=donald) Trump visited Singapore",
-                "Kim shook hands with [Donald](_hit_term=donald)"};
+        final String[] markedUpInputs = { "[Donald Trump](Donald+Trump) visited Singapore. Kim shook hands with Donald" };
+        String[] expectedPassages = {
+            "[Donald](_hit_term=donald) Trump visited Singapore",
+            "Kim shook hands with [Donald](_hit_term=donald)" };
         Query query = new TermQuery(new Term("text", "donald"));
         BreakIterator breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
         breakIterator = new SplittingBreakIterator(breakIterator, '.');
@@ -189,17 +223,16 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
     }
 
     public void testAnnotatedTextSingleFieldWithPhraseQuery() throws Exception {
-        final String[] markedUpInputs = { "[Donald Trump](Donald+Trump) visited Singapore",
-                "Donald Jr was with Melania Trump"};
-        String[] expectedPassages = { "[Donald](_hit_term=donald) [Trump](_hit_term=trump) visited Singapore"};
+        final String[] markedUpInputs = { "[Donald Trump](Donald+Trump) visited Singapore", "Donald Jr was with Melania Trump" };
+        String[] expectedPassages = { "[Donald](_hit_term=donald) [Trump](_hit_term=trump) visited Singapore" };
         Query query = new PhraseQuery("text", "donald", "trump");
         BreakIterator breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
         assertHighlightOneDoc("text", markedUpInputs, query, Locale.ROOT, breakIterator, 0, expectedPassages);
     }
 
     public void testBadAnnotation() throws Exception {
-        final String[] markedUpInputs = { "Missing bracket for [Donald Trump](Donald+Trump visited Singapore"};
-        String[] expectedPassages = { "Missing bracket for [Donald Trump](Donald+Trump visited [Singapore](_hit_term=singapore)"};
+        final String[] markedUpInputs = { "Missing bracket for [Donald Trump](Donald+Trump visited Singapore" };
+        String[] expectedPassages = { "Missing bracket for [Donald Trump](Donald+Trump visited [Singapore](_hit_term=singapore)" };
         Query query = new TermQuery(new Term("text", "singapore"));
         BreakIterator breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
         assertHighlightOneDoc("text", markedUpInputs, query, Locale.ROOT, breakIterator, 0, expectedPassages);
@@ -208,8 +241,17 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
     public void testExceedMaxAnalyzedOffset() throws Exception {
         TermQuery query = new TermQuery(new Term("text", "exceeds"));
         BreakIterator breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
-        assertHighlightOneDoc("text", new String[] { "[Short Text](Short+Text)" }, query, Locale.ROOT, breakIterator, 0, new String[] {},
-                10, null);
+        assertHighlightOneDoc(
+            "text",
+            new String[] { "[Short Text](Short+Text)" },
+            query,
+            Locale.ROOT,
+            breakIterator,
+            0,
+            new String[] {},
+            10,
+            null
+        );
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -234,18 +276,18 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
 
         final Integer queryMaxOffset = randomIntBetween(21, 1000);
         e = expectThrows(
-                IllegalArgumentException.class,
-                () -> assertHighlightOneDoc(
-                        "text",
-                        new String[] { "[Long Text exceeds](Long+Text+exceeds) MAX analyzed offset)" },
-                        query,
-                        Locale.ROOT,
-                        breakIterator,
-                        0,
-                        new String[] {},
-                        20,
-                        queryMaxOffset
-                )
+            IllegalArgumentException.class,
+            () -> assertHighlightOneDoc(
+                "text",
+                new String[] { "[Long Text exceeds](Long+Text+exceeds) MAX analyzed offset)" },
+                query,
+                Locale.ROOT,
+                breakIterator,
+                0,
+                new String[] {},
+                20,
+                queryMaxOffset
+            )
         );
         assertEquals(
             "The length [38] of field [text] in doc[0]/index[index] exceeds the [index.highlight.max_analyzed_offset] limit [20]. "

@@ -32,8 +32,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.emptyOrNullString;
+import static org.hamcrest.Matchers.is;
 
 public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
@@ -45,9 +45,7 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
     @Override
     protected Settings restClientSettings() {
         String token = "Basic " + Base64.getEncoder().encodeToString("test_user:x-pack-test-password".getBytes(StandardCharsets.UTF_8));
-        return Settings.builder()
-                .put(ThreadContext.PREFIX + ".Authorization", token)
-                .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @Before
@@ -55,22 +53,24 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
         List<String> templatesToWaitFor = (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_7_12_0))
             ? XPackRestTestConstants.ML_POST_V660_TEMPLATES
             : XPackRestTestConstants.ML_POST_V7120_TEMPLATES;
-        boolean clusterUnderstandsComposableTemplates =
-            isRunningAgainstOldCluster() == false || getOldClusterVersion().onOrAfter(Version.V_7_8_0);
+        boolean clusterUnderstandsComposableTemplates = isRunningAgainstOldCluster() == false
+            || getOldClusterVersion().onOrAfter(Version.V_7_8_0);
         XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor, clusterUnderstandsComposableTemplates);
     }
 
     private void createTestIndex() throws IOException {
         Request createTestIndex = new Request("PUT", "/airline-data");
-        createTestIndex.setJsonEntity("{\"mappings\": { \"doc\": {\"properties\": {" +
-                "\"time\": {\"type\": \"date\"}," +
-                "\"airline\": {\"type\": \"keyword\"}," +
-                "\"responsetime\": {\"type\": \"float\"}" +
-                "}}}}");
+        createTestIndex.setJsonEntity(
+            "{\"mappings\": { \"doc\": {\"properties\": {"
+                + "\"time\": {\"type\": \"date\"},"
+                + "\"airline\": {\"type\": \"keyword\"},"
+                + "\"responsetime\": {\"type\": \"float\"}"
+                + "}}}}"
+        );
         client().performRequest(createTestIndex);
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/36816")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36816")
     public void testMigration() throws Exception {
         if (isRunningAgainstOldCluster()) {
             createTestIndex();
@@ -132,8 +132,7 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
             Response response = client().performRequest(getJobStats);
 
             Map<String, Object> stats = entityAsMap(response);
-            List<Map<String, Object>> jobStats =
-                    (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", stats);
+            List<Map<String, Object>> jobStats = (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", stats);
 
             assertEquals(jobId, XContentMapValues.extractValue("job_id", jobStats.get(0)));
             assertEquals("opened", XContentMapValues.extractValue("state", jobStats.get(0)));
@@ -148,8 +147,7 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
             Request getDatafeedStats = new Request("GET", "_ml/datafeeds/" + datafeedId + "/_stats");
             Response response = client().performRequest(getDatafeedStats);
             Map<String, Object> stats = entityAsMap(response);
-            List<Map<String, Object>> datafeedStats =
-                    (List<Map<String, Object>>) XContentMapValues.extractValue("datafeeds", stats);
+            List<Map<String, Object>> datafeedStats = (List<Map<String, Object>>) XContentMapValues.extractValue("datafeeds", stats);
 
             assertEquals(datafeedId, XContentMapValues.extractValue("datafeed_id", datafeedStats.get(0)));
             assertEquals("started", XContentMapValues.extractValue("state", datafeedStats.get(0)));
@@ -164,8 +162,10 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
         Response response = client().performRequest(getClusterState);
         Map<String, Object> responseMap = entityAsMap(response);
 
-        List<Map<String, Object>> tasks =
-                (List<Map<String, Object>>) XContentMapValues.extractValue("metadata.persistent_tasks.tasks", responseMap);
+        List<Map<String, Object>> tasks = (List<Map<String, Object>>) XContentMapValues.extractValue(
+            "metadata.persistent_tasks.tasks",
+            responseMap
+        );
         assertNotNull(tasks);
         for (Map<String, Object> task : tasks) {
             String id = (String) task.get("id");
@@ -173,8 +173,7 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
             if (id.equals(MlTasks.jobTaskId(jobId))) {
                 Object jobParam = XContentMapValues.extractValue("task.xpack/ml/job.params.job", task);
                 assertNotNull(jobParam);
-            }
-            else if (id.equals(MlTasks.datafeedTaskId(datafeedId))) {
+            } else if (id.equals(MlTasks.datafeedTaskId(datafeedId))) {
                 Object jobIdParam = XContentMapValues.extractValue("task.xpack/ml/datafeed.params.job_id", task);
                 assertNotNull(jobIdParam);
                 Object indices = XContentMapValues.extractValue("task.xpack/ml/datafeed.params.indices", task);
@@ -186,24 +185,27 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
     private void addAggregations(DatafeedConfig.Builder dfBuilder) {
         TermsAggregationBuilder airline = AggregationBuilders.terms("airline");
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time").subAggregation(airline);
-        dfBuilder.setParsedAggregations(AggregatorFactories.builder().addAggregator(
-                AggregationBuilders.histogram("time").interval(300000).subAggregation(maxTime).field("time")));
+        dfBuilder.setParsedAggregations(
+            AggregatorFactories.builder()
+                .addAggregator(AggregationBuilders.histogram("time").interval(300000).subAggregation(maxTime).field("time"))
+        );
     }
 
     private void putJob(String jobId) throws IOException {
-        String jobConfig =
-            "{\n" +
-                "    \"job_id\": \"" + jobId + "\",\n" +
-                "    \"analysis_config\": {\n" +
-                "        \"bucket_span\": \"10m\",\n" +
-                "        \"detectors\": [{\n" +
-                "            \"function\": \"metric\",\n" +
-                "            \"by_field_name\": \"airline\",\n" +
-                "            \"field_name\": \"responsetime\"\n" +
-                "        }]\n" +
-                "    },\n" +
-                "    \"data_description\": {}\n" +
-                "}";
+        String jobConfig = "{\n"
+            + "    \"job_id\": \""
+            + jobId
+            + "\",\n"
+            + "    \"analysis_config\": {\n"
+            + "        \"bucket_span\": \"10m\",\n"
+            + "        \"detectors\": [{\n"
+            + "            \"function\": \"metric\",\n"
+            + "            \"by_field_name\": \"airline\",\n"
+            + "            \"field_name\": \"responsetime\"\n"
+            + "        }]\n"
+            + "    },\n"
+            + "    \"data_description\": {}\n"
+            + "}";
         Request putClosedJob = new Request("PUT", "/_xpack/ml/anomaly_detectors/" + jobId);
         putClosedJob.setJsonEntity(jobConfig);
         client().performRequest(putClosedJob);

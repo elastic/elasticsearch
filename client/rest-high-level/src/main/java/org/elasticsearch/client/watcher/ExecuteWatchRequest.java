@@ -9,9 +9,9 @@
 package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -27,7 +27,11 @@ import java.util.Objects;
 public class ExecuteWatchRequest implements Validatable, ToXContentObject {
 
     public enum ActionExecutionMode {
-        SIMULATE, FORCE_SIMULATE, EXECUTE, FORCE_EXECUTE, SKIP
+        SIMULATE,
+        FORCE_SIMULATE,
+        EXECUTE,
+        FORCE_EXECUTE,
+        SKIP
     }
 
     private final String id;
@@ -161,4 +165,3 @@ public class ExecuteWatchRequest implements Validatable, ToXContentObject {
         return builder;
     }
 }
-

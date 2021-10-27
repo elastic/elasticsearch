@@ -77,13 +77,17 @@ public class PyTorchResultProcessor {
                 logger.error(new ParameterizedMessage("[{}] Error processing results", deploymentId), e);
             }
             pendingResults.forEach((id, pendingResults) -> {
-                if (pendingResults.result.compareAndSet(null, new PyTorchResult(
-                    id,
+                if (pendingResults.result.compareAndSet(
                     null,
-                    null,
-                    isStopping ?
-                        "inference canceled as process is stopping" :
-                        "inference native process died unexpectedly with failure [" + e.getMessage() + "]"))) {
+                    new PyTorchResult(
+                        id,
+                        null,
+                        null,
+                        isStopping
+                            ? "inference canceled as process is stopping"
+                            : "inference native process died unexpectedly with failure [" + e.getMessage() + "]"
+                    )
+                )) {
                     pendingResults.latch.countDown();
                 }
             });
@@ -91,11 +95,10 @@ public class PyTorchResultProcessor {
         } finally {
             pendingResults.forEach((id, pendingResults) -> {
                 // Only set the result if it has not already been set
-                if (pendingResults.result.compareAndSet(null, new PyTorchResult(
-                    id,
+                if (pendingResults.result.compareAndSet(
                     null,
-                    null,
-                    "inference canceled as process is stopping"))) {
+                    new PyTorchResult(id, null, null, "inference canceled as process is stopping")
+                )) {
                     pendingResults.latch.countDown();
                 }
             });
@@ -106,12 +109,8 @@ public class PyTorchResultProcessor {
     }
 
     public synchronized LongSummaryStatistics getTimingStats() {
-        return new LongSummaryStatistics(timingStats.getCount(),
-            timingStats.getMin(),
-            timingStats.getMax(),
-            timingStats.getSum());
+        return new LongSummaryStatistics(timingStats.getCount(), timingStats.getMin(), timingStats.getMax(), timingStats.getSum());
     }
-
 
     private synchronized void processResult(PyTorchResult result) {
         if (result.isError() == false) {
@@ -120,17 +119,11 @@ public class PyTorchResultProcessor {
         }
     }
 
-    public PyTorchResult waitForResult(
-        NativePyTorchProcess process,
-        String requestId,
-        PendingResult pendingResult,
-        TimeValue timeout
-    ) throws InterruptedException {
+    public PyTorchResult waitForResult(NativePyTorchProcess process, String requestId, PendingResult pendingResult, TimeValue timeout)
+        throws InterruptedException {
         if (process == null || stoppedProcessing || process.isProcessAlive() == false) {
             PyTorchResult storedResult = pendingResult.result.get();
-            return storedResult == null ?
-                new PyTorchResult(requestId, null, null, "native process no longer started") :
-                storedResult;
+            return storedResult == null ? new PyTorchResult(requestId, null, null, "native process no longer started") : storedResult;
         }
         if (pendingResult.latch.await(timeout.millis(), TimeUnit.MILLISECONDS)) {
             return pendingResult.result.get();

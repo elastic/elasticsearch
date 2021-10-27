@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.core.security.action.enrollment;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -37,21 +37,25 @@ public class NodeEnrollementResponseTests extends AbstractXContentTestCase<NodeE
         }
     }
 
-    @Override protected NodeEnrollmentResponse createTestInstance() {
+    @Override
+    protected NodeEnrollmentResponse createTestInstance() {
         return new NodeEnrollmentResponse(
             randomAlphaOfLengthBetween(50, 100),
             randomAlphaOfLengthBetween(50, 100),
             randomAlphaOfLengthBetween(50, 100),
             randomAlphaOfLengthBetween(50, 100),
             randomAlphaOfLengthBetween(50, 100),
-            randomList(10, () -> buildNewFakeTransportAddress().toString()));
+            randomList(10, () -> buildNewFakeTransportAddress().toString())
+        );
     }
 
-    @Override protected NodeEnrollmentResponse doParseInstance(XContentParser parser) throws IOException {
+    @Override
+    protected NodeEnrollmentResponse doParseInstance(XContentParser parser) throws IOException {
         return PARSER.apply(parser, null);
     }
 
-    @Override protected boolean supportsUnknownFields() {
+    @Override
+    protected boolean supportsUnknownFields() {
         return false;
     }
 
@@ -63,9 +67,10 @@ public class NodeEnrollementResponseTests extends AbstractXContentTestCase<NodeE
     private static final ParseField NODES_ADDRESSES = new ParseField("nodes_addresses");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<NodeEnrollmentResponse, Void>
-        PARSER =
-        new ConstructingObjectParser<>("node_enrollment_response", true, a -> {
+    public static final ConstructingObjectParser<NodeEnrollmentResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "node_enrollment_response",
+        true,
+        a -> {
             final String httpCaKey = (String) a[0];
             final String httpCaCert = (String) a[1];
             final String transportCaCert = (String) a[2];
@@ -73,7 +78,8 @@ public class NodeEnrollementResponseTests extends AbstractXContentTestCase<NodeE
             final String transportCert = (String) a[4];
             final List<String> nodesAddresses = (List<String>) a[5];
             return new NodeEnrollmentResponse(httpCaKey, httpCaCert, transportCaCert, transportKey, transportCert, nodesAddresses);
-        });
+        }
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), HTTP_CA_KEY);

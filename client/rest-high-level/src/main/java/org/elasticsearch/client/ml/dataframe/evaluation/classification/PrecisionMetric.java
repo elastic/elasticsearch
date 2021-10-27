@@ -8,9 +8,9 @@
 package org.elasticsearch.client.ml.dataframe.evaluation.classification;
 
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -72,8 +72,11 @@ public class PrecisionMetric implements EvaluationMetric {
         private static final ParseField AVG_PRECISION = new ParseField("avg_precision");
 
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<Result, Void> PARSER =
-            new ConstructingObjectParser<>("precision_result", true, a -> new Result((List<PerClassSingleValue>) a[0], (double) a[1]));
+        private static final ConstructingObjectParser<Result, Void> PARSER = new ConstructingObjectParser<>(
+            "precision_result",
+            true,
+            a -> new Result((List<PerClassSingleValue>) a[0], (double) a[1])
+        );
 
         static {
             PARSER.declareObjectArray(constructorArg(), PerClassSingleValue.PARSER, CLASSES);
@@ -121,8 +124,7 @@ public class PrecisionMetric implements EvaluationMetric {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Result that = (Result) o;
-            return Objects.equals(this.classes, that.classes)
-                && this.avgPrecision == that.avgPrecision;
+            return Objects.equals(this.classes, that.classes) && this.avgPrecision == that.avgPrecision;
         }
 
         @Override

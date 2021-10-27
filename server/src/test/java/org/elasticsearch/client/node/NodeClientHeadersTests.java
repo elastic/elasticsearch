@@ -38,8 +38,14 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
         TaskManager taskManager = new TaskManager(settings, threadPool, Collections.emptySet());
         Actions actions = new Actions(testedActions, taskManager);
         NodeClient client = new NodeClient(settings, threadPool);
-        client.initialize(actions, taskManager, () -> "test",
-            mock(Transport.Connection.class), null, new NamedWriteableRegistry(List.of()));
+        client.initialize(
+            actions,
+            taskManager,
+            () -> "test",
+            mock(Transport.Connection.class),
+            null,
+            new NamedWriteableRegistry(List.of())
+        );
         return client;
     }
 
@@ -65,6 +71,5 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
             listener.onFailure(new InternalException(actionName));
         }
     }
-
 
 }

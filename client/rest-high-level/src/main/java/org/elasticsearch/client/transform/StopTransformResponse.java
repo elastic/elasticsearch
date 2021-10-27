@@ -21,15 +21,21 @@ public class StopTransformResponse extends AcknowledgedTasksResponse {
 
     private static final String ACKNOWLEDGED = "acknowledged";
 
-    private static final ConstructingObjectParser<StopTransformResponse, Void> PARSER = AcknowledgedTasksResponse
-            .generateParser("stop_transform_response", StopTransformResponse::new, ACKNOWLEDGED);
+    private static final ConstructingObjectParser<StopTransformResponse, Void> PARSER = AcknowledgedTasksResponse.generateParser(
+        "stop_transform_response",
+        StopTransformResponse::new,
+        ACKNOWLEDGED
+    );
 
     public static StopTransformResponse fromXContent(final XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
-    public StopTransformResponse(boolean acknowledged, @Nullable List<TaskOperationFailure> taskFailures,
-                                 @Nullable List<? extends ElasticsearchException> nodeFailures) {
+    public StopTransformResponse(
+        boolean acknowledged,
+        @Nullable List<TaskOperationFailure> taskFailures,
+        @Nullable List<? extends ElasticsearchException> nodeFailures
+    ) {
         super(acknowledged, taskFailures, nodeFailures);
     }
 

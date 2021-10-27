@@ -14,8 +14,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.regex.Pattern;
@@ -48,7 +48,8 @@ public final class PutWatchRequest extends ActionRequest {
         id = in.readString();
         source = in.readBytesReference();
         active = in.readBoolean();
-        xContentType = in.readEnum(XContentType.class);;
+        xContentType = in.readEnum(XContentType.class);
+        ;
         version = in.readZLong();
         ifSeqNo = in.readZLong();
         ifPrimaryTerm = in.readVLong();
@@ -139,7 +140,7 @@ public final class PutWatchRequest extends ActionRequest {
      */
     public PutWatchRequest setIfSeqNo(long seqNo) {
         if (seqNo < 0 && seqNo != UNASSIGNED_SEQ_NO) {
-            throw new IllegalArgumentException("sequence numbers must be non negative. got [" +  seqNo + "].");
+            throw new IllegalArgumentException("sequence numbers must be non negative. got [" + seqNo + "].");
         }
         ifSeqNo = seqNo;
         return this;
@@ -200,8 +201,10 @@ public final class PutWatchRequest extends ActionRequest {
             validationException = addValidationError("ifSeqNo is set, but primary term is [0]", validationException);
         }
         if (ifPrimaryTerm != UNASSIGNED_PRIMARY_TERM && ifSeqNo == UNASSIGNED_SEQ_NO) {
-            validationException =
-                addValidationError("ifSeqNo is unassigned, but primary term is [" + ifPrimaryTerm + "]", validationException);
+            validationException = addValidationError(
+                "ifSeqNo is unassigned, but primary term is [" + ifPrimaryTerm + "]",
+                validationException
+            );
         }
 
         return validationException;

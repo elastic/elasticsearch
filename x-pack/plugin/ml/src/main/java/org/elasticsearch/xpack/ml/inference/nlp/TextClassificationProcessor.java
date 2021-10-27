@@ -65,9 +65,9 @@ public class TextClassificationProcessor implements NlpTask.Processor {
             return (tokenization, pytorchResult) -> processResult(
                 tokenization,
                 pytorchResult,
-                textClassificationConfig.getNumTopClasses() < 0 ?
-                    textClassificationConfig.getClassificationLabels().size() :
-                    textClassificationConfig.getNumTopClasses(),
+                textClassificationConfig.getNumTopClasses() < 0
+                    ? textClassificationConfig.getClassificationLabels().size()
+                    : textClassificationConfig.getNumTopClasses(),
                 textClassificationConfig.getClassificationLabels(),
                 textClassificationConfig.getResultsField()
             );

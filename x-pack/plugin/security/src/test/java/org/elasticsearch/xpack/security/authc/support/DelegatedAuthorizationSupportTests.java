@@ -47,9 +47,7 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
 
     @Before
     public void setupRealms() {
-        globalSettings = Settings.builder()
-            .put("path.home", createTempDir())
-            .build();
+        globalSettings = Settings.builder().put("path.home", createTempDir()).build();
         env = TestEnvironment.newEnvironment(globalSettings);
         threadContext = new ThreadContext(globalSettings);
 
@@ -70,12 +68,15 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
         RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("test", name);
         return new RealmConfig(
             realmIdentifier,
-            Settings.builder().put(settings)
+            Settings.builder()
+                .put(settings)
                 .normalizePrefix("xpack.security.authc.realms.test." + name + ".")
                 .put(globalSettings)
                 .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0)
                 .build(),
-            env, threadContext);
+            env,
+            threadContext
+        );
     }
 
     public void testEmptyDelegationList() throws ExecutionException, InterruptedException {
@@ -92,29 +93,29 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
 
     public void testMissingRealmInDelegationList() {
         final XPackLicenseState license = getLicenseState(true);
-        final Settings settings = Settings.builder()
-            .putList("authorization_realms", "no-such-realm")
-            .build();
-        final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
-            new DelegatedAuthorizationSupport(realms, buildRealmConfig("r", settings), license)
+        final Settings settings = Settings.builder().putList("authorization_realms", "no-such-realm").build();
+        final IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> new DelegatedAuthorizationSupport(realms, buildRealmConfig("r", settings), license)
         );
         assertThat(ex.getMessage(), equalTo("configured authorization realm [no-such-realm] does not exist (or is not enabled)"));
     }
 
     public void testDelegationChainsAreRejected() {
         final XPackLicenseState license = getLicenseState(true);
-        final Settings settings = Settings.builder()
-            .putList("authorization_realms", "lookup-1", "lookup-2", "lookup-3")
-            .build();
+        final Settings settings = Settings.builder().putList("authorization_realms", "lookup-1", "lookup-2", "lookup-3").build();
         globalSettings = Settings.builder()
             .put(globalSettings)
             .putList("xpack.security.authc.realms.test.lookup-2.authorization_realms", "lookup-1")
             .build();
-        final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
-            new DelegatedAuthorizationSupport(realms, buildRealmConfig("realm1", settings), license)
+        final IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> new DelegatedAuthorizationSupport(realms, buildRealmConfig("realm1", settings), license)
         );
-        assertThat(ex.getMessage(),
-            equalTo("cannot use realm [test/lookup-2] as an authorization realm - it is already delegating authorization to [[lookup-1]]"));
+        assertThat(
+            ex.getMessage(),
+            equalTo("cannot use realm [test/lookup-2] as an authorization realm - it is already delegating authorization to [[lookup-1]]")
+        );
     }
 
     public void testMatchInDelegationList() throws Exception {
@@ -138,9 +139,7 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
         final XPackLicenseState license = getLicenseState(true);
         final List<MockLookupRealm> useRealms = shuffle(randomSubsetOf(randomIntBetween(3, realms.size()), realms));
         final List<String> names = useRealms.stream().map(Realm::name).collect(Collectors.toList());
-        final Settings settings = Settings.builder()
-            .putList("authorization_realms", names)
-            .build();
+        final Settings settings = Settings.builder().putList("authorization_realms", names).build();
         final List<User> users = new ArrayList<>(names.size());
         final String username = randomAlphaOfLength(8);
         for (MockLookupRealm r : useRealms) {
@@ -172,15 +171,19 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
         final AuthenticationResult<User> result = future.get();
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
         assertThat(result.getValue(), nullValue());
-        assertThat(result.getMessage(), equalTo("the principal [my_user] was authenticated, but no user could be found in realms [" +
-            collectionToDelimitedString(useRealms.stream().map(Realm::toString).collect(Collectors.toList()), ",") + "]"));
+        assertThat(
+            result.getMessage(),
+            equalTo(
+                "the principal [my_user] was authenticated, but no user could be found in realms ["
+                    + collectionToDelimitedString(useRealms.stream().map(Realm::toString).collect(Collectors.toList()), ",")
+                    + "]"
+            )
+        );
     }
 
     public void testLicenseRejection() throws Exception {
         final XPackLicenseState license = getLicenseState(false);
-        final Settings settings = Settings.builder()
-            .putList("authorization_realms", realms.get(0).name())
-            .build();
+        final Settings settings = Settings.builder().putList("authorization_realms", realms.get(0).name()).build();
         final DelegatedAuthorizationSupport das = new DelegatedAuthorizationSupport(realms, buildRealmConfig("r", settings), license);
         assertThat(das.hasDelegation(), equalTo(true));
         final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();

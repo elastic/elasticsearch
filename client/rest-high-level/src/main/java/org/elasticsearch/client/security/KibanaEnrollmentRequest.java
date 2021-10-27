@@ -15,8 +15,8 @@ import org.elasticsearch.client.Validatable;
 public final class KibanaEnrollmentRequest implements Validatable {
 
     public static final KibanaEnrollmentRequest INSTANCE = new KibanaEnrollmentRequest();
-    private KibanaEnrollmentRequest() {
-    }
+
+    private KibanaEnrollmentRequest() {}
 
     public Request getRequest() {
         return new Request(HttpGet.METHOD_NAME, "/_security/enroll/kibana");

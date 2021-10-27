@@ -30,22 +30,31 @@ public class ClusterStateTaskExecutorTests extends ESTestCase {
     }
 
     public void testDescribeTasks() {
-        final ClusterStateTaskExecutor<TestTask> executor = (currentState, tasks) -> {
-            throw new AssertionError("should not be called");
-        };
+        final ClusterStateTaskExecutor<TestTask> executor = (currentState, tasks) -> { throw new AssertionError("should not be called"); };
 
         assertThat("describes an empty list", executor.describeTasks(Collections.emptyList()), equalTo(""));
-        assertThat("describes a singleton list", executor.describeTasks(Collections.singletonList(new TestTask("a task"))),
-            equalTo("Task{a task}"));
-        assertThat("describes a list of two tasks",
+        assertThat(
+            "describes a singleton list",
+            executor.describeTasks(Collections.singletonList(new TestTask("a task"))),
+            equalTo("Task{a task}")
+        );
+        assertThat(
+            "describes a list of two tasks",
             executor.describeTasks(Arrays.asList(new TestTask("a task"), new TestTask("another task"))),
-            equalTo("Task{a task}, Task{another task}"));
+            equalTo("Task{a task}, Task{another task}")
+        );
 
-        assertThat("skips the only item if it has no description", executor.describeTasks(Collections.singletonList(new TestTask(null))),
-            equalTo(""));
-        assertThat("skips an item if it has no description",
-            executor.describeTasks(Arrays.asList(
-                new TestTask("a task"), new TestTask(null), new TestTask("another task"), new TestTask(null))),
-            equalTo("Task{a task}, Task{another task}"));
+        assertThat(
+            "skips the only item if it has no description",
+            executor.describeTasks(Collections.singletonList(new TestTask(null))),
+            equalTo("")
+        );
+        assertThat(
+            "skips an item if it has no description",
+            executor.describeTasks(
+                Arrays.asList(new TestTask("a task"), new TestTask(null), new TestTask("another task"), new TestTask(null))
+            ),
+            equalTo("Task{a task}, Task{another task}")
+        );
     }
 }

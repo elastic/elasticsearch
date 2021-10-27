@@ -13,6 +13,8 @@ import java.util.List;
 public interface OverallBucketsProcessor {
 
     void process(List<OverallBucket> overallBuckets);
+
     List<OverallBucket> finish();
+
     int size();
 }

@@ -8,10 +8,10 @@
 package org.elasticsearch.test.rest.yaml.restspec;
 
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.test.ClasspathUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ClasspathUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -37,8 +37,16 @@ public class ClientYamlSuiteRestSpec {
     private void addApi(ClientYamlSuiteRestApi restApi) {
         ClientYamlSuiteRestApi previous = restApiMap.putIfAbsent(restApi.getName(), restApi);
         if (previous != null) {
-            throw new IllegalArgumentException("cannot register api [" + restApi.getName() + "] found in [" + restApi.getLocation() + "]. "
-                    + "api with same name was already found in [" + previous.getLocation() + "]");
+            throw new IllegalArgumentException(
+                "cannot register api ["
+                    + restApi.getName()
+                    + "] found in ["
+                    + restApi.getLocation()
+                    + "]. "
+                    + "api with same name was already found in ["
+                    + previous.getLocation()
+                    + "]"
+            );
         }
     }
 
@@ -86,8 +94,13 @@ public class ClientYamlSuiteRestSpec {
 
     private static void parseSpecFile(ClientYamlSuiteRestApiParser restApiParser, Path jsonFile, ClientYamlSuiteRestSpec restSpec) {
         try (InputStream stream = Files.newInputStream(jsonFile)) {
-            try (XContentParser parser =
-                     JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+            try (
+                XContentParser parser = JsonXContent.jsonXContent.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.INSTANCE,
+                    stream
+                )
+            ) {
                 String filename = jsonFile.getFileName().toString();
                 if (filename.equals("_common.json")) {
                     parseCommonSpec(parser, restSpec);
@@ -95,8 +108,14 @@ public class ClientYamlSuiteRestSpec {
                     ClientYamlSuiteRestApi restApi = restApiParser.parse(jsonFile.toString(), parser);
                     String expectedApiName = filename.substring(0, filename.lastIndexOf('.'));
                     if (restApi.getName().equals(expectedApiName) == false) {
-                        throw new IllegalArgumentException("found api [" + restApi.getName() + "] in [" + jsonFile.toString() + "]. " +
-                            "Each api is expected to have the same name as the file that defines it.");
+                        throw new IllegalArgumentException(
+                            "found api ["
+                                + restApi.getName()
+                                + "] in ["
+                                + jsonFile.toString()
+                                + "]. "
+                                + "Each api is expected to have the same name as the file that defines it."
+                        );
                     }
                     restSpec.addApi(restApi);
                 }
@@ -123,8 +142,7 @@ public class ClientYamlSuiteRestSpec {
                         restSpec.globalParameters.add(param);
                         parser.nextToken();
                         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-                            throw new IllegalArgumentException("Expected params field in rest api definition to " +
-                                "contain an object");
+                            throw new IllegalArgumentException("Expected params field in rest api definition to " + "contain an object");
                         }
                         parser.skipChildren();
                     }

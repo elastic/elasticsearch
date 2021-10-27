@@ -59,14 +59,14 @@ public class LicenseOperationModeUpdateTests extends ESTestCase {
 
     public void testCloudInternalLicenseOperationModeUpdate() throws Exception {
         License license = License.builder()
-                .uid("id")
-                .expiryDate(0)
-                .issueDate(0)
-                .issuedTo("elasticsearch")
-                .issuer("issuer")
-                .type("cloud_internal")
-                .maxNodes(1)
-                .build();
+            .uid("id")
+            .expiryDate(0)
+            .issueDate(0)
+            .issuedTo("elasticsearch")
+            .issuer("issuer")
+            .type("cloud_internal")
+            .maxNodes(1)
+            .build();
 
         assertThat(license.operationMode(), equalTo(License.OperationMode.PLATINUM));
         OperationModeFileWatcherTests.writeMode("gold", licenseModeFile);

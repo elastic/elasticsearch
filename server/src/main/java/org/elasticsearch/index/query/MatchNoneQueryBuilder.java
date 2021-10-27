@@ -24,8 +24,7 @@ import java.io.IOException;
 public class MatchNoneQueryBuilder extends AbstractQueryBuilder<MatchNoneQueryBuilder> {
     public static final String NAME = "match_none";
 
-    public MatchNoneQueryBuilder() {
-    }
+    public MatchNoneQueryBuilder() {}
 
     /**
      * Read from a stream.
@@ -60,12 +59,16 @@ public class MatchNoneQueryBuilder extends AbstractQueryBuilder<MatchNoneQueryBu
                 } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     boost = parser.floatValue();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "["+MatchNoneQueryBuilder.NAME +
-                            "] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[" + MatchNoneQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]"
+                    );
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(), "[" + MatchNoneQueryBuilder.NAME +
-                        "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "[" + MatchNoneQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]"
+                );
             }
         }
 

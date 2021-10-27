@@ -28,26 +28,43 @@ import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTas
 
 import java.util.List;
 
-public class TransportInferTrainedModelDeploymentAction extends TransportTasksAction<TrainedModelDeploymentTask,
-    InferTrainedModelDeploymentAction.Request, InferTrainedModelDeploymentAction.Response, InferTrainedModelDeploymentAction.Response> {
+public class TransportInferTrainedModelDeploymentAction extends TransportTasksAction<
+    TrainedModelDeploymentTask,
+    InferTrainedModelDeploymentAction.Request,
+    InferTrainedModelDeploymentAction.Response,
+    InferTrainedModelDeploymentAction.Response> {
 
     @Inject
-    public TransportInferTrainedModelDeploymentAction(ClusterService clusterService, TransportService transportService,
-                                                      ActionFilters actionFilters) {
-        super(InferTrainedModelDeploymentAction.NAME, clusterService, transportService, actionFilters,
-            InferTrainedModelDeploymentAction.Request::new, InferTrainedModelDeploymentAction.Response::new,
-            InferTrainedModelDeploymentAction.Response::new, ThreadPool.Names.SAME);
+    public TransportInferTrainedModelDeploymentAction(
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters
+    ) {
+        super(
+            InferTrainedModelDeploymentAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            InferTrainedModelDeploymentAction.Request::new,
+            InferTrainedModelDeploymentAction.Response::new,
+            InferTrainedModelDeploymentAction.Response::new,
+            ThreadPool.Names.SAME
+        );
     }
 
     @Override
-    protected void doExecute(Task task, InferTrainedModelDeploymentAction.Request request,
-                             ActionListener<InferTrainedModelDeploymentAction.Response> listener) {
+    protected void doExecute(
+        Task task,
+        InferTrainedModelDeploymentAction.Request request,
+        ActionListener<InferTrainedModelDeploymentAction.Response> listener
+    ) {
         String deploymentId = request.getDeploymentId();
         // We need to check whether there is at least an assigned task here, otherwise we cannot redirect to the
         // node running the job task.
-        TrainedModelAllocation allocation = TrainedModelAllocationMetadata
-            .allocationForModelId(clusterService.state(), request.getDeploymentId())
-            .orElse(null);
+        TrainedModelAllocation allocation = TrainedModelAllocationMetadata.allocationForModelId(
+            clusterService.state(),
+            request.getDeploymentId()
+        ).orElse(null);
         if (allocation == null) {
             String message = "Cannot perform requested action because deployment [" + deploymentId + "] is not started";
             listener.onFailure(ExceptionsHelper.conflictStatusException(message));
@@ -66,10 +83,12 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
     }
 
     @Override
-    protected InferTrainedModelDeploymentAction.Response newResponse(InferTrainedModelDeploymentAction.Request request,
-                                                                     List<InferTrainedModelDeploymentAction.Response> tasks,
-                                                                     List<TaskOperationFailure> taskOperationFailures,
-                                                                     List<FailedNodeException> failedNodeExceptions) {
+    protected InferTrainedModelDeploymentAction.Response newResponse(
+        InferTrainedModelDeploymentAction.Request request,
+        List<InferTrainedModelDeploymentAction.Response> tasks,
+        List<TaskOperationFailure> taskOperationFailures,
+        List<FailedNodeException> failedNodeExceptions
+    ) {
         if (taskOperationFailures.isEmpty() == false) {
             throw org.elasticsearch.ExceptionsHelper.convertToElastic(taskOperationFailures.get(0).getCause());
         } else if (failedNodeExceptions.isEmpty() == false) {
@@ -86,8 +105,11 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
     }
 
     @Override
-    protected void taskOperation(InferTrainedModelDeploymentAction.Request request, TrainedModelDeploymentTask task,
-                                 ActionListener<InferTrainedModelDeploymentAction.Response> listener) {
+    protected void taskOperation(
+        InferTrainedModelDeploymentAction.Request request,
+        TrainedModelDeploymentTask task,
+        ActionListener<InferTrainedModelDeploymentAction.Response> listener
+    ) {
         task.infer(
             request.getDocs().get(0),
             request.getUpdate(),

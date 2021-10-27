@@ -27,14 +27,15 @@ public final class NativeMemoryCalculator {
     static final long MINIMUM_AUTOMATIC_NODE_SIZE = ByteSizeValue.ofGb(1).getBytes();
     private static final long OS_OVERHEAD = ByteSizeValue.ofMb(200L).getBytes();
 
-    private NativeMemoryCalculator() { }
+    private NativeMemoryCalculator() {}
 
     public static OptionalLong allowedBytesForMl(DiscoveryNode node, Settings settings) {
         return allowedBytesForMl(
             node.getAttributes().get(MACHINE_MEMORY_NODE_ATTR),
             node.getAttributes().get(MAX_JVM_SIZE_NODE_ATTR),
             MAX_MACHINE_MEMORY_PERCENT.get(settings),
-            USE_AUTO_MACHINE_MEMORY_PERCENT.get(settings));
+            USE_AUTO_MACHINE_MEMORY_PERCENT.get(settings)
+        );
     }
 
     public static OptionalLong allowedBytesForMl(DiscoveryNode node, ClusterSettings settings) {
@@ -42,7 +43,8 @@ public final class NativeMemoryCalculator {
             node.getAttributes().get(MACHINE_MEMORY_NODE_ATTR),
             node.getAttributes().get(MAX_JVM_SIZE_NODE_ATTR),
             settings.get(MAX_MACHINE_MEMORY_PERCENT),
-            settings.get(USE_AUTO_MACHINE_MEMORY_PERCENT));
+            settings.get(USE_AUTO_MACHINE_MEMORY_PERCENT)
+        );
     }
 
     public static OptionalLong allowedBytesForMl(DiscoveryNode node, int maxMemoryPercent, boolean useAutoPercent) {
@@ -50,7 +52,8 @@ public final class NativeMemoryCalculator {
             node.getAttributes().get(MACHINE_MEMORY_NODE_ATTR),
             node.getAttributes().get(MAX_JVM_SIZE_NODE_ATTR),
             maxMemoryPercent,
-            useAutoPercent);
+            useAutoPercent
+        );
     }
 
     private static OptionalLong allowedBytesForMl(String nodeBytes, String jvmBytes, int maxMemoryPercent, boolean useAuto) {
@@ -82,25 +85,26 @@ public final class NativeMemoryCalculator {
             // TODO utilize official ergonomic JVM size calculations when available.
             jvmSize = jvmSize == null ? dynamicallyCalculateJvmSizeFromNativeMemorySize(nativeMachineMemory) : jvmSize;
             // We haven't reached our 90% threshold, so, simply summing up the values is adequate
-            if ((jvmSize + OS_OVERHEAD)/(double)nativeMachineMemory > 0.1) {
+            if ((jvmSize + OS_OVERHEAD) / (double) nativeMachineMemory > 0.1) {
                 return Math.max(nativeMachineMemory + jvmSize + OS_OVERHEAD, MINIMUM_AUTOMATIC_NODE_SIZE);
             }
-            return Math.round((nativeMachineMemory/0.9));
+            return Math.round((nativeMachineMemory / 0.9));
         }
-        return (long) ((100.0/maxMemoryPercent) * nativeMachineMemory);
+        return (long) ((100.0 / maxMemoryPercent) * nativeMachineMemory);
     }
 
     public static double modelMemoryPercent(long machineMemory, Long jvmSize, int maxMemoryPercent, boolean useAuto) {
         if (useAuto) {
             jvmSize = jvmSize == null ? dynamicallyCalculateJvmSizeFromNodeSize(machineMemory) : jvmSize;
             if (machineMemory - jvmSize < OS_OVERHEAD || machineMemory == 0) {
-                assert false: String.format(
-                    Locale.ROOT,
-                    "machine memory [%d] minus jvm [%d] is less than overhead [%d]",
-                    machineMemory,
-                    jvmSize,
-                    OS_OVERHEAD
-                );
+                assert false
+                    : String.format(
+                        Locale.ROOT,
+                        "machine memory [%d] minus jvm [%d] is less than overhead [%d]",
+                        machineMemory,
+                        jvmSize,
+                        OS_OVERHEAD
+                    );
                 return maxMemoryPercent;
             }
             // This calculation is dynamic and designed to maximally take advantage of the underlying machine for machine learning
@@ -110,7 +114,7 @@ public final class NativeMemoryCalculator {
             // 2GB node -> 66%
             // 16GB node -> 87%
             // 64GB node -> 90%
-            return Math.min(90.0, ((machineMemory - jvmSize - OS_OVERHEAD) / (double)machineMemory) * 100.0D);
+            return Math.min(90.0, ((machineMemory - jvmSize - OS_OVERHEAD) / (double) machineMemory) * 100.0D);
         }
         return maxMemoryPercent;
     }
@@ -129,18 +133,20 @@ public final class NativeMemoryCalculator {
             // 2GB node -> 66%
             // 16GB node -> 87%
             // 64GB node -> 90%
-            double memoryProportion = Math.min(0.90, (machineMemory - jvmSize - OS_OVERHEAD) / (double)machineMemory);
+            double memoryProportion = Math.min(0.90, (machineMemory - jvmSize - OS_OVERHEAD) / (double) machineMemory);
             return Math.round(machineMemory * memoryProportion);
         }
 
-        return (long)(machineMemory * (maxMemoryPercent / 100.0));
+        return (long) (machineMemory * (maxMemoryPercent / 100.0));
     }
 
     public static long allowedBytesForMl(long machineMemory, int maxMemoryPercent, boolean useAuto) {
-        return allowedBytesForMl(machineMemory,
+        return allowedBytesForMl(
+            machineMemory,
             useAuto ? dynamicallyCalculateJvmSizeFromNodeSize(machineMemory) : machineMemory / 2,
             maxMemoryPercent,
-            useAuto);
+            useAuto
+        );
     }
 
     // TODO replace with official ergonomic calculation
@@ -149,10 +155,10 @@ public final class NativeMemoryCalculator {
         // 2GB and 8GB cause weird issues where the JVM size will "jump the gap" from one to the other when
         // considering true tier sizes in elastic cloud.
         if (nodeSize < ByteSizeValue.ofMb(1280).getBytes()) {
-            return (long)(nodeSize * 0.40);
+            return (long) (nodeSize * 0.40);
         }
         if (nodeSize < ByteSizeValue.ofGb(8).getBytes()) {
-            return (long)(nodeSize * 0.25);
+            return (long) (nodeSize * 0.25);
         }
         return STATIC_JVM_UPPER_THRESHOLD;
     }

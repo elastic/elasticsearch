@@ -13,6 +13,7 @@ import com.azure.core.util.logging.ClientLogger;
 import com.azure.storage.common.implementation.connectionstring.StorageConnectionString;
 import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RetryPolicyType;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -50,10 +51,10 @@ public class AzureStorageService {
     private static final ByteSizeValue DEFAULT_BLOCK_SIZE = new ByteSizeValue(
         Math.max(
             ByteSizeUnit.MB.toBytes(5), // minimum value
-            Math.min(
-                MAX_BLOCK_SIZE.getBytes(),
-                JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / 20)),
-        ByteSizeUnit.BYTES);
+            Math.min(MAX_BLOCK_SIZE.getBytes(), JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / 20)
+        ),
+        ByteSizeUnit.BYTES
+    );
 
     /**
      * The maximum size of a Block Blob.
@@ -64,7 +65,7 @@ public class AzureStorageService {
     /**
      * Maximum allowed blob size in Azure blob store.
      */
-    public static final ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(MAX_BLOB_SIZE , ByteSizeUnit.BYTES);
+    public static final ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(MAX_BLOB_SIZE, ByteSizeUnit.BYTES);
 
     private static final long DEFAULT_UPLOAD_BLOCK_SIZE = DEFAULT_BLOCK_SIZE.getBytes();
 
@@ -161,9 +162,14 @@ public class AzureStorageService {
         // to fix this issue.
         TimeValue configuredTimeout = azureStorageSettings.getTimeout();
         int timeout = configuredTimeout.duration() == -1 ? Integer.MAX_VALUE : Math.max(1, Math.toIntExact(configuredTimeout.getSeconds()));
-        return new RequestRetryOptions(RetryPolicyType.EXPONENTIAL,
-            azureStorageSettings.getMaxRetries(), timeout,
-            null, null, secondaryHost);
+        return new RequestRetryOptions(
+            RetryPolicyType.EXPONENTIAL,
+            azureStorageSettings.getMaxRetries(),
+            timeout,
+            null,
+            null,
+            secondaryHost
+        );
     }
 
     /**

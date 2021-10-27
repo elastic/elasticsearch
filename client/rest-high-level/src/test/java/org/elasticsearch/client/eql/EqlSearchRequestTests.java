@@ -11,10 +11,10 @@ package org.elasticsearch.client.eql;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.AbstractRequestTestCase;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -64,15 +64,18 @@ public class EqlSearchRequestTests extends AbstractRequestTestCase<EqlSearchRequ
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.xpack.eql.action.EqlSearchRequest serverInstance, EqlSearchRequest
-        clientTestInstance) {
+    protected void assertInstances(
+        org.elasticsearch.xpack.eql.action.EqlSearchRequest serverInstance,
+        EqlSearchRequest clientTestInstance
+    ) {
         assertThat(serverInstance.eventCategoryField(), equalTo(clientTestInstance.eventCategoryField()));
         assertThat(serverInstance.timestampField(), equalTo(clientTestInstance.timestampField()));
         assertThat(serverInstance.tiebreakerField(), equalTo(clientTestInstance.tiebreakerField()));
         assertThat(serverInstance.filter(), equalTo(clientTestInstance.filter()));
         assertThat(serverInstance.query(), equalTo(clientTestInstance.query()));
-        IndicesOptions actual = clientTestInstance.indicesOptions() == null ?
-            org.elasticsearch.xpack.eql.action.EqlSearchRequest.DEFAULT_INDICES_OPTIONS : clientTestInstance.indicesOptions();
+        IndicesOptions actual = clientTestInstance.indicesOptions() == null
+            ? org.elasticsearch.xpack.eql.action.EqlSearchRequest.DEFAULT_INDICES_OPTIONS
+            : clientTestInstance.indicesOptions();
         assertThat(serverInstance.indicesOptions(), equalTo(actual));
         assertThat(serverInstance.indices(), equalTo(clientTestInstance.indices()));
         assertThat(serverInstance.fetchSize(), equalTo(clientTestInstance.fetchSize()));

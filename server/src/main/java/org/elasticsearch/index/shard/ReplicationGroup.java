@@ -54,8 +54,8 @@ public class ReplicationGroup {
                 if (trackedAllocationIds.contains(shard.allocationId().getId())) {
                     replicationTargets.add(shard);
                 } else {
-                    assert inSyncAllocationIds.contains(shard.allocationId().getId()) == false :
-                        "in-sync shard copy but not tracked: " + shard;
+                    assert inSyncAllocationIds.contains(shard.allocationId().getId()) == false
+                        : "in-sync shard copy but not tracked: " + shard;
                     skippedShards.add(shard);
                 }
                 if (shard.relocating()) {
@@ -64,8 +64,8 @@ public class ReplicationGroup {
                         replicationTargets.add(relocationTarget);
                     } else {
                         skippedShards.add(relocationTarget);
-                        assert inSyncAllocationIds.contains(relocationTarget.allocationId().getId()) == false :
-                            "in-sync shard copy but not tracked: " + shard;
+                        assert inSyncAllocationIds.contains(relocationTarget.allocationId().getId()) == false
+                            : "in-sync shard copy but not tracked: " + shard;
                     }
                 }
             }
@@ -110,7 +110,6 @@ public class ReplicationGroup {
         return skippedShards;
     }
 
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -133,11 +132,14 @@ public class ReplicationGroup {
 
     @Override
     public String toString() {
-        return "ReplicationGroup{" +
-            "routingTable=" + routingTable +
-            ", inSyncAllocationIds=" + inSyncAllocationIds +
-            ", trackedAllocationIds=" + trackedAllocationIds +
-            '}';
+        return "ReplicationGroup{"
+            + "routingTable="
+            + routingTable
+            + ", inSyncAllocationIds="
+            + inSyncAllocationIds
+            + ", trackedAllocationIds="
+            + trackedAllocationIds
+            + '}';
     }
 
 }

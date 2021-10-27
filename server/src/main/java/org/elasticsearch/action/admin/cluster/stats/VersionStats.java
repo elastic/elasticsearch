@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.stats;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -88,7 +89,8 @@ public final class VersionStats implements ToXContentFragment, Writeable {
             // Increment version-specific primary shard sizes
             primaryByteCounts.compute(indexMetadata.getCreationVersion(), (v, i) -> {
                 String indexName = indexMetadata.getIndex().getName();
-                long indexPrimarySize = indexPrimaryShardStats.getOrDefault(indexName, Collections.emptyList()).stream()
+                long indexPrimarySize = indexPrimaryShardStats.getOrDefault(indexName, Collections.emptyList())
+                    .stream()
                     .mapToLong(stats -> stats.getStats().getStore().sizeInBytes())
                     .sum();
                 if (i == null) {
@@ -101,8 +103,12 @@ public final class VersionStats implements ToXContentFragment, Writeable {
         List<SingleVersionStats> calculatedStats = new ArrayList<>(indexCounts.size());
         for (Map.Entry<Version, Integer> indexVersionCount : indexCounts.entrySet()) {
             Version v = indexVersionCount.getKey();
-            SingleVersionStats singleStats = new SingleVersionStats(v, indexVersionCount.getValue(),
-                primaryShardCounts.getOrDefault(v, 0), primaryByteCounts.getOrDefault(v, 0L));
+            SingleVersionStats singleStats = new SingleVersionStats(
+                v,
+                indexVersionCount.getValue(),
+                primaryShardCounts.getOrDefault(v, 0),
+                primaryByteCounts.getOrDefault(v, 0L)
+            );
             calculatedStats.add(singleStats);
         }
         return new VersionStats(calculatedStats);
@@ -225,10 +231,10 @@ public final class VersionStats implements ToXContentFragment, Writeable {
             }
 
             SingleVersionStats other = (SingleVersionStats) obj;
-            return version.equals(other.version) &&
-                indexCount == other.indexCount &&
-                primaryShardCount == other.primaryShardCount &&
-                totalPrimaryByteCount == other.totalPrimaryByteCount;
+            return version.equals(other.version)
+                && indexCount == other.indexCount
+                && primaryShardCount == other.primaryShardCount
+                && totalPrimaryByteCount == other.totalPrimaryByteCount;
         }
 
         @Override

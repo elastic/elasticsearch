@@ -10,8 +10,8 @@ package org.elasticsearch.script.expression;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
-import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.search.MultiValueMode;
 
@@ -44,7 +44,7 @@ class DateMethodValueSource extends FieldDataValueSource {
         return new DoubleValues() {
             @Override
             public double doubleValue() throws IOException {
-                calendar.setTimeInMillis((long)docValues.doubleValue());
+                calendar.setTimeInMillis((long) docValues.doubleValue());
                 return calendar.get(calendarType);
             }
 

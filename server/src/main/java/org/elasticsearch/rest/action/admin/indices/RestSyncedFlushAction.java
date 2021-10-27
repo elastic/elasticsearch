@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -22,6 +21,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,22 +32,16 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestSyncedFlushAction extends BaseRestHandler {
 
     private static final String DEPRECATION_MESSAGE =
-    "Synced flush is deprecated and will be removed in 8.0. Use flush at /_flush or /{index}/_flush instead.";
+        "Synced flush is deprecated and will be removed in 8.0. Use flush at /_flush or /{index}/_flush instead.";
+
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(GET, "/_flush/synced")
-                .deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_7)
-                .build(),
-            Route.builder(POST, "/_flush/synced")
-                .deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_7)
-                .build(),
-            Route.builder(GET, "/{index}/_flush/synced")
-                .deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_7)
-                .build(),
-            Route.builder(POST, "/{index}/_flush/synced")
-                .deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_7)
-                .build());
+            Route.builder(GET, "/_flush/synced").deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+            Route.builder(POST, "/_flush/synced").deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+            Route.builder(GET, "/{index}/_flush/synced").deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+            Route.builder(POST, "/{index}/_flush/synced").deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+        );
     }
 
     @Override

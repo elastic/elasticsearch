@@ -6,14 +6,15 @@
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
 
@@ -21,6 +22,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79932")
 public class AggProviderWireSerializationTests extends AbstractBWCWireSerializationTestCase<AggProvider> {
 
     @Override
@@ -45,13 +47,15 @@ public class AggProviderWireSerializationTests extends AbstractBWCWireSerializat
     }
 
     public static AggProvider createRandomValidAggProvider() {
-        Map<String, Object> agg = Collections.singletonMap(randomAlphaOfLengthBetween(1, 10),
-            Collections.singletonMap("avg", Collections.singletonMap("field", randomAlphaOfLengthBetween(1, 10))));
+        Map<String, Object> agg = Collections.singletonMap(
+            randomAlphaOfLengthBetween(1, 10),
+            Collections.singletonMap("avg", Collections.singletonMap("field", randomAlphaOfLengthBetween(1, 10)))
+        );
         try {
             SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
-            AggregatorFactories.Builder aggs =
-                XContentObjectTransformer.aggregatorTransformer(new NamedXContentRegistry(searchModule.getNamedXContents()))
-                    .fromMap(agg);
+            AggregatorFactories.Builder aggs = XContentObjectTransformer.aggregatorTransformer(
+                new NamedXContentRegistry(searchModule.getNamedXContents())
+            ).fromMap(agg);
             Exception parsingException = null;
             if (randomBoolean()) {
                 aggs = null;

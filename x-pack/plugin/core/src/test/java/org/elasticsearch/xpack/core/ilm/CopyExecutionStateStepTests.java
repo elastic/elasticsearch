@@ -50,8 +50,11 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
                 indexNameSupplier = (index, state) -> randomAlphaOfLengthBetween(11, 15) + index;
                 break;
             case 3:
-                targetNextStepKey = new StepKey(targetNextStepKey.getPhase(), targetNextStepKey.getAction(),
-                    targetNextStepKey.getName() + randomAlphaOfLength(5));
+                targetNextStepKey = new StepKey(
+                    targetNextStepKey.getPhase(),
+                    targetNextStepKey.getAction(),
+                    targetNextStepKey.getName() + randomAlphaOfLength(5)
+                );
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
@@ -62,8 +65,12 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
 
     @Override
     protected CopyExecutionStateStep copyInstance(CopyExecutionStateStep instance) {
-        return new CopyExecutionStateStep(instance.getKey(), instance.getNextStepKey(), instance.getTargetIndexNameSupplier(),
-            instance.getTargetNextStepKey());
+        return new CopyExecutionStateStep(
+            instance.getKey(),
+            instance.getNextStepKey(),
+            instance.getTargetIndexNameSupplier(),
+            instance.getTargetNextStepKey()
+        );
     }
 
     public void testPerformAction() {
@@ -72,27 +79,24 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
         Map<String, String> customMetadata = createCustomMetadata();
 
         IndexMetadata originalIndexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT)).numberOfShards(randomIntBetween(1,5))
-            .numberOfReplicas(randomIntBetween(1,5))
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(1, 5))
             .putCustom(ILM_CUSTOM_METADATA_KEY, customMetadata)
             .build();
-        IndexMetadata shrunkIndexMetadata =
-            IndexMetadata.builder(step.getTargetIndexNameSupplier().apply(indexName, LifecycleExecutionState.builder().build()))
-            .settings(settings(Version.CURRENT)).numberOfShards(randomIntBetween(1,5))
-            .numberOfReplicas(randomIntBetween(1,5))
-            .build();
+        IndexMetadata shrunkIndexMetadata = IndexMetadata.builder(
+            step.getTargetIndexNameSupplier().apply(indexName, LifecycleExecutionState.builder().build())
+        ).settings(settings(Version.CURRENT)).numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(1, 5)).build();
         ClusterState originalClusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder()
-                .put(originalIndexMetadata, false)
-                .put(shrunkIndexMetadata, false))
+            .metadata(Metadata.builder().put(originalIndexMetadata, false).put(shrunkIndexMetadata, false))
             .build();
 
         ClusterState newClusterState = step.performAction(originalIndexMetadata.getIndex(), originalClusterState);
 
         LifecycleExecutionState oldIndexData = LifecycleExecutionState.fromIndexMetadata(originalIndexMetadata);
-        LifecycleExecutionState newIndexData = LifecycleExecutionState
-            .fromIndexMetadata(newClusterState.metadata().index(step.getTargetIndexNameSupplier().apply(indexName,
-                LifecycleExecutionState.builder().build())));
+        LifecycleExecutionState newIndexData = LifecycleExecutionState.fromIndexMetadata(
+            newClusterState.metadata().index(step.getTargetIndexNameSupplier().apply(indexName, LifecycleExecutionState.builder().build()))
+        );
 
         StepKey targetNextStepKey = step.getTargetNextStepKey();
         assertEquals(newIndexData.getLifecycleDate(), oldIndexData.getLifecycleDate());
@@ -108,28 +112,25 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
         String indexName = randomAlphaOfLengthBetween(5, 20);
 
         IndexMetadata originalIndexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT)).numberOfShards(randomIntBetween(1,5))
-            .numberOfReplicas(randomIntBetween(1,5))
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(1, 5))
             .putCustom(ILM_CUSTOM_METADATA_KEY, createCustomMetadata())
             .build();
-        IndexMetadata shrunkIndexMetadata =
-            IndexMetadata.builder(step.getTargetIndexNameSupplier().apply(indexName, LifecycleExecutionState.builder().build()))
-                .settings(settings(Version.CURRENT)).numberOfShards(randomIntBetween(1,5))
-                .numberOfReplicas(randomIntBetween(1,5))
-                .build();
+        IndexMetadata shrunkIndexMetadata = IndexMetadata.builder(
+            step.getTargetIndexNameSupplier().apply(indexName, LifecycleExecutionState.builder().build())
+        ).settings(settings(Version.CURRENT)).numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(1, 5)).build();
 
         ClusterState originalClusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder()
-                .put(originalIndexMetadata, false)
-                .put(shrunkIndexMetadata, false))
+            .metadata(Metadata.builder().put(originalIndexMetadata, false).put(shrunkIndexMetadata, false))
             .build();
 
         ClusterState newClusterState = step.performAction(originalIndexMetadata.getIndex(), originalClusterState);
 
         LifecycleExecutionState oldIndexData = LifecycleExecutionState.fromIndexMetadata(originalIndexMetadata);
-        LifecycleExecutionState newIndexData = LifecycleExecutionState
-            .fromIndexMetadata(newClusterState.metadata().index(step.getTargetIndexNameSupplier().apply(indexName,
-                LifecycleExecutionState.builder().build())));
+        LifecycleExecutionState newIndexData = LifecycleExecutionState.fromIndexMetadata(
+            newClusterState.metadata().index(step.getTargetIndexNameSupplier().apply(indexName, LifecycleExecutionState.builder().build()))
+        );
 
         Map<String, String> beforeMap = new HashMap<>(oldIndexData.asMap());
         // The target step key's StepKey is used in the new metadata, so update the "before" map with the new info so it can be compared
@@ -146,21 +147,30 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
         Map<String, String> customMetadata = createCustomMetadata();
 
         IndexMetadata originalIndexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT)).numberOfShards(randomIntBetween(1,5))
-            .numberOfReplicas(randomIntBetween(1,5))
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(1, 5))
             .putCustom(ILM_CUSTOM_METADATA_KEY, customMetadata)
             .build();
         ClusterState originalClusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder()
-                .put(originalIndexMetadata, false))
+            .metadata(Metadata.builder().put(originalIndexMetadata, false))
             .build();
 
-        IllegalStateException e = expectThrows(IllegalStateException.class,
-            () -> step.performAction(originalIndexMetadata.getIndex(), originalClusterState));
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> step.performAction(originalIndexMetadata.getIndex(), originalClusterState)
+        );
 
-        assertThat(e.getMessage(), equalTo("unable to copy execution state from [" +
-            indexName + "] to [" +
-            step.getTargetIndexNameSupplier().apply(originalIndexMetadata.getIndex().getName(), LifecycleExecutionState.builder().build()) +
-            "] as target index does not exist"));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "unable to copy execution state from ["
+                    + indexName
+                    + "] to ["
+                    + step.getTargetIndexNameSupplier()
+                        .apply(originalIndexMetadata.getIndex().getName(), LifecycleExecutionState.builder().build())
+                    + "] as target index does not exist"
+            )
+        );
     }
 }

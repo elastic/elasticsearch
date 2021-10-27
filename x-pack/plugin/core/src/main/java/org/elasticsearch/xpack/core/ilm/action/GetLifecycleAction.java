@@ -205,10 +205,10 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
                 return false;
             }
             LifecyclePolicyResponseItem other = (LifecyclePolicyResponseItem) obj;
-            return Objects.equals(lifecyclePolicy, other.lifecyclePolicy) &&
-                Objects.equals(version, other.version) &&
-                Objects.equals(modifiedDate, other.modifiedDate) &&
-                Objects.equals(usage, other.usage);
+            return Objects.equals(lifecyclePolicy, other.lifecyclePolicy)
+                && Objects.equals(version, other.version)
+                && Objects.equals(modifiedDate, other.modifiedDate)
+                && Objects.equals(usage, other.usage);
         }
     }
 

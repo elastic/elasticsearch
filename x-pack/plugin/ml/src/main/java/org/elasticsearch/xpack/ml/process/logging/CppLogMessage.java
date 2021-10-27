@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.ml.process.logging;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -38,7 +38,9 @@ public class CppLogMessage implements ToXContentObject, Writeable {
     public static final ParseField LINE_FIELD = new ParseField("line");
 
     public static final ObjectParser<CppLogMessage, Void> PARSER = new ObjectParser<>(
-            LOGGER_FIELD.getPreferredName(), () -> new CppLogMessage(Instant.now()));
+        LOGGER_FIELD.getPreferredName(),
+        () -> new CppLogMessage(Instant.now())
+    );
 
     static {
         PARSER.declareString(CppLogMessage::setLogger, LOGGER_FIELD);
@@ -236,12 +238,17 @@ public class CppLogMessage implements ToXContentObject, Writeable {
             return false;
         }
 
-        CppLogMessage that = (CppLogMessage)other;
+        CppLogMessage that = (CppLogMessage) other;
 
-        return Objects.equals(this.logger, that.logger) && Objects.equals(this.timestamp, that.timestamp)
-                && Objects.equals(this.level, that.level) && this.pid == that.pid
-                && Objects.equals(this.thread, that.thread) && Objects.equals(this.message, that.message)
-                && Objects.equals(this.clazz, that.clazz) && Objects.equals(this.method, that.method)
-                && Objects.equals(this.file, that.file) && this.line == that.line;
+        return Objects.equals(this.logger, that.logger)
+            && Objects.equals(this.timestamp, that.timestamp)
+            && Objects.equals(this.level, that.level)
+            && this.pid == that.pid
+            && Objects.equals(this.thread, that.thread)
+            && Objects.equals(this.message, that.message)
+            && Objects.equals(this.clazz, that.clazz)
+            && Objects.equals(this.method, that.method)
+            && Objects.equals(this.file, that.file)
+            && this.line == that.line;
     }
 }

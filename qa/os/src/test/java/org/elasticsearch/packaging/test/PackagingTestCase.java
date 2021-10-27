@@ -320,9 +320,9 @@ public abstract class PackagingTestCase extends Assert {
             case TAR:
             case ZIP:
                 if (useTty) {
-                    return Archives.startElasticsearchWithTty(installation, sh, password, daemonize);
+                    return Archives.startElasticsearchWithTty(installation, sh, password, List.of(), daemonize);
                 } else {
-                    return Archives.runElasticsearchStartCommand(installation, sh, password, daemonize);
+                    return Archives.runElasticsearchStartCommand(installation, sh, password, List.of(), daemonize);
                 }
             case DEB:
             case RPM:
@@ -723,16 +723,18 @@ public abstract class PackagingTestCase extends Assert {
     public static void verifySecurityNotAutoConfigured(Installation es) throws Exception {
         assertThat(getAutoConfigDirName(es).isPresent(), Matchers.is(false));
         if (es.distribution.isPackage()) {
-            assertThat(
-                sh.run(es.executables().keystoreTool + " list").stdout,
-                not(Matchers.containsString("autoconfiguration.password_hash"))
-            );
+            if (Files.exists(es.config("elasticsearch.keystore"))) {
+                assertThat(
+                    sh.run(es.executables().keystoreTool + " list").stdout,
+                    not(Matchers.containsString("autoconfiguration.password_hash"))
+                );
+            }
         }
         List<String> configLines = Files.readAllLines(es.config("elasticsearch.yml"));
         assertThat(configLines, not(contains(containsString("automatically generated in order to configure Security"))));
         Path caCert = ServerUtils.getCaCert(installation);
         if (caCert != null) {
-            assertThat(caCert.toString(), Matchers.not(Matchers.containsString("tls_auto_config_initial_node")));
+            assertThat(caCert.toString(), Matchers.not(Matchers.containsString("tls_auto_config")));
         }
     }
 

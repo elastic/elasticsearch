@@ -37,7 +37,8 @@ public class InternalKSTestAggregationTests extends InternalAggregationTestCase<
             super.getNamedXContents(),
             new NamedXContentRegistry.Entry(
                 Aggregation.class,
-                BucketCountKSTestAggregationBuilder.NAME, (p, c) -> ParsedKSTest.fromXContent(p, (String) c)
+                BucketCountKSTestAggregationBuilder.NAME,
+                (p, c) -> ParsedKSTest.fromXContent(p, (String) c)
             )
         );
     }
@@ -46,7 +47,9 @@ public class InternalKSTestAggregationTests extends InternalAggregationTestCase<
     protected InternalKSTestAggregation createTestInstance(String name, Map<String, Object> metadata) {
         List<String> modes = randomSubsetOf(Arrays.stream(Alternative.values()).map(Alternative::toString).collect(Collectors.toList()));
         return new InternalKSTestAggregation(
-            name, metadata, modes.stream().collect(Collectors.toMap(Function.identity(), a -> randomDouble()))
+            name,
+            metadata,
+            modes.stream().collect(Collectors.toMap(Function.identity(), a -> randomDouble()))
         );
     }
 

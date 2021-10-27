@@ -30,18 +30,22 @@ import java.util.List;
  */
 // TODO: Hacking around here with TransportTasksAction. Ideally we should have another base class in core that
 // redirects to a single node only
-public abstract class TransportJobTaskAction<Request extends JobTaskRequest<Request>,
-        Response extends BaseTasksResponse & Writeable>
-        extends TransportTasksAction<JobTask, Request, Response, Response> {
+public abstract class TransportJobTaskAction<Request extends JobTaskRequest<Request>, Response extends BaseTasksResponse & Writeable>
+    extends TransportTasksAction<JobTask, Request, Response, Response> {
 
     protected final AutodetectProcessManager processManager;
 
-    TransportJobTaskAction(String actionName, ClusterService clusterService,
-                           TransportService transportService, ActionFilters actionFilters,
-                           Writeable.Reader<Request> requestReader, Writeable.Reader<Response> responseReader,
-                           String nodeExecutor, AutodetectProcessManager processManager) {
-        super(actionName, clusterService, transportService, actionFilters,
-            requestReader, responseReader, responseReader, nodeExecutor);
+    TransportJobTaskAction(
+        String actionName,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> requestReader,
+        Writeable.Reader<Response> responseReader,
+        String nodeExecutor,
+        AutodetectProcessManager processManager
+    ) {
+        super(actionName, clusterService, transportService, actionFilters, requestReader, responseReader, responseReader, nodeExecutor);
         this.processManager = processManager;
     }
 
@@ -62,15 +66,21 @@ public abstract class TransportJobTaskAction<Request extends JobTaskRequest<Requ
     }
 
     @Override
-    protected Response newResponse(Request request, List<Response> tasks, List<TaskOperationFailure> taskOperationFailures,
-                                   List<FailedNodeException> failedNodeExceptions) {
+    protected Response newResponse(
+        Request request,
+        List<Response> tasks,
+        List<TaskOperationFailure> taskOperationFailures,
+        List<FailedNodeException> failedNodeExceptions
+    ) {
         return selectFirst(tasks, taskOperationFailures, failedNodeExceptions);
 
     }
 
-    static <Response extends BaseTasksResponse> Response selectFirst(List<Response> tasks,
-                                                                     List<TaskOperationFailure> taskOperationFailures,
-                                                                     List<FailedNodeException> failedNodeExceptions) {
+    static <Response extends BaseTasksResponse> Response selectFirst(
+        List<Response> tasks,
+        List<TaskOperationFailure> taskOperationFailures,
+        List<FailedNodeException> failedNodeExceptions
+    ) {
         // no need to accumulate sub responses, since we only perform an operation on one task only
         // not ideal, but throwing exceptions here works, because higher up the stack there is a try-catch block delegating to
         // the actionlistener's onFailure
@@ -84,8 +94,7 @@ public abstract class TransportJobTaskAction<Request extends JobTaskRequest<Requ
             }
         } else {
             if (tasks.size() > 1) {
-                throw new IllegalStateException(
-                        "Expected one node level response, but got [" + tasks.size() + "]");
+                throw new IllegalStateException("Expected one node level response, but got [" + tasks.size() + "]");
             }
             return tasks.get(0);
         }

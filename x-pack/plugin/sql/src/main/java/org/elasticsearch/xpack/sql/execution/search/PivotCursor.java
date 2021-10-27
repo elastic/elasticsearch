@@ -27,9 +27,15 @@ public class PivotCursor extends CompositeAggCursor {
 
     private final Map<String, Object> previousKey;
 
-    PivotCursor(Map<String, Object> previousKey, byte[] next, List<BucketExtractor> exts, BitSet mask, int remainingLimit,
-            boolean includeFrozen,
-            String... indices) {
+    PivotCursor(
+        Map<String, Object> previousKey,
+        byte[] next,
+        List<BucketExtractor> exts,
+        BitSet mask,
+        int remainingLimit,
+        boolean includeFrozen,
+        String... indices
+    ) {
         super(next, exts, mask, remainingLimit, includeFrozen, indices);
         this.previousKey = previousKey;
     }

@@ -8,12 +8,13 @@ package org.elasticsearch.xpack.security.crypto.tool;
 
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
-import org.elasticsearch.core.internal.io.IOUtils;
+
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtilsForTesting;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.junit.After;
@@ -50,7 +51,7 @@ public class SystemKeyToolTests extends CommandTestCase {
             @Override
             protected Environment createEnv(Map<String, String> settings) throws UserException {
                 Settings.Builder builder = Settings.builder();
-                settings.forEach((k,v) -> builder.put(k, v));
+                settings.forEach((k, v) -> builder.put(k, v));
                 return TestEnvironment.newEnvironment(builder.build());
             }
 

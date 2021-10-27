@@ -17,3 +17,6 @@
 
 # Format aggregations and related code (server and x-pack)
 d71544976608bdb53fa4d29521fb328e1033ee2f
+
+# Reformatting of whole codebase
+12ad399c488f0cc60e19b5e1b29c6d569cb4351a

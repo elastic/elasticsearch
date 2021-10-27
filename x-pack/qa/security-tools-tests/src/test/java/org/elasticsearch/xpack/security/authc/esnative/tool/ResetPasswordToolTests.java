@@ -45,9 +45,9 @@ import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasLength;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -264,12 +264,7 @@ public class ResetPasswordToolTests extends CommandTestCase {
 
     public void testInvalidInvocation() throws Exception {
         Exception e = expectThrows(Exception.class, () -> execute(randomFrom("-i", "--interactive")));
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "Missing required option(s) [u/username]"
-            )
-        );
+        assertThat(e.getMessage(), containsString("Missing required option(s) [u/username]"));
         assertThat(terminal.getOutput(), is(emptyString()));
     }
 

@@ -96,8 +96,12 @@ public class MonthlySchedule extends CronnableSchedule {
                 }
                 return times.isEmpty() ? new MonthlySchedule() : new MonthlySchedule(times.toArray(new MonthTimes[times.size()]));
             }
-            throw new ElasticsearchParseException("could not parse [{}] schedule. expected either an object or an array " +
-                    "of objects representing month times, but found [{}] instead", TYPE, parser.currentToken());
+            throw new ElasticsearchParseException(
+                "could not parse [{}] schedule. expected either an object or an array "
+                    + "of objects representing month times, but found [{}] instead",
+                TYPE,
+                parser.currentToken()
+            );
         }
     }
 
@@ -105,8 +109,7 @@ public class MonthlySchedule extends CronnableSchedule {
 
         private final Set<MonthTimes> times = new HashSet<>();
 
-        private Builder() {
-        }
+        private Builder() {}
 
         public Builder time(MonthTimes time) {
             times.add(time);

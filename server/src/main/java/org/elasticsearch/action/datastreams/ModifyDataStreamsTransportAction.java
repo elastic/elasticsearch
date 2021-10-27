@@ -23,8 +23,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class ModifyDataStreamsTransportAction extends AcknowledgedTransportMasterNodeAction<
-    ModifyDataStreamsAction.Request> {
+public class ModifyDataStreamsTransportAction extends AcknowledgedTransportMasterNodeAction<ModifyDataStreamsAction.Request> {
 
     private final MetadataDataStreamsService metadataDataStreamsService;
 
@@ -66,8 +65,8 @@ public class ModifyDataStreamsTransportAction extends AcknowledgedTransportMaste
         if (globalBlock != null) {
             return globalBlock;
         }
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE,
-            indexNameExpressionResolver.concreteIndexNames(state, request));
+        return state.blocks()
+            .indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
 }

@@ -25,12 +25,8 @@ public final class WatcherIndexTemplateRegistryField {
     public static final int INDEX_TEMPLATE_VERSION = 14;
     public static final String HISTORY_TEMPLATE_NAME = ".watch-history-" + INDEX_TEMPLATE_VERSION;
     public static final String HISTORY_TEMPLATE_NAME_NO_ILM = ".watch-history-no-ilm-" + INDEX_TEMPLATE_VERSION;
-    public static final String[] TEMPLATE_NAMES = new String[] {
-        HISTORY_TEMPLATE_NAME
-    };
-    public static final String[] TEMPLATE_NAMES_NO_ILM = new String[] {
-        HISTORY_TEMPLATE_NAME_NO_ILM
-    };
+    public static final String[] TEMPLATE_NAMES = new String[] { HISTORY_TEMPLATE_NAME };
+    public static final String[] TEMPLATE_NAMES_NO_ILM = new String[] { HISTORY_TEMPLATE_NAME_NO_ILM };
 
     private WatcherIndexTemplateRegistryField() {}
 }

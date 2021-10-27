@@ -27,9 +27,11 @@ public class RestDeleteExpiredDataAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             Route.builder(DELETE, BASE_PATH + "_delete_expired_data/{" + Job.ID + "}")
-                .replaces(DELETE, PRE_V7_BASE_PATH + "_delete_expired_data/{" + Job.ID + "}", RestApiVersion.V_7).build(),
+                .replaces(DELETE, PRE_V7_BASE_PATH + "_delete_expired_data/{" + Job.ID + "}", RestApiVersion.V_7)
+                .build(),
             Route.builder(DELETE, BASE_PATH + "_delete_expired_data")
-                .replaces(DELETE, PRE_V7_BASE_PATH + "_delete_expired_data", RestApiVersion.V_7).build()
+                .replaces(DELETE, PRE_V7_BASE_PATH + "_delete_expired_data", RestApiVersion.V_7)
+                .build()
         );
     }
 
@@ -54,9 +56,14 @@ public class RestDeleteExpiredDataAction extends BaseRestHandler {
                 try {
                     request.setRequestsPerSecond(Float.parseFloat(perSecondParam));
                 } catch (NumberFormatException e) {
-                    throw new IllegalArgumentException("Failed to parse float parameter [" +
-                        DeleteExpiredDataAction.Request.REQUESTS_PER_SECOND.getPreferredName() +
-                        "] with value [" + perSecondParam + "]", e);
+                    throw new IllegalArgumentException(
+                        "Failed to parse float parameter ["
+                            + DeleteExpiredDataAction.Request.REQUESTS_PER_SECOND.getPreferredName()
+                            + "] with value ["
+                            + perSecondParam
+                            + "]",
+                        e
+                    );
                 }
             }
 

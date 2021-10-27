@@ -104,8 +104,7 @@ public class DataStreamFeatureSetUsage extends XPackFeatureSet.Usage {
                 return false;
             }
             DataStreamStats other = (DataStreamStats) obj;
-            return totalDataStreamCount == other.totalDataStreamCount &&
-                indicesBehindDataStream == other.indicesBehindDataStream;
+            return totalDataStreamCount == other.totalDataStreamCount && indicesBehindDataStream == other.indicesBehindDataStream;
         }
     }
 }

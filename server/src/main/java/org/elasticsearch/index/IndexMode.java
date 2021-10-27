@@ -11,13 +11,21 @@ package org.elasticsearch.index;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toSet;
@@ -44,6 +52,9 @@ public enum IndexMode {
 
         @Override
         public void validateAlias(@Nullable String indexRouting, @Nullable String searchRouting) {}
+
+        @Override
+        public void completeMappings(MappingParserContext context, Map<String, Object> mapping, RootObjectMapper.Builder builder) {}
     },
     TIME_SERIES {
         @Override
@@ -88,6 +99,47 @@ public enum IndexMode {
         private String tsdbMode() {
             return "[" + IndexSettings.MODE.getKey() + "=time_series]";
         }
+
+        @Override
+        public void completeMappings(MappingParserContext context, Map<String, Object> mapping, RootObjectMapper.Builder builder) {
+            if (false == mapping.containsKey(DataStreamTimestampFieldMapper.NAME)) {
+                mapping.put(DataStreamTimestampFieldMapper.NAME, new HashMap<>(Map.of("enabled", true)));
+            } else {
+                validateTimeStampField(mapping.get(DataStreamTimestampFieldMapper.NAME));
+            }
+
+            Optional<Mapper.Builder> timestamp = builder.getBuilder(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+            if (timestamp.isEmpty()) {
+                builder.add(
+                    new DateFieldMapper.Builder(
+                        DataStreamTimestampFieldMapper.DEFAULT_PATH,
+                        DateFieldMapper.Resolution.MILLISECONDS,
+                        DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+                        context.scriptCompiler(),
+                        DateFieldMapper.IGNORE_MALFORMED_SETTING.get(context.getSettings()),
+                        context.getIndexSettings().getIndexVersionCreated(),
+                        context.getIndexSettings().getIndex().getName()
+                    )
+                );
+            }
+        }
+
+        private void validateTimeStampField(Object timestampFieldValue) {
+            if (false == (timestampFieldValue instanceof Map)) {
+                throw new IllegalArgumentException(
+                    "time series index [" + DataStreamTimestampFieldMapper.NAME + "] meta field format error"
+                );
+            }
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> timeStampFieldValueMap = (Map<String, Object>) timestampFieldValue;
+            if (false == Maps.deepEquals(timeStampFieldValueMap, Map.of("enabled", true))
+                && false == Maps.deepEquals(timeStampFieldValueMap, Map.of("enabled", "true"))) {
+                throw new IllegalArgumentException(
+                    "time series index [" + DataStreamTimestampFieldMapper.NAME + "] meta field must be enabled"
+                );
+            }
+        }
     };
 
     private static final List<Setting<?>> TIME_SERIES_UNSUPPORTED = List.of(
@@ -115,4 +167,9 @@ public enum IndexMode {
      * Validate aliases targeting this index.
      */
     public abstract void validateAlias(@Nullable String indexRouting, @Nullable String searchRouting);
+
+    /**
+     * Validate and/or modify the mappings after after they've been parsed.
+     */
+    public abstract void completeMappings(MappingParserContext context, Map<String, Object> mapping, RootObjectMapper.Builder builder);
 }

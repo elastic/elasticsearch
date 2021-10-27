@@ -26,8 +26,11 @@ import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import java.io.IOException;
 import java.util.List;
 
-public class TransportClearPrivilegesCacheAction extends TransportNodesAction<ClearPrivilegesCacheRequest, ClearPrivilegesCacheResponse,
-    ClearPrivilegesCacheRequest.Node, ClearPrivilegesCacheResponse.Node> {
+public class TransportClearPrivilegesCacheAction extends TransportNodesAction<
+    ClearPrivilegesCacheRequest,
+    ClearPrivilegesCacheResponse,
+    ClearPrivilegesCacheRequest.Node,
+    ClearPrivilegesCacheResponse.Node> {
 
     private final CompositeRolesStore rolesStore;
     private final CacheInvalidatorRegistry cacheInvalidatorRegistry;
@@ -39,7 +42,8 @@ public class TransportClearPrivilegesCacheAction extends TransportNodesAction<Cl
         TransportService transportService,
         ActionFilters actionFilters,
         CompositeRolesStore rolesStore,
-        CacheInvalidatorRegistry cacheInvalidatorRegistry) {
+        CacheInvalidatorRegistry cacheInvalidatorRegistry
+    ) {
         super(
             ClearPrivilegesCacheAction.NAME,
             threadPool,
@@ -49,14 +53,18 @@ public class TransportClearPrivilegesCacheAction extends TransportNodesAction<Cl
             ClearPrivilegesCacheRequest::new,
             ClearPrivilegesCacheRequest.Node::new,
             ThreadPool.Names.MANAGEMENT,
-            ClearPrivilegesCacheResponse.Node.class);
+            ClearPrivilegesCacheResponse.Node.class
+        );
         this.rolesStore = rolesStore;
         this.cacheInvalidatorRegistry = cacheInvalidatorRegistry;
     }
 
     @Override
     protected ClearPrivilegesCacheResponse newResponse(
-        ClearPrivilegesCacheRequest request, List<ClearPrivilegesCacheResponse.Node> nodes, List<FailedNodeException> failures) {
+        ClearPrivilegesCacheRequest request,
+        List<ClearPrivilegesCacheResponse.Node> nodes,
+        List<FailedNodeException> failures
+    ) {
         return new ClearPrivilegesCacheResponse(clusterService.getClusterName(), nodes, failures);
     }
 

@@ -28,14 +28,16 @@ public class NodeLoad {
     private final long assignedJobMemory;
     private final long numAllocatingJobs;
 
-    NodeLoad(long maxMemory,
-             int maxJobs,
-             String nodeId,
-             boolean useMemory,
-             String error,
-             long numAssignedJobs,
-             long assignedJobMemory,
-             long numAllocatingJobs) {
+    NodeLoad(
+        long maxMemory,
+        int maxJobs,
+        String nodeId,
+        boolean useMemory,
+        String error,
+        long numAssignedJobs,
+        long assignedJobMemory,
+        long numAllocatingJobs
+    ) {
         this.maxMemory = maxMemory;
         this.maxJobs = maxJobs;
         this.nodeId = nodeId;
@@ -99,7 +101,7 @@ public class NodeLoad {
      * @return The number of jobs that can still be assigned to the node
      */
     public int remainingJobs() {
-        return Math.max(maxJobs - (int)numAssignedJobs, 0);
+        return Math.max(maxJobs - (int) numAssignedJobs, 0);
     }
 
     /**
@@ -122,14 +124,14 @@ public class NodeLoad {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         NodeLoad nodeLoad = (NodeLoad) o;
-        return maxMemory == nodeLoad.maxMemory &&
-            maxJobs == nodeLoad.maxJobs &&
-            useMemory == nodeLoad.useMemory &&
-            numAssignedJobs == nodeLoad.numAssignedJobs &&
-            assignedJobMemory == nodeLoad.assignedJobMemory &&
-            numAllocatingJobs == nodeLoad.numAllocatingJobs &&
-            Objects.equals(nodeId, nodeLoad.nodeId) &&
-            Objects.equals(error, nodeLoad.error);
+        return maxMemory == nodeLoad.maxMemory
+            && maxJobs == nodeLoad.maxJobs
+            && useMemory == nodeLoad.useMemory
+            && numAssignedJobs == nodeLoad.numAssignedJobs
+            && assignedJobMemory == nodeLoad.assignedJobMemory
+            && numAllocatingJobs == nodeLoad.numAllocatingJobs
+            && Objects.equals(nodeId, nodeLoad.nodeId)
+            && Objects.equals(error, nodeLoad.error);
     }
 
     @Override
@@ -175,7 +177,7 @@ public class NodeLoad {
         }
 
         public int remainingJobs() {
-            return Math.max(maxJobs - (int)numAssignedJobs, 0);
+            return Math.max(maxJobs - (int) numAssignedJobs, 0);
         }
 
         public String getNodeId() {
@@ -229,24 +231,19 @@ public class NodeLoad {
             Long jobMemoryRequirement = memoryTracker.getJobMemoryRequirement(taskName, taskId);
             if (jobMemoryRequirement == null) {
                 useMemory = false;
-                logger.debug(() -> new ParameterizedMessage(
-                    "[{}] memory requirement was not available. Calculating load by number of assigned jobs.",
-                    taskId
-                ));
+                logger.debug(
+                    () -> new ParameterizedMessage(
+                        "[{}] memory requirement was not available. Calculating load by number of assigned jobs.",
+                        taskId
+                    )
+                );
             } else {
                 assignedJobMemory += jobMemoryRequirement;
             }
         }
 
         public NodeLoad build() {
-            return new NodeLoad(maxMemory,
-            maxJobs,
-            nodeId,
-            useMemory,
-            error,
-            numAssignedJobs,
-            assignedJobMemory,
-            numAllocatingJobs);
+            return new NodeLoad(maxMemory, maxJobs, nodeId, useMemory, error, numAssignedJobs, assignedJobMemory, numAllocatingJobs);
         }
     }
 }

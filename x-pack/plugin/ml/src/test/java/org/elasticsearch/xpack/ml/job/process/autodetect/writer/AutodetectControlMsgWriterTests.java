@@ -86,8 +86,7 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
 
     public void testWriteFlushControlMessage_GivenCalcInterimResultsWithNoTimeParams() throws IOException {
         AutodetectControlMsgWriter writer = new AutodetectControlMsgWriter(lengthEncodedWriter, 4);
-        FlushJobParams flushJobParams = FlushJobParams.builder()
-                .calcInterim(true).build();
+        FlushJobParams flushJobParams = FlushJobParams.builder().calcInterim(true).build();
 
         writer.writeFlushControlMessage(flushJobParams);
 
@@ -110,9 +109,9 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
     public void testWriteFlushControlMessage_GivenCalcInterimResultsWithTimeParams() throws IOException {
         AutodetectControlMsgWriter writer = new AutodetectControlMsgWriter(lengthEncodedWriter, 4);
         FlushJobParams flushJobParams = FlushJobParams.builder()
-                .calcInterim(true)
-                .forTimeRange(TimeRange.builder().startTime("120").endTime("180").build())
-                .build();
+            .calcInterim(true)
+            .forTimeRange(TimeRange.builder().startTime("120").endTime("180").build())
+            .build();
 
         writer.writeFlushControlMessage(flushJobParams);
 
@@ -126,10 +125,10 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
     public void testWriteFlushControlMessage_GivenCalcInterimAndAdvanceTime() throws IOException {
         AutodetectControlMsgWriter writer = new AutodetectControlMsgWriter(lengthEncodedWriter, 4);
         FlushJobParams flushJobParams = FlushJobParams.builder()
-                .calcInterim(true)
-                .forTimeRange(TimeRange.builder().startTime("50").endTime("100").build())
-                .advanceTime("180")
-                .build();
+            .calcInterim(true)
+            .forTimeRange(TimeRange.builder().startTime("50").endTime("100").build())
+            .advanceTime("180")
+            .build();
 
         writer.writeFlushControlMessage(flushJobParams);
 
@@ -169,8 +168,7 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
     public void testWriteResetBucketsMessage() throws IOException {
         AutodetectControlMsgWriter writer = new AutodetectControlMsgWriter(lengthEncodedWriter, 4);
 
-        writer.writeResetBucketsMessage(
-                new DataLoadParams(TimeRange.builder().startTime("0").endTime("600").build(), Optional.empty()));
+        writer.writeResetBucketsMessage(new DataLoadParams(TimeRange.builder().startTime("0").endTime("600").build(), Optional.empty()));
 
         InOrder inOrder = inOrder(lengthEncodedWriter);
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
@@ -202,10 +200,13 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
         InOrder inOrder = inOrder(lengthEncodedWriter);
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
         inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
-        inOrder.verify(lengthEncodedWriter).writeField("u{\"detector_rules\":{\"detector_index\":2," +
-            "\"custom_rules\":[{\"actions\":[\"skip_result\"]," +
-            "\"conditions\":[{\"applies_to\":\"actual\",\"operator\":\"gt\",\"value\":5.0}]}," +
-            "{\"actions\":[\"skip_result\"],\"conditions\":[{\"applies_to\":\"actual\",\"operator\":\"gt\",\"value\":5.0}]}]}}");
+        inOrder.verify(lengthEncodedWriter)
+            .writeField(
+                "u{\"detector_rules\":{\"detector_index\":2,"
+                    + "\"custom_rules\":[{\"actions\":[\"skip_result\"],"
+                    + "\"conditions\":[{\"applies_to\":\"actual\",\"operator\":\"gt\",\"value\":5.0}]},"
+                    + "{\"actions\":[\"skip_result\"],\"conditions\":[{\"applies_to\":\"actual\",\"operator\":\"gt\",\"value\":5.0}]}]}}"
+            );
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
@@ -220,8 +221,10 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
         InOrder inOrder = inOrder(lengthEncodedWriter);
         inOrder.verify(lengthEncodedWriter).writeNumFields(2);
         inOrder.verify(lengthEncodedWriter, times(1)).writeField("");
-        inOrder.verify(lengthEncodedWriter).writeField("u{\"filters\":[{\"filter_id\":\"filter_1\",\"items\":[\"a\"]}," +
-            "{\"filter_id\":\"filter_2\",\"items\":[\"b\",\"c\"]}]}");
+        inOrder.verify(lengthEncodedWriter)
+            .writeField(
+                "u{\"filters\":[{\"filter_id\":\"filter_1\",\"items\":[\"a\"]}," + "{\"filter_id\":\"filter_2\",\"items\":[\"b\",\"c\"]}]}"
+            );
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
@@ -247,13 +250,18 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
         inOrder.verify(lengthEncodedWriter, times(1)).writeField("");
         ArgumentCaptor<String> capturedMessage = ArgumentCaptor.forClass(String.class);
         inOrder.verify(lengthEncodedWriter).writeField(capturedMessage.capture());
-        assertThat(capturedMessage.getValue(), equalTo("u{\"events\":[{\"description\":\"new year\"," +
-            "\"rules\":[{\"actions\":[\"skip_result\",\"skip_model_update\"]," +
-            "\"conditions\":[{\"applies_to\":\"time\",\"operator\":\"gte\",\"value\":1.5147648E9}," +
-            "{\"applies_to\":\"time\",\"operator\":\"lt\",\"value\":1.5148512E9}]}]}," +
-            "{\"description\":\"Jan maintenance day\",\"rules\":[{\"actions\":[\"skip_result\",\"skip_model_update\"]," +
-            "\"conditions\":[{\"applies_to\":\"time\",\"operator\":\"gte\",\"value\":1.5151968E9}," +
-            "{\"applies_to\":\"time\",\"operator\":\"lt\",\"value\":1.5152832E9}]}]}]}"));
+        assertThat(
+            capturedMessage.getValue(),
+            equalTo(
+                "u{\"events\":[{\"description\":\"new year\","
+                    + "\"rules\":[{\"actions\":[\"skip_result\",\"skip_model_update\"],"
+                    + "\"conditions\":[{\"applies_to\":\"time\",\"operator\":\"gte\",\"value\":1.5147648E9},"
+                    + "{\"applies_to\":\"time\",\"operator\":\"lt\",\"value\":1.5148512E9}]}]},"
+                    + "{\"description\":\"Jan maintenance day\",\"rules\":[{\"actions\":[\"skip_result\",\"skip_model_update\"],"
+                    + "\"conditions\":[{\"applies_to\":\"time\",\"operator\":\"gte\",\"value\":1.5151968E9},"
+                    + "{\"applies_to\":\"time\",\"operator\":\"lt\",\"value\":1.5152832E9}]}]}]}"
+            )
+        );
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
@@ -308,8 +316,13 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
         inOrder.verify(lengthEncodedWriter).writeField(capturedMessage.capture());
 
         assertThat(capturedMessage.getValue(), startsWith("p{\"forecast_id\":\""));
-        assertThat(capturedMessage.getValue(), endsWith("\"duration\":10800,\"expires_in\":345600,\"tmp_storage\":\"/my_temp_dir\","
-            +"\"max_model_memory\":12345,\"min_available_disk_space\":98765}"));
+        assertThat(
+            capturedMessage.getValue(),
+            endsWith(
+                "\"duration\":10800,\"expires_in\":345600,\"tmp_storage\":\"/my_temp_dir\","
+                    + "\"max_model_memory\":12345,\"min_available_disk_space\":98765}"
+            )
+        );
 
         inOrder.verify(lengthEncodedWriter).writeNumFields(2);
         inOrder.verify(lengthEncodedWriter).writeField("");

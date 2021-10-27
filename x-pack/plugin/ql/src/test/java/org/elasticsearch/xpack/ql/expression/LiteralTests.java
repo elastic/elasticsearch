@@ -40,6 +40,7 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
             this.validDataTypes = Arrays.asList(validDataTypes);
         }
     }
+
     /**
      * Generators for values and data types. The first valid
      * data type is special it is used when picking a generator
@@ -47,14 +48,15 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
      * after a generators is its "native" type.
      */
     private static final List<ValueAndCompatibleTypes> GENERATORS = Arrays.asList(
-            new ValueAndCompatibleTypes(() -> randomBoolean() ? randomBoolean() : randomFrom("true", "false"), BOOLEAN),
-            new ValueAndCompatibleTypes(ESTestCase::randomByte, BYTE, SHORT, INTEGER, LONG, FLOAT, DOUBLE, BOOLEAN),
-            new ValueAndCompatibleTypes(ESTestCase::randomShort, SHORT, INTEGER, LONG, FLOAT, DOUBLE, BOOLEAN),
-            new ValueAndCompatibleTypes(ESTestCase::randomInt, INTEGER, LONG, FLOAT, DOUBLE, BOOLEAN),
-            new ValueAndCompatibleTypes(ESTestCase::randomLong, LONG, FLOAT, DOUBLE, BOOLEAN),
-            new ValueAndCompatibleTypes(ESTestCase::randomFloat, FLOAT, LONG, DOUBLE, BOOLEAN),
-            new ValueAndCompatibleTypes(ESTestCase::randomDouble, DOUBLE, LONG, FLOAT, BOOLEAN),
-            new ValueAndCompatibleTypes(() -> randomAlphaOfLength(5), KEYWORD));
+        new ValueAndCompatibleTypes(() -> randomBoolean() ? randomBoolean() : randomFrom("true", "false"), BOOLEAN),
+        new ValueAndCompatibleTypes(ESTestCase::randomByte, BYTE, SHORT, INTEGER, LONG, FLOAT, DOUBLE, BOOLEAN),
+        new ValueAndCompatibleTypes(ESTestCase::randomShort, SHORT, INTEGER, LONG, FLOAT, DOUBLE, BOOLEAN),
+        new ValueAndCompatibleTypes(ESTestCase::randomInt, INTEGER, LONG, FLOAT, DOUBLE, BOOLEAN),
+        new ValueAndCompatibleTypes(ESTestCase::randomLong, LONG, FLOAT, DOUBLE, BOOLEAN),
+        new ValueAndCompatibleTypes(ESTestCase::randomFloat, FLOAT, LONG, DOUBLE, BOOLEAN),
+        new ValueAndCompatibleTypes(ESTestCase::randomDouble, DOUBLE, LONG, FLOAT, BOOLEAN),
+        new ValueAndCompatibleTypes(() -> randomAlphaOfLength(5), KEYWORD)
+    );
 
     public static Literal randomLiteral() {
         ValueAndCompatibleTypes gen = randomFrom(GENERATORS);
@@ -92,15 +94,19 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
 
         // Replace value
         Object newValue = randomValueOfTypeOtherThan(literal.value(), literal.dataType());
-        assertEquals(new Literal(literal.source(), newValue, literal.dataType()),
-            literal.transformPropertiesOnly(Object.class, p -> p == literal.value() ? newValue : p));
+        assertEquals(
+            new Literal(literal.source(), newValue, literal.dataType()),
+            literal.transformPropertiesOnly(Object.class, p -> p == literal.value() ? newValue : p)
+        );
 
         // Replace data type if there are more compatible data types
         List<DataType> validDataTypes = validReplacementDataTypes(literal.value(), literal.dataType());
         if (validDataTypes.size() > 1) {
             DataType newDataType = randomValueOtherThan(literal.dataType(), () -> randomFrom(validDataTypes));
-            assertEquals(new Literal(literal.source(), literal.value(), newDataType),
-                literal.transformPropertiesOnly(DataType.class, p -> newDataType));
+            assertEquals(
+                new Literal(literal.source(), literal.value(), newDataType),
+                literal.transformPropertiesOnly(DataType.class, p -> newDataType)
+            );
         }
     }
 
@@ -121,8 +127,7 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
 
     private List<DataType> validReplacementDataTypes(Object value, DataType type) {
         List<DataType> validDataTypes = new ArrayList<>();
-        List<DataType> options = Arrays.asList(BYTE, SHORT, INTEGER, LONG,
-                FLOAT, DOUBLE, BOOLEAN);
+        List<DataType> options = Arrays.asList(BYTE, SHORT, INTEGER, LONG, FLOAT, DOUBLE, BOOLEAN);
         for (DataType candidate : options) {
             try {
                 Converter c = DataTypeConverter.converterFor(type, candidate);

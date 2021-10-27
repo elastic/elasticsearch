@@ -41,7 +41,8 @@ public class RestNodesInfoAction extends BaseRestHandler {
             new Route(GET, "/_nodes/{nodeId}"),
             new Route(GET, "/_nodes/{nodeId}/{metrics}"),
             // added this endpoint to be aligned with stats
-            new Route(GET, "/_nodes/{nodeId}/info/{metrics}"));
+            new Route(GET, "/_nodes/{nodeId}/info/{metrics}")
+        );
     }
 
     @Override
@@ -69,7 +70,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
             Set<String> metricsOrNodeIds = Strings.tokenizeByCommaToSet(nodeId);
             boolean isMetricsOnly = ALLOWED_METRICS.containsAll(metricsOrNodeIds);
             if (isMetricsOnly) {
-                nodeIds = new String[]{"_all"};
+                nodeIds = new String[] { "_all" };
                 metrics = metricsOrNodeIds;
             } else {
                 nodeIds = Strings.tokenizeToStringArray(nodeId, ",");

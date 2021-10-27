@@ -14,8 +14,8 @@ import org.junit.Before;
 import java.nio.file.Path;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -59,14 +59,14 @@ public class LicenseOperationModeUpdateTests extends ESTestCase {
 
     public void testCloudInternalLicenseOperationModeUpdate() throws Exception {
         License license = License.builder()
-                .uid("id")
-                .expiryDate(0)
-                .issueDate(0)
-                .issuedTo("elasticsearch")
-                .issuer("issuer")
-                .type("cloud_internal")
-                .maxNodes(1)
-                .build();
+            .uid("id")
+            .expiryDate(0)
+            .issueDate(0)
+            .issuedTo("elasticsearch")
+            .issuer("issuer")
+            .type("cloud_internal")
+            .maxNodes(1)
+            .build();
 
         assertThat(license.operationMode(), equalTo(License.OperationMode.PLATINUM));
         OperationModeFileWatcherTests.writeMode("gold", licenseModeFile);

@@ -48,7 +48,8 @@ public class ShardBulkStats implements BulkOperationListener {
                 TimeUnit.NANOSECONDS.toMillis(shardBulkMetric.sum()),
                 totalSizeInBytes.count(),
                 TimeUnit.NANOSECONDS.toMillis((long) timeInMillis.getAverage()),
-                (long) sizeInBytes.getAverage());
+                (long) sizeInBytes.getAverage()
+            );
         }
     }
 }

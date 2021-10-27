@@ -47,8 +47,10 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
         Settings.Builder settingsBuilder = Settings.builder()
             .put(super.nodeSettings())
             .put("xpack.security.authc.password_hashing.algorithm", hasher.name());
-        ((MockSecureSettings) settingsBuilder.getSecureSettings()).setString("autoconfiguration.password_hash",
-            new String(hasher.hash(new SecureString("auto_password_that_is_longer_than_14_chars_because_of_FIPS".toCharArray()))));
+        ((MockSecureSettings) settingsBuilder.getSecureSettings()).setString(
+            "autoconfiguration.password_hash",
+            new String(hasher.hash(new SecureString("auto_password_that_is_longer_than_14_chars_because_of_FIPS".toCharArray())))
+        );
         return settingsBuilder.build();
     }
 
@@ -66,8 +68,7 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
         try {
             // prevents the .security index from being created automatically (after elastic user authentication)
             ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-            updateSettingsRequest.transientSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(),
-                true));
+            updateSettingsRequest.transientSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true));
             assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
             // delete the security index, if it exist
@@ -83,28 +84,45 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
             }
 
             // elastic user gets 503 for the good password
-            Request restRequest = randomFrom(new Request("GET", "/_security/_authenticate"), new Request("GET", "_cluster/health"),
-                new Request("GET", "_nodes"));
+            Request restRequest = randomFrom(
+                new Request("GET", "/_security/_authenticate"),
+                new Request("GET", "_cluster/health"),
+                new Request("GET", "_nodes")
+            );
             RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
-            options.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, UsernamePasswordToken.basicAuthHeaderValue("elastic",
-                new SecureString("auto_password_that_is_longer_than_14_chars_because_of_FIPS".toCharArray())));
+            options.addHeader(
+                UsernamePasswordToken.BASIC_AUTH_HEADER,
+                UsernamePasswordToken.basicAuthHeaderValue(
+                    "elastic",
+                    new SecureString("auto_password_that_is_longer_than_14_chars_because_of_FIPS".toCharArray())
+                )
+            );
             restRequest.setOptions(options);
             ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(restRequest));
             assertThat(exception.getResponse().getStatusLine().getStatusCode(), is(RestStatus.SERVICE_UNAVAILABLE.getStatus()));
 
             // but gets a 401 for the wrong password
-            Request restRequest2 = randomFrom(new Request("GET", "/_security/_authenticate"), new Request("GET", "_cluster/health"),
-                new Request("GET", "_nodes"));
+            Request restRequest2 = randomFrom(
+                new Request("GET", "/_security/_authenticate"),
+                new Request("GET", "_cluster/health"),
+                new Request("GET", "_nodes")
+            );
             options = RequestOptions.DEFAULT.toBuilder();
-            options.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, UsernamePasswordToken.basicAuthHeaderValue("elastic",
-                new SecureString("wrong password_that_is_longer_than_14_chars_because_of_FIPS".toCharArray())));
+            options.addHeader(
+                UsernamePasswordToken.BASIC_AUTH_HEADER,
+                UsernamePasswordToken.basicAuthHeaderValue(
+                    "elastic",
+                    new SecureString("wrong password_that_is_longer_than_14_chars_because_of_FIPS".toCharArray())
+                )
+            );
             restRequest2.setOptions(options);
             exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(restRequest2));
             assertThat(exception.getResponse().getStatusLine().getStatusCode(), is(RestStatus.UNAUTHORIZED.getStatus()));
         } finally {
             ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-            updateSettingsRequest.transientSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(),
-                (String) null));
+            updateSettingsRequest.transientSettings(
+                Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), (String) null)
+            );
             assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
         }
     }
@@ -122,49 +140,74 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
 
             // but then make the cluster read-only
             ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-            updateSettingsRequest.transientSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(),
-                true));
+            updateSettingsRequest.transientSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true));
             assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
             // elastic user now gets 503 for the good password
-            Request restRequest = randomFrom(new Request("GET", "/_security/_authenticate"), new Request("GET", "_cluster/health"),
-                new Request("GET", "_nodes"));
+            Request restRequest = randomFrom(
+                new Request("GET", "/_security/_authenticate"),
+                new Request("GET", "_cluster/health"),
+                new Request("GET", "_nodes")
+            );
             RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
-            options.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, UsernamePasswordToken.basicAuthHeaderValue("elastic",
-                new SecureString("auto_password_that_is_longer_than_14_chars_because_of_FIPS".toCharArray())));
+            options.addHeader(
+                UsernamePasswordToken.BASIC_AUTH_HEADER,
+                UsernamePasswordToken.basicAuthHeaderValue(
+                    "elastic",
+                    new SecureString("auto_password_that_is_longer_than_14_chars_because_of_FIPS".toCharArray())
+                )
+            );
             restRequest.setOptions(options);
             ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(restRequest));
             assertThat(exception.getResponse().getStatusLine().getStatusCode(), is(RestStatus.SERVICE_UNAVAILABLE.getStatus()));
 
             // clear cluster-wide write block
             updateSettingsRequest = new ClusterUpdateSettingsRequest();
-            updateSettingsRequest.transientSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(),
-                (String) null));
+            updateSettingsRequest.transientSettings(
+                Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), (String) null)
+            );
             assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
             if (randomBoolean()) {
-                Request restRequest2 = randomFrom(new Request("GET", "/_security/_authenticate"), new Request("GET", "_cluster/health"),
-                    new Request("GET", "_nodes"));
+                Request restRequest2 = randomFrom(
+                    new Request("GET", "/_security/_authenticate"),
+                    new Request("GET", "_cluster/health"),
+                    new Request("GET", "_nodes")
+                );
                 options = RequestOptions.DEFAULT.toBuilder();
-                options.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, UsernamePasswordToken.basicAuthHeaderValue("elastic",
-                    new SecureString("wrong password_that_is_longer_than_14_chars_because_of_FIPS".toCharArray())));
+                options.addHeader(
+                    UsernamePasswordToken.BASIC_AUTH_HEADER,
+                    UsernamePasswordToken.basicAuthHeaderValue(
+                        "elastic",
+                        new SecureString("wrong password_that_is_longer_than_14_chars_because_of_FIPS".toCharArray())
+                    )
+                );
                 restRequest2.setOptions(options);
                 exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(restRequest2));
                 assertThat(exception.getResponse().getStatusLine().getStatusCode(), is(RestStatus.UNAUTHORIZED.getStatus()));
             }
 
             // now the auto config password can be promoted, and authn succeeds
-            Request restRequest3 = randomFrom(new Request("GET", "/_security/_authenticate"), new Request("GET", "_cluster/health"),
-                new Request("GET", "_nodes"));
+            Request restRequest3 = randomFrom(
+                new Request("GET", "/_security/_authenticate"),
+                new Request("GET", "_cluster/health"),
+                new Request("GET", "_nodes")
+            );
             options = RequestOptions.DEFAULT.toBuilder();
-            options.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, UsernamePasswordToken.basicAuthHeaderValue("elastic",
-                new SecureString("auto_password_that_is_longer_than_14_chars_because_of_FIPS".toCharArray())));
+            options.addHeader(
+                UsernamePasswordToken.BASIC_AUTH_HEADER,
+                UsernamePasswordToken.basicAuthHeaderValue(
+                    "elastic",
+                    new SecureString("auto_password_that_is_longer_than_14_chars_because_of_FIPS".toCharArray())
+                )
+            );
             restRequest3.setOptions(options);
             assertThat(getRestClient().performRequest(restRequest3).getStatusLine().getStatusCode(), is(RestStatus.OK.getStatus()));
         } finally {
             ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-            updateSettingsRequest.transientSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(),
-                (String) null));
+            updateSettingsRequest.transientSettings(
+                Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), (String) null)
+            );
             assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
         }
     }

@@ -15,8 +15,8 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -33,12 +33,11 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.anyObject;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-
 
 public class ScrollHelperIntegTests extends ESSingleNodeTestCase {
 
@@ -50,15 +49,14 @@ public class ScrollHelperIntegTests extends ESSingleNodeTestCase {
         }
         client.admin().indices().prepareRefresh("foo").get();
         SearchRequest request = client.prepareSearch()
-                .setScroll(TimeValue.timeValueHours(10L))
-                .setQuery(QueryBuilders.matchAllQuery())
-                .setSize(randomIntBetween(1, 10))
-                .setFetchSource(true)
-                .request();
+            .setScroll(TimeValue.timeValueHours(10L))
+            .setQuery(QueryBuilders.matchAllQuery())
+            .setSize(randomIntBetween(1, 10))
+            .setFetchSource(true)
+            .request();
         request.indicesOptions().ignoreUnavailable();
         PlainActionFuture<Collection<Integer>> future = new PlainActionFuture<>();
-        ScrollHelper.fetchAllByEntity(client(), request, future,
-                (hit) -> Integer.parseInt(hit.getSourceAsMap().get("number").toString()));
+        ScrollHelper.fetchAllByEntity(client(), request, future, (hit) -> Integer.parseInt(hit.getSourceAsMap().get("number").toString()));
         Collection<Integer> integers = future.actionGet();
         ArrayList<Integer> list = new ArrayList<>(integers);
         CollectionUtil.timSort(list);
@@ -84,16 +82,26 @@ public class ScrollHelperIntegTests extends ESSingleNodeTestCase {
         request.scroll(TimeValue.timeValueHours(10L));
 
         String scrollId = randomAlphaOfLength(5);
-        SearchHit[] hits = new SearchHit[] {new SearchHit(1), new SearchHit(2)};
-        InternalSearchResponse internalResponse = new InternalSearchResponse(new SearchHits(hits,
-            new TotalHits(3, TotalHits.Relation.EQUAL_TO), 1),
+        SearchHit[] hits = new SearchHit[] { new SearchHit(1), new SearchHit(2) };
+        InternalSearchResponse internalResponse = new InternalSearchResponse(
+            new SearchHits(hits, new TotalHits(3, TotalHits.Relation.EQUAL_TO), 1),
             null,
             null,
-            null, false,
+            null,
             false,
-            1);
-        SearchResponse response = new SearchResponse(internalResponse, scrollId, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY);
+            false,
+            1
+        );
+        SearchResponse response = new SearchResponse(
+            internalResponse,
+            scrollId,
+            1,
+            1,
+            0,
+            0,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
 
         Answer<?> returnResponse = invocation -> {
             @SuppressWarnings("unchecked")
@@ -121,7 +129,9 @@ public class ScrollHelperIntegTests extends ESSingleNodeTestCase {
         }, Function.identity());
 
         assertNotNull("onFailure wasn't called", failure.get());
-        assertEquals("scrolling returned more hits [4] than expected [3] so bailing out to prevent unbounded memory consumption.",
-                failure.get().getMessage());
+        assertEquals(
+            "scrolling returned more hits [4] than expected [3] so bailing out to prevent unbounded memory consumption.",
+            failure.get().getMessage()
+        );
     }
 }

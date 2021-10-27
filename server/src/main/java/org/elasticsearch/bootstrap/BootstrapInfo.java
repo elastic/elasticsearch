@@ -52,7 +52,9 @@ public final class BootstrapInfo {
     /**
      * Returns a reference to the original System.out
      */
-    public static PrintStream getOriginalStandardOut() { return originalStandardOut; }
+    public static PrintStream getOriginalStandardOut() {
+        return originalStandardOut;
+    }
 
     /**
      * codebase location for untrusted scripts (provide some additional safety)
@@ -65,10 +67,10 @@ public final class BootstrapInfo {
     // this must be done this way (e.g. versus an actual typed map), because
     // some test methods still change properties, so whitelisted changes must
     // be reflected in this view.
-    private static final Dictionary<Object,Object> SYSTEM_PROPERTIES;
+    private static final Dictionary<Object, Object> SYSTEM_PROPERTIES;
     static {
-        final Dictionary<Object,Object> sysprops = System.getProperties();
-        SYSTEM_PROPERTIES = new Dictionary<Object,Object>() {
+        final Dictionary<Object, Object> sysprops = System.getProperties();
+        SYSTEM_PROPERTIES = new Dictionary<Object, Object>() {
 
             @Override
             public int size() {
@@ -110,7 +112,7 @@ public final class BootstrapInfo {
     /**
      * Returns a read-only view of all system properties
      */
-    public static Dictionary<Object,Object> getSystemProperties() {
+    public static Dictionary<Object, Object> getSystemProperties() {
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
             sm.checkPropertyAccess("*");

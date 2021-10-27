@@ -79,7 +79,7 @@ final class MinScoreScorer extends Scorer {
             @Override
             public float matchCost() {
                 return 1000f // random constant for the score computation
-                        + (inTwoPhase == null ? 0 : inTwoPhase.matchCost());
+                    + (inTwoPhase == null ? 0 : inTwoPhase.matchCost());
             }
         };
     }

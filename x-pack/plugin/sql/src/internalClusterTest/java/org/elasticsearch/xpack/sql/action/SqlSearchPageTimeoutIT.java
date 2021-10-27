@@ -16,7 +16,6 @@ import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchService;
 
 import java.util.Arrays;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.contains;
@@ -28,7 +27,7 @@ public class SqlSearchPageTimeoutIT extends AbstractSqlIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         // use static low keepAlive interval to ensure obsolete search contexts are pruned soon enough
-        settings.put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(200));
+        settings.put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(100));
         return settings.build();
     }
 
@@ -37,14 +36,14 @@ public class SqlSearchPageTimeoutIT extends AbstractSqlIntegTestCase {
 
         SqlQueryResponse response = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query("SELECT field FROM test")
             .fetchSize(1)
-            .pageTimeout(TimeValue.timeValueMillis(100))
+            .pageTimeout(TimeValue.timeValueMillis(500))
             .get();
 
         assertEquals(1, response.size());
         assertTrue(response.hasCursor());
         assertEquals(1, getNumberOfSearchContexts());
 
-        assertBusy(() -> assertEquals(0, getNumberOfSearchContexts()), 3, TimeUnit.SECONDS);
+        assertBusy(() -> assertEquals(0, getNumberOfSearchContexts()));
 
         SearchPhaseExecutionException exception = expectThrows(
             SearchPhaseExecutionException.class,
@@ -59,7 +58,7 @@ public class SqlSearchPageTimeoutIT extends AbstractSqlIntegTestCase {
 
         SqlQueryResponse response = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query(
             "SELECT COUNT(*) FROM test GROUP BY field"
-        ).fetchSize(1).pageTimeout(TimeValue.timeValueMillis(100)).get();
+        ).fetchSize(1).pageTimeout(TimeValue.timeValueMillis(500)).get();
 
         assertEquals(1, response.size());
         assertTrue(response.hasCursor());

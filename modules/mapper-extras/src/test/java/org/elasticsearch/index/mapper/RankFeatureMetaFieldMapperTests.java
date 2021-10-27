@@ -11,12 +11,6 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperServiceTestCase;
-import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -37,7 +31,7 @@ public class RankFeatureMetaFieldMapperTests extends MapperServiceTestCase {
                 .startObject("properties").startObject("field").field("type", "rank_feature").endObject().endObject()
                 .endObject().endObject());
 
-        Mapping parsedMapping = createMapperService(mapping).parseMapping("type", new CompressedXContent(mapping));
+        Mapping parsedMapping = createMapperService("type", mapping).parseMapping("type", new CompressedXContent(mapping), false);
         assertEquals(mapping, parsedMapping.toCompressedXContent().toString());
         assertNotNull(parsedMapping.getMetadataMapperByClass(RankFeatureMetaFieldMapper.class));
     }
@@ -48,7 +42,7 @@ public class RankFeatureMetaFieldMapperTests extends MapperServiceTestCase {
      */
     public void testDocumentParsingFailsOnMetaField() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc").endObject().endObject());
-        DocumentMapper mapper = createMapperService(mapping).merge(
+        DocumentMapper mapper = createMapperService("_doc", mapping).merge(
             "_doc",
             new CompressedXContent(mapping),
             MapperService.MergeReason.MAPPING_UPDATE

@@ -16,7 +16,6 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -28,6 +27,7 @@ import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Buck
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ComputingExtractor;
@@ -93,7 +93,6 @@ public class Querier {
 
     private final PlanExecutor planExecutor;
     private final SqlConfiguration cfg;
-    private final TimeValue keepAlive, timeout;
     private final int size;
     private final Client client;
     @Nullable
@@ -103,8 +102,6 @@ public class Querier {
         this.planExecutor = sqlSession.planExecutor();
         this.client = sqlSession.client();
         this.cfg = sqlSession.configuration();
-        this.keepAlive = cfg.requestTimeout();
-        this.timeout = cfg.pageTimeout();
         this.filter = cfg.filter();
         this.size = cfg.pageSize();
     }
@@ -112,12 +109,7 @@ public class Querier {
     public void query(List<Attribute> output, QueryContainer query, String index, ActionListener<Page> listener) {
         // prepare the request
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(query, filter, size);
-        // set query timeout
-        if (timeout.getSeconds() > 0) {
-            sourceBuilder.timeout(timeout);
-        }
 
-        // set runtime mappings
         if (this.cfg.runtimeMappings() != null) {
             sourceBuilder.runtimeMappings(this.cfg.runtimeMappings());
         }
@@ -126,7 +118,7 @@ public class Querier {
             log.trace("About to execute query {} on {}", StringUtils.toString(sourceBuilder), index);
         }
 
-        SearchRequest search = prepareRequest(client, sourceBuilder, timeout, query.shouldIncludeFrozen(),
+        SearchRequest search = prepareRequest(sourceBuilder, cfg.requestTimeout(), query.shouldIncludeFrozen(),
                 Strings.commaDelimitedListToStringArray(index));
 
         @SuppressWarnings("rawtypes")
@@ -141,7 +133,7 @@ public class Querier {
                 l = new CompositeActionListener(listener, client, cfg, output, query, search);
             }
         } else {
-            search.scroll(keepAlive);
+            search.scroll(cfg.pageTimeout());
             l = new ScrollActionListener(listener, client, cfg, output, query);
         }
 
@@ -152,7 +144,7 @@ public class Querier {
         client.search(search, l);
     }
 
-    public static SearchRequest prepareRequest(Client client, SearchSourceBuilder source, TimeValue timeout, boolean includeFrozen,
+    public static SearchRequest prepareRequest(SearchSourceBuilder source, TimeValue timeout, boolean includeFrozen,
             String... indices) {
         source.timeout(timeout);
 
@@ -533,7 +525,6 @@ public class Querier {
 
         final Client client;
         final SqlConfiguration cfg;
-        final TimeValue keepAlive;
         final Schema schema;
 
         BaseActionListener(ActionListener<Page> listener, Client client, SqlConfiguration cfg, List<Attribute> output) {
@@ -541,7 +532,6 @@ public class Querier {
 
             this.client = client;
             this.cfg = cfg;
-            this.keepAlive = cfg.requestTimeout();
             this.schema = Rows.schema(output);
         }
 

@@ -26,7 +26,7 @@ public class FilterPath {
     private final boolean isFinalNode;
     private boolean hasDoubleWildcard;
 
-    public FilterPath(boolean doubleWildcard, boolean isFinalNode) {
+    private FilterPath(boolean doubleWildcard, boolean isFinalNode) {
         this.termsChildren = new HashMap<>();
         this.wildcardChildren = new HashMap<>();
         this.doubleWildcard = doubleWildcard;
@@ -104,6 +104,16 @@ public class FilterPath {
         }
     }
 
+    /**
+     * check if the name matches filter nodes
+     * if the name equals the filter node name, the node will add to nextFilters.
+     * if the filter node is a final node, it means the name matches the pattern, and return true
+     * if the name don't equal a final node, then return false, continue to check the inner filter node
+     * if current node is a double wildcard node, the node will also add to nextFilters.
+     * @param name the xcontent property name
+     * @param nextFilters nextFilters is a List, used to check the inner property of name
+     * @return true if the name equal a final node, otherwise return false
+     */
     public boolean matches(String name, List<FilterPath> nextFilters) {
         FilterPath termNode = termsChildren.get(name);
         if (termNode != null) {

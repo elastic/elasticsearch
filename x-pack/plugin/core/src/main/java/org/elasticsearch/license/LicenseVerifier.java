@@ -9,11 +9,11 @@ package org.elasticsearch.license;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.core.internal.io.Streams;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -61,7 +61,7 @@ public class LicenseVerifier {
             rsa.initVerify(CryptUtils.readPublicKey(publicKeyData));
             BytesRefIterator iterator = BytesReference.bytes(contentBuilder).iterator();
             BytesRef ref;
-            while((ref = iterator.next()) != null) {
+            while ((ref = iterator.next()) != null) {
                 rsa.update(ref.bytes, ref.offset, ref.length);
             }
             return rsa.verify(signedContent);

@@ -46,6 +46,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
     private ImmutableOpenMap(ObjectObjectHashMap<KType, VType> map) {
         this.map = map;
     }
+
     /**
      * @return Returns the value associated with the given key or the default value
      * for the key type, if the key is not associated with any value.
@@ -126,7 +127,9 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         final Iterator<ObjectCursor<KType>> iterator = map.keys().iterator();
         return new Iterator<KType>() {
             @Override
-            public boolean hasNext() { return iterator.hasNext(); }
+            public boolean hasNext() {
+                return iterator.hasNext();
+            }
 
             @Override
             public KType next() {
@@ -191,7 +194,9 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         final Iterator<ObjectCursor<T>> iterator = collection.iterator();
         return new Iterator<>() {
             @Override
-            public boolean hasNext() { return iterator.hasNext(); }
+            public boolean hasNext() {
+                return iterator.hasNext();
+            }
 
             @Override
             public T next() {
@@ -248,7 +253,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         return map.hashCode();
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     private static final ImmutableOpenMap EMPTY = new ImmutableOpenMap(new ObjectObjectHashMap());
 
     @SuppressWarnings("unchecked")

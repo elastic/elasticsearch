@@ -31,8 +31,8 @@ public class PerFieldMapperCodec extends Lucene90Codec {
     private final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
 
     static {
-        assert Codec.forName(Lucene.LATEST_CODEC).getClass().isAssignableFrom(PerFieldMapperCodec.class) :
-            "PerFieldMapperCodec must subclass the latest " + "lucene codec: " + Lucene.LATEST_CODEC;
+        assert Codec.forName(Lucene.LATEST_CODEC).getClass().isAssignableFrom(PerFieldMapperCodec.class)
+            : "PerFieldMapperCodec must subclass the latest " + "lucene codec: " + Lucene.LATEST_CODEC;
     }
 
     public PerFieldMapperCodec(Mode compressionMode, MapperService mapperService) {

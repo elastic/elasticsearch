@@ -78,7 +78,8 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
             MockFSIndexStore.TestPlugin.class,
             RecoverySettingsChunkSizePlugin.class,
             InternalSettingsPlugin.class,
-            MockEngineFactoryPlugin.class);
+            MockEngineFactoryPlugin.class
+        );
     }
 
     @Override

@@ -71,13 +71,18 @@ public class ResetPasswordToolIT extends AbstractPasswordToolTestCase {
         try {
             Request putUserRequest = new Request("PUT", "/_security/user/" + nativeUser);
             putUserRequest.setJsonEntity(
-                "{\n" +
-                    "   \"password\" : \"l0ng-r4nd0m-p@ssw0rd\",\n" +
-                    "   \"roles\" : [ \"admin\", \"other_role1\" ],\n" +
-                    "   \"full_name\" : \"" + randomAlphaOfLength(5) + "\",\n" +
-                    "   \"email\" : \"" + nativeUser + "@example.com\",\n" +
-                    "   \"enabled\": true\n" +
-                    "}");
+                "{\n"
+                    + "   \"password\" : \"l0ng-r4nd0m-p@ssw0rd\",\n"
+                    + "   \"roles\" : [ \"admin\", \"other_role1\" ],\n"
+                    + "   \"full_name\" : \""
+                    + randomAlphaOfLength(5)
+                    + "\",\n"
+                    + "   \"email\" : \""
+                    + nativeUser
+                    + "@example.com\",\n"
+                    + "   \"enabled\": true\n"
+                    + "}"
+            );
             RequestOptions.Builder options = putUserRequest.getOptions().toBuilder();
             options.addHeader("Authorization", adminBasicHeader);
             putUserRequest.setOptions(options);

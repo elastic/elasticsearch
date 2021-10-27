@@ -50,11 +50,12 @@ public final class ForgetFollowerRequest implements ToXContentObject, Validatabl
      * @param leaderIndex         the name of the leader index
      */
     public ForgetFollowerRequest(
-            final String followerCluster,
-            final String followerIndex,
-            final String followerIndexUUID,
-            final String leaderRemoteCluster,
-            final String leaderIndex) {
+        final String followerCluster,
+        final String followerIndex,
+        final String followerIndexUUID,
+        final String leaderRemoteCluster,
+        final String leaderIndex
+    ) {
         this.followerCluster = Objects.requireNonNull(followerCluster);
         this.followerIndex = Objects.requireNonNull(followerIndex);
         this.followerIndexUUID = Objects.requireNonNull(followerIndexUUID);

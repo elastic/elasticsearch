@@ -36,8 +36,8 @@ public class DeploymentManagerTests extends ESTestCase {
     public void managerSetup() {
         tp = new TestThreadPool(
             "DeploymentManagerTests",
-            new ScalingExecutorBuilder(UTILITY_THREAD_POOL_NAME,1, 4, TimeValue.timeValueMinutes(10), "xpack.ml.utility_thread_pool"),
-            new ScalingExecutorBuilder(JOB_COMMS_THREAD_POOL_NAME,1, 4, TimeValue.timeValueMinutes(10), "xpack.ml.job_comms_thread_pool")
+            new ScalingExecutorBuilder(UTILITY_THREAD_POOL_NAME, 1, 4, TimeValue.timeValueMinutes(10), "xpack.ml.utility_thread_pool"),
+            new ScalingExecutorBuilder(JOB_COMMS_THREAD_POOL_NAME, 1, 4, TimeValue.timeValueMinutes(10), "xpack.ml.job_comms_thread_pool")
         );
     }
 

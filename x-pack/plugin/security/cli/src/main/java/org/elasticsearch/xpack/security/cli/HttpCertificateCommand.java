@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.cli;
 
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
+
 import org.bouncycastle.asn1.DERIA5String;
 import org.bouncycastle.asn1.x509.GeneralNames;
 import org.bouncycastle.cert.CertIOException;
@@ -26,16 +27,14 @@ import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ssl.PemUtils;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 
-import javax.security.auth.x500.X500Principal;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -74,6 +73,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+
+import javax.security.auth.x500.X500Principal;
 
 import static org.elasticsearch.xpack.security.cli.CertGenUtils.generateSignedCertificate;
 
@@ -244,16 +245,18 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         return PathUtils.get(name).normalize().toAbsolutePath();
     }
 
-    private void writeZip(Path file, char[] password, CertificateTool.CAInfo caInfo, List<CertOptions> certificates,
-                          Environment env) throws UserException {
+    private void writeZip(Path file, char[] password, CertificateTool.CAInfo caInfo, List<CertOptions> certificates, Environment env)
+        throws UserException {
         if (Files.exists(file)) {
             throw new UserException(ExitCodes.IO_ERROR, "Output file '" + file + "' already exists");
         }
 
         boolean success = false;
         try {
-            try (OutputStream fileStream = Files.newOutputStream(file, StandardOpenOption.CREATE_NEW);
-                 ZipOutputStream zipStream = new ZipOutputStream(fileStream, StandardCharsets.UTF_8)) {
+            try (
+                OutputStream fileStream = Files.newOutputStream(file, StandardOpenOption.CREATE_NEW);
+                ZipOutputStream zipStream = new ZipOutputStream(fileStream, StandardCharsets.UTF_8)
+            ) {
 
                 createZipDirectory(zipStream, "elasticsearch");
                 if (certificates.size() == 1) {
@@ -311,8 +314,14 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         zip.putNextEntry(entry);
     }
 
-    private void writeCertificateAndKeyDetails(ZipOutputStream zip, String dirName, CertOptions cert, CertificateTool.CAInfo ca,
-                                               char[] password, Environment env) {
+    private void writeCertificateAndKeyDetails(
+        ZipOutputStream zip,
+        String dirName,
+        CertOptions cert,
+        CertificateTool.CAInfo ca,
+        char[] password,
+        Environment env
+    ) {
         // TODO : Should we add support for configuring PKI in ES?
         try {
             final KeyPair keyPair = CertGenUtils.generateKeyPair(cert.keySize);
@@ -327,12 +336,16 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                 final String keyFile = "http-" + cert.name + ".key";
                 final String certName = "http-" + cert.name + ".crt";
                 final String ymlFile = "sample-elasticsearch.yml";
-                final Map<String, String> substitutions = buildSubstitutions(env, Map.ofEntries(
-                    Map.entry("CSR", csrFile),
-                    Map.entry("KEY", keyFile),
-                    Map.entry("CERT", certName),
-                    Map.entry("YML", ymlFile),
-                    Map.entry("PASSWORD", hasPassword ? "*" : "")));
+                final Map<String, String> substitutions = buildSubstitutions(
+                    env,
+                    Map.ofEntries(
+                        Map.entry("CSR", csrFile),
+                        Map.entry("KEY", keyFile),
+                        Map.entry("CERT", certName),
+                        Map.entry("YML", ymlFile),
+                        Map.entry("PASSWORD", hasPassword ? "*" : "")
+                    )
+                );
                 writeTextFile(zip, dirName + "/README.txt", ES_README_CSR, substitutions);
                 writePemEntry(zip, dirName + "/" + csrFile, new JcaMiscPEMGenerator(csr));
                 writePemEntry(zip, dirName + "/" + keyFile, generator(keyPair.getPrivate(), password));
@@ -340,15 +353,24 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
             } else {
                 final ZonedDateTime notBefore = ZonedDateTime.now(ZoneOffset.UTC);
                 final ZonedDateTime notAfter = notBefore.plus(cert.validity);
-                Certificate certificate = CertGenUtils.generateSignedCertificate(cert.subject, sanList, keyPair, ca.certAndKey.cert,
-                    ca.certAndKey.key, false, notBefore, notAfter, null);
+                Certificate certificate = CertGenUtils.generateSignedCertificate(
+                    cert.subject,
+                    sanList,
+                    keyPair,
+                    ca.certAndKey.cert,
+                    ca.certAndKey.key,
+                    false,
+                    notBefore,
+                    notAfter,
+                    null
+                );
 
                 final String p12Name = "http.p12";
                 final String ymlFile = "sample-elasticsearch.yml";
-                final Map<String, String> substitutions = buildSubstitutions(env, Map.ofEntries(
-                    Map.entry("P12", p12Name),
-                    Map.entry("YML", ymlFile),
-                    Map.entry("PASSWORD", hasPassword ? "*" : "")));
+                final Map<String, String> substitutions = buildSubstitutions(
+                    env,
+                    Map.ofEntries(Map.entry("P12", p12Name), Map.entry("YML", ymlFile), Map.entry("PASSWORD", hasPassword ? "*" : ""))
+                );
                 writeTextFile(zip, dirName + "/README.txt", ES_README_P12, substitutions);
                 writeKeyStore(zip, dirName + "/" + p12Name, certificate, keyPair.getPrivate(), password, ca.certAndKey.cert);
                 writeTextFile(zip, dirName + "/" + ymlFile, ES_YML_P12, substitutions);
@@ -363,12 +385,22 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         assert ca.generated;
 
         try {
-            writeTextFile(zip, dirName + "/README.txt", CA_README_P12,
-                buildSubstitutions(env, Map.of(
-                    "P12", "ca.p12",
-                    "DN", ca.certAndKey.cert.getSubjectX500Principal().getName(),
-                    "PASSWORD", ca.password == null || ca.password.length == 0 ? "" : "*"
-                )));
+            writeTextFile(
+                zip,
+                dirName + "/README.txt",
+                CA_README_P12,
+                buildSubstitutions(
+                    env,
+                    Map.of(
+                        "P12",
+                        "ca.p12",
+                        "DN",
+                        ca.certAndKey.cert.getSubjectX500Principal().getName(),
+                        "PASSWORD",
+                        ca.password == null || ca.password.length == 0 ? "" : "*"
+                    )
+                )
+            );
             final KeyStore pkcs12 = KeyStore.getInstance("PKCS12");
             pkcs12.load(null);
             pkcs12.setKeyEntry("ca", ca.certAndKey.key, ca.password, new Certificate[] { ca.certAndKey.cert });
@@ -385,11 +417,10 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         final String caCert = ca == null ? "" : caCertName;
         final String ymlFile = "sample-kibana.yml";
 
-        final Map<String, String> substitutions = buildSubstitutions(env, Map.ofEntries(
-            Map.entry("CA_CERT_NAME", caCertName),
-            Map.entry("CA_CERT", caCert),
-            Map.entry("YML", ymlFile)
-        ));
+        final Map<String, String> substitutions = buildSubstitutions(
+            env,
+            Map.ofEntries(Map.entry("CA_CERT_NAME", caCertName), Map.entry("CA_CERT", caCert), Map.entry("YML", ymlFile))
+        );
 
         // TODO : Should we add support for client certs from Kibana to ES?
 
@@ -408,9 +439,11 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
      * Loads {@code resource} from the classpath, performs variable substitution on it, and then writes it to {@code writer}.
      */
     private void writeTextFile(ZipOutputStream zip, String outputName, String resource, Map<String, String> substitutions) {
-        try (InputStream stream = getClass().getResourceAsStream("certutil-http/" + resource);
-             ZipEntryStream entry = new ZipEntryStream(zip, outputName);
-             PrintWriter writer = new PrintWriter(entry, false, StandardCharsets.UTF_8)) {
+        try (
+            InputStream stream = getClass().getResourceAsStream("certutil-http/" + resource);
+            ZipEntryStream entry = new ZipEntryStream(zip, outputName);
+            PrintWriter writer = new PrintWriter(entry, false, StandardCharsets.UTF_8)
+        ) {
             if (stream == null) {
                 throw new IllegalStateException("Cannot find internal resource " + resource);
             }
@@ -470,8 +503,14 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         return map;
     }
 
-    private void writeKeyStore(ZipOutputStream zip, String name, Certificate certificate, PrivateKey key, char[] password,
-                               X509Certificate caCert) throws IOException, GeneralSecurityException {
+    private void writeKeyStore(
+        ZipOutputStream zip,
+        String name,
+        Certificate certificate,
+        PrivateKey key,
+        char[] password,
+        X509Certificate caCert
+    ) throws IOException, GeneralSecurityException {
         final KeyStore pkcs12 = KeyStore.getInstance("PKCS12");
         pkcs12.load(null);
         pkcs12.setKeyEntry("http", key, password, new Certificate[] { certificate });
@@ -484,8 +523,10 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
     }
 
     private void writePemEntry(ZipOutputStream zip, String name, PemObjectGenerator generator) throws IOException {
-        try (ZipEntryStream entry = new ZipEntryStream(zip, name);
-             JcaPEMWriter pem = new JcaPEMWriter(new OutputStreamWriter(entry, StandardCharsets.UTF_8))) {
+        try (
+            ZipEntryStream entry = new ZipEntryStream(zip, name);
+            JcaPEMWriter pem = new JcaPEMWriter(new OutputStreamWriter(entry, StandardCharsets.UTF_8))
+        ) {
             pem.writeObject(generator);
             pem.flush();
         }
@@ -537,8 +578,13 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         return terminal.promptYesNo("Generate a certificate per node?", false);
     }
 
-    private CertOptions getCertificateConfiguration(Terminal terminal, boolean multipleCertificates, String nodeDescription,
-                                                    Period validity, boolean csr) {
+    private CertOptions getCertificateConfiguration(
+        Terminal terminal,
+        boolean multipleCertificates,
+        String nodeDescription,
+        Period validity,
+        boolean csr
+    ) {
 
         String certName = null;
         if (multipleCertificates) {
@@ -567,7 +613,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         final List<String> dnsNames = new ArrayList<>();
         while (true) {
             terminal.println("");
-            terminal.println("Enter all the hostnames that you need, one per line." );
+            terminal.println("Enter all the hostnames that you need, one per line.");
             terminal.println("When you are done, press <ENTER> once more to move on to the next step.");
             terminal.println("");
 
@@ -628,7 +674,9 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         terminal.println("");
 
         if (certName == null) {
-            certName = dnsNames.stream().filter(n -> n.indexOf('*') == -1).findFirst()
+            certName = dnsNames.stream()
+                .filter(n -> n.indexOf('*') == -1)
+                .findFirst()
                 .or(() -> dnsNames.stream().map(s -> s.replace("*.", "")).findFirst())
                 .orElse("elasticsearch");
         }
@@ -721,7 +769,6 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         return lines;
     }
 
-
     private boolean askCertSigningRequest(Terminal terminal) {
         printHeader("Do you wish to generate a Certificate Signing Request (CSR)?", terminal);
 
@@ -783,7 +830,6 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                 terminal.println("That type of file typically represents a certificate-chain");
                 terminal.println("This tool requires a single certificate for the CA");
                 throw new UserException(ExitCodes.DATA_ERROR, caPath + ": Unsupported file type (certificate chain)");
-
 
             case UNRECOGNIZED:
             default:
@@ -1012,7 +1058,6 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         }
     }
 
-
     private boolean askExistingCertificateAuthority(Terminal terminal) {
         printHeader("Do you have an existing Certificate Authority (CA) key-pair that you wish to use to sign your certificate?", terminal);
         terminal.println("If you have an existing CA certificate and key, then you can use that CA to");
@@ -1061,7 +1106,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
     }
 
     private Path requestPath(String prompt, Terminal terminal, Environment env, boolean requireExisting) {
-        for (; ; ) {
+        for (;;) {
             final String input = terminal.readText(prompt);
             final Path path = env.configFile().resolve(input).toAbsolutePath();
 
@@ -1103,9 +1148,9 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                 // No supported file type has less than 2 bytes
                 return FileType.UNRECOGNIZED;
             }
-            if (Arrays.equals(leadingBytes, MAGIC_BYTES1_PKCS12) ||
-                    Arrays.equals(leadingBytes, MAGIC_BYTES2_PKCS12) ||
-                    Arrays.equals(leadingBytes, MAGIC_BYTES2_JDK16_PKCS12)) {
+            if (Arrays.equals(leadingBytes, MAGIC_BYTES1_PKCS12)
+                || Arrays.equals(leadingBytes, MAGIC_BYTES2_PKCS12)
+                || Arrays.equals(leadingBytes, MAGIC_BYTES2_JDK16_PKCS12)) {
                 return FileType.PKCS12;
             }
             if (Arrays.equals(leadingBytes, MAGIC_BYTES_JKS)) {
@@ -1136,8 +1181,13 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                 default:
                     if (types.contains(FileType.PEM_KEY)) {
                         // A Key and something else. Could be a cert + key pair, but we don't support that
-                        terminal.errorPrintln("Cannot determine a type for the PEM file " + path + " because it contains: ["
-                            + Strings.collectionToCommaDelimitedString(types) + "]");
+                        terminal.errorPrintln(
+                            "Cannot determine a type for the PEM file "
+                                + path
+                                + " because it contains: ["
+                                + Strings.collectionToCommaDelimitedString(types)
+                                + "]"
+                        );
                     } else {
                         // Multiple certificates = chain
                         return FileType.PEM_CERT_CHAIN;

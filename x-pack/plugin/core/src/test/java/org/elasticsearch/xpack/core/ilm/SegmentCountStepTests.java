@@ -17,10 +17,10 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
 
@@ -46,10 +46,12 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
 
     private IndexMetadata makeMeta(Index index) {
         return IndexMetadata.builder(index.getName())
-            .settings(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            )
             .build();
     }
 
@@ -204,8 +206,10 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         Mockito.when(indicesSegmentResponse.getStatus()).thenReturn(RestStatus.OK);
         Mockito.when(indicesSegmentResponse.getIndices()).thenReturn(Collections.singletonMap(index.getName(), null));
         Mockito.when(indicesSegmentResponse.getShardFailures())
-            .thenReturn(new DefaultShardOperationFailedException[]{new DefaultShardOperationFailedException(index.getName(),
-                0, new IllegalArgumentException("fake"))});
+            .thenReturn(
+                new DefaultShardOperationFailedException[] {
+                    new DefaultShardOperationFailedException(index.getName(), 0, new IllegalArgumentException("fake")) }
+            );
         Mockito.when(indexSegments.spliterator()).thenReturn(iss);
         Mockito.when(indexShardSegments.getShards()).thenReturn(shardSegmentsArray);
         Mockito.when(shardSegmentsOne.getSegments()).thenReturn(segments);

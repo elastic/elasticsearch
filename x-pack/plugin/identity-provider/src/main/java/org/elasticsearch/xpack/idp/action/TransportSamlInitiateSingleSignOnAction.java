@@ -33,8 +33,9 @@ import org.opensaml.saml.saml2.core.StatusCode;
 
 import java.time.Clock;
 
-public class TransportSamlInitiateSingleSignOnAction
-    extends HandledTransportAction<SamlInitiateSingleSignOnRequest, SamlInitiateSingleSignOnResponse> {
+public class TransportSamlInitiateSingleSignOnAction extends HandledTransportAction<
+    SamlInitiateSingleSignOnRequest,
+    SamlInitiateSingleSignOnResponse> {
 
     private final Logger logger = LogManager.getLogger(TransportSamlInitiateSingleSignOnAction.class);
 
@@ -44,9 +45,14 @@ public class TransportSamlInitiateSingleSignOnAction
     private final UserPrivilegeResolver privilegeResolver;
 
     @Inject
-    public TransportSamlInitiateSingleSignOnAction(TransportService transportService, ActionFilters actionFilters,
-                                                   SecurityContext securityContext, SamlIdentityProvider idp, SamlFactory factory,
-                                                   UserPrivilegeResolver privilegeResolver) {
+    public TransportSamlInitiateSingleSignOnAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        SecurityContext securityContext,
+        SamlIdentityProvider idp,
+        SamlFactory factory,
+        UserPrivilegeResolver privilegeResolver
+    ) {
         super(SamlInitiateSingleSignOnAction.NAME, transportService, actionFilters, SamlInitiateSingleSignOnRequest::new);
         this.securityContext = securityContext;
         this.identityProvider = idp;
@@ -55,102 +61,151 @@ public class TransportSamlInitiateSingleSignOnAction
     }
 
     @Override
-    protected void doExecute(Task task, SamlInitiateSingleSignOnRequest request,
-                             ActionListener<SamlInitiateSingleSignOnResponse> listener) {
+    protected void doExecute(
+        Task task,
+        SamlInitiateSingleSignOnRequest request,
+        ActionListener<SamlInitiateSingleSignOnResponse> listener
+    ) {
         final SamlAuthenticationState authenticationState = request.getSamlAuthenticationState();
         identityProvider.resolveServiceProvider(
             request.getSpEntityId(),
             request.getAssertionConsumerService(),
             false,
-            ActionListener.wrap(
-                sp -> {
-                    if (null == sp) {
-                        final String message = "Service Provider with Entity ID [" + request.getSpEntityId() + "] and ACS ["
-                            + request.getAssertionConsumerService() + "] is not known to this Identity Provider";
-                        possiblyReplyWithSamlFailure(authenticationState, request.getSpEntityId(), request.getAssertionConsumerService(),
-                            StatusCode.RESPONDER, new IllegalArgumentException(message), listener);
-                        return;
-                    }
-                    final SecondaryAuthentication secondaryAuthentication = SecondaryAuthentication.readFromContext(securityContext);
-                    if (secondaryAuthentication == null) {
-                        possiblyReplyWithSamlFailure(authenticationState, request.getSpEntityId(), request.getAssertionConsumerService(),
+            ActionListener.wrap(sp -> {
+                if (null == sp) {
+                    final String message = "Service Provider with Entity ID ["
+                        + request.getSpEntityId()
+                        + "] and ACS ["
+                        + request.getAssertionConsumerService()
+                        + "] is not known to this Identity Provider";
+                    possiblyReplyWithSamlFailure(
+                        authenticationState,
+                        request.getSpEntityId(),
+                        request.getAssertionConsumerService(),
+                        StatusCode.RESPONDER,
+                        new IllegalArgumentException(message),
+                        listener
+                    );
+                    return;
+                }
+                final SecondaryAuthentication secondaryAuthentication = SecondaryAuthentication.readFromContext(securityContext);
+                if (secondaryAuthentication == null) {
+                    possiblyReplyWithSamlFailure(
+                        authenticationState,
+                        request.getSpEntityId(),
+                        request.getAssertionConsumerService(),
+                        StatusCode.REQUESTER,
+                        new ElasticsearchSecurityException("Request is missing secondary authentication", RestStatus.FORBIDDEN),
+                        listener
+                    );
+                    return;
+                }
+                buildUserFromAuthentication(secondaryAuthentication, sp, ActionListener.wrap(user -> {
+                    if (user == null) {
+                        possiblyReplyWithSamlFailure(
+                            authenticationState,
+                            request.getSpEntityId(),
+                            request.getAssertionConsumerService(),
                             StatusCode.REQUESTER,
-                            new ElasticsearchSecurityException("Request is missing secondary authentication", RestStatus.FORBIDDEN),
-                            listener);
+                            new ElasticsearchSecurityException(
+                                "User [{}] is not permitted to access service [{}]",
+                                RestStatus.FORBIDDEN,
+                                secondaryAuthentication.getUser().principal(),
+                                sp.getEntityId()
+                            ),
+                            listener
+                        );
                         return;
                     }
-                    buildUserFromAuthentication(secondaryAuthentication, sp, ActionListener.wrap(
-                        user -> {
-                            if (user == null) {
-                                possiblyReplyWithSamlFailure(authenticationState, request.getSpEntityId(),
-                                    request.getAssertionConsumerService(), StatusCode.REQUESTER,
-                                    new ElasticsearchSecurityException("User [{}] is not permitted to access service [{}]",
-                                        RestStatus.FORBIDDEN, secondaryAuthentication.getUser().principal(), sp.getEntityId()),
-                                    listener);
-                                return;
-                            }
-                            final SuccessfulAuthenticationResponseMessageBuilder builder =
-                                new SuccessfulAuthenticationResponseMessageBuilder(samlFactory, Clock.systemUTC(), identityProvider);
-                            try {
-                                final Response response = builder.build(user, authenticationState);
-                                listener.onResponse(new SamlInitiateSingleSignOnResponse(
-                                    user.getServiceProvider().getEntityId(),
-                                    user.getServiceProvider().getAssertionConsumerService().toString(),
-                                    samlFactory.getXmlContent(response),
-                                    StatusCode.SUCCESS,
-                                    null));
-                            } catch (ElasticsearchException e) {
-                                listener.onFailure(e);
-                            }
-                        },
-                        e -> possiblyReplyWithSamlFailure(authenticationState, request.getSpEntityId(),
-                            request.getAssertionConsumerService(), StatusCode.RESPONDER, e, listener)
-                    ));
-                },
-                e -> possiblyReplyWithSamlFailure(authenticationState, request.getSpEntityId(), request.getAssertionConsumerService(),
-                    StatusCode.RESPONDER, e, listener)
-            ));
-    }
-
-    private void buildUserFromAuthentication(SecondaryAuthentication secondaryAuthentication, SamlServiceProvider serviceProvider,
-                                             ActionListener<UserServiceAuthentication> listener) {
-        User user = secondaryAuthentication.getUser();
-        secondaryAuthentication.execute(ignore -> {
-            ActionListener<UserPrivilegeResolver.UserPrivileges> wrapped = ActionListener.wrap(
-                userPrivileges -> {
-                    if (userPrivileges.hasAccess == false) {
-                        listener.onResponse(null);
-                    } else {
-                        logger.debug("Resolved [{}] for [{}]", userPrivileges, user);
-                        listener.onResponse(new UserServiceAuthentication(user.principal(), user.fullName(), user.email(),
-                            userPrivileges.roles, serviceProvider));
+                    final SuccessfulAuthenticationResponseMessageBuilder builder = new SuccessfulAuthenticationResponseMessageBuilder(
+                        samlFactory,
+                        Clock.systemUTC(),
+                        identityProvider
+                    );
+                    try {
+                        final Response response = builder.build(user, authenticationState);
+                        listener.onResponse(
+                            new SamlInitiateSingleSignOnResponse(
+                                user.getServiceProvider().getEntityId(),
+                                user.getServiceProvider().getAssertionConsumerService().toString(),
+                                samlFactory.getXmlContent(response),
+                                StatusCode.SUCCESS,
+                                null
+                            )
+                        );
+                    } catch (ElasticsearchException e) {
+                        listener.onFailure(e);
                     }
                 },
-                listener::onFailure
-            );
-                privilegeResolver.resolve(serviceProvider.getPrivileges(), wrapped);
-                return null;
-            }
+                    e -> possiblyReplyWithSamlFailure(
+                        authenticationState,
+                        request.getSpEntityId(),
+                        request.getAssertionConsumerService(),
+                        StatusCode.RESPONDER,
+                        e,
+                        listener
+                    )
+                ));
+            },
+                e -> possiblyReplyWithSamlFailure(
+                    authenticationState,
+                    request.getSpEntityId(),
+                    request.getAssertionConsumerService(),
+                    StatusCode.RESPONDER,
+                    e,
+                    listener
+                )
+            )
         );
     }
 
-    private void possiblyReplyWithSamlFailure(SamlAuthenticationState authenticationState, String spEntityId,
-                                              String acsUrl, String statusCode, Exception e,
-                                              ActionListener<SamlInitiateSingleSignOnResponse> listener) {
+    private void buildUserFromAuthentication(
+        SecondaryAuthentication secondaryAuthentication,
+        SamlServiceProvider serviceProvider,
+        ActionListener<UserServiceAuthentication> listener
+    ) {
+        User user = secondaryAuthentication.getUser();
+        secondaryAuthentication.execute(ignore -> {
+            ActionListener<UserPrivilegeResolver.UserPrivileges> wrapped = ActionListener.wrap(userPrivileges -> {
+                if (userPrivileges.hasAccess == false) {
+                    listener.onResponse(null);
+                } else {
+                    logger.debug("Resolved [{}] for [{}]", userPrivileges, user);
+                    listener.onResponse(
+                        new UserServiceAuthentication(
+                            user.principal(),
+                            user.fullName(),
+                            user.email(),
+                            userPrivileges.roles,
+                            serviceProvider
+                        )
+                    );
+                }
+            }, listener::onFailure);
+            privilegeResolver.resolve(serviceProvider.getPrivileges(), wrapped);
+            return null;
+        });
+    }
+
+    private void possiblyReplyWithSamlFailure(
+        SamlAuthenticationState authenticationState,
+        String spEntityId,
+        String acsUrl,
+        String statusCode,
+        Exception e,
+        ActionListener<SamlInitiateSingleSignOnResponse> listener
+    ) {
         logger.debug("Failed to generate a successful SAML response: ", e);
         if (authenticationState != null) {
-            final FailedAuthenticationResponseMessageBuilder builder =
-                new FailedAuthenticationResponseMessageBuilder(samlFactory, Clock.systemUTC(), identityProvider)
-                    .setInResponseTo(authenticationState.getAuthnRequestId())
-                    .setAcsUrl(acsUrl)
-                    .setPrimaryStatusCode(statusCode);
+            final FailedAuthenticationResponseMessageBuilder builder = new FailedAuthenticationResponseMessageBuilder(
+                samlFactory,
+                Clock.systemUTC(),
+                identityProvider
+            ).setInResponseTo(authenticationState.getAuthnRequestId()).setAcsUrl(acsUrl).setPrimaryStatusCode(statusCode);
             final Response response = builder.build();
-            listener.onResponse(new SamlInitiateSingleSignOnResponse(
-                spEntityId,
-                acsUrl,
-                samlFactory.getXmlContent(response),
-                statusCode,
-                e.getMessage()));
+            listener.onResponse(
+                new SamlInitiateSingleSignOnResponse(spEntityId, acsUrl, samlFactory.getXmlContent(response), statusCode, e.getMessage())
+            );
         } else {
             listener.onFailure(e);
         }

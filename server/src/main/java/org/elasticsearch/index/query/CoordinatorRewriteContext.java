@@ -9,13 +9,13 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.function.LongSupplier;
 
@@ -31,13 +31,15 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
     private IndexLongFieldRange indexLongFieldRange;
     private final DateFieldMapper.DateFieldType timestampFieldType;
 
-    public CoordinatorRewriteContext(NamedXContentRegistry xContentRegistry,
-                                     NamedWriteableRegistry writeableRegistry,
-                                     Client client,
-                                     LongSupplier nowInMillis,
-                                     Index index,
-                                     IndexLongFieldRange indexLongFieldRange,
-                                     DateFieldMapper.DateFieldType timestampFieldType) {
+    public CoordinatorRewriteContext(
+        NamedXContentRegistry xContentRegistry,
+        NamedWriteableRegistry writeableRegistry,
+        Client client,
+        LongSupplier nowInMillis,
+        Index index,
+        IndexLongFieldRange indexLongFieldRange,
+        DateFieldMapper.DateFieldType timestampFieldType
+    ) {
         super(xContentRegistry, writeableRegistry, client, nowInMillis);
         this.index = index;
         this.indexLongFieldRange = indexLongFieldRange;

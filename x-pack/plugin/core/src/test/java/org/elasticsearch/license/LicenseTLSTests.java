@@ -43,10 +43,7 @@ public class LicenseTLSTests extends AbstractLicenseServiceTestCase {
         verify(clusterService).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
 
         inetAddress = TransportAddress.META_ADDRESS;
-        settings = Settings.builder()
-                .put("xpack.security.enabled", true)
-                .put("discovery.type", "single-node")
-                .build();
+        settings = Settings.builder().put("xpack.security.enabled", true).put("discovery.type", "single-node").build();
         licenseService.stop();
         licenseState = new XPackLicenseState(() -> 0);
         setInitialState(null, licenseState, settings);
@@ -57,7 +54,12 @@ public class LicenseTLSTests extends AbstractLicenseServiceTestCase {
 
     @Override
     protected DiscoveryNode getLocalNode() {
-        return new DiscoveryNode("localnode", new TransportAddress(inetAddress, randomIntBetween(9300, 9399)),
-                emptyMap(), emptySet(), Version.CURRENT);
+        return new DiscoveryNode(
+            "localnode",
+            new TransportAddress(inetAddress, randomIntBetween(9300, 9399)),
+            emptyMap(),
+            emptySet(),
+            Version.CURRENT
+        );
     }
 }

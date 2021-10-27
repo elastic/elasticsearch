@@ -19,16 +19,16 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
-import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_COLD;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_HOT;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_WARM;
+import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.COLD_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.DELETE_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.HOT_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.WARM_PHASE;
-import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING;
 import static org.hamcrest.CoreMatchers.is;
 
 public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
@@ -55,8 +55,11 @@ public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
 
     public void testToSteps() {
         String phase = randomValueOtherThan(DELETE_PHASE, () -> randomFrom(TimeseriesLifecycleType.ORDERED_VALID_PHASES));
-        StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
-            randomAlphaOfLengthBetween(1, 10));
+        StepKey nextStepKey = new StepKey(
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10)
+        );
         {
             MigrateAction action = new MigrateAction();
             List<Step> steps = action.toSteps(null, phase, nextStepKey);
@@ -83,32 +86,35 @@ public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
     }
 
     public void testMigrateActionsConfiguresTierPreference() {
-        StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
-            randomAlphaOfLengthBetween(1, 10));
+        StepKey nextStepKey = new StepKey(
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10)
+        );
         MigrateAction action = new MigrateAction();
         {
             List<Step> steps = action.toSteps(null, HOT_PHASE, nextStepKey);
             UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(1);
-            assertThat(DataTier.TIER_PREFERENCE_SETTING.get(firstStep.getSettings()),
-                is(DATA_HOT));
+            assertThat(DataTier.TIER_PREFERENCE_SETTING.get(firstStep.getSettings()), is(DATA_HOT));
         }
         {
             List<Step> steps = action.toSteps(null, WARM_PHASE, nextStepKey);
             UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(1);
-            assertThat(DataTier.TIER_PREFERENCE_SETTING.get(firstStep.getSettings()),
-                is(DATA_WARM + "," + DATA_HOT));
+            assertThat(DataTier.TIER_PREFERENCE_SETTING.get(firstStep.getSettings()), is(DATA_WARM + "," + DATA_HOT));
         }
         {
             List<Step> steps = action.toSteps(null, COLD_PHASE, nextStepKey);
             UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(1);
-            assertThat(DataTier.TIER_PREFERENCE_SETTING.get(firstStep.getSettings()),
-                is(DATA_COLD + "," + DATA_WARM + "," + DATA_HOT));
+            assertThat(DataTier.TIER_PREFERENCE_SETTING.get(firstStep.getSettings()), is(DATA_COLD + "," + DATA_WARM + "," + DATA_HOT));
         }
     }
 
     public void testMigrateActionWillSkipAPartiallyMountedIndex() {
-        StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
-            randomAlphaOfLengthBetween(1, 10));
+        StepKey nextStepKey = new StepKey(
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10)
+        );
         MigrateAction action = new MigrateAction();
 
         // does not skip an ordinary index
@@ -134,9 +140,10 @@ public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
         // does skip a partially mounted
         {
             IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
-                .settings(settings(Version.CURRENT)
-                    .put(INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE)
-                    .put(SNAPSHOT_PARTIAL_SETTING.getKey(), true))
+                .settings(
+                    settings(Version.CURRENT).put(INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE)
+                        .put(SNAPSHOT_PARTIAL_SETTING.getKey(), true)
+                )
                 .numberOfShards(1)
                 .numberOfReplicas(2)
                 .build();

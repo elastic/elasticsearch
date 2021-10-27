@@ -8,9 +8,9 @@
 
 package org.elasticsearch.client.security;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -33,8 +33,15 @@ public final class CreateTokenResponse {
     private final String kerberosAuthenticationResponseToken;
     private final AuthenticateResponse authentication;
 
-    public CreateTokenResponse(String accessToken, String type, TimeValue expiresIn, String scope, String refreshToken,
-                               String kerberosAuthenticationResponseToken, AuthenticateResponse authentication) {
+    public CreateTokenResponse(
+        String accessToken,
+        String type,
+        TimeValue expiresIn,
+        String scope,
+        String refreshToken,
+        String kerberosAuthenticationResponseToken,
+        AuthenticateResponse authentication
+    ) {
         this.accessToken = accessToken;
         this.type = type;
         this.expiresIn = expiresIn;
@@ -68,7 +75,9 @@ public final class CreateTokenResponse {
         return kerberosAuthenticationResponseToken;
     }
 
-    public AuthenticateResponse getAuthentication() { return authentication; }
+    public AuthenticateResponse getAuthentication() {
+        return authentication;
+    }
 
     @Override
     public boolean equals(Object o) {
@@ -79,13 +88,13 @@ public final class CreateTokenResponse {
             return false;
         }
         final CreateTokenResponse that = (CreateTokenResponse) o;
-        return Objects.equals(accessToken, that.accessToken) &&
-            Objects.equals(type, that.type) &&
-            Objects.equals(expiresIn, that.expiresIn) &&
-            Objects.equals(scope, that.scope) &&
-            Objects.equals(refreshToken, that.refreshToken) &&
-            Objects.equals(kerberosAuthenticationResponseToken, that.kerberosAuthenticationResponseToken)&&
-            Objects.equals(authentication, that.authentication);
+        return Objects.equals(accessToken, that.accessToken)
+            && Objects.equals(type, that.type)
+            && Objects.equals(expiresIn, that.expiresIn)
+            && Objects.equals(scope, that.scope)
+            && Objects.equals(refreshToken, that.refreshToken)
+            && Objects.equals(kerberosAuthenticationResponseToken, that.kerberosAuthenticationResponseToken)
+            && Objects.equals(authentication, that.authentication);
     }
 
     @Override
@@ -94,9 +103,18 @@ public final class CreateTokenResponse {
     }
 
     private static final ConstructingObjectParser<CreateTokenResponse, Void> PARSER = new ConstructingObjectParser<>(
-            "create_token_response", true, args -> new CreateTokenResponse((String) args[0], (String) args[1],
-                    TimeValue.timeValueSeconds((Long) args[2]), (String) args[3], (String) args[4], (String) args[5],
-                    (AuthenticateResponse) args[6]));
+        "create_token_response",
+        true,
+        args -> new CreateTokenResponse(
+            (String) args[0],
+            (String) args[1],
+            TimeValue.timeValueSeconds((Long) args[2]),
+            (String) args[3],
+            (String) args[4],
+            (String) args[5],
+            (AuthenticateResponse) args[6]
+        )
+    );
 
     static {
         PARSER.declareString(constructorArg(), new ParseField("access_token"));
@@ -112,4 +130,3 @@ public final class CreateTokenResponse {
         return PARSER.parse(parser, null);
     }
 }
-

@@ -18,7 +18,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-
 public abstract class StoredAsyncTask<Response extends ActionResponse> extends CancellableTask implements AsyncTask {
 
     private final AsyncExecutionId asyncExecutionId;
@@ -26,9 +25,17 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
     private volatile long expirationTimeMillis;
     private final List<ActionListener<Response>> completionListeners;
 
-    public StoredAsyncTask(long id, String type, String action, String description, TaskId parentTaskId,
-                           Map<String, String> headers, Map<String, String> originHeaders, AsyncExecutionId asyncExecutionId,
-                           TimeValue keepAlive) {
+    public StoredAsyncTask(
+        long id,
+        String type,
+        String action,
+        String description,
+        TaskId parentTaskId,
+        Map<String, String> headers,
+        Map<String, String> originHeaders,
+        AsyncExecutionId asyncExecutionId,
+        TimeValue keepAlive
+    ) {
         super(id, type, action, description, parentTaskId, headers);
         this.asyncExecutionId = asyncExecutionId;
         this.originHeaders = originHeaders;

@@ -8,8 +8,8 @@
 
 package org.elasticsearch.client.ml.job.config;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -23,9 +23,11 @@ public class PerPartitionCategorizationConfig implements ToXContentObject {
     public static final ParseField ENABLED_FIELD = new ParseField("enabled");
     public static final ParseField STOP_ON_WARN = new ParseField("stop_on_warn");
 
-    public static final ConstructingObjectParser<PerPartitionCategorizationConfig, Void> PARSER =
-        new ConstructingObjectParser<>(TYPE_FIELD.getPreferredName(), true,
-            a -> new PerPartitionCategorizationConfig((boolean) a[0], (Boolean) a[1]));
+    public static final ConstructingObjectParser<PerPartitionCategorizationConfig, Void> PARSER = new ConstructingObjectParser<>(
+        TYPE_FIELD.getPreferredName(),
+        true,
+        a -> new PerPartitionCategorizationConfig((boolean) a[0], (Boolean) a[1])
+    );
 
     static {
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ENABLED_FIELD);

@@ -14,8 +14,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
@@ -121,14 +121,12 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
         ADDITIONAL_TEMPLATE_VARIABLES
     );
 
-    public static final String[] TEMPLATE_NAMES = new String[]{
+    public static final String[] TEMPLATE_NAMES = new String[] {
         ALERTS_INDEX_TEMPLATE_NAME,
         BEATS_INDEX_TEMPLATE_NAME,
         ES_INDEX_TEMPLATE_NAME,
         KIBANA_INDEX_TEMPLATE_NAME,
-        LOGSTASH_INDEX_TEMPLATE_NAME
-    };
-
+        LOGSTASH_INDEX_TEMPLATE_NAME };
 
     private static final Map<String, IndexTemplateConfig> MONITORED_SYSTEM_CONFIG_LOOKUP = new HashMap<>();
     static {
@@ -143,8 +141,13 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
             .orElseThrow(() -> new IllegalArgumentException("Invalid system [" + system + "]"));
     }
 
-    public MonitoringTemplateRegistry(Settings nodeSettings, ClusterService clusterService, ThreadPool threadPool, Client client,
-                                      NamedXContentRegistry xContentRegistry) {
+    public MonitoringTemplateRegistry(
+        Settings nodeSettings,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        Client client,
+        NamedXContentRegistry xContentRegistry
+    ) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
         this.clusterService = clusterService;
         this.monitoringTemplatesEnabled = MONITORING_TEMPLATES_ENABLED.get(nodeSettings);

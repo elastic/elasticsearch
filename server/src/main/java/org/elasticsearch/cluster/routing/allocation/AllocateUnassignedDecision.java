@@ -12,9 +12,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -30,8 +30,15 @@ import java.util.Objects;
  */
 public class AllocateUnassignedDecision extends AbstractAllocationDecision {
     /** a constant representing a shard decision where no decision was taken */
-    public static final AllocateUnassignedDecision NOT_TAKEN =
-        new AllocateUnassignedDecision(AllocationStatus.NO_ATTEMPT, null, null, null, false, 0L, 0L);
+    public static final AllocateUnassignedDecision NOT_TAKEN = new AllocateUnassignedDecision(
+        AllocationStatus.NO_ATTEMPT,
+        null,
+        null,
+        null,
+        false,
+        0L,
+        0L
+    );
     /**
      * a map of cached common no/throttle decisions that don't need explanations,
      * this helps prevent unnecessary object allocations for the non-explain API case
@@ -39,16 +46,26 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
     private static final Map<AllocationStatus, AllocateUnassignedDecision> CACHED_DECISIONS;
     static {
         Map<AllocationStatus, AllocateUnassignedDecision> cachedDecisions = new EnumMap<>(AllocationStatus.class);
-        cachedDecisions.put(AllocationStatus.FETCHING_SHARD_DATA,
-            new AllocateUnassignedDecision(AllocationStatus.FETCHING_SHARD_DATA, null, null, null, false, 0L, 0L));
-        cachedDecisions.put(AllocationStatus.NO_VALID_SHARD_COPY,
-            new AllocateUnassignedDecision(AllocationStatus.NO_VALID_SHARD_COPY, null, null, null, false, 0L, 0L));
-        cachedDecisions.put(AllocationStatus.DECIDERS_NO,
-            new AllocateUnassignedDecision(AllocationStatus.DECIDERS_NO, null, null, null, false, 0L, 0L));
-        cachedDecisions.put(AllocationStatus.DECIDERS_THROTTLED,
-            new AllocateUnassignedDecision(AllocationStatus.DECIDERS_THROTTLED, null, null, null, false, 0L, 0L));
-        cachedDecisions.put(AllocationStatus.DELAYED_ALLOCATION,
-            new AllocateUnassignedDecision(AllocationStatus.DELAYED_ALLOCATION, null, null, null, false, 0L, 0L));
+        cachedDecisions.put(
+            AllocationStatus.FETCHING_SHARD_DATA,
+            new AllocateUnassignedDecision(AllocationStatus.FETCHING_SHARD_DATA, null, null, null, false, 0L, 0L)
+        );
+        cachedDecisions.put(
+            AllocationStatus.NO_VALID_SHARD_COPY,
+            new AllocateUnassignedDecision(AllocationStatus.NO_VALID_SHARD_COPY, null, null, null, false, 0L, 0L)
+        );
+        cachedDecisions.put(
+            AllocationStatus.DECIDERS_NO,
+            new AllocateUnassignedDecision(AllocationStatus.DECIDERS_NO, null, null, null, false, 0L, 0L)
+        );
+        cachedDecisions.put(
+            AllocationStatus.DECIDERS_THROTTLED,
+            new AllocateUnassignedDecision(AllocationStatus.DECIDERS_THROTTLED, null, null, null, false, 0L, 0L)
+        );
+        cachedDecisions.put(
+            AllocationStatus.DELAYED_ALLOCATION,
+            new AllocateUnassignedDecision(AllocationStatus.DELAYED_ALLOCATION, null, null, null, false, 0L, 0L)
+        );
         CACHED_DECISIONS = Collections.unmodifiableMap(cachedDecisions);
     }
 
@@ -60,18 +77,18 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
     private final long remainingDelayInMillis;
     private final long configuredDelayInMillis;
 
-    private AllocateUnassignedDecision(AllocationStatus allocationStatus,
-                                       DiscoveryNode assignedNode,
-                                       String allocationId,
-                                       List<NodeAllocationResult> nodeDecisions,
-                                       boolean reuseStore,
-                                       long remainingDelayInMillis,
-                                       long configuredDelayInMillis) {
+    private AllocateUnassignedDecision(
+        AllocationStatus allocationStatus,
+        DiscoveryNode assignedNode,
+        String allocationId,
+        List<NodeAllocationResult> nodeDecisions,
+        boolean reuseStore,
+        long remainingDelayInMillis,
+        long configuredDelayInMillis
+    ) {
         super(assignedNode, nodeDecisions);
-        assert assignedNode != null || allocationStatus != null :
-            "a yes decision must have a node to assign the shard to";
-        assert allocationId == null || assignedNode != null :
-            "allocation id can only be null if the assigned node is null";
+        assert assignedNode != null || allocationStatus != null : "a yes decision must have a node to assign the shard to";
+        assert allocationId == null || assignedNode != null : "allocation id can only be null if the assigned node is null";
         this.allocationStatus = allocationStatus;
         this.allocationId = allocationId;
         this.reuseStore = reuseStore;
@@ -101,8 +118,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
      * decisions that comprised the final NO decision, if in explain mode.  Instances created with this
      * method will return {@link AllocationStatus#DELAYED_ALLOCATION} for {@link #getAllocationStatus()}.
      */
-    public static AllocateUnassignedDecision delayed(long remainingDelay, long totalDelay,
-                                                     @Nullable List<NodeAllocationResult> decisions) {
+    public static AllocateUnassignedDecision delayed(long remainingDelay, long totalDelay, @Nullable List<NodeAllocationResult> decisions) {
         return no(AllocationStatus.DELAYED_ALLOCATION, decisions, false, remainingDelay, totalDelay);
     }
 
@@ -110,13 +126,21 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
      * Returns a NO decision with the given {@link AllocationStatus}, and the individual node-level
      * decisions that comprised the final NO decision if in explain mode.
      */
-    public static AllocateUnassignedDecision no(AllocationStatus allocationStatus, @Nullable List<NodeAllocationResult> decisions,
-                                                boolean reuseStore) {
+    public static AllocateUnassignedDecision no(
+        AllocationStatus allocationStatus,
+        @Nullable List<NodeAllocationResult> decisions,
+        boolean reuseStore
+    ) {
         return no(allocationStatus, decisions, reuseStore, 0L, 0L);
     }
 
-    private static AllocateUnassignedDecision no(AllocationStatus allocationStatus, @Nullable List<NodeAllocationResult> decisions,
-                                                 boolean reuseStore, long remainingDelay, long totalDelay) {
+    private static AllocateUnassignedDecision no(
+        AllocationStatus allocationStatus,
+        @Nullable List<NodeAllocationResult> decisions,
+        boolean reuseStore,
+        long remainingDelay,
+        long totalDelay
+    ) {
         if (decisions != null) {
             return new AllocateUnassignedDecision(allocationStatus, null, null, decisions, reuseStore, remainingDelay, totalDelay);
         } else {
@@ -141,16 +165,23 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
      * comprised the final YES decision, along with the node id to which the shard is assigned and
      * the allocation id for the shard, if available.
      */
-    public static AllocateUnassignedDecision yes(DiscoveryNode assignedNode, @Nullable String allocationId,
-                                                 @Nullable List<NodeAllocationResult> decisions, boolean reuseStore) {
+    public static AllocateUnassignedDecision yes(
+        DiscoveryNode assignedNode,
+        @Nullable String allocationId,
+        @Nullable List<NodeAllocationResult> decisions,
+        boolean reuseStore
+    ) {
         return new AllocateUnassignedDecision(null, assignedNode, allocationId, decisions, reuseStore, 0L, 0L);
     }
 
     /**
      * Creates a {@link AllocateUnassignedDecision} from the given {@link Decision} and the assigned node, if any.
      */
-    public static AllocateUnassignedDecision fromDecision(Decision decision, @Nullable DiscoveryNode assignedNode,
-                                                          @Nullable List<NodeAllocationResult> nodeDecisions) {
+    public static AllocateUnassignedDecision fromDecision(
+        Decision decision,
+        @Nullable DiscoveryNode assignedNode,
+        @Nullable List<NodeAllocationResult> nodeDecisions
+    ) {
         final Type decisionType = decision.type();
         AllocationStatus allocationStatus = decisionType != Type.YES ? AllocationStatus.fromDecision(decisionType) : null;
         return new AllocateUnassignedDecision(allocationStatus, assignedNode, null, nodeDecisions, false, 0L, 0L);
@@ -238,15 +269,14 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
             if (hasNodeWithStaleOrCorruptShard()) {
                 return "cannot allocate because all found copies of the shard are either stale or corrupt";
             } else {
-                return "cannot allocate because a previous copy of the primary shard existed but can no longer be found on " +
-                       "the nodes in the cluster";
+                return "cannot allocate because a previous copy of the primary shard existed but can no longer be found on "
+                    + "the nodes in the cluster";
             }
         } else if (allocationDecision == AllocationDecision.ALLOCATION_DELAYED) {
-            return "cannot allocate because the cluster is still waiting " +
-                              TimeValue.timeValueMillis(remainingDelayInMillis) +
-                              " for the departed node holding a replica to rejoin" +
-                              (atLeastOneNodeWithYesDecision() ?
-                                   ", despite being allowed to allocate the shard to at least one other node" : "");
+            return "cannot allocate because the cluster is still waiting "
+                + TimeValue.timeValueMillis(remainingDelayInMillis)
+                + " for the departed node holding a replica to rejoin"
+                + (atLeastOneNodeWithYesDecision() ? ", despite being allowed to allocate the shard to at least one other node" : "");
         } else {
             assert allocationDecision == AllocationDecision.NO;
             if (reuseStore) {
@@ -258,10 +288,12 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
     }
 
     private boolean hasNodeWithStaleOrCorruptShard() {
-        return getNodeDecisions() != null && getNodeDecisions().stream().anyMatch(result ->
-                result.getShardStoreInfo() != null
-                    && (result.getShardStoreInfo().getAllocationId() != null
-                            || result.getShardStoreInfo().getStoreException() != null));
+        return getNodeDecisions() != null
+            && getNodeDecisions().stream()
+                .anyMatch(
+                    result -> result.getShardStoreInfo() != null
+                        && (result.getShardStoreInfo().getAllocationId() != null || result.getShardStoreInfo().getStoreException() != null)
+                );
     }
 
     @Override
@@ -278,10 +310,12 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
             builder.field("allocation_id", allocationId);
         }
         if (allocationStatus == AllocationStatus.DELAYED_ALLOCATION) {
-            builder.humanReadableField("configured_delay_in_millis", "configured_delay",
-                TimeValue.timeValueMillis(configuredDelayInMillis));
-            builder.humanReadableField("remaining_delay_in_millis", "remaining_delay",
-                TimeValue.timeValueMillis(remainingDelayInMillis));
+            builder.humanReadableField(
+                "configured_delay_in_millis",
+                "configured_delay",
+                TimeValue.timeValueMillis(configuredDelayInMillis)
+            );
+            builder.humanReadableField("remaining_delay_in_millis", "remaining_delay", TimeValue.timeValueMillis(remainingDelayInMillis));
         }
         nodeDecisionsToXContent(nodeDecisions, builder, params);
         return builder;
@@ -307,16 +341,21 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
         }
         AllocateUnassignedDecision that = (AllocateUnassignedDecision) other;
         return Objects.equals(allocationStatus, that.allocationStatus)
-                   && Objects.equals(allocationId, that.allocationId)
-                   && reuseStore == that.reuseStore
-                   && configuredDelayInMillis == that.configuredDelayInMillis
-                   && remainingDelayInMillis == that.remainingDelayInMillis;
+            && Objects.equals(allocationId, that.allocationId)
+            && reuseStore == that.reuseStore
+            && configuredDelayInMillis == that.configuredDelayInMillis
+            && remainingDelayInMillis == that.remainingDelayInMillis;
     }
 
     @Override
     public int hashCode() {
-        return 31 * super.hashCode() + Objects.hash(allocationStatus, allocationId, reuseStore,
-            configuredDelayInMillis, remainingDelayInMillis);
+        return 31 * super.hashCode() + Objects.hash(
+            allocationStatus,
+            allocationId,
+            reuseStore,
+            configuredDelayInMillis,
+            remainingDelayInMillis
+        );
     }
 
 }

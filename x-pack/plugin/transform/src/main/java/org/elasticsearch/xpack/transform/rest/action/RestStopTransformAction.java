@@ -28,23 +28,22 @@ public class RestStopTransformAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         String id = restRequest.param(TransformField.ID.getPreferredName());
-        TimeValue timeout = restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(),
-                StopTransformAction.DEFAULT_TIMEOUT);
+        TimeValue timeout = restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), StopTransformAction.DEFAULT_TIMEOUT);
         boolean waitForCompletion = restRequest.paramAsBoolean(TransformField.WAIT_FOR_COMPLETION.getPreferredName(), false);
         boolean force = restRequest.paramAsBoolean(TransformField.FORCE.getPreferredName(), false);
         boolean allowNoMatch = restRequest.paramAsBoolean(TransformField.ALLOW_NO_MATCH.getPreferredName(), false);
         boolean waitForCheckpoint = restRequest.paramAsBoolean(TransformField.WAIT_FOR_CHECKPOINT.getPreferredName(), false);
 
-
-        StopTransformAction.Request request = new StopTransformAction.Request(id,
+        StopTransformAction.Request request = new StopTransformAction.Request(
+            id,
             waitForCompletion,
             force,
             timeout,
             allowNoMatch,
-            waitForCheckpoint);
+            waitForCheckpoint
+        );
 
-        return channel -> client.execute(StopTransformAction.INSTANCE, request,
-                new RestToXContentListener<>(channel));
+        return channel -> client.execute(StopTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 
     @Override

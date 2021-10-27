@@ -49,7 +49,6 @@ public class DocValuesDocReader implements DocReader, LeafReaderContextSupplier 
         return leafDocLookup.getScriptField(fieldName);
     }
 
-
     @Override
     public Stream<Field> fields(String fieldGlob) {
         throw new UnsupportedOperationException("not implemented");

@@ -20,7 +20,7 @@ public class DynamicTypeAnnotationParser implements WhitelistAnnotationParser {
     public Object parse(Map<String, String> arguments) {
         if (arguments.isEmpty() == false) {
             throw new IllegalArgumentException(
-                    "unexpected parameters for [@" + DynamicTypeAnnotation.NAME + "] annotation, found " + arguments
+                "unexpected parameters for [@" + DynamicTypeAnnotation.NAME + "] annotation, found " + arguments
             );
         }
 

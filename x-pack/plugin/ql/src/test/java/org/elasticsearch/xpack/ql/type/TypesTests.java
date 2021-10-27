@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.ql.type;
 
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -119,7 +119,7 @@ public class TypesTests extends ESTestCase {
         assertThat(mapping.size(), is(1));
         EsField field = mapping.get("session_id");
         assertThat(field, instanceOf(KeywordEsField.class));
-        //assertThat(field.getPrecision(), is(15));
+        // assertThat(field.getPrecision(), is(15));
         assertThat(field.isAggregatable(), is(false));
     }
 

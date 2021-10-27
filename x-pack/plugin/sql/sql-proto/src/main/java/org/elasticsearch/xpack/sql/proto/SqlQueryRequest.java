@@ -67,11 +67,26 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     private final boolean keepOnCompletion;
     private final TimeValue keepAlive;
 
-    public SqlQueryRequest(String query, List<SqlTypedParamValue> params, ZoneId zoneId, String catalog, int fetchSize,
-                           TimeValue requestTimeout, TimeValue pageTimeout, ToXContent filter, Boolean columnar,
-                           String cursor, RequestInfo requestInfo, boolean fieldMultiValueLeniency, boolean indexIncludeFrozen,
-                           Boolean binaryCommunication, Map<String, Object> runtimeMappings, TimeValue waitForCompletionTimeout,
-                           boolean keepOnCompletion, TimeValue keepAlive) {
+    public SqlQueryRequest(
+        String query,
+        List<SqlTypedParamValue> params,
+        ZoneId zoneId,
+        String catalog,
+        int fetchSize,
+        TimeValue requestTimeout,
+        TimeValue pageTimeout,
+        ToXContent filter,
+        Boolean columnar,
+        String cursor,
+        RequestInfo requestInfo,
+        boolean fieldMultiValueLeniency,
+        boolean indexIncludeFrozen,
+        Boolean binaryCommunication,
+        Map<String, Object> runtimeMappings,
+        TimeValue waitForCompletionTimeout,
+        boolean keepOnCompletion,
+        TimeValue keepAlive
+    ) {
         super(requestInfo);
         this.query = query;
         this.params = params;
@@ -92,18 +107,69 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         this.keepAlive = keepAlive;
     }
 
-    public SqlQueryRequest(String query, List<SqlTypedParamValue> params, ZoneId zoneId, String catalog, int fetchSize,
-                           TimeValue requestTimeout, TimeValue pageTimeout, ToXContent filter, Boolean columnar,
-                           String cursor, RequestInfo requestInfo, boolean fieldMultiValueLeniency, boolean indexIncludeFrozen,
-                           Boolean binaryCommunication, Map<String, Object> runtimeMappings) {
-        this(query, params, zoneId, catalog, fetchSize, requestTimeout, pageTimeout, filter, columnar, cursor, requestInfo,
-            fieldMultiValueLeniency, indexIncludeFrozen, binaryCommunication, runtimeMappings,
-            Protocol.DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT, Protocol.DEFAULT_KEEP_ON_COMPLETION, Protocol.DEFAULT_KEEP_ALIVE);
+    public SqlQueryRequest(
+        String query,
+        List<SqlTypedParamValue> params,
+        ZoneId zoneId,
+        String catalog,
+        int fetchSize,
+        TimeValue requestTimeout,
+        TimeValue pageTimeout,
+        ToXContent filter,
+        Boolean columnar,
+        String cursor,
+        RequestInfo requestInfo,
+        boolean fieldMultiValueLeniency,
+        boolean indexIncludeFrozen,
+        Boolean binaryCommunication,
+        Map<String, Object> runtimeMappings
+    ) {
+        this(
+            query,
+            params,
+            zoneId,
+            catalog,
+            fetchSize,
+            requestTimeout,
+            pageTimeout,
+            filter,
+            columnar,
+            cursor,
+            requestInfo,
+            fieldMultiValueLeniency,
+            indexIncludeFrozen,
+            binaryCommunication,
+            runtimeMappings,
+            Protocol.DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT,
+            Protocol.DEFAULT_KEEP_ON_COMPLETION,
+            Protocol.DEFAULT_KEEP_ALIVE
+        );
     }
-    public SqlQueryRequest(String cursor, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo,
-                           boolean binaryCommunication) {
-        this("", emptyList(), Protocol.TIME_ZONE, null, Protocol.FETCH_SIZE, requestTimeout, pageTimeout, null, false,
-                cursor, requestInfo, Protocol.FIELD_MULTI_VALUE_LENIENCY, Protocol.INDEX_INCLUDE_FROZEN, binaryCommunication, emptyMap());
+
+    public SqlQueryRequest(
+        String cursor,
+        TimeValue requestTimeout,
+        TimeValue pageTimeout,
+        RequestInfo requestInfo,
+        boolean binaryCommunication
+    ) {
+        this(
+            "",
+            emptyList(),
+            Protocol.TIME_ZONE,
+            null,
+            Protocol.FETCH_SIZE,
+            requestTimeout,
+            pageTimeout,
+            null,
+            false,
+            cursor,
+            requestInfo,
+            Protocol.FIELD_MULTI_VALUE_LENIENCY,
+            Protocol.INDEX_INCLUDE_FROZEN,
+            binaryCommunication,
+            emptyMap()
+        );
     }
 
     /**
@@ -138,7 +204,6 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     public String catalog() {
         return catalog;
     }
-
 
     /**
      * Hint about how many results to fetch at once.
@@ -217,29 +282,45 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         }
         SqlQueryRequest that = (SqlQueryRequest) o;
         return fetchSize == that.fetchSize
-                && Objects.equals(query, that.query)
-                && Objects.equals(params, that.params)
-                && Objects.equals(zoneId, that.zoneId)
-                && Objects.equals(catalog, that.catalog)
-                && Objects.equals(requestTimeout, that.requestTimeout)
-                && Objects.equals(pageTimeout, that.pageTimeout)
-                && Objects.equals(filter, that.filter)
-                && Objects.equals(columnar,  that.columnar)
-                && Objects.equals(cursor, that.cursor)
-                && fieldMultiValueLeniency == that.fieldMultiValueLeniency
-                && indexIncludeFrozen == that.indexIncludeFrozen
-                && Objects.equals(binaryCommunication,  that.binaryCommunication)
-                && Objects.equals(runtimeMappings, that.runtimeMappings)
-                && Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout)
-                && keepOnCompletion == that.keepOnCompletion
-                && Objects.equals(keepAlive, that.keepAlive);
+            && Objects.equals(query, that.query)
+            && Objects.equals(params, that.params)
+            && Objects.equals(zoneId, that.zoneId)
+            && Objects.equals(catalog, that.catalog)
+            && Objects.equals(requestTimeout, that.requestTimeout)
+            && Objects.equals(pageTimeout, that.pageTimeout)
+            && Objects.equals(filter, that.filter)
+            && Objects.equals(columnar, that.columnar)
+            && Objects.equals(cursor, that.cursor)
+            && fieldMultiValueLeniency == that.fieldMultiValueLeniency
+            && indexIncludeFrozen == that.indexIncludeFrozen
+            && Objects.equals(binaryCommunication, that.binaryCommunication)
+            && Objects.equals(runtimeMappings, that.runtimeMappings)
+            && Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout)
+            && keepOnCompletion == that.keepOnCompletion
+            && Objects.equals(keepAlive, that.keepAlive);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), query, zoneId, catalog, fetchSize, requestTimeout, pageTimeout,
-                filter, columnar, cursor, fieldMultiValueLeniency, indexIncludeFrozen, binaryCommunication, runtimeMappings,
-                waitForCompletionTimeout, keepOnCompletion, keepAlive);
+        return Objects.hash(
+            super.hashCode(),
+            query,
+            zoneId,
+            catalog,
+            fetchSize,
+            requestTimeout,
+            pageTimeout,
+            filter,
+            columnar,
+            cursor,
+            fieldMultiValueLeniency,
+            indexIncludeFrozen,
+            binaryCommunication,
+            runtimeMappings,
+            waitForCompletionTimeout,
+            keepOnCompletion,
+            keepAlive
+        );
     }
 
     @Override

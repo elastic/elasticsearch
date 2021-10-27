@@ -13,11 +13,11 @@ import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import static java.util.Collections.emptyMap;
 
@@ -56,18 +56,40 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
 
     public void testRewriteMissingReader() throws Exception {
         IndexService indexService = createIndex("test");
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("type")
                 .startObject("properties")
-                    .startObject("foo")
-                        .field("type", "date")
-                    .endObject()
+                .startObject("foo")
+                .field("type", "date")
                 .endObject()
-            .endObject().endObject());
-        indexService.mapperService().merge("type",
-                new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
-        QueryRewriteContext context = new SearchExecutionContext(0, 0, indexService.getIndexSettings(), null, null,
-            indexService.mapperService(), indexService.mapperService().mappingLookup(), null, null, xContentRegistry(), writableRegistry(),
-                null, null, null, null, null, () -> true, null, emptyMap());
+                .endObject()
+                .endObject()
+                .endObject()
+        );
+        indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+        QueryRewriteContext context = new SearchExecutionContext(
+            0,
+            0,
+            indexService.getIndexSettings(),
+            null,
+            null,
+            indexService.mapperService(),
+            indexService.mapperService().mappingLookup(),
+            null,
+            null,
+            xContentRegistry(),
+            writableRegistry(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            () -> true,
+            null,
+            emptyMap()
+        );
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         // can't make assumptions on a missing reader, so it must return INTERSECT
         assertEquals(Relation.INTERSECTS, range.getRelation(context));
@@ -75,15 +97,19 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
 
     public void testRewriteEmptyReader() throws Exception {
         IndexService indexService = createIndex("test");
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("type")
                 .startObject("properties")
-                    .startObject("foo")
-                        .field("type", "date")
-                    .endObject()
+                .startObject("foo")
+                .field("type", "date")
                 .endObject()
-            .endObject().endObject());
-        indexService.mapperService().merge("type",
-                new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+                .endObject()
+                .endObject()
+                .endObject()
+        );
+        indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
         IndexReader reader = new MultiReader();
         QueryRewriteContext context = new SearchExecutionContext(
             0,

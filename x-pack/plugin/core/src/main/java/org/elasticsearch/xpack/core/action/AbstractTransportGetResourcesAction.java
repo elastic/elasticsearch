@@ -14,18 +14,12 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -33,6 +27,12 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 
@@ -52,16 +52,22 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  * @param <Request> The type of the Request
  * @param <Response> The type of the Response
  */
-public abstract class AbstractTransportGetResourcesAction<Resource extends ToXContent & Writeable,
-    Request extends AbstractGetResourcesRequest, Response extends AbstractGetResourcesResponse<Resource>>
-    extends HandledTransportAction<Request, Response> {
+public abstract class AbstractTransportGetResourcesAction<
+    Resource extends ToXContent & Writeable,
+    Request extends AbstractGetResourcesRequest,
+    Response extends AbstractGetResourcesResponse<Resource>> extends HandledTransportAction<Request, Response> {
 
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
 
-    protected AbstractTransportGetResourcesAction(String actionName, TransportService transportService, ActionFilters actionFilters,
-                                                  Writeable.Reader<Request> request, Client client,
-                                                  NamedXContentRegistry xContentRegistry) {
+    protected AbstractTransportGetResourcesAction(
+        String actionName,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> request,
+        Client client,
+        NamedXContentRegistry xContentRegistry
+    ) {
         super(actionName, transportService, actionFilters, request);
         this.client = Objects.requireNonNull(client);
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
@@ -69,65 +75,70 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
 
     protected void searchResources(AbstractGetResourcesRequest request, ActionListener<QueryPage<Resource>> listener) {
         String[] tokens = Strings.tokenizeToStringArray(request.getResourceId(), ",");
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
-            .sort(SortBuilders.fieldSort(request.getResourceIdField())
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().sort(
+            SortBuilders.fieldSort(request.getResourceIdField())
                 // If there are no resources, there might be no mapping for the id field.
                 // This makes sure we don't get an error if that happens.
-                .unmappedType("long"))
-            .query(buildQuery(tokens, request.getResourceIdField()));
+                .unmappedType("long")
+        ).query(buildQuery(tokens, request.getResourceIdField()));
         if (request.getPageParams() != null) {
-            sourceBuilder.from(request.getPageParams().getFrom())
-                .size(request.getPageParams().getSize());
+            sourceBuilder.from(request.getPageParams().getFrom()).size(request.getPageParams().getSize());
         }
         sourceBuilder.trackTotalHits(true);
 
         IndicesOptions indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
-        SearchRequest searchRequest = new SearchRequest(getIndices())
-            .indicesOptions(IndicesOptions.fromOptions(true,
+        SearchRequest searchRequest = new SearchRequest(getIndices()).indicesOptions(
+            IndicesOptions.fromOptions(
+                true,
                 indicesOptions.allowNoIndices(),
                 indicesOptions.expandWildcardsOpen(),
                 indicesOptions.expandWildcardsClosed(),
-                indicesOptions))
-            .source(customSearchOptions(sourceBuilder));
+                indicesOptions
+            )
+        ).source(customSearchOptions(sourceBuilder));
 
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(),
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
             executionOrigin(),
             searchRequest,
             listener.<SearchResponse>delegateFailure((l, response) -> {
-                    List<Resource> docs = new ArrayList<>();
-                    Set<String> foundResourceIds = new HashSet<>();
-                    long totalHitCount = response.getHits().getTotalHits().value;
-                    for (SearchHit hit : response.getHits().getHits()) {
-                        BytesReference docSource = hit.getSourceRef();
-                        try (InputStream stream = docSource.streamInput();
-                             XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
-                                 xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
-                            Resource resource = parse(parser);
-                            String id = extractIdFromResource(resource);
-                            // Do not include a resource with the same ID twice
-                            if (foundResourceIds.contains(id) == false) {
-                                docs.add(resource);
-                                foundResourceIds.add(id);
-                            }
-                        } catch (IOException e) {
-                            l.onFailure(e);
+                List<Resource> docs = new ArrayList<>();
+                Set<String> foundResourceIds = new HashSet<>();
+                long totalHitCount = response.getHits().getTotalHits().value;
+                for (SearchHit hit : response.getHits().getHits()) {
+                    BytesReference docSource = hit.getSourceRef();
+                    try (
+                        InputStream stream = docSource.streamInput();
+                        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                            .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
+                    ) {
+                        Resource resource = parse(parser);
+                        String id = extractIdFromResource(resource);
+                        // Do not include a resource with the same ID twice
+                        if (foundResourceIds.contains(id) == false) {
+                            docs.add(resource);
+                            foundResourceIds.add(id);
                         }
+                    } catch (IOException e) {
+                        l.onFailure(e);
                     }
-                    ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, request.isAllowNoResources());
-                    requiredMatches.filterMatchedIds(foundResourceIds);
-                    if (requiredMatches.hasUnmatchedIds()) {
-                        l.onFailure(notFoundException(requiredMatches.unmatchedIdsString()));
+                }
+                ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, request.isAllowNoResources());
+                requiredMatches.filterMatchedIds(foundResourceIds);
+                if (requiredMatches.hasUnmatchedIds()) {
+                    l.onFailure(notFoundException(requiredMatches.unmatchedIdsString()));
+                } else {
+                    // if only exact ids have been given, take the count from docs to avoid potential duplicates
+                    // in versioned indexes (like transform)
+                    if (requiredMatches.isOnlyExact()) {
+                        l.onResponse(new QueryPage<>(docs, docs.size(), getResultsField()));
                     } else {
-                        // if only exact ids have been given, take the count from docs to avoid potential duplicates
-                        // in versioned indexes (like transform)
-                        if (requiredMatches.isOnlyExact()) {
-                            l.onResponse(new QueryPage<>(docs, docs.size(), getResultsField()));
-                        } else {
-                            l.onResponse(new QueryPage<>(docs, totalHitCount, getResultsField()));
-                        }
+                        l.onResponse(new QueryPage<>(docs, totalHitCount, getResultsField()));
                     }
-                }),
-            client::search);
+                }
+            }),
+            client::search
+        );
     }
 
     private QueryBuilder buildQuery(String[] tokens, String resourceIdField) {
@@ -184,6 +195,7 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
      * @return parsed Resource typed object
      */
     protected abstract Resource parse(XContentParser parser) throws IOException;
+
     /**
      * @param resourceId Resource ID or expression that was not found in the search results
      * @return The exception to throw in the event that an ID or expression is not found

@@ -8,14 +8,14 @@
 
 package org.elasticsearch.client.transform.transforms.pivot;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
 import java.io.IOException;
 import java.util.Objects;

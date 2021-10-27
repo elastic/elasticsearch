@@ -43,14 +43,18 @@ public class SeqNoPrimaryTermAndIndexTests extends ESTestCase {
         long seqNo = randomLongBetween(-2, 10_000);
         long primaryTerm = randomLongBetween(-2, 10_000);
         String index = randomAlphaOfLength(10);
-        IndexResponse indexResponse = new IndexResponse(new ShardId(index, randomAlphaOfLength(10), 1),
+        IndexResponse indexResponse = new IndexResponse(
+            new ShardId(index, randomAlphaOfLength(10), 1),
             "asdf",
             seqNo,
             primaryTerm,
             1,
-        randomBoolean());
+            randomBoolean()
+        );
 
-        assertThat(SeqNoPrimaryTermAndIndex.fromIndexResponse(indexResponse),
-            equalTo(new SeqNoPrimaryTermAndIndex(seqNo, primaryTerm, index)));
+        assertThat(
+            SeqNoPrimaryTermAndIndex.fromIndexResponse(indexResponse),
+            equalTo(new SeqNoPrimaryTermAndIndex(seqNo, primaryTerm, index))
+        );
     }
 }

@@ -31,9 +31,13 @@ public class TransportGetUserPrivilegesAction extends HandledTransportAction<Get
     private final SecurityContext securityContext;
 
     @Inject
-    public TransportGetUserPrivilegesAction(ThreadPool threadPool, TransportService transportService,
-                                            ActionFilters actionFilters, AuthorizationService authorizationService,
-                                            SecurityContext securityContext) {
+    public TransportGetUserPrivilegesAction(
+        ThreadPool threadPool,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        AuthorizationService authorizationService,
+        SecurityContext securityContext
+    ) {
         super(GetUserPrivilegesAction.NAME, transportService, actionFilters, GetUserPrivilegesRequest::new);
         this.threadPool = threadPool;
         this.authorizationService = authorizationService;

@@ -10,37 +10,14 @@ package org.elasticsearch.xcontent.smile;
 
 import com.fasterxml.jackson.core.JsonParser;
 
-import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContentParser;
-import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
 public class SmileXContentParser extends JsonXContentParser {
 
-    public SmileXContentParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, JsonParser parser) {
-        super(xContentRegistry, deprecationHandler, parser);
-    }
-
-    public SmileXContentParser(
-        NamedXContentRegistry xContentRegistry,
-        DeprecationHandler deprecationHandler,
-        JsonParser parser,
-        RestApiVersion restApiVersion
-    ) {
-        super(xContentRegistry, deprecationHandler, parser, restApiVersion);
-    }
-
-    public SmileXContentParser(
-        NamedXContentRegistry xContentRegistry,
-        DeprecationHandler deprecationHandler,
-        JsonParser parser,
-        RestApiVersion restApiVersion,
-        FilterPath[] include,
-        FilterPath[] exclude
-    ) {
-        super(xContentRegistry, deprecationHandler, parser, restApiVersion, include, exclude);
+    public SmileXContentParser(XContentParserConfiguration config, JsonParser parser) {
+        super(config, parser);
     }
 
     @Override

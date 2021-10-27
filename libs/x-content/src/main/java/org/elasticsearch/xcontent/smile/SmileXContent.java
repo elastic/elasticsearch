@@ -14,17 +14,13 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.dataformat.smile.SmileFactory;
 import com.fasterxml.jackson.dataformat.smile.SmileGenerator;
 
-import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -72,102 +68,22 @@ public class SmileXContent implements XContent {
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, String content)
-        throws IOException {
-        return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(content));
+    public XContentParser createParser(XContentParserConfiguration config, String content) throws IOException {
+        return new SmileXContentParser(config, smileFactory.createParser(content));
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, InputStream is)
-        throws IOException {
-        return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(is));
+    public XContentParser createParser(XContentParserConfiguration config, InputStream is) throws IOException {
+        return new SmileXContentParser(config, smileFactory.createParser(is));
     }
 
     @Override
-    public XContentParser createParser(
-        NamedXContentRegistry xContentRegistry,
-        DeprecationHandler deprecationHandler,
-        InputStream is,
-        FilterPath[] include,
-        FilterPath[] exclude
-    ) throws IOException {
-        return new SmileXContentParser(
-            xContentRegistry,
-            deprecationHandler,
-            smileFactory.createParser(is),
-            RestApiVersion.current(),
-            include,
-            exclude
-        );
+    public XContentParser createParser(XContentParserConfiguration config, byte[] data, int offset, int length) throws IOException {
+        return new SmileXContentParser(config, smileFactory.createParser(data, offset, length));
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, byte[] data)
-        throws IOException {
-        return createParser(xContentRegistry, deprecationHandler, data, 0, data.length);
-    }
-
-    @Override
-    public XContentParser createParser(
-        NamedXContentRegistry xContentRegistry,
-        DeprecationHandler deprecationHandler,
-        byte[] data,
-        int offset,
-        int length
-    ) throws IOException {
-        return createParserForCompatibility(xContentRegistry, deprecationHandler, data, offset, length, RestApiVersion.current());
-    }
-
-    @Override
-    public XContentParser createParser(
-        NamedXContentRegistry xContentRegistry,
-        DeprecationHandler deprecationHandler,
-        byte[] data,
-        int offset,
-        int length,
-        FilterPath[] includes,
-        FilterPath[] excludes
-    ) throws IOException {
-        return new SmileXContentParser(
-            xContentRegistry,
-            deprecationHandler,
-            smileFactory.createParser(new ByteArrayInputStream(data, offset, length)),
-            RestApiVersion.current(),
-            includes,
-            excludes
-        );
-    }
-
-    @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, Reader reader)
-        throws IOException {
-        return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(reader));
-    }
-
-    @Override
-    public XContentParser createParserForCompatibility(
-        NamedXContentRegistry xContentRegistry,
-        DeprecationHandler deprecationHandler,
-        InputStream is,
-        RestApiVersion restApiVersion
-    ) throws IOException {
-        return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(is), restApiVersion);
-    }
-
-    @Override
-    public XContentParser createParserForCompatibility(
-        NamedXContentRegistry xContentRegistry,
-        DeprecationHandler deprecationHandler,
-        byte[] data,
-        int offset,
-        int length,
-        RestApiVersion restApiVersion
-    ) throws IOException {
-        return new SmileXContentParser(
-            xContentRegistry,
-            deprecationHandler,
-            smileFactory.createParser(new ByteArrayInputStream(data, offset, length)),
-            restApiVersion
-        );
+    public XContentParser createParser(XContentParserConfiguration config, Reader reader) throws IOException {
+        return new SmileXContentParser(config, smileFactory.createParser(reader));
     }
 }

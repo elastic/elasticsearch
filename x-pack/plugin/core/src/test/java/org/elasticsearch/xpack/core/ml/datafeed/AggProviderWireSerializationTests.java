@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -21,6 +22,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79932")
 public class AggProviderWireSerializationTests extends AbstractBWCWireSerializationTestCase<AggProvider> {
 
     @Override

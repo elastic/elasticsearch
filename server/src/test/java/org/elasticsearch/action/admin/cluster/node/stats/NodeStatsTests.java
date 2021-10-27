@@ -286,8 +286,8 @@ public class NodeStatsTests extends ESTestCase {
                         compilations += generatedStats.getCompilations();
                         assertEquals(generatedStats.getCompilations(), deserStats.getCompilations());
 
-                        assertEquals(generatedStats.getCacheEvictionsHistory(), deserStats.getCacheEvictionsHistory());
-                        assertEquals(generatedStats.getCompilationsHistory(), deserStats.getCompilationsHistory());
+                        assertEquals(generatedStats.getCacheEvictions(), deserStats.getCacheEvictions());
+                        assertEquals(generatedStats.getCompilations(), deserStats.getCompilations());
                     }
                     assertEquals(evictions, scriptStats.getCacheEvictions());
                     assertEquals(limited, scriptStats.getCompilationLimitTriggered());

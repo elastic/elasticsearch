@@ -8,6 +8,7 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -21,23 +22,31 @@ public class TimeSeries implements Writeable, ToXContentFragment {
     public final long fiveMinutes;
     public final long fifteenMinutes;
     public final long twentyFourHours;
+    public final long total;
 
     public TimeSeries() {
         this.fiveMinutes = 0;
         this.fifteenMinutes = 0;
         this.twentyFourHours = 0;
+        this.total = 0;
     }
 
-    public TimeSeries(long fiveMinutes, long fifteenMinutes, long twentyFourHours) {
+    public TimeSeries(long fiveMinutes, long fifteenMinutes, long twentyFourHours, long total) {
         this.fiveMinutes = fiveMinutes;
         this.fifteenMinutes = fifteenMinutes;
         this.twentyFourHours = twentyFourHours;
+        this.total = total;
     }
 
     public TimeSeries(StreamInput in) throws IOException {
         fiveMinutes = in.readVLong();
         fifteenMinutes = in.readVLong();
         twentyFourHours = in.readVLong();
+        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+            total = in.readVLong();
+        } else {
+            total = 0;
+        }
     }
 
     @Override
@@ -53,6 +62,9 @@ public class TimeSeries implements Writeable, ToXContentFragment {
         out.writeVLong(fiveMinutes);
         out.writeVLong(fifteenMinutes);
         out.writeVLong(twentyFourHours);
+        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+            out.writeVLong(total);
+        }
     }
 
     public boolean isEmpty() {
@@ -64,11 +76,14 @@ public class TimeSeries implements Writeable, ToXContentFragment {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TimeSeries that = (TimeSeries) o;
-        return fiveMinutes == that.fiveMinutes && fifteenMinutes == that.fifteenMinutes && twentyFourHours == that.twentyFourHours;
+        return fiveMinutes == that.fiveMinutes
+            && fifteenMinutes == that.fifteenMinutes
+            && twentyFourHours == that.twentyFourHours
+            && total == that.total;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fiveMinutes, fifteenMinutes, twentyFourHours);
+        return Objects.hash(fiveMinutes, fifteenMinutes, twentyFourHours, total);
     }
 }

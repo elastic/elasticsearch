@@ -59,7 +59,7 @@ public class TimeSeriesCounter {
     public TimeSeries timeSeries(long t) {
         lock.readLock().lock();
         try {
-            return new TimeSeries(fiveMinutes.sum(t), fifteenMinutes.sum(t), twentyFourHours.sum(t));
+            return new TimeSeries(fiveMinutes.sum(t), fifteenMinutes.sum(t), twentyFourHours.sum(t), count());
         } finally {
             lock.readLock().unlock();
         }

@@ -44,13 +44,15 @@ public class ScriptMetrics {
 
     public ScriptContextStats stats(String context) {
         long t = now();
+        TimeSeries compilationsTimeSeries = compilations.timeSeries(t);
+        TimeSeries cacheEvictionsTimeSeries = cacheEvictions.timeSeries(t);
         return new ScriptContextStats(
             context,
-            compilations.count(),
-            cacheEvictions.count(),
+            compilationsTimeSeries.total,
+            cacheEvictionsTimeSeries.total,
             compilationLimitTriggered.count(),
-            compilations.timeSeries(t),
-            cacheEvictions.timeSeries(t)
+            compilationsTimeSeries,
+            cacheEvictionsTimeSeries
         );
     }
 }

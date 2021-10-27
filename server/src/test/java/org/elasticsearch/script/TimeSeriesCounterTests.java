@@ -162,6 +162,35 @@ public class TimeSeriesCounterTests extends ESTestCase {
         assertEquals(count, tsc.timeSeries(start + duration + resolution - 1).fifteenMinutes);
     }
 
+    public void testTwentyFourHourSameBucket() {
+        inc(now);
+        long resolution = tsc.twentyFourHours.resolution;
+        long duration = tsc.twentyFourHours.duration;
+        long start = (now / resolution) * resolution;
+        long count = randomLongBetween(1, resolution);
+        for (int i = 1; i < count; i++) {
+            inc(start + i);
+        }
+        assertEquals(count, tsc.count());
+        assertEquals(count, tsc.timeSeries(now).twentyFourHours);
+
+        long t = 0;
+        for (; t <= duration; t += resolution) {
+            assertEquals(count, tsc.timeSeries(start + t).twentyFourHours);
+        }
+
+        TimeSeries series = tsc.timeSeries(start + t);
+        assertEquals(0, series.fiveMinutes);
+        assertEquals(0, series.fifteenMinutes);
+        assertEquals(0, series.twentyFourHours);
+
+        series = tsc.timeSeries(start + duration + resolution);
+        assertEquals(0, series.fiveMinutes);
+        assertEquals(0, series.fifteenMinutes);
+        assertEquals(0, series.twentyFourHours);
+        assertEquals(count, tsc.timeSeries(start + duration + resolution - 1).twentyFourHours);
+    }
+
     public void testCounterIncrementBucket() {
         long count = customCounterDuration / customCounterResolution;
         for (int i = 0; i < count; i++) {
@@ -181,20 +210,23 @@ public class TimeSeriesCounterTests extends ESTestCase {
         for (int i = 0; i < count; i++) {
             inc(now + i * resolution);
         }
-
-        TimeSeries ts = tsc.timeSeries(now + duration);
+        long t = now + duration;
+        TimeSeries ts = tsc.timeSeries(t);
         assertEquals(count, ts.fiveMinutes);
         assertEquals(count, ts.fifteenMinutes);
         assertEquals(count, ts.twentyFourHours);
         assertEquals(count, tsc.count());
 
-        ts = tsc.timeSeries(now + duration + resolution);
+        t = now + duration + resolution;
+        ts = tsc.timeSeries(t);
         assertEquals(count - 1, ts.fiveMinutes);
         assertEquals(count, ts.fifteenMinutes);
         assertEquals(count, ts.twentyFourHours);
 
-        ts = tsc.timeSeries(now + duration + (2 * resolution));
-        assertEquals(count - 2, ts.fiveMinutes);
+        long numRes = 2;
+        t = now + duration + (numRes * resolution);
+        ts = tsc.timeSeries(t);
+        assertEquals(count - numRes, ts.fiveMinutes);
         assertEquals(count, ts.fifteenMinutes);
         assertEquals(count, ts.twentyFourHours);
 
@@ -226,10 +258,11 @@ public class TimeSeriesCounterTests extends ESTestCase {
         assertEquals(count - 1, ts.fifteenMinutes);
         assertEquals(count, ts.twentyFourHours);
 
-        t = now + duration + (2 * resolution);
+        long numRes = 2;
+        t = now + duration + (numRes * resolution);
         ts = tsc.timeSeries(t);
         assertEquals(five(t), ts.fiveMinutes);
-        assertEquals(count - 2, ts.fifteenMinutes);
+        assertEquals(count - numRes, ts.fifteenMinutes);
         assertEquals(count, ts.twentyFourHours);
 
         inc(now + duration);
@@ -238,6 +271,42 @@ public class TimeSeriesCounterTests extends ESTestCase {
         assertEquals(five(t), ts.fiveMinutes);
         assertEquals(count, ts.fifteenMinutes);
         assertEquals(count + 1, ts.twentyFourHours);
+        assertEquals(count + 1, tsc.count());
+    }
+
+    public void testTwentyFourHourIncrementBucket() {
+        int count = tsc.twentyFourHours.buckets.length;
+        long resolution = tsc.twentyFourHours.resolution;
+        long duration = tsc.twentyFourHours.duration;
+        for (int i = 0; i < count; i++) {
+            long t = now + i * resolution;
+            inc(t);
+        }
+        long t = now + duration;
+        TimeSeries ts = tsc.timeSeries(t);
+        assertEquals(five(t), ts.fiveMinutes);
+        assertEquals(fifteen(t), ts.fifteenMinutes);
+        assertEquals(count, ts.twentyFourHours);
+
+        t = now + duration + resolution;
+        ts = tsc.timeSeries(t);
+        assertEquals(five(t), ts.fiveMinutes);
+        assertEquals(0, ts.fifteenMinutes);
+        assertEquals(count - 1, ts.twentyFourHours);
+
+        long numRes = 2;
+        t = now + duration + (numRes * resolution);
+        ts = tsc.timeSeries(t);
+        assertEquals(0, ts.fiveMinutes);
+        assertEquals(0, ts.fifteenMinutes);
+        assertEquals(count - numRes, ts.twentyFourHours);
+
+        inc(now + duration);
+        t = now + duration + resolution;
+        ts = tsc.timeSeries(t);
+        assertEquals(0, ts.fiveMinutes);
+        assertEquals(1, ts.fifteenMinutes);
+        assertEquals(count, ts.twentyFourHours);
         assertEquals(count + 1, tsc.count());
     }
 
@@ -291,6 +360,22 @@ public class TimeSeriesCounterTests extends ESTestCase {
         }
     }
 
+    public void testTwentyFourHourSkipBuckets() {
+        int count = tsc.twentyFourHours.buckets.length;
+        long resolution = tsc.twentyFourHours.resolution;
+        long duration = tsc.twentyFourHours.duration;
+        for (int skip = 1; skip <= count; skip++) {
+            reset();
+            for (int i = 0; (i * skip * resolution) < duration; i++) {
+                inc(now + (i * skip * resolution));
+            }
+            TimeSeries ts = tsc.timeSeries(now + duration);
+            assertEquals(five(now + duration), ts.fiveMinutes);
+            assertEquals(events.size(), ts.twentyFourHours);
+            assertEquals(events.size(), tsc.count());
+        }
+    }
+
     public void testCounterReset() {
         long time = now;
         for (int i = 0; i < 20; i++) {
@@ -339,6 +424,22 @@ public class TimeSeriesCounterTests extends ESTestCase {
             TimeSeries ts = tsc.timeSeries(time);
             assertThat(five(time) - ts.fiveMinutes, fiveDelta);
             assertThat(fifteen(time) - ts.fifteenMinutes, fifteenDelta);
+            assertThat(twentyFour(time) - ts.twentyFourHours, twentyFourDelta);
+            assertEquals(events.size(), tsc.count());
+        }
+    }
+
+    public void testTwentyFourHourReset() {
+        long time = now;
+        long resolution = tsc.twentyFourHours.resolution;
+        long duration = tsc.twentyFourHours.duration;
+        for (int i = 0; i < 20; i++) {
+            long withinBucket = randomLongBetween(1, resolution);
+            time += resolution + (i * duration);
+            for (int j = 0; j < withinBucket; j++) {
+                inc(time + j);
+            }
+            TimeSeries ts = tsc.timeSeries(time);
             assertThat(twentyFour(time) - ts.twentyFourHours, twentyFourDelta);
             assertEquals(events.size(), tsc.count());
         }

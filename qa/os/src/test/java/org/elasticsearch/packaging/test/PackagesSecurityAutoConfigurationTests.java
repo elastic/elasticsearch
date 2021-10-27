@@ -140,7 +140,8 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         assertNotNull(installation.getElasticPassword());
 
         Optional<String> autoConfigDirName = getAutoConfigDirName(installation);
-        Files.deleteIfExists(installation.config(autoConfigDirName.get()));
+        // Move instead of delete because Files.deleteIfExists bails on non empty dirs
+        Files.move(installation.config(autoConfigDirName.get()), installation.config("temp-autoconf-dir"));
         Shell.Result result = installation.executables().nodeReconfigureTool.run("--enrollment-token a-token", "y", true);
         assertThat(result.exitCode, equalTo(ExitCodes.USAGE)); //
     }

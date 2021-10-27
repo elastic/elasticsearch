@@ -117,8 +117,7 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
             ),
             false
         );
-        Platforms.onWindows(() -> assertThat(result.stdout, containsString("Multiple --enrollment-token parameters are not allowed")));
-        Platforms.onLinux(() -> assertThat(result.stderr, containsString("Multiple --enrollment-token parameters are not allowed")));
+        assertThat(result.stderr, containsString("Multiple --enrollment-token parameters are not allowed"));
         assertThat(result.exitCode, equalTo(1));
     }
 

@@ -1147,7 +1147,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 final Metadata loadedMetadata;
                 try (
                     XContentParser parser = createParser(
-                        ElasticsearchNodeCommand.namedXContentRegistry,
+                        parserConfig().withRegistry(ElasticsearchNodeCommand.namedXContentRegistry),
                         SmileXContent.smileXContent,
                         originalBytes
                     )
@@ -1188,7 +1188,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 final IndexMetadata loadedIndexMetadata;
                 try (
                     XContentParser parser = createParser(
-                        ElasticsearchNodeCommand.namedXContentRegistry,
+                        parserConfig().withRegistry(ElasticsearchNodeCommand.namedXContentRegistry),
                         SmileXContent.smileXContent,
                         originalBytes
                     )

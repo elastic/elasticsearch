@@ -530,7 +530,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         Mockito.reset(clusterService);
         SchedulerEngine.Event schedulerEvent = new SchedulerEngine.Event("foo", randomLong(), randomLong());
         indexLifecycleService.triggered(schedulerEvent);
-        Mockito.verifyZeroInteractions(indicesClient, clusterService);
+        Mockito.verifyNoMoreInteractions(indicesClient, clusterService);
     }
 
     public void testParsingOriginationDateBeforeIndexCreation() {

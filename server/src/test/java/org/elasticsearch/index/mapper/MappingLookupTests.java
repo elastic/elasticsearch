@@ -16,6 +16,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.ESTestCase;
 
@@ -29,6 +30,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.equalTo;
 
 public class MappingLookupTests extends ESTestCase {
 
@@ -114,6 +116,71 @@ public class MappingLookupTests extends ESTestCase {
         assertEquals(0, mappingLookup.getMapping().getMetadataMappersMap().size());
         assertFalse(mappingLookup.fieldMappers().iterator().hasNext());
         assertEquals(0, mappingLookup.getMatchingFieldNames("*").size());
+    }
+
+    public void testValidateDoesNotShadow() {
+        FakeFieldType dim = new FakeFieldType("dim") {
+            @Override
+            public boolean isDimension() {
+                return true;
+            }
+        };
+        FieldMapper dimMapper = new FakeFieldMapper(dim, "index1");
+
+        MetricType metricType = randomFrom(MetricType.values());
+        FakeFieldType metric = new FakeFieldType("metric") {
+            @Override
+            public MetricType getMetricType() {
+                return metricType;
+            }
+        };
+        FieldMapper metricMapper = new FakeFieldMapper(metric, "index1");
+
+        FakeFieldType plain = new FakeFieldType("plain");
+        FieldMapper plainMapper = new FakeFieldMapper(plain, "index1");
+
+        MappingLookup mappingLookup = createMappingLookup(List.of(dimMapper, metricMapper, plainMapper), emptyList(), emptyList());
+        mappingLookup.validateDoesNotShadow("not_mapped");
+        Exception e = expectThrows(MapperParsingException.class, () -> mappingLookup.validateDoesNotShadow("dim"));
+        assertThat(e.getMessage(), equalTo("Field [dim] attempted to shadow a time_series_dimension"));
+        e = expectThrows(MapperParsingException.class, () -> mappingLookup.validateDoesNotShadow("metric"));
+        assertThat(e.getMessage(), equalTo("Field [metric] attempted to shadow a time_series_metric"));
+        mappingLookup.validateDoesNotShadow("plain");
+    }
+
+    public void testShadowingOnConstruction() {
+        FakeFieldType dim = new FakeFieldType("dim") {
+            @Override
+            public boolean isDimension() {
+                return true;
+            }
+        };
+        FieldMapper dimMapper = new FakeFieldMapper(dim, "index1");
+
+        MetricType metricType = randomFrom(MetricType.values());
+        FakeFieldType metric = new FakeFieldType("metric") {
+            @Override
+            public MetricType getMetricType() {
+                return metricType;
+            }
+        };
+        FieldMapper metricMapper = new FakeFieldMapper(metric, "index1");
+
+        boolean shadowDim = randomBoolean();
+        TestRuntimeField shadowing = new TestRuntimeField(shadowDim ? "dim" : "metric", "keyword");
+
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> createMappingLookup(List.of(dimMapper, metricMapper), emptyList(), List.of(shadowing))
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                shadowDim
+                    ? "Field [dim] attempted to shadow a time_series_dimension"
+                    : "Field [metric] attempted to shadow a time_series_metric"
+            )
+        );
     }
 
     private void assertAnalyzes(Analyzer analyzer, String field, String output) throws IOException {

@@ -43,7 +43,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class OperatorPrivilegesTests extends ESTestCase {
@@ -82,7 +82,7 @@ public class OperatorPrivilegesTests extends ESTestCase {
             threadContext
         );
         assertNull(e);
-        verifyZeroInteractions(operatorOnlyRegistry);
+        verifyNoMoreInteractions(operatorOnlyRegistry);
     }
 
     public void testMarkOperatorUser() throws IllegalAccessException {
@@ -245,21 +245,21 @@ public class OperatorPrivilegesTests extends ESTestCase {
     public void testMaybeInterceptRequestWillNotInterceptRequestsOtherThanRestoreSnapshotRequest() {
         final TransportRequest transportRequest = mock(TransportRequest.class);
         operatorPrivilegesService.maybeInterceptRequest(new ThreadContext(Settings.EMPTY), transportRequest);
-        verifyZeroInteractions(xPackLicenseState);
+        verifyNoMoreInteractions(xPackLicenseState);
     }
 
     public void testNoOpService() {
         final Authentication authentication = mock(Authentication.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         NOOP_OPERATOR_PRIVILEGES_SERVICE.maybeMarkOperatorUser(authentication, threadContext);
-        verifyZeroInteractions(authentication);
+        verifyNoMoreInteractions(authentication);
         assertNull(threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY));
 
         final TransportRequest request = mock(TransportRequest.class);
         assertNull(
             NOOP_OPERATOR_PRIVILEGES_SERVICE.check(mock(Authentication.class), randomAlphaOfLengthBetween(10, 20), request, threadContext)
         );
-        verifyZeroInteractions(request);
+        verifyNoMoreInteractions(request);
     }
 
     public void testNoOpServiceMaybeInterceptRequest() {

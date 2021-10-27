@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
@@ -34,10 +35,8 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -57,6 +56,8 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -68,6 +69,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -91,7 +93,6 @@ import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.clus
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.getIndexNumberOfRoutingShards;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.parseV1Mappings;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.resolveAndValidateAliases;
-
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 import static org.hamcrest.Matchers.endsWith;
@@ -508,8 +509,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     public void testValidateDotIndex() {
         List<SystemIndexDescriptor> systemIndexDescriptors = new ArrayList<>();
-        systemIndexDescriptors.add(new SystemIndexDescriptor(".test", "test"));
-        systemIndexDescriptors.add(new SystemIndexDescriptor(".test3", "test"));
+        systemIndexDescriptors.add(new SystemIndexDescriptor(".test-one*", "test"));
+        systemIndexDescriptors.add(new SystemIndexDescriptor(".test-~(one*)", "test"));
         systemIndexDescriptors.add(new SystemIndexDescriptor(".pattern-test*", "test-1"));
 
         withTemporaryClusterService(((clusterService, threadPool) -> {
@@ -536,8 +537,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             assertFalse(checkerService.validateDotIndex(".test2", true));
 
             // Check NO deprecation warnings if we give the index name
-            assertTrue(checkerService.validateDotIndex(".test", false));
-            assertTrue(checkerService.validateDotIndex(".test3", false));
+            assertTrue(checkerService.validateDotIndex(".test-one", false));
+            assertTrue(checkerService.validateDotIndex(".test-3", false));
 
             // Check that patterns with wildcards work
             assertTrue(checkerService.validateDotIndex(".pattern-test", false));
@@ -940,6 +941,71 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         int targetRoutingNumberOfShards = getIndexNumberOfRoutingShards(indexSettings, sourceIndexMetadata);
         assertThat(targetRoutingNumberOfShards, is(6));
+    }
+
+    private Optional<String> aggregatedTierPreference(Settings settings, boolean isDataStream) {
+        Settings templateSettings = Settings.EMPTY;
+        request.settings(Settings.EMPTY);
+
+        if (randomBoolean()) {
+            templateSettings = settings;
+        } else {
+            request.settings(settings);
+        }
+
+        if (isDataStream) {
+            request.dataStreamName(randomAlphaOfLength(10));
+        } else {
+            request.dataStreamName(null);
+        }
+        Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, templateSettings,
+            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
+            Set.of(new DataTier.DefaultHotAllocationSettingProvider()));
+
+        if (aggregatedIndexSettings.keySet().contains(DataTier.TIER_PREFERENCE)) {
+            return Optional.of(aggregatedIndexSettings.get(DataTier.TIER_PREFERENCE));
+        } else {
+            return Optional.empty();
+        }
+    }
+
+    public void testEnforceDefaultTierPreference() {
+        Settings settings;
+        Optional<String> tier;
+
+        // empty settings gets the appropriate tier
+        settings = Settings.EMPTY;
+        tier = aggregatedTierPreference(settings, false);
+        assertEquals(DataTier.DATA_CONTENT, tier.get());
+
+        settings = Settings.EMPTY;
+        tier = aggregatedTierPreference(settings, true);
+        assertEquals(DataTier.DATA_HOT, tier.get());
+
+        // an explicit tier is respected
+        settings = Settings.builder().put(DataTier.TIER_PREFERENCE, DataTier.DATA_COLD).build();
+        tier = aggregatedTierPreference(settings, randomBoolean());
+        assertEquals(DataTier.DATA_COLD, tier.get());
+
+        // any of the INDEX_ROUTING_.*_GROUP_PREFIX settings still result in a default
+        String includeRoutingSetting = randomFrom(
+            IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX,
+            IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX,
+            IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX) + "." + randomAlphaOfLength(10);
+        settings = Settings.builder()
+            .put(includeRoutingSetting, randomAlphaOfLength(10))
+            .build();
+        tier = aggregatedTierPreference(settings, false);
+        assertEquals(DataTier.DATA_CONTENT, tier.get());
+
+        // an explicit null gets the appropriate tier
+        settings = Settings.builder().putNull(DataTier.TIER_PREFERENCE).build();
+        tier = aggregatedTierPreference(settings, false);
+        assertEquals(DataTier.DATA_CONTENT, tier.get());
+
+        settings = Settings.builder().putNull(DataTier.TIER_PREFERENCE).build();
+        tier = aggregatedTierPreference(settings, true);
+        assertEquals(DataTier.DATA_HOT, tier.get());
     }
 
     public void testRejectWithSoftDeletesDisabled() {

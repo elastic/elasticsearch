@@ -7,15 +7,15 @@
  */
 package org.elasticsearch.action.bulk;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -107,7 +107,7 @@ public class Retry {
 
         @Override
         public void onFailure(Exception e) {
-            if (e instanceof RemoteTransportException && ((RemoteTransportException) e).status() == RETRY_STATUS && backoff.hasNext()) {
+            if (ExceptionsHelper.status(e) == RETRY_STATUS && backoff.hasNext()) {
                 retry(currentBulkRequest);
             } else {
                 try {

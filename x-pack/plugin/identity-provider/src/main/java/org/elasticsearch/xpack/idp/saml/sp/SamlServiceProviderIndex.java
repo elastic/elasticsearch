@@ -36,11 +36,11 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.get.GetResult;
@@ -197,7 +197,7 @@ public class SamlServiceProviderIndex implements Closeable {
             logger.warn("service provider alias [{}] refers to multiple indices [{}] - this is unexpected and is likely to cause problems",
                 ALIAS_NAME, Strings.collectionToCommaDelimitedString(aliasInfo.getIndices()));
         } else {
-            logger.info("service provider alias [{}] refers to [{}]", ALIAS_NAME, aliasInfo.getIndices().get(0).getIndex());
+            logger.info("service provider alias [{}] refers to [{}]", ALIAS_NAME, aliasInfo.getIndices().get(0));
         }
     }
 

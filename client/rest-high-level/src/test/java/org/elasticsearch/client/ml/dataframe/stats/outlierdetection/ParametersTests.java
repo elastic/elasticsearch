@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.client.ml.dataframe.stats.outlierdetection;
 
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;

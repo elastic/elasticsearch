@@ -10,17 +10,14 @@ package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
-import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
-import org.gradle.api.Action;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ResolutionStrategy;
 import org.gradle.api.plugins.JavaBasePlugin;
-import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
@@ -31,9 +28,6 @@ import org.gradle.api.tasks.compile.GroovyCompile;
 import org.gradle.api.tasks.compile.JavaCompile;
 
 import java.util.List;
-import java.util.Objects;
-import java.util.function.Predicate;
-import java.util.stream.Stream;
 
 /**
  * A wrapper around Gradle's Java Base plugin that applies our
@@ -95,16 +89,17 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
 
     private static void disableTransitiveDependenciesForSourceSet(Project project, SourceSet sourceSet) {
         List<String> sourceSetConfigurationNames = List.of(
-                sourceSet.getApiConfigurationName(),
-                sourceSet.getImplementationConfigurationName(),
-                sourceSet.getImplementationConfigurationName(),
-                sourceSet.getCompileOnlyConfigurationName(),
-                sourceSet.getRuntimeOnlyConfigurationName()
+            sourceSet.getApiConfigurationName(),
+            sourceSet.getImplementationConfigurationName(),
+            sourceSet.getImplementationConfigurationName(),
+            sourceSet.getCompileOnlyConfigurationName(),
+            sourceSet.getRuntimeOnlyConfigurationName()
         );
 
-        project.getConfigurations().matching(c -> sourceSetConfigurationNames.contains(c.getName()))
-                .configureEach(GradleUtils::disableTransitiveDependencies);
-     }
+        project.getConfigurations()
+            .matching(c -> sourceSetConfigurationNames.contains(c.getName()))
+            .configureEach(GradleUtils::disableTransitiveDependencies);
+    }
 
     /**
      * Adds compiler settings to the project
@@ -139,14 +134,10 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             compileOptions.getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
         });
         // also apply release flag to groovy, which is used in build-tools
-        project.getTasks()
-            .withType(GroovyCompile.class)
-            .configureEach(
-                compileTask -> {
-                    // TODO: this probably shouldn't apply to groovy at all?
-                    compileTask.getOptions().getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
-                }
-            );
+        project.getTasks().withType(GroovyCompile.class).configureEach(compileTask -> {
+            // TODO: this probably shouldn't apply to groovy at all?
+            compileTask.getOptions().getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
+        });
     }
 
     /**

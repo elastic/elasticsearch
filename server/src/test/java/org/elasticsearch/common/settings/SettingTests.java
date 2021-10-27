@@ -12,13 +12,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.AbstractScopedSettings.SettingUpdater;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -152,7 +152,7 @@ public class SettingTests extends ESTestCase {
         assertEquals(new ByteSizeValue(12), value.get());
 
         assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "20%").build(), Settings.EMPTY));
-        assertEquals(new ByteSizeValue((int) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.2)), value.get());
+        assertEquals(new ByteSizeValue((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.2)), value.get());
     }
 
     public void testSimpleUpdate() {
@@ -1257,5 +1257,52 @@ public class SettingTests extends ESTestCase {
         final Setting<String> setting = Setting.simpleString("foo.bar", property);
         assertTrue(setting.isDynamic());
         assertEquals(setting.isOperatorOnly(), property == Property.OperatorDynamic);
+    }
+
+    public void testCheckForDeprecation() {
+        final String criticalSettingName = "foo.bar";
+        final String warningSettingName = "foo.foo";
+        final String settingValue = "blat";
+        final Setting<String> undeprecatedSetting1 = Setting.simpleString(criticalSettingName, settingValue);
+        final Setting<String> undeprecatedSetting2 = Setting.simpleString(warningSettingName, settingValue);
+        final Settings settings = Settings.builder()
+            .put(criticalSettingName, settingValue)
+            .put(warningSettingName, settingValue).build();
+        undeprecatedSetting1.checkDeprecation(settings);
+        undeprecatedSetting2.checkDeprecation(settings);
+        ensureNoWarnings();
+        final Setting<String> criticalDeprecatedSetting = Setting.simpleString(criticalSettingName, settingValue, Property.Deprecated);
+        criticalDeprecatedSetting.checkDeprecation(settings);
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ criticalDeprecatedSetting });
+        final Setting<String> deprecatedSettingWarningOnly =
+            Setting.simpleString(warningSettingName, settingValue, Property.DeprecatedWarning);
+        deprecatedSettingWarningOnly.checkDeprecation(settings);
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ deprecatedSettingWarningOnly });
+    }
+
+    public void testCheckForDeprecationWithSkipSetting() {
+        final String settingName = "foo.bar";
+        final String settingValue = "blat";
+        final Setting<String> setting = Setting.simpleString(settingName, settingValue);
+        final Settings settings = Settings.builder().put(settingName, settingValue).build();
+        setting.checkDeprecation(settings);
+        ensureNoWarnings();
+        final Setting<String> deprecatedSetting = Setting.simpleString(settingName, settingValue, Property.Deprecated);
+        deprecatedSetting.checkDeprecation(settings);
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ deprecatedSetting });
+        final Settings settingsWithSkipDeprecationSetting = Settings.builder().put(settingName, settingValue)
+            .putList("deprecation.skip_deprecated_settings", settingName)
+            .build();
+        deprecatedSetting.checkDeprecation(settingsWithSkipDeprecationSetting);
+        ensureNoWarnings();
+    }
+
+    public void testDeprecationPropertyValidation() {
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            Setting.boolSetting(
+                "a.bool.setting",
+                true,
+                Property.Deprecated,
+                Property.DeprecatedWarning));
     }
 }

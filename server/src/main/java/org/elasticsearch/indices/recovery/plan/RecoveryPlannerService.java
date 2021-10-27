@@ -15,6 +15,7 @@ import org.elasticsearch.index.store.Store;
 
 public interface RecoveryPlannerService {
     void computeRecoveryPlan(ShardId shardId,
+                             String shardStateIdentifier,
                              Store.MetadataSnapshot sourceMetadata,
                              Store.MetadataSnapshot targetMetadata,
                              long startingSeqNo,

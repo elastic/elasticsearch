@@ -55,7 +55,7 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
      * Later we allow full recovery to ensure we can still recover and don't run into corruptions.
      */
     public void testCancelRecoveryAndResume() throws Exception {
-        assertTrue(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+        assertTrue(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
             .put(CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(randomIntBetween(50, 300), ByteSizeUnit.BYTES)))
             .get().isAcknowledged());
 

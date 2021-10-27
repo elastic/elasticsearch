@@ -517,13 +517,13 @@ sequence
 
 [discrete]
 [[eql-with-maxspan-keywords]]
-=== `with maxspan` keywords
+=== `with maxspan` statement
 
-You can use the `with maxspan` keywords to constrain a sequence to a specified
-timespan. All events in a matching sequence must occur within this duration,
-starting at the first event's timestamp.
+You can use `with maxspan` to constrain a sequence to a specified timespan. All
+events in a matching sequence must occur within this duration, starting at the
+first event's timestamp.
 
-The `maxspan` keyword accepts <<time-units,time value>> arguments.
+`maxspan` accepts <<time-units,time value>> arguments.
 
 [source,eql]
 ----
@@ -587,8 +587,8 @@ sequence by user.name
   [ process where true ] by process.executable
 ----
 
-You can combine the `sequence by` and `with maxspan` keywords to constrain a
-sequence by both field values and a timespan.
+You can combine `sequence by` and `with maxspan` to constrain a sequence by both
+field values and a timespan.
 
 [source,eql]
 ----
@@ -599,8 +599,8 @@ sequence by field_foo with maxspan=30s
 ----
 
 *Example* +
-The following sequence query uses the `sequence by` keyword and `with maxspan`
-keywords to match only a sequence of events that:
+The following sequence query uses `sequence by` and `with maxspan` to only match
+a sequence of events that:
 
 * Share the same `user.name` field values
 * Occur within `15m` (15 minutes) of the first matching event
@@ -693,6 +693,45 @@ sequence by process.pid
 until [ process where event.type == "stop" ]
 ----
 ====
+
+[discrete]
+[[eql-with-runs-statement]]
+=== `with runs` statement
+
+Use a `with runs` statement to run the same event criteria successively within a
+sequence query. For example:
+
+[source,eql]
+----
+sequence
+  [ process where event.type == "creation" ]
+  [ library where process.name == "regsvr32.exe" ] with runs=3
+  [ registry where true ]
+----
+
+is equivalent to:
+
+[source,eql]
+----
+sequence
+  [ process where event.type == "creation" ]
+  [ library where process.name == "regsvr32.exe" ]
+  [ library where process.name == "regsvr32.exe" ]
+  [ library where process.name == "regsvr32.exe" ]
+  [ registry where true ]
+----
+
+The `runs` value must be between `1` and `100` (inclusive).
+ 
+You can use a `with runs` statement with the <<eql-by-keyword,`by` keyword>>.
+For example:
+
+[source,eql]
+----
+sequence
+  [ process where event.type == "creation" ] by process.executable
+  [ library where process.name == "regsvr32.exe" ] by dll.path with runs=3
+----
 
 [discrete]
 [[eql-functions]]

@@ -10,7 +10,7 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.query.IntervalsSourceProvider.Fuzzy;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 

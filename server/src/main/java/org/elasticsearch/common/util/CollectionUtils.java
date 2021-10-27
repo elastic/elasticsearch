@@ -332,4 +332,9 @@ public class CollectionUtils {
         concatList.addAll(listB);
         return concatList;
     }
+
+    public static <E> List<E> wrapUnmodifiableOrEmptySingleton(List<E> list) {
+        return list.isEmpty() ? List.of() : Collections.unmodifiableList(list);
+    }
+
 }

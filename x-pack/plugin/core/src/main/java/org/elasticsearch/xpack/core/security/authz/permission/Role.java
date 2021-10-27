@@ -73,6 +73,10 @@ public class Role {
         return runAs;
     }
 
+    public boolean hasFieldOrDocumentLevelSecurity() {
+        return indices.hasFieldOrDocumentLevelSecurity();
+    }
+
     /**
      * @param restrictedIndices An automaton that can determine whether a string names
      *                          a restricted index. For simple unit tests, this can be
@@ -179,19 +183,7 @@ public class Role {
     public IndicesAccessControl authorize(String action, Set<String> requestedIndicesOrAliases,
                                           Map<String, IndexAbstraction> aliasAndIndexLookup,
                                           FieldPermissionsCache fieldPermissionsCache) {
-        Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = indices.authorize(
-            action, requestedIndicesOrAliases, aliasAndIndexLookup, fieldPermissionsCache
-        );
-
-        // At least one role / indices permission set need to match with all the requested indices/aliases:
-        boolean granted = true;
-        for (Map.Entry<String, IndicesAccessControl.IndexAccessControl> entry : indexPermissions.entrySet()) {
-            if (entry.getValue().isGranted() == false) {
-                granted = false;
-                break;
-            }
-        }
-        return new IndicesAccessControl(granted, indexPermissions);
+        return indices.authorize(action, requestedIndicesOrAliases, aliasAndIndexLookup, fieldPermissionsCache);
     }
 
     @Override

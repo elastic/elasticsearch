@@ -142,6 +142,9 @@ JavaScript::
 .NET::
     See https://www.elastic.co/guide/en/elasticsearch/client/net-api/current/indexing-documents.html#bulkall-observable[`BulkAllObservable`]
 
+PHP::
+    See https://www.elastic.co/guide/en/elasticsearch/client/php-api/current/indexing_documents.html#_bulk_indexing[Bulk indexing]
+
 [discrete]
 [[bulk-curl]]
 ===== Submitting bulk requests with cURL
@@ -294,8 +297,7 @@ Removes the specified document from the index.
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-index]
 
 `_id`::
-(Required, string) 
-The document ID.
+(Required, string) The document ID.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-require-alias]
 --
@@ -324,7 +326,8 @@ The following line must contain the partial document and update options.
 --
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-index]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-id]
+`_id`::
+(Required, string) The document ID.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-require-alias]
 --

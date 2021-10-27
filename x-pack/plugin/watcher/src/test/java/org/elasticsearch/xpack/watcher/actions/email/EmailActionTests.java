@@ -14,11 +14,11 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
@@ -63,7 +63,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContextBuilder;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -76,7 +76,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -134,7 +134,6 @@ public class EmailActionTests extends ESTestCase {
         Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder().put("_key", "_val").map();
 
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
-        JodaCompatibleZonedDateTime jodaJavaNow = new JodaCompatibleZonedDateTime(now.toInstant(), ZoneOffset.UTC);
 
         Wid wid = new Wid("watch1", now);
         WatchExecutionContext ctx = mockExecutionContextBuilder("watch1")
@@ -145,14 +144,14 @@ public class EmailActionTests extends ESTestCase {
                 .buildMock();
 
         Map<String, Object> triggerModel = new HashMap<>();
-        triggerModel.put("triggered_time", jodaJavaNow);
-        triggerModel.put("scheduled_time", jodaJavaNow);
+        triggerModel.put("triggered_time", now);
+        triggerModel.put("scheduled_time", now);
         Map<String, Object> ctxModel = new HashMap<>();
         ctxModel.put("id", ctx.id().value());
         ctxModel.put("watch_id", "watch1");
         ctxModel.put("payload", data);
         ctxModel.put("metadata", metadata);
-        ctxModel.put("execution_time", jodaJavaNow);
+        ctxModel.put("execution_time", now);
         ctxModel.put("trigger", triggerModel);
         ctxModel.put("vars", emptyMap());
         Map<String, Object> expectedModel = singletonMap("ctx", ctxModel);
@@ -213,7 +212,7 @@ public class EmailActionTests extends ESTestCase {
                 .field("from", "from@domain")
                 .field("priority", priority.name());
         if (dataAttachment != null) {
-            builder.field("attach_data", dataAttachment);
+            builder.field("attach_data", (ToXContentObject) dataAttachment);
         } else if (randomBoolean()) {
             dataAttachment = org.elasticsearch.xpack.watcher.notification.email.DataAttachment.DEFAULT;
             builder.field("attach_data", true);

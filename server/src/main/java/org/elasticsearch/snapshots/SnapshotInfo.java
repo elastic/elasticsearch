@@ -19,19 +19,19 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -372,31 +372,34 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         );
     }
 
-    public SnapshotInfo(SnapshotsInProgress.Entry entry) {
+    public static SnapshotInfo inProgress(SnapshotsInProgress.Entry entry) {
         int successfulShards = 0;
         List<SnapshotShardFailure> shardFailures = new ArrayList<>();
-        for (ObjectObjectCursor<ShardId, SnapshotsInProgress.ShardSnapshotStatus> c : entry.shards()) {
+        for (ObjectObjectCursor<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> c : entry.shardsByRepoShardId()) {
             if (c.value.state() == SnapshotsInProgress.ShardState.SUCCESS) {
                 successfulShards++;
-            } else if (c.value.state() == SnapshotsInProgress.ShardState.FAILED) {
-                shardFailures.add(new SnapshotShardFailure(c.value.nodeId(), c.key, c.value.reason()));
+            } else if (c.value.state().failed() && c.value.state().completed()) {
+                shardFailures.add(new SnapshotShardFailure(c.value.nodeId(), entry.shardId(c.key), c.value.reason()));
             }
         }
-        this.snapshot = Objects.requireNonNull(entry.snapshot());
-        this.indices = List.copyOf(entry.indices().keySet());
-        this.dataStreams = List.copyOf(entry.dataStreams());
-        this.featureStates = List.copyOf(entry.featureStates());
-        this.state = SnapshotState.IN_PROGRESS;
-        this.reason = null;
-        this.version = Version.CURRENT;
-        this.startTime = entry.startTime();
-        this.endTime = 0L;
-        this.totalShards = entry.shards().size();
-        this.successfulShards = successfulShards;
-        this.shardFailures = Collections.unmodifiableList(shardFailures);
-        this.includeGlobalState = entry.includeGlobalState();
-        this.userMetadata = entry.userMetadata() == null ? null : Map.copyOf(entry.userMetadata());
-        this.indexSnapshotDetails = Collections.emptyMap();
+        int totalShards = entry.shardsByRepoShardId().size();
+        return new SnapshotInfo(
+            entry.snapshot(),
+            List.copyOf(entry.indices().keySet()),
+            entry.dataStreams(),
+            entry.featureStates(),
+            null,
+            Version.CURRENT,
+            entry.startTime(),
+            0L,
+            totalShards,
+            successfulShards,
+            shardFailures,
+            entry.includeGlobalState(),
+            entry.userMetadata(),
+            SnapshotState.IN_PROGRESS,
+            Collections.emptyMap()
+        );
     }
 
     public SnapshotInfo(

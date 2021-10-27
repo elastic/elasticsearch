@@ -17,8 +17,8 @@ package org.elasticsearch.rest;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.common.xcontent.MediaType;
-import org.elasticsearch.common.xcontent.ParsedMediaType;
+import org.elasticsearch.xcontent.MediaType;
+import org.elasticsearch.xcontent.ParsedMediaType;
 
 /**
  * A helper that is responsible for parsing a Compatible REST API version from RestRequest.

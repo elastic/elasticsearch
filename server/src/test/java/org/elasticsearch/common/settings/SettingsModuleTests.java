@@ -19,6 +19,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 
@@ -30,11 +31,12 @@ public class SettingsModuleTests extends ModuleTestCase {
             SettingsModule module = new SettingsModule(settings);
             assertInstanceBinding(module, Settings.class, (s) -> s == settings);
         }
+        final String balanceSettingMessage = "Failed to parse value [[2.0]] for setting [cluster.routing.allocation.balance.shard]";
         {
             Settings settings = Settings.builder().put("cluster.routing.allocation.balance.shard", "[2.0]").build();
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
                 () ->  new SettingsModule(settings));
-            assertEquals("Failed to parse value [[2.0]] for setting [cluster.routing.allocation.balance.shard]", ex.getMessage());
+            assertEquals(balanceSettingMessage, ex.getMessage());
         }
 
         {
@@ -42,10 +44,16 @@ public class SettingsModuleTests extends ModuleTestCase {
                 .put("some.foo.bar", 1).build();
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
                 () -> new SettingsModule(settings));
-            assertEquals("Failed to parse value [[2.0]] for setting [cluster.routing.allocation.balance.shard]", ex.getMessage());
+            final String unknownSettingMessage =
+                "unknown setting [some.foo.bar] please check that any required plugins are installed, or check the breaking "
+                    + "changes documentation for removed settings";
             assertEquals(1, ex.getSuppressed().length);
-            assertEquals("unknown setting [some.foo.bar] please check that any required plugins are installed, or check the breaking " +
-                "changes documentation for removed settings", ex.getSuppressed()[0].getMessage());
+            if (ex.getMessage().equals(balanceSettingMessage)) {
+                assertEquals(unknownSettingMessage, ex.getSuppressed()[0].getMessage());
+            } else {
+                assertEquals(unknownSettingMessage, ex.getMessage());
+                assertEquals(balanceSettingMessage, ex.getSuppressed()[0].getMessage());
+            }
         }
 
         {
@@ -124,7 +132,7 @@ public class SettingsModuleTests extends ModuleTestCase {
         {
             Settings settings = Settings.builder().put("logger._root", "BOOM").put("logger.transport", "WOW").build();
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new SettingsModule(settings));
-            assertEquals("Unknown level constant [BOOM].", ex.getMessage());
+            assertThat(ex.getMessage(), either(is("Unknown level constant [BOOM].")).or(is("Unknown level constant [WOW].")));
         }
     }
 

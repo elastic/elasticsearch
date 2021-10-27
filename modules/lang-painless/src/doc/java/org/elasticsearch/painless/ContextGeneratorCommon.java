@@ -9,8 +9,8 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.painless.action.PainlessContextClassBindingInfo;
 import org.elasticsearch.painless.action.PainlessContextClassInfo;
 import org.elasticsearch.painless.action.PainlessContextInfo;

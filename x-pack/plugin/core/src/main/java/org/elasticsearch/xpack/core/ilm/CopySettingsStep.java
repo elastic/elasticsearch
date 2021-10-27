@@ -87,7 +87,7 @@ public class CopySettingsStep extends ClusterStateActionStep {
             .put(IndexMetadata.builder(targetIndexMetadata)
                 .settingsVersion(targetIndexMetadata.getSettingsVersion() + 1)
                 .settings(settings));
-        return ClusterState.builder(clusterState).metadata(newMetaData).build();
+        return ClusterState.builder(clusterState).metadata(newMetaData.build(false)).build();
     }
 
     @Override

@@ -31,7 +31,6 @@ import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -44,6 +43,7 @@ import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -436,6 +436,26 @@ public final class KeywordFieldMapper extends FieldMapper {
         public boolean isDimension() {
             return isDimension;
         }
+
+        @Override
+        public void validateMatchedRoutingPath() {
+            if (false == isDimension) {
+                throw new IllegalArgumentException(
+                    "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                        + "and without the [script] parameter. ["
+                        + name()
+                        + "] was not [time_series_dimension: true]."
+                );
+            }
+            if (scriptValues != null) {
+                throw new IllegalArgumentException(
+                    "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                        + "and without the [script] parameter. ["
+                        + name()
+                        + "] has a [script] parameter."
+                );
+            }
+        }
     }
 
     /** The maximum keyword length allowed for a dimension field */
@@ -583,5 +603,4 @@ public final class KeywordFieldMapper extends FieldMapper {
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexAnalyzers, scriptCompiler).dimension(dimension).init(this);
     }
-
 }

@@ -22,7 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -38,14 +38,15 @@ import static org.elasticsearch.xpack.deprecation.DeprecationChecks.CLUSTER_SETT
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
 
 public class TransportDeprecationInfoAction extends TransportMasterNodeReadAction<DeprecationInfoAction.Request,
-        DeprecationInfoAction.Response> {
-    private static final List<DeprecationChecker> PLUGIN_CHECKERS = List.of(new MlDeprecationChecker());
+    DeprecationInfoAction.Response> {
+    private static final List<DeprecationChecker> PLUGIN_CHECKERS = List.of(new MlDeprecationChecker(), new TransformDeprecationChecker());
     private static final Logger logger = LogManager.getLogger(TransportDeprecationInfoAction.class);
 
     private final NodeClient client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Settings settings;
     private final NamedXContentRegistry xContentRegistry;
+    private volatile List<String> skipTheseDeprecations;
 
     @Inject
     public TransportDeprecationInfoAction(Settings settings, TransportService transportService, ClusterService clusterService,
@@ -58,6 +59,14 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;
+        skipTheseDeprecations = DeprecationChecks.SKIP_DEPRECATIONS_SETTING.get(settings);
+        // Safe to register this here because it happens synchronously before the cluster service is started:
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DeprecationChecks.SKIP_DEPRECATIONS_SETTING,
+            this::setSkipDeprecations);
+    }
+
+    private <T> void setSkipDeprecations(List<String> skipDeprecations) {
+        this.skipTheseDeprecations = Collections.unmodifiableList(skipDeprecations);
     }
 
     @Override
@@ -89,10 +98,20 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                 new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN)
             );
             pluginSettingIssues(PLUGIN_CHECKERS, components, ActionListener.wrap(
-                deprecationIssues -> listener.onResponse(
-                    DeprecationInfoAction.Response.from(state, indexNameExpressionResolver,
-                        request, response, INDEX_SETTINGS_CHECKS, CLUSTER_SETTINGS_CHECKS,
-                        deprecationIssues)),
+                deprecationIssues -> {
+                    listener.onResponse(
+                        DeprecationInfoAction.Response.from(
+                            state,
+                            indexNameExpressionResolver,
+                            request,
+                            response,
+                            INDEX_SETTINGS_CHECKS,
+                            CLUSTER_SETTINGS_CHECKS,
+                            deprecationIssues,
+                            skipTheseDeprecations
+                        )
+                    );
+                },
                 listener::onFailure
             ));
 

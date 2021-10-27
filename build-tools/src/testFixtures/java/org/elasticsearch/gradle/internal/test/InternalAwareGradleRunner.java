@@ -72,8 +72,7 @@ public class InternalAwareGradleRunner extends GradleRunner {
 
     @Override
     public GradleRunner withArguments(List<String> arguments) {
-        List<String> collect = Stream.concat(arguments.stream(), Stream.of("-Dtest.external=true"))
-                .collect(Collectors.toList());
+        List<String> collect = Stream.concat(arguments.stream(), Stream.of("-Dtest.external=true")).collect(Collectors.toList());
         delegate.withArguments(collect);
         return this;
     }

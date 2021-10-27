@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.client.cluster.RemoteConnectionInfo;
 import org.elasticsearch.client.cluster.RemoteInfoRequest;
 import org.elasticsearch.client.cluster.RemoteInfoResponse;
@@ -41,7 +42,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.rest.RestStatus;
 
@@ -61,6 +62,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * Documentation for Cluster APIs in the high level java client.
  * Code wrapped in {@code tag} and {@code end} tags is included in the docs.
  */
+@SuppressWarnings("removal")
 public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testClusterPutSettings() throws IOException {
@@ -127,8 +129,9 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.masterNodeTimeout("1m"); // <2>
         // end::put-settings-request-masterTimeout
 
+        RequestOptions options = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build();
         // tag::put-settings-execute
-        ClusterUpdateSettingsResponse response = client.cluster().putSettings(request, RequestOptions.DEFAULT);
+        ClusterUpdateSettingsResponse response = client.cluster().putSettings(request, options);
         // end::put-settings-execute
 
         // tag::put-settings-response
@@ -137,14 +140,15 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         Settings persistentSettingsResponse = response.getPersistentSettings(); // <3>
         // end::put-settings-response
         assertTrue(acknowledged);
-        assertThat(transientSettingsResponse.get(transientSettingKey), equalTo(transientSettingValue + ByteSizeUnit.BYTES.getSuffix()));
+        assertThat(transientSettingsResponse.get(transientSettingKey),
+            equalTo(transientSettingValue + ByteSizeUnit.BYTES.getSuffix()));
         assertThat(persistentSettingsResponse.get(persistentSettingKey), equalTo(persistentSettingValue));
 
         // tag::put-settings-request-reset-transient
         request.transientSettings(Settings.builder().putNull(transientSettingKey).build()); // <1>
         // tag::put-settings-request-reset-transient
         request.persistentSettings(Settings.builder().putNull(persistentSettingKey));
-        ClusterUpdateSettingsResponse resetResponse = client.cluster().putSettings(request, RequestOptions.DEFAULT);
+        ClusterUpdateSettingsResponse resetResponse = client.cluster().putSettings(request, options);
 
         assertTrue(resetResponse.isAcknowledged());
     }

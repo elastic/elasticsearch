@@ -116,17 +116,33 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
     }
 
     public void testPerformActionThrowsExceptionIfIndexIsTheDataStreamWriteIndex() {
-        String dataStreamName = randomAlphaOfLength(10);
-        String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         String policyName = "test-ilm-policy";
-        IndexMetadata sourceIndexMetadata =
-            IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        String dataStreamName = randomAlphaOfLength(10);
+
+        IndexMetadata index1;
+        {
+            String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+            index1 = IndexMetadata.builder(indexName)
+                .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                .numberOfShards(randomIntBetween(1, 5))
+                .numberOfReplicas(randomIntBetween(0, 5))
+                .build();
+        }
+        IndexMetadata sourceIndexMetadata;
+        {
+
+            String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
+            sourceIndexMetadata = IndexMetadata.builder(indexName)
+                .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                .numberOfShards(randomIntBetween(1, 5))
+                .numberOfReplicas(randomIntBetween(0, 5))
+                .build();
+        }
 
         DataStream dataStream =
-            new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(sourceIndexMetadata.getIndex()));
+            new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(index1.getIndex(), sourceIndexMetadata.getIndex()));
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
-            Metadata.builder().put(sourceIndexMetadata, true).put(dataStream).build()
+            Metadata.builder().put(index1, false).put(sourceIndexMetadata, false).put(dataStream).build()
         ).build();
 
         IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
@@ -145,7 +161,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
             illegalStateException.getMessage(),
             is(
                 "index ["
-                    + indexName
+                    + sourceIndexMetadata.getIndex().getName()
                     + "] is the write index for data stream ["
                     + dataStreamName
                     + "]. stopping execution of lifecycle [test-ilm-policy] as a data stream's write index cannot be deleted. "

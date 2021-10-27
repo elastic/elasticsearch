@@ -9,8 +9,8 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.NodesResponseHeader;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;

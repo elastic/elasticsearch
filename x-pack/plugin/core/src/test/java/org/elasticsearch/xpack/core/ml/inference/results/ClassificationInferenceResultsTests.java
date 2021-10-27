@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
@@ -26,11 +25,11 @@ import static org.elasticsearch.xpack.core.ml.inference.results.InferenceResults
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class ClassificationInferenceResultsTests extends AbstractWireSerializingTestCase<ClassificationInferenceResults> {
+public class ClassificationInferenceResultsTests extends InferenceResultsTestCase<ClassificationInferenceResults> {
 
     public static ClassificationInferenceResults createRandomResults() {
         ClassificationConfig config = ClassificationConfigTests.randomClassificationConfig();
-        Double value = randomDouble();
+        double value = randomDouble();
         if (config.getPredictionFieldType() == PredictionFieldType.BOOLEAN) {
             // value must be close to 0 or 1
             value = randomBoolean() ? 0.0 : 1.0;
@@ -49,46 +48,6 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
             config,
             randomBoolean() ? null : randomDoubleBetween(0.0, 1.0, false),
             randomBoolean() ? null : randomDoubleBetween(0.0, 1.0, false));
-    }
-
-    public void testWriteResultsWithClassificationLabel() {
-        ClassificationInferenceResults result =
-            new ClassificationInferenceResults(1.0,
-                "foo",
-                Collections.emptyList(),
-                Collections.emptyList(),
-                ClassificationConfig.EMPTY_PARAMS,
-                1.0,
-                1.0);
-        IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
-        writeResult(result, document, "result_field", "test");
-
-        assertThat(document.getFieldValue("result_field.predicted_value", String.class), equalTo("foo"));
-    }
-
-    public void testWriteResultsWithoutClassificationLabel() {
-        ClassificationInferenceResults result = new ClassificationInferenceResults(1.0,
-            null,
-            Collections.emptyList(),
-            Collections.emptyList(),
-            ClassificationConfig.EMPTY_PARAMS,
-            1.0,
-            1.0);
-        IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
-        writeResult(result, document, "result_field", "test");
-
-        assertThat(document.getFieldValue("result_field.predicted_value", String.class), equalTo("1.0"));
-
-        result = new ClassificationInferenceResults(2.0,
-            null,
-            Collections.emptyList(),
-            Collections.emptyList(),
-            ClassificationConfig.EMPTY_PARAMS,
-            1.0,
-            1.0);
-        writeResult(result, document, "result_field", "test");
-        assertThat(document.getFieldValue("result_field.0.predicted_value", String.class), equalTo("1.0"));
-        assertThat(document.getFieldValue("result_field.1.predicted_value", String.class), equalTo("2.0"));
     }
 
     @SuppressWarnings("unchecked")
@@ -227,6 +186,21 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
         stringRep = Strings.toString(result);
         expected = "{\"predicted_value\":\"label1\",\"prediction_probability\":1.0,\"prediction_score\":1.0}";
         assertEquals(expected, stringRep);
+    }
 
+    @Override
+    void assertFieldValues(ClassificationInferenceResults createdInstance, IngestDocument document, String resultsField) {
+        String path = resultsField + "." + createdInstance.getResultsField();
+        switch (createdInstance.getPredictionFieldType()) {
+            case NUMBER:
+                assertThat(document.getFieldValue(path, Double.class), equalTo(createdInstance.predictedValue()));
+                break;
+            case STRING:
+                assertThat(document.getFieldValue(path, String.class), equalTo(createdInstance.predictedValue()));
+                break;
+            case BOOLEAN:
+                assertThat(document.getFieldValue(path, Boolean.class), equalTo(createdInstance.predictedValue()));
+                break;
+        }
     }
 }

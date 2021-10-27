@@ -20,10 +20,13 @@ dependencies {
 
   testImplementation project(path: xpackModule('monitoring'))
   testImplementation project(path: xpackModule('spatial'))
+  testImplementation project(path: xpackModule('vectors'))
+  testImplementation project(path: ':modules:legacy-geo')
   testImplementation project(path: ':modules:percolator')
   testImplementation project(path: xpackModule('sql:sql-action'))
   testImplementation project(path: ':modules:analysis-common')
   testImplementation project(path: ':modules:reindex')
+  testImplementation project(path: xpackModule('data-streams'))
   testImplementation project(":client:rest-high-level")
 
   testImplementation(testArtifact(project(xpackModule('core'))))
@@ -63,6 +66,7 @@ dependencies {
   runtimeOnly 'com.google.guava:guava:28.2-jre'
   runtimeOnly 'com.google.guava:failureaccess:1.0.1'
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
+  runtimeOnly "joda-time:joda-time:2.10.10"
 
   // Dependencies for oidc
   api "com.nimbusds:oauth2-oidc-sdk:9.3.1"
@@ -74,7 +78,6 @@ dependencies {
   api "net.minidev:accessors-smart:2.4.2"
   api "org.ow2.asm:asm:8.0.1"
 
-  testImplementation 'org.elasticsearch:securemock:1.2'
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
 
   // Test dependencies for Kerberos (MiniKdc)

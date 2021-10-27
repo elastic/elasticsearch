@@ -8,37 +8,56 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public class ShutdownShardMigrationStatus implements Writeable, ToXContentObject {
+    private static final Version ALLOCATION_DECISION_ADDED_VERSION = Version.V_8_0_0;
 
     private final SingleNodeShutdownMetadata.Status status;
     private final long shardsRemaining;
     @Nullable private final String explanation;
+    @Nullable private final ShardAllocationDecision allocationDecision;
 
     public ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status status, long shardsRemaining) {
-        this(status, shardsRemaining, null);
+        this(status, shardsRemaining, null, null);
     }
 
     public ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status status, long shardsRemaining, @Nullable String explanation) {
+        this(status, shardsRemaining, explanation, null);
+    }
+
+    public ShutdownShardMigrationStatus(
+        SingleNodeShutdownMetadata.Status status,
+        long shardsRemaining,
+        @Nullable String explanation,
+        @Nullable ShardAllocationDecision allocationDecision
+    ) {
         this.status = Objects.requireNonNull(status, "status must not be null");
         this.shardsRemaining = shardsRemaining;
         this.explanation = explanation;
+        this.allocationDecision = allocationDecision;
     }
 
     public ShutdownShardMigrationStatus(StreamInput in) throws IOException {
         this.status = in.readEnum(SingleNodeShutdownMetadata.Status.class);
         this.shardsRemaining = in.readLong();
         this.explanation = in.readOptionalString();
+        if (in.getVersion().onOrAfter(ALLOCATION_DECISION_ADDED_VERSION)) {
+            this.allocationDecision = in.readOptionalWriteable(ShardAllocationDecision::new);
+        } else {
+            this.allocationDecision = null;
+        }
     }
 
     public long getShardsRemaining() {
@@ -61,6 +80,13 @@ public class ShutdownShardMigrationStatus implements Writeable, ToXContentObject
         if (Objects.nonNull(explanation)) {
             builder.field("explanation", explanation);
         }
+        if (Objects.nonNull(allocationDecision)) {
+            builder.startObject("node_allocation_decision");
+            {
+                allocationDecision.toXContent(builder, params);
+            }
+            builder.endObject();
+        }
         builder.endObject();
         return builder;
     }
@@ -70,6 +96,9 @@ public class ShutdownShardMigrationStatus implements Writeable, ToXContentObject
         out.writeEnum(status);
         out.writeLong(shardsRemaining);
         out.writeOptionalString(explanation);
+        if (out.getVersion().onOrAfter(ALLOCATION_DECISION_ADDED_VERSION)) {
+            out.writeOptionalWriteable(allocationDecision);
+        }
     }
 
     @Override
@@ -77,12 +106,15 @@ public class ShutdownShardMigrationStatus implements Writeable, ToXContentObject
         if (this == o) return true;
         if ((o instanceof ShutdownShardMigrationStatus) == false) return false;
         ShutdownShardMigrationStatus that = (ShutdownShardMigrationStatus) o;
-        return shardsRemaining == that.shardsRemaining && status == that.status && Objects.equals(explanation, that.explanation);
+        return shardsRemaining == that.shardsRemaining
+            && status == that.status
+            && Objects.equals(explanation, that.explanation)
+            && Objects.equals(allocationDecision, that.allocationDecision);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(status, shardsRemaining, explanation);
+        return Objects.hash(status, shardsRemaining, explanation, allocationDecision);
     }
 
     @Override

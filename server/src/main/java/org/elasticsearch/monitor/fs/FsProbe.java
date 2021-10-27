@@ -42,17 +42,22 @@ public class FsProbe {
         if (nodeEnv.hasNodeFile() == false) {
             return new FsInfo(System.currentTimeMillis(), null, new FsInfo.Path[0]);
         }
-        NodePath dataLocation = nodeEnv.nodePath();
-        FsInfo.Path pathInfo = getFSInfo(dataLocation);
+        NodePath[] dataLocations = nodeEnv.nodePaths();
+        FsInfo.Path[] paths = new FsInfo.Path[dataLocations.length];
+        for (int i = 0; i < dataLocations.length; i++) {
+            paths[i] = getFSInfo(dataLocations[i]);
+        }
         FsInfo.IoStats ioStats = null;
         if (Constants.LINUX) {
             Set<Tuple<Integer, Integer>> devicesNumbers = new HashSet<>();
-            if (dataLocation.majorDeviceNumber != -1 && dataLocation.minorDeviceNumber != -1) {
-                devicesNumbers.add(Tuple.tuple(dataLocation.majorDeviceNumber, dataLocation.minorDeviceNumber));
+            for (int i = 0; i < dataLocations.length; i++) {
+                if (dataLocations[i].majorDeviceNumber != -1 && dataLocations[i].minorDeviceNumber != -1) {
+                    devicesNumbers.add(Tuple.tuple(dataLocations[i].majorDeviceNumber, dataLocations[i].minorDeviceNumber));
+                }
             }
             ioStats = ioStats(devicesNumbers, previous);
         }
-        return new FsInfo(System.currentTimeMillis(), ioStats, new FsInfo.Path[] { pathInfo });
+        return new FsInfo(System.currentTimeMillis(), ioStats, paths);
     }
 
     final FsInfo.IoStats ioStats(final Set<Tuple<Integer, Integer>> devicesNumbers, final FsInfo previous) {

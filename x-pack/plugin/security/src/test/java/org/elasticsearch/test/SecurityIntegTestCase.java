@@ -28,8 +28,8 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.license.LicenseService;
@@ -67,6 +67,7 @@ import static org.hamcrest.Matchers.is;
  *
  * @see SecuritySettingsSource
  */
+@SuppressWarnings("removal")
 public abstract class SecurityIntegTestCase extends ESIntegTestCase {
 
     private static SecuritySettingsSource SECURITY_DEFAULT_SETTINGS;
@@ -284,6 +285,10 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         return SECURITY_DEFAULT_SETTINGS.configRoles();
     }
 
+    protected String configOperatorUsers() {
+        return SECURITY_DEFAULT_SETTINGS.configOperatorUsers();
+    }
+
     /**
      * Allows to override the node client username (used while sending requests to the test cluster) when the
      * {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
@@ -332,6 +337,11 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         @Override
         protected String configRoles() {
             return SecurityIntegTestCase.this.configRoles();
+        }
+
+        @Override
+        protected String configOperatorUsers() {
+            return SecurityIntegTestCase.this.configOperatorUsers();
         }
 
         @Override
@@ -435,7 +445,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     private static Index resolveSecurityIndex(Metadata metadata) {
         final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(SECURITY_MAIN_ALIAS);
         if (indexAbstraction != null) {
-            return indexAbstraction.getIndices().get(0).getIndex();
+            return indexAbstraction.getIndices().get(0);
         }
         return null;
     }

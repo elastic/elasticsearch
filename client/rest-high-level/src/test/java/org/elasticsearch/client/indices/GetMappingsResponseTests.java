@@ -11,8 +11,8 @@ package org.elasticsearch.client.indices;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;

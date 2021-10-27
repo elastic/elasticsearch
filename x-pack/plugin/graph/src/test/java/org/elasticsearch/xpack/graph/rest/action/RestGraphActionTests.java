@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.graph.rest.action;
 
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;

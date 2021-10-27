@@ -4,6 +4,9 @@
 <titleabbrev>Composite</titleabbrev>
 ++++
 
+WARNING: The composite aggregation is expensive. Load test your application
+before deploying a composite aggregation in production.
+
 A multi-bucket aggregation that creates composite buckets from different sources.
 
 Unlike the other `multi-bucket` aggregations, you can use the `composite`

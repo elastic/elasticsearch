@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.security;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.UnsupportedEncodingException;
 import java.util.Collections;

@@ -166,6 +166,11 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
         }
     }
 
+    @Override
+    public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return canAllocate(shardRouting, node, allocation);
+    }
+
     /**
      * The shard routing passed to {@link #canAllocate(ShardRouting, RoutingNode, RoutingAllocation)} is not the initializing shard to this
      * node but:

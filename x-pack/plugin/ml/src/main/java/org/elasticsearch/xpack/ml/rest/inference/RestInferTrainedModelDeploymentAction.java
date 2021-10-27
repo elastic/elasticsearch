@@ -45,15 +45,19 @@ public class RestInferTrainedModelDeploymentAction extends BaseRestHandler {
         if (restRequest.hasContent() == false) {
             throw ExceptionsHelper.badRequestException("requires body");
         }
-        InferTrainedModelDeploymentAction.Request request =
+        InferTrainedModelDeploymentAction.Request.Builder request =
             InferTrainedModelDeploymentAction.Request.parseRequest(deploymentId, restRequest.contentParser());
 
         if (restRequest.hasParam(InferTrainedModelDeploymentAction.Request.TIMEOUT.getPreferredName())) {
             TimeValue inferTimeout = restRequest.paramAsTime(InferTrainedModelDeploymentAction.Request.TIMEOUT.getPreferredName(),
                 InferTrainedModelDeploymentAction.Request.DEFAULT_TIMEOUT);
-            request.setTimeout(inferTimeout);
+            request.setInferenceTimeout(inferTimeout);
         }
 
-        return channel -> client.execute(InferTrainedModelDeploymentAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(
+            InferTrainedModelDeploymentAction.INSTANCE,
+            request.build(),
+            new RestToXContentListener<>(channel)
+        );
     }
 }

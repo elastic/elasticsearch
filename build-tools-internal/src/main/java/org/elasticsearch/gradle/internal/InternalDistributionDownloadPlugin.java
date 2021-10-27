@@ -75,7 +75,8 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
         }));
 
         resolutions.register("bwc", distributionResolution -> distributionResolution.setResolver((project, distribution) -> {
-            BwcVersions.UnreleasedVersionInfo unreleasedInfo = BuildParams.getBwcVersions().unreleasedInfo(Version.fromString(distribution.getVersion()));
+            BwcVersions.UnreleasedVersionInfo unreleasedInfo = BuildParams.getBwcVersions()
+                .unreleasedInfo(Version.fromString(distribution.getVersion()));
             if (unreleasedInfo != null) {
                 if (distribution.getBundledJdk() == false) {
                     throw new GradleException(

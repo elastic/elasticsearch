@@ -40,6 +40,7 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -59,10 +60,10 @@ import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
@@ -939,7 +940,7 @@ public class IndicesService extends AbstractLifecycleComponent
             }
             // this is a pure protection to make sure this index doesn't get re-imported as a dangling index.
             // we should in the future rather write a tombstone rather than wiping the metadata.
-            MetadataStateFormat.deleteMetaState(nodeEnv.indexPath(index));
+            MetadataStateFormat.deleteMetaState(nodeEnv.indexPaths(index));
         }
     }
 
@@ -981,7 +982,7 @@ public class IndicesService extends AbstractLifecycleComponent
             throw new IllegalStateException("Can't delete shard " + shardId + " (cause: " + shardDeletionCheckResult + ")");
         }
         nodeEnv.deleteShardDirectorySafe(shardId, indexSettings,
-            path -> indexFoldersDeletionListeners.beforeShardFoldersDeleted(shardId, indexSettings, path));
+            paths -> indexFoldersDeletionListeners.beforeShardFoldersDeleted(shardId, indexSettings, paths));
         logger.debug("{} deleted shard reason [{}]", shardId, reason);
 
         if (canDeleteIndexContents(shardId.getIndex())) {
@@ -1028,7 +1029,7 @@ public class IndicesService extends AbstractLifecycleComponent
         if (clusterState.metadata().index(index) != null) {
             throw new IllegalStateException("Cannot delete index [" + index + "], it is still part of the cluster state.");
         }
-        if (nodeEnv.hasNodeFile() && Files.exists(nodeEnv.indexPath(index))) {
+        if (nodeEnv.hasNodeFile() && FileSystemUtils.exists(nodeEnv.indexPaths(index))) {
             final IndexMetadata metadata;
             try {
                 metadata = metaStateService.loadIndexState(index);
@@ -1083,7 +1084,7 @@ public class IndicesService extends AbstractLifecycleComponent
         } else {
             // lets see if it's path is available (return false if the shard doesn't exist)
             // we don't need to delete anything that is not there
-            return Files.exists(nodeEnv.availableShardPath(shardId)) ?
+            return FileSystemUtils.exists(nodeEnv.availableShardPaths(shardId)) ?
                 ShardDeletionCheckResult.FOLDER_FOUND_CAN_DELETE :
                 ShardDeletionCheckResult.NO_FOLDER_FOUND;
         }
@@ -1525,7 +1526,7 @@ public class IndicesService extends AbstractLifecycleComponent
         CheckedFunction<BytesReference, QueryBuilder, IOException> filterParser = bytes -> {
             try (InputStream inputStream = bytes.streamInput();
                  XContentParser parser = XContentFactory.xContentType(inputStream).xContent()
-                    .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, inputStream)) {
+                     .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, inputStream)) {
                 return parseInnerQueryBuilder(parser);
             }
         };

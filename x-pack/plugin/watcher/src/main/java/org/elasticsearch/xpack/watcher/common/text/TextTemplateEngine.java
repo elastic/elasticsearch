@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.common.text;
 
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;

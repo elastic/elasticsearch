@@ -17,14 +17,17 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.xcontent.ContextParser;
-import org.elasticsearch.common.xcontent.MediaType;
-import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
+import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
+import org.elasticsearch.plugins.RecoveryPlannerPlugin;
+import org.elasticsearch.xcontent.ContextParser;
+import org.elasticsearch.xcontent.MediaType;
+import org.elasticsearch.xcontent.NamedObjectNotFoundException;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
@@ -41,7 +44,6 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -63,6 +65,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class NodeTests extends ESTestCase {
@@ -319,6 +322,24 @@ public class NodeTests extends ESTestCase {
         }
     }
 
+    public void testNodeFailsToStartWhenThereAreMultipleRecoveryPlannerPluginsLoaded() {
+        List<Class<? extends Plugin>> plugins = basePlugins();
+        plugins.add(MockRecoveryPlannerPlugin.class);
+        plugins.add(MockRecoveryPlannerPlugin.class);
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> new MockNode(baseSettings().build(), plugins));
+        assertThat(exception.getMessage(), containsString("A single RecoveryPlannerPlugin was expected but got:"));
+    }
+
+    public static class MockRecoveryPlannerPlugin extends Plugin implements RecoveryPlannerPlugin {
+        public MockRecoveryPlannerPlugin() {
+        }
+
+        @Override
+        public RecoveryPlannerService createRecoveryPlannerService(ShardSnapshotsService shardSnapshotsService) {
+            return mock(RecoveryPlannerService.class);
+        }
+    }
+
     public static class MockCircuitBreakerPlugin extends Plugin implements CircuitBreakerPlugin {
 
         private SetOnce<CircuitBreaker> myCircuitBreaker = new SetOnce<>();
@@ -345,7 +366,7 @@ public class NodeTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     private static ContextParser<Object, Integer> mockContextParser() {
-        return Mockito.mock(ContextParser.class);
+        return mock(ContextParser.class);
     }
 
     static NamedXContentRegistry.Entry compatibleEntries = new NamedXContentRegistry.Entry(Integer.class,

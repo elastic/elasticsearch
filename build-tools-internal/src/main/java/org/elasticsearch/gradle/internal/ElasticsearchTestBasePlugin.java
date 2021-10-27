@@ -9,14 +9,15 @@
 package org.elasticsearch.gradle.internal;
 
 import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin;
+
 import org.elasticsearch.gradle.OS;
-import org.elasticsearch.gradle.internal.test.SimpleCommandLineArgumentProvider;
-import org.elasticsearch.gradle.test.GradleTestPolicySetupPlugin;
-import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
+import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.test.ErrorReportingTestListener;
-import org.elasticsearch.gradle.internal.conventions.util.Util;
+import org.elasticsearch.gradle.internal.test.SimpleCommandLineArgumentProvider;
+import org.elasticsearch.gradle.test.GradleTestPolicySetupPlugin;
+import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.gradle.api.Action;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;

@@ -12,7 +12,6 @@ import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.internal.release.PruneChangelogsTask.DeleteHelper;
 import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 import org.gradle.api.GradleException;
-import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -23,7 +22,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.gradle.OS.LINUX;
 import static org.elasticsearch.gradle.OS.WINDOWS;
 import static org.elasticsearch.gradle.internal.release.PruneChangelogsTask.findAndDeleteFiles;
 import static org.elasticsearch.gradle.internal.release.PruneChangelogsTask.findPreviousVersion;

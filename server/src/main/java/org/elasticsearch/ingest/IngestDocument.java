@@ -741,6 +741,16 @@ public final class IngestDocument {
         } else if (value instanceof byte[]) {
             byte[] bytes = (byte[]) value;
             return Arrays.copyOf(bytes, bytes.length);
+        } else if (value instanceof double[][]) {
+            double[][] doubles = (double[][]) value;
+            double[][] result = new double[doubles.length][];
+            for (int i = 0; i < doubles.length; i++) {
+                result[i] = Arrays.copyOf(doubles[i], doubles[i].length);
+            }
+            return result;
+        } else if (value instanceof double[]) {
+            double[] doubles = (double[]) value;
+            return Arrays.copyOf(doubles, doubles.length);
         } else if (value == null || value instanceof String || value instanceof Integer ||
             value instanceof Long || value instanceof Float ||
             value instanceof Double || value instanceof Boolean ||

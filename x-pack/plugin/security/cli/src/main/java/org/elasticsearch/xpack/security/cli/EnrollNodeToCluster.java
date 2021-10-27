@@ -111,11 +111,16 @@ public class EnrollNodeToCluster extends KeyStoreAwareCommand {
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
 
-        if (Files.isDirectory(env.dataFile()) && Files.list(env.dataFile()).findAny().isPresent()) {
-            throw new UserException(
-                ExitCodes.CONFIG,
-                "Aborting enrolling to cluster. It appears that this is not the first time this node starts."
-            );
+        for (Path dataPath : env.dataFiles()) {
+            // TODO: Files.list leaks a file handle because the stream is not closed
+            // this effectively doesn't matter since enroll is run in a separate, short lived, process
+            // but it should be fixed...
+            if (Files.isDirectory(dataPath) && Files.list(dataPath).findAny().isPresent()) {
+                throw new UserException(
+                    ExitCodes.CONFIG,
+                    "Aborting enrolling to cluster. It appears that this is not the first time this node starts."
+                );
+            }
         }
 
         final Path ymlPath = env.configFile().resolve("elasticsearch.yml");
@@ -447,7 +452,9 @@ public class EnrollNodeToCluster extends KeyStoreAwareCommand {
                     bw.write(XPackSettings.SECURITY_ENABLED.getKey() + ": true");
                     bw.newLine();
                     bw.newLine();
-                    if (false == env.settings().hasValue(XPackSettings.ENROLLMENT_ENABLED.getKey())) {
+                    // Set enrollment mode to true unless user explicitly set it to false themselves
+                    if (false == (env.settings().hasValue(XPackSettings.ENROLLMENT_ENABLED.getKey())
+                        && false == XPackSettings.ENROLLMENT_ENABLED.get(env.settings()))) {
                         bw.write(XPackSettings.ENROLLMENT_ENABLED.getKey() + ": true");
                         bw.newLine();
                         bw.newLine();
@@ -637,9 +644,6 @@ public class EnrollNodeToCluster extends KeyStoreAwareCommand {
     void checkExistingConfiguration(Settings settings) throws UserException {
         if (XPackSettings.SECURITY_ENABLED.exists(settings)) {
             throw new UserException(ExitCodes.CONFIG, "Aborting enrolling to cluster. It appears that security is already configured.");
-        }
-        if (XPackSettings.ENROLLMENT_ENABLED.exists(settings) && false == XPackSettings.ENROLLMENT_ENABLED.get(settings)) {
-            throw new UserException(ExitCodes.CONFIG, "Aborting enrolling to cluster. Enrollment is explicitly disabled.");
         }
         if (false == settings.getByPrefix(XPackSettings.TRANSPORT_SSL_PREFIX).isEmpty() ||
             false == settings.getByPrefix(XPackSettings.HTTP_SSL_PREFIX).isEmpty()) {

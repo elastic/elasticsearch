@@ -21,13 +21,13 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.mock.orig.Mockito;
+import org.mockito.Mockito;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -71,10 +71,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.same;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -288,7 +288,7 @@ public class DatafeedJobTests extends ESTestCase {
 
         String msg = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_MISSING_DATA,
             10,
-            XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(2000));
+            XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(2000)));
 
         long annotationCreateTime = currentTime;
         {  // What we expect the created annotation to be indexed as
@@ -335,7 +335,7 @@ public class DatafeedJobTests extends ESTestCase {
 
         msg = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_MISSING_DATA,
             15,
-            XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(6000));
+            XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(6000)));
 
         long annotationUpdateTime = currentTime;
         {  // What we expect the updated annotation to be indexed as

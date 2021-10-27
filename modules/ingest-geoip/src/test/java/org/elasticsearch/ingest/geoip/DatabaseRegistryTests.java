@@ -36,8 +36,8 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -71,6 +71,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
@@ -80,13 +81,18 @@ import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.Persist
 import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.TYPE;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS") // Don't randomly add 'extra' files to directory.
@@ -97,24 +103,25 @@ public class DatabaseRegistryTests extends ESTestCase {
     private ThreadPool threadPool;
     private DatabaseRegistry databaseRegistry;
     private ResourceWatcherService resourceWatcherService;
+    private IngestService ingestService;
 
     @Before
     public void setup() throws IOException {
-        final Path geoIpDir = createTempDir();
         final Path geoIpConfigDir = createTempDir();
         Files.createDirectories(geoIpConfigDir);
-        copyDatabaseFiles(geoIpDir);
+        GeoIpCache cache = new GeoIpCache(1000);
+        LocalDatabases localDatabases = new LocalDatabases(geoIpConfigDir, cache);
+        copyDatabaseFiles(geoIpConfigDir, localDatabases);
 
         threadPool = new TestThreadPool(LocalDatabases.class.getSimpleName());
         Settings settings = Settings.builder().put("resource.reload.interval.high", TimeValue.timeValueMillis(100)).build();
         resourceWatcherService = new ResourceWatcherService(settings, threadPool);
 
         client = mock(Client.class);
-        GeoIpCache cache = new GeoIpCache(1000);
-        LocalDatabases localDatabases = new LocalDatabases(geoIpDir, geoIpConfigDir, cache);
+        ingestService = mock(IngestService.class);
         geoIpTmpDir = createTempDir();
         databaseRegistry = new DatabaseRegistry(geoIpTmpDir, client, cache, localDatabases, Runnable::run);
-        databaseRegistry.initialize("nodeId", resourceWatcherService, mock(IngestService.class));
+        databaseRegistry.initialize("nodeId", resourceWatcherService, ingestService);
     }
 
     @After
@@ -139,11 +146,17 @@ public class DatabaseRegistryTests extends ESTestCase {
             .routingTable(createIndexRoutingTable())
             .build();
 
-        assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), nullValue());
+        int numPipelinesToBeReloaded = randomInt(4);
+        List<String> pipelineIds = IntStream.range(0, numPipelinesToBeReloaded).mapToObj(String::valueOf).collect(Collectors.toList());
+        when(ingestService.getPipelineWithProcessorType(any(), any())).thenReturn(pipelineIds);
+
+        assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb"), nullValue());
+        // Nothing should be downloaded, since the database is no longer valid (older than 30 days)
         databaseRegistry.checkDatabases(state);
-        DatabaseReaderLazyLoader database = databaseRegistry.getDatabase("GeoIP2-City.mmdb", false);
+        DatabaseReaderLazyLoader database = databaseRegistry.getDatabase("GeoIP2-City.mmdb");
         assertThat(database, nullValue());
         verify(client, times(0)).search(any());
+        verify(ingestService, times(0)).reloadPipeline(anyString());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertEquals(0, files.count());
         }
@@ -159,10 +172,16 @@ public class DatabaseRegistryTests extends ESTestCase {
                 .localNodeId("_id1"))
             .routingTable(createIndexRoutingTable())
             .build();
+        // Database should be downloaded
         databaseRegistry.checkDatabases(state);
-        database = databaseRegistry.getDatabase("GeoIP2-City.mmdb", false);
+        database = databaseRegistry.getDatabase("GeoIP2-City.mmdb");
         assertThat(database, notNullValue());
         verify(client, times(10)).search(any());
+        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
+            assertThat(files.count(), greaterThanOrEqualTo(1L));
+        }
+        // First time GeoIP2-City.mmdb is downloaded, so a pipeline reload can happen:
+        verify(ingestService, times(numPipelinesToBeReloaded)).reloadPipeline(anyString());
         //30 days check passed but we mocked mmdb data so parsing will fail
         expectThrows(InvalidDatabaseException.class, database::get);
     }
@@ -184,7 +203,7 @@ public class DatabaseRegistryTests extends ESTestCase {
             .build();
 
         databaseRegistry.checkDatabases(state);
-        assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), nullValue());
+        assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb"), nullValue());
         verify(client, never()).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertThat(files.collect(Collectors.toList()), empty());
@@ -206,7 +225,7 @@ public class DatabaseRegistryTests extends ESTestCase {
             .build();
 
         databaseRegistry.checkDatabases(state);
-        assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), nullValue());
+        assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb"), nullValue());
         verify(client, never()).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertThat(files.collect(Collectors.toList()), empty());
@@ -227,7 +246,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         mockSearches("GeoIP2-City.mmdb", 0, 9);
 
         databaseRegistry.checkDatabases(state);
-        assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), nullValue());
+        assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb"), nullValue());
         verify(client, never()).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertThat(files.collect(Collectors.toList()), empty());
@@ -271,6 +290,25 @@ public class DatabaseRegistryTests extends ESTestCase {
         verify(chunkConsumer, times(10)).accept(any());
         verify(completedHandler, times(0)).run();
         verify(client, times(10)).search(any());
+    }
+
+    public void testUpdateDatabase() throws Exception {
+        int numPipelinesToBeReloaded = randomInt(4);
+        List<String> pipelineIds = IntStream.range(0, numPipelinesToBeReloaded).mapToObj(String::valueOf).collect(Collectors.toList());
+        when(ingestService.getPipelineWithProcessorType(any(), any())).thenReturn(pipelineIds);
+
+        databaseRegistry.updateDatabase("_name", "_md5", geoIpTmpDir.resolve("some-file"));
+
+        // Updating the first time may trigger a reload.
+        verify(ingestService, times(1)).addIngestClusterStateListener(any());
+        verify(ingestService, times(1)).getPipelineWithProcessorType(any(), any());
+        verify(ingestService, times(numPipelinesToBeReloaded)).reloadPipeline(anyString());
+        verifyNoMoreInteractions(ingestService);
+        reset(ingestService);
+
+        // Subsequent updates shouldn't trigger a reload.
+        databaseRegistry.updateDatabase("_name", "_md5", geoIpTmpDir.resolve("some-file"));
+        verifyZeroInteractions(ingestService);
     }
 
     private String mockSearches(String databaseName, int firstChunk, int lastChunk) throws IOException {

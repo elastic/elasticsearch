@@ -10,13 +10,11 @@ package org.elasticsearch.common.time;
 
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.joda.time.DateTimeZone;
 
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.HashMap;
@@ -32,17 +30,6 @@ import static org.elasticsearch.common.time.DateUtilsRounding.utcMillisAtStartOf
 public class DateUtils {
     public static  final long MAX_MILLIS_BEFORE_9999 = 253402300799999L; // end of year 9999
     public static  final long MAX_MILLIS_BEFORE_MINUS_9999 = -377705116800000L; // beginning of year -9999
-
-    public static DateTimeZone zoneIdToDateTimeZone(ZoneId zoneId) {
-        if (zoneId == null) {
-            return null;
-        }
-        if (zoneId instanceof ZoneOffset) {
-            // the id for zoneoffset is not ISO compatible, so cannot be read by ZoneId.of
-            return DateTimeZone.forOffsetMillis(((ZoneOffset)zoneId).getTotalSeconds() * 1000);
-        }
-        return DateTimeZone.forID(zoneId.getId());
-    }
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DateUtils.class);
     // pkg private for tests
@@ -175,17 +162,6 @@ public class DateUtils {
             entry("Universal", "Etc/UTC"),
             entry("W-SU", "Europe/Moscow"),
             entry("Zulu", "Etc/UTC"));
-
-    public static ZoneId dateTimeZoneToZoneId(DateTimeZone timeZone) {
-        if (timeZone == null) {
-            return null;
-        }
-        if (DateTimeZone.UTC.equals(timeZone)) {
-            return ZoneOffset.UTC;
-        }
-
-        return of(timeZone.getID());
-    }
 
     public static ZoneId of(String zoneId) {
         String deprecatedId = DEPRECATED_SHORT_TIMEZONES.get(zoneId);

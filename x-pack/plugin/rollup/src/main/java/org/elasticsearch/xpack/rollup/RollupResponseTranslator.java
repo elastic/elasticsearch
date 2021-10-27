@@ -287,7 +287,8 @@ public class RollupResponseTranslator {
             reduceContext.bigArrays(),
             reduceContext.scriptService(),
             b -> {},
-            PipelineTree.EMPTY
+            PipelineTree.EMPTY,
+            reduceContext.isCanceled()
         );
         for (SearchResponse rolledResponse : rolledResponses) {
             List<InternalAggregation> unrolledAggs = new ArrayList<>(rolledResponse.getAggregations().asList().size());

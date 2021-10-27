@@ -28,10 +28,10 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.search.SearchHit;
@@ -54,7 +54,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -62,6 +62,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 
+@SuppressWarnings("removal")
 public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
 
     public static final String IGNORE_THROTTLED_DEPRECATION_WARNING = "[ignore_throttled] parameter is deprecated because frozen " +
@@ -240,8 +241,9 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
         ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
         request.persistentSettings(persistentSettings);
         request.transientSettings(transientSettings);
+        RequestOptions options = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build();
         assertTrue(execute(
-            request, highLevelClient().cluster()::putSettings, highLevelClient().cluster()::putSettingsAsync).isAcknowledged());
+            request, highLevelClient().cluster()::putSettings, highLevelClient().cluster()::putSettingsAsync, options).isAcknowledged());
     }
 
     protected void putConflictPipeline() throws IOException {
@@ -316,9 +318,10 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
         String transportAddress = (String) nodesResponse.get("transport_address");
 
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.transientSettings(singletonMap("cluster.remote." + remoteClusterName + ".seeds", transportAddress));
+        updateSettingsRequest.persistentSettings(singletonMap("cluster.remote." + remoteClusterName + ".seeds", transportAddress));
+        RequestOptions options = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build();
         ClusterUpdateSettingsResponse updateSettingsResponse =
-                restHighLevelClient.cluster().putSettings(updateSettingsRequest, RequestOptions.DEFAULT);
+                restHighLevelClient.cluster().putSettings(updateSettingsRequest, options);
         assertThat(updateSettingsResponse.isAcknowledged(), is(true));
 
         assertBusy(() -> {

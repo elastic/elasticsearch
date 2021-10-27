@@ -248,9 +248,11 @@ public class IndexResolverTests extends ESTestCase {
 
         Map<String, FieldCapabilities> multi = new HashMap<>();
         multi.put("long", new FieldCapabilities(fieldName, "long", false, true, true, new String[] { "one-index" }, null, null,
-                Collections.emptyMap()));
+                Collections.emptyMap()
+        ));
         multi.put("text", new FieldCapabilities(fieldName, "text", false, true, false, new String[] { "another-index" }, null, null,
-                Collections.emptyMap()));
+                Collections.emptyMap()
+        ));
         fieldCaps.put(fieldName, multi);
 
 

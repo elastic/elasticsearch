@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.indices.open;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 public class OpenIndexResponseTests extends AbstractSerializingTestCase<OpenIndexResponse> {

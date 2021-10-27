@@ -18,8 +18,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -29,14 +27,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -63,22 +59,27 @@ import org.elasticsearch.search.sort.BucketedSort.ExtraData;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  * Test case that lets you easilly build {@link MapperService} based on some
@@ -232,13 +233,15 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
     protected final SourceToParse source(String id, CheckedConsumer<XContentBuilder, IOException> build, @Nullable String routing)
         throws IOException {
-        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
-        build.accept(builder);
-        builder.endObject();
-        return new SourceToParse("test", id, BytesReference.bytes(builder), XContentType.JSON, routing, Map.of());
+        return source("test", id, build, routing, Map.of());
     }
 
     protected final SourceToParse source(String id, CheckedConsumer<XContentBuilder, IOException> build,
+        @Nullable String routing, Map<String, String> dynamicTemplates) throws IOException {
+        return source("text", id, build, routing, dynamicTemplates);
+    }
+
+    protected final SourceToParse source(String index, String id, CheckedConsumer<XContentBuilder, IOException> build,
                                          @Nullable String routing, Map<String, String> dynamicTemplates) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         build.accept(builder);
@@ -350,6 +353,22 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             @Override
             public long nowInMillis() {
                 return 0;
+            }
+
+            @Override
+            public Analyzer getNamedAnalyzer(String analyzer) {
+                return null;
+            }
+
+            @Override
+            public Analyzer buildCustomAnalyzer(
+                IndexSettings indexSettings,
+                boolean normalizer,
+                NameOrDefinition tokenizer,
+                List<NameOrDefinition> charFilters,
+                List<NameOrDefinition> tokenFilters
+            ) {
+                return null;
             }
 
             @Override
@@ -516,25 +535,35 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected SearchExecutionContext createSearchExecutionContext(MapperService mapperService) {
-        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
-        when(searchExecutionContext.getFieldType(anyString())).thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()));
-        when(searchExecutionContext.isFieldMapped(anyString()))
-            .thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()) != null);
-        when(searchExecutionContext.getIndexAnalyzers()).thenReturn(mapperService.getIndexAnalyzers());
-        when(searchExecutionContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
-        when(searchExecutionContext.getObjectMapper(anyString())).thenAnswer(
-            inv -> mapperService.mappingLookup().objectMappers().get(inv.getArguments()[0].toString()));
-        when(searchExecutionContext.getMatchingFieldNames(anyObject())).thenAnswer(
-            inv -> mapperService.mappingLookup().getMatchingFieldNames(inv.getArguments()[0].toString())
+        final SimilarityService similarityService = new SimilarityService(mapperService.getIndexSettings(), null, Map.of());
+        final long nowInMillis = randomNonNegativeLong();
+        return new SearchExecutionContext(
+            0,
+            0,
+            mapperService.getIndexSettings(),
+            null,
+            (ft, idxName, lookup) ->
+                ft.fielddataBuilder(idxName, lookup).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
+            mapperService,
+            mapperService.mappingLookup(),
+            similarityService,
+            null,
+            xContentRegistry(),
+            writableRegistry(),
+            null,
+            null,
+            () -> nowInMillis,
+            null,
+            null,
+            () -> true,
+            null,
+            Collections.emptyMap()
         );
-        when(searchExecutionContext.allowExpensiveQueries()).thenReturn(true);
-        when(searchExecutionContext.lookup()).thenReturn(new SearchLookup(mapperService::fieldType, (ft, s) -> {
-            throw new UnsupportedOperationException("search lookup not available");
-        }));
+    }
 
-        SimilarityService similarityService = new SimilarityService(mapperService.getIndexSettings(), null, Map.of());
-        when(searchExecutionContext.getDefaultSimilarity()).thenReturn(similarityService.getDefaultSimilarity());
-
-        return searchExecutionContext;
+    protected BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup() {
+        return (mft, lookupSource) -> mft
+            .fielddataBuilder("test", lookupSource)
+            .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
     }
 }

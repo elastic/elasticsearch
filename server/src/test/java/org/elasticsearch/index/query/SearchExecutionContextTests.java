@@ -29,8 +29,10 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -490,8 +492,8 @@ public class SearchExecutionContextTests extends ESTestCase {
                     public LeafFieldData load(LeafReaderContext context) {
                         return new LeafFieldData() {
                             @Override
-                            public ScriptDocValues<?> getScriptValues() {
-                                return new ScriptDocValues<String>() {
+                            public DocValuesField getScriptField(String name) {
+                                return new DelegateDocValuesField(new ScriptDocValues<String>() {
                                     String value;
 
                                     @Override
@@ -513,12 +515,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                                         leafLookup.setDocument(docId);
                                         value = runtimeDocValues.apply(leafLookup, docId);
                                     }
-
-                                    @Override
-                                    public org.elasticsearch.script.field.Field<String> toField(String fieldName) {
-                                        return new org.elasticsearch.script.field.StringField(fieldName, this);
-                                    }
-                                };
+                                }, name);
                             }
 
                             @Override
@@ -594,7 +591,6 @@ public class SearchExecutionContextTests extends ESTestCase {
 
                     @Override
                     public LeafCollector getLeafCollector(LeafReaderContext context) {
-                        ScriptDocValues<?> scriptValues = indexFieldData.load(context).getScriptValues();
                         return new LeafCollector() {
                             @Override
                             public void setScorer(Scorable scorer) {}
@@ -607,7 +603,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                                     leafDocLookup.setDocument(doc);
                                     scriptDocValues = leafDocLookup.get(field);
                                 } else {
-                                    scriptDocValues = scriptValues;
+                                    scriptDocValues = indexFieldData.load(context).getScriptField("test").getScriptDocValues();;
                                 }
                                 scriptDocValues.setNextDocId(doc);
                                 for (int i = 0; i < scriptDocValues.size(); i++) {

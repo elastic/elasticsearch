@@ -94,6 +94,9 @@ public abstract class Engine implements Closeable {
     public static final String FORCE_MERGE_UUID_KEY = "force_merge_uuid";
     public static final String MIN_RETAINED_SEQNO = "min_retained_seq_no";
     public static final String MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID = "max_unsafe_auto_id_timestamp";
+    // Field name that stores the Elasticsearch version in Lucene commit user data, representing
+    // the version that was used to write the commit (and thus a max version for the underlying segments).
+    public static final String ES_VERSION = "es_version";
     public static final String SEARCH_SOURCE = "search"; // TODO: Make source of search enum?
     public static final String CAN_MATCH_SEARCH_SOURCE = "can_match";
     protected static final String DOC_STATS_SOURCE = "doc_stats";
@@ -743,6 +746,16 @@ public abstract class Engine implements Closeable {
     }
 
     /**
+     * @return the max issued or seen seqNo for this Engine
+     */
+    public abstract long getMaxSeqNo();
+
+    /**
+     * @return the processed local checkpoint for this Engine
+     */
+    public abstract long getProcessedLocalCheckpoint();
+
+    /**
      * @return the persisted local checkpoint for this Engine
      */
     public abstract long getPersistedLocalCheckpoint();
@@ -829,13 +842,13 @@ public abstract class Engine implements Closeable {
     /** How much heap is used that would be freed by a refresh.  Note that this may throw {@link AlreadyClosedException}. */
     public abstract long getIndexBufferRAMBytesUsed();
 
-    final Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos, boolean verbose) {
+    final Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos) {
         ensureOpen();
         Map<String, Segment> segments = new HashMap<>();
         // first, go over and compute the search ones...
         try (Searcher searcher = acquireSearcher("segments", SearcherScope.EXTERNAL)){
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
-                fillSegmentInfo(Lucene.segmentReader(ctx.reader()), verbose, true, segments);
+                fillSegmentInfo(Lucene.segmentReader(ctx.reader()), true, segments);
             }
         }
 
@@ -843,7 +856,7 @@ public abstract class Engine implements Closeable {
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
                 if (segments.containsKey(segmentReader.getSegmentName()) == false) {
-                    fillSegmentInfo(segmentReader, verbose, false, segments);
+                    fillSegmentInfo(segmentReader, false, segments);
                 }
             }
         }
@@ -879,7 +892,7 @@ public abstract class Engine implements Closeable {
         return segmentsArr;
     }
 
-    private void fillSegmentInfo(SegmentReader segmentReader, boolean verbose, boolean search, Map<String, Segment> segments) {
+    private void fillSegmentInfo(SegmentReader segmentReader, boolean search, Map<String, Segment> segments) {
         SegmentCommitInfo info = segmentReader.getSegmentInfo();
         assert segments.containsKey(info.info.name) == false;
         Segment segment = new Segment(info.info.name);
@@ -902,7 +915,7 @@ public abstract class Engine implements Closeable {
     /**
      * The list of segments in the engine.
      */
-    public abstract List<Segment> segments(boolean verbose);
+    public abstract List<Segment> segments();
 
     public boolean refreshNeeded() {
         if (store.tryIncRef()) {
@@ -1134,7 +1147,7 @@ public abstract class Engine implements Closeable {
                 throw new AlreadyClosedException("SearcherSupplier was closed");
             }
             final Searcher searcher = acquireSearcherInternal(source);
-            return CAN_MATCH_SEARCH_SOURCE.equals(source) ? searcher : wrapper.apply(searcher);
+            return wrapper.apply(searcher);
         }
 
         @Override

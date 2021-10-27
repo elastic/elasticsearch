@@ -24,10 +24,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
@@ -57,8 +58,10 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
 public class MetadataTests extends ESTestCase {
@@ -1037,7 +1040,7 @@ public class MetadataTests extends ESTestCase {
             assertThat(value.isHidden(), is(false));
             assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
             assertThat(value.getIndices().size(), equalTo(ds.getIndices().size()));
-            assertThat(value.getWriteIndex().getIndex().getName(),
+            assertThat(value.getWriteIndex().getName(),
                 equalTo(DataStream.getDefaultBackingIndexName(name, ds.getGeneration())));
         }
     }
@@ -1205,18 +1208,18 @@ public class MetadataTests extends ESTestCase {
             backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
         );
 
-        IndexAbstraction.DataStream dataStreamAbstraction = new IndexAbstraction.DataStream(dataStream, backingIndices, List.of());
+        IndexAbstraction.DataStream dataStreamAbstraction = new IndexAbstraction.DataStream(dataStream, List.of());
         // manually building the indices lookup as going through Metadata.Builder#build would trigger the validate method already
         SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
         for (IndexMetadata indexMeta : backingIndices) {
-            indicesLookup.put(indexMeta.getIndex().getName(), new IndexAbstraction.Index(indexMeta, dataStreamAbstraction));
+            indicesLookup.put(indexMeta.getIndex().getName(), new IndexAbstraction.ConcreteIndex(indexMeta, dataStreamAbstraction));
         }
 
         for (int i = 1; i <= generations; i++) {
             // for the indices that we added in the data stream with a "shrink-" prefix, add the non-prefixed indices to the lookup
             if (i % 2 == 0 && i < generations) {
                 IndexMetadata indexMeta = createBackingIndex(dataStreamName, i).build();
-                indicesLookup.put(indexMeta.getIndex().getName(), new IndexAbstraction.Index(indexMeta, dataStreamAbstraction));
+                indicesLookup.put(indexMeta.getIndex().getName(), new IndexAbstraction.ConcreteIndex(indexMeta, dataStreamAbstraction));
             }
         }
         DataStreamMetadata dataStreamMetadata = new DataStreamMetadata(Map.of(dataStreamName, dataStream), Map.of());
@@ -1518,6 +1521,102 @@ public class MetadataTests extends ESTestCase {
         assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
         assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), nullValue());
         assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(), containsInAnyOrder("logs-postgres-replicated"));
+    }
+
+    public void testReuseIndicesLookup() {
+        String indexName = "my-index";
+        String aliasName = "my-alias";
+        String dataStreamName = "logs-mysql-prod";
+        String dataStreamAliasName = "logs-mysql";
+        Metadata previous = Metadata.builder().build();
+
+        // Things that should change indices lookup
+        {
+            Metadata.Builder builder = Metadata.builder(previous);
+            IndexMetadata idx = DataStreamTestHelper.createFirstBackingIndex(dataStreamName).build();
+            builder.put(idx, true);
+            DataStream dataStream = new DataStream(dataStreamName, new DataStream.TimestampField("@timestamp"), List.of(idx.getIndex()));
+            builder.put(dataStream);
+            Metadata metadata = builder.build();
+            assertThat(previous.getIndicesLookup(), not(sameInstance(metadata.getIndicesLookup())));
+            previous = metadata;
+        }
+        {
+            Metadata.Builder builder = Metadata.builder(previous);
+            builder.put(dataStreamAliasName, dataStreamName, false, null);
+            Metadata metadata = builder.build();
+            assertThat(previous.getIndicesLookup(), not(sameInstance(metadata.getIndicesLookup())));
+            previous = metadata;
+        }
+        {
+            Metadata.Builder builder = Metadata.builder(previous);
+            builder.put(dataStreamAliasName, dataStreamName, true, null);
+            Metadata metadata = builder.build();
+            assertThat(previous.getIndicesLookup(), not(sameInstance(metadata.getIndicesLookup())));
+            previous = metadata;
+        }
+        {
+            Metadata.Builder builder = Metadata.builder(previous);
+            builder.put(IndexMetadata.builder(indexName)
+                .settings(settings(Version.CURRENT)).creationDate(randomNonNegativeLong())
+                .numberOfShards(1).numberOfReplicas(0));
+            Metadata metadata = builder.build();
+            assertThat(previous.getIndicesLookup(), not(sameInstance(metadata.getIndicesLookup())));
+            previous = metadata;
+        }
+        {
+            Metadata.Builder builder = Metadata.builder(previous);
+            IndexMetadata.Builder imBuilder = IndexMetadata.builder(builder.get(indexName));
+            imBuilder.putAlias(AliasMetadata.builder(aliasName).build());
+            builder.put(imBuilder);
+            Metadata metadata = builder.build();
+            assertThat(previous.getIndicesLookup(), not(sameInstance(metadata.getIndicesLookup())));
+            previous = metadata;
+        }
+        {
+            Metadata.Builder builder = Metadata.builder(previous);
+            IndexMetadata.Builder imBuilder = IndexMetadata.builder(builder.get(indexName));
+            imBuilder.putAlias(AliasMetadata.builder(aliasName).writeIndex(true).build());
+            builder.put(imBuilder);
+            Metadata metadata = builder.build();
+            assertThat(previous.getIndicesLookup(), not(sameInstance(metadata.getIndicesLookup())));
+            previous = metadata;
+        }
+        {
+            Metadata.Builder builder = Metadata.builder(previous);
+            IndexMetadata.Builder imBuilder = IndexMetadata.builder(builder.get(indexName));
+            Settings.Builder sBuilder = Settings.builder()
+                .put(builder.get(indexName).getSettings())
+                .put(IndexMetadata.INDEX_HIDDEN_SETTING.getKey(), true);
+            imBuilder.settings(sBuilder.build());
+            builder.put(imBuilder);
+            Metadata metadata = builder.build();
+            assertThat(previous.getIndicesLookup(), not(sameInstance(metadata.getIndicesLookup())));
+            previous = metadata;
+        }
+
+        // Things that shouldn't change indices lookup
+        {
+            Metadata.Builder builder = Metadata.builder(previous);
+            IndexMetadata.Builder imBuilder = IndexMetadata.builder(builder.get(indexName));
+            imBuilder.numberOfReplicas(2);
+            builder.put(imBuilder);
+            Metadata metadata = builder.build();
+            assertThat(previous.getIndicesLookup(), sameInstance(metadata.getIndicesLookup()));
+            previous = metadata;
+        }
+        {
+            Metadata.Builder builder = Metadata.builder(previous);
+            IndexMetadata.Builder imBuilder = IndexMetadata.builder(builder.get(indexName));
+            Settings.Builder sBuilder = Settings.builder()
+                .put(builder.get(indexName).getSettings())
+                .put(IndexSettings.DEFAULT_FIELD_SETTING.getKey(), "val");
+            imBuilder.settings(sBuilder.build());
+            builder.put(imBuilder);
+            Metadata metadata = builder.build();
+            assertThat(previous.getIndicesLookup(), sameInstance(metadata.getIndicesLookup()));
+            previous = metadata;
+        }
     }
 
     public static Metadata randomMetadata() {

@@ -10,7 +10,6 @@ package org.elasticsearch.action.search;
 
 import com.carrotsearch.hppc.IntArrayList;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.FieldDoc;
@@ -22,7 +21,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
-import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
+import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
@@ -55,17 +54,20 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public final class SearchPhaseController {
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
-    private final Function<SearchRequest, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
+    private final BiFunction<Supplier<Boolean>, SearchRequest, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
 
-    public SearchPhaseController(Function<SearchRequest, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder) {
+    public SearchPhaseController(
+        BiFunction<Supplier<Boolean>, SearchRequest, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder
+    ) {
         this.requestToAggReduceContextBuilder = requestToAggReduceContextBuilder;
     }
 
@@ -163,21 +165,21 @@ public final class SearchPhaseController {
         }
         boolean isSortedByField = false;
         SortField[] sortFields = null;
-        String collapseField = null;
-        Object[] collapseValues = null;
+        String groupField = null;
+        Object[] groupValues = null;
         if (mergedTopDocs instanceof TopFieldDocs) {
             TopFieldDocs fieldDocs = (TopFieldDocs) mergedTopDocs;
             sortFields = fieldDocs.fields;
-            if (fieldDocs instanceof CollapseTopFieldDocs) {
+            if (fieldDocs instanceof TopFieldGroups) {
                 isSortedByField = (fieldDocs.fields.length == 1 && fieldDocs.fields[0].getType() == SortField.Type.SCORE) == false;
-                CollapseTopFieldDocs collapseTopFieldDocs = (CollapseTopFieldDocs) fieldDocs;
-                collapseField = collapseTopFieldDocs.field;
-                collapseValues = collapseTopFieldDocs.collapseValues;
+                TopFieldGroups topFieldGroups = (TopFieldGroups) fieldDocs;
+                groupField = topFieldGroups.field;
+                groupValues = topFieldGroups.groupValues;
             } else {
                 isSortedByField = true;
             }
         }
-        return new SortedTopDocs(scoreDocs, isSortedByField, sortFields, collapseField, collapseValues, numSuggestDocs);
+        return new SortedTopDocs(scoreDocs, isSortedByField, sortFields, groupField, groupValues, numSuggestDocs);
     }
 
     static TopDocs mergeTopDocs(Collection<TopDocs> results, int topN, int from) {
@@ -189,11 +191,11 @@ public final class SearchPhaseController {
         final int numShards = results.size();
         if (numShards == 1 && from == 0) { // only one shard and no pagination we can just return the topDocs as we got them.
             return topDocs;
-        } else if (topDocs instanceof CollapseTopFieldDocs) {
-            CollapseTopFieldDocs firstTopDocs = (CollapseTopFieldDocs) topDocs;
+        } else if (topDocs instanceof TopFieldGroups) {
+            TopFieldGroups firstTopDocs = (TopFieldGroups) topDocs;
             final Sort sort = new Sort(firstTopDocs.fields);
-            final CollapseTopFieldDocs[] shardTopDocs = results.toArray(new CollapseTopFieldDocs[numShards]);
-            mergedTopDocs = CollapseTopFieldDocs.merge(sort, from, topN, shardTopDocs, false);
+            final TopFieldGroups[] shardTopDocs = results.toArray(new TopFieldGroups[numShards]);
+            mergedTopDocs = TopFieldGroups.merge(sort, from, topN, shardTopDocs, false);
         } else if (topDocs instanceof TopFieldDocs) {
             TopFieldDocs firstTopDocs = (TopFieldDocs) topDocs;
             final Sort sort = new Sort(firstTopDocs.fields);
@@ -630,8 +632,8 @@ public final class SearchPhaseController {
         }
     }
 
-    InternalAggregation.ReduceContextBuilder getReduceContext(SearchRequest request) {
-        return requestToAggReduceContextBuilder.apply(request);
+    InternalAggregation.ReduceContextBuilder getReduceContext(Supplier<Boolean> isCanceled, SearchRequest request) {
+        return requestToAggReduceContextBuilder.apply(isCanceled, request);
     }
 
     /**
@@ -639,11 +641,13 @@ public final class SearchPhaseController {
      */
     QueryPhaseResultConsumer newSearchPhaseResults(Executor executor,
                                                    CircuitBreaker circuitBreaker,
+                                                   Supplier<Boolean> isCanceled,
                                                    SearchProgressListener listener,
                                                    SearchRequest request,
                                                    int numShards,
                                                    Consumer<Exception> onPartialMergeFailure) {
-        return new QueryPhaseResultConsumer(request, executor, circuitBreaker, this,  listener, numShards, onPartialMergeFailure);
+        return new QueryPhaseResultConsumer(request, executor, circuitBreaker,
+            this, isCanceled, listener, numShards, onPartialMergeFailure);
     }
 
     static final class TopDocsStats {

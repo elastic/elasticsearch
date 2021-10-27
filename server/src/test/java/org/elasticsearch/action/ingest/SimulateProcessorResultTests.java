@@ -11,7 +11,7 @@ package org.elasticsearch.action.ingest;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.AbstractXContentTestCase;
 

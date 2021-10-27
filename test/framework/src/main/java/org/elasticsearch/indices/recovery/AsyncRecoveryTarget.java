@@ -57,10 +57,15 @@ public class AsyncRecoveryTarget implements RecoveryTargetHandler {
     }
 
     @Override
-    public void receiveFileInfo(List<String> phase1FileNames, List<Long> phase1FileSizes, List<String> phase1ExistingFileNames,
-                                List<Long> phase1ExistingFileSizes, int totalTranslogOps, ActionListener<Void> listener) {
+    public void receiveFileInfo(List<String> phase1FileNames,
+                                List<Long> phase1FileSizes,
+                                List<String> phase1ExistingFileNames,
+                                List<Long> phase1ExistingFileSizes,
+                                int totalTranslogOps,
+                                ActionListener<Void> listener) {
         executor.execute(() -> target.receiveFileInfo(
-            phase1FileNames, phase1FileSizes, phase1ExistingFileNames, phase1ExistingFileSizes, totalTranslogOps, listener));
+            phase1FileNames, phase1FileSizes, phase1ExistingFileNames, phase1ExistingFileSizes, totalTranslogOps,
+                listener));
     }
 
     @Override

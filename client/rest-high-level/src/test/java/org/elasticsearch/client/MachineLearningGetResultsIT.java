@@ -34,7 +34,7 @@ import org.elasticsearch.client.ml.job.results.Bucket;
 import org.elasticsearch.client.ml.job.results.Influencer;
 import org.elasticsearch.client.ml.job.results.OverallBucket;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.XContentTestUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -55,6 +55,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
+@SuppressWarnings("removal")
 public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
 
     private static final String RESULTS_INDEX = ".ml-anomalies-shared";

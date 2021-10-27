@@ -532,7 +532,7 @@ public final class AnalysisRegistry implements Closeable {
         if (analyzers.containsKey(DEFAULT_ANALYZER_NAME) == false) {
             analyzers.put(DEFAULT_ANALYZER_NAME,
                     produceAnalyzer(DEFAULT_ANALYZER_NAME,
-                            new StandardAnalyzerProvider(indexSettings, null, DEFAULT_ANALYZER_NAME, Settings.Builder.EMPTY_SETTINGS),
+                            new StandardAnalyzerProvider(indexSettings, null, DEFAULT_ANALYZER_NAME, Settings.EMPTY),
                             tokenFilterFactoryFactories, charFilterFactoryFactories, tokenizerFactoryFactories));
         }
         NamedAnalyzer defaultAnalyzer = analyzers.get(DEFAULT_ANALYZER_NAME);

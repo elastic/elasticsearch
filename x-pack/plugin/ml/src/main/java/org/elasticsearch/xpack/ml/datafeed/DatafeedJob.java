@@ -18,7 +18,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
@@ -213,7 +213,7 @@ class DatafeedJob {
                 Date endTime = new Date((lastBucket.getEpoch() + lastBucket.getBucketSpan()) * 1000);
 
                 String msg = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_MISSING_DATA, totalRecordsMissing,
-                    XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(lastBucket.getTimestamp().getTime()));
+                    XContentElasticsearchExtension.DEFAULT_FORMATTER.format(lastBucket.getTimestamp().toInstant()));
 
                 Annotation annotation = createDelayedDataAnnotation(missingDataBuckets.get(0).getBucket().getTimestamp(), endTime, msg);
 

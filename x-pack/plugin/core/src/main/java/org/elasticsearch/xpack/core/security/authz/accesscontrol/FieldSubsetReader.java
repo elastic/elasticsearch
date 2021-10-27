@@ -24,6 +24,9 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.index.VectorValues;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FilterIterator;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
@@ -31,9 +34,9 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -273,6 +276,16 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     @Override
     public NumericDocValues getNormValues(String field) throws IOException {
         return hasField(field) ? super.getNormValues(field) : null;
+    }
+
+    @Override
+    public VectorValues getVectorValues(String field) throws IOException {
+        return hasField(field) ? super.getVectorValues(field) : null;
+    }
+
+    @Override
+    public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs) throws IOException {
+        return hasField(field) ? super.searchNearestVectors(field, target, k, acceptDocs) : null;
     }
 
     // we share core cache keys (for e.g. fielddata)

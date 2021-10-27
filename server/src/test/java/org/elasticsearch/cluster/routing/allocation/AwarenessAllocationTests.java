@@ -39,6 +39,7 @@ import java.util.stream.StreamSupport;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -76,7 +77,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                 .add(newNode("node2", singletonMap("rack_id", "1")))
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");
-        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(1));
 
         logger.info("--> start the shards (primaries)");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
@@ -84,7 +85,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         logger.info("--> start the shards (replicas)");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(2));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(2));
 
         logger.info("--> add a new node with a new rack and reroute");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
@@ -92,15 +93,15 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(1));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.RELOCATING).size(), equalTo(1));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.RELOCATING).get(0).relocatingNodeId(),
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(1));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.RELOCATING).size(), equalTo(1));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.RELOCATING).get(0).relocatingNodeId(),
             equalTo("node3"));
 
         logger.info("--> complete relocation");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(2));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(2));
 
         logger.info("--> do another reroute, make sure nothing moves");
         assertThat(strategy.reroute(clusterState, "reroute").routingTable(), sameInstance(clusterState.routingTable()));
@@ -111,7 +112,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         ).build();
         ClusterState newState = strategy.reroute(clusterState, "reroute");
         assertThat(newState, equalTo(clusterState));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(2));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(2));
     }
 
     public void testMoveShardOnceNewNodeWithAttributeAdded2() {
@@ -139,7 +140,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                 .add(newNode("node3", singletonMap("rack_id", "1")))
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");
-        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(1));
 
         logger.info("--> start the shards (primaries)");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
@@ -147,7 +148,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         logger.info("--> start the shards (replicas)");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(2));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(2));
 
         logger.info("--> add a new node with a new rack and reroute");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
@@ -155,15 +156,15 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(1));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.RELOCATING).size(), equalTo(1));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.RELOCATING).get(0).relocatingNodeId(),
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(1));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.RELOCATING).size(), equalTo(1));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.RELOCATING).get(0).relocatingNodeId(),
             equalTo("node4"));
 
         logger.info("--> complete relocation");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(2));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(2));
 
         logger.info("--> do another reroute, make sure nothing moves");
         assertThat(strategy.reroute(clusterState, "reroute").routingTable(), sameInstance(clusterState.routingTable()));
@@ -174,7 +175,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         ).build();
         ClusterState newState = strategy.reroute(clusterState, "reroute");
         assertThat(newState, equalTo(clusterState));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(2));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(2));
     }
 
     public void testMoveShardOnceNewNodeWithAttributeAdded3() {
@@ -209,12 +210,12 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
-        logger.info("Initializing shards: {}", clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
-        logger.info("Started shards: {}", clusterState.getRoutingNodes().shardsWithState(STARTED));
-        logger.info("Relocating shards: {}", clusterState.getRoutingNodes().shardsWithState(RELOCATING));
-        logger.info("Unassigned shards: {}", clusterState.getRoutingNodes().shardsWithState(UNASSIGNED));
+        logger.info("Initializing shards: {}", shardsWithState(clusterState.getRoutingNodes(), INITIALIZING));
+        logger.info("Started shards: {}", shardsWithState(clusterState.getRoutingNodes(), STARTED));
+        logger.info("Relocating shards: {}", shardsWithState(clusterState.getRoutingNodes(), RELOCATING));
+        logger.info("Unassigned shards: {}", shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED));
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(5));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(5));
 
         logger.info("--> start the shards (primaries)");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
@@ -222,7 +223,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         logger.info("--> start the shards (replicas)");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(10));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(10));
 
         logger.info("--> add a new node with a new rack and reroute");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
@@ -230,10 +231,10 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(5));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.RELOCATING).size(), equalTo(5));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(5));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.RELOCATING).get(0).relocatingNodeId(),
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(5));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.RELOCATING).size(), equalTo(5));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING).size(), equalTo(5));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.RELOCATING).get(0).relocatingNodeId(),
             equalTo("node3"));
 
         logger.info("--> complete initializing");
@@ -242,7 +243,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         logger.info("--> run it again, since we still might have relocation");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(10));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(10));
 
         logger.info("--> do another reroute, make sure nothing moves");
         assertThat(strategy.reroute(clusterState, "reroute").routingTable(), sameInstance(clusterState.routingTable()));
@@ -252,12 +253,12 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                 .add(newNode("node4", singletonMap("rack_id", "3")))
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");
-        assertThat(clusterState.getRoutingNodes().shardsWithState(RELOCATING).size(), greaterThan(0));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), RELOCATING).size(), greaterThan(0));
 
         logger.info("--> complete relocation");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(10));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(10));
 
         logger.info("--> do another reroute, make sure nothing moves");
         assertThat(strategy.reroute(clusterState, "reroute").routingTable(), sameInstance(clusterState.routingTable()));
@@ -293,7 +294,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                 .add(newNode("node2", singletonMap("rack_id", "1")))
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");
-        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(10));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(10));
 
         logger.info("--> start the shards (primaries)");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
@@ -301,7 +302,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         logger.info("--> start the shards (replicas)");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(20));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(20));
 
         logger.info("--> add a new node with a new rack and reroute");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
@@ -309,10 +310,10 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(10));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.RELOCATING).size(), equalTo(10));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(10));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.RELOCATING).get(0).relocatingNodeId(),
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(10));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.RELOCATING).size(), equalTo(10));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING).size(), equalTo(10));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.RELOCATING).get(0).relocatingNodeId(),
             equalTo("node3"));
 
         logger.info("--> complete initializing");
@@ -322,7 +323,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         }
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(20));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(20));
         assertThat(clusterState.getRoutingNodes().node("node3").size(), equalTo(10));
         assertThat(clusterState.getRoutingNodes().node("node2").size(), equalTo(5));
         assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(5));
@@ -335,14 +336,14 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                 .add(newNode("node4", singletonMap("rack_id", "3")))
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");
-        assertThat(clusterState.getRoutingNodes().shardsWithState(RELOCATING).size(), greaterThan(0));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), RELOCATING).size(), greaterThan(0));
 
         logger.info("--> complete relocation");
         for (int i = 0; i < 2; i++) {
             logger.info("--> complete initializing round: [{}]", i);
             clusterState = startInitializingShardsAndReroute(strategy, clusterState);
         }
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(20));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(20));
         assertThat(clusterState.getRoutingNodes().node("node3").size(), equalTo(5));
         assertThat(clusterState.getRoutingNodes().node("node4").size(), equalTo(5));
         assertThat(clusterState.getRoutingNodes().node("node2").size(), equalTo(5));
@@ -378,7 +379,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                 .add(newNode("node2", singletonMap("rack_id", "1")))
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");
-        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(1));
 
         logger.info("--> start the shards (primaries)");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
@@ -386,7 +387,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         logger.info("--> start the shards (replicas)");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(2));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(2));
 
         logger.info("--> add a new node with a new rack and reroute");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
@@ -394,15 +395,15 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(2));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(1));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(2));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING).size(), equalTo(1));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
             equalTo("node3"));
 
         logger.info("--> complete relocation");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(3));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(3));
 
         logger.info("--> do another reroute, make sure nothing moves");
         assertThat(strategy.reroute(clusterState, "reroute").routingTable(), sameInstance(clusterState.routingTable()));
@@ -412,15 +413,15 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                 .add(newNode("node4", singletonMap("rack_id", "3")))
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");
-        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(2));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.RELOCATING).size(), equalTo(1));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.RELOCATING).get(0).relocatingNodeId(),
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(2));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.RELOCATING).size(), equalTo(1));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.RELOCATING).get(0).relocatingNodeId(),
             equalTo("node4"));
 
         logger.info("--> complete relocation");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(3));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(3));
 
         logger.info("--> make sure another reroute does not move things");
         assertThat(strategy.reroute(clusterState, "reroute").routingTable(), sameInstance(clusterState.routingTable()));
@@ -454,7 +455,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                 .add(newNode("node4", singletonMap("rack_id", "1")))
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");
-        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(1));
 
         logger.info("--> start the shards (primaries)");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
@@ -462,7 +463,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         logger.info("--> start the shards (replicas)");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(4));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(4));
 
         logger.info("--> add a new node with a new rack and reroute");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
@@ -470,15 +471,15 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(3));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.RELOCATING).size(), equalTo(1));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.RELOCATING).get(0).relocatingNodeId(),
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(3));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.RELOCATING).size(), equalTo(1));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.RELOCATING).get(0).relocatingNodeId(),
             equalTo("node5"));
 
         logger.info("--> complete relocation");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(4));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(4));
 
         logger.info("--> do another reroute, make sure nothing moves");
         assertThat(strategy.reroute(clusterState, "reroute").routingTable(), sameInstance(clusterState.routingTable()));
@@ -488,15 +489,15 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                 .add(newNode("node6", singletonMap("rack_id", "3")))
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");
-        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(3));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.RELOCATING).size(), equalTo(1));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.RELOCATING).get(0).relocatingNodeId(),
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(3));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.RELOCATING).size(), equalTo(1));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.RELOCATING).get(0).relocatingNodeId(),
             equalTo("node6"));
 
         logger.info("--> complete relocation");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(4));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(4));
 
         logger.info("--> make sure another reroute does not move things");
         assertThat(strategy.reroute(clusterState, "reroute").routingTable(), sameInstance(clusterState.routingTable()));
@@ -529,14 +530,14 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                 .add(newNode("node2", singletonMap("rack_id", "1")))
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");
-        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(1));
 
         logger.info("--> start the shards (primaries)");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         logger.info("--> replica will not start because we have only one rack value");
-        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(1));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(1));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(0));
 
         logger.info("--> add a new node with a new rack and reroute");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
@@ -544,15 +545,15 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(1));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(1));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(1));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING).size(), equalTo(1));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
             equalTo("node3"));
 
         logger.info("--> complete relocation");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(2));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(2));
 
         logger.info("--> do another reroute, make sure nothing moves");
         assertThat(strategy.reroute(clusterState, "reroute").routingTable(), sameInstance(clusterState.routingTable()));
@@ -563,7 +564,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         ).build();
         ClusterState newState = strategy.reroute(clusterState, "reroute");
         assertThat(newState, equalTo(clusterState));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(2));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(2));
     }
 
     public void testFullAwareness2() {
@@ -594,14 +595,14 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                 .add(newNode("node3", singletonMap("rack_id", "1")))
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");
-        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(1));
 
         logger.info("--> start the shards (primaries)");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         logger.info("--> replica will not start because we have only one rack value");
-        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(1));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(1));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(0));
 
         logger.info("--> add a new node with a new rack and reroute");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
@@ -609,15 +610,15 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(1));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(1));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(1));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING).size(), equalTo(1));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
             equalTo("node4"));
 
         logger.info("--> complete relocation");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(2));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(2));
 
         logger.info("--> do another reroute, make sure nothing moves");
         assertThat(strategy.reroute(clusterState, "reroute").routingTable(), sameInstance(clusterState.routingTable()));
@@ -628,7 +629,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         ).build();
         ClusterState newState = strategy.reroute(clusterState, "reroute");
         assertThat(newState, equalTo(clusterState));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(2));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(2));
     }
 
     public void testFullAwareness3() {
@@ -665,12 +666,12 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                 .add(newNode("node2", singletonMap("rack_id", "1")))
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");
-        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(10));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(10));
 
         logger.info("--> start the shards (primaries)");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(10));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(10));
 
         logger.info("--> add a new node with a new rack and reroute");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
@@ -678,9 +679,9 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(10));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(10));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(10));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING).size(), equalTo(10));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
             equalTo("node3"));
 
         logger.info("--> complete initializing");
@@ -689,7 +690,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         logger.info("--> run it again, since we still might have relocation");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(20));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(20));
 
         logger.info("--> do another reroute, make sure nothing moves");
         assertThat(strategy.reroute(clusterState, "reroute").routingTable(), sameInstance(clusterState.routingTable()));
@@ -699,12 +700,12 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                 .add(newNode("node4", singletonMap("rack_id", "3")))
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");
-        assertThat(clusterState.getRoutingNodes().shardsWithState(RELOCATING).size(), greaterThan(0));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), RELOCATING).size(), greaterThan(0));
 
         logger.info("--> complete relocation");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(20));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(20));
 
         logger.info("--> do another reroute, make sure nothing moves");
         assertThat(strategy.reroute(clusterState, "reroute").routingTable(), sameInstance(clusterState.routingTable()));
@@ -739,33 +740,33 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                 .add(newNode("B-0", singletonMap("zone", "b")))
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");
-        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(0));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(5));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(0));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(5));
 
         logger.info("--> start the shards (primaries)");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
-        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(5));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(5));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(5));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(5));
 
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
         logger.info("--> all replicas are allocated and started since we have on node in each zone");
-        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(10));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(10));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(0));
 
         logger.info("--> add a new node in zone 'a' and reroute");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .add(newNode("A-1", singletonMap("zone", "a")))
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(8));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(2));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(8));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING).size(), equalTo(2));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
             equalTo("A-1"));
         logger.info("--> starting initializing shards on the new node");
 
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(10));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(10));
         assertThat(clusterState.getRoutingNodes().node("A-1").size(), equalTo(2));
         assertThat(clusterState.getRoutingNodes().node("A-0").size(), equalTo(3));
         assertThat(clusterState.getRoutingNodes().node("B-0").size(), equalTo(5));
@@ -806,14 +807,14 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                         .add(newNode("B-0", singletonMap("zone", "b")))
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");
-        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(0));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(0));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(1));
 
         logger.info("--> start the shard (primary)");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
-        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(1));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(3));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(1)); // Unassigned shard is expected.
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(1));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(3));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).size(), equalTo(1)); // Unassigned shard is expected.
 
         // Cancel all initializing shards and move started primary to another node.
         AllocationCommands commands = new AllocationCommands();
@@ -829,10 +830,10 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
 
         clusterState = strategy.reroute(clusterState, commands, false, false).getClusterState();
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(0));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(RELOCATING).size(), equalTo(1));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(4)); // +1 for relocating shard.
-        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(1)); // Still 1 unassigned.
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(0));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), RELOCATING).size(), equalTo(1));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(4)); // +1 for relocating shard.
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).size(), equalTo(1)); // Still 1 unassigned.
     }
 
     public void testMultipleAwarenessAttributes() {
@@ -867,18 +868,18 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
             .add(newNode("B-0", nodeBAttributes))
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");
-        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(0));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(0));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(1));
 
         logger.info("--> start the shards (primaries)");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
-        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(1));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(1));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(1));
 
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
         logger.info("--> all replicas are allocated and started since we have one node in each zone and rack");
-        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(2));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(2));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(0));
     }
 
     public void testDisabledByAutoExpandReplicas() {
@@ -910,7 +911,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                                 .add(newNode("B-0", singletonMap("zone", "b")))
                         ).build(), strategy);
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED), empty());
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED), empty());
     }
 
     public void testNodesWithoutAttributeAreIgnored() {
@@ -940,7 +941,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                                 .add(newNode("X-0", emptyMap()))
                         ).build(), strategy);
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED), empty());
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED), empty());
         assertTrue(clusterState.getRoutingNodes().node("X-0").isEmpty());
     }
 
@@ -1001,7 +1002,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                                 .add(newNode("B-0", singletonMap("zone", "b"))))
                         ).build(), strategy);
 
-        final ShardRouting unassignedShard = clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).get(0);
+        final ShardRouting unassignedShard = shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).get(0);
 
         final AwarenessAllocationDecider decider = new AwarenessAllocationDecider(
                 settings,

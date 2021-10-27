@@ -26,9 +26,9 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -57,7 +57,10 @@ import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
+import org.elasticsearch.xpack.vectors.DenseVectorPlugin;
+import org.elasticsearch.xpack.vectors.query.KnnVectorQueryBuilder;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -90,7 +93,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(LocalStateSecurity.class, CommonAnalysisPlugin.class, ParentJoinPlugin.class,
-                InternalSettingsPlugin.class, PercolatorPlugin.class, SpatialPlugin.class);
+                InternalSettingsPlugin.class, PercolatorPlugin.class, DenseVectorPlugin.class, SpatialPlugin.class);
     }
 
     @Override
@@ -140,7 +143,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                 "      - names: '*'\n" +
                 "        privileges: [ ALL ]\n" +
                 "        field_security:\n" +
-                "           grant: [ field1, join_field* ]\n" +
+                "           grant: [ field1, join_field*, vector ]\n" +
                 "role3:\n" +
                 "  cluster: [ all ]\n" +
                 "  indices:\n" +
@@ -349,6 +352,54 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                 .setQuery(matchQuery("alias", "value1"))
                 .get();
         assertHitCount(response, 0);
+    }
+
+    public void testKnnSearch() throws IOException {
+         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("properties")
+                .startObject("vector")
+                    .field("type", "dense_vector")
+                    .field("dims", 3)
+                    .field("index", true)
+                    .field("similarity", "l2_norm")
+                .endObject()
+            .endObject().endObject();
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping(builder));
+
+        client().prepareIndex("test")
+            .setSource("field1", "value1", "vector", new float[]{0.0f, 0.0f, 0.0f})
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+
+        // Since there's no kNN search action at the transport layer, we just emulate
+        // how the action works (it builds a kNN query under the hood)
+        float[] queryVector = new float[]{0.0f, 0.0f, 0.0f};
+        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("vector", queryVector, 10);
+
+        // user1 has access to vector field, so the query should match with the document:
+        SearchResponse response = client()
+            .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+            .prepareSearch("test")
+            .setQuery(query)
+            .addFetchField("vector")
+            .get();
+        assertHitCount(response, 1);
+        assertNotNull(response.getHits().getAt(0).field("vector"));
+
+        // user2 has no access to vector field, so the query should not match with the document:
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+            .prepareSearch("test")
+            .setQuery(query)
+            .addFetchField("vector")
+            .get();
+        assertHitCount(response, 0);
+
+        // check user2 cannot see the vector field, even when their search matches the document
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+            .prepareSearch("test")
+            .addFetchField("vector")
+            .get();
+        assertHitCount(response, 1);
+        assertNull(response.getHits().getAt(0).field("vector"));
     }
 
     public void testPercolateQueryWithIndexedDocWithFLS() {

@@ -68,4 +68,9 @@ public class RestoreInProgressAllocationDecider extends AllocationDecider {
         assert shardRouting.primary() : "must not call canForceAllocatePrimary on a non-primary shard " + shardRouting;
         return canAllocate(shardRouting, node, allocation);
     }
+
+    @Override
+    public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return canAllocate(shardRouting, node, allocation);
+    }
 }

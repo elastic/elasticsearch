@@ -10,21 +10,20 @@ package org.elasticsearch.xpack.ml.inference.pytorch.process;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Collections;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
@@ -56,14 +55,14 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
     }
 
     @Override
-    public NativePyTorchProcess createProcess(String modelId, ExecutorService executorService, Consumer<String> onProcessCrash) {
-        List<Path> filesToDelete = new ArrayList<>();
+    public NativePyTorchProcess createProcess(TrainedModelDeploymentTask task, ExecutorService executorService,
+                                              Consumer<String> onProcessCrash) {
         ProcessPipes processPipes = new ProcessPipes(
             env,
             NAMED_PIPE_HELPER,
             processConnectTimeout,
             PyTorchBuilder.PROCESS_NAME,
-            modelId,
+            task.getModelId(),
             null,
             false,
             true,
@@ -72,14 +71,15 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
             false
         );
 
-        executeProcess(processPipes, filesToDelete);
+        executeProcess(processPipes, task);
 
-        NativePyTorchProcess process = new NativePyTorchProcess(modelId, nativeController, processPipes, 0, filesToDelete, onProcessCrash);
+        NativePyTorchProcess process = new NativePyTorchProcess(task.getModelId(), nativeController, processPipes, 0,
+            Collections.emptyList(), onProcessCrash);
 
         try {
             process.start(executorService);
         } catch(IOException | EsRejectedExecutionException e) {
-            String msg = "Failed to connect to pytorch process for job " + modelId;
+            String msg = "Failed to connect to pytorch process for job " + task.getModelId();
             logger.error(msg);
             try {
                 IOUtils.close(process);
@@ -91,8 +91,13 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
         return process;
     }
 
-    private void executeProcess(ProcessPipes processPipes, List<Path> filesToDelete) {
-        PyTorchBuilder pyTorchBuilder = new PyTorchBuilder(env::tmpFile, nativeController, processPipes, filesToDelete);
+    private void executeProcess(ProcessPipes processPipes, TrainedModelDeploymentTask task) {
+        PyTorchBuilder pyTorchBuilder = new PyTorchBuilder(
+            nativeController,
+            processPipes,
+            task.getParams().getInferenceThreads(),
+            task.getParams().getModelThreads()
+        );
         try {
             pyTorchBuilder.build();
         } catch (InterruptedException e) {

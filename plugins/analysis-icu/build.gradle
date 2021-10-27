@@ -34,9 +34,8 @@ restResources {
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
 }
-tasks.named("yamlRestTestV7CompatTest").configure {
-  systemProperty 'tests.rest.blacklist', [
-      //marked as not needing compatible api
-      'analysis_icu/10_basic/Normalization with deprecated unicodeSetFilter' // Cleanup versioned deprecations in analysis #41560
-    ].join(',')
+
+tasks.named("yamlRestTestV7CompatTransform").configure { task ->
+    task.skipTest("analysis_icu/10_basic/Normalization with deprecated unicodeSetFilter", "Cleanup versioned deprecations in analysis #41560")
 }
+

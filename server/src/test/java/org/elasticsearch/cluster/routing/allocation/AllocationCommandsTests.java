@@ -41,9 +41,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
@@ -57,6 +57,7 @@ import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -153,7 +154,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
                 .add(newNode("node4", singleton(DiscoveryNodeRole.MASTER_ROLE)))
         ).build();
         clusterState = allocation.reroute(clusterState, "reroute");
-        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(0));
 
         logger.info("--> allocating to non-existent node, should fail");
         try {
@@ -286,7 +287,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         clusterState = allocation.reroute(clusterState, "reroute");
 
         // mark all shards as stale
-        final List<ShardRouting> shardRoutings = clusterState.getRoutingNodes().shardsWithState(UNASSIGNED);
+        final List<ShardRouting> shardRoutings = shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED);
         assertThat(shardRoutings, hasSize(2));
 
         logger.info("--> allocating empty primary with acceptDataLoss flag set to true");
@@ -330,7 +331,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
                 .add(newNode("node3"))
         ).build();
         clusterState = allocation.reroute(clusterState, "reroute");
-        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(0));
 
         logger.info("--> allocating empty primary shard with accept_data_loss flag set to true");
         ClusterState newState = allocation.reroute(clusterState,

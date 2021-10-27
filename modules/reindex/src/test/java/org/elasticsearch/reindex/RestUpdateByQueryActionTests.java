@@ -9,7 +9,7 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.reindex.RestUpdateByQueryAction;
 import org.elasticsearch.rest.RestRequest;

@@ -13,9 +13,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -111,7 +111,7 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
 
         // Test whether ScriptDocValues.BytesRefs makes a deepcopy
         fieldData = indexFieldData.load(reader);
-        ScriptDocValues<?> scriptValues = fieldData.getScriptValues();
+        ScriptDocValues<?> scriptValues = fieldData.getScriptField("test").getScriptDocValues();
         Object[][] retValues = new BytesRef[4][0];
         for (int i = 0; i < 4; i++) {
             scriptValues.setNextDocId(i);

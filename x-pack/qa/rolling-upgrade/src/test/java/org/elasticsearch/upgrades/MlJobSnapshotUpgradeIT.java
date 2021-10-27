@@ -39,8 +39,8 @@ import org.elasticsearch.client.ml.job.process.ModelSnapshot;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 
 import java.io.IOException;
@@ -61,6 +61,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
+@SuppressWarnings("removal")
 public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
     private static final String JOB_ID = "ml-snapshots-upgrade-job";
@@ -94,7 +95,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         hlrc = new HLRC(client()).machineLearning();
         Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
         adjustLoggingLevels.setJsonEntity(
-            "{\"transient\": {" +
+            "{\"persistent\": {" +
                 "\"logger.org.elasticsearch.xpack.ml\": \"trace\"" +
                 "}}");
         client().performRequest(adjustLoggingLevels);

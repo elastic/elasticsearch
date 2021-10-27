@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.ilm.history;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 
 import java.io.IOException;
@@ -82,7 +82,7 @@ public class ILMHistoryItem implements ToXContentObject {
         }
         builder.field(SUCCESS.getPreferredName(), success);
         if (executionState != null) {
-            builder.field(EXECUTION_STATE.getPreferredName(), executionState.asMap());
+            builder.stringStringMap(EXECUTION_STATE.getPreferredName(), executionState.asMap());
         }
         if (errorDetails != null) {
             builder.field(ERROR.getPreferredName(), errorDetails);

@@ -28,7 +28,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.VersionType;
@@ -257,7 +257,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
         IndexShard replicaShard = newShard(primaryShard.shardId(), false);
         updateMappings(replicaShard, primaryShard.indexSettings().getIndexMetadata());
         recoverReplica(replicaShard, primaryShard,
-            (r, sourceNode) -> new RecoveryTarget(r, sourceNode, null, recoveryListener) {
+            (r, sourceNode) -> new RecoveryTarget(r, sourceNode, null, null, recoveryListener) {
             @Override
             public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
                 super.prepareForTranslogOperations(totalTranslogOps, listener);
@@ -369,7 +369,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             IndexShard replica = group.addReplica();
             expectThrows(Exception.class, () -> group.recoverReplica(replica,
                 (shard, sourceNode) -> {
-                    return new RecoveryTarget(shard, sourceNode, null, new PeerRecoveryTargetService.RecoveryListener() {
+                    return new RecoveryTarget(shard, sourceNode, null, null, new PeerRecoveryTargetService.RecoveryListener() {
                         @Override
                         public void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
                             throw new AssertionError("recovery must fail");

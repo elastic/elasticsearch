@@ -67,7 +67,8 @@
         "type":"enum",
         "options":[
           "grid",
-          "point"
+          "point",
+          "centroid"
         ],
         "description":"Determines the geometry type for features in the aggs layer.",
         "default":"grid"

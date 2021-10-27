@@ -13,9 +13,9 @@ import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRo
 import org.elasticsearch.client.security.support.expressiondsl.expressions.ExceptRoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

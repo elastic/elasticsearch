@@ -9,26 +9,26 @@ package org.elasticsearch.client.rollup.job.config;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ObjectParser.ValueType;
 
 /**
  * The configuration object for the histograms in the rollup config
@@ -179,7 +179,7 @@ public class DateHistogramGroupConfig implements Validatable, ToXContentObject {
      *     The {@code field} and {@code interval} are required to compute the date histogram for the rolled up documents.
      *     The {@code delay} is optional and can be set to {@code null}. It defines how long to wait before rolling up new documents.
      *     The {@code timeZone} is optional and can be set to {@code null}. When configured, the time zone value  is resolved using
-     *     ({@link DateTimeZone#forID(String)} and must match a time zone identifier provided by the Joda Time library.
+     *     ({@link ZoneId#of(String)} and must match a time zone identifier provided by the Joda Time library.
      * </p>
      * @param field the name of the date field to use for the date histogram (required)
      * @param interval the interval to use for the date histogram (required)

@@ -13,8 +13,8 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
@@ -28,6 +28,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 public class ObjectMapper extends Mapper implements Cloneable {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
@@ -84,6 +85,10 @@ public class ObjectMapper extends Mapper implements Cloneable {
         public Builder add(Mapper.Builder builder) {
             mappersBuilders.add(builder);
             return this;
+        }
+
+        public Optional<Mapper.Builder> getBuilder(String name) {
+            return mappersBuilders.stream().filter(b -> b.name().equals(name)).findFirst();
         }
 
         protected final Map<String, Mapper> buildMappers(boolean root, MapperBuilderContext context) {

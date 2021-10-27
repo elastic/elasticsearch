@@ -105,6 +105,11 @@ public class SameShardAllocationDecider extends AllocationDecider {
         return YES_NONE_HOLD_COPY;
     }
 
+    @Override
+    public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return canAllocate(shardRouting, node, allocation);
+    }
+
     private static Decision debugNoAlreadyAllocatedToHost(RoutingNode node, RoutingAllocation allocation,
                                                           boolean checkNodeOnSameHostAddress) {
         String hostType = checkNodeOnSameHostAddress ? "address" : "name";

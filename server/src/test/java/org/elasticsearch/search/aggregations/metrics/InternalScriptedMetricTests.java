@@ -163,7 +163,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
         InternalScriptedMetric aggregation = createTestInstance();
         return (InternalScriptedMetric) aggregation.reduce(
             singletonList(aggregation),
-            ReduceContext.forFinalReduction(null, mockScriptService(), null, PipelineTree.EMPTY)
+            ReduceContext.forFinalReduction(null, mockScriptService(), null, PipelineTree.EMPTY, () -> false)
         );
     }
 

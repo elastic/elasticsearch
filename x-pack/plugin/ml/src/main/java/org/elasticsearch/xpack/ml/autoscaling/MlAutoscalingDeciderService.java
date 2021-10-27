@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -119,9 +120,6 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
             @Override
             public void afterStart() {
                 running = true;
-                if (isMaster) {
-                    mlMemoryTracker.asyncRefresh();
-                }
             }
 
             @Override
@@ -290,9 +288,6 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
     @Override
     public void onMaster() {
         isMaster = true;
-        if (running) {
-            mlMemoryTracker.asyncRefresh();
-        }
     }
 
     private void resetScaleDownCoolDown() {
@@ -404,7 +399,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
                                 "Passing currently perceived capacity as down scale delay has not been satisfied; configured delay [%s]"
                                     + "last detected scale down event [%s]. Will request scale down in approximately [%s]",
                                 DOWN_SCALE_DELAY.get(configuration).getStringRep(),
-                                XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(scaleDownDetected),
+                                XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(scaleDownDetected)),
                                 TimeValue.timeValueMillis(msLeftToScale).getStringRep()
                             )
                         )
@@ -430,7 +425,6 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
         boolean nodeIsMemoryAccurate = true;
         for (DiscoveryNode node : nodes) {
             NodeLoad nodeLoad = nodeLoadDetector.detectNodeLoad(clusterState,
-                true,
                 node,
                 maxOpenJobs,
                 maxMachineMemoryPercent,
@@ -601,7 +595,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
                 "not scaling down as the current scale down delay [{}] is not satisfied." +
                     " The last time scale down was detected [{}]. Calculated scaled down capacity [{}] ",
                 downScaleDelay.getStringRep(),
-                XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(scaleDownDetected),
+                XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(scaleDownDetected)),
                 scaleDownDecisionResult.requiredCapacity()));
             return new AutoscalingDeciderResult(
                 context.currentCapacity(),
@@ -612,7 +606,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
                             "Passing currently perceived capacity as down scale delay has not been satisfied; configured delay [%s]"
                                 + "last detected scale down event [%s]. Will request scale down in approximately [%s]",
                             downScaleDelay.getStringRep(),
-                            XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(scaleDownDetected),
+                            XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(scaleDownDetected)),
                             TimeValue.timeValueMillis(msLeftToScale).getStringRep()
                         )
                     )
@@ -864,7 +858,6 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
         Map<String, Long> freeMemoryByNodeId = new HashMap<>();
         for (DiscoveryNode node : mlNodes) {
             NodeLoad nodeLoad = nodeLoadDetector.detectNodeLoad(clusterState,
-                true,
                 node,
                 maxOpenJobs,
                 maxMachineMemoryPercent,

@@ -9,7 +9,7 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -55,7 +55,7 @@ public class StoredScriptsIT extends ESIntegTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().cluster().preparePutStoredScript()
                 .setId("id#")
-                .setContent(new BytesArray("{}"), XContentType.JSON)
+                .setContent(new BytesArray("{\"script\": {\"lang\": \"" + LANG + "\", \"source\": \"1\"} }"), XContentType.JSON)
                 .get());
         assertEquals("Validation Failed: 1: id cannot contain '#' for stored script;", e.getMessage());
     }

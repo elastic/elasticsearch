@@ -12,14 +12,15 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diffable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
@@ -114,7 +115,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         if (targetNodeName != null && type != Type.REPLACE) {
             throw new IllegalArgumentException(new ParameterizedMessage("target node name is only valid for REPLACE type shutdowns, " +
                 "but was given type [{}] and target node name [{}]", type, targetNodeName).getFormattedMessage());
-        } else if (targetNodeName == null && type == Type.REPLACE) {
+        } else if (Strings.hasText(targetNodeName) == false && type == Type.REPLACE) {
             throw new IllegalArgumentException("target node name is required for REPLACE type shutdowns");
         }
         this.targetNodeName = targetNodeName;
@@ -253,6 +254,34 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             allocationDelay,
             targetNodeName
         );
+    }
+
+    @Override public String toString() {
+        final StringBuilder stringBuilder = new StringBuilder();
+        stringBuilder
+            .append("{")
+            .append("nodeId=[")
+            .append(nodeId)
+            .append(']')
+            .append(", type=[")
+            .append(type)
+            .append("], reason=[")
+            .append(reason)
+            .append(']');
+        if (allocationDelay != null) {
+            stringBuilder
+                .append(", allocationDelay=[")
+                .append(allocationDelay)
+                .append("]");
+        }
+        if (targetNodeName != null) {
+            stringBuilder
+                .append(", targetNodeName=[")
+                .append(targetNodeName)
+                .append("]");
+        }
+        stringBuilder.append("}");
+        return stringBuilder.toString();
     }
 
     public static Builder builder() {

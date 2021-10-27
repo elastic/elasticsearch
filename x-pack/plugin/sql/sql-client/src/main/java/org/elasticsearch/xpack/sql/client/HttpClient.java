@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.sql.client;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.xpack.sql.client.JreHttpUrlConnection.ResponseOrException;
 import org.elasticsearch.xpack.sql.proto.AbstractSqlRequest;
@@ -66,7 +66,7 @@ public class HttpClient {
     public SqlQueryResponse basicQuery(String query, int fetchSize) throws SQLException {
         // TODO allow customizing the time zone - this is what session set/reset/get should be about
         // method called only from CLI
-        SqlQueryRequest sqlRequest = new SqlQueryRequest(query, emptyList(), Protocol.TIME_ZONE,
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(query, emptyList(), Protocol.TIME_ZONE, null,
                 fetchSize,
                 TimeValue.timeValueMillis(cfg.queryTimeout()),
                 TimeValue.timeValueMillis(cfg.pageTimeout()),

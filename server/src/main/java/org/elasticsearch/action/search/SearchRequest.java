@@ -13,12 +13,11 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.Scroll;
@@ -26,10 +25,11 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
-import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.ShardDocSortField;
+import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -98,6 +98,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
 
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
+
+    private Map<String, long[]> waitForCheckpoints = Collections.emptyMap();
+
+    private TimeValue waitForCheckpointsTimeout = TimeValue.timeValueSeconds(30);
 
     public SearchRequest() {
         this((Version) null);
@@ -191,6 +195,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.absoluteStartMillis = absoluteStartMillis;
         this.finalReduce = finalReduce;
         this.minCompatibleShardNode = searchRequest.minCompatibleShardNode;
+        this.waitForCheckpoints = searchRequest.waitForCheckpoints;
+        this.waitForCheckpointsTimeout = searchRequest.waitForCheckpointsTimeout;
     }
 
     /**
@@ -235,6 +241,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         } else {
             minCompatibleShardNode = null;
         }
+        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
+            waitForCheckpoints = in.readMap(StreamInput::readString, StreamInput::readLongArray);
+            waitForCheckpointsTimeout = in.readTimeValue();
+        }
     }
 
     @Override
@@ -267,6 +277,14 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             if (minCompatibleShardNode != null) {
                 Version.writeVersion(minCompatibleShardNode, out);
             }
+        }
+        Version waitForCheckpointsVersion = Version.V_7_16_0;
+        if (out.getVersion().onOrAfter(waitForCheckpointsVersion)) {
+            out.writeMap(waitForCheckpoints, StreamOutput::writeString, StreamOutput::writeLongArray);
+            out.writeTimeValue(waitForCheckpointsTimeout);
+        } else if (waitForCheckpoints.isEmpty() == false) {
+            throw new IllegalArgumentException("Remote node version [" + out.getVersion() + " incompatible with " +
+                "wait_for_checkpoints. All nodes must be version [" + waitForCheckpointsVersion + "] or greater.");
         }
     }
 
@@ -320,6 +338,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 validationException = addValidationError("[ccs_minimize_roundtrips] cannot be [true] when setting a minimum compatible "
                     + "shard version", validationException);
             }
+        }
+        if (pointInTimeBuilder() != null && waitForCheckpoints.isEmpty() == false) {
+            validationException = addValidationError("using [point in time] is not allowed with wait_for_checkpoints", validationException);
+
         }
         return validationException;
     }
@@ -607,6 +629,23 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         this.maxConcurrentShardRequests = maxConcurrentShardRequests;
     }
+
+    public Map<String, long[]> getWaitForCheckpoints() {
+        return waitForCheckpoints;
+    }
+
+    public void setWaitForCheckpoints(Map<String, long[]> afterCheckpointsRefreshed) {
+        this.waitForCheckpoints = afterCheckpointsRefreshed;
+    }
+
+    public TimeValue getWaitForCheckpointsTimeout() {
+        return waitForCheckpointsTimeout;
+    }
+
+    public void setWaitForCheckpointsTimeout(final TimeValue waitForCheckpointsTimeout) {
+        this.waitForCheckpointsTimeout = waitForCheckpointsTimeout;
+    }
+
     /**
      * Sets a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
      * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for

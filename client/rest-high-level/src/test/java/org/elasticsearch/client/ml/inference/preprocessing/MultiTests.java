@@ -8,8 +8,8 @@
 package org.elasticsearch.client.ml.inference.preprocessing;
 
 import org.elasticsearch.client.ml.inference.MlInferenceNamedXContentProvider;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;

@@ -10,7 +10,7 @@ package org.elasticsearch.client.ccr;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

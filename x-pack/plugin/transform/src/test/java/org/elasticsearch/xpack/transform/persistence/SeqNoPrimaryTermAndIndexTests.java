@@ -35,7 +35,7 @@ public class SeqNoPrimaryTermAndIndexTests extends ESTestCase {
         String index = randomAlphaOfLength(10);
         searchHit.setSeqNo(seqNo);
         searchHit.setPrimaryTerm(primaryTerm);
-        searchHit.shard(new SearchShardTarget("anynode", new ShardId(index, randomAlphaOfLength(10), 1), null, null));
+        searchHit.shard(new SearchShardTarget("anynode", new ShardId(index, randomAlphaOfLength(10), 1), null));
         assertThat(SeqNoPrimaryTermAndIndex.fromSearchHit(searchHit), equalTo(new SeqNoPrimaryTermAndIndex(seqNo, primaryTerm, index)));
     }
 

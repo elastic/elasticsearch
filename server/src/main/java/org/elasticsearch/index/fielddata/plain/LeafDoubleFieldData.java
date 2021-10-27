@@ -16,6 +16,8 @@ import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.script.field.DocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -40,8 +42,8 @@ public abstract class LeafDoubleFieldData implements LeafNumericFieldData {
     }
 
     @Override
-    public final ScriptDocValues<Double> getScriptValues() {
-        return new ScriptDocValues.Doubles(getDoubleValues());
+    public final DocValuesField getScriptField(String name) {
+        return new DelegateDocValuesField(new ScriptDocValues.Doubles(getDoubleValues()), name);
     }
 
     @Override

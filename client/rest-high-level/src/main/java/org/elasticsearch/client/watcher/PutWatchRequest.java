@@ -10,7 +10,7 @@ package org.elasticsearch.client.watcher;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.util.Objects;

@@ -138,9 +138,16 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     }
 
     public void startRecovery(final IndexShard indexShard, final DiscoveryNode sourceNode, final RecoveryListener listener) {
+        final Releasable snapshotFileDownloadsPermit = recoverySettings.tryAcquireSnapshotDownloadPermits();
         // create a new recovery status, and process...
-        final long recoveryId =
-            onGoingRecoveries.startRecovery(indexShard, sourceNode, snapshotFilesProvider, listener, recoverySettings.activityTimeout());
+        final long recoveryId = onGoingRecoveries.startRecovery(
+            indexShard,
+            sourceNode,
+            snapshotFilesProvider,
+            listener,
+            recoverySettings.activityTimeout(),
+            snapshotFileDownloadsPermit
+        );
         // we fork off quickly here and go async but this is called from the cluster state applier thread too and that can cause
         // assertions to trip if we executed it on the same thread hence we fork off to the generic threadpool.
         threadPool.generic().execute(new RecoveryRunner(recoveryId));
@@ -267,7 +274,9 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             metadataSnapshot,
             recoveryTarget.state().getPrimary(),
             recoveryTarget.recoveryId(),
-            startingSeqNo);
+            startingSeqNo,
+            recoveryTarget.hasPermitToDownloadSnapshotFiles()
+        );
         return request;
     }
 
@@ -494,6 +503,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             }
         }
     }
+
 
     private ActionListener<Void> createOrFinishListener(final RecoveryRef recoveryRef, final TransportChannel channel,
                                                         final String action, final RecoveryTransportRequest request) {

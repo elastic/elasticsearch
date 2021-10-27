@@ -176,10 +176,10 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
@@ -218,6 +218,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+@SuppressWarnings("removal")
 public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
     private static final RequestOptions POST_DATA_OPTIONS = RequestOptions.DEFAULT.toBuilder()
@@ -227,7 +228,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
     @After
     public void cleanUp() throws IOException {
         ensureNoInitializingShards();
-        new MlTestStateCleaner(logger, highLevelClient()).clearMlMetadata();
+        new MlTestStateCleaner(logger, adminHighLevelClient()).clearMlMetadata();
     }
 
     public void testPutJob() throws Exception {

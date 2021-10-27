@@ -20,7 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
-import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Matchers.anyObject;
+import static org.mockito.ArgumentMatchers.anyObject;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -316,7 +316,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             RepositoriesService.class
         ).repository(repositoryName);
         encryptedRepository.licenseStateSupplier = () -> {
-            XPackLicenseState mockLicenseState = mock(XPackLicenseState.class);
+            MockLicenseState mockLicenseState = mock(MockLicenseState.class);
             when(mockLicenseState.isAllowed(anyObject())).thenReturn(false);
             return mockLicenseState;
         };
@@ -773,9 +773,9 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
                     return snapshotInfos.get(0);
                 } else {
                     boolean found = false;
-                    for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
+                    for (SnapshotsInProgress.Entry entry : snapshotsInProgress.forRepo(repository)) {
                         final Snapshot curr = entry.snapshot();
-                        if (curr.getRepository().equals(repository) && curr.getSnapshotId().getName().equals(snapshotName)) {
+                        if (curr.getSnapshotId().getName().equals(snapshotName)) {
                             found = true;
                             break;
                         }

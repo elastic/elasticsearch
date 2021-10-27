@@ -118,7 +118,7 @@ public final class PainlessLookupBuilder {
                     origin = whitelistClass.origin;
                     painlessLookupBuilder.addPainlessClass(
                             whitelist.classLoader, whitelistClass.javaClassName,
-                            whitelistClass.painlessAnnotations.containsKey(NoImportAnnotation.class) == false);
+                            whitelistClass.painlessAnnotations);
                 }
             }
 
@@ -236,7 +236,8 @@ public final class PainlessLookupBuilder {
         }
     }
 
-    public void addPainlessClass(ClassLoader classLoader, String javaClassName, boolean importClassName) {
+    public void addPainlessClass(ClassLoader classLoader, String javaClassName, Map<Class<?>, Object> annotations) {
+
         Objects.requireNonNull(classLoader);
         Objects.requireNonNull(javaClassName);
 
@@ -255,12 +256,12 @@ public final class PainlessLookupBuilder {
             clazz = loadClass(classLoader, javaClassName, () -> "class [" + javaClassName + "] not found");
         }
 
-        addPainlessClass(clazz, importClassName);
+        addPainlessClass(clazz, annotations);
     }
 
-    public void addPainlessClass(Class<?> clazz, boolean importClassName) {
+    public void addPainlessClass(Class<?> clazz, Map<Class<?>, Object> annotations) {
         Objects.requireNonNull(clazz);
-        //Matcher m = new Matcher();
+        Objects.requireNonNull(annotations);
 
         if (clazz == def.class) {
             throw new IllegalArgumentException("cannot add reserved class [" + DEF_CLASS_NAME + "]");
@@ -296,6 +297,7 @@ public final class PainlessLookupBuilder {
 
         if (existingPainlessClassBuilder == null) {
             PainlessClassBuilder painlessClassBuilder = new PainlessClassBuilder();
+            painlessClassBuilder.annotations.putAll(annotations);
 
             canonicalClassNamesToClasses.put(canonicalClassName.intern(), clazz);
             classesToPainlessClassBuilders.put(clazz, painlessClassBuilder);
@@ -303,6 +305,7 @@ public final class PainlessLookupBuilder {
 
         String javaClassName = clazz.getName();
         String importedCanonicalClassName = javaClassName.substring(javaClassName.lastIndexOf('.') + 1).replace('$', '.');
+        boolean importClassName = annotations.containsKey(NoImportAnnotation.class) == false;
 
         if (canonicalClassName.equals(importedCanonicalClassName)) {
             if (importClassName) {

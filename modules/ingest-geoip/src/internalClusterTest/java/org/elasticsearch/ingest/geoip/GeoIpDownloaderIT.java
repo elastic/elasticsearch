@@ -16,17 +16,21 @@ import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStatsAction;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -39,6 +43,7 @@ import org.junit.After;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -47,6 +52,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -60,10 +66,13 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class GeoIpDownloaderIT extends AbstractGeoIpIT {
@@ -86,6 +95,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @After
     public void cleanUp() throws Exception {
+        deleteDatabasesInConfigDirectory();
+
         ClusterUpdateSettingsResponse settingsResponse = client().admin().cluster()
             .prepareUpdateSettings()
             .setPersistentSettings(Settings.builder()
@@ -100,6 +111,18 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             if (task != null) {
                 GeoIpTaskState state = (GeoIpTaskState) task.getState();
                 assertThat(state.getDatabases(), anEmptyMap());
+            }
+        });
+        assertBusy(() -> {
+            GeoIpDownloaderStatsAction.Response  response =
+                client().execute(GeoIpDownloaderStatsAction.INSTANCE, new GeoIpDownloaderStatsAction.Request()).actionGet();
+            assertThat(response.getStats().getDatabasesCount(), equalTo(0));
+            assertThat(response.getNodes(), not(empty()));
+            for (GeoIpDownloaderStatsAction.NodeResponse nodeResponse : response.getNodes()) {
+                assertThat(nodeResponse.getConfigDatabases(), empty());
+                assertThat(nodeResponse.getDatabases(), empty());
+                assertThat(nodeResponse.getFilesInTemp().stream().filter(s -> s.endsWith(".txt") == false).collect(Collectors.toList()),
+                    empty());
             }
         });
         assertBusy(() -> {
@@ -259,15 +282,26 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/69972")
     public void testUseGeoIpProcessorWithDownloadedDBs() throws Exception {
         assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
+        setupDatabasesInConfigDirectory();
         // setup:
         putPipeline();
 
         // verify before updating dbs
         {
-            SimulateDocumentBaseResult result = simulatePipeline();
-            assertThat(result.getIngestDocument().getFieldValue("ip-city.city_name", String.class), equalTo("Tumba"));
-            assertThat(result.getIngestDocument().getFieldValue("ip-asn.organization_name", String.class), equalTo("Bredband2 AB"));
-            assertThat(result.getIngestDocument().getFieldValue("ip-country.country_name", String.class), equalTo("Sweden"));
+            assertBusy(() -> {
+                SimulateDocumentBaseResult result = simulatePipeline();
+                assertThat(result.getFailure(), nullValue());
+                assertThat(result.getIngestDocument(), notNullValue());
+
+                IngestDocument doc = result.getIngestDocument();
+                assertThat(doc.getSourceAndMetadata(), hasKey("ip-city"));
+                assertThat(doc.getSourceAndMetadata(), hasKey("ip-asn"));
+                assertThat(doc.getSourceAndMetadata(), hasKey("ip-country"));
+
+                assertThat(doc.getFieldValue("ip-city.city_name", String.class), equalTo("Tumba"));
+                assertThat(doc.getFieldValue("ip-asn.organization_name", String.class), equalTo("Bredband2 AB"));
+                assertThat(doc.getFieldValue("ip-country.country_name", String.class), equalTo("Sweden"));
+            });
         }
 
         // Enable downloader:
@@ -303,13 +337,42 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79074")
+    public void testStartWithNoDatabases() throws Exception {
+        assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
+        putPipeline();
+
+        // Behaviour without any databases loaded:
+        {
+            SimulateDocumentBaseResult result = simulatePipeline();
+            assertThat(result.getFailure(), nullValue());
+            assertThat(result.getIngestDocument(), notNullValue());
+            Map<String, Object> source = result.getIngestDocument().getSourceAndMetadata();
+            assertThat(source, hasEntry("tags", List.of("_geoip_database_unavailable_GeoLite2-City.mmdb",
+                "_geoip_database_unavailable_GeoLite2-Country.mmdb", "_geoip_database_unavailable_GeoLite2-ASN.mmdb")));
+        }
+
+        // Enable downloader:
+        Settings.Builder settings = Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true);
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+        verifyUpdatedDatabase();
+    }
+
     private void verifyUpdatedDatabase() throws Exception {
         assertBusy(() -> {
             SimulateDocumentBaseResult result = simulatePipeline();
             assertThat(result.getFailure(), nullValue());
-            assertThat(result.getIngestDocument().getFieldValue("ip-city.city_name", String.class), equalTo("Linköping"));
-            assertThat(result.getIngestDocument().getFieldValue("ip-asn.organization_name", String.class), equalTo("Bredband2 AB"));
-            assertThat(result.getIngestDocument().getFieldValue("ip-country.country_name", String.class), equalTo("Sweden"));
+            assertThat(result.getIngestDocument(), notNullValue());
+
+            Map<?, ?> source = result.getIngestDocument().getSourceAndMetadata();
+            assertThat(source, not(hasKey("tags")));
+            assertThat(source, hasKey("ip-city"));
+            assertThat(source, hasKey("ip-asn"));
+            assertThat(source, hasKey("ip-country"));
+
+            assertThat(((Map<?, ?>) source.get("ip-city")).get("city_name"), equalTo("Linköping"));
+            assertThat(((Map<?, ?>) source.get("ip-asn")).get("organization_name"), equalTo("Bredband2 AB"));
+            assertThat(((Map<?, ?>) source.get("ip-country")).get("country_name"), equalTo("Sweden"));
         });
     }
 
@@ -398,8 +461,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     }
 
     private List<Path> getGeoIpTmpDirs() throws IOException {
-        final Set<String> ids = StreamSupport.stream(clusterService().state().nodes().getDataNodes().values().spliterator(), false)
-            .map(c -> c.value.getId())
+        final Set<String> ids = clusterService().state().nodes().getDataNodes().values().stream()
+            .map(DiscoveryNode::getId)
             .collect(Collectors.toSet());
         // All nodes share the same geoip base dir in the shared tmp dir:
         Path geoipBaseTmpDir = internalCluster().getDataNodeInstance(Environment.class).tmpFile().resolve("geoip-databases");
@@ -410,6 +473,62 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         }
         assertThat(geoipTmpDirs.size(), equalTo(internalCluster().numDataNodes()));
         return geoipTmpDirs;
+    }
+
+    private void setupDatabasesInConfigDirectory() throws Exception {
+        StreamSupport.stream(internalCluster().getInstances(Environment.class).spliterator(), false)
+            .map(Environment::configFile)
+            .map(path -> path.resolve("ingest-geoip"))
+            .distinct()
+            .forEach(path -> {
+                try {
+                    Files.createDirectories(path);
+                    Files.copy(GeoIpDownloaderIT.class.getResourceAsStream("/GeoLite2-City.mmdb"),
+                        path.resolve("GeoLite2-City.mmdb"));
+                    Files.copy(GeoIpDownloaderIT.class.getResourceAsStream("/GeoLite2-ASN.mmdb"),
+                        path.resolve("GeoLite2-ASN.mmdb"));
+                    Files.copy(GeoIpDownloaderIT.class.getResourceAsStream("/GeoLite2-Country.mmdb"),
+                        path.resolve("GeoLite2-Country.mmdb"));
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
+
+        assertBusy(() -> {
+            GeoIpDownloaderStatsAction.Response  response =
+                client().execute(GeoIpDownloaderStatsAction.INSTANCE, new GeoIpDownloaderStatsAction.Request()).actionGet();
+            assertThat(response.getNodes(), not(empty()));
+            for (GeoIpDownloaderStatsAction.NodeResponse nodeResponse : response.getNodes()) {
+                assertThat(nodeResponse.getConfigDatabases(),
+                    containsInAnyOrder("GeoLite2-Country.mmdb", "GeoLite2-City.mmdb", "GeoLite2-ASN.mmdb"));
+                assertThat(nodeResponse.getDatabases(), empty());
+                assertThat(nodeResponse.getFilesInTemp().stream().filter(s -> s.endsWith(".txt") == false).collect(Collectors.toList()),
+                    empty());
+            }
+        });
+    }
+
+    private void deleteDatabasesInConfigDirectory() throws Exception {
+        StreamSupport.stream(internalCluster().getInstances(Environment.class).spliterator(), false)
+            .map(Environment::configFile)
+            .map(path -> path.resolve("ingest-geoip"))
+            .distinct()
+            .forEach(path -> {
+                try {
+                    IOUtils.rm(path);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
+
+        assertBusy(() -> {
+            GeoIpDownloaderStatsAction.Response  response =
+                client().execute(GeoIpDownloaderStatsAction.INSTANCE, new GeoIpDownloaderStatsAction.Request()).actionGet();
+            assertThat(response.getNodes(), not(empty()));
+            for (GeoIpDownloaderStatsAction.NodeResponse nodeResponse : response.getNodes()) {
+                assertThat(nodeResponse.getConfigDatabases(), empty());
+            }
+        });
     }
 
     @SuppressForbidden(reason = "Maxmind API requires java.io.File")

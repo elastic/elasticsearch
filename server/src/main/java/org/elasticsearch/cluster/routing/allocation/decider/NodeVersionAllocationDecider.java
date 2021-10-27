@@ -53,6 +53,11 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
         }
     }
 
+    @Override
+    public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return canAllocate(shardRouting, node, allocation);
+    }
+
     private Decision isVersionCompatibleRelocatePrimary(final RoutingNodes routingNodes, final String sourceNodeId,
                                                         final RoutingNode target, final RoutingAllocation allocation) {
         final RoutingNode source = routingNodes.node(sourceNodeId);

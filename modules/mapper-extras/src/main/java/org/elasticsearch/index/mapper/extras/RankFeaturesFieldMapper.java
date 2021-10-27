@@ -11,7 +11,7 @@ package org.elasticsearch.index.mapper.extras;
 import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;

@@ -9,7 +9,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 

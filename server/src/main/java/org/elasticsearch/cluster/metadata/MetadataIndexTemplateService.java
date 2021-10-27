@@ -9,6 +9,7 @@ package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
@@ -23,6 +24,7 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -37,14 +39,12 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -85,6 +85,16 @@ public class MetadataIndexTemplateService {
 
     public static final String DEFAULT_TIMESTAMP_FIELD = "@timestamp";
     public static final String DEFAULT_TIMESTAMP_MAPPING = "{\n" +
+        "      \"properties\": {\n" +
+        "        \"@timestamp\": {\n" +
+        "          \"type\": \"date\"\n" +
+        "        }\n" +
+        "      }\n" +
+        "    }";
+    public static final String DEFAULT_TIMESTAMP_MAPPING_WITH_ROUTING = "{\n" +
+        "\"_routing\" : {\n"
+        + "        \"required\" : true\n"
+        + "      },"+
         "      \"properties\": {\n" +
         "        \"@timestamp\": {\n" +
         "          \"type\": \"date\"\n" +
@@ -487,7 +497,7 @@ public class MetadataIndexTemplateService {
                     .collect(Collectors.joining(",")),
                 name);
             logger.warn(warning);
-            HeaderWarning.addWarning(warning);
+            HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning);
         }
 
         ComposableIndexTemplate finalIndexTemplate = template;
@@ -817,7 +827,7 @@ public class MetadataIndexTemplateService {
                         .collect(Collectors.joining(",")),
                     request.name);
                 logger.warn(warning);
-                HeaderWarning.addWarning(warning);
+                HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning);
             } else {
                 // Otherwise, this is a hard error, the user should use V2 index templates instead
                 String error = String.format(Locale.ROOT, "legacy template [%s] has index patterns %s matching patterns" +
@@ -885,11 +895,10 @@ public class MetadataIndexTemplateService {
      */
     public static List<IndexTemplateMetadata> findV1Templates(Metadata metadata, String indexName, @Nullable Boolean isHidden) {
         final String resolvedIndexName = IndexNameExpressionResolver.DateMathExpressionResolver
-            .resolveExpression(indexName, new IndexNameExpressionResolver.Context(null, null, null));
+            .resolveExpression(indexName);
         final Predicate<String> patternMatchPredicate = pattern -> Regex.simpleMatch(pattern, resolvedIndexName);
         final List<IndexTemplateMetadata> matchedTemplates = new ArrayList<>();
-        for (ObjectCursor<IndexTemplateMetadata> cursor : metadata.templates().values()) {
-            final IndexTemplateMetadata template = cursor.value;
+        for (IndexTemplateMetadata template: metadata.templates().values()) {
             if (isHidden == null || isHidden == Boolean.FALSE) {
                 final boolean matched = template.patterns().stream().anyMatch(patternMatchPredicate);
                 if (matched) {
@@ -939,7 +948,7 @@ public class MetadataIndexTemplateService {
     @Nullable
     public static String findV2Template(Metadata metadata, String indexName, boolean isHidden) {
         final String resolvedIndexName = IndexNameExpressionResolver.DateMathExpressionResolver
-            .resolveExpression(indexName, new IndexNameExpressionResolver.Context(null, null, null));
+            .resolveExpression(indexName);
         final Predicate<String> patternMatchPredicate = pattern -> Regex.simpleMatch(pattern, resolvedIndexName);
         final Map<ComposableIndexTemplate, String> matchedTemplates = new HashMap<>();
         for (Map.Entry<String, ComposableIndexTemplate> entry : metadata.templatesV2().entrySet()) {
@@ -1024,7 +1033,11 @@ public class MetadataIndexTemplateService {
         if (template.getDataStreamTemplate() != null && indexName.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
             // add a default mapping for the `@timestamp` field, at the lowest precedence, to make bootstrapping data streams more
             // straightforward as all backing indices are required to have a timestamp field
-            mappings.add(0, new CompressedXContent(wrapMappingsIfNecessary(DEFAULT_TIMESTAMP_MAPPING, xContentRegistry)));
+            if (template.getDataStreamTemplate().isAllowCustomRouting()) {
+                mappings.add(0, new CompressedXContent(wrapMappingsIfNecessary(DEFAULT_TIMESTAMP_MAPPING_WITH_ROUTING, xContentRegistry)));
+            } else {
+                mappings.add(0, new CompressedXContent(wrapMappingsIfNecessary(DEFAULT_TIMESTAMP_MAPPING, xContentRegistry)));
+            }
         }
 
         // Only include _timestamp mapping snippet if creating backing index.
@@ -1215,16 +1228,6 @@ public class MetadataIndexTemplateService {
                 // triggers inclusion of _timestamp field and its validation:
                 String indexName = DataStream.BACKING_INDEX_PREFIX + temporaryIndexName;
                 // Parse mappings to ensure they are valid after being composed
-
-                if (template.getDataStreamTemplate() != null) {
-                    // If there is no _data_stream meta field mapper and a data stream should be created then
-                    // fail as if the  data_stream field can't be parsed:
-                    if (tempIndexService.mapperService().isMetadataField(DataStreamTimestampFieldMapper.NAME) == false) {
-                        // Fail like a parsing expection, since we will be moving data_stream template out of server module and
-                        // then we would fail with the same error message, like we do here.
-                        throw new XContentParseException("[index_template] unknown field [data_stream]");
-                    }
-                }
 
                 List<CompressedXContent> mappings = collectMappings(stateWithIndex, templateName, indexName, xContentRegistry);
                 try {
@@ -1424,7 +1427,7 @@ public class MetadataIndexTemplateService {
         int order;
         Integer version;
         List<String> indexPatterns;
-        Settings settings = Settings.Builder.EMPTY_SETTINGS;
+        Settings settings = Settings.EMPTY;
         String mappings = null;
         List<Alias> aliases = new ArrayList<>();
 

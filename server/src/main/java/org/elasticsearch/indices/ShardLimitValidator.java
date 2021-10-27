@@ -22,7 +22,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 
@@ -193,7 +192,7 @@ public class ShardLimitValidator {
         if ((currentOpenShards + newShards) > maxShardsInCluster) {
             Predicate<IndexMetadata> indexMetadataPredicate = imd ->
                 imd.getState().equals(IndexMetadata.State.OPEN) && group.equals(INDEX_SETTING_SHARD_LIMIT_GROUP.get(imd.getSettings()));
-            long currentFilteredShards = StreamSupport.stream(state.metadata().indices().values().spliterator(), false).map(oc -> oc.value)
+            long currentFilteredShards = state.metadata().indices().values().stream()
                 .filter(indexMetadataPredicate).mapToInt(IndexMetadata::getTotalNumberOfShards).sum();
             if ((currentFilteredShards + newShards) > maxShardsInCluster) {
                 String errorMessage = "this action would add [" + newShards + "] shards, but this cluster currently has [" +
@@ -205,9 +204,7 @@ public class ShardLimitValidator {
     }
 
     private static int nodeCount(ClusterState state, Predicate<DiscoveryNode> nodePredicate) {
-        return (int)
-            StreamSupport.stream(state.getNodes().getDataNodes().values().spliterator(), false)
-                .map(oc -> oc.value).filter(nodePredicate).count();
+        return (int) state.getNodes().getDataNodes().values().stream().filter(nodePredicate).count();
     }
 
     private static boolean hasFrozen(DiscoveryNode node) {

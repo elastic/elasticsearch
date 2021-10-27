@@ -24,10 +24,19 @@ public enum RoutingState implements MemoryTrackedTaskState {
     }
 
     /**
+     * @param candidates one or more candidate states
      * @return {@code true} if state matches none of the given {@code candidates}
      */
     public boolean isNoneOf(RoutingState... candidates) {
         return Arrays.stream(candidates).noneMatch(candidate -> this == candidate);
+    }
+
+    /**
+     * @param candidates one or more candidate states
+     * @return {@code true} if state matches one of the given {@code candidates}
+     */
+    public boolean isAnyOf(RoutingState... candidates) {
+        return Arrays.stream(candidates).anyMatch(candidate -> this == candidate);
     }
 
     @Override

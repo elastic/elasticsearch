@@ -34,8 +34,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.mocksocket.MockServerSocket;
@@ -71,6 +71,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
@@ -198,11 +199,9 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 }
                 closeRemote.countDown();
                 listenerCalled.await();
-                assertNotNull(exceptionReference.get());
-                expectThrows(AlreadyClosedException.class, () -> {
-                    throw exceptionReference.get();
-                });
-
+                Exception e = exceptionReference.get();
+                assertNotNull(e);
+                assertThat(e, either(instanceOf(AlreadyClosedException.class)).or(instanceOf(ConnectTransportException.class)));
             }
         }
     }

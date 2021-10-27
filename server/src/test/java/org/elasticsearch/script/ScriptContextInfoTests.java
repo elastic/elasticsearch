@@ -10,12 +10,12 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.script.ScriptContextInfo.ScriptMethodInfo;
 import org.elasticsearch.script.ScriptContextInfo.ScriptMethodInfo.ParameterInfo;
 import org.elasticsearch.test.ESTestCase;

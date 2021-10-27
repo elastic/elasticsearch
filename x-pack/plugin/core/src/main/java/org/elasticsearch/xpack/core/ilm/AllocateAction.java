@@ -10,14 +10,14 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
@@ -143,9 +143,9 @@ public class AllocateAction implements LifecycleAction {
         if (totalShardsPerNode != null) {
             builder.field(TOTAL_SHARDS_PER_NODE_FIELD.getPreferredName(), totalShardsPerNode);
         }
-        builder.field(INCLUDE_FIELD.getPreferredName(), include);
-        builder.field(EXCLUDE_FIELD.getPreferredName(), exclude);
-        builder.field(REQUIRE_FIELD.getPreferredName(), require);
+        builder.stringStringMap(INCLUDE_FIELD.getPreferredName(), include);
+        builder.stringStringMap(EXCLUDE_FIELD.getPreferredName(), exclude);
+        builder.stringStringMap(REQUIRE_FIELD.getPreferredName(), require);
         builder.endObject();
         return builder;
     }

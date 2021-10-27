@@ -10,7 +10,7 @@ package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.VersionType;
 
 import java.util.Map;

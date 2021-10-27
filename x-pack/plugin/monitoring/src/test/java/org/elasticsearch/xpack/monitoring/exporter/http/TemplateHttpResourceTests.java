@@ -7,17 +7,18 @@
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
 import org.apache.http.HttpEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.Collections;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyZeroInteractions;
 
 /**
  * Tests {@link TemplateHttpResource}.
@@ -34,25 +35,7 @@ public class TemplateHttpResourceTests extends AbstractPublishableHttpResourceTe
     private final Supplier<String> template = () -> templateValueInternal;
     private final int minimumVersion = Math.min(MonitoringTemplateUtils.LAST_UPDATED_VERSION, Version.CURRENT.id);
 
-    private final TemplateHttpResource resource = new TemplateHttpResource(owner, masterTimeout, templateName, template);
-
-    public void testTemplateToHttpEntity() throws IOException {
-        //the internal representation is converted to the external representation for the resource
-        final byte[] templateValueBytes = templateValueExternal.getBytes(ContentType.APPLICATION_JSON.getCharset());
-        final HttpEntity entity = resource.templateToHttpEntity();
-
-        assertThat(entity.getContentType().getValue(), is(ContentType.APPLICATION_JSON.toString()));
-
-        final InputStream byteStream = entity.getContent();
-
-        assertThat(byteStream.available(), is(templateValueBytes.length));
-
-        for (final byte templateByte : templateValueBytes) {
-            assertThat(templateByte, is((byte)byteStream.read()));
-        }
-
-        assertThat(byteStream.available(), is(0));
-    }
+    private final TemplateHttpResource resource = new TemplateHttpResource(owner, masterTimeout, templateName);
 
     public void testDoCheckExists() {
         final HttpEntity entity = entityForResource(true, templateName, minimumVersion);
@@ -84,12 +67,18 @@ public class TemplateHttpResourceTests extends AbstractPublishableHttpResourceTe
         }
     }
 
-    public void testDoPublishTrue() {
-        assertPublishSucceeds(resource, "/_template", templateName, Collections.emptyMap(), StringEntity.class);
-    }
-
-    public void testDoPublishFalseWithException() {
-        assertPublishWithException(resource, "/_template", templateName, Collections.emptyMap(), StringEntity.class);
+    public void testDoPublishFalseWithNonPublishedResource() {
+        RestClient mockClient = mock(RestClient.class);
+        SetOnce<HttpResource.ResourcePublishResult> result = new SetOnce<>();
+        resource.doPublish(mockClient, ActionListener.wrap(result::set,
+            e -> {throw new RuntimeException("Unexpected exception", e);}));
+        verifyZeroInteractions(mockClient); // Should not have used the client at all.
+        HttpResource.ResourcePublishResult resourcePublishResult = result.get();
+        assertThat(resourcePublishResult, notNullValue());
+        assertThat(resourcePublishResult.getResourceState(), notNullValue());
+        assertThat(resourcePublishResult.getResourceState(), is(HttpResource.State.DIRTY));
+        assertThat(resourcePublishResult.getReason(),
+            is("waiting for remote monitoring cluster to install appropriate template [.my_template] (version mismatch or missing)"));
     }
 
     public void testParameters() {

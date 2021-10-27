@@ -10,7 +10,7 @@ package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;

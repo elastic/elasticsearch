@@ -25,6 +25,12 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.function.LongConsumer;
 
 import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
@@ -49,6 +55,9 @@ import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
 class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     private final LongConsumer breakerConsumer; // track how much bytes are stored in the values array
     private final CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc;
+
+    // doc-values lookup, cached by LeafReaderContext ordinal
+    private final Map<Integer, SortedSetDocValues> dvsLookup = new HashMap<>();
 
     private SortedSetDocValues lookup; // current ordinals lookup
     private int leafReaderOrd = -1; // current LeafReaderContext ordinal
@@ -245,22 +254,32 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector next) throws IOException {
         final boolean leafReaderContextChanged = context.ord != leafReaderOrd;
         assert leafReaderContextChanged == false || invariant(); // for performance reasons only check invariant upon change
-        final SortedSetDocValues dvs = docValuesFunc.apply(context);
         if (leafReaderContextChanged) {
-            remapOrdinals(lookup, dvs);
+            // use a separate instance for ordinal and term lookups, that is cached per segment
+            // to speed up sorted collections that call getLeafCollector once per term (see above)
+            final SortedSetDocValues newLookup = dvsLookup.computeIfAbsent(context.ord, k -> {
+                try {
+                    return docValuesFunc.apply(context);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
+            remapOrdinals(lookup, newLookup);
+            lookup = newLookup;
             leafReaderOrd = context.ord;
         }
-        lookup = dvs;
+
+        // and creates a SortedSetDocValues to iterate over the values
+        final SortedSetDocValues it = docValuesFunc.apply(context);
         assert leafReaderContextChanged == false || invariant(); // for performance reasons only check invariant upon change
         return new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 // caller of getLeafCollector ensures that collection happens before requesting a new leaf collector
                 // this is important as ordinals only make sense in the context of the current lookup
-                assert dvs == lookup;
-                if (dvs.advanceExact(doc)) {
+                if (it.advanceExact(doc)) {
                     long ord;
-                    while ((ord = dvs.nextOrd()) != NO_MORE_ORDS) {
+                    while ((ord = it.nextOrd()) != NO_MORE_ORDS) {
                         currentValueOrd = ord;
                         currentValueUnmapped = null;
                         next.collect(doc, bucket);
@@ -283,38 +302,51 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
             throw new IllegalArgumentException("Expected BytesRef, got " + value.getClass());
         }
         BytesRef term = (BytesRef) value;
-        final SortedSetDocValues dvs = docValuesFunc.apply(context);
         if (leafReaderContextChanged) {
-            remapOrdinals(lookup, dvs);
-            leafReaderOrd = context.ord;
-        }
-        lookup = dvs;
-        assert leafReaderContextChanged == false || invariant(); // for performance reasons only check invariant upon change
-        return new LeafBucketCollector() {
-            boolean currentValueIsSet = false;
-
-            @Override
-            public void collect(int doc, long bucket) throws IOException {
-                // caller of getLeafCollector ensures that collection happens before requesting a new leaf collector
-                // this is important as ordinals only make sense in the context of the current lookup
-                assert dvs == lookup;
-                if (currentValueIsSet == false) {
-                    if (dvs.advanceExact(doc)) {
-                        long ord;
-                        while ((ord = dvs.nextOrd()) != NO_MORE_ORDS) {
-                            if (term.equals(dvs.lookupOrd(ord))) {
-                                currentValueIsSet = true;
-                                currentValueOrd = ord;
-                                currentValueUnmapped = null;
-                                break;
-                            }
-                        }
-                    }
+            // use a separate instance for ordinal and term lookups, that is cached per segment
+            // to speed up sorted collections that call getLeafCollector once per term
+            final SortedSetDocValues newLookup = dvsLookup.computeIfAbsent(context.ord, k -> {
+                try {
+                    return docValuesFunc.apply(context);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
                 }
-                assert currentValueIsSet;
-                next.collect(doc, bucket);
+            });
+            remapOrdinals(lookup, newLookup);
+            lookup = newLookup;
+        }
+        currentValueOrd = lookup.lookupTerm(term);
+        currentValueUnmapped = null;
+        leafReaderOrd = context.ord;
+        assert currentValueOrd >= 0;
+        assert leafReaderContextChanged == false || invariant(); // for performance reasons only check invariant upon change
+        return next;
+    }
+
+    private static class Slot implements Comparable<Slot> {
+        final int index;
+        final long ord;
+        final BytesRef unmapped;
+
+        private Slot(int index, long ord, BytesRef unmapped) {
+            assert ord >= 0 || unmapped != null;
+            this.index = index;
+            this.ord = ord;
+            this.unmapped = unmapped;
+        }
+
+        @Override
+        public int compareTo(Slot other) {
+            if (ord < 0 && ord == other.ord) {
+                assert unmapped != null && other.unmapped != null;
+                // compare by original term if both ordinals are insertion points (negative value)
+                return unmapped.compareTo(other.unmapped);
             }
-        };
+            long norm1 = ord < 0 ? -ord - 1 : ord;
+            long norm2 = other.ord < 0 ? -other.ord - 1 : other.ord;
+            int cmp = Long.compare(norm1, norm2);
+            return cmp == 0 ? Long.compare(ord, other.ord) : cmp;
+        }
     }
 
     /**
@@ -322,24 +354,49 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
      * in that case remember the term so that future remapping steps can accurately be done.
      */
     private void remapOrdinals(SortedSetDocValues oldMapping, SortedSetDocValues newMapping) throws IOException {
+        // speed up the lookups by sorting ordinals first
+        List<Slot> sorted = new ArrayList<>();
         for (int i = 0; i < numSlots; i++) {
-            final long oldOrd = valuesOrd.get(i);
-            if (oldOrd != Long.MIN_VALUE) {
-                final long newOrd;
-                if (oldOrd >= 0) {
+            long ord = valuesOrd.get(i);
+            if (ord != Long.MIN_VALUE) {
+                sorted.add(new Slot(i, ord, ord < 0 ? valuesUnmapped.get(i) : null));
+            }
+        }
+        Collections.sort(sorted);
+
+        long lastOldOrd = Long.MIN_VALUE;
+        long lastNewOrd = Long.MIN_VALUE;
+        BytesRef lastUnmapped = null;
+        for (Slot slot : sorted) {
+            final long index = slot.index;
+            final long oldOrd = slot.ord;
+            final BytesRef unmapped = slot.unmapped;
+            final long newOrd;
+            if (oldOrd >= 0) {
+                if (lastOldOrd == oldOrd) {
+                    newOrd = lastNewOrd;
+                    if (newOrd < 0) {
+                        setValueWithBreaking(index, lastUnmapped);
+                    }
+                } else {
                     final BytesRef newVal = oldMapping.lookupOrd(oldOrd);
                     newOrd = newMapping.lookupTerm(newVal);
                     if (newOrd < 0) {
-                        setValueWithBreaking(i, BytesRef.deepCopyOf(newVal));
-                    }
-                } else {
-                    newOrd = newMapping.lookupTerm(valuesUnmapped.get(i));
-                    if (newOrd >= 0) {
-                        setValueWithBreaking(i, null);
+                        setValueWithBreaking(index, BytesRef.deepCopyOf(newVal));
                     }
                 }
-                valuesOrd.set(i, newOrd);
+            } else {
+                // the original term is missing in the dictionary
+                assert unmapped != null;
+                newOrd = newMapping.lookupTerm(unmapped);
+                if (newOrd >= 0) {
+                    setValueWithBreaking(index, null);
+                }
             }
+            lastOldOrd = oldOrd;
+            lastNewOrd = newOrd;
+            lastUnmapped = valuesUnmapped.get(index);
+            valuesOrd.set(index, newOrd);
         }
 
         if (currentValueOrd != null) {

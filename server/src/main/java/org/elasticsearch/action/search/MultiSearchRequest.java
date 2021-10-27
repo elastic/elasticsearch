@@ -14,17 +14,18 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.tasks.CancellableTask;
@@ -179,7 +180,25 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                                            String searchType,
                                            Boolean ccsMinimizeRoundtrips,
                                            NamedXContentRegistry registry,
-                                           boolean allowExplicitIndex, RestApiVersion restApiVersion) throws IOException {
+                                           boolean allowExplicitIndex,
+                                           RestApiVersion restApiVersion) throws IOException {
+        readMultiLineFormat(data, xContent, consumer, indices, indicesOptions, routing, searchType, ccsMinimizeRoundtrips, registry,
+            allowExplicitIndex, restApiVersion, (s, o, r) -> false);
+
+    }
+
+    public static void readMultiLineFormat(BytesReference data,
+                                           XContent xContent,
+                                           CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer,
+                                           String[] indices,
+                                           IndicesOptions indicesOptions,
+                                           String routing,
+                                           String searchType,
+                                           Boolean ccsMinimizeRoundtrips,
+                                           NamedXContentRegistry registry,
+                                           boolean allowExplicitIndex,
+                                           RestApiVersion restApiVersion,
+                                           TriFunction<String, Object, SearchRequest, Boolean> extraParamParser) throws IOException {
         int from = 0;
         byte marker = xContent.streamSeparator();
         while (true) {
@@ -251,6 +270,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                         } else if(restApiVersion == RestApiVersion.V_7 &&
                             ("type".equals(entry.getKey()) || "types".equals(entry.getKey()))) {
                             deprecationLogger.compatibleCritical("msearch_with_types", RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
+                        } else if (extraParamParser.apply(entry.getKey(), value, searchRequest)) {
+                            // Skip, the parser handled the key/value
                         } else {
                             throw new IllegalArgumentException("key [" + entry.getKey() + "] is not supported in the metadata section");
                         }

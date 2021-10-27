@@ -12,7 +12,6 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.OriginalIndicesTests;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Strings;
@@ -33,6 +32,8 @@ import org.elasticsearch.search.suggest.SuggestTests;
 import org.elasticsearch.test.ESTestCase;
 
 import static java.util.Collections.emptyList;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class QuerySearchResultTests extends ESTestCase {
 
@@ -49,7 +50,7 @@ public class QuerySearchResultTests extends ESTestCase {
         ShardSearchRequest shardSearchRequest = new ShardSearchRequest(OriginalIndicesTests.randomOriginalIndices(), searchRequest,
             shardId, 0, 1, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, randomNonNegativeLong(), null);
         QuerySearchResult result = new QuerySearchResult(new ShardSearchContextId(UUIDs.base64UUID(), randomLong()),
-            new SearchShardTarget("node", shardId, null, OriginalIndices.NONE), shardSearchRequest);
+            new SearchShardTarget("node", shardId, null), shardSearchRequest);
         if (randomBoolean()) {
             result.terminatedEarly(randomBoolean());
         }
@@ -68,8 +69,10 @@ public class QuerySearchResultTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         QuerySearchResult querySearchResult = createTestInstance();
+        boolean delayed = randomBoolean();
         QuerySearchResult deserialized = copyWriteable(querySearchResult, namedWriteableRegistry,
-            QuerySearchResult::new, Version.CURRENT);
+            delayed ? in -> new QuerySearchResult(in, true) : QuerySearchResult::new,
+            Version.CURRENT);
         assertEquals(querySearchResult.getContextId().getId(), deserialized.getContextId().getId());
         assertNull(deserialized.getSearchShardTarget());
         assertEquals(querySearchResult.topDocs().maxScore, deserialized.topDocs().maxScore, 0f);
@@ -78,9 +81,11 @@ public class QuerySearchResultTests extends ESTestCase {
         assertEquals(querySearchResult.size(), deserialized.size());
         assertEquals(querySearchResult.hasAggs(), deserialized.hasAggs());
         if (deserialized.hasAggs()) {
+            assertThat(deserialized.aggregations().isSerialized(), is(delayed));
             Aggregations aggs = querySearchResult.consumeAggs();
             Aggregations deserializedAggs = deserialized.consumeAggs();
             assertEquals(aggs.asList(), deserializedAggs.asList());
+            assertThat(deserialized.aggregations(), is(nullValue()));
         }
         assertEquals(querySearchResult.terminatedEarly(), deserialized.terminatedEarly());
     }

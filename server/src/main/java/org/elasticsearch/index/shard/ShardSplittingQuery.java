@@ -73,7 +73,8 @@ final class ShardSplittingQuery extends Query {
                 FixedBitSet bitSet = new FixedBitSet(leafReader.maxDoc());
                 Terms terms = leafReader.terms(RoutingFieldMapper.NAME);
                 Predicate<BytesRef> includeInShard = ref -> {
-                    int targetShardId = indexRouting.shardId(Uid.decodeId(ref.bytes, ref.offset, ref.length), null);
+                    // TODO IndexRouting should build the query somehow
+                    int targetShardId = indexRouting.getShard(Uid.decodeId(ref.bytes, ref.offset, ref.length), null);
                     return shardId == targetShardId;
                 };
                 if (terms == null) {
@@ -116,7 +117,7 @@ final class ShardSplittingQuery extends Query {
                         };
                         // in the _routing case we first go and find all docs that have a routing value and mark the ones we have to delete
                         findSplitDocs(RoutingFieldMapper.NAME, ref -> {
-                            int targetShardId = indexRouting.shardId(null, ref.utf8ToString());
+                            int targetShardId = indexRouting.getShard(null, ref.utf8ToString());
                             return shardId == targetShardId;
                         }, leafReader, maybeWrapConsumer.apply(bitSet::set));
 
@@ -262,7 +263,7 @@ final class ShardSplittingQuery extends Query {
             leftToVisit = 2;
             leafReader.document(doc, this);
             assert id != null : "docID must not be null - we might have hit a nested document";
-            int targetShardId = indexRouting.shardId(id, routing);
+            int targetShardId = indexRouting.getShard(id, routing);
             return targetShardId != shardId;
         }
     }

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.discovery;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -243,8 +242,8 @@ public abstract class PeerFinder {
         }
 
         logger.trace("probing master nodes from cluster state: {}", lastAcceptedNodes);
-        for (ObjectCursor<DiscoveryNode> discoveryNodeObjectCursor : lastAcceptedNodes.getMasterNodes().values()) {
-            startProbe(discoveryNodeObjectCursor.value.getAddress());
+        for (DiscoveryNode discoveryNode : lastAcceptedNodes.getMasterNodes().values()) {
+            startProbe(discoveryNode.getAddress());
         }
 
         configuredHostsResolver.resolveConfiguredHosts(providedAddresses -> {
@@ -411,7 +410,9 @@ public abstract class PeerFinder {
                     synchronized (mutex) {
                         assert probeConnectionResult.get() == null
                             : "discoveryNode unexpectedly already set to " + probeConnectionResult.get();
-                        peersByAddress.remove(transportAddress);
+                        if (isActive()) {
+                            peersByAddress.remove(transportAddress);
+                        } // else this Peer has been superseded by a different instance which should be left in place
                     }
                 }
             });

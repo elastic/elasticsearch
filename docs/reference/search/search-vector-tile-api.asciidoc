@@ -4,7 +4,6 @@
 <titleabbrev>Vector tile search</titleabbrev>
 ++++
 
-experimental::[]
 
 Searches a vector tile for geospatial values. Returns results as a binary
 https://docs.mapbox.com/vector-tiles/specification[Mapbox vector tile].
@@ -227,6 +226,11 @@ Each feature is a `Polygon` of the cell's bounding box.
 
 `point`:::
 Each feature is a `Point` that's the centroid of the cell.
+
+`centroid`:::
+Each feature is a `Point` that's the centroid of the data within the cell. For
+complex geometries, the actual centroid may be outside the cell. In these cases,
+the feature is set to the closest point to the centroid inside the cell.
 // end::grid-type[]
 
 // tag::size[]
@@ -255,10 +259,20 @@ If `false`, the response does not include the total number of hits matching the 
 aggregation types:
 +
 * <<search-aggregations-metrics-avg-aggregation,`avg`>>
+* <<search-aggregations-metrics-boxplot-aggregation,`boxplot`>>
 * <<search-aggregations-metrics-cardinality-aggregation,`cardinality`>>
+* <<search-aggregations-metrics-extendedstats-aggregation,`extended stats`>>
 * <<search-aggregations-metrics-max-aggregation,`max`>>
+* <<search-aggregations-metrics-median-absolute-deviation-aggregation,`median absolute deviation`>>
 * <<search-aggregations-metrics-min-aggregation,`min`>>
+* <<search-aggregations-metrics-percentile-aggregation,`percentile`>>
+* <<search-aggregations-metrics-percentile-rank-aggregation,`percentile-rank`>>
+* <<search-aggregations-metrics-stats-aggregation,`stats`>>
 * <<search-aggregations-metrics-sum-aggregation,`sum`>>
+* <<search-aggregations-metrics-valuecount-aggregation,`value count`>>
++
+The aggregation names can't start with `_mvt_`. The `_mvt_` prefix is reserved
+for internal aggregations.
 
 include::search-vector-tile-api.asciidoc[tag=exact-bounds]
 

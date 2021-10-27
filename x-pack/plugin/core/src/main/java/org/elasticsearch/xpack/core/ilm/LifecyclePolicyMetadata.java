@@ -9,14 +9,14 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diffable;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -101,7 +101,7 @@ public class LifecyclePolicyMetadata extends AbstractDiffable<LifecyclePolicyMet
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(POLICY.getPreferredName(), policy);
-        builder.field(HEADERS.getPreferredName(), headers);
+        builder.stringStringMap(HEADERS.getPreferredName(), headers);
         builder.field(VERSION.getPreferredName(), version);
         builder.field(MODIFIED_DATE.getPreferredName(), modifiedDate);
         builder.field(MODIFIED_DATE_STRING.getPreferredName(), getModifiedDateString());

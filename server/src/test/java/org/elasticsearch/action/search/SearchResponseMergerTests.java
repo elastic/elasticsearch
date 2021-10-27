@@ -11,7 +11,6 @@ package org.elasticsearch.action.search;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.core.Tuple;
@@ -121,7 +120,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             ShardSearchFailure[] shardSearchFailures = new ShardSearchFailure[numFailures];
             for (int j = 0; j < numFailures; j++) {
                 ShardId shardId = new ShardId(randomFrom(indices), j);
-                SearchShardTarget searchShardTarget = new SearchShardTarget(randomAlphaOfLength(6), shardId, clusterAlias, null);
+                SearchShardTarget searchShardTarget = new SearchShardTarget(randomAlphaOfLength(6), shardId, clusterAlias);
                 ShardSearchFailure failure = new ShardSearchFailure(new IllegalArgumentException(), searchShardTarget);
                 shardSearchFailures[j] = failure;
                 priorityQueue.add(Tuple.tuple(searchShardTarget, failure));
@@ -252,7 +251,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             ShardId shardId = new ShardId(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLength(10),
                 randomIntBetween(0, Integer.MAX_VALUE));
             String clusterAlias = randomBoolean() ? "" : randomAlphaOfLengthBetween(5, 10);
-            hit.shard(new SearchShardTarget("node", shardId, clusterAlias, OriginalIndices.NONE));
+            hit.shard(new SearchShardTarget("node", shardId, clusterAlias));
             option.setHit(hit);
             options.addOption(option);
             completionSuggestion.addTerm(options);
@@ -300,7 +299,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 Collections.emptyMap());
             SearchHit searchHit = new SearchHit(docId);
             searchHit.shard(new SearchShardTarget("node", new ShardId("index", "uuid", randomIntBetween(0, Integer.MAX_VALUE)),
-                randomBoolean() ? RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY : randomAlphaOfLengthBetween(5, 10), OriginalIndices.NONE));
+                randomBoolean() ? RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY : randomAlphaOfLengthBetween(5, 10)));
             option.setHit(searchHit);
             options.addOption(option);
             completionSuggestion.addTerm(options);
@@ -664,7 +663,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         for (int j = 0; j < numDocs; j++) {
             ShardId shardId = new ShardId(randomFrom(indices), randomIntBetween(0, 10));
             SearchShardTarget shardTarget = new SearchShardTarget(randomAlphaOfLengthBetween(3, 8), shardId,
-                clusterAlias, OriginalIndices.NONE);
+                clusterAlias);
             SearchHit hit = new SearchHit(randomIntBetween(0, Integer.MAX_VALUE));
 
             float score = Float.NaN;

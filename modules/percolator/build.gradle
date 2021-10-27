@@ -24,6 +24,6 @@ restResources {
   }
 }
 
-tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
+tasks.named("yamlRestTestV7CompatTransform").configure{ task ->
   task.addAllowedWarningRegex("\\[types removal\\].*")
-})
+}

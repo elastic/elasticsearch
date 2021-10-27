@@ -23,10 +23,11 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -179,7 +180,12 @@ public class MetadataNodesIT extends ESIntegTestCase {
 
     private boolean indexDirectoryExists(String nodeName, Index index) {
         NodeEnvironment nodeEnv = ((InternalTestCluster) cluster()).getInstance(NodeEnvironment.class, nodeName);
-        return Files.exists(nodeEnv.indexPath(index));
+        for (Path path : nodeEnv.indexPaths(index)) {
+            if (Files.exists(path)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private ImmutableOpenMap<String, IndexMetadata> getIndicesMetadataOnNode(String nodeName) {

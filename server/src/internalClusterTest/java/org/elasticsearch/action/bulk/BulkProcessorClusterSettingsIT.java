@@ -10,7 +10,7 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -48,7 +48,7 @@ public class BulkProcessorClusterSettingsIT extends ESIntegTestCase {
     }
 
     public void testIndexWithDisabledAutoCreateIndex() {
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
                 .put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), randomFrom("-*", "+.*")).build()).get());
         final BulkItemResponse itemResponse =
                 client().prepareBulk().add(client().prepareIndex("test-index").setSource("foo", "bar")).get().getItems()[0];

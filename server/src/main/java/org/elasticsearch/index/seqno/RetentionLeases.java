@@ -8,15 +8,15 @@
 
 package org.elasticsearch.index.seqno;
 
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.gateway.MetadataStateFormat;
 
 import java.io.IOException;
@@ -196,8 +196,8 @@ public class RetentionLeases implements ToXContentFragment, Writeable {
     }
 
     /**
-     * Parses a retention leases collection from {@link org.elasticsearch.common.xcontent.XContent}. This method assumes that the retention
-     * leases were converted to {@link org.elasticsearch.common.xcontent.XContent} via {@link #toXContent(XContentBuilder, Params)}.
+     * Parses a retention leases collection from {@link org.elasticsearch.xcontent.XContent}. This method assumes that the retention
+     * leases were converted to {@link org.elasticsearch.xcontent.XContent} via {@link #toXContent(XContentBuilder, Params)}.
      *
      * @param parser the parser
      * @return a retention leases collection

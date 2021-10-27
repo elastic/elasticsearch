@@ -960,11 +960,11 @@ Time in milliseconds
 recovery operations were delayed due to throttling.
 =======
 
-`shards`::
+`shards_stats`::
 (object)
 Contains statistics about all shards assigned to the node.
 +
-.Properties of `shards`
+.Properties of `shard_stats`
 [%collapsible%open]
 =======
 `total_count`::
@@ -1035,6 +1035,18 @@ Total amount of physical memory.
 `total_in_bytes`::
 (integer)
 Total amount of physical memory in bytes.
+
+`adjusted_total`::
+(<<byte-units,byte value>>)
+If the amount of physical memory has been overridden using the `es.total_memory_bytes`
+system property then this reports the overridden value. Otherwise it reports the same
+value as `total`.
+
+`adjusted_total_in_bytes`::
+(integer)
+If the amount of physical memory has been overridden using the `es.total_memory_bytes`
+system property then this reports the overridden value in bytes. Otherwise it reports
+the same value as `total_in_bytes`.
 
 `free`::
 (<<byte-units,byte value>>)

@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
@@ -54,13 +53,13 @@ public class CountedCollectorTests extends ESTestCase {
                             new ShardSearchContextId(UUIDs.randomBase64UUID(), shardID), null, null);
                         dfsSearchResult.setShardIndex(shardID);
                         dfsSearchResult.setSearchShardTarget(new SearchShardTarget("foo",
-                            new ShardId("bar", "baz", shardID), null, OriginalIndices.NONE));
+                            new ShardId("bar", "baz", shardID), null));
                         collector.onResult(dfsSearchResult);});
                     break;
                 case 2:
                     state.add(2);
                     executor.execute(() -> collector.onFailure(shardID, new SearchShardTarget("foo", new ShardId("bar", "baz", shardID),
-                        null, OriginalIndices.NONE), new RuntimeException("boom")));
+                        null), new RuntimeException("boom")));
                     break;
                 default:
                     fail("unknown state");

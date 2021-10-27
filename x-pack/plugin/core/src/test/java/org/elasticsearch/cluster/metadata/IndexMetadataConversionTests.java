@@ -13,8 +13,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.util.Collections;
 
@@ -33,7 +33,7 @@ public class IndexMetadataConversionTests extends ESTestCase {
         // A full_copy searchable snapshot (settings should be untouched)
         src = newIndexMeta("foo", Settings.builder()
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE)
-            .put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), false)
+            .put(SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING.getKey(), false)
             .put("index.routing.allocation.include._tier", "data_hot")
             .put("index.routing.allocation.exclude._tier", "data_warm")
             .put("index.routing.allocation.require._tier", "data_hot")
@@ -45,7 +45,7 @@ public class IndexMetadataConversionTests extends ESTestCase {
         // A shared_cache searchable snapshot with valid settings (metadata should be untouched)
         src = newIndexMeta("foo", Settings.builder()
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE)
-            .put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), false)
+            .put(SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING.getKey(), false)
             .put("index.routing.allocation.include._tier_preference", "data_frozen")
             .build());
         indexMetadata = service.convertSharedCacheTierPreference(src);
@@ -54,7 +54,7 @@ public class IndexMetadataConversionTests extends ESTestCase {
         // A shared_cache searchable snapshot (should have its settings converted)
         src = newIndexMeta("foo", Settings.builder()
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE)
-            .put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true)
+            .put(SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING.getKey(), true)
             .put("index.routing.allocation.include._tier", "data_hot")
             .put("index.routing.allocation.exclude._tier", "data_warm")
             .put("index.routing.allocation.require._tier", "data_hot")

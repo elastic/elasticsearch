@@ -10,11 +10,11 @@ package org.elasticsearch.client.enrich;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
@@ -96,12 +96,12 @@ public final class PutPolicyRequest implements Validatable, ToXContentObject {
         {
             builder.startObject(type);
             {
-                builder.field(NamedPolicy.INDICES_FIELD.getPreferredName(), indices);
+                builder.stringListField(NamedPolicy.INDICES_FIELD.getPreferredName(), indices);
                 if (query != null) {
                     builder.field(NamedPolicy.QUERY_FIELD.getPreferredName(), asMap(query, XContentType.JSON));
                 }
                 builder.field(NamedPolicy.MATCH_FIELD_FIELD.getPreferredName(), matchField);
-                builder.field(NamedPolicy.ENRICH_FIELDS_FIELD.getPreferredName(), enrichFields);
+                builder.stringListField(NamedPolicy.ENRICH_FIELDS_FIELD.getPreferredName(), enrichFields);
             }
             builder.endObject();
         }

@@ -524,4 +524,55 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         assertThat(decision.getExplanation(), containsString("disk watermarks are ignored on this index"));
     }
 
+    public void testCannotForceAllocateOver100PercentUsage() {
+        ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss);
+
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .build();
+
+        final Index index = metadata.index("test").getIndex();
+
+        ShardRouting test_0 = ShardRouting.newUnassigned(new ShardId(index, 0), true, EmptyStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        DiscoveryNode node_0 = new DiscoveryNode("node_0", buildNewFakeTransportAddress(), Collections.emptyMap(),
+            new HashSet<>(DiscoveryNodeRole.roles()), Version.CURRENT);
+        DiscoveryNode node_1 = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Collections.emptyMap(),
+            new HashSet<>(DiscoveryNodeRole.roles()), Version.CURRENT);
+
+        RoutingTable routingTable = RoutingTable.builder()
+            .addAsNew(metadata.index("test"))
+            .build();
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata).routingTable(routingTable).build();
+
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
+            .add(node_0)
+            .add(node_1)
+        ).build();
+
+        // actual test -- after all that bloat :)
+        ImmutableOpenMap.Builder<String, DiskUsage> leastAvailableUsages = ImmutableOpenMap.builder();
+        leastAvailableUsages.put("node_0", new DiskUsage("node_0", "node_0", "_na_", 100, 0)); // all full
+        ImmutableOpenMap.Builder<String, DiskUsage> mostAvailableUsage = ImmutableOpenMap.builder();
+        mostAvailableUsage.put("node_0", new DiskUsage("node_0", "node_0", "_na_", 100, 0)); // all full
+
+        ImmutableOpenMap.Builder<String, Long> shardSizes = ImmutableOpenMap.builder();
+        // bigger than available space
+        final long shardSize = randomIntBetween(1, 10);
+        shardSizes.put("[test][0][p]", shardSize);
+        ClusterInfo clusterInfo = new ClusterInfo(leastAvailableUsages.build(), mostAvailableUsage.build(),
+            shardSizes.build(), null, ImmutableOpenMap.of(),  ImmutableOpenMap.of());
+        RoutingAllocation allocation = new RoutingAllocation(new AllocationDeciders(Collections.singleton(decider)),
+            clusterState.getRoutingNodes(), clusterState, clusterInfo, null, System.nanoTime());
+        allocation.debugDecision(true);
+        Decision decision = decider.canForceAllocateDuringReplace(test_0, new RoutingNode("node_0", node_0), allocation);
+        assertEquals(Decision.Type.NO, decision.type());
+
+        assertThat(decision.getExplanation(), containsString(
+            "unable to force allocate shard to [node_0] during replacement, " +
+                "as allocating to this node would cause disk usage to exceed 100% ([" + shardSize + "] bytes above available disk space)"));
+    }
 }

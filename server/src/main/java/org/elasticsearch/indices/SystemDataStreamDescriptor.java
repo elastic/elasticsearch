@@ -14,11 +14,10 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.Metadata;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.indices.AssociatedIndexDescriptor.buildAutomaton;
 
@@ -92,14 +91,7 @@ public class SystemDataStreamDescriptor {
      * @return List of names of backing indices
      */
     public List<String> getBackingIndexNames(Metadata metadata) {
-        ArrayList<String> matchingIndices = new ArrayList<>();
-        metadata.indices().keysIt().forEachRemaining(indexName -> {
-            if (this.characterRunAutomaton.run(indexName)) {
-                matchingIndices.add(indexName);
-            }
-        });
-
-        return Collections.unmodifiableList(matchingIndices);
+        return metadata.indices().keySet().stream().filter(this.characterRunAutomaton::run).collect(Collectors.toUnmodifiableList());
     }
 
     public String getDescription() {

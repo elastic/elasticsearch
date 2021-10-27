@@ -17,7 +17,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
@@ -76,7 +76,7 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
     public void setupLogging() {
         client().admin().cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder()
+            .setPersistentSettings(Settings.builder()
                 .put("logger.org.elasticsearch.xpack.ml.dataframe", "DEBUG")
                 .put("logger.org.elasticsearch.xpack.core.ml.inference", "DEBUG"))
             .get();
@@ -87,7 +87,7 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
         cleanUp();
         client().admin().cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder()
+            .setPersistentSettings(Settings.builder()
                 .putNull("logger.org.elasticsearch.xpack.ml.dataframe")
                 .putNull("logger.org.elasticsearch.xpack.core.ml.inference"))
             .get();

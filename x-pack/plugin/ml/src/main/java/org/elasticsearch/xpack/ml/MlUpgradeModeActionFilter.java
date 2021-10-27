@@ -43,9 +43,12 @@ import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAliasAction;
+import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction;
+import org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateCalendarJobAction;
@@ -123,6 +126,11 @@ class MlUpgradeModeActionFilter extends ActionFilter.Simple {
 
             PutTrainedModelAliasAction.NAME,
             PutTrainedModelAction.NAME,
+            PutTrainedModelDefinitionPartAction.NAME,
+            PutTrainedModelVocabularyAction.NAME,
+            // NOTE: StopTrainedModelDeploymentAction doesn't mutate internal indices, and technically neither does this action.
+            //       But, preventing new deployments from being created while upgrading is for safety.
+            StartTrainedModelDeploymentAction.NAME,
             DeleteTrainedModelAction.NAME,
             DeleteTrainedModelAliasAction.NAME
         ));
@@ -140,6 +148,7 @@ class MlUpgradeModeActionFilter extends ActionFilter.Simple {
             DeleteDataFrameAnalyticsAction.NAME,
             StopDataFrameAnalyticsAction.NAME,
 
+            // No other trained model APIs need to be exempted as `StopTrainedModelDeploymentAction` isn't filtered during upgrade mode
             DeleteTrainedModelAction.NAME
         ));
 

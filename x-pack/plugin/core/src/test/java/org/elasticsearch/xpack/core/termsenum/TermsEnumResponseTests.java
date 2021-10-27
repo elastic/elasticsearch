@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.termsenum;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
 import org.elasticsearch.xpack.core.termsenum.action.TermsEnumResponse;
 

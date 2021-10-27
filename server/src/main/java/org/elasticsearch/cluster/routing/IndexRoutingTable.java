@@ -25,12 +25,12 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -76,7 +76,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         for (IntObjectCursor<IndexShardRoutingTable> cursor : shards) {
             allActiveShards.addAll(cursor.value.activeShards());
         }
-        this.allActiveShards = Collections.unmodifiableList(allActiveShards);
+        this.allActiveShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(allActiveShards);
     }
 
     /**

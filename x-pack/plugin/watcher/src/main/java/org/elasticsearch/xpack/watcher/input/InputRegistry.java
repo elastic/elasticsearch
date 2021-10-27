@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.watcher.input;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.watcher.input.chain.ChainInput;
 import org.elasticsearch.xpack.watcher.input.chain.ChainInputFactory;

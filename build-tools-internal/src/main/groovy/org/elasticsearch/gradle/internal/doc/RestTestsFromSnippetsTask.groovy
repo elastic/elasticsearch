@@ -68,7 +68,6 @@ class RestTestsFromSnippetsTask extends SnippetsTask {
     RestTestsFromSnippetsTask(ObjectFactory objectFactory) {
         testRoot = objectFactory.directoryProperty()
         TestBuilder builder = new TestBuilder()
-        doFirst { outputRoot().delete() }
         perSnippet builder.&handleSnippet
         doLast builder.&checkUnconverted
         doLast builder.&finishLastTest

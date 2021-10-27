@@ -13,7 +13,7 @@ import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineAction;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.license.GetFeatureUsageRequest;
 import org.elasticsearch.license.GetFeatureUsageResponse;
 import org.elasticsearch.license.TransportGetFeatureUsageAction;
@@ -41,7 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.ml.MachineLearning.ML_FEATURE_FAMILY;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.ML_FEATURE_FAMILY;
 import static org.elasticsearch.xpack.ml.inference.loadingservice.LocalModelTests.buildClassification;
 import static org.elasticsearch.xpack.ml.integration.ModelInferenceActionIT.buildTrainedModelConfigBuilder;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createScheduledJob;

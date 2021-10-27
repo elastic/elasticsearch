@@ -9,8 +9,8 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.rest.BytesRestResponse;

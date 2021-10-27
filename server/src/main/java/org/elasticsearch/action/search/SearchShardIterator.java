@@ -85,7 +85,7 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
     SearchShardTarget nextOrNull() {
         final String nodeId = targetNodesIterator.nextOrNull();
         if (nodeId != null) {
-            return new SearchShardTarget(nodeId, shardId, clusterAlias, originalIndices);
+            return new SearchShardTarget(nodeId, shardId, clusterAlias);
         }
         return null;
     }

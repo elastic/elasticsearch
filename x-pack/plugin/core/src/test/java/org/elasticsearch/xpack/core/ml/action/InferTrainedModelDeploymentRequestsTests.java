@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
@@ -37,15 +38,12 @@ public class InferTrainedModelDeploymentRequestsTests extends AbstractWireSerial
         List<Map<String, Object>> docs = randomList(5, () -> randomMap(1, 3,
             () -> Tuple.tuple(randomAlphaOfLength(7), randomAlphaOfLength(7))));
 
-        InferTrainedModelDeploymentAction.Request request = new InferTrainedModelDeploymentAction.Request(
+        return new InferTrainedModelDeploymentAction.Request(
             randomAlphaOfLength(4),
             randomBoolean() ? null : randomInferenceConfigUpdate(),
-            docs
+            docs,
+            randomBoolean() ? null : TimeValue.parseTimeValue(randomTimeValue(), "timeout")
         );
-        if (randomBoolean()) {
-            request.setTimeout(randomTimeValue());
-        }
-        return request;
     }
 
     @Override
@@ -56,6 +54,10 @@ public class InferTrainedModelDeploymentRequestsTests extends AbstractWireSerial
     }
 
     public void testTimeoutNotNull() {
-        assertNotNull(createTestInstance().getTimeout());
+        assertNotNull(createTestInstance().getInferenceTimeout());
+    }
+
+    public void testTimeoutNull() {
+        assertNull(createTestInstance().getTimeout());
     }
 }

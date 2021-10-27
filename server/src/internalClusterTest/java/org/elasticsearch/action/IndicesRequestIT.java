@@ -179,7 +179,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     }
 
     public void testFieldCapabilities() {
-        String fieldCapabilitiesShardAction = FieldCapabilitiesAction.NAME + "[index][s]";
+        String fieldCapabilitiesShardAction = FieldCapabilitiesAction.NAME + "[n]";
         interceptTransportActions(fieldCapabilitiesShardAction);
 
         FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest();
@@ -555,9 +555,10 @@ public class IndicesRequestIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
 
         clearInterceptedActions();
-        assertSameIndices(searchRequest, SearchTransportService.QUERY_ACTION_NAME, SearchTransportService.FETCH_ID_ACTION_NAME);
+        assertIndicesSubset(Arrays.asList(searchRequest.indices()), SearchTransportService.QUERY_ACTION_NAME,
+            SearchTransportService.FETCH_ID_ACTION_NAME);
         //free context messages are not necessarily sent, but if they are, check their indices
-        assertSameIndicesOptionalRequests(searchRequest, SearchTransportService.FREE_CONTEXT_ACTION_NAME);
+        assertIndicesSubsetOptionalRequests(Arrays.asList(searchRequest.indices()), SearchTransportService.FREE_CONTEXT_ACTION_NAME);
     }
 
     public void testSearchDfsQueryThenFetch() throws Exception {
@@ -576,10 +577,10 @@ public class IndicesRequestIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
 
         clearInterceptedActions();
-        assertSameIndices(searchRequest, SearchTransportService.DFS_ACTION_NAME, SearchTransportService.QUERY_ID_ACTION_NAME,
-                SearchTransportService.FETCH_ID_ACTION_NAME);
+        assertIndicesSubset(Arrays.asList(searchRequest.indices()), SearchTransportService.DFS_ACTION_NAME,
+            SearchTransportService.QUERY_ID_ACTION_NAME, SearchTransportService.FETCH_ID_ACTION_NAME);
         //free context messages are not necessarily sent, but if they are, check their indices
-        assertSameIndicesOptionalRequests(searchRequest, SearchTransportService.FREE_CONTEXT_ACTION_NAME);
+        assertIndicesSubsetOptionalRequests(Arrays.asList(searchRequest.indices()), SearchTransportService.FREE_CONTEXT_ACTION_NAME);
     }
 
     private static void assertSameIndices(IndicesRequest originalRequest, String... actions) {
@@ -603,11 +604,22 @@ public class IndicesRequestIT extends ESIntegTestCase {
             }
         }
     }
+
     private static void assertIndicesSubset(List<String> indices, String... actions) {
+        assertIndicesSubset(indices, false, actions);
+    }
+
+    private static void assertIndicesSubsetOptionalRequests(List<String> indices, String... actions) {
+        assertIndicesSubset(indices, true, actions);
+    }
+
+    private static void assertIndicesSubset(List<String> indices, boolean optional, String... actions) {
         //indices returned by each bulk shard request need to be a subset of the original indices
         for (String action : actions) {
             List<TransportRequest> requests = consumeTransportRequests(action);
-            assertThat("no internal requests intercepted for action [" + action + "]", requests.size(), greaterThan(0));
+            if (optional == false) {
+                assertThat("no internal requests intercepted for action [" + action + "]", requests.size(), greaterThan(0));
+            }
             for (TransportRequest internalRequest : requests) {
                 IndicesRequest indicesRequest = convertRequest(internalRequest);
                 for (String index : indicesRequest.indices()) {

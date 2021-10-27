@@ -29,9 +29,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.EmptySystemIndices;
@@ -56,8 +56,9 @@ import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.UUIDs.randomBase64UUID;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -123,13 +124,15 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
         when(index2ShardIterator.shardId()).thenReturn(new ShardId(index2, randomInt()));
 
         final OperationRouting operationRouting = mock(OperationRouting.class);
-        when(operationRouting.getShards(eq(clusterState), eq(index1.getName()), anyString(), anyString(), anyString()))
+        when(operationRouting.getShards(eq(clusterState), eq(index1.getName()),
+            anyString(), nullable(String.class), nullable(String.class)))
             .thenReturn(index1ShardIterator);
-        when(operationRouting.shardId(eq(clusterState), eq(index1.getName()), anyString(), anyString()))
+        when(operationRouting.shardId(eq(clusterState), eq(index1.getName()), nullable(String.class), nullable(String.class)))
             .thenReturn(new ShardId(index1, randomInt()));
-        when(operationRouting.getShards(eq(clusterState), eq(index2.getName()), anyString(), anyString(), anyString()))
+        when(operationRouting.getShards(eq(clusterState), eq(index2.getName()),
+            anyString(), nullable(String.class), nullable(String.class)))
             .thenReturn(index2ShardIterator);
-        when(operationRouting.shardId(eq(clusterState), eq(index2.getName()), anyString(), anyString()))
+        when(operationRouting.shardId(eq(clusterState), eq(index2.getName()), nullable(String.class), nullable(String.class)))
             .thenReturn(new ShardId(index2, randomInt()));
 
         clusterService = mock(ClusterService.class);

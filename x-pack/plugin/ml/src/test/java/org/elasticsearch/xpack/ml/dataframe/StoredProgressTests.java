@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.dataframe;
 
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 

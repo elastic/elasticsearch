@@ -11,7 +11,7 @@ package org.elasticsearch.search.suggest.completion;
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.CompletionFieldMapper.CompletionFieldType;

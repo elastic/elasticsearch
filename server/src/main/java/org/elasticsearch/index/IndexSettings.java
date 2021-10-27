@@ -759,8 +759,10 @@ public final class IndexSettings {
      * @return true if the settings are the same, otherwise false
      */
     public static boolean same(final Settings left, final Settings right) {
-        return left.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE)
-                .equals(right.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE));
+        if (left.equals(right)) {
+            return true;
+        }
+        return left.getByPrefix(IndexMetadata.INDEX_SETTING_PREFIX).equals(right.getByPrefix(IndexMetadata.INDEX_SETTING_PREFIX));
     }
 
     /**

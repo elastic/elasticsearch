@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
@@ -46,6 +45,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.Matchers.equalTo;
@@ -121,9 +121,9 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
         }
 
         // Log the node versions (for debugging if necessary)
-        for (ObjectCursor<DiscoveryNode> cursor : state.nodes().getDataNodes().values()) {
-            Version nodeVer = cursor.value.getVersion();
-            logger.info("--> node [{}] has version [{}]", cursor.value.getId(), nodeVer);
+        for (DiscoveryNode discoveryNode : state.nodes().getDataNodes().values()) {
+            Version nodeVer = discoveryNode.getVersion();
+            logger.info("--> node [{}] has version [{}]", discoveryNode.getId(), nodeVer);
         }
 
         // randomly create some indices
@@ -139,15 +139,15 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
         }
 
         logger.info("--> starting shards");
-        state = cluster.applyStartedShards(state, state.getRoutingNodes().shardsWithState(INITIALIZING));
+        state = cluster.applyStartedShards(state, shardsWithState(state.getRoutingNodes(), INITIALIZING));
         logger.info("--> starting replicas a random number of times");
         for (int i = 0; i < randomIntBetween(1,10); i++) {
-            state = cluster.applyStartedShards(state, state.getRoutingNodes().shardsWithState(INITIALIZING));
+            state = cluster.applyStartedShards(state, shardsWithState(state.getRoutingNodes(), INITIALIZING));
         }
 
         boolean keepGoing = true;
         while (keepGoing) {
-            List<ShardRouting> primaries = state.getRoutingNodes().shardsWithState(STARTED)
+            List<ShardRouting> primaries = shardsWithState(state.getRoutingNodes(), STARTED)
                 .stream().filter(ShardRouting::primary).collect(Collectors.toList());
 
             // Pick a random subset of primaries to fail

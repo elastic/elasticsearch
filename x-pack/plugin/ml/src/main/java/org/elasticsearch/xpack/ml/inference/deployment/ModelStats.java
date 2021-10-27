@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.ml.inference.deployment;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.Nullable;
-
 import java.time.Instant;
 import java.util.LongSummaryStatistics;
 
@@ -17,12 +14,10 @@ public class ModelStats {
 
     private final LongSummaryStatistics timingStats;
     private final Instant lastUsed;
-    private final ByteSizeValue modelSize;
 
-    ModelStats(LongSummaryStatistics timingStats, Instant lastUsed, @Nullable Long modelSizeBytes) {
+    ModelStats(LongSummaryStatistics timingStats, Instant lastUsed) {
         this.timingStats = timingStats;
         this.lastUsed = lastUsed;
-        this.modelSize = modelSizeBytes == null ? null : ByteSizeValue.ofBytes(modelSizeBytes);
     }
 
     public LongSummaryStatistics getTimingStats() {
@@ -31,9 +26,5 @@ public class ModelStats {
 
     public Instant getLastUsed() {
         return lastUsed;
-    }
-
-    public ByteSizeValue getModelSize() {
-        return modelSize;
     }
 }

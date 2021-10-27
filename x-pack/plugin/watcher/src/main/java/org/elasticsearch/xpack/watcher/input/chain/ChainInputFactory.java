@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.watcher.input.chain;
 
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.core.watcher.input.Input;
 import org.elasticsearch.xpack.watcher.input.InputFactory;

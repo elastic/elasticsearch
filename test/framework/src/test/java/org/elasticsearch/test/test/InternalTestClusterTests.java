@@ -283,7 +283,7 @@ public class InternalTestClusterTests extends ESTestCase {
     private Path[] getNodePaths(InternalTestCluster cluster, String name) {
         final NodeEnvironment nodeEnvironment = cluster.getInstance(NodeEnvironment.class, name);
         if (nodeEnvironment.hasNodeFile()) {
-            return new Path[] { nodeEnvironment.nodeDataPath() };
+            return nodeEnvironment.nodeDataPaths();
         } else {
             return new Path[0];
         }

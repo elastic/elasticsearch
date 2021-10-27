@@ -14,13 +14,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.nio.file.Path;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.is;
 
 public class ClusterPrivilegeIntegrationTests extends AbstractPrivilegeTestCase {
@@ -236,7 +235,7 @@ public class ClusterPrivilegeIntegrationTests extends AbstractPrivilegeTestCase 
             // it to disappear from the cluster state as well
             SnapshotsInProgress snapshotsInProgress =
                 client().admin().cluster().state(new ClusterStateRequest()).get().getState().custom(SnapshotsInProgress.TYPE);
-            assertThat(snapshotsInProgress.entries(), Matchers.empty());
+            assertTrue(snapshotsInProgress.isEmpty());
         });
     }
 }

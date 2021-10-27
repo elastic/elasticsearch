@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-testclusters'
@@ -61,6 +62,13 @@ testClusters.matching {it.name == "follow-cluster" }.configureEach {
     { "\"${leaderCluster.get().getAllTransportPortURI().join(",")}\"" }
   setting 'cluster.remote.middle_cluster.seeds',
     { "\"${middleCluster.get().getAllTransportPortURI().join(",")}\"" }
+}
+
+
+testClusters.configureEach {
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
 }
 
 tasks.named("check").configure { dependsOn "follow-cluster" }

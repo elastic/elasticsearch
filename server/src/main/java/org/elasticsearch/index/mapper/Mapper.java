@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentFragment;
 
 import java.util.Map;
 import java.util.Objects;
@@ -65,5 +65,4 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      * @param mappers a {@link MappingLookup} that can produce references to other mappers
      */
     public abstract void validate(MappingLookup mappers);
-
 }

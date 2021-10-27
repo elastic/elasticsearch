@@ -10,6 +10,7 @@ package org.elasticsearch.indices.recovery.plan;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
@@ -22,6 +23,7 @@ public class SourceOnlyRecoveryPlannerService implements RecoveryPlannerService 
     public static final RecoveryPlannerService INSTANCE = new SourceOnlyRecoveryPlannerService();
     @Override
     public void computeRecoveryPlan(ShardId shardId,
+                                    @Nullable String shardStateIdentifier,
                                     Store.MetadataSnapshot sourceMetadata,
                                     Store.MetadataSnapshot targetMetadata,
                                     long startingSeqNo,

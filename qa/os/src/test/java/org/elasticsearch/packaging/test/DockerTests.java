@@ -42,6 +42,7 @@ import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
 import static org.elasticsearch.packaging.util.FileMatcher.p644;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
+import static org.elasticsearch.packaging.util.FileMatcher.p750;
 import static org.elasticsearch.packaging.util.FileMatcher.p755;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.FileUtils.append;
@@ -49,6 +50,7 @@ import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.docker.Docker.chownWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.docker.Docker.copyFromContainer;
 import static org.elasticsearch.packaging.util.docker.Docker.existsInContainer;
+import static org.elasticsearch.packaging.util.docker.Docker.findInContainer;
 import static org.elasticsearch.packaging.util.docker.Docker.getContainerLogs;
 import static org.elasticsearch.packaging.util.docker.Docker.getImageHealthcheck;
 import static org.elasticsearch.packaging.util.docker.Docker.getImageLabels;
@@ -64,6 +66,7 @@ import static org.elasticsearch.packaging.util.docker.Docker.verifyContainerInst
 import static org.elasticsearch.packaging.util.docker.Docker.waitForElasticsearch;
 import static org.elasticsearch.packaging.util.docker.DockerFileMatcher.file;
 import static org.elasticsearch.packaging.util.docker.DockerRun.builder;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -80,12 +83,16 @@ import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 /**
- * This class tests the Elasticsearch Docker images. We have more than one because we build
- * an image with a custom, small base image, and an image based on RedHat's UBI.
+ * This class tests the Elasticsearch Docker images. We have several:
+ * <ul>
+ *     <li>The default image with a custom, small base image</li>
+ *     <li>A UBI-based image</li>
+ *     <li>Another UBI image for Iron Bank</li>
+ *     <li>Images for Cloud</li>
+ * </ul>
  */
 public class DockerTests extends PackagingTestCase {
     private Path tempDir;
-    private static final String USERNAME = "elastic";
     private static final String PASSWORD = "nothunter2";
 
     @BeforeClass
@@ -95,10 +102,7 @@ public class DockerTests extends PackagingTestCase {
 
     @Before
     public void setupTest() throws IOException {
-        installation = runContainer(
-            distribution(),
-            builder().envVars(Map.of("ingest.geoip.downloader.enabled", "false", "ELASTIC_PASSWORD", PASSWORD))
-        );
+        installation = runContainer(distribution(), builder().envVar("ELASTIC_PASSWORD", PASSWORD));
         tempDir = createTempDir(DockerTests.class.getSimpleName());
     }
 
@@ -111,16 +115,17 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Checks that the Docker image can be run, and that it passes various checks.
      */
-    public void test010Install() {
+    public void test010Install() throws Exception {
         verifyContainerInstallation(installation);
+        verifySecurityAutoConfigured(installation);
     }
 
     /**
      * Check that security is enabled
      */
     public void test011SecurityEnabledStatus() throws Exception {
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
-        final int statusCode = ServerUtils.makeRequestAndGetStatus(Request.Get("http://localhost:9200"), USERNAME, "wrong_password", null);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
+        final int statusCode = makeRequestAsElastic("wrong_password");
         assertThat(statusCode, equalTo(401));
     }
 
@@ -129,7 +134,7 @@ public class DockerTests extends PackagingTestCase {
      */
     public void test012SecurityCanBeDisabled() throws Exception {
         // restart container with security disabled
-        runContainer(distribution(), builder().envVars(Map.of("xpack.security.enabled", "false")));
+        runContainer(distribution(), builder().envVar("xpack.security.enabled", "false"));
         waitForElasticsearch(installation);
         final int unauthStatusCode = ServerUtils.makeRequestAndGetStatus(Request.Get("http://localhost:9200"), null, null, null);
         assertThat(unauthStatusCode, equalTo(200));
@@ -155,7 +160,7 @@ public class DockerTests extends PackagingTestCase {
      */
     public void test021PluginsListWithPlugins() {
         assumeTrue(
-            "Only applies to non-Cloud images",
+            "Only applies to Cloud images",
             distribution.packaging == Packaging.DOCKER_CLOUD || distribution().packaging == Packaging.DOCKER_CLOUD_ESS
         );
 
@@ -214,8 +219,8 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that when the keystore is created on startup, it is created with the correct permissions.
      */
-    public void test042KeystorePermissionsAreCorrect() throws Exception {
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+    public void test042KeystorePermissionsAreCorrect() {
+        waitForElasticsearch(installation, "elastic", PASSWORD);
 
         assertThat(installation.config("elasticsearch.keystore"), file(p660));
     }
@@ -225,11 +230,11 @@ public class DockerTests extends PackagingTestCase {
      * is minimally functional.
      */
     public void test050BasicApiTests() throws Exception {
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
 
         assertTrue(existsInContainer(installation.logs.resolve("gc.log")));
 
-        ServerUtils.runElasticsearchTests(USERNAME, PASSWORD);
+        runElasticsearchTestsAsElastic(PASSWORD);
     }
 
     /**
@@ -237,7 +242,11 @@ public class DockerTests extends PackagingTestCase {
      */
     public void test070BindMountCustomPathConfAndJvmOptions() throws Exception {
         copyFromContainer(installation.config("elasticsearch.yml"), tempDir.resolve("elasticsearch.yml"));
+        copyFromContainer(installation.config("elasticsearch.keystore"), tempDir.resolve("elasticsearch.keystore"));
         copyFromContainer(installation.config("log4j2.properties"), tempDir.resolve("log4j2.properties"));
+        final Path autoConfigurationDir = findInContainer(installation.config, "d", "\"tls_auto_config_initial_node_*\"");
+        final String autoConfigurationDirName = autoConfigurationDir.getFileName().toString();
+        copyFromContainer(autoConfigurationDir, tempDir.resolve(autoConfigurationDirName));
 
         // we have to disable Log4j from using JMX lest it will hit a security
         // manager exception before we have configured logging; this will fail
@@ -249,28 +258,21 @@ public class DockerTests extends PackagingTestCase {
         Files.setPosixFilePermissions(tempDir, fromString("rwxrwxrwx"));
         // These permissions are necessary to run the tests under Vagrant
         Files.setPosixFilePermissions(tempDir.resolve("elasticsearch.yml"), p644);
+        Files.setPosixFilePermissions(tempDir.resolve("elasticsearch.keystore"), p644);
         Files.setPosixFilePermissions(tempDir.resolve("log4j2.properties"), p644);
+        Files.setPosixFilePermissions(tempDir.resolve(autoConfigurationDirName), p750);
 
         // Restart the container
-        final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/usr/share/elasticsearch/config"));
         runContainer(
             distribution(),
-            builder().volumes(volumes)
-                .envVars(
-                    Map.of(
-                        "ES_JAVA_OPTS",
-                        "-XX:-UseCompressedOops",
-                        "ingest.geoip.downloader.enabled",
-                        "false",
-                        "ELASTIC_PASSWORD",
-                        PASSWORD
-                    )
-                )
+            builder().volume(tempDir, "/usr/share/elasticsearch/config")
+                .envVar("ES_JAVA_OPTS", "-XX:-UseCompressedOops")
+                .envVar("ELASTIC_PASSWORD", PASSWORD)
         );
 
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
 
-        final JsonNode nodes = getJson("/_nodes", USERNAME, PASSWORD).get("nodes");
+        final JsonNode nodes = getJson("/_nodes", "elastic", PASSWORD, ServerUtils.getCaCert(installation)).get("nodes");
         final String nodeId = nodes.fieldNames().next();
 
         final int heapSize = nodes.at("/" + nodeId + "/jvm/mem/heap_init_in_bytes").intValue();
@@ -292,16 +294,13 @@ public class DockerTests extends PackagingTestCase {
             mkDirWithPrivilegeEscalation(tempEsDataDir, 1500, 0);
 
             // Restart the container
-            final Map<Path, Path> volumes = Map.of(tempEsDataDir.toAbsolutePath(), installation.data);
-
             runContainer(
                 distribution(),
-                builder().volumes(volumes).envVars(Map.of("ingest.geoip.downloader.enabled", "false", "ELASTIC_PASSWORD", PASSWORD))
+                builder().volume(tempEsDataDir.toAbsolutePath(), installation.data).envVar("ELASTIC_PASSWORD", PASSWORD)
             );
+            waitForElasticsearch(installation, "elastic", PASSWORD);
 
-            waitForElasticsearch(installation, USERNAME, PASSWORD);
-
-            final JsonNode nodes = getJson("/_nodes", USERNAME, PASSWORD);
+            final JsonNode nodes = getJson("/_nodes", "elastic", PASSWORD, ServerUtils.getCaCert(installation));
 
             assertThat(nodes.at("/_nodes/total").intValue(), equalTo(1));
             assertThat(nodes.at("/_nodes/successful").intValue(), equalTo(1));
@@ -335,43 +334,41 @@ public class DockerTests extends PackagingTestCase {
 
         copyFromContainer(installation.config("elasticsearch.yml"), tempEsConfigDir);
         copyFromContainer(installation.config("jvm.options"), tempEsConfigDir);
+        copyFromContainer(installation.config("elasticsearch.keystore"), tempEsConfigDir);
         copyFromContainer(installation.config("log4j2.properties"), tempEsConfigDir);
+        final Path autoConfigurationDir = findInContainer(installation.config, "d", "\"tls_auto_config_initial_node_*\"");
+        final String autoConfigurationDirName = autoConfigurationDir.getFileName().toString();
+        copyFromContainer(autoConfigurationDir, tempEsConfigDir.resolve(autoConfigurationDirName));
 
         chownWithPrivilegeEscalation(tempEsConfigDir, "501:501");
         chownWithPrivilegeEscalation(tempEsDataDir, "501:501");
         chownWithPrivilegeEscalation(tempEsLogsDir, "501:501");
 
-        // Define the bind mounts
-        final Map<Path, Path> volumes = new HashMap<>();
-        volumes.put(tempEsDataDir.toAbsolutePath(), installation.data);
-        volumes.put(tempEsConfigDir.toAbsolutePath(), installation.config);
-        volumes.put(tempEsLogsDir.toAbsolutePath(), installation.logs);
-
         // Restart the container
         runContainer(
             distribution(),
-            builder().volumes(volumes)
-                .envVars(Map.of("ingest.geoip.downloader.enabled", "false", "ELASTIC_PASSWORD", PASSWORD))
+            builder().envVar("ELASTIC_PASSWORD", PASSWORD)
                 .uid(501, 501)
+                .volume(tempEsDataDir.toAbsolutePath(), installation.data)
+                .volume(tempEsConfigDir.toAbsolutePath(), installation.config)
+                .volume(tempEsLogsDir.toAbsolutePath(), installation.logs)
         );
 
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
+        rmDirWithPrivilegeEscalation(tempEsConfigDir);
+        rmDirWithPrivilegeEscalation(tempEsDataDir);
+        rmDirWithPrivilegeEscalation(tempEsLogsDir);
     }
 
     /**
      * Check that it is possible to run Elasticsearch under a different user and group to the default,
      * without bind-mounting any directories, provided the container user is added to the `root` group.
      */
-    public void test073RunEsAsDifferentUserAndGroupWithoutBindMounting() throws Exception {
+    public void test073RunEsAsDifferentUserAndGroupWithoutBindMounting() {
         // Restart the container
-        runContainer(
-            distribution(),
-            builder().envVars(Map.of("ingest.geoip.downloader.enabled", "false", "ELASTIC_PASSWORD", PASSWORD))
-                .uid(501, 501)
-                .extraArgs("--group-add 0")
-        );
+        runContainer(distribution(), builder().extraArgs("--group-add 0").uid(501, 501).envVar("ELASTIC_PASSWORD", PASSWORD));
 
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
     }
 
     /**
@@ -384,22 +381,21 @@ public class DockerTests extends PackagingTestCase {
         // ELASTIC_PASSWORD_FILE
         Files.writeString(tempDir.resolve(passwordFilename), xpackPassword + "\n");
 
-        Map<String, String> envVars = Map.of("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
-
         // File permissions need to be secured in order for the ES wrapper to accept
         // them for populating env var values
         Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p600);
         // But when running in Vagrant, also ensure ES can actually access the file
         chownWithPrivilegeEscalation(tempDir.resolve(passwordFilename), "1000:0");
 
-        final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
-
         // Restart the container
-        runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
+        runContainer(
+            distribution(),
+            builder().volume(tempDir, "/run/secrets").envVar("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename)
+        );
 
         // If we configured security correctly, then this call will only work if we specify the correct credentials.
         try {
-            waitForElasticsearch("green", null, installation, "elastic", "hunter2");
+            waitForElasticsearch(installation, "elastic", "hunter2");
         } catch (Exception e) {
             throw new AssertionError(
                 "Failed to check whether Elasticsearch had started. This could be because "
@@ -409,7 +405,12 @@ public class DockerTests extends PackagingTestCase {
         }
 
         // Also check that an unauthenticated call fails
-        final int statusCode = Request.Get("http://localhost:9200/_nodes").execute().returnResponse().getStatusLine().getStatusCode();
+        final int statusCode = ServerUtils.makeRequestAndGetStatus(
+            Request.Get("https://localhost:9200"),
+            null,
+            null,
+            ServerUtils.getCaCert(installation)
+        );
         assertThat("Expected server to require authentication", statusCode, equalTo(401));
     }
 
@@ -432,18 +433,17 @@ public class DockerTests extends PackagingTestCase {
         // it won't resolve inside the container.
         Files.createSymbolicLink(tempDir.resolve(symlinkFilename), Path.of(passwordFilename));
 
-        Map<String, String> envVars = Map.of("ELASTIC_PASSWORD_FILE", "/run/secrets/" + symlinkFilename);
-
         // File permissions need to be secured in order for the ES wrapper to accept
         // them for populating env var values. The wrapper will resolve the symlink
         // and check the target's permissions.
         Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p600);
 
-        final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
-
         // Restart the container - this will check that Elasticsearch started correctly,
         // and didn't fail to follow the symlink and check the file permissions
-        runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
+        runContainer(
+            distribution(),
+            builder().volume(tempDir, "/run/secrets").envVar("ELASTIC_PASSWORD_FILE", "/run/secrets/" + symlinkFilename)
+        );
     }
 
     /**
@@ -454,17 +454,16 @@ public class DockerTests extends PackagingTestCase {
 
         Files.writeString(tempDir.resolve(passwordFilename), "other_hunter2\n");
 
-        Map<String, String> envVars = new HashMap<>();
-        envVars.put("ELASTIC_PASSWORD", "hunter2");
-        envVars.put("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
-
         // File permissions need to be secured in order for the ES wrapper to accept
         // them for populating env var values
         Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p600);
 
-        final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
-
-        final Result dockerLogs = runContainerExpectingFailure(distribution, builder().volumes(volumes).envVars(envVars));
+        final Result dockerLogs = runContainerExpectingFailure(
+            distribution,
+            builder().volume(tempDir, "/run/secrets")
+                .envVar("ELASTIC_PASSWORD", "hunter2")
+                .envVar("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename)
+        );
 
         assertThat(
             dockerLogs.stderr,
@@ -481,15 +480,14 @@ public class DockerTests extends PackagingTestCase {
 
         Files.writeString(tempDir.resolve(passwordFilename), "hunter2\n");
 
-        Map<String, String> envVars = Map.of("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
-
         // Set invalid file permissions
         Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p660);
 
-        final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
-
         // Restart the container
-        final Result dockerLogs = runContainerExpectingFailure(distribution(), builder().volumes(volumes).envVars(envVars));
+        final Result dockerLogs = runContainerExpectingFailure(
+            distribution(),
+            builder().volume(tempDir, "/run/secrets").envVar("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename)
+        );
 
         assertThat(
             dockerLogs.stderr,
@@ -518,15 +516,14 @@ public class DockerTests extends PackagingTestCase {
         // it won't resolve inside the container.
         Files.createSymbolicLink(tempDir.resolve(symlinkFilename), Path.of(passwordFilename));
 
-        Map<String, String> envVars = Map.of("ELASTIC_PASSWORD_FILE", "/run/secrets/" + symlinkFilename);
-
         // Set invalid permissions on the file that the symlink targets
         Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p775);
 
-        final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
-
         // Restart the container
-        final Result dockerLogs = runContainerExpectingFailure(distribution(), builder().volumes(volumes).envVars(envVars));
+        final Result dockerLogs = runContainerExpectingFailure(
+            distribution(),
+            builder().volume(tempDir, "/run/secrets").envVar("ELASTIC_PASSWORD_FILE", "/run/secrets/" + symlinkFilename)
+        );
 
         assertThat(
             dockerLogs.stderr,
@@ -545,10 +542,10 @@ public class DockerTests extends PackagingTestCase {
      * `docker exec`, where the Docker image's entrypoint is not executed.
      */
     public void test085EnvironmentVariablesAreRespectedUnderDockerExec() throws Exception {
-        installation = runContainer(distribution(), builder().envVars(Map.of("ELASTIC_PASSWORD", "hunter2")));
+        installation = runContainer(distribution(), builder().envVar("ELASTIC_PASSWORD", "hunter2"));
 
         // The tool below requires a keystore, so ensure that ES is fully initialised before proceeding.
-        waitForElasticsearch("green", null, installation, "elastic", "hunter2");
+        waitForElasticsearch(installation, "elastic", "hunter2");
 
         sh.getEnv().put("http.host", "this.is.not.valid");
 
@@ -570,7 +567,7 @@ public class DockerTests extends PackagingTestCase {
      */
     public void test086EnvironmentVariablesInSnakeCaseAreTranslated() {
         // Note the double-underscore in the var name here, which retains the underscore in translation
-        installation = runContainer(distribution(), builder().envVars(Map.of("ES_SETTING_XPACK_SECURITY_FIPS__MODE_ENABLED", "false")));
+        installation = runContainer(distribution(), builder().envVar("ES_SETTING_XPACK_SECURITY_FIPS__MODE_ENABLED", "false"));
 
         final Optional<String> commandLine = sh.run("bash -c 'COLUMNS=2000 ps ax'").stdout.lines()
             .filter(line -> line.contains("org.elasticsearch.bootstrap.Elasticsearch"))
@@ -585,16 +582,18 @@ public class DockerTests extends PackagingTestCase {
      * Check that environment variables that do not match the criteria for translation to settings are ignored.
      */
     public void test087EnvironmentVariablesInIncorrectFormatAreIgnored() {
-        final Map<String, String> envVars = new HashMap<>();
-        // No ES_SETTING_ prefix
-        envVars.put("XPACK_SECURITY_FIPS__MODE_ENABLED", "false");
-        // Incomplete prefix
-        envVars.put("ES_XPACK_SECURITY_FIPS__MODE_ENABLED", "false");
-        // Not underscore-separated
-        envVars.put("ES.XPACK.SECURITY.FIPS_MODE.ENABLED", "false");
-        // Not uppercase
-        envVars.put("es_xpack_security_fips__mode_enabled", "false");
-        installation = runContainer(distribution(), builder().envVars(envVars));
+        installation = runContainer(
+            distribution(),
+            builder()
+                // No ES_SETTING_ prefix
+                .envVar("XPACK_SECURITY_FIPS__MODE_ENABLED", "false")
+                // Incomplete prefix
+                .envVar("ES_XPACK_SECURITY_FIPS__MODE_ENABLED", "false")
+                // Not underscore-separated
+                .envVar("ES.SETTING.XPACK.SECURITY.FIPS_MODE.ENABLED", "false")
+                // Not uppercase
+                .envVar("es_setting_xpack_security_fips__mode_enabled", "false")
+        );
 
         final Optional<String> commandLine = sh.run("bash -c 'COLUMNS=2000 ps ax'").stdout.lines()
             .filter(line -> line.contains("org.elasticsearch.bootstrap.Elasticsearch"))
@@ -603,6 +602,32 @@ public class DockerTests extends PackagingTestCase {
         assertThat(commandLine.isPresent(), equalTo(true));
 
         assertThat(commandLine.get(), not(containsString("-Expack.security.fips_mode.enabled=false")));
+    }
+
+    /**
+     * Check that settings are applied when they are supplied as environment variables with names that:
+     * <ul>
+     *     <li>Consist only of lowercase letters, numbers, underscores and hyphens</li>
+     *     <li>Separated by periods</li>
+     * </ul>
+     */
+    public void test088EnvironmentVariablesInDottedFormatArePassedThrough() {
+        // Note the double-underscore in the var name here, which retains the underscore in translation
+        installation = runContainer(
+            distribution(),
+            builder().envVar("xpack.security.fips_mode.enabled", "false").envVar("http.cors.allow-methods", "GET")
+        );
+
+        final Optional<String> commandLine = sh.run("bash -c 'COLUMNS=2000 ps ax'").stdout.lines()
+            .filter(line -> line.contains("org.elasticsearch.bootstrap.Elasticsearch"))
+            .findFirst();
+
+        assertThat(commandLine.isPresent(), equalTo(true));
+
+        assertThat(
+            commandLine.get(),
+            allOf(containsString("-Expack.security.fips_mode.enabled=false"), containsString("-Ehttp.cors.allow-methods=GET"))
+        );
     }
 
     /**
@@ -746,8 +771,8 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that the container logs contain the expected content for Elasticsearch itself.
      */
-    public void test120DockerLogsIncludeElasticsearchLogs() throws Exception {
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+    public void test120DockerLogsIncludeElasticsearchLogs() {
+        waitForElasticsearch(installation, "elastic", PASSWORD);
         final Result containerLogs = getContainerLogs();
 
         assertThat("Container logs should contain full class names", containerLogs.stdout, containsString("org.elasticsearch.node.Node"));
@@ -757,40 +782,30 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that it is possible to write logs to disk
      */
-    public void test121CanUseStackLoggingConfig() throws Exception {
-        runContainer(
-            distribution(),
-            builder().envVars(Map.of("ES_LOG_STYLE", "file", "ingest.geoip.downloader.enabled", "false", "ELASTIC_PASSWORD", PASSWORD))
-        );
+    public void test121CanUseStackLoggingConfig() {
+        runContainer(distribution(), builder().envVar("ES_LOG_STYLE", "file").envVar("ELASTIC_PASSWORD", PASSWORD));
 
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
 
         final Result containerLogs = getContainerLogs();
         final List<String> stdout = containerLogs.stdout.lines().collect(Collectors.toList());
-
-        assertThat(
-            "Container logs should be formatted using the stack config",
-            stdout.get(stdout.size() - 1),
-            matchesPattern("^\\[\\d\\d\\d\\d-.*")
-        );
+        // We select to look for a line near the beginning so that we don't stumble upon the stdout printing of auto-configured credentials
+        assertThat("Container logs should be formatted using the stack config", stdout.get(10), matchesPattern("^\\[\\d\\d\\d\\d-.*"));
         assertThat("[logs/docker-cluster.log] should exist but it doesn't", existsInContainer("logs/docker-cluster.log"), is(true));
     }
 
     /**
      * Check that the default logging config can be explicitly selected.
      */
-    public void test122CanUseDockerLoggingConfig() throws Exception {
-        runContainer(
-            distribution(),
-            builder().envVars(Map.of("ES_LOG_STYLE", "console", "ingest.geoip.downloader.enabled", "false", "ELASTIC_PASSWORD", PASSWORD))
-        );
+    public void test122CanUseDockerLoggingConfig() {
+        runContainer(distribution(), builder().envVar("ES_LOG_STYLE", "console").envVar("ELASTIC_PASSWORD", PASSWORD));
 
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
 
         final Result containerLogs = getContainerLogs();
         final List<String> stdout = containerLogs.stdout.lines().collect(Collectors.toList());
-
-        assertThat("Container logs should be formatted using the docker config", stdout.get(stdout.size() - 1), startsWith("{\""));
+        // We select to look for a line near the beginning so that we don't stumble upon the stdout printing of auto-configured credentials
+        assertThat("Container logs should be formatted using the docker config", stdout.get(10), startsWith("{\""));
         assertThat("[logs/docker-cluster.log] shouldn't exist but it does", existsInContainer("logs/docker-cluster.log"), is(false));
     }
 
@@ -798,7 +813,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that an unknown logging config is rejected
      */
     public void test123CannotUseUnknownLoggingConfig() {
-        final Result result = runContainerExpectingFailure(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "unknown")));
+        final Result result = runContainerExpectingFailure(distribution(), builder().envVar("ES_LOG_STYLE", "unknown"));
 
         assertThat(result.stderr, containsString("ERROR: ES_LOG_STYLE set to [unknown]. Expected [console] or [file]"));
     }
@@ -806,15 +821,15 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that it when configuring logging to write to disk, the container can be restarted.
      */
-    public void test124CanRestartContainerWithStackLoggingConfig() throws Exception {
-        runContainer(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "file", "ELASTIC_PASSWORD", PASSWORD)));
+    public void test124CanRestartContainerWithStackLoggingConfig() {
+        runContainer(distribution(), builder().envVar("ES_LOG_STYLE", "file").envVar("ELASTIC_PASSWORD", PASSWORD));
 
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
 
         restartContainer();
 
         // If something went wrong running Elasticsearch the second time, this will fail.
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
     }
 
     /**
@@ -850,9 +865,9 @@ public class DockerTests extends PackagingTestCase {
      * Check that Elasticsearch reports per-node cgroup information.
      */
     public void test140CgroupOsStatsAreAvailable() throws Exception {
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
 
-        final JsonNode nodes = getJson("/_nodes/stats/os", USERNAME, PASSWORD).get("nodes");
+        final JsonNode nodes = getJson("/_nodes/stats/os", "elastic", PASSWORD, ServerUtils.getCaCert(installation)).get("nodes");
 
         final String nodeId = nodes.fieldNames().next();
 
@@ -868,26 +883,48 @@ public class DockerTests extends PackagingTestCase {
      * logic sets the correct heap size, based on the container limits.
      */
     public void test150MachineDependentHeap() throws Exception {
+        final List<String> xArgs = machineDependentHeapTest("942m", List.of());
+
+        // This is roughly 0.4 * 942
+        assertThat(xArgs, hasItems("-Xms376m", "-Xmx376m"));
+    }
+
+    /**
+     * Check that when available system memory is constrained by a total memory override as well as Docker,
+     * the machine-dependant heap sizing logic sets the correct heap size, preferring the override to the
+     * container limits.
+     */
+    public void test151MachineDependentHeapWithSizeOverride() throws Exception {
+        final List<String> xArgs = machineDependentHeapTest(
+            "942m",
+            // 799014912 = 762m
+            List.of("-Des.total_memory_bytes=799014912")
+        );
+
+        // This is roughly 0.4 * 762, in particular it's NOT 0.4 * 942
+        assertThat(xArgs, hasItems("-Xms304m", "-Xmx304m"));
+    }
+
+    private List<String> machineDependentHeapTest(final String containerMemory, final List<String> extraJvmOptions) throws Exception {
         // Start by ensuring `jvm.options` doesn't define any heap options
         final Path jvmOptionsPath = tempDir.resolve("jvm.options");
         final Path containerJvmOptionsPath = installation.config("jvm.options");
         copyFromContainer(containerJvmOptionsPath, jvmOptionsPath);
 
-        final List<String> jvmOptions = Files.readAllLines(jvmOptionsPath)
-            .stream()
-            .filter(line -> (line.startsWith("-Xms") || line.startsWith("-Xmx")) == false)
-            .collect(Collectors.toList());
+        final List<String> jvmOptions = Stream.concat(
+            Files.readAllLines(jvmOptionsPath).stream().filter(line -> (line.startsWith("-Xms") || line.startsWith("-Xmx")) == false),
+            extraJvmOptions.stream()
+        ).collect(Collectors.toList());
 
         Files.writeString(jvmOptionsPath, String.join("\n", jvmOptions));
 
         // Now run the container, being explicit about the available memory
         runContainer(
             distribution(),
-            builder().memory("942m")
-                .volumes(Map.of(jvmOptionsPath, containerJvmOptionsPath))
-                .envVars(Map.of("ingest.geoip.downloader.enabled", "false", "ELASTIC_PASSWORD", PASSWORD))
+            builder().memory(containerMemory).volume(jvmOptionsPath, containerJvmOptionsPath).envVar("ELASTIC_PASSWORD", PASSWORD)
         );
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+
+        waitForElasticsearch(installation, "elastic", PASSWORD);
 
         // Grab the container output and find the line where it print the JVM arguments. This will
         // let us see what the automatic heap sizing calculated.
@@ -899,12 +936,9 @@ public class DockerTests extends PackagingTestCase {
         final JsonNode jsonNode = new ObjectMapper().readTree(jvmArgumentsLine.get());
 
         final String argsStr = jsonNode.get("message").textValue();
-        final List<String> xArgs = Arrays.stream(argsStr.substring(1, argsStr.length() - 1).split(",\\s*"))
+        return Arrays.stream(argsStr.substring(1, argsStr.length() - 1).split(",\\s*"))
             .filter(arg -> arg.startsWith("-X"))
             .collect(Collectors.toList());
-
-        // This is roughly 0.4 * 942
-        assertThat(xArgs, hasItems("-Xms376m", "-Xmx376m"));
     }
 
     /**

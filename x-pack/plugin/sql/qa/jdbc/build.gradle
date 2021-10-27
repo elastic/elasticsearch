@@ -71,10 +71,9 @@ subprojects {
     }
 
     // Configure compatibility testing tasks
-    for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
+    BuildParams.bwcVersions.withIndexCompatiple { bwcVersion, baseName ->
       // Compatibility testing for JDBC driver started with version 7.9.0
       if (bwcVersion.onOrAfter(Version.fromString("7.9.0")) && (bwcVersion.equals(VersionProperties.elasticsearchVersion) == false)) {
-        String baseName = "v${bwcVersion}"
         UnreleasedVersionInfo unreleasedVersion = BuildParams.bwcVersions.unreleasedInfo(bwcVersion)
         Configuration driverConfiguration = configurations.create("jdbcDriver${baseName}") {
           // TODO: Temporary workaround for https://github.com/elastic/elasticsearch/issues/73433

@@ -11,8 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -55,7 +55,7 @@ public final class RestDelegatePkiAuthenticationAction extends SecurityBaseRestH
         Exception failedFeature = super.checkFeatureAvailable(request);
         if (failedFeature != null) {
             return failedFeature;
-        } else if (Security.STANDARD_REALMS_FEATURE.checkWithoutTracking(licenseState)) {
+        } else if (Security.PKI_REALM_FEATURE.checkWithoutTracking(licenseState)) {
             return null;
         } else {
             logger.info("The '{}' realm is not available under the current license", PkiRealmSettings.TYPE);

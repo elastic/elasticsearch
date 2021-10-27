@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.concurrent.CancellationException;
 
 import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;

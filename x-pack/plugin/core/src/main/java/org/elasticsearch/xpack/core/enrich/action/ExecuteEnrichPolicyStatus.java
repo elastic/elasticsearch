@@ -11,7 +11,7 @@ import java.io.IOException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
 
 public class ExecuteEnrichPolicyStatus implements Task.Status {

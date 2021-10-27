@@ -46,7 +46,7 @@ import java.util.concurrent.CountDownLatch;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -223,7 +223,7 @@ public class CancellationTests extends ESTestCase {
     }
 
     private static IndexResolver indexResolver(Client client) {
-        return new IndexResolver(client, randomAlphaOfLength(10), DefaultDataTypeRegistry.INSTANCE);
+        return new IndexResolver(client, randomAlphaOfLength(10), DefaultDataTypeRegistry.INSTANCE, Collections::emptySet);
     }
 
     private static SqlQueryTask randomTask() {

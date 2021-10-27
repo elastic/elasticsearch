@@ -88,7 +88,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
-import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING;
@@ -696,7 +696,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     public ByteRange getBlobCacheByteRange(String fileName, long fileLength) {
-        return blobStoreCacheService.computeBlobCacheByteRange(fileName, fileLength, blobStoreCacheMaxLength);
+        return blobStoreCacheService.computeBlobCacheByteRange(shardId, fileName, fileLength, blobStoreCacheMaxLength);
     }
 
     public CachedBlob getCachedBlob(String name, ByteRange range) {
@@ -704,7 +704,17 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     public void putCachedBlob(String name, ByteRange range, BytesReference content, ActionListener<Void> listener) {
-        blobStoreCacheService.putAsync(repository, snapshotId, indexId, shardId, name, range, content, listener);
+        blobStoreCacheService.putAsync(
+            repository,
+            snapshotId,
+            indexId,
+            shardId,
+            name,
+            range,
+            content,
+            threadPool.absoluteTimeInMillis(),
+            listener
+        );
     }
 
     public FrozenCacheFile getFrozenCacheFile(String fileName, long length) {

@@ -76,7 +76,7 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
         final DiscoveryNodes discoveryNodes = client().admin().cluster().prepareState().clear().setNodes(true).get().getState().nodes();
-        final String dataNode = randomFrom(discoveryNodes.getDataNodes().values().toArray(DiscoveryNode.class)).getName();
+        final String dataNode = randomFrom(discoveryNodes.getDataNodes().values()).getName();
 
         mountSnapshot(
             fsRepoName,

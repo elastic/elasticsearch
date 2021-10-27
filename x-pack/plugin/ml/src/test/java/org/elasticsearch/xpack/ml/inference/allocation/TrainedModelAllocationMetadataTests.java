@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.ml.inference.allocation;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
@@ -95,7 +95,13 @@ public class TrainedModelAllocationMetadataTests extends AbstractSerializingTest
     }
 
     private static StartTrainedModelDeploymentAction.TaskParams randomParams(String modelId) {
-        return new StartTrainedModelDeploymentAction.TaskParams(modelId, randomNonNegativeLong());
+        return new StartTrainedModelDeploymentAction.TaskParams(
+            modelId,
+            randomNonNegativeLong(),
+            randomIntBetween(1, 8),
+            randomIntBetween(1, 8),
+            randomIntBetween(1, 10000)
+        );
     }
 
 }

@@ -24,14 +24,15 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.GatewayMetaState;
+import org.elasticsearch.gateway.MetaStateWriterUtils;
 import org.elasticsearch.gateway.LocalAllocateDangledIndices;
-import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
@@ -62,7 +63,6 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.hamcrest.RegexMatcher;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -326,7 +326,6 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         final Index index = new Index("test", UUIDs.randomBase64UUID());
         final IndicesService indicesService = getIndicesService();
         final NodeEnvironment nodeEnv = getNodeEnvironment();
-        final MetaStateService metaStateService = getInstanceFromNode(MetaStateService.class);
 
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         final Settings idxSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -337,7 +336,8 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
                                                              .numberOfShards(1)
                                                              .numberOfReplicas(0)
                                                              .build();
-        metaStateService.writeIndex("test index being created", indexMetadata);
+
+        MetaStateWriterUtils.writeIndex(nodeEnv, "test index being created", indexMetadata);
         final Metadata metadata = Metadata.builder(clusterService.state().metadata()).put(indexMetadata, true).build();
         final ClusterState csWithIndex = new ClusterState.Builder(clusterService.state()).metadata(metadata).build();
         try {
@@ -351,7 +351,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
                                                           .metadata(Metadata.builder(csWithIndex.metadata()).remove(index.getName()))
                                                           .build();
         indicesService.verifyIndexIsDeleted(index, withoutIndex);
-        assertFalse("index files should be deleted", Files.exists(nodeEnv.indexPath(index)));
+        assertFalse("index files should be deleted", FileSystemUtils.exists(nodeEnv.indexPaths(index)));
     }
 
     public void testDanglingIndicesWithAliasConflict() throws Exception {

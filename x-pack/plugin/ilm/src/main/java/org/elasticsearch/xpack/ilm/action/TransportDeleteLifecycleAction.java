@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ilm.action;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -17,7 +16,6 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -32,10 +30,8 @@ import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction.Request;
 
 import java.util.List;
 import java.util.SortedMap;
-import java.util.Spliterator;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_NAME_SETTING;
 
@@ -54,12 +50,10 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
                 new AckedClusterStateUpdateTask(request, listener) {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
-                        Spliterator<ObjectCursor<IndexMetadata>> indicesIt = currentState.metadata().indices().values().spliterator();
                         String policyToDelete = request.getPolicyName();
-                        List<String> indicesUsingPolicy = StreamSupport.stream(indicesIt, false)
-                            .map(idxMeta -> idxMeta.value)
-                            .filter((idxMeta) -> LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings()).equals(policyToDelete))
-                            .map((idxMeta) -> idxMeta.getIndex().getName())
+                        List<String> indicesUsingPolicy = currentState.metadata().indices().values().stream()
+                            .filter(idxMeta -> LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings()).equals(policyToDelete))
+                            .map(idxMeta -> idxMeta.getIndex().getName())
                             .collect(Collectors.toList());
                         if (indicesUsingPolicy.isEmpty() == false) {
                             throw new IllegalArgumentException("Cannot delete policy [" + request.getPolicyName()

@@ -7,20 +7,17 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -36,64 +33,6 @@ import java.util.stream.Collectors;
  */
 public class XPackLicenseState {
 
-    /**
-     * A licensed feature.
-     *
-     * Each value defines the licensed state necessary for the feature to be allowed.
-     */
-    public enum Feature {
-        SECURITY_AUDITING(OperationMode.GOLD, false),
-        SECURITY_DLS_FLS(OperationMode.PLATINUM, false),
-        SECURITY_CUSTOM_ROLE_PROVIDERS(OperationMode.PLATINUM, true),
-        SECURITY_TOKEN_SERVICE(OperationMode.STANDARD, false),
-        SECURITY_AUTHORIZATION_REALM(OperationMode.PLATINUM, true),
-        SECURITY_AUTHORIZATION_ENGINE(OperationMode.PLATINUM, true),
-
-        WATCHER(OperationMode.STANDARD, true),
-        // TODO: should just check WATCHER directly?
-        MONITORING_CLUSTER_ALERTS(OperationMode.STANDARD, true),
-        MONITORING_UPDATE_RETENTION(OperationMode.STANDARD, false),
-
-        ENCRYPTED_SNAPSHOT(OperationMode.PLATINUM, true),
-
-        CCR(OperationMode.PLATINUM, true),
-
-        GRAPH(OperationMode.PLATINUM, true),
-
-        MACHINE_LEARNING(OperationMode.PLATINUM, true),
-
-        LOGSTASH(OperationMode.STANDARD, true),
-
-        JDBC(OperationMode.PLATINUM, true),
-
-        ODBC(OperationMode.PLATINUM, true),
-
-        SPATIAL_GEO_CENTROID(OperationMode.GOLD, true),
-
-        SPATIAL_GEO_GRID(OperationMode.GOLD, true),
-
-        SPATIAL_GEO_LINE(OperationMode.GOLD, true),
-
-        OPERATOR_PRIVILEGES(OperationMode.ENTERPRISE, true),
-
-        AUTOSCALING(OperationMode.ENTERPRISE, true);
-
-        // NOTE: this is temporary. The Feature enum will go away in favor of LicensedFeature.
-        // Embedding the feature instance here is a stopgap to allow smaller initial PR,
-        // followed by PRs to convert the current consumers of the license state.
-        final LicensedFeature.Momentary feature;
-
-        Feature(OperationMode minimumOperationMode, boolean needsActive) {
-            assert minimumOperationMode.compareTo(OperationMode.BASIC) > 0: minimumOperationMode.toString();
-            String name = name().toLowerCase(Locale.ROOT);
-            if (needsActive) {
-                this.feature = LicensedFeature.momentary(name, name, minimumOperationMode);
-            } else {
-                this.feature = LicensedFeature.momentaryLenient(name, name, minimumOperationMode);
-            }
-        }
-    }
-
     /** Messages for each feature which are printed when the license expires. */
     static final Map<String, String[]> EXPIRATION_MESSAGES;
     static {
@@ -108,8 +47,7 @@ public class XPackLicenseState {
             "The actions of the watches don't execute"
         });
         messages.put(XPackField.MONITORING, new String[] {
-            "The agent will stop collecting cluster and indices metrics",
-            "The agent will stop automatically cleaning indices older than [xpack.monitoring.history.duration]"
+            "The agent will stop collecting cluster and indices metrics"
         });
         messages.put(XPackField.GRAPH, new String[] {
             "Graph explore APIs are disabled"
@@ -258,10 +196,7 @@ public class XPackLicenseState {
                                     "running multiple clusters, users won't be able to access the clusters with\n" +
                                     "[{}] licenses from within a single X-Pack Kibana instance. You will have to deploy a\n" +
                                     "separate and dedicated X-pack Kibana instance for each [{}] cluster you wish to monitor.",
-                                newMode, newMode, newMode),
-                            LoggerMessageFormat.format(
-                                "Automatic index cleanup is locked to {} days for clusters with [{}] license.",
-                                MonitoringField.HISTORY_DURATION.getDefault(Settings.EMPTY).days(), newMode)
+                                newMode, newMode, newMode)
                         };
                 }
                 break;
@@ -462,9 +397,8 @@ public class XPackLicenseState {
         return checkAgainstStatus(status -> status.active);
     }
 
-    @Deprecated
-    public boolean checkFeature(Feature feature) {
-        return feature.feature.check(this);
+    public String statusDescription() {
+        return executeAgainstStatus(status -> (status.active ? "active" : "expired") + ' ' + status.mode.description() + " license");
     }
 
     void featureUsed(LicensedFeature feature) {
@@ -494,16 +428,6 @@ public class XPackLicenseState {
         });
     }
 
-    /**
-     * Checks whether the given feature is allowed by the current license.
-     * <p>
-     * This method should only be used when serializing whether a feature is allowed for telemetry.
-     */
-    @Deprecated
-    public boolean isAllowed(Feature feature) {
-        return isAllowed(feature.feature);
-    }
-
     // Package protected: Only allowed to be called by LicensedFeature
     boolean isAllowed(LicensedFeature feature) {
         return isAllowedByLicense(feature.getMinimumOperationMode(), feature.isNeedsActive());
@@ -512,7 +436,7 @@ public class XPackLicenseState {
     void checkExpiry() {
         String warning = status.expiryWarning;
         if (warning != null) {
-            HeaderWarning.addWarning(warning);
+            HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning);
         }
     }
 
@@ -533,25 +457,6 @@ public class XPackLicenseState {
 
     public static boolean isFipsAllowedForOperationMode(final OperationMode operationMode) {
         return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM);
-    }
-
-    public static boolean isTransportTlsRequired(License license, Settings settings) {
-        if (license == null) {
-            return false;
-        }
-        switch (license.operationMode()) {
-            case STANDARD:
-            case GOLD:
-            case PLATINUM:
-            case ENTERPRISE:
-            case BASIC:
-                return XPackSettings.SECURITY_ENABLED.get(settings);
-            case MISSING:
-            case TRIAL:
-                return false;
-            default:
-                throw new AssertionError("unknown operation mode [" + license.operationMode() + "]");
-        }
     }
 
     public static boolean isCcrAllowedForOperationMode(final OperationMode operationMode) {

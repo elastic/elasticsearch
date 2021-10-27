@@ -28,7 +28,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.EmptySystemIndices;
@@ -119,14 +119,24 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
                 @Override
                 void executeBulk(
-                        Task task,
-                        BulkRequest bulkRequest,
-                        long startTimeNanos,
-                        ActionListener<BulkResponse> listener,
-                        AtomicArray<BulkItemResponse> responses,
-                        Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {
+                    Task task,
+                    BulkRequest bulkRequest,
+                    long startTimeNanos,
+                    ActionListener<BulkResponse> listener,
+                    String executorName,
+                    AtomicArray<BulkItemResponse> responses,
+                    Map<String, IndexNotFoundException> indicesThatCannotBeCreated
+                ) {
                     expected.set(1000000);
-                    super.executeBulk(task, bulkRequest, startTimeNanos, listener, responses, indicesThatCannotBeCreated);
+                    super.executeBulk(
+                        task,
+                        bulkRequest,
+                        startTimeNanos,
+                        listener,
+                        executorName,
+                        responses,
+                        indicesThatCannotBeCreated
+                    );
                 }
             };
         } else {
@@ -141,15 +151,25 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
                 @Override
                 void executeBulk(
-                        Task task,
-                        BulkRequest bulkRequest,
-                        long startTimeNanos,
-                        ActionListener<BulkResponse> listener,
-                        AtomicArray<BulkItemResponse> responses,
-                        Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {
+                    Task task,
+                    BulkRequest bulkRequest,
+                    long startTimeNanos,
+                    ActionListener<BulkResponse> listener,
+                    String executorName,
+                    AtomicArray<BulkItemResponse> responses,
+                    Map<String, IndexNotFoundException> indicesThatCannotBeCreated
+                ) {
                     long elapsed = spinForAtLeastOneMillisecond();
                     expected.set(elapsed);
-                    super.executeBulk(task, bulkRequest, startTimeNanos, listener, responses, indicesThatCannotBeCreated);
+                    super.executeBulk(
+                        task,
+                        bulkRequest,
+                        startTimeNanos,
+                        listener,
+                        executorName,
+                        responses,
+                        indicesThatCannotBeCreated
+                    );
                 }
             };
         }

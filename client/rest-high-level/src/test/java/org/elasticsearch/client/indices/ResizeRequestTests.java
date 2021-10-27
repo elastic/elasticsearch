@@ -11,7 +11,7 @@ package org.elasticsearch.client.indices;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.client.AbstractRequestTestCase;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;

@@ -32,7 +32,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.User.Fields;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -276,10 +277,18 @@ public class NativeUsersStore {
     }
 
     /**
+     * Asynchronous method to create the elastic superuser with the given password hash. The cache for the user will be
+     * cleared after the document has been indexed.
+     */
+    public void createElasticUser(char[] passwordHash, ActionListener<Void> listener) {
+        updateReservedUser(ElasticUser.NAME, passwordHash, DocWriteRequest.OpType.CREATE, RefreshPolicy.IMMEDIATE, listener);
+    }
+
+    /**
      * Asynchronous method to create or update a reserved user with the given password hash. The cache for the user will be
      * cleared after the document has been indexed
      */
-    public void updateReservedUser(
+    private void updateReservedUser(
         String username,
         char[] passwordHash,
         DocWriteRequest.OpType opType,
@@ -485,7 +494,7 @@ public class NativeUsersStore {
      * @param username username to lookup the user by
      * @param password the plaintext password to verify
      */
-    void verifyPassword(String username, final SecureString password, ActionListener<AuthenticationResult> listener) {
+    void verifyPassword(String username, final SecureString password, ActionListener<AuthenticationResult<User>> listener) {
         getUserAndPassword(username, ActionListener.wrap((userAndPassword) -> {
             if (userAndPassword == null) {
                 logger.trace(
@@ -683,10 +692,6 @@ public class NativeUsersStore {
             this.passwordHash = passwordHash;
             this.enabled = enabled;
             this.hasher = Hasher.resolveFromHash(this.passwordHash);
-        }
-
-        ReservedUserInfo deepClone() {
-            return new ReservedUserInfo(Arrays.copyOf(passwordHash, passwordHash.length), enabled);
         }
 
         boolean hasEmptyPassword() {

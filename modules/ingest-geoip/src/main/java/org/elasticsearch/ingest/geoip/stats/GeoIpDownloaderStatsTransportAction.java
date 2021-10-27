@@ -66,6 +66,7 @@ public class GeoIpDownloaderStatsTransportAction extends TransportNodesAction<Re
     protected NodeResponse nodeOperation(NodeRequest request, Task task) {
         GeoIpDownloader geoIpTask = geoIpDownloaderTaskExecutor.getCurrentTask();
         GeoIpDownloaderStats stats = geoIpTask == null || geoIpTask.getStatus() == null ? null : geoIpTask.getStatus();
-        return new NodeResponse(transportService.getLocalNode(), stats, registry.getAvailableDatabases(), registry.getFilesInTemp());
+        return new NodeResponse(transportService.getLocalNode(), stats, registry.getAvailableDatabases(), registry.getFilesInTemp(),
+            registry.getConfigDatabases());
     }
 }

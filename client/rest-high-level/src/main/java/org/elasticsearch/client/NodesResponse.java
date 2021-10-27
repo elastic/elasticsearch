@@ -8,8 +8,8 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 
 /**
  * Base class for responses that are node responses. These responses always contain the cluster

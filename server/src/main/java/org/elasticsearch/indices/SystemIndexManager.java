@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
 
 import java.util.List;
@@ -115,7 +115,7 @@ public class SystemIndexManager implements ClusterStateListener {
         return this.systemIndices.getSystemIndexDescriptors()
             .stream()
             .filter(SystemIndexDescriptor::isAutomaticallyManaged)
-            .filter(d -> metadata.hasConcreteIndex(d.getPrimaryIndex()))
+            .filter(d -> metadata.hasIndexAbstraction(d.getPrimaryIndex()))
             .collect(Collectors.toList());
     }
 

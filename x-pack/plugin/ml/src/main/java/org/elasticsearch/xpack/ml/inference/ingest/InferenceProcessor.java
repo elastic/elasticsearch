@@ -33,10 +33,21 @@ import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -357,17 +368,42 @@ public class InferenceProcessor extends AbstractProcessor {
             if (configMap.containsKey(ClassificationConfig.NAME.getPreferredName())) {
                 checkSupportedVersion(ClassificationConfig.EMPTY_PARAMS);
                 return ClassificationConfigUpdate.fromMap(valueMap);
+            } else if (configMap.containsKey(FillMaskConfig.NAME)) {
+                checkNlpSupported(FillMaskConfig.NAME);
+                return FillMaskConfigUpdate.fromMap(valueMap);
+            } else if (configMap.containsKey(NerConfig.NAME)) {
+                checkNlpSupported(NerConfig.NAME);
+                return NerConfigUpdate.fromMap(valueMap);
+            } else if (configMap.containsKey(PassThroughConfig.NAME)) {
+                checkNlpSupported(PassThroughConfig.NAME);
+                return PassThroughConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(RegressionConfig.NAME.getPreferredName())) {
                 checkSupportedVersion(RegressionConfig.EMPTY_PARAMS);
                 return RegressionConfigUpdate.fromMap(valueMap);
+            } else if (configMap.containsKey(TextClassificationConfig.NAME)) {
+                checkNlpSupported(TextClassificationConfig.NAME);
+                return TextClassificationConfigUpdate.fromMap(valueMap);
+            } else if (configMap.containsKey(TextEmbeddingConfig.NAME)) {
+                checkNlpSupported(TextEmbeddingConfig.NAME);
+                return TextEmbeddingConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(ZeroShotClassificationConfig.NAME)) {
-                checkSupportedVersion(new ZeroShotClassificationConfig(List.of("unused"), null, null, null, null, null));
+                checkNlpSupported(ZeroShotClassificationConfig.NAME);
                 return ZeroShotClassificationConfigUpdate.fromMap(valueMap);
             }
+            // TODO missing update types
             else {
                 throw ExceptionsHelper.badRequestException("unrecognized inference configuration type {}. Supported types {}",
                     configMap.keySet(),
                     Arrays.asList(ClassificationConfig.NAME.getPreferredName(), RegressionConfig.NAME.getPreferredName()));
+            }
+        }
+
+        void checkNlpSupported(String taskType) {
+            if (NlpConfig.MINIMUM_NLP_SUPPORTED_VERSION.after(minNodeVersion)) {
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INFERENCE_CONFIG_NOT_SUPPORTED_ON_VERSION,
+                    taskType,
+                    NlpConfig.MINIMUM_NLP_SUPPORTED_VERSION,
+                    minNodeVersion));
             }
         }
 

@@ -15,13 +15,12 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.script.GeneralScriptException;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptMetadata;
@@ -45,7 +44,7 @@ import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArgument;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContext;
 import static org.hamcrest.Matchers.containsString;
@@ -62,8 +61,7 @@ public class ScriptConditionTests extends ESTestCase {
         scripts.put("return new Object()", s -> new Object());
 
         scripts.put("ctx.trigger.scheduled_time.toInstant().toEpochMill() < new Date().time", vars -> {
-            JodaCompatibleZonedDateTime scheduledTime =
-                (JodaCompatibleZonedDateTime) XContentMapValues.extractValue("ctx.trigger.scheduled_time", vars);
+            ZonedDateTime scheduledTime = (ZonedDateTime) XContentMapValues.extractValue("ctx.trigger.scheduled_time", vars);
             return scheduledTime.toInstant().toEpochMilli() < new Date().getTime();
         });
 

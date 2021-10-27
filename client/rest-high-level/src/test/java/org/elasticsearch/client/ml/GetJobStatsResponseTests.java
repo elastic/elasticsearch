@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.client.ml.job.stats.JobStats;
 import org.elasticsearch.client.ml.job.stats.JobStatsTests;
 import org.elasticsearch.test.AbstractXContentTestCase;

@@ -8,10 +8,9 @@
 
 package org.elasticsearch.test.rest.yaml.section;
 
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import org.junit.After;
 
 import static org.hamcrest.Matchers.nullValue;

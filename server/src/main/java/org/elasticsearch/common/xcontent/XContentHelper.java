@@ -13,11 +13,22 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContent.Params;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -93,6 +104,14 @@ public class XContentHelper {
     }
 
     /**
+     * Exactly the same as {@link XContentHelper#convertToMap(BytesReference, boolean, XContentType, FilterPath[], FilterPath[])} but
+     * none of the fields are filtered
+     */
+    public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered, XContentType xContentType) {
+        return convertToMap(bytes, ordered, xContentType, null, null);
+    }
+
+    /**
      * Converts the given bytes into a map that is optionally ordered. The provided {@link XContentType} must be non-null.
      * <p>
      * Important: This can lose precision on numbers with a decimal point. It
@@ -101,8 +120,13 @@ public class XContentHelper {
      * frequently when folks write nanosecond precision dates as a decimal
      * number.
      */
-    public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered, XContentType xContentType)
-        throws ElasticsearchParseException {
+    public static Tuple<XContentType, Map<String, Object>> convertToMap(
+            BytesReference bytes,
+            boolean ordered,
+            XContentType xContentType,
+            @Nullable FilterPath[] include,
+            @Nullable FilterPath[] exclude
+    ) throws ElasticsearchParseException {
         try {
             final XContentType contentType;
             InputStream input;
@@ -120,14 +144,16 @@ public class XContentHelper {
                 final int length = bytes.length();
                 contentType = xContentType != null ? xContentType : XContentFactory.xContentType(raw, offset, length);
                 return new Tuple<>(Objects.requireNonNull(contentType),
-                        convertToMap(XContentFactory.xContent(contentType), raw, offset, length, ordered));
+                        convertToMap(XContentFactory.xContent(contentType), raw, offset, length, ordered, include, exclude));
             } else {
                 input = bytes.streamInput();
                 contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
             }
             try (InputStream stream = input) {
-                return new Tuple<>(Objects.requireNonNull(contentType),
-                    convertToMap(XContentFactory.xContent(contentType), stream, ordered));
+                return new Tuple<>(
+                        Objects.requireNonNull(contentType),
+                        convertToMap(XContentFactory.xContent(contentType), stream, ordered, include, exclude)
+                );
             }
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);
@@ -149,14 +175,35 @@ public class XContentHelper {
     }
 
     /**
-     * Convert a string in some {@link XContent} format to a {@link Map}. Throws an {@link ElasticsearchParseException} if there is any
-     * error. Note that unlike {@link #convertToMap(BytesReference, boolean)}, this doesn't automatically uncompress the input.
+     * The same as {@link XContentHelper#convertToMap(XContent, byte[], int, int, boolean, FilterPath[], FilterPath[])} but none of the
+     * fields are filtered.
      */
     public static Map<String, Object> convertToMap(XContent xContent, InputStream input, boolean ordered)
             throws ElasticsearchParseException {
+        return convertToMap(xContent, input, ordered, null, null);
+    }
+
+    /**
+     * Convert a string in some {@link XContent} format to a {@link Map}. Throws an {@link ElasticsearchParseException} if there is any
+     * error. Note that unlike {@link #convertToMap(BytesReference, boolean)}, this doesn't automatically uncompress the input.
+     *
+     * Additionally, fields may be included or excluded from the parsing.
+     */
+    public static Map<String, Object> convertToMap(
+            XContent xContent,
+            InputStream input,
+            boolean ordered,
+            @Nullable FilterPath[] include,
+            @Nullable FilterPath[] exclude
+    ) throws ElasticsearchParseException {
         // It is safe to use EMPTY here because this never uses namedObject
-        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, input)) {
+        try (XContentParser parser = xContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                input,
+                include,
+                exclude
+        )) {
             return ordered ? parser.mapOrdered() : parser.map();
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);
@@ -169,9 +216,35 @@ public class XContentHelper {
      */
     public static Map<String, Object> convertToMap(XContent xContent, byte[] bytes, int offset, int length, boolean ordered)
             throws ElasticsearchParseException {
+        return convertToMap(xContent, bytes, offset, length, ordered, null, null);
+    }
+
+    /**
+     * Convert a byte array in some {@link XContent} format to a {@link Map}. Throws an {@link ElasticsearchParseException} if there is any
+     * error. Note that unlike {@link #convertToMap(BytesReference, boolean)}, this doesn't automatically uncompress the input.
+     *
+     * Unlike {@link XContentHelper#convertToMap(XContent, byte[], int, int, boolean)} this optionally accepts fields to include or exclude
+     * during XContent parsing.
+     */
+    public static Map<String, Object> convertToMap(
+            XContent xContent,
+            byte[] bytes,
+            int offset,
+            int length,
+            boolean ordered,
+            @Nullable FilterPath[] include,
+            @Nullable FilterPath[] exclude
+    ) throws ElasticsearchParseException {
         // It is safe to use EMPTY here because this never uses namedObject
-        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes, offset, length)) {
+        try (XContentParser parser = xContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                bytes,
+                offset,
+                length,
+                include,
+                exclude)
+        ) {
             return ordered ? parser.mapOrdered() : parser.map();
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);

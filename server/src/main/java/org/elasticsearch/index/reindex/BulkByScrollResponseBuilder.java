@@ -10,7 +10,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.index.reindex.BulkByScrollTask.StatusBuilder;
 

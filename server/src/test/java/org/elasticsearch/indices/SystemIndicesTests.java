@@ -10,23 +10,26 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
 import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class SystemIndicesTests extends ESTestCase {
+    private static final String OPTIONAL_UPGRADE_SUFFIX_REGEX = "(" + SystemIndices.UPGRADED_INDEX_SUFFIX + ")?";
 
     public void testBasicOverlappingPatterns() {
         SystemIndexDescriptor broadPattern = new SystemIndexDescriptor(".a*c*", "test");
         SystemIndexDescriptor notOverlapping = new SystemIndexDescriptor(".bbbddd*", "test");
         SystemIndexDescriptor overlapping1 = new SystemIndexDescriptor(".ac*", "test");
-        SystemIndexDescriptor overlapping2 = new SystemIndexDescriptor(".aaaabbbccc", "test");
+        SystemIndexDescriptor overlapping2 = new SystemIndexDescriptor(".aaaabbbccc*", "test");
         SystemIndexDescriptor overlapping3 = new SystemIndexDescriptor(".aaabb*cccddd*", "test");
 
         // These sources have fixed prefixes to make sure they sort in the same order, so that the error message is consistent
@@ -84,8 +87,12 @@ public class SystemIndicesTests extends ESTestCase {
 
     public void testPluginCannotOverrideBuiltInSystemIndex() {
         Map<String, SystemIndices.Feature> pluginMap = Map.of(
-            TASKS_FEATURE_NAME, new SystemIndices.Feature(TASKS_FEATURE_NAME, "test", List.of(new SystemIndexDescriptor(TASK_INDEX, "Task" +
-                " Result Index")))
+            TASKS_FEATURE_NAME,
+            new SystemIndices.Feature(
+                TASKS_FEATURE_NAME,
+                "test",
+                List.of(new SystemIndexDescriptor(TASK_INDEX + "*", "Task" + " Result Index"))
+            )
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SystemIndices(pluginMap));
         assertThat(e.getMessage(), containsString("plugin or module attempted to define the same source"));
@@ -93,9 +100,16 @@ public class SystemIndicesTests extends ESTestCase {
 
     public void testPatternWithSimpleRange() {
 
-        final SystemIndices systemIndices = new SystemIndices(Map.of(
-            "test", new SystemIndices.Feature("test", "test feature", List.of(new SystemIndexDescriptor(".test-[abc]", "")))
-        ));
+        final SystemIndices systemIndices = new SystemIndices(
+            Map.of(
+                "test",
+                new SystemIndices.Feature(
+                    "test",
+                    "test feature",
+                    List.of(new SystemIndexDescriptor(".test-[abc]" + OPTIONAL_UPGRADE_SUFFIX_REGEX, ""))
+                )
+            )
+        );
 
         assertThat(systemIndices.isSystemIndex(".test-a"), equalTo(true));
         assertThat(systemIndices.isSystemIndex(".test-b"), equalTo(true));
@@ -108,9 +122,16 @@ public class SystemIndicesTests extends ESTestCase {
     }
 
     public void testPatternWithSimpleRangeAndRepeatOperator() {
-        final SystemIndices systemIndices = new SystemIndices(Map.of(
-            "test", new SystemIndices.Feature("test", "test feature", List.of(new SystemIndexDescriptor(".test-[a]+", "")))
-        ));
+        final SystemIndices systemIndices = new SystemIndices(
+            Map.of(
+                "test",
+                new SystemIndices.Feature(
+                    "test",
+                    "test feature",
+                    List.of(new SystemIndexDescriptor(".test-[a]+" + OPTIONAL_UPGRADE_SUFFIX_REGEX, ""))
+                )
+            )
+        );
 
         assertThat(systemIndices.isSystemIndex(".test-a"), equalTo(true));
         assertThat(systemIndices.isSystemIndex(".test-aa"), equalTo(true));
@@ -120,9 +141,16 @@ public class SystemIndicesTests extends ESTestCase {
     }
 
     public void testPatternWithComplexRange() {
-        final SystemIndices systemIndices = new SystemIndices(Map.of(
-            "test", new SystemIndices.Feature("test", "test feature", List.of(new SystemIndexDescriptor(".test-[a-c]", "")))
-        ));
+        final SystemIndices systemIndices = new SystemIndices(
+            Map.of(
+                "test",
+                new SystemIndices.Feature(
+                    "test",
+                    "test feature",
+                    List.of(new SystemIndexDescriptor(".test-[a-c]" + OPTIONAL_UPGRADE_SUFFIX_REGEX, ""))
+                )
+            )
+        );
 
         assertThat(systemIndices.isSystemIndex(".test-a"), equalTo(true));
         assertThat(systemIndices.isSystemIndex(".test-b"), equalTo(true));
@@ -152,5 +180,44 @@ public class SystemIndicesTests extends ESTestCase {
             "] from [" + source1 + "] overlaps with other system index descriptors:"));
 
         assertThat(exception.getMessage(), containsString(pattern2.toString() + " from [" + source2 + "]"));
+    }
+
+    public void testPatternsWithNoRoomForUpgradeSuffix() {
+        final SystemIndexDescriptor endsWithNumbersOnly = new SystemIndexDescriptor(".desc[0-9]+", "can only end with numbers");
+        final SystemIndexDescriptor concreteIndex = new SystemIndexDescriptor(".concrete", "concrete index");
+        final SystemIndexDescriptor okayDescriptor = new SystemIndexDescriptor(".okay*", "concrete index");
+        final SystemIndexDescriptor endsWithNumbersThenWildcard = new SystemIndexDescriptor(".desc[0-9]+*", "concrete index");
+
+        final Map<String, SystemIndices.Feature> features = new HashMap<>();
+        final String firstFeature = "first";
+        features.put(
+            firstFeature,
+            new SystemIndices.Feature(
+                firstFeature,
+                this.getTestName() + " - " + firstFeature,
+                Collections.singletonList(endsWithNumbersOnly)
+            )
+        );
+        final String secondFeature = "second";
+        features.put(
+            secondFeature,
+            new SystemIndices.Feature(secondFeature, this.getTestName() + " - " + secondFeature, List.of(concreteIndex, okayDescriptor))
+        );
+        final String thirdFeature = "third";
+        features.put(
+            thirdFeature,
+            new SystemIndices.Feature(thirdFeature, this.getTestName() + " - " + thirdFeature, List.of(endsWithNumbersThenWildcard))
+        );
+
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> SystemIndices.ensurePatternsAllowSuffix(features));
+        assertThat(
+            ex.getMessage(),
+            allOf(
+                containsString(endsWithNumbersOnly.getIndexPattern()),
+                containsString(secondFeature),
+                containsString(concreteIndex.getIndexPattern()),
+                containsString(firstFeature)
+            )
+        );
     }
 }

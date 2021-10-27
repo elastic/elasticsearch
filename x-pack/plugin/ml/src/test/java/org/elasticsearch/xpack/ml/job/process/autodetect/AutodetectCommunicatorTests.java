@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -49,12 +49,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
-import static org.elasticsearch.mock.orig.Mockito.doAnswer;
+import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.doAnswer;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -109,10 +110,9 @@ public class AutodetectCommunicatorTests extends ESTestCase {
 
     public void testFlushJob() throws Exception {
         AutodetectProcess process = mockAutodetectProcessWithOutputStream();
-        when(process.isProcessAlive()).thenReturn(true);
         AutodetectResultProcessor processor = mock(AutodetectResultProcessor.class);
         FlushAcknowledgement flushAcknowledgement = mock(FlushAcknowledgement.class);
-        when(processor.waitForFlushAcknowledgement(anyString(), any())).thenReturn(flushAcknowledgement);
+        when(processor.waitForFlushAcknowledgement(nullable(String.class), any())).thenReturn(flushAcknowledgement);
         try (AutodetectCommunicator communicator = createAutodetectCommunicator(process, processor)) {
             FlushJobParams params = FlushJobParams.builder().build();
             AtomicReference<FlushAcknowledgement> flushAcknowledgementHolder = new AtomicReference<>();
@@ -145,10 +145,9 @@ public class AutodetectCommunicatorTests extends ESTestCase {
 
     public void testFlushJob_givenFlushWaitReturnsTrueOnSecondCall() throws Exception {
         AutodetectProcess process = mockAutodetectProcessWithOutputStream();
-        when(process.isProcessAlive()).thenReturn(true);
         AutodetectResultProcessor autodetectResultProcessor = mock(AutodetectResultProcessor.class);
         FlushAcknowledgement flushAcknowledgement = mock(FlushAcknowledgement.class);
-        when(autodetectResultProcessor.waitForFlushAcknowledgement(anyString(), eq(Duration.ofSeconds(1))))
+        when(autodetectResultProcessor.waitForFlushAcknowledgement(nullable(String.class), eq(Duration.ofSeconds(1))))
                 .thenReturn(null).thenReturn(flushAcknowledgement);
         FlushJobParams params = FlushJobParams.builder().build();
 
@@ -156,7 +155,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
             communicator.flushJob(params, (aVoid, e) -> {});
         }
 
-        verify(autodetectResultProcessor, times(2)).waitForFlushAcknowledgement(anyString(), eq(Duration.ofSeconds(1)));
+        verify(autodetectResultProcessor, times(2)).waitForFlushAcknowledgement(nullable(String.class), eq(Duration.ofSeconds(1)));
         // First in checkAndRun, second due to check between calls to waitForFlushAcknowledgement and third due to close()
         verify(process, times(3)).isProcessAlive();
     }
@@ -244,12 +243,11 @@ public class AutodetectCommunicatorTests extends ESTestCase {
     private AutodetectCommunicator createAutodetectCommunicator(AutodetectProcess autodetectProcess,
                                                                 AutodetectResultProcessor autodetectResultProcessor) throws IOException {
         ExecutorService executorService = mock(ExecutorService.class);
-        when(executorService.submit(any(Callable.class))).thenReturn(mock(Future.class));
         doAnswer(invocationOnMock -> {
-            Callable<Void> runnable = (Callable<Void>) invocationOnMock.getArguments()[0];
+            Callable<?> runnable = (Callable<?>) invocationOnMock.getArguments()[0];
             runnable.call();
             return mock(Future.class);
-        }).when(executorService).submit(any(Callable.class));
+        }).when(executorService).submit((Callable<Future<?>>) any());
         doAnswer(invocation -> {
             ((Runnable) invocation.getArguments()[0]).run();
             return null;

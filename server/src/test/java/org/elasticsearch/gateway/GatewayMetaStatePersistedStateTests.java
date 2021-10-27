@@ -56,7 +56,7 @@ import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
-import static org.mockito.Matchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -308,21 +308,22 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         nodeEnvironment.close();
 
         // verify that the freshest state was rewritten to each data path
-        Path path = nodeEnvironment.nodeDataPath();
-        Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-            .put(Environment.PATH_DATA_SETTING.getKey(), path.toString()).build();
-        try (NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings))) {
-            final PersistedClusterStateService newPersistedClusterStateService =
-                new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
-                    new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L);
-            final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService.loadOnDiskState();
-            assertFalse(onDiskState.empty());
-            assertThat(onDiskState.currentTerm, equalTo(42L));
-            assertClusterStateEqual(state,
-                ClusterState.builder(ClusterName.DEFAULT)
-                    .version(onDiskState.lastAcceptedVersion)
-                    .metadata(onDiskState.metadata).build());
+        for (Path path : nodeEnvironment.nodeDataPaths()) {
+            Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
+                .put(Environment.PATH_DATA_SETTING.getKey(), path.toString()).build();
+            try (NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings))) {
+                final PersistedClusterStateService newPersistedClusterStateService =
+                    new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
+                        new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L);
+                final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService.loadBestOnDiskState();
+                assertFalse(onDiskState.empty());
+                assertThat(onDiskState.currentTerm, equalTo(42L));
+                assertClusterStateEqual(state,
+                    ClusterState.builder(ClusterName.DEFAULT)
+                        .version(onDiskState.lastAcceptedVersion)
+                        .metadata(onDiskState.metadata).build());
+            }
         }
     }
 
@@ -370,7 +371,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             assertThat(persistedState.getLastAcceptedState().getLastAcceptedConfiguration(),
                 not(equalTo(persistedState.getLastAcceptedState().getLastCommittedConfiguration())));
             CoordinationMetadata persistedCoordinationMetadata =
-                persistedClusterStateService.loadOnDiskState(false).metadata.coordinationMetadata();
+                persistedClusterStateService.loadBestOnDiskState(false).metadata.coordinationMetadata();
             assertThat(persistedCoordinationMetadata.getLastAcceptedConfiguration(),
                 equalTo(GatewayMetaState.AsyncPersistedState.staleStateConfiguration));
             assertThat(persistedCoordinationMetadata.getLastCommittedConfiguration(),
@@ -386,12 +387,12 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                     .clusterUUID(state.metadata().clusterUUID()).clusterUUIDCommitted(true).build()).build();
 
             assertClusterStateEqual(expectedClusterState, persistedState.getLastAcceptedState());
-            persistedCoordinationMetadata = persistedClusterStateService.loadOnDiskState(false).metadata.coordinationMetadata();
+            persistedCoordinationMetadata = persistedClusterStateService.loadBestOnDiskState(false).metadata.coordinationMetadata();
             assertThat(persistedCoordinationMetadata.getLastAcceptedConfiguration(),
                 equalTo(GatewayMetaState.AsyncPersistedState.staleStateConfiguration));
             assertThat(persistedCoordinationMetadata.getLastCommittedConfiguration(),
                 equalTo(GatewayMetaState.AsyncPersistedState.staleStateConfiguration));
-            assertTrue(persistedClusterStateService.loadOnDiskState(false).metadata.clusterUUIDCommitted());
+            assertTrue(persistedClusterStateService.loadBestOnDiskState(false).metadata.clusterUUIDCommitted());
 
             // generate a series of updates and check if batching works
             final String indexName = randomAlphaOfLength(10);
@@ -505,21 +506,22 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         nodeEnvironment.close();
 
         // verify that the freshest state was rewritten to each data path
-        Path path = nodeEnvironment.nodeDataPath();
-        Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-            .put(Environment.PATH_DATA_SETTING.getKey(), path.toString()).build();
-        try (NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings))) {
-            final PersistedClusterStateService newPersistedClusterStateService =
-                new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
-                    new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L);
-            final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService.loadOnDiskState();
-            assertFalse(onDiskState.empty());
-            assertThat(onDiskState.currentTerm, equalTo(currentTerm));
-            assertClusterStateEqual(state,
-                ClusterState.builder(ClusterName.DEFAULT)
-                    .version(onDiskState.lastAcceptedVersion)
-                    .metadata(onDiskState.metadata).build());
+        for (Path path : nodeEnvironment.nodeDataPaths()) {
+            Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
+                .put(Environment.PATH_DATA_SETTING.getKey(), path.toString()).build();
+            try (NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings))) {
+                final PersistedClusterStateService newPersistedClusterStateService =
+                    new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
+                        new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L);
+                final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService.loadBestOnDiskState();
+                assertFalse(onDiskState.empty());
+                assertThat(onDiskState.currentTerm, equalTo(currentTerm));
+                assertClusterStateEqual(state,
+                    ClusterState.builder(ClusterName.DEFAULT)
+                        .version(onDiskState.lastAcceptedVersion)
+                        .metadata(onDiskState.metadata).build());
+            }
         }
     }
 
@@ -577,21 +579,22 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
 
         nodeEnvironment.close();
 
-        Path path = nodeEnvironment.nodeDataPath();
-        Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-            .put(Environment.PATH_DATA_SETTING.getKey(), path.toString()).build();
-        try (NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings))) {
-            final PersistedClusterStateService newPersistedClusterStateService =
-                new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
-                    new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L);
-            final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService.loadOnDiskState();
-            assertFalse(onDiskState.empty());
-            assertThat(onDiskState.currentTerm, equalTo(currentTerm));
-            assertClusterStateEqual(state,
-                ClusterState.builder(ClusterName.DEFAULT)
-                    .version(onDiskState.lastAcceptedVersion)
-                    .metadata(onDiskState.metadata).build());
+        for (Path path : nodeEnvironment.nodeDataPaths()) {
+            Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
+                .put(Environment.PATH_DATA_SETTING.getKey(), path.toString()).build();
+            try (NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings))) {
+                final PersistedClusterStateService newPersistedClusterStateService =
+                    new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
+                        new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L);
+                final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService.loadBestOnDiskState();
+                assertFalse(onDiskState.empty());
+                assertThat(onDiskState.currentTerm, equalTo(currentTerm));
+                assertClusterStateEqual(state,
+                    ClusterState.builder(ClusterName.DEFAULT)
+                        .version(onDiskState.lastAcceptedVersion)
+                        .metadata(onDiskState.metadata).build());
+            }
         }
     }
 

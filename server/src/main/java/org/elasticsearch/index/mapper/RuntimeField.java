@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.index.mapper.FieldMapper.Parameter;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;

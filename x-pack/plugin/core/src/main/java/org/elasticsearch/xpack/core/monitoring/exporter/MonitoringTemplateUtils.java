@@ -9,15 +9,10 @@ package org.elasticsearch.xpack.core.monitoring.exporter;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
-import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.time.Instant;
-import java.util.Locale;
 
 public final class MonitoringTemplateUtils {
-
-    private static final String TEMPLATE_FILE = "/monitoring-%s.json";
-    private static final String TEMPLATE_VERSION_PROPERTY = "monitoring.template.version";
 
     /**
      * The last version of X-Pack that updated the templates and pipelines.
@@ -40,62 +35,7 @@ public final class MonitoringTemplateUtils {
      */
     public static final String OLD_TEMPLATE_VERSION = "6";
 
-    /**
-     * IDs of templates that can be used with {@linkplain #loadTemplate(String) loadTemplate}.
-     */
-    public static final String[] TEMPLATE_IDS = { "alerts-7", "es", "kibana", "logstash", "beats" };
-
-    /**
-     * IDs of templates that can be used with {@linkplain #createEmptyTemplate(String) createEmptyTemplate} that are not managed by a
-     * Resolver.
-     * <p>
-     * These should only be used by the HTTP Exporter to create old templates so that older versions can be properly upgraded. Older
-     * instances will attempt to create a named template based on the templates that they expect (e.g., ".monitoring-es-2") and not the
-     * ones that we are creating.
-     */
-    public static final String[] OLD_TEMPLATE_IDS = { "data", "es", "kibana", "logstash" }; //excluding alerts since 6.x watches use it
-
     private MonitoringTemplateUtils() { }
-
-    /**
-     * Get a template name for any template ID.
-     *
-     * @param id The template identifier.
-     * @return Never {@code null} {@link String} prefixed by ".monitoring-".
-     * @see #TEMPLATE_IDS
-     */
-    public static String templateName(final String id) {
-        return ".monitoring-" + id;
-    }
-
-    /**
-     * Get a template name for any template ID for old templates in the previous version.
-     *
-     * @param id The template identifier.
-     * @return Never {@code null} {@link String} prefixed by ".monitoring-" and ended by the {@code OLD_TEMPLATE_VERSION}.
-     * @see #OLD_TEMPLATE_IDS
-     */
-    public static String oldTemplateName(final String id) {
-        return ".monitoring-" + id + "-" + OLD_TEMPLATE_VERSION;
-    }
-
-    public static String loadTemplate(final String id) {
-        String resource = String.format(Locale.ROOT, TEMPLATE_FILE, id);
-        return TemplateUtils.loadTemplate(resource, TEMPLATE_VERSION, TEMPLATE_VERSION_PROPERTY);
-    }
-
-    /**
-     * Create a template that does nothing but exist and provide a newer {@code version} so that we know that <em>we</em> created it.
-     *
-     * @param id The template identifier.
-     * @return Never {@code null}.
-     * @see #OLD_TEMPLATE_IDS
-     * @see #OLD_TEMPLATE_VERSION
-     */
-    public static String createEmptyTemplate(final String id) {
-        // e.g., { "index_patterns": [ ".monitoring-data-6*" ], "version": 6000002 }
-        return "{\"index_patterns\":[\".monitoring-" + id + "-" + OLD_TEMPLATE_VERSION + "*\"],\"version\":" + LAST_UPDATED_VERSION + "}";
-    }
 
     /**
      * Get the index name given a specific date format, a monitored system and a timestamp.

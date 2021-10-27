@@ -29,11 +29,8 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.EOFException;
 import java.io.FileNotFoundException;
@@ -749,7 +746,9 @@ public abstract class StreamInput extends InputStream {
             case 12:
                 return readDate();
             case 13:
-                return readDateTime();
+                // this used to be DateTime from Joda, and then JodaCompatibleZonedDateTime
+                // stream-wise it is the exact same as ZonedDateTime, a timezone id and long milliseconds
+                return readZonedDateTime();
             case 14:
                 return readBytesReference();
             case 15:
@@ -812,14 +811,6 @@ public abstract class StreamInput extends InputStream {
         return list;
     }
 
-    private JodaCompatibleZonedDateTime readDateTime() throws IOException {
-        // we reuse DateTime to communicate with older nodes that don't know about the joda compat layer, but
-        // here we are on a new node so we always want a compat datetime
-        final ZoneId zoneId = DateUtils.dateTimeZoneToZoneId(DateTimeZone.forID(readString()));
-        long millis = readLong();
-        return new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(millis), zoneId);
-    }
-
     private ZonedDateTime readZonedDateTime() throws IOException {
         final String timeZoneId = readString();
         return ZonedDateTime.ofInstant(Instant.ofEpochMilli(readLong()), ZoneId.of(timeZoneId));
@@ -880,24 +871,7 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Read a {@linkplain DateTimeZone}.
-     */
-    public DateTimeZone readTimeZone() throws IOException {
-        return DateTimeZone.forID(readString());
-    }
-
-    /**
-     * Read an optional {@linkplain DateTimeZone}.
-     */
-    public DateTimeZone readOptionalTimeZone() throws IOException {
-        if (readBoolean()) {
-            return DateTimeZone.forID(readString());
-        }
-        return null;
-    }
-
-    /**
-     * Read a {@linkplain DateTimeZone}.
+     * Read a {@linkplain ZoneId}.
      */
     public ZoneId readZoneId() throws IOException {
         return ZoneId.of(readString());

@@ -8,15 +8,12 @@
 
 package org.elasticsearch.cluster.routing;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
@@ -67,8 +64,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     private final Map<ShardId, List<ShardRouting>> assignedShards = new HashMap<>();
 
-    private final Map<String, SingleNodeShutdownMetadata> nodeShutdowns;
-
     private final boolean readOnly;
 
     private int inactivePrimaryCount = 0;
@@ -76,6 +71,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     private int inactiveShardCount = 0;
 
     private int relocatingShards = 0;
+
+    private int activeShardCount = 0;
+
+    private int totalShardCount = 0;
 
     private final Map<String, Set<String>> attributeValuesByAttribute = new HashMap<>();
     private final Map<String, Recoveries> recoveriesPerNode = new HashMap<>();
@@ -87,20 +86,20 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     public RoutingNodes(ClusterState clusterState, boolean readOnly) {
         this.readOnly = readOnly;
         final RoutingTable routingTable = clusterState.routingTable();
-        nodeShutdowns = clusterState.metadata().nodeShutdowns();
 
         Map<String, LinkedHashMap<ShardId, ShardRouting>> nodesToShards = new HashMap<>();
         // fill in the nodeToShards with the "live" nodes
-        for (ObjectCursor<DiscoveryNode> cursor : clusterState.nodes().getDataNodes().values()) {
-            nodesToShards.put(cursor.value.getId(), new LinkedHashMap<>()); // LinkedHashMap to preserve order
+        for (DiscoveryNode node : clusterState.nodes().getDataNodes().values()) {
+            nodesToShards.put(node.getId(), new LinkedHashMap<>()); // LinkedHashMap to preserve order
         }
 
         // fill in the inverse of node -> shards allocated
         // also fill replicaSet information
-        for (ObjectCursor<IndexRoutingTable> indexRoutingTable : routingTable.indicesRouting().values()) {
-            for (IndexShardRoutingTable indexShard : indexRoutingTable.value) {
+        for (IndexRoutingTable indexRoutingTable : routingTable.indicesRouting().values()) {
+            for (IndexShardRoutingTable indexShard : indexRoutingTable) {
                 assert indexShard.primary != null;
                 for (ShardRouting shard : indexShard) {
+                    totalShardCount++;
                     // to get all the shards belonging to an index, including the replicas,
                     // we define a replica set and keep track of it. A replica set is identified
                     // by the ShardId, as this is common for primary and replicas.
@@ -113,6 +112,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                             throw new IllegalArgumentException("Cannot have two different shards with same shard id on same node");
                         }
                         assignedShardsAdd(shard);
+                        if (shard.active()) {
+                            activeShardCount++;
+                        }
                         if (shard.relocating()) {
                             relocatingShards++;
                             // LinkedHashMap to preserve order.
@@ -279,6 +281,14 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return relocatingShards;
     }
 
+    public int getActiveShardCount() {
+        return activeShardCount;
+    }
+
+    public int getTotalShardCount() {
+        return totalShardCount;
+    }
+
     /**
      * Returns all shards that are not in the state UNASSIGNED with the same shard
      * ID as the given shard.
@@ -360,40 +370,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 if (predicate.test(shardRouting)) {
                     shards.add(shardRouting);
                 }
-            }
-        }
-        return shards;
-    }
-
-    public List<ShardRouting> shardsWithState(ShardRoutingState... state) {
-        // TODO these are used on tests only - move into utils class
-        List<ShardRouting> shards = new ArrayList<>();
-        for (RoutingNode routingNode : this) {
-            shards.addAll(routingNode.shardsWithState(state));
-        }
-        for (ShardRoutingState s : state) {
-            if (s == ShardRoutingState.UNASSIGNED) {
-                unassigned().forEach(shards::add);
-                break;
-            }
-        }
-        return shards;
-    }
-
-    public List<ShardRouting> shardsWithState(String index, ShardRoutingState... state) {
-        // TODO these are used on tests only - move into utils class
-        List<ShardRouting> shards = new ArrayList<>();
-        for (RoutingNode routingNode : this) {
-            shards.addAll(routingNode.shardsWithState(index, state));
-        }
-        for (ShardRoutingState s : state) {
-            if (s == ShardRoutingState.UNASSIGNED) {
-                for (ShardRouting unassignedShard : unassignedShards) {
-                    if (unassignedShard.index().getName().equals(index)) {
-                        shards.add(unassignedShard);
-                    }
-                }
-                break;
             }
         }
         return shards;

@@ -9,11 +9,14 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.repositories.RepositoryConflictException;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -48,6 +51,14 @@ public class RestPutRepositoryAction extends BaseRestHandler {
         putRepositoryRequest.verify(request.paramAsBoolean("verify", true));
         putRepositoryRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRepositoryRequest.masterNodeTimeout()));
         putRepositoryRequest.timeout(request.paramAsTime("timeout", putRepositoryRequest.timeout()));
-        return channel -> client.admin().cluster().putRepository(putRepositoryRequest, new RestToXContentListener<>(channel));
+        return channel -> client.admin().cluster().putRepository(putRepositoryRequest,
+            new RestToXContentListener<AcknowledgedResponse>(channel).delegateResponse((delegate, err) -> {
+                if (request.getRestApiVersion().equals(RestApiVersion.V_7) && err instanceof RepositoryConflictException) {
+                    delegate.onFailure(new IllegalStateException(((RepositoryConflictException) err).getBackwardCompatibleMessage()));
+                } else {
+                    delegate.onFailure(err);
+                }
+            })
+        );
     }
 }

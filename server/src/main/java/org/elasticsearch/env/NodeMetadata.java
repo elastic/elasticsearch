@@ -9,11 +9,11 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.gateway.MetadataStateFormat;
 
 import java.io.IOException;
@@ -33,23 +33,29 @@ public final class NodeMetadata {
 
     private final Version nodeVersion;
 
-    public NodeMetadata(final String nodeId, final Version nodeVersion) {
+    private final Version previousNodeVersion;
+
+    private NodeMetadata(final String nodeId, final Version nodeVersion, final Version previousNodeVersion) {
         this.nodeId = Objects.requireNonNull(nodeId);
         this.nodeVersion = Objects.requireNonNull(nodeVersion);
+        this.previousNodeVersion = Objects.requireNonNull(previousNodeVersion);
     }
 
-    @Override
-    public boolean equals(Object o) {
+    public NodeMetadata(final String nodeId, final Version nodeVersion) {
+       this(nodeId, nodeVersion, nodeVersion);
+    }
+
+    @Override public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         NodeMetadata that = (NodeMetadata) o;
-        return nodeId.equals(that.nodeId) &&
-            nodeVersion.equals(that.nodeVersion);
+        return nodeId.equals(that.nodeId) && nodeVersion.equals(that.nodeVersion) && Objects.equals(
+            previousNodeVersion,
+            that.previousNodeVersion);
     }
 
-    @Override
-    public int hashCode() {
-        return Objects.hash(nodeId, nodeVersion);
+    @Override public int hashCode() {
+        return Objects.hash(nodeId, nodeVersion, previousNodeVersion);
     }
 
     @Override
@@ -57,6 +63,7 @@ public final class NodeMetadata {
         return "NodeMetadata{" +
             "nodeId='" + nodeId + '\'' +
             ", nodeVersion=" + nodeVersion +
+            ", previousNodeVersion=" + previousNodeVersion +
             '}';
     }
 
@@ -68,10 +75,20 @@ public final class NodeMetadata {
         return nodeVersion;
     }
 
+    /**
+     * When a node starts we read the existing node metadata from disk (see NodeEnvironment@loadNodeMetadata), store a reference to the
+     * node version that we read from there in {@code previousNodeVersion} and then proceed to upgrade the version to
+     * the current version of the node ({@link NodeMetadata#upgradeToCurrentVersion()} before storing the node metadata again on disk.
+     * In doing so, {@code previousNodeVersion} refers to the previously last known version that this node was started on.
+     */
+    public Version previousNodeVersion() {
+        return previousNodeVersion;
+    }
+
     public NodeMetadata upgradeToCurrentVersion() {
         if (nodeVersion.equals(Version.V_EMPTY)) {
             assert Version.CURRENT.major <= Version.V_7_0_0.major + 1 : "version is required in the node metadata from v9 onwards";
-            return new NodeMetadata(nodeId, Version.CURRENT);
+            return new NodeMetadata(nodeId, Version.CURRENT, Version.V_EMPTY);
         }
 
         if (nodeVersion.before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
@@ -84,12 +101,13 @@ public final class NodeMetadata {
                 "cannot downgrade a node from version [" + nodeVersion + "] to version [" + Version.CURRENT + "]");
         }
 
-        return nodeVersion.equals(Version.CURRENT) ? this : new NodeMetadata(nodeId, Version.CURRENT);
+        return nodeVersion.equals(Version.CURRENT) ? this : new NodeMetadata(nodeId, Version.CURRENT, nodeVersion);
     }
 
     private static class Builder {
         String nodeId;
         Version nodeVersion;
+        Version previousNodeVersion;
 
         public void setNodeId(String nodeId) {
             this.nodeId = nodeId;
@@ -97,6 +115,10 @@ public final class NodeMetadata {
 
         public void setNodeVersionId(int nodeVersionId) {
             this.nodeVersion = Version.fromId(nodeVersionId);
+        }
+
+        public void setPreviousNodeVersionId(int previousNodeVersionId) {
+            this.previousNodeVersion = Version.fromId(previousNodeVersionId);
         }
 
         public NodeMetadata build() {
@@ -107,8 +129,11 @@ public final class NodeMetadata {
             } else {
                 nodeVersion = this.nodeVersion;
             }
+            if (this.previousNodeVersion == null) {
+                previousNodeVersion = nodeVersion;
+            }
 
-            return new NodeMetadata(nodeId, nodeVersion);
+            return new NodeMetadata(nodeId, nodeVersion, previousNodeVersion);
         }
     }
 

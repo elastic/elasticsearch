@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.watcher.condition;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 

@@ -26,7 +26,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.ingest.PipelineConfiguration;
 
 import java.io.IOException;
@@ -54,6 +54,7 @@ import java.util.concurrent.TimeUnit;
  * than 84, the line will be cut and a horizontal scroll bar will be displayed.
  * (the code indentation of the tag is not included in the width)
  */
+@SuppressWarnings("removal")
 public class IngestClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testPutPipeline() throws IOException {

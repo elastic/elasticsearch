@@ -10,9 +10,9 @@ package org.elasticsearch.client.ccr;
 
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;

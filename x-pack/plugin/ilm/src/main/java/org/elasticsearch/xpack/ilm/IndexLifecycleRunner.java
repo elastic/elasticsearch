@@ -13,13 +13,16 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.Priority;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.AsyncActionStep;
@@ -51,6 +54,23 @@ class IndexLifecycleRunner {
     private final PolicyStepsRegistry stepRegistry;
     private final ILMHistoryStore ilmHistoryStore;
     private final LongSupplier nowSupplier;
+
+    private static final ClusterStateTaskExecutor<IndexLifecycleClusterStateUpdateTask> ILM_TASK_EXECUTOR = (currentState, tasks) -> {
+        ClusterStateTaskExecutor.ClusterTasksResult.Builder<IndexLifecycleClusterStateUpdateTask> builder =
+                ClusterStateTaskExecutor.ClusterTasksResult.builder();
+        ClusterState state = currentState;
+        for (IndexLifecycleClusterStateUpdateTask task : tasks) {
+            try {
+                state = task.execute(state);
+                builder.success(task);
+            } catch (Exception e) {
+                builder.failure(task, e);
+            }
+        }
+        // Trigger indices lookup creation and related validation
+        state.metadata().getIndicesLookup();
+        return builder.build(state);
+    };
 
     IndexLifecycleRunner(PolicyStepsRegistry stepRegistry, ILMHistoryStore ilmHistoryStore, ClusterService clusterService,
                          ThreadPool threadPool, LongSupplier nowSupplier) {
@@ -331,6 +351,11 @@ class IndexLifecycleRunner {
     void runPolicyAfterStateChange(String policy, IndexMetadata indexMetadata) {
         String index = indexMetadata.getIndex().getName();
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
+        final StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
+        if (busyIndices.contains(Tuple.tuple(indexMetadata.getIndex(), currentStepKey))) {
+            // try later again, already doing work for this index at this step, no need to check for more work yet
+            return;
+        }
         final Step currentStep;
         try {
             currentStep = getCurrentStep(stepRegistry, policy, indexMetadata, lifecycleState);
@@ -343,7 +368,6 @@ class IndexLifecycleRunner {
                 markPolicyDoesNotExist(policy, indexMetadata.getIndex(), lifecycleState);
                 return;
             } else {
-                Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
                 if (TerminalPolicyStep.KEY.equals(currentStepKey)) {
                     // This index is a leftover from before we halted execution on the final phase
                     // instead of going to the completed phase, so it's okay to ignore this index
@@ -512,6 +536,14 @@ class IndexLifecycleRunner {
     private final Set<IndexLifecycleClusterStateUpdateTask> executingTasks = Collections.synchronizedSet(new HashSet<>());
 
     /**
+     * Set of all index and current step key combinations that have an in-flight cluster state update at the moment. Used to not inspect
+     * indices that are already executing an update at their current step on cluster state update thread needlessly.
+     */
+    private final Set<Tuple<Index, StepKey>> busyIndices = Collections.synchronizedSet(new HashSet<>());
+
+    static final ClusterStateTaskConfig ILM_TASK_CONFIG = ClusterStateTaskConfig.build(Priority.NORMAL);
+
+    /**
      * Tracks already executing {@link IndexLifecycleClusterStateUpdateTask} tasks in {@link #executingTasks} to prevent queueing up
      * duplicate cluster state updates.
      * TODO: refactor ILM logic so that this is not required any longer. It is unreasonably expensive to only filter out duplicate tasks at
@@ -522,11 +554,15 @@ class IndexLifecycleRunner {
      */
     private void submitUnlessAlreadyQueued(String source, IndexLifecycleClusterStateUpdateTask task) {
         if (executingTasks.add(task)) {
+            final Tuple<Index, StepKey> dedupKey = Tuple.tuple(task.index, task.currentStepKey);
+            // index+step-key combination on a best-effort basis to skip checking for more work for an index on CS application
+            busyIndices.add(dedupKey);
             task.addListener(ActionListener.wrap(() -> {
                 final boolean removed = executingTasks.remove(task);
+                busyIndices.remove(dedupKey);
                 assert removed : "tried to unregister unknown task [" + task + "]";
             }));
-            clusterService.submitStateUpdateTask(source, task);
+            clusterService.submitStateUpdateTask(source, task, ILM_TASK_CONFIG, ILM_TASK_EXECUTOR, task);
         } else {
             logger.trace("skipped redundant execution of [{}]", source);
         }

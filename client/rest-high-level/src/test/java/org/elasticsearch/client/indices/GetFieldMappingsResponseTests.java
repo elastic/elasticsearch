@@ -10,7 +10,7 @@ package org.elasticsearch.client.indices;
 
 import org.elasticsearch.client.indices.GetFieldMappingsResponse.FieldMappingMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

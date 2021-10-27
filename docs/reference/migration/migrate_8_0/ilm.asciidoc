@@ -50,4 +50,18 @@ has been removed in 8.0.
 *Impact* +
 Update your ILM policies to remove the `freeze` action from the `cold` phase.
 ====
+
+[[ilm-policy-validation]]
+.Additional validation for ILM policies.
+[%collapsible]
+====
+*Details* +
+Creating or updating an ILM policy now requires that any referenced snapshot repositories and SLM
+policies exist.
+
+*Impact* +
+Update your code or configuration management to ensure that repositories and SLM policies are created
+before any policies that reference them.
+====
+
 // end::notable-breaking-changes[]

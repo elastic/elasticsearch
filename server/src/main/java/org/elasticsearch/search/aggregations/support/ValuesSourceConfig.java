@@ -13,6 +13,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.Script;
@@ -20,6 +21,7 @@ import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.function.DoubleUnaryOperator;
 import java.util.function.Function;
 
 /**
@@ -319,6 +321,17 @@ public class ValuesSourceConfig {
 
     public FieldContext fieldContext() {
         return fieldContext;
+    }
+
+    /**
+     * Returns a function from the mapper that adjusts a double value to the value it would have been had it been parsed by that mapper
+     * and then cast up to a double.  Used to correct precision errors.
+     */
+    public DoubleUnaryOperator reduceToStoredPrecisionFunction() {
+        if (fieldContext() != null && fieldType() instanceof NumberFieldMapper.NumberFieldType) {
+            return ((NumberFieldMapper.NumberFieldType) fieldType())::reduceToStoredPrecision;
+        }
+        return (value) -> value;
     }
 
     /**

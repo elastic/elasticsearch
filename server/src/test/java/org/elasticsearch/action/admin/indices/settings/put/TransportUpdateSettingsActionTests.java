@@ -33,7 +33,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -58,7 +58,7 @@ public class TransportUpdateSettingsActionTests extends ESTestCase {
         Map.of("test-feature", new SystemIndices.Feature(
             "test-feature",
             "a test feature",
-            List.of(new SystemIndexDescriptor(SYSTEM_INDEX_NAME, "test"))
+            List.of(new SystemIndexDescriptor(SYSTEM_INDEX_NAME + "*", "test"))
         ))
     );
 

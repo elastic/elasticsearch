@@ -36,6 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -410,7 +411,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         createRepository("test-repo", "mock", Settings.builder().put("location", randomRepoPath()).put("block_on_data", true));
 
         String indexName = "test-idx-1";
-        createIndexWithContent(indexName, indexSettingsNoReplicas(randomIntBetween(1, 10)).build());
+        createIndexWithContent(indexName, indexSettingsNoReplicas(randomIntBetween(2, 10)).build());
         ensureGreen();
 
         ActionFuture<CreateSnapshotResponse> createSnapshotResponseActionFuture = startFullSnapshot("test-repo", "test-snap");
@@ -418,6 +419,19 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> wait for data nodes to get blocked");
         waitForBlockOnAnyDataNode("test-repo");
         awaitNumberOfSnapshotsInProgress(1);
+
+        logger.info("--> wait for snapshots to get to a consistent state");
+        awaitClusterState(state -> {
+            SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+            Set<Snapshot> snapshots = snapshotsInProgress.asStream().map(SnapshotsInProgress.Entry::snapshot).collect(Collectors.toSet());
+            if (snapshots.size() != 1) {
+                return false;
+            }
+            var shards = snapshotsInProgress.snapshot(snapshots.iterator().next()).shards();
+            long initShards = shards.stream().filter(e -> e.getValue().state() == SnapshotsInProgress.ShardState.INIT).count();
+            long successShards = shards.stream().filter(e -> e.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS).count();
+            return successShards == shards.size() - 1 && initShards == 1;
+        });
 
         GetSnapshotsResponse response1 = client().admin()
             .cluster()
@@ -430,7 +444,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         SnapshotInfo snapshotInfo = snapshotInfoList.get(0);
         assertEquals(SnapshotState.IN_PROGRESS, snapshotInfo.state());
 
-        SnapshotStatus snapshotStatus = client().admin().cluster().prepareSnapshotStatus().execute().actionGet().getSnapshots().get(0);
+        SnapshotStatus snapshotStatus = client().admin().cluster().prepareSnapshotStatus().get().getSnapshots().get(0);
         assertThat(snapshotInfo.totalShards(), equalTo(snapshotStatus.getIndices().get(indexName).getShardsStats().getTotalShards()));
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotStatus.getIndices().get(indexName).getShardsStats().getDoneShards()));
         assertThat(snapshotInfo.shardFailures().size(), equalTo(0));

@@ -9,28 +9,17 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.common.metrics.CounterMetric;
-import static org.elasticsearch.script.TimeSeriesCounter.SECOND;
-import static org.elasticsearch.script.TimeSeriesCounter.MINUTE;
-import static org.elasticsearch.script.TimeSeriesCounter.HOUR;
 
 import java.util.function.LongSupplier;
 
 public class ScriptMetrics {
-    protected static final int FIFTEEN_SECONDS = 15 * SECOND;
-    protected static final int THIRTY_MINUTES = 30 * MINUTE;
-    protected static final int TWENTY_FOUR_HOURS = 24 * HOUR;
-
     final CounterMetric compilationLimitTriggered = new CounterMetric();
-    final TimeSeriesCounter compilations = timeSeriesCounter();
-    final TimeSeriesCounter cacheEvictions = timeSeriesCounter();
+    final TimeSeriesCounter compilations = new TimeSeriesCounter();
+    final TimeSeriesCounter cacheEvictions = new TimeSeriesCounter();
     final LongSupplier timeProvider;
 
     public ScriptMetrics(LongSupplier timeProvider) {
         this.timeProvider = timeProvider;
-    }
-
-    TimeSeriesCounter timeSeriesCounter() {
-        return new TimeSeriesCounter(TWENTY_FOUR_HOURS, THIRTY_MINUTES, FIFTEEN_SECONDS);
     }
 
     public void onCompilation() {
@@ -45,20 +34,20 @@ public class ScriptMetrics {
         compilationLimitTriggered.inc();
     }
 
-    public ScriptStats stats() {
-        return new ScriptStats(compilationsMetric.count(), cacheEvictionsMetric.count(), compilationLimitTriggered.count());
-    }
-
     protected long now() {
         return timeProvider.getAsLong() / 1000;
+    }
+
+    public ScriptStats stats() {
+        return new ScriptStats(compilationsMetric.count(), cacheEvictionsMetric.count(), compilationLimitTriggered.count());
     }
 
     public ScriptContextStats stats(String context) {
         long t = now();
         return new ScriptContextStats(
             context,
-            compilations.total(),
-            cacheEvictions.total(),
+            compilations.count(),
+            cacheEvictions.count(),
             compilationLimitTriggered.count(),
             compilations.timeSeries(t),
             cacheEvictions.timeSeries(t)

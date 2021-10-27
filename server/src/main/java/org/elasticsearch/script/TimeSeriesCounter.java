@@ -14,421 +14,382 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- * {@link TimeSeriesCounter} implements an event counter for keeping running stats at fixed intervals, such as 5m/15m/24h.
- * Callers use {@link #inc(long)} to increment the counter at the current time, as supplied by the caller.
- * To fetch a count for a given time range, callers use {@link #count(long, long)}, providing an end time and a duration.
+ * Provides a counter with a history of 5m/15m/24h.
  *
- * {@link TimeSeriesCounter} has counts for the given duration at two different resolutions.  From the last updated time,
- * {@link #latestSec}, for {@link #lowSec} ({@code lowSecPerEpoch} in the constructor) previous seconds, the resolution is
- * {@link #highSec} ({@code highSecPerEpoch} in the constructor).
- *
- * Outside of that range, but within {@code totalDuration} seconds, the resolution is {@link #lowSec}.
- *
- * This two ranges balance recent high resolution, historical range and memory usage.
- *
- * This class is implemented with two arrays, {@link #high}, {@link #low} and a {@link LongAdder}.
- *
- * All recent updates hit the LongAdder, {@link #adder} unless an increment causes a roll over to a new in high epoch or both
- * a new high and new low epoch.
- *
- * The two arrays have overlapping time ranges.  {@link #low} delegates its most recent low resolution epoch to {@link #high}
- * and {@link #adder}. Similarly, {@link #high} delegates its most recent high resolution epoch to {@link #adder}.
- *
- * There are some useful time ranges to think about when reading this code:
- * Total range - The range of validity of the time series.  Ends within low resolution seconds of the last update and
- *                         starts {@code duration} before the last update (plus or minus low resolution seconds).
- * Adder range - {@link #adder} must be consulted if the queried time overlaps this range.
- * High range - The {@link #high} array must be consulted if the queried time overlaps this range.
- *              This range may partially overlap the previous {@link #low} epoch because the high array
- *              does not necessarily reset when rolling over the low epoch.  If we are at least {@link #highSec} before
- *              the end of the current epoch, {@link #high} still has high resolution counts overlapping with the
- *              previous low epochs count.
- * Low range - The {@link #low} array should be exclusively consulted for times falling within this range.
- * High as low delegate - The latest low epoch is represented by a combination of the {@link #high} array and {@link #adder}.
- *                        This range occurs immediately after the Low range.
- *                        The two ranges together equal the Total range.
- *                        Use {@link #sumHighDelegate} to get the correct count out of this range when combining with
- *                        counts from previous low epochs.  As mentioned above, high frequently overlaps with the
- *                        last low epoch and naively counting all of {@link #high} will lead to double counting.
+ * Callers increment the counter and query
  */
 public class TimeSeriesCounter {
     public static final int SECOND = 1;
     public static final int MINUTE = 60;
     public static final int HOUR = 60 * MINUTE;
+    protected LongAdder adder = new LongAdder();
 
-    protected final long highSec; // high resolution in seconds
-    protected final int[] high;
+    protected ReadWriteLock lock = new ReentrantReadWriteLock();
 
-    protected final long lowSec;  // low resolution in seconds
-    protected final int[] low;
-
-    protected final ReadWriteLock lock = new ReentrantReadWriteLock();
-
-    protected int adder = 0; // most recent high epoch
-    protected final LongAdder total = new LongAdder(); // the total number of increments
-    protected long latestSec; // most recent update time
+    protected Counter fiveMinutes = new Counter(15 * SECOND, 5 * MINUTE);
+    protected Counter fifteenMinutes = new Counter(90 * SECOND, 15 * MINUTE);
+    protected Counter twentyFourHours = new Counter(15 * MINUTE, 24 * HOUR);
 
     /**
-     * Create a new time series that covers the given {@code totalDuration} in seconds, with the low resolution epochs each
-     * covering {@code lowSecPerEpoch} seconds and each high resolution epoch covering {@code highSecPerEpoch}.
-     *
-     * Because the most recent low resolution epoch is covered completely by the high resolution epochs, {@code lowSecPerEpoch}
-     * must be divisible by {@code highSecPerEpoch}.
+     * Increment counters at timestamp t, any increment more than 24hours before the current time
+     * series resets all historical counters, but the total counter is still increments.
      */
-    public TimeSeriesCounter(long totalDuration, long lowSecPerEpoch, long highSecPerEpoch) {
-        if (totalDuration <= 0 || lowSecPerEpoch <= 0 || highSecPerEpoch <= 0) {
-            throw new IllegalArgumentException("totalDuration [" + totalDuration + "], lowSecPerEpoch [" + lowSecPerEpoch
-                    + "], highSecPerEpoch[" + highSecPerEpoch + "] must be greater than zero");
-        } else if (highSecPerEpoch > lowSecPerEpoch) {
-            throw new IllegalArgumentException("highSecPerEpoch [" + highSecPerEpoch + "] must be less than lowSecPerEpoch ["
-                    + lowSecPerEpoch + "]");
-        } else if (totalDuration % lowSecPerEpoch != 0) {
-            throw new IllegalArgumentException(
-                    "totalDuration [" + totalDuration + "] must be divisible by lowSecPerEpoch [" + lowSecPerEpoch + "]");
-        } else if (lowSecPerEpoch % highSecPerEpoch != 0) {
-            throw new IllegalArgumentException(
-                    "lowSecPerEpoch [" + lowSecPerEpoch + "] must be divisible by highSecPerEpoch [" + highSecPerEpoch + "]");
-        }
-        this.lowSec = lowSecPerEpoch;
-        this.low = new int[(int) (totalDuration / lowSecPerEpoch)];
-        this.highSec = highSecPerEpoch;
-        this.high = new int[(int) (lowSecPerEpoch / highSecPerEpoch)];
-        assert high.length * highSecPerEpoch == lowSecPerEpoch;
-    }
-
-    /**
-     * Increment the counter at the given time.
-     *
-     * If {@code nowSec} is less than the last update, it is treated as an increment at the time of the last update
-     * unless it's before the beginning of this time series, in which case the time series is reset.
-     */
-    public void inc(long nowSec) {
-        if (nowSec < 0) {
-            // The math below relies on now being positive
-            return;
-        }
-
+    public void inc(long t) {
+        adder.increment();
         lock.writeLock().lock();
-        total.increment();
         try {
-            // Handle the rapid update case quickly
-            if (nowSec <= adderEnd(latestSec) && nowSec >= adderStart(latestSec)) {
-                adder++;
-            } else if (nowSec < latestSec) {
-                if (nowSec < totalStart(latestSec)) {
-                    reset(nowSec);
-                } else {
-                    adder++;
-                }
-            } else if (nowSec <= highDelegateEnd(latestSec)) {
-                rollForwardHigh(nowSec);
-                latestSec = nowSec;
-                adder++;
+            if (t < twentyFourHours.earliestTimeInCounter()) {
+                fiveMinutes.reset(t);
+                fifteenMinutes.reset(t);
+                twentyFourHours.reset(t);
             } else {
-                rollForwardLow(nowSec);
-                rollForwardHigh(nowSec);
-                latestSec = nowSec;
-                adder++;
+                fiveMinutes.inc(t);
+                fifteenMinutes.inc(t);
+                twentyFourHours.inc(t);
             }
         } finally {
             lock.writeLock().unlock();
         }
     }
 
-    // roll low forward such that t lowAuthorityEnd(t) + 1 = highDelegateStart(t)
-    // Assumes t >= latestSec.
-    void rollForwardLow(long t) {
-        if (totalEnd(latestSec) < lowStart(t)) {
-            // complete rollover
-            Arrays.fill(low, 0);
-            return;
-        }
-        int cur = lowIndex(latestSec);
-        int dst = lowIndex(t);
-        if (cur == dst) {
-            // no rollover
-            return;
-        }
-
-        // grab the high + adder version of the current epoch
-        low[cur] = sumHighDelegate(latestSec);
-        cur = nextLowIndex(cur);
-        while (cur != dst) {
-            low[cur] = 0;
-            cur = nextLowIndex(cur);
-        }
-        // low[dst]'s contents is delegated to highDelegate
-        low[dst] = 0;
-    }
-
-    void rollForwardHigh(long t) {
-        if (highEnd(latestSec) < highStart(t)) {
-            Arrays.fill(high, 0);
-            adder = 0;
-            return;
-        }
-        int cur = highIndex(latestSec);
-        int dst = highIndex(t);
-        if (cur == dst) {
-            // no rollover
-            return;
-        }
-
-        high[cur] = resetAdder();
-        cur = nextHighIndex(cur);
-        while (cur != dst) {
-            high[cur] = 0;
-            cur = nextHighIndex(cur);
-        }
-        // high[dst]'s contents is delegated to adder
-        high[dst] = 0;
-    }
-
     /**
-     * reset the accumulator and all arrays, setting the latestSet to t and incrementing the adder.
+     * Get the value of the counters for the last 5 minutes, last 15 minutes and the last 24 hours from
+     * t.  May include events up to resolution before those durations due to counter granularity.
      */
-    protected void reset(long t) {
-        Arrays.fill(high, 0);
-        Arrays.fill(low, 0);
-        adder = 1;
-        latestSec = t;
-    }
-
-    /**
-     * Generate a {@link TimeSeries} at the given time for 5m/15m/24h durations
-     */
-    public TimeSeries timeSeries(long now) {
+    public TimeSeries timeSeries(long t) {
         lock.readLock().lock();
         try {
-            return new TimeSeries(
-                count(now, 5 * MINUTE),
-                count(now, 15 * MINUTE),
-                count(now, 24 * HOUR)
-            );
+            return new TimeSeries(fiveMinutes.sum(t), fifteenMinutes.sum(t), twentyFourHours.sum(t));
         } finally {
             lock.readLock().unlock();
         }
     }
 
     /**
-     * Get the count for the time series ending at {@code end} for {@code duration} seconds beforehand.
+     * The total number of events for all time covered gby the counters.
      */
-    int count(long end, long duration) {
-        if (duration < 0 || end - duration < 0) {
-            return 0; // invalid range
+    public long count() {
+        long total = adder.sum();
+        return total < 0 ? 0 : total;
+    }
+
+
+    /*
+     * Keeps track event counts over a duration.  Events are clamped to buckets, either the current bucket or a future
+     * bucket.  A bucket represents all events over a period of resolution number of seconds.
+     */
+    public static class Counter {
+
+        /*
+         * In the following diagrams, we take a duration of 100 and resolution of 20.
+         *
+         *  |_______________________________________|
+         * duration = 100
+         *  |_______|_______|_______|_______|_______|
+         * buckets = 5
+         *  |_______|
+         * resolution = 20
+         *
+         * Action: inc(235)
+         *
+         *  Past
+         *       [_]         [_]         [_]         [3]         [4]
+         *  |___________|___________|___________|___________|___________|
+         *                         140[e]->    160->       180->       199
+         *
+         * Present
+         *        [0]        [1][b]      [2][g]       [3]         [4]
+         *  |___________|_____1_____|___________|___________|___________|
+         * 200[a]->    220->       240[d]->    260->       280->       299
+         *
+         * Future
+         *       [0]         [_]         [_]         [_]         [_]
+         *  |___________|___________|___________|___________|___________|
+         * 300[c]->    320[f]
+         *
+         * [a] Beginning of the current epoch
+         * startOfEpoch = 200            = (t / duration) * duration                          = (235 / 100) * 100
+         * Start time of bucket zero, this is used to anchor the bucket ring in time.  Without `startOfEpoch`,
+         * it would be impossible to distinguish between two times that are `duration` away from each other.
+         * In this example, the first inc used time 235, since startOfEpoch is rounded down to the nearest
+         * duration (100), it is 200.
+         *
+         * [b] The current bucket
+         * curBucket = 1                 = (t / resolution) % buckets.length                  = (235 / 20) % 5
+         * The latest active bucket in the bucket ring.  The bucket of a timestamp is determined by the `resolution`.
+         * In this case the `resolution` is 20, so each bucket covers 20 seconds, the first covers 200-219, the
+         * second covers 220->239, the third 240->259 and so on.  235 is in the second bucket, at index 1.
+         *
+         * [c] Beginning of the next epoch
+         * nextEpoch() = 300             = startOfEpoch + duration                            = 200 + 100
+         * The first time of the next epoch, this indicates when `startOfEpoch` should be updated.  When `curBucket`
+         * advances to or past zero, `startOfEpoch` must be updated to `nextEpoch()`
+         *
+         * [d] Beginning of the next bucket
+         * nextBucketStartTime() = 240   = startOfEpoch + ((curBucket + 1) * resolution)      = 200 + ((1 + 1) * 20
+         * The first time of the next bucket, when a timestamp is greater than or equal to this time, we must update
+         * the `curBucket` and potentially the `startOfEpoch`.
+         *
+         * [e] The earliest time to sum
+         * earliestTimeInCounter() = 140 = nextBucketStartTime() - duration                   = 240 - 100
+         * `curBucket` covers the latest timestamp seen by the `Counter`.  Since the counter keeps a history, when a
+         * caller calls `sum(t)`, the `Counter` must clamp the range to the earliest time covered by its current state.
+         * The times proceed backwards for `buckets.length - 1`.
+         * **Important** this is likely _before_ the `startOfEpoch`. `startOfEpoch` is the timestamp of bucket[0].
+         *
+         * [f] The counter is no longer valid at this time
+         * counterExpired() = 320        = startOfEpoch + (curBucket * resolution) + duration = 200 + (1 * 20) + 100
+         * Where `earliestTimeInCounter()` is looking backwards, to the history covered by the counter, `counterExpired()`
+         * looks forward to when current counter has expired.  Since `curBucket` represents the latest time in this counter,
+         * `counterExpired()` is `duration` from the start of the time covered from `curBucket`
+         *
+         * [g] The next bucket in the bucket ring
+         * nextBucket(curBucket) = 2       = (i + 1) % buckets.length                           = (1 + 1) % 5
+         * Since `buckets` is a ring, the next bucket may wrap around.
+         *
+         * ------------------------------------------------------------------------------------------------------------------
+         *
+         * Action: inc(238) - since this inc is within the current bucket, it is incremented and nothing else changes
+         *
+         * Present
+         *        [0]        [1][b]      [2][g]       [3]         [4]
+         *  |___________|_____2_____|___________|___________|___________|
+         * 200[a]->    220->       240[d]->    260->       280->       299
+         *
+         * ------------------------------------------------------------------------------------------------------------------
+         *
+         * Action: inc(165) - only the current bucket is incremented, so increments from a timestamp in the past are
+         *                    clamped to the current bucket.  This makes `inc(long)` dependent on the ordering of timestamps,
+         *                    but it avoids revising a history that may have already been exposed via `sum(long)`.
+         *
+         * Present
+         *        [0]        [1][b]      [2][g]       [3]         [4]
+         *  |___________|_____3_____|___________|___________|___________|
+         * 200[a]->    220->       240[d]->    260->       280->       299
+         *
+         * ------------------------------------------------------------------------------------------------------------------
+         *
+         * Action: inc(267) - 267 is in bucket 3, so bucket 2 is zeroed and skipped.  Bucket 2 is zeroed because it may have
+         *                    had contents that were relevant for timestamps 140 - 159.
+         *
+         *                    The `startOfEpoch`[a], does not change while `curBucket`[b] is now bucket 3.
+         *
+         *                    `nextEpoch()`[c] does not change as there hasn't been a rollover.
+         *
+         *                    `nextBucketStartTime()`[d] is now 280, the start time of bucket 4.
+         *
+         *                    `earliestTimeInCounter()`[e] is now 180, bucket 2 was zeroed, erasing the history from 140-159 and
+         *                    bucket 3 was set to 1, now representing 260-279 rather than 160-179.
+         *
+         *                    `counterExpired()`[f] is now 360.  Bucket 3 in the current epoch represents 260->279, an
+         *                    `inc(long)` any of time (260 + `duration`) or beyond would require clearing all `buckets` in the
+         *                    `Counter` and any `sum(long)` that starts at 360 or later does not cover the valid time range for
+         *                    this state of the counter.
+         *
+         *                    `nextBucket(curBucket)`[g] is now 4, the bucket after 3.
+         *
+         *
+         *  Past
+         *       [_]         [_]         [_]         [_]         [4]
+         *  |___________|___________|___________|___________|___________|
+         *                                                 180[e]->    199
+         *
+         * Present
+         *        [0]        [1]         [2]          [3][b]     [4][g]
+         *  |___________|_____3_____|___________|______1____|___________|
+         * 200[a]->    220->       240->       260->       280[d]->    299
+         *
+         * Future
+         *       [0]         [1]         [2]         [_]         [_]
+         *  |___________|___________|___________|___________|___________|
+         * 300[c]->    320->       340->       360[f]->
+         *
+         * ------------------------------------------------------------------------------------------------------------------
+         *
+         * Action: inc(310) - 310 is in bucket 0, so bucket 4 is zeroed and skipped, as it may have had contents
+         *                    for timestamps 180-199.
+         *
+         *                    The `startOfEpoch`[a], is now 300 as the `Counter` has rolled through bucket 0.
+         *
+         *                    `curBucket`[b] is now bucket 0.
+         *
+         *                    `nextEpoch()`[c] is now 400 because `startOfEpoch`[a] has changed.
+         *
+         *                    `nextBucketStartTime()`[d] is now 320, the start time of bucket 1 in this new epoch.
+         *
+         *                    `earliestTimeInCounter()`[e] is now 220, bucket 4 was zeroed, erasing the history from 180-199 and
+         *                    bucket 0 was set to 1, now representing 300-319 due to the epoch change, rather than 200-219, so
+         *                    220 is the earliest time available in the `Counter`.
+         *
+         *                    `counterExpired()`[f] is now 400.  Bucket 0 in the current epoch represents 300-319,  an
+         *                    `inc(long)` any of time (300 + `duration`) or beyond would require clearing all `buckets` in the
+         *                    `Counter` and any `sum(long)` that starts at 400 or later does not cover the valid time range for
+         *                    this state of the counter.
+         *
+         *                    `nextBucket(curBucket)`[g] is now 1, the bucket after 0.
+         *
+         *
+         * Past
+         *        [_]        [1]         [2]          [3]        [4]
+         *  |___________|_____3_____|___________|______1____|___________|
+         *             220[e]->    240->       260->       280->       299
+         *
+         * Present
+         *       [0][b]      [1][g]      [2]         [3]         [4]
+         *  |_____1_____|___________|___________|___________|___________|
+         * 300[a]->    320[d]->    340->       360->       380->       399
+         *
+         * Future
+         *       [_]         [_]         [_]         [_]         [_]
+         *  |_____0_____|___________|___________|___________|___________|
+         * 400[c][f]->
+         *
+         * ------------------------------------------------------------------------------------------------------------------
+         *
+         * Action: inc(321) - 321 is in bucket 1, so the previous contents of bucket 1 is replaced with the value 1.
+         *
+         *                    The `startOfEpoch`[a] remains 300.
+         *
+         *                    `curBucket`[b] is now bucket 1.
+         *
+         *                    `nextEpoch()`[c] remains 400.
+         *
+         *                    `nextBucketStartTime()`[d] is now 340, the start time of bucket 2.
+         *
+         *                    `earliestTimeInCounter()`[e] is now 240 as bucket 1 now represents 320-339 rather than 220-239.
+         *
+         *                    `counterExpired()`[f] is now 420.  Bucket 1 in the current epoch represents 320-339,  an
+         *                    `inc(long)` any of time (320 + `duration`) or beyond would require clearing all `buckets` in the
+         *                    `Counter` and any `sum(long)` that starts at 420 or later does not cover the valid time range for
+         *                    this state of the counter.
+         *
+         *                    `nextBucket(curBucket)`[g] is now 2, the bucket after 1.
+         *
+         * Past
+         *        [_]        [_]         [2]          [3]        [4]
+         *  |___________|___________|___________|______1____|___________|
+         *                         240[e]->    260->       280->       299
+         *
+         * Present
+         *       [0]         [1][b]      [2][g]      [3]         [4]
+         *  |_____1_____|_____1_____|___________|___________|___________|
+         * 300[a]->    320->       340[d]->    360->       380->       399
+         *
+         * Future
+         *       [0]         [_]         [_]         [_]         [_]
+         *  |_____0_____|___________|___________|___________|___________|
+         * 400[c]->   420[f]->
+         *
+         */
+        protected final long resolution;
+        protected final long duration;
+        protected final long[] buckets;
+
+        // The start time of buckets[0].  bucket(t + (i * duration)) is the same for all i.  startOfEpoch
+        protected long startOfEpoch;
+        protected int curBucket = 0;
+
+        /**
+         * Create a Counter that covers duration seconds at the given resolution.  Duration must be divisible by resolution.
+         */
+        public Counter(long resolution, long duration) {
+            if (resolution <= 0) {
+                throw new IllegalArgumentException("resolution [" + resolution + "] must be greater than zero");
+            } else if (duration <= 0) {
+                throw new IllegalArgumentException("duration [" + duration + "] must be greater than zero");
+            } else if (duration % resolution != 0) {
+                throw new IllegalArgumentException("duration [" + duration + "] must divisible by resolution [" + resolution + "]");
+            }
+            this.resolution = resolution;
+            this.duration = duration;
+            this.buckets = new long[(int) (duration / resolution)];
+            assert buckets.length > 0;
         }
 
-        lock.readLock().lock();
-        try {
+        /**
+         * Increment the counter at time {@code t}, expressed in seconds.
+         */
+        public void inc(long t) {
+            if (t < nextBucketStartTime()) {
+                buckets[curBucket]++;
+            } else if (t >= counterExpired()) {
+                reset(t);
+            } else {
+                int dstBucket = bucket(t);
+                for (int i = nextBucket(curBucket); i != dstBucket; i = nextBucket(i)) {
+                    buckets[i] = 0;
+                }
+                curBucket = dstBucket;
+                buckets[curBucket] = 1;
+                if (t >= nextEpoch()) {
+                    startOfEpoch = epoch(t);
+                }
+            }
+        }
+
+        /**
+         * sum for the duration of the counter until {@code end}.
+         */
+        public long sum(long end) {
             long start = end - duration;
-
-            if (start >= highStart(latestSec)) {
-                // entirely within high
-                return sumHigh(start, end);
+            if (start >= nextBucketStartTime() || start < 0) {
+                return 0;
             }
-            int total = 0;
-            if (end >= highDelegateStart(latestSec)) {
-                total = sumHighDelegate(end);
-                end = lowEnd(latestSec);
+
+            if (start < earliestTimeInCounter()) {
+                start = earliestTimeInCounter();
             }
-            return total + sumLow(start, end);
-        } finally {
-            lock.readLock().unlock();
-        }
-    }
 
-    /**
-     * Get the total number of increments for all time.
-     */
-    public long total() {
-        long sum = total.sum();
-        return sum >= 0 ? sum : 0;
-    }
-
-    // sum high range representing the current low resolution epoch.
-    int sumHighDelegate(long t) {
-        int delegateIndex = highIndex(Math.min(t, latestSec));
-        int total = adder;
-        for (int i = 0; i < delegateIndex; i++) {
-            total += high[i];
-        }
-        return total;
-    }
-
-    // sum within the high range.  Should not be combined with any
-    // low epoch counts as the high range may overlap with the
-    // previous low epoch.
-    int sumHigh(long start, long end) {
-        if (start > end) {
-            return 0;
+            long total = 0;
+            for (int i = bucket(start); i != curBucket; i = nextBucket(i)) {
+                total += buckets[i];
+            }
+            return total + buckets[curBucket];
         }
 
-        long hStart = highStart(latestSec);
-        long hEnd = adderEnd(latestSec);
-
-        if (end < hStart) {
-            return 0;
-        } else if (end > hEnd) {
-            end = hEnd;
+        /**
+         * Reset the counter.  Next counter begins at t.
+         */
+        void reset(long t) {
+            Arrays.fill(buckets, 0);
+            startOfEpoch = epoch(t);
+            curBucket = bucket(t);
+            buckets[curBucket] = 1;
         }
 
-        if (start > hEnd) {
-            return 0;
-        } else if (start < hStart) {
-            start = hStart;
+        // The time at bucket[0] for the given timestamp.
+        long epoch(long t) {
+            return (t / duration) * duration;
         }
 
-        int delegateIndex = highIndex(latestSec);
-        int cur = highIndex(start);
-        int dst = highIndex(end);
-        int total = 0;
-        while (cur != dst) {
-            total += cur == delegateIndex ? adder : high[cur];
-            cur = (cur + 1) % high.length;
-        }
-        return total + (cur == delegateIndex ? adder : high[cur]);
-    }
-
-    // sum the low epochs represented by the given range
-    public int sumLow(long start, long end) {
-        if (start > end) {
-            return 0;
+        // What is the start time of the next epoch?
+        long nextEpoch() {
+            return startOfEpoch + duration;
         }
 
-        long lStart = lowStart(latestSec);
-        long lEnd = lowEnd(latestSec);
-
-        if (end < lStart) {
-            return 0;
-        } else if (end > lEnd) {
-            end = lEnd;
+        // What is the earliest time covered by this counter?
+        long earliestTimeInCounter() {
+            return nextBucketStartTime() - duration;
         }
 
-        if (start > lEnd) {
-            return 0;
-        } else if (start < lStart) {
-            start = lStart;
+        // When does this entire counter expire?
+        long counterExpired() {
+            return startOfEpoch + (curBucket * resolution) + duration;
         }
 
-        int cur = lowIndex(start);
-        int dst = lowIndex(end);
-        int total = 0;
-        while (cur != dst) {
-            total += low[cur];
-            cur = (cur + 1) % low.length;
+        // bucket for the given time
+        int bucket(long t) {
+            return (int) (t / resolution) % buckets.length;
         }
-        return total + low[cur];
-    }
 
-    // get the current value from adder then reset it.
-    // This should only be called when rolling over.
-    protected int resetAdder() {
-        int sum = adder;
-        adder = 0;
-        return sum;
-    }
+        // the next bucket in the circular bucket array
+        int nextBucket(int i) {
+            return (i + 1) % buckets.length;
+        }
 
-    // adder is the authority from this time until adderAuthorityEnd.
-    // Preceded by high authority range [highAuthorityStart, highAuthorityEnd].
-    long adderStart(long t) {
-        // authority for what _would be_ the latest high epoch
-        return (t / highSec) * highSec;
-    }
-
-    long adderEnd(long t) {
-        return adderStart(t) + highSec - 1;
-    }
-
-    // high is the authority from his time until highAuthorityEnd.
-    // This range is proceeded by the adder authority range [adderAuthorityStart, adderAuthorityEnd]
-    long highStart(long t) {
-        return adderStart(t) - ((high.length - 1) * highSec);
-    }
-
-    long highEnd(long t) {
-        return adderStart(t) - 1;
-    }
-
-    // The beginning of the range where high can combine with low to provide accurate counts.
-    // This range is preceded by the low authority range [lowAuthorityStart, lowAuthorityEnd]
-    long highDelegateStart(long t) {
-        return (t / lowSec) * lowSec;
-    }
-
-    // The end of the high delegate range [highDelegateStart, highDelegateEnd].  There may
-    // not be counts for all parts of this range.  This range only has valid counts until
-    // latestSec.
-    long highDelegateEnd(long t) {
-        return highDelegateStart(t) + lowSec - 1;
-    }
-
-    // The beginning of the range where low has counts.
-    long lowStart(long t) {
-        return totalStart(t);
-    }
-
-    long lowEnd(long t) {
-        return highDelegateStart(t) - 1;
-    }
-
-    // The range of times valid for this TimeSeriesCounter.
-    // Equal to [lowAuthorityStart, lowAuthorityEnd] + [highDelegateStart, highDelegateEnd]
-    long totalStart(long t) {
-        return ((t / lowSec) * lowSec) - ((low.length - 1) * lowSec);
-    }
-
-    long totalEnd(long t) {
-        return ((t / lowSec) * lowSec) + (lowSec - 1);
-    }
-
-    // the index within the high array of the given time.
-    int highIndex(long t) {
-        return (int)((t / highSec) % high.length);
-    }
-
-    // the index within the low array of the given time.
-    int lowIndex(long t) {
-        return (int)((t / lowSec) % low.length);
-    }
-
-    // the next index within the high array, wrapping as appropriate
-    int nextHighIndex(int index) {
-        return (index + 1) % high.length;
-    }
-
-    // the previous index within the high array, wrapping as appropriate
-    int prevHighIndex(int index) {
-        return index == 0 ? high.length - 1 : (index - 1) % high.length;
-    }
-
-    // the next index within the low array, wrapping as appropriate
-    int nextLowIndex(int index) {
-        return (index + 1) % low.length;
-    }
-
-    // the previous index within the low array, wrapping as appropriate
-    int prevLowIndex(int index) {
-        return index == 0 ? low.length - 1 : (index - 1) % low.length;
-    }
-
-    // Testing and debugging methods
-    int getAdder() {
-        return adder;
-    }
-
-    int getLowLength() {
-        return low.length;
-    }
-
-    int getHighLength() {
-        return high.length;
-    }
-
-    long getHighSec() {
-        return highSec;
-    }
-
-    long getLowSec() {
-        return lowSec;
+        // When does the next bucket start?
+        long nextBucketStartTime() {
+            return startOfEpoch + ((curBucket + 1) * resolution);
+        }
     }
 }

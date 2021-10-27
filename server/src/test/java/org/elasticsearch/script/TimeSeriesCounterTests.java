@@ -9,239 +9,371 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matcher;
 import org.junit.Before;
-import static org.elasticsearch.script.TimeSeriesCounter.MINUTE;
-import static org.elasticsearch.script.TimeSeriesCounter.HOUR;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.LongSupplier;
+
+import static org.elasticsearch.script.TimeSeriesCounter.Counter;
+import static org.elasticsearch.script.TimeSeriesCounter.HOUR;
+import static org.hamcrest.Matchers.lessThan;
 
 public class TimeSeriesCounterTests extends ESTestCase {
-    protected static final int totalDuration = 24 * HOUR;
-    protected static final int lowResSecPerEpoch = 30 * MINUTE;
-    protected static final int highResSecPerEpoch = 15;
-    protected static final int FIVE = 5 * MINUTE;
-    protected static final int FIFTEEN = 15 * MINUTE;
-    protected static final int TWENTY_FOUR = 24 * HOUR;
     protected long now;
-    protected TimeSeriesCounter ts;
-    protected TimeProvider t;
+    protected long customCounterResolution;
+    protected long customCounterDuration;
+    protected TimeSeriesCounter tsc = new TimeSeriesCounter();
+    protected final Matcher<Long> fiveDelta = lessThan(tsc.fiveMinutes.resolution);
+    protected final Matcher<Long> fifteenDelta = lessThan(tsc.fifteenMinutes.resolution);
+    protected final Matcher<Long> twentyFourDelta = lessThan(tsc.twentyFourHours.resolution);
+    protected List<Long> events;
+    protected Counter counter;
 
     @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        now = 16345080831234L;
-        t = new TimeProvider();
-        ts = new TimeSeriesCounter(totalDuration, lowResSecPerEpoch, highResSecPerEpoch);
+        now = 1635182590;
+        customCounterResolution = 45;
+        customCounterDuration = 900;
+        reset();
     }
 
-    public void testIncAdder() {
-        long start = ts.adderStart(now);
-        t.add(now);
-        long highSec = ts.getHighSec();
-        for (int i = 0; i < highSec; i++) {
-            t.add(start + i);
-        }
-        inc();
-        assertEquals(highSec + 1, ts.count(now + highSec - 1, highSec - 1));
-        assertEquals(highSec + 1, ts.getAdder());
+    protected void reset() {
+        tsc = new TimeSeriesCounter();
+        events = new ArrayList<>();
+        counter = new Counter(customCounterResolution, customCounterDuration);
     }
 
-    public void testIncAdderRollover() {
-        long start = ts.adderStart(now);
-        long highSec = ts.getHighSec();
-        t.add(now);
-        for (int i = 0; i < 2 * highSec; i++) {
-            t.add(start + i);
-        }
-        inc();
-        assertEquals(2 * highSec + 1, ts.count(now + 2 * highSec - 1, 2 * highSec - 1));
-        assertEquals(highSec, ts.getAdder());
+    public void testCounterNegativeResolution() {
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> new Counter(-20, 200));
+        assertEquals("resolution [-20] must be greater than zero", iae.getMessage());
     }
 
-    public void testIncHighRollover() {
-        long start = ts.adderStart(now);
-        long highSec = ts.getHighSec();
-        int highLength = ts.getHighLength();
-        int count = 0;
-        t.add(now);
-        for (int i = 0; i < highLength + 1; i++) {
-            t.add(start + (i * highSec));
-            if (i == highLength / 2 + 1) {
-                count = i + 1;
+    public void testCounterNegativeDuration() {
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> new Counter(20, -200));
+        assertEquals("duration [-200] must be greater than zero", iae.getMessage());
+    }
+
+    public void testCounterIndivisibleResolution() {
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> new Counter(3, 101));
+        assertEquals("duration [101] must divisible by resolution [3]", iae.getMessage());
+    }
+
+    public void testOnePerSecond() {
+        long time = now;
+        long t;
+        long next = randomLongBetween(1, HOUR);
+        long twentyFive = 25 * HOUR;
+        for (int i=0; i < twentyFive; i++) {
+            t = time + i;
+            inc(t);
+
+            if (i == next) {
+                TimeSeries ts = tsc.timeSeries(t);
+                assertThat(five(t) - ts.fiveMinutes, fiveDelta);
+                assertThat(fifteen(t) - ts.fifteenMinutes, fifteenDelta);
+                assertThat(twentyFour(t) - ts.twentyFourHours, twentyFourDelta);
+                assertEquals(i + 1, tsc.count());
+
+                next = Math.min(twentyFive, next + randomLongBetween(HOUR, 3 * HOUR));
             }
         }
-        inc();
-        assertEquals(highLength + 2, ts.count(now + (highSec * highLength), (highSec * highLength)));
-        assertEquals(1, ts.getAdder());
-        assertEquals(count, ts.count(now + (highSec * (highLength / 2)), highSec * (highLength / 2)));
     }
 
-    public void testSnapshot() {
-        t.add(now);
-        inc();
-        TimeSeries ts1 = ts.timeSeries(now);
-        assertEquals(1, ts1.fiveMinutes);
-        assertEquals(1, ts1.fifteenMinutes);
-        assertEquals(1, ts1.twentyFourHours);
-        t.add(now + 10);
-        t.add(now + FIVE + highResSecPerEpoch);
-        inc();
-        long latest = now + 2 * (FIVE + highResSecPerEpoch);
-        t.add(latest);
-        TimeSeries ts2 = ts.timeSeries(latest);
-        assertEquals(0, ts2.fiveMinutes);
-        assertEquals(3, ts2.fifteenMinutes);
-        assertEquals(3, ts2.twentyFourHours);
-        TimeSeries ts3 = ts.timeSeries(now);
-        assertEquals(1, ts3.fiveMinutes);
-        assertEquals(1, ts3.fifteenMinutes);
-        assertEquals(1, ts3.twentyFourHours);
-        assertEquals(3, ts.total());
-    }
-
-    public void testRolloverCount() {
-        t.add(now);
-        inc();
-        assertEquals(1, ts.count(now + 1, FIVE));
-        assertEquals(0, ts.count(now + (2 * FIVE) + highResSecPerEpoch, FIVE));
-        assertEquals(1, ts.count(now + 1, FIFTEEN));
-        assertEquals(0, ts.count(now + (2 * FIFTEEN) + highResSecPerEpoch, FIFTEEN));
-        assertEquals(1, ts.count(now + 1, HOUR));
-        assertEquals(0, ts.count(now + (2 * HOUR) + highResSecPerEpoch, HOUR));
-    }
-
-    public void testInvalidCount() {
-        t.add(now);
-        inc();
-        assertEquals(0, ts.count(now + 1, -1L));
-        assertEquals(0, ts.count(now + 1, now + 2));
-        assertEquals(1, ts.count(now + 1, now + 1));
-        assertEquals(1, ts.count(now + 1, now));
-    }
-
-    public void testRolloverHigh() {
-        for (int i = 0; i < ts.getHighLength(); i++) {
-            t.add(now + ((long) i * highResSecPerEpoch));
+    public void testCounterIncrementSameBucket() {
+        long resolution = 45;
+        long duration = 900;
+        counter.inc(now);
+        long count = randomLongBetween(resolution / 2, resolution * 2);
+        long start = (now / resolution) * resolution;
+        for (int i = 1; i < count; i++) {
+            counter.inc(start + randomLongBetween(0, resolution - 1));
         }
-        inc();
-        assertEquals(ts.getHighLength(), ts.count(now + lowResSecPerEpoch, lowResSecPerEpoch));
-    }
 
-    public void testRolloverHighWithGaps() {
-        long gap = 3;
-        for (int i = 0; i < ts.getHighLength(); i++) {
-            t.add(now + (gap * i * highResSecPerEpoch));
+        assertEquals(count, counter.sum(start));
+        assertEquals(count, counter.sum(now));
+
+        long t = 0;
+        for (; t <= duration; t += resolution) {
+            assertEquals(count, counter.sum(start + t));
         }
-        inc();
-        assertEquals(ts.getHighLength(), ts.count(now + (gap * lowResSecPerEpoch), (gap * lowResSecPerEpoch)));
+        assertEquals(0, counter.sum(start + t));
+        assertEquals(0, counter.sum(start + duration + resolution));
+        assertEquals(count, counter.sum(start + duration + resolution - 1));
     }
 
-    public void testRolloverLow() {
-        for (int i = 0; i < ts.getLowLength(); i++) {
-            t.add(now + ((long) i * lowResSecPerEpoch));
+
+    public void testFiveMinuteSameBucket() {
+        inc(now);
+        long resolution = tsc.fiveMinutes.resolution;
+        long duration = tsc.fiveMinutes.duration;
+        long count = randomLongBetween(1, resolution);
+        long start = (now / resolution) * resolution;
+        for (int i = 1; i < count; i++) {
+            inc(start + i);
         }
-        inc();
-        assertEquals(ts.getLowLength(), ts.count(now + totalDuration, totalDuration));
-    }
+        assertEquals(count, tsc.count());
+        assertEquals(count, tsc.timeSeries(now).fiveMinutes);
 
-    public void testRolloverLowWithGaps() {
-        long gap = 3;
-        for (int i = 0; i < ts.getLowLength() / 4; i++) {
-            t.add(now + (gap * i * lowResSecPerEpoch));
+        long t = 0;
+        for (; t <= duration; t += resolution) {
+            assertEquals(count, tsc.timeSeries(start + t).fiveMinutes);
         }
-        inc();
-        assertEquals(ts.getLowLength() / 4, ts.count(now + totalDuration, totalDuration));
+
+        TimeSeries series = tsc.timeSeries(start + t);
+        assertEquals(0, series.fiveMinutes);
+        assertEquals(count, series.fifteenMinutes);
+        assertEquals(count, series.twentyFourHours);
+
+        series = tsc.timeSeries(start + duration + resolution);
+        assertEquals(0, series.fiveMinutes);
+        assertEquals(count, series.fifteenMinutes);
+        assertEquals(count, series.twentyFourHours);
+        assertEquals(count, tsc.timeSeries(start + duration + resolution - 1).fiveMinutes);
     }
 
-    public void testHighLowOverlap() {
-        int highPerLow = ts.getHighLength() / 5;
-        int numLow = ts.getLowLength() / 5;
-        long latest = 0;
-        for (long i = 0; i < numLow; i++) {
-            for (long j = 0; j < highPerLow; j++) {
-                latest = now + (i * lowResSecPerEpoch) + (j * highResSecPerEpoch);
-                t.add(latest);
+    public void testFifteenMinuteSameBucket() {
+        inc(now);
+        long resolution = tsc.fifteenMinutes.resolution;
+        long duration = tsc.fifteenMinutes.duration;
+        long start = (now / resolution) * resolution;
+        long count = randomLongBetween(1, resolution);
+        for (int i = 1; i < count; i++) {
+            inc(start + i);
+        }
+        assertEquals(count, tsc.count());
+        assertEquals(count, tsc.timeSeries(now).fifteenMinutes);
+
+        long t = 0;
+        for (; t <= duration; t += resolution) {
+            assertEquals(count, tsc.timeSeries(start + t).fifteenMinutes);
+        }
+
+        TimeSeries series = tsc.timeSeries(start + t);
+        assertEquals(0, series.fiveMinutes);
+        assertEquals(0, series.fifteenMinutes);
+        assertEquals(count, series.twentyFourHours);
+
+        series = tsc.timeSeries(start + duration + resolution);
+        assertEquals(0, series.fiveMinutes);
+        assertEquals(0, series.fifteenMinutes);
+        assertEquals(count, series.twentyFourHours);
+        assertEquals(count, tsc.timeSeries(start + duration + resolution - 1).fifteenMinutes);
+    }
+
+    public void testCounterIncrementBucket() {
+        long count = customCounterDuration / customCounterResolution;
+        for (int i = 0; i < count; i++) {
+            counter.inc(now + i * customCounterResolution);
+        }
+        assertEquals(count, counter.sum(now + customCounterDuration));
+        assertEquals(count - 1, counter.sum(now + customCounterDuration + customCounterResolution));
+        assertEquals(count - 2, counter.sum(now + customCounterDuration + (2 * customCounterResolution)));
+        counter.inc(now + customCounterDuration);
+        assertEquals(count, counter.sum(now + customCounterDuration + customCounterResolution));
+    }
+
+    public void testFiveMinuteIncrementBucket() {
+        int count = tsc.fiveMinutes.buckets.length;
+        long resolution = tsc.fiveMinutes.resolution;
+        long duration = tsc.fiveMinutes.duration;
+        for (int i = 0; i < count; i++) {
+            inc(now + i * resolution);
+        }
+
+        TimeSeries ts = tsc.timeSeries(now + duration);
+        assertEquals(count, ts.fiveMinutes);
+        assertEquals(count, ts.fifteenMinutes);
+        assertEquals(count, ts.twentyFourHours);
+        assertEquals(count, tsc.count());
+
+        ts = tsc.timeSeries(now + duration + resolution);
+        assertEquals(count - 1, ts.fiveMinutes);
+        assertEquals(count, ts.fifteenMinutes);
+        assertEquals(count, ts.twentyFourHours);
+
+        ts = tsc.timeSeries(now + duration + (2 * resolution));
+        assertEquals(count - 2, ts.fiveMinutes);
+        assertEquals(count, ts.fifteenMinutes);
+        assertEquals(count, ts.twentyFourHours);
+
+        inc(now + duration);
+        ts = tsc.timeSeries(now + duration + resolution);
+        assertEquals(count, ts.fiveMinutes);
+        assertEquals(count + 1, ts.fifteenMinutes);
+        assertEquals(count + 1, ts.twentyFourHours);
+        assertEquals(count + 1, tsc.count());
+    }
+
+    public void testFifteenMinuteIncrementBucket() {
+        int count = tsc.fifteenMinutes.buckets.length;
+        long resolution = tsc.fifteenMinutes.resolution;
+        long duration = tsc.fifteenMinutes.duration;
+        for (int i = 0; i < count; i++) {
+            long t = now + i * resolution;
+            inc(t);
+        }
+        long t = now + duration;
+        TimeSeries ts = tsc.timeSeries(t);
+        assertEquals(five(t), ts.fiveMinutes);
+        assertEquals(count, ts.fifteenMinutes);
+        assertEquals(count, ts.twentyFourHours);
+
+        t = now + duration + resolution;
+        ts = tsc.timeSeries(t);
+        assertEquals(five(t), ts.fiveMinutes);
+        assertEquals(count - 1, ts.fifteenMinutes);
+        assertEquals(count, ts.twentyFourHours);
+
+        t = now + duration + (2 * resolution);
+        ts = tsc.timeSeries(t);
+        assertEquals(five(t), ts.fiveMinutes);
+        assertEquals(count - 2, ts.fifteenMinutes);
+        assertEquals(count, ts.twentyFourHours);
+
+        inc(now + duration);
+        t = now + duration + resolution;
+        ts = tsc.timeSeries(t);
+        assertEquals(five(t), ts.fiveMinutes);
+        assertEquals(count, ts.fifteenMinutes);
+        assertEquals(count + 1, ts.twentyFourHours);
+        assertEquals(count + 1, tsc.count());
+    }
+
+    public void testCounterSkipBuckets() {
+        int count = (int) (customCounterDuration / customCounterResolution);
+        for (int skip = 1; skip <= count; skip++) {
+            reset();
+            int increments = 0;
+            for (int i = 0; (i * skip * customCounterResolution) < customCounterDuration; i++) {
+                counter.inc(now + (i * skip * customCounterResolution));
+                increments++;
+            }
+            assertEquals(increments, counter.sum(now + customCounterDuration));
+        }
+    }
+
+    public void testFiveMinuteSkipBucket() {
+        int count = tsc.fiveMinutes.buckets.length;
+        long resolution = tsc.fiveMinutes.resolution;
+        long duration = tsc.fiveMinutes.duration;
+        for (int skip = 1; skip <= count; skip++) {
+            tsc = new TimeSeriesCounter();
+            long increments = 0;
+            for (int i = 0; (i * skip * resolution) < duration; i++) {
+                inc(now + (i * skip * resolution));
+                increments++;
+            }
+
+            TimeSeries series = tsc.timeSeries(now + duration);
+            assertEquals(increments, series.fiveMinutes);
+            assertEquals(increments, series.fifteenMinutes);
+            assertEquals(increments, series.twentyFourHours);
+            assertEquals(increments, tsc.count());
+        }
+    }
+
+    public void testFifteenMinuteSkipBuckets() {
+        int count = tsc.fifteenMinutes.buckets.length;
+        long resolution = tsc.fifteenMinutes.resolution;
+        long duration = tsc.fifteenMinutes.duration;
+        for (int skip = 1; skip <= count; skip++) {
+            reset();
+            for (int i = 0; (i * skip * resolution) < duration; i++) {
+                inc(now + (i * skip * resolution));
+            }
+            TimeSeries ts = tsc.timeSeries(now + duration);
+            assertEquals(five(now + duration), ts.fiveMinutes);
+            assertEquals(events.size(), ts.fifteenMinutes);
+            assertEquals(events.size(), ts.twentyFourHours);
+            assertEquals(events.size(), tsc.count());
+        }
+    }
+
+    public void testCounterReset() {
+        long time = now;
+        for (int i=0; i < 20; i++) {
+            long count = 0;
+            long withinBucket = randomIntBetween(1, (int) (customCounterResolution / 2));
+            time += customCounterResolution + (i * customCounterDuration);
+            long last = time;
+            for (int j=0; j < withinBucket; j++) {
+                long bucketTime = (time / customCounterResolution) * customCounterResolution;
+                last = bucketTime + randomLongBetween(0, customCounterResolution - 1);
+                counter.inc(last);
+                count++;
+            }
+            assertEquals(count, counter.sum(last));
+        }
+    }
+
+    public void testFiveMinuteReset() {
+        long time = now;
+        long resolution = tsc.fiveMinutes.resolution;
+        long duration = tsc.fiveMinutes.duration;
+        for (int i=0; i < 20; i++) {
+            long withinBucket = randomLongBetween(1, resolution);
+            time += resolution + (i * duration);
+            for (int j=0; j < withinBucket; j++) {
+                inc(time + j);
+            }
+            TimeSeries ts = tsc.timeSeries(time);
+            assertThat(five(time) - ts.fiveMinutes, fiveDelta);
+            assertThat(fifteen(time) - ts.fifteenMinutes, fifteenDelta);
+            assertThat(twentyFour(time) - ts.twentyFourHours, twentyFourDelta);
+            assertEquals(events.size(), tsc.count());
+        }
+    }
+
+    public void testFifteenMinuteReset() {
+        long time = now;
+        long resolution = tsc.fifteenMinutes.resolution;
+        long duration = tsc.fifteenMinutes.duration;
+        for (int i=0; i < 20; i++) {
+            long withinBucket = randomLongBetween(1, resolution);
+            time += resolution + (i * duration);
+            for (int j=0; j < withinBucket; j++) {
+                inc(time + j);
+            }
+            TimeSeries ts = tsc.timeSeries(time);
+            assertThat(five(time) - ts.fiveMinutes, fiveDelta);
+            assertThat(fifteen(time) - ts.fifteenMinutes, fifteenDelta);
+            assertThat(twentyFour(time) - ts.twentyFourHours, twentyFourDelta);
+            assertEquals(events.size(), tsc.count());
+        }
+    }
+
+    // Count the last five minutes of events before t
+    public long five(long t) {
+        return countLast(t, tsc.fiveMinutes, events);
+    }
+
+    // Count the last fifteen minutes of events before t
+    public long fifteen(long t) {
+        return countLast(t, tsc.fifteenMinutes, events);
+    }
+
+    // Count the last twenty-four hours of events before t
+    public long twentyFour(long t) {
+        return countLast(t, tsc.twentyFourHours, events);
+    }
+
+    // Count the last set of events that would be recorded by counter
+    public long countLast(long t, Counter counter, List<Long> events) {
+        long count = 0;
+        long after = ((t - counter.duration) / counter.resolution) * counter.resolution;
+        for (long event : events) {
+            if (event > after) {
+                count++;
             }
         }
-        inc();
-        assertEquals(highPerLow * numLow, ts.count(latest, totalDuration));
+        return count;
     }
 
-    public void testBackwardsInc() {
-        t.add(now);
-        t.add(now - highResSecPerEpoch);
-        t.add(now - lowResSecPerEpoch);
-        inc();
-        assertEquals(3, ts.count(now + highResSecPerEpoch, totalDuration));
-    }
-
-    public void testBackwardsIncReset() {
-        long twoDays = now + 2 * totalDuration;
-        ts.inc(twoDays);
-        assertEquals(1, ts.count(twoDays, totalDuration));
-        ts.inc(now);
-        assertEquals(0, ts.count(twoDays, totalDuration));
-        assertEquals(1, ts.count(now, totalDuration));
-    }
-
-    public void testSumFuture() {
-        ts.inc(now);
-        assertEquals(0, ts.count(now + (3 * TWENTY_FOUR), TWENTY_FOUR));
-    }
-
-    public void testSumPast() {
-        ts.inc(now);
-        assertEquals(0, ts.count(now - (2 * TWENTY_FOUR), TWENTY_FOUR));
-    }
-
-    public void testNegativeConstructor() {
-        IllegalArgumentException err = expectThrows(IllegalArgumentException.class,
-            () -> new TimeSeriesCounter(-1L, -2L, -3L));
-        assertEquals("totalDuration [-1], lowSecPerEpoch [-2], highSecPerEpoch[-3] must be greater than zero", err.getMessage());
-    }
-
-    public void testHighEpochTooSmallConstructor() {
-        IllegalArgumentException err = expectThrows(IllegalArgumentException.class,
-            () -> new TimeSeriesCounter(TWENTY_FOUR, FIFTEEN, FIFTEEN + 1));
-        assertEquals("highSecPerEpoch [" + (FIFTEEN + 1) + "] must be less than lowSecPerEpoch [" + FIFTEEN + "]", err.getMessage());
-    }
-
-    public void testDurationNotDivisibleByLow() {
-        IllegalArgumentException err = expectThrows(IllegalArgumentException.class,
-            () -> new TimeSeriesCounter(TWENTY_FOUR, 25 * MINUTE, FIVE));
-        assertEquals("totalDuration [" + TWENTY_FOUR + "] must be divisible by lowSecPerEpoch [" + (25 * MINUTE) + "]", err.getMessage());
-    }
-
-    public void testLowDivisibleByHigh() {
-        IllegalArgumentException err = expectThrows(IllegalArgumentException.class,
-            () -> new TimeSeriesCounter(TWENTY_FOUR, FIFTEEN, 10 * MINUTE));
-        assertEquals("lowSecPerEpoch [" + FIFTEEN + "] must be divisible by highSecPerEpoch [" + (10 * MINUTE) + "]", err.getMessage());
-    }
-
-    void inc() {
-        for (int i = t.i; i < t.times.size(); i++) {
-            ts.inc(t.getAsLong() / 1000);
-        }
-    }
-
-    public static class TimeProvider implements LongSupplier {
-        public final List<Long> times = new ArrayList<>();
-        public int i = 0;
-
-        public void add(long time) {
-            times.add(time * 1000);
-        }
-
-        @Override
-        public long getAsLong() {
-            assert times.size() > 0;
-            if (i >= times.size()) {
-                return times.get(times.size() - 1);
-            }
-            return times.get(i++);
-        }
+    private void inc(long t) {
+        tsc.inc(t);
+        events.add(t);
     }
 }

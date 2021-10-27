@@ -45,7 +45,7 @@ public class ScriptCache {
     private final double compilesAllowedPerNano;
     private final String contextRateSetting;
 
-    ScriptCache(int cacheMaxSize, TimeValue cacheExpire, CompilationRate maxCompilationRate, String contextRateSetting,
+    ScriptCache(int cacheMaxSize, TimeValue cacheExpire, CompilationRate maxCompilationRate, String contextRateSetting
                 LongSupplier timeProvider) {
         this.cacheSize = cacheMaxSize;
         this.cacheExpire = cacheExpire;

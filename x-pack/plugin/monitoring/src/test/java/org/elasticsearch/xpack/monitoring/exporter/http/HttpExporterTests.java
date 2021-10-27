@@ -610,7 +610,7 @@ public class HttpExporterTests extends ESTestCase {
 
         if (useIngest == false) {
             builder.put("xpack.monitoring.exporters._http.use_ingest", false);
-            expectedWarnings.add(new DeprecationWarning(Level.WARN,
+            expectedWarnings.add(new DeprecationWarning(DeprecationLogger.CRITICAL,
                 "[xpack.monitoring.exporters._http.use_ingest] setting was deprecated in Elasticsearch " +
                     "and will be removed in a future release! See the breaking changes documentation for the next major version."));
         }
@@ -623,7 +623,7 @@ public class HttpExporterTests extends ESTestCase {
 
         if (bulkTimeout != null) {
             assertThat(parameters.remove("timeout"), equalTo(bulkTimeout.toString()));
-            expectedWarnings.add(new DeprecationWarning(DeprecationLogger.CRITICAL,
+            expectedWarnings.add(new DeprecationWarning(Level.WARN,
                 "[xpack.monitoring.exporters._http.bulk.timeout] setting was deprecated in Elasticsearch and will be " +
                 "removed in a future release! See the breaking changes documentation for the next major version."));
         } else {

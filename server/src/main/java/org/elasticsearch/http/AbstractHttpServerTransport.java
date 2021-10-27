@@ -32,8 +32,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.rest.RestChannel;
@@ -43,6 +41,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -448,9 +447,16 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             } catch (final IllegalArgumentException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
                 final RestRequest innerRequest = RestRequest.requestWithoutParameters(parserConfig, httpRequest, httpChannel);
-                innerChannel =
-                    new DefaultRestChannel(httpChannel, httpRequest, innerRequest, bigArrays, handlingSettings, threadContext, corsHandler,
-                        trace);
+                innerChannel = new DefaultRestChannel(
+                    httpChannel,
+                    httpRequest,
+                    innerRequest,
+                    bigArrays,
+                    handlingSettings,
+                    threadContext,
+                    corsHandler,
+                    trace
+                );
             }
             channel = innerChannel;
         }

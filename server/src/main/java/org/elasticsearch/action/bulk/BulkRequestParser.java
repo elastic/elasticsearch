@@ -373,11 +373,14 @@ public final class BulkRequestParser {
                                 "Update request in line [" + line + "] does not accept " + DYNAMIC_TEMPLATES.getPreferredName()
                             );
                         }
-                        UpdateRequest updateRequest = new UpdateRequest().index(index).id(id).routing(routing)
-                                .retryOnConflict(retryOnConflict)
-                                .setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
-                                .setRequireAlias(requireAlias)
-                                .routing(routing);
+                        UpdateRequest updateRequest = new UpdateRequest().index(index)
+                            .id(id)
+                            .routing(routing)
+                            .retryOnConflict(retryOnConflict)
+                            .setIfSeqNo(ifSeqNo)
+                            .setIfPrimaryTerm(ifPrimaryTerm)
+                            .setRequireAlias(requireAlias)
+                            .routing(routing);
                         try (
                             XContentParser sliceParser = createParser(
                                 xContent,
@@ -413,12 +416,7 @@ public final class BulkRequestParser {
 
     // Create an efficient parser of the given bytes, trying to directly parse a byte array if possible and falling back to stream wrapping
     // otherwise.
-    private XContentParser createParser(
-        XContent xContent,
-        BytesReference data,
-        int from,
-        int nextMarker
-    ) throws IOException {
+    private XContentParser createParser(XContent xContent, BytesReference data, int from, int nextMarker) throws IOException {
         if (data.hasArray()) {
             return parseBytesArray(xContent, data, from, nextMarker);
         } else {

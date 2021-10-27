@@ -168,16 +168,18 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         return Objects.hash(maxConcurrentSearchRequests, requests, indicesOptions);
     }
 
-    public static void readMultiLineFormat(XContent xContent,
-                                           XContentParserConfiguration parserConfig,
-                                           BytesReference data,
-                                           CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer,
-                                           String[] indices,
-                                           IndicesOptions indicesOptions,
-                                           String routing,
-                                           String searchType,
-                                           Boolean ccsMinimizeRoundtrips,
-                                           boolean allowExplicitIndex) throws IOException {
+    public static void readMultiLineFormat(
+        XContent xContent,
+        XContentParserConfiguration parserConfig,
+        BytesReference data,
+        CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer,
+        String[] indices,
+        IndicesOptions indicesOptions,
+        String routing,
+        String searchType,
+        Boolean ccsMinimizeRoundtrips,
+        boolean allowExplicitIndex
+    ) throws IOException {
         readMultiLineFormat(
             xContent,
             parserConfig,
@@ -194,17 +196,19 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
 
     }
 
-    public static void readMultiLineFormat(XContent xContent,
-                                           XContentParserConfiguration parserConfig,
-                                           BytesReference data,
-                                           CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer,
-                                           String[] indices,
-                                           IndicesOptions indicesOptions,
-                                           String routing,
-                                           String searchType,
-                                           Boolean ccsMinimizeRoundtrips,
-                                           boolean allowExplicitIndex,
-                                           TriFunction<String, Object, SearchRequest, Boolean> extraParamParser) throws IOException {
+    public static void readMultiLineFormat(
+        XContent xContent,
+        XContentParserConfiguration parserConfig,
+        BytesReference data,
+        CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer,
+        String[] indices,
+        IndicesOptions indicesOptions,
+        String routing,
+        String searchType,
+        Boolean ccsMinimizeRoundtrips,
+        boolean allowExplicitIndex,
+        TriFunction<String, Object, SearchRequest, Boolean> extraParamParser
+    ) throws IOException {
         int from = 0;
         byte marker = xContent.streamSeparator();
         while (true) {
@@ -274,14 +278,14 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                             allowNoIndices = value;
                         } else if ("ignore_throttled".equals(entry.getKey()) || "ignoreThrottled".equals(entry.getKey())) {
                             ignoreThrottled = value;
-                        } else if(parserConfig.restApiVersion() == RestApiVersion.V_7 &&
-                            ("type".equals(entry.getKey()) || "types".equals(entry.getKey()))) {
-                            deprecationLogger.compatibleCritical("msearch_with_types", RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
-                        } else if (extraParamParser.apply(entry.getKey(), value, searchRequest)) {
-                            // Skip, the parser handled the key/value
-                        } else {
-                            throw new IllegalArgumentException("key [" + entry.getKey() + "] is not supported in the metadata section");
-                        }
+                        } else if (parserConfig.restApiVersion() == RestApiVersion.V_7
+                            && ("type".equals(entry.getKey()) || "types".equals(entry.getKey()))) {
+                                deprecationLogger.compatibleCritical("msearch_with_types", RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
+                            } else if (extraParamParser.apply(entry.getKey(), value, searchRequest)) {
+                                // Skip, the parser handled the key/value
+                            } else {
+                                throw new IllegalArgumentException("key [" + entry.getKey() + "] is not supported in the metadata section");
+                            }
                     }
                     defaultOptions = IndicesOptions.fromParameters(
                         expandWildcards,
@@ -302,8 +306,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                 break;
             }
             BytesReference bytes = data.slice(from, nextMarker - from);
-            try (InputStream stream = bytes.streamInput();
-                 XContentParser parser = xContent.createParser(parserConfig, stream)) {
+            try (InputStream stream = bytes.streamInput(); XContentParser parser = xContent.createParser(parserConfig, stream)) {
                 consumer.accept(searchRequest, parser);
             }
             // move pointers

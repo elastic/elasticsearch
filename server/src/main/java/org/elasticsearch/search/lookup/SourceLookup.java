@@ -182,10 +182,7 @@ public class SourceLookup implements Map<String, Object> {
             FieldsVisitor sourceFieldVisitor = new FieldsVisitor(true);
             fieldReader.accept(docId, sourceFieldVisitor);
             BytesReference source = sourceFieldVisitor.source();
-            return XContentMapValues.extractRawValues(
-                path,
-                XContentHelper.convertToMap(source, false, null, Set.of(path), null).v2()
-            );
+            return XContentMapValues.extractRawValues(path, XContentHelper.convertToMap(source, false, null, Set.of(path), null).v2());
         } catch (Exception e) {
             throw new ElasticsearchParseException("failed to parse / load source", e);
         }

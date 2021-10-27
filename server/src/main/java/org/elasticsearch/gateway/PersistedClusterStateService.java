@@ -465,8 +465,7 @@ public class PersistedClusterStateService {
         searcher.setQueryCache(null);
 
         final SetOnce<Metadata.Builder> builderReference = new SetOnce<>();
-        consumeFromType(searcher, GLOBAL_TYPE_NAME, bytes ->
-        {
+        consumeFromType(searcher, GLOBAL_TYPE_NAME, bytes -> {
             final Metadata metadata = Metadata.Builder.fromXContent(
                 XContentType.SMILE.xContent().createParser(parserConfig, bytes.bytes, bytes.offset, bytes.length)
             );
@@ -485,8 +484,7 @@ public class PersistedClusterStateService {
         logger.trace("got global metadata, now reading index metadata");
 
         final Set<String> indexUUIDs = new HashSet<>();
-        consumeFromType(searcher, INDEX_TYPE_NAME, bytes ->
-        {
+        consumeFromType(searcher, INDEX_TYPE_NAME, bytes -> {
             final IndexMetadata indexMetadata = IndexMetadata.fromXContent(
                 XContentType.SMILE.xContent().createParser(parserConfig, bytes.bytes, bytes.offset, bytes.length)
             );

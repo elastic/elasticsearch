@@ -80,10 +80,11 @@ public class RestRequestTests extends ESTestCase {
 
     private <T extends Exception> void runConsumesContentTest(final CheckedConsumer<RestRequest, T> consumer, final boolean expected) {
         final HttpRequest httpRequest = mock(HttpRequest.class);
-        when (httpRequest.uri()).thenReturn("");
-        when (httpRequest.content()).thenReturn(new BytesArray(new byte[1]));
-        when (httpRequest.getHeaders()).thenReturn(
-            Collections.singletonMap("Content-Type", Collections.singletonList(randomFrom("application/json", "application/x-ndjson"))));
+        when(httpRequest.uri()).thenReturn("");
+        when(httpRequest.content()).thenReturn(new BytesArray(new byte[1]));
+        when(httpRequest.getHeaders()).thenReturn(
+            Collections.singletonMap("Content-Type", Collections.singletonList(randomFrom("application/json", "application/x-ndjson")))
+        );
         final RestRequest request = RestRequest.request(XContentParserConfiguration.EMPTY, httpRequest, mock(HttpChannel.class));
         assertFalse(request.isContentConsumed());
         try {
@@ -254,8 +255,14 @@ public class RestRequestTests extends ESTestCase {
         private final RestRequest restRequest;
 
         private ContentRestRequest(RestRequest restRequest) {
-            super(restRequest.contentParserConfig(), restRequest.params(), restRequest.path(), restRequest.getHeaders(),
-                restRequest.getHttpRequest(), restRequest.getHttpChannel());
+            super(
+                restRequest.contentParserConfig(),
+                restRequest.params(),
+                restRequest.path(),
+                restRequest.getHeaders(),
+                restRequest.getHttpRequest(),
+                restRequest.getHttpChannel()
+            );
             this.restRequest = restRequest;
         }
 

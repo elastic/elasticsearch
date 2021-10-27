@@ -72,13 +72,26 @@ public class RestRequest implements ToXContent.Params {
         return contentConsumed;
     }
 
-    protected RestRequest(XContentParserConfiguration parserConfig, Map<String, String> params, String path,
-                          Map<String, List<String>> headers, HttpRequest httpRequest, HttpChannel httpChannel) {
+    protected RestRequest(
+        XContentParserConfiguration parserConfig,
+        Map<String, String> params,
+        String path,
+        Map<String, List<String>> headers,
+        HttpRequest httpRequest,
+        HttpChannel httpChannel
+    ) {
         this(parserConfig, params, path, headers, httpRequest, httpChannel, requestIdGenerator.incrementAndGet());
     }
 
-    private RestRequest(XContentParserConfiguration parserConfig, Map<String, String> params, String path,
-                        Map<String, List<String>> headers, HttpRequest httpRequest, HttpChannel httpChannel, long requestId) {
+    private RestRequest(
+        XContentParserConfiguration parserConfig,
+        Map<String, String> params,
+        String path,
+        Map<String, List<String>> headers,
+        HttpRequest httpRequest,
+        HttpChannel httpChannel,
+        long requestId
+    ) {
         try {
             this.parsedAccept = parseHeaderWithMediaType(httpRequest.getHeaders(), "Accept");
         } catch (IllegalArgumentException e) {
@@ -191,11 +204,21 @@ public class RestRequest implements ToXContent.Params {
      *
      * @throws MediaTypeHeaderException if the Content-Type or Accept header can not be parsed
      */
-    public static RestRequest requestWithoutParameters(XContentParserConfiguration parserConfig, HttpRequest httpRequest,
-                                                       HttpChannel httpChannel) {
+    public static RestRequest requestWithoutParameters(
+        XContentParserConfiguration parserConfig,
+        HttpRequest httpRequest,
+        HttpChannel httpChannel
+    ) {
         Map<String, String> params = Collections.emptyMap();
-        return new RestRequest(parserConfig, params, httpRequest.uri(), httpRequest.getHeaders(), httpRequest, httpChannel,
-            requestIdGenerator.incrementAndGet());
+        return new RestRequest(
+            parserConfig,
+            params,
+            httpRequest.uri(),
+            httpRequest.getHeaders(),
+            httpRequest,
+            httpChannel,
+            requestIdGenerator.incrementAndGet()
+        );
     }
 
     public enum Method {

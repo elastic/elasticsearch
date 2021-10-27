@@ -1145,8 +1145,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 final BytesReference compareOriginalBytes = BytesReference.bytes(compareBuilder);
 
                 final Metadata loadedMetadata;
-                try (XContentParser parser = createParser(parserConfig().withRegistry(ElasticsearchNodeCommand.namedXContentRegistry),
-                    SmileXContent.smileXContent, originalBytes)) {
+                try (
+                    XContentParser parser = createParser(
+                        parserConfig().withRegistry(ElasticsearchNodeCommand.namedXContentRegistry),
+                        SmileXContent.smileXContent,
+                        originalBytes
+                    )
+                ) {
                     loadedMetadata = Metadata.fromXContent(parser);
                 }
                 builder = SmileXContent.contentBuilder();
@@ -1181,8 +1186,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 final BytesReference compareOriginalBytes = BytesReference.bytes(compareBuilder);
 
                 final IndexMetadata loadedIndexMetadata;
-                try (XContentParser parser = createParser(parserConfig().withRegistry(ElasticsearchNodeCommand.namedXContentRegistry),
-                    SmileXContent.smileXContent, originalBytes)) {
+                try (
+                    XContentParser parser = createParser(
+                        parserConfig().withRegistry(ElasticsearchNodeCommand.namedXContentRegistry),
+                        SmileXContent.smileXContent,
+                        originalBytes
+                    )
+                ) {
                     loadedIndexMetadata = IndexMetadata.fromXContent(parser);
                 }
                 builder = SmileXContent.contentBuilder();

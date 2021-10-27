@@ -1421,7 +1421,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         return randomBoolean() ? config : config.withRestApiVersion(RestApiVersion.minimumSupported());
     }
-    
+
     /**
      * Create a new {@link XContentParser}.
      */
@@ -1468,8 +1468,8 @@ public abstract class ESTestCase extends LuceneTestCase {
         return xContent.createParser(config, data.streamInput());
     }
 
-    protected final XContentParser createParserWithCompatibilityFor(XContent xContent, String data,
-                                                            RestApiVersion restApiVersion) throws IOException {
+    protected final XContentParser createParserWithCompatibilityFor(XContent xContent, String data, RestApiVersion restApiVersion)
+        throws IOException {
         return xContent.createParser(parserConfig().withRestApiVersion(restApiVersion), data);
     }
 

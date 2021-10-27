@@ -146,11 +146,11 @@ public class XContentHelper {
      * number.
      */
     public static Tuple<XContentType, Map<String, Object>> convertToMap(
-            BytesReference bytes,
-            boolean ordered,
-            XContentType xContentType,
-            @Nullable Set<String> include,
-            @Nullable Set<String> exclude
+        BytesReference bytes,
+        boolean ordered,
+        XContentType xContentType,
+        @Nullable Set<String> include,
+        @Nullable Set<String> exclude
     ) throws ElasticsearchParseException {
         try {
             final XContentType contentType;
@@ -222,11 +222,11 @@ public class XContentHelper {
      * Additionally, fields may be included or excluded from the parsing.
      */
     public static Map<String, Object> convertToMap(
-            XContent xContent,
-            InputStream input,
-            boolean ordered,
-            @Nullable Set<String> include,
-            @Nullable Set<String> exclude
+        XContent xContent,
+        InputStream input,
+        boolean ordered,
+        @Nullable Set<String> include,
+        @Nullable Set<String> exclude
     ) throws ElasticsearchParseException {
         try (XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY.withFiltering(include, exclude), input)) {
             return ordered ? parser.mapOrdered() : parser.map();
@@ -252,19 +252,21 @@ public class XContentHelper {
      * during XContent parsing.
      */
     public static Map<String, Object> convertToMap(
-            XContent xContent,
-            byte[] bytes,
-            int offset,
-            int length,
-            boolean ordered,
-            @Nullable Set<String> include,
-            @Nullable Set<String> exclude
+        XContent xContent,
+        byte[] bytes,
+        int offset,
+        int length,
+        boolean ordered,
+        @Nullable Set<String> include,
+        @Nullable Set<String> exclude
     ) throws ElasticsearchParseException {
-        try (XContentParser parser = xContent.createParser(
-            XContentParserConfiguration.EMPTY.withFiltering(include, exclude),
+        try (
+            XContentParser parser = xContent.createParser(
+                XContentParserConfiguration.EMPTY.withFiltering(include, exclude),
                 bytes,
                 offset,
-                length)
+                length
+            )
         ) {
             return ordered ? parser.mapOrdered() : parser.map();
         } catch (IOException e) {

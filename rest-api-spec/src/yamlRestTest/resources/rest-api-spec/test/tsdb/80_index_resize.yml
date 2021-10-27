@@ -97,8 +97,10 @@ split:
 ---
 shrink:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+#      version: " - 7.99.99"
+#      reason: introduced in 8.0.0
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/79936"
       features: "arbitrary_key"
 
   - do:

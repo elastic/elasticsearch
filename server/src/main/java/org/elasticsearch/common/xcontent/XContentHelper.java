@@ -27,8 +27,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -39,21 +39,29 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 @SuppressWarnings("unchecked")
 public class XContentHelper {
 
     /**
      * Creates a parser based on the bytes provided
-     * @deprecated use {@link #createParser(NamedXContentRegistry, DeprecationHandler, BytesReference, XContentType)}
+     * @deprecated use {@link #createParser(XContentParserConfiguration, BytesReference, XContentType)}
      * to avoid content type auto-detection
      */
     @Deprecated
-    public static XContentParser createParser(
-        NamedXContentRegistry xContentRegistry,
-        DeprecationHandler deprecationHandler,
-        BytesReference bytes
-    ) throws IOException {
+    public static XContentParser createParser(NamedXContentRegistry registry, DeprecationHandler deprecation, BytesReference bytes)
+        throws IOException {
+        return createParser(XContentParserConfiguration.EMPTY.withRegistry(registry).withDeprecationHandler(deprecation), bytes);
+    }
+
+    /**
+     * Creates a parser based on the bytes provided
+     * @deprecated use {@link #createParser(XContentParserConfiguration, BytesReference, XContentType)}
+     * to avoid content type auto-detection
+     */
+    @Deprecated
+    public static XContentParser createParser(XContentParserConfiguration config, BytesReference bytes) throws IOException {
         Compressor compressor = CompressorFactory.compressor(bytes);
         if (compressor != null) {
             InputStream compressedInput = compressor.threadLocalInputStream(bytes.streamInput());
@@ -61,21 +69,31 @@ public class XContentHelper {
                 compressedInput = new BufferedInputStream(compressedInput);
             }
             final XContentType contentType = XContentFactory.xContentType(compressedInput);
-            return XContentFactory.xContent(contentType).createParser(xContentRegistry, deprecationHandler, compressedInput);
+            return XContentFactory.xContent(contentType).createParser(config, compressedInput);
         } else {
-            return XContentFactory.xContent(xContentType(bytes)).createParser(xContentRegistry, deprecationHandler, bytes.streamInput());
+            return XContentFactory.xContent(xContentType(bytes)).createParser(config, bytes.streamInput());
         }
+    }
+
+    /**
+     * Creates a parser for the bytes provided
+     * @deprecated use {@link #createParser(XContentParserConfiguration, BytesReference, XContentType)}
+     */
+    @Deprecated
+    public static XContentParser createParser(
+        NamedXContentRegistry registry,
+        DeprecationHandler deprecation,
+        BytesReference bytes,
+        XContentType xContentType
+    ) throws IOException {
+        return createParser(XContentParserConfiguration.EMPTY.withRegistry(registry).withDeprecationHandler(deprecation), bytes);
     }
 
     /**
      * Creates a parser for the bytes using the supplied content-type
      */
-    public static XContentParser createParser(
-        NamedXContentRegistry xContentRegistry,
-        DeprecationHandler deprecationHandler,
-        BytesReference bytes,
-        XContentType xContentType
-    ) throws IOException {
+    public static XContentParser createParser(XContentParserConfiguration config, BytesReference bytes, XContentType xContentType)
+        throws IOException {
         Objects.requireNonNull(xContentType);
         Compressor compressor = CompressorFactory.compressor(bytes);
         if (compressor != null) {
@@ -83,13 +101,13 @@ public class XContentHelper {
             if (compressedInput.markSupported() == false) {
                 compressedInput = new BufferedInputStream(compressedInput);
             }
-            return XContentFactory.xContent(xContentType).createParser(xContentRegistry, deprecationHandler, compressedInput);
+            return XContentFactory.xContent(xContentType).createParser(config, compressedInput);
         } else {
+            // TODO now that we have config we make a method on bytes to do this building wihout needing this check everywhere
             if (bytes.hasArray()) {
-                return xContentType.xContent()
-                    .createParser(xContentRegistry, deprecationHandler, bytes.array(), bytes.arrayOffset(), bytes.length());
+                return xContentType.xContent().createParser(config, bytes.array(), bytes.arrayOffset(), bytes.length());
             }
-            return xContentType.xContent().createParser(xContentRegistry, deprecationHandler, bytes.streamInput());
+            return xContentType.xContent().createParser(config, bytes.streamInput());
         }
     }
 
@@ -111,7 +129,7 @@ public class XContentHelper {
     }
 
     /**
-     * Exactly the same as {@link XContentHelper#convertToMap(BytesReference, boolean, XContentType, FilterPath[], FilterPath[])} but
+     * Exactly the same as {@link XContentHelper#convertToMap(BytesReference, boolean, XContentType, Set, Set)} but
      * none of the fields are filtered
      */
     public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered, XContentType xContentType) {
@@ -131,8 +149,8 @@ public class XContentHelper {
         BytesReference bytes,
         boolean ordered,
         XContentType xContentType,
-        @Nullable FilterPath[] include,
-        @Nullable FilterPath[] exclude
+        @Nullable Set<String> include,
+        @Nullable Set<String> exclude
     ) throws ElasticsearchParseException {
         try {
             final XContentType contentType;
@@ -189,7 +207,7 @@ public class XContentHelper {
     }
 
     /**
-     * The same as {@link XContentHelper#convertToMap(XContent, byte[], int, int, boolean, FilterPath[], FilterPath[])} but none of the
+     * The same as {@link XContentHelper#convertToMap(XContent, byte[], int, int, boolean, Set, Set)} but none of the
      * fields are filtered.
      */
     public static Map<String, Object> convertToMap(XContent xContent, InputStream input, boolean ordered)
@@ -207,19 +225,10 @@ public class XContentHelper {
         XContent xContent,
         InputStream input,
         boolean ordered,
-        @Nullable FilterPath[] include,
-        @Nullable FilterPath[] exclude
+        @Nullable Set<String> include,
+        @Nullable Set<String> exclude
     ) throws ElasticsearchParseException {
-        // It is safe to use EMPTY here because this never uses namedObject
-        try (
-            XContentParser parser = xContent.createParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                input,
-                include,
-                exclude
-            )
-        ) {
+        try (XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY.withFiltering(include, exclude), input)) {
             return ordered ? parser.mapOrdered() : parser.map();
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);
@@ -248,19 +257,15 @@ public class XContentHelper {
         int offset,
         int length,
         boolean ordered,
-        @Nullable FilterPath[] include,
-        @Nullable FilterPath[] exclude
+        @Nullable Set<String> include,
+        @Nullable Set<String> exclude
     ) throws ElasticsearchParseException {
-        // It is safe to use EMPTY here because this never uses namedObject
         try (
             XContentParser parser = xContent.createParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                XContentParserConfiguration.EMPTY.withFiltering(include, exclude),
                 bytes,
                 offset,
-                length,
-                include,
-                exclude
+                length
             )
         ) {
             return ordered ? parser.mapOrdered() : parser.map();
@@ -303,25 +308,17 @@ public class XContentHelper {
             return bytes.utf8ToString();
         }
 
-        // It is safe to use EMPTY here because this never uses namedObject
         if (bytes.hasArray()) {
             try (
                 XContentParser parser = XContentFactory.xContent(xContentType)
-                    .createParser(
-                        NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        bytes.array(),
-                        bytes.arrayOffset(),
-                        bytes.length()
-                    )
+                    .createParser(XContentParserConfiguration.EMPTY, bytes.array(), bytes.arrayOffset(), bytes.length())
             ) {
                 return toJsonString(prettyPrint, parser);
             }
         } else {
             try (
                 InputStream stream = bytes.streamInput();
-                XContentParser parser = XContentFactory.xContent(xContentType)
-                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)
+                XContentParser parser = XContentFactory.xContent(xContentType).createParser(XContentParserConfiguration.EMPTY, stream)
             ) {
                 return toJsonString(prettyPrint, parser);
             }

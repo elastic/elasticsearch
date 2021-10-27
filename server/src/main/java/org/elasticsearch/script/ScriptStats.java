@@ -35,7 +35,7 @@ public class ScriptStats implements Writeable, ToXContentFragment {
         long compilations = 0;
         long cacheEvictions = 0;
         long compilationLimitTriggered = 0;
-        for (ScriptContextStats stats: contextStats) {
+        for (ScriptContextStats stats : contextStats) {
             compilations += stats.getCompilations();
             cacheEvictions += stats.getCacheEvictions();
             compilationLimitTriggered += stats.getCompilationLimitTriggered();
@@ -105,7 +105,7 @@ public class ScriptStats implements Writeable, ToXContentFragment {
         builder.field(Fields.CACHE_EVICTIONS, cacheEvictions);
         builder.field(Fields.COMPILATION_LIMIT_TRIGGERED, compilationLimitTriggered);
         builder.startArray(Fields.CONTEXTS);
-        for (ScriptContextStats contextStats: contextStats) {
+        for (ScriptContextStats contextStats : contextStats) {
             contextStats.toXContent(builder, params);
         }
         builder.endArray();

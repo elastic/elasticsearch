@@ -24,10 +24,12 @@ public class AutodetectParamsTests extends ESTestCase {
         timingStats.updateStats(2000.0);
         assertThat(
             timingStats,
-            equalTo(new TimingStats(JOB_ID, 8, 1.0, 2000.0, 832.75, 1010.0, new ExponentialAverageCalculationContext(2000.0, null, null))));
+            equalTo(new TimingStats(JOB_ID, 8, 1.0, 2000.0, 832.75, 1010.0, new ExponentialAverageCalculationContext(2000.0, null, null)))
+        );
         assertThat(
             params.timingStats(),
-            equalTo(new TimingStats(JOB_ID, 7, 1.0, 1000.0, 666.0, 1000.0, new ExponentialAverageCalculationContext())));
+            equalTo(new TimingStats(JOB_ID, 7, 1.0, 1000.0, 666.0, 1000.0, new ExponentialAverageCalculationContext()))
+        );
     }
 
     public void testBuilder_WithoutTimingStats() {

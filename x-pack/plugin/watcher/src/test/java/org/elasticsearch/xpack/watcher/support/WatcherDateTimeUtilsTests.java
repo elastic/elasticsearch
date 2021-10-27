@@ -6,12 +6,11 @@
  */
 package org.elasticsearch.xpack.watcher.support;
 
-
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 
 import java.util.HashMap;
@@ -49,8 +48,12 @@ public class WatcherDateTimeUtilsTests extends ESTestCase {
             WatcherDateTimeUtils.parseTimeValue(parser, "test");
             fail("Expected ElasticsearchParseException");
         } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), either(is("failed to parse time unit"))
-                    .or(is("could not parse time value. expected either a string or a null value but found [VALUE_NUMBER] instead")));
+            assertThat(
+                e.getMessage(),
+                either(is("failed to parse time unit")).or(
+                    is("could not parse time value. expected either a string or a null value but found [VALUE_NUMBER] instead")
+                )
+            );
         }
     }
 
@@ -66,8 +69,10 @@ public class WatcherDateTimeUtilsTests extends ESTestCase {
             WatcherDateTimeUtils.parseTimeValue(parser, "test");
             fail("Expected ElasticsearchParseException");
         } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(),
-                    is("could not parse time value. expected either a string or a null value but found [VALUE_NUMBER] instead"));
+            assertThat(
+                e.getMessage(),
+                is("could not parse time value. expected either a string or a null value but found [VALUE_NUMBER] instead")
+            );
         }
     }
 

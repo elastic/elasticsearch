@@ -43,8 +43,8 @@ public class DlsFlsLicenseRequestInterceptor implements RequestInterceptor {
         AuthorizationEngine.RequestInfo requestInfo,
         AuthorizationEngine authorizationEngine,
         AuthorizationInfo authorizationInfo,
-        ActionListener<Void> listener)
-    {
+        ActionListener<Void> listener
+    ) {
         if (requestInfo.getRequest() instanceof IndicesRequest && false == TransportActionProxy.isProxyAction(requestInfo.getAction())) {
             final Role role = RBACEngine.maybeGetRBACEngineRole(threadContext.getTransient(AUTHORIZATION_INFO_KEY));
             // Checking whether role has FLS or DLS first before checking indicesAccessControl for efficiency because indicesAccessControl
@@ -68,10 +68,13 @@ public class DlsFlsLicenseRequestInterceptor implements RequestInterceptor {
                         }
                     }
                     if (incompatibleLicense) {
-                        final ElasticsearchSecurityException licenseException =
-                            LicenseUtils.newComplianceException("field and document level security");
+                        final ElasticsearchSecurityException licenseException = LicenseUtils.newComplianceException(
+                            "field and document level security"
+                        );
                         licenseException.addMetadata(
-                            "es.indices_with_dls_or_fls", indicesAccessControl.getIndicesWithFieldOrDocumentLevelSecurity());
+                            "es.indices_with_dls_or_fls",
+                            indicesAccessControl.getIndicesWithFieldOrDocumentLevelSecurity()
+                        );
                         listener.onFailure(licenseException);
                         return;
                     }

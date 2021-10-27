@@ -25,7 +25,13 @@ import java.util.Collections;
  * <p>
  * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/migration-api.html">
  * X-Pack Migration APIs on elastic.co</a> for more information.
+ *
+ * @deprecated The High Level Rest Client is deprecated in favor of the
+ * <a href="https://www.elastic.co/guide/en/elasticsearch/client/java-api-client/current/introduction.html">
+ * Elasticsearch Java API Client</a>
  */
+@Deprecated(since = "7.16.0", forRemoval = true)
+@SuppressWarnings("removal")
 public final class MigrationClient {
 
     private final RestHighLevelClient restHighLevelClient;
@@ -42,8 +48,13 @@ public final class MigrationClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public DeprecationInfoResponse getDeprecationInfo(DeprecationInfoRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, MigrationRequestConverters::getDeprecationInfo, options,
-            DeprecationInfoResponse::fromXContent, Collections.emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            MigrationRequestConverters::getDeprecationInfo,
+            options,
+            DeprecationInfoResponse::fromXContent,
+            Collections.emptySet()
+        );
     }
 
     /**
@@ -53,10 +64,19 @@ public final class MigrationClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getDeprecationInfoAsync(DeprecationInfoRequest request, RequestOptions options,
-                                               ActionListener<DeprecationInfoResponse> listener)  {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, MigrationRequestConverters::getDeprecationInfo, options,
-            DeprecationInfoResponse::fromXContent, listener, Collections.emptySet());
+    public Cancellable getDeprecationInfoAsync(
+        DeprecationInfoRequest request,
+        RequestOptions options,
+        ActionListener<DeprecationInfoResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            MigrationRequestConverters::getDeprecationInfo,
+            options,
+            DeprecationInfoResponse::fromXContent,
+            listener,
+            Collections.emptySet()
+        );
     }
 
     /**
@@ -66,8 +86,8 @@ public final class MigrationClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public GetFeatureUpgradeStatusResponse getFeatureUpgradeStatus(
-        GetFeatureUpgradeStatusRequest request, RequestOptions options) throws IOException {
+    public GetFeatureUpgradeStatusResponse getFeatureUpgradeStatus(GetFeatureUpgradeStatusRequest request, RequestOptions options)
+        throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(
             request,
             MigrationRequestConverters::getFeatureUpgradeStatus,
@@ -84,8 +104,11 @@ public final class MigrationClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getFeatureUpgradeStatusAsync(GetFeatureUpgradeStatusRequest request,
-                                                    RequestOptions options, ActionListener<GetFeatureUpgradeStatusResponse> listener) {
+    public Cancellable getFeatureUpgradeStatusAsync(
+        GetFeatureUpgradeStatusRequest request,
+        RequestOptions options,
+        ActionListener<GetFeatureUpgradeStatusResponse> listener
+    ) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             MigrationRequestConverters::getFeatureUpgradeStatus,
@@ -103,8 +126,7 @@ public final class MigrationClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public PostFeatureUpgradeResponse postFeatureUpgrade(
-        PostFeatureUpgradeRequest request, RequestOptions options) throws IOException {
+    public PostFeatureUpgradeResponse postFeatureUpgrade(PostFeatureUpgradeRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(
             request,
             MigrationRequestConverters::postFeatureUpgrade,
@@ -122,8 +144,10 @@ public final class MigrationClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable postFeatureUpgradeAsync(
-        PostFeatureUpgradeRequest request, RequestOptions options,
-        ActionListener<PostFeatureUpgradeResponse> listener) throws IOException {
+        PostFeatureUpgradeRequest request,
+        RequestOptions options,
+        ActionListener<PostFeatureUpgradeResponse> listener
+    ) throws IOException {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             MigrationRequestConverters::postFeatureUpgrade,

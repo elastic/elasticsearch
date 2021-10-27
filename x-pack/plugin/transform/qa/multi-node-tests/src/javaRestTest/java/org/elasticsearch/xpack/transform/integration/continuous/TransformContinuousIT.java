@@ -36,14 +36,14 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
@@ -54,7 +54,6 @@ import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
@@ -108,6 +107,7 @@ import static org.hamcrest.core.Is.is;
  *          to check that optimizations worked
  *      - repeat
  */
+@SuppressWarnings("removal")
 public class TransformContinuousIT extends ESRestTestCase {
 
     private List<ContinuousTestCase> transformTestCases = new ArrayList<>();
@@ -193,8 +193,7 @@ public class TransformContinuousIT extends ESRestTestCase {
         for (int i = 0; i < 100; i++) {
             dates.add(
                 // create a random date between 1/1/2001 and 1/1/2006
-                formatTimestmap(dateType)
-                    .format(Instant.ofEpochMilli(randomLongBetween(978307200000L, 1136073600000L)))
+                formatTimestmap(dateType).format(Instant.ofEpochMilli(randomLongBetween(978307200000L, 1136073600000L)))
             );
         }
 
@@ -248,17 +247,17 @@ public class TransformContinuousIT extends ESRestTestCase {
                 }
 
                 // simulate a different timestamp that is off from the timestamp used for sync, so it can fall into the previous bucket
-                String metricDateString = formatTimestmap(dateType)
-                    .format(runDate.minusSeconds(randomIntBetween(0, 2)).plusNanos(randomIntBetween(0, 999999)));
+                String metricDateString = formatTimestmap(dateType).format(
+                    runDate.minusSeconds(randomIntBetween(0, 2)).plusNanos(randomIntBetween(0, 999999))
+                );
                 source.append("\"metric-timestamp\":\"").append(metricDateString).append("\",");
 
                 final Instant timestamp = runDate.plusNanos(randomIntBetween(0, 999999));
-                String dateString = formatTimestmap(dateType)
-                    .format(timestamp);
+                String dateString = formatTimestmap(dateType).format(timestamp);
 
                 source.append("\"timestamp\":\"").append(dateString).append("\",");
                 // for data streams
-                //dynamic field results in a date type
+                // dynamic field results in a date type
                 source.append("\"@timestamp\":\"").append(formatTimestmap("date").format(timestamp)).append("\",");
                 source.append("\"run\":").append(run);
                 source.append("}");
@@ -303,7 +302,7 @@ public class TransformContinuousIT extends ESRestTestCase {
     }
 
     private DateFormatter formatTimestmap(String dateType) {
-        if(dateType == "date_nanos"){
+        if (dateType == "date_nanos") {
             return DateFormatter.forPattern("strict_date_optional_time_nanos").withZone(ZoneId.of("UTC"));
         } else {
             return DateFormatter.forPattern("strict_date_optional_time").withZone(ZoneId.of("UTC"));

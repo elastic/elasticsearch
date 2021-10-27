@@ -72,10 +72,10 @@ import static org.elasticsearch.xpack.core.ilm.AbstractStepTestCase.randomStepKe
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.argThat;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -99,7 +99,8 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         masterNode = DiscoveryNode.createLocal(
             NodeRoles.masterNode(settings(Version.CURRENT).build()),
             new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            nodeId);
+            nodeId
+        );
         now = randomNonNegativeLong();
         Clock clock = Clock.fixed(Instant.ofEpochMilli(now), ZoneId.of(randomFrom(ZoneId.getAvailableZoneIds())));
 
@@ -110,8 +111,9 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             return null;
         }).when(executorService).execute(any());
         Settings settings = Settings.builder().put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s").build();
-        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings,
-            Collections.singleton(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING)));
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(settings, Collections.singleton(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING))
+        );
         when(clusterService.lifecycleState()).thenReturn(State.STARTED);
 
         Client client = mock(Client.class);
@@ -122,8 +124,17 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         when(client.settings()).thenReturn(Settings.EMPTY);
 
         threadPool = new TestThreadPool("test");
-        indexLifecycleService = new IndexLifecycleService(Settings.EMPTY, client, clusterService, threadPool,
-            clock, () -> now, null, null, null);
+        indexLifecycleService = new IndexLifecycleService(
+            Settings.EMPTY,
+            client,
+            clusterService,
+            threadPool,
+            clock,
+            () -> now,
+            null,
+            null,
+            null
+        );
         Mockito.verify(clusterService).addListener(indexLifecycleService);
         Mockito.verify(clusterService).addStateApplier(indexLifecycleService);
     }
@@ -135,22 +146,27 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         threadPool.shutdownNow();
     }
 
-
     public void testStoppedModeSkip() {
         String policyName = randomAlphaOfLengthBetween(1, 20);
-        IndexLifecycleRunnerTests.MockClusterStateActionStep mockStep =
-            new IndexLifecycleRunnerTests.MockClusterStateActionStep(randomStepKey(), randomStepKey());
+        IndexLifecycleRunnerTests.MockClusterStateActionStep mockStep = new IndexLifecycleRunnerTests.MockClusterStateActionStep(
+            randomStepKey(),
+            randomStepKey()
+        );
         MockAction mockAction = new MockAction(Collections.singletonList(mockStep));
         Phase phase = new Phase("phase", TimeValue.ZERO, Collections.singletonMap("action", mockAction));
         LifecyclePolicy policy = newTestLifecyclePolicy(policyName, Collections.singletonMap(phase.getName(), phase));
         SortedMap<String, LifecyclePolicyMetadata> policyMap = new TreeMap<>();
-        policyMap.put(policyName, new LifecyclePolicyMetadata(policy, Collections.emptyMap(),
-            randomNonNegativeLong(), randomNonNegativeLong()));
+        policyMap.put(
+            policyName,
+            new LifecyclePolicyMetadata(policy, Collections.emptyMap(), randomNonNegativeLong(), randomNonNegativeLong())
+        );
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policyName))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata> builder()
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
             .fPut(index.getName(), indexMetadata);
         Metadata metadata = Metadata.builder()
             .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.STOPPED))
@@ -170,14 +186,18 @@ public class IndexLifecycleServiceTests extends ESTestCase {
     public void testRequestedStopOnShrink() {
         Step.StepKey mockShrinkStep = new Step.StepKey(randomAlphaOfLength(4), ShrinkAction.NAME, ShrinkStep.NAME);
         String policyName = randomAlphaOfLengthBetween(1, 20);
-        IndexLifecycleRunnerTests.MockClusterStateActionStep mockStep =
-            new IndexLifecycleRunnerTests.MockClusterStateActionStep(mockShrinkStep, randomStepKey());
+        IndexLifecycleRunnerTests.MockClusterStateActionStep mockStep = new IndexLifecycleRunnerTests.MockClusterStateActionStep(
+            mockShrinkStep,
+            randomStepKey()
+        );
         MockAction mockAction = new MockAction(Collections.singletonList(mockStep));
         Phase phase = new Phase("phase", TimeValue.ZERO, Collections.singletonMap("action", mockAction));
         LifecyclePolicy policy = newTestLifecyclePolicy(policyName, Collections.singletonMap(phase.getName(), phase));
         SortedMap<String, LifecyclePolicyMetadata> policyMap = new TreeMap<>();
-        policyMap.put(policyName, new LifecyclePolicyMetadata(policy, Collections.emptyMap(),
-            randomNonNegativeLong(), randomNonNegativeLong()));
+        policyMap.put(
+            policyName,
+            new LifecyclePolicyMetadata(policy, Collections.emptyMap(), randomNonNegativeLong(), randomNonNegativeLong())
+        );
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setPhase(mockShrinkStep.getPhase());
@@ -186,8 +206,10 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policyName))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata> builder()
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
             .fPut(index.getName(), indexMetadata);
         Metadata metadata = Metadata.builder()
             .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.STOPPING))
@@ -213,7 +235,8 @@ public class IndexLifecycleServiceTests extends ESTestCase {
     public void testRequestedStopInShrinkActionButNotShrinkStep() {
         // test all the shrink action steps that ILM can be stopped during (basically all of them minus the actual shrink)
         ShrinkAction action = new ShrinkAction(1, null);
-        action.toSteps(mock(Client.class), "warm", randomStepKey()).stream()
+        action.toSteps(mock(Client.class), "warm", randomStepKey())
+            .stream()
             .map(sk -> sk.getKey().getName())
             .filter(name -> name.equals(ShrinkStep.NAME) == false)
             .forEach(this::verifyCanStopWithStep);
@@ -223,14 +246,18 @@ public class IndexLifecycleServiceTests extends ESTestCase {
     private void verifyCanStopWithStep(String stoppableStep) {
         Step.StepKey mockShrinkStep = new Step.StepKey(randomAlphaOfLength(4), ShrinkAction.NAME, stoppableStep);
         String policyName = randomAlphaOfLengthBetween(1, 20);
-        IndexLifecycleRunnerTests.MockClusterStateActionStep mockStep =
-            new IndexLifecycleRunnerTests.MockClusterStateActionStep(mockShrinkStep, randomStepKey());
+        IndexLifecycleRunnerTests.MockClusterStateActionStep mockStep = new IndexLifecycleRunnerTests.MockClusterStateActionStep(
+            mockShrinkStep,
+            randomStepKey()
+        );
         MockAction mockAction = new MockAction(Collections.singletonList(mockStep));
         Phase phase = new Phase("phase", TimeValue.ZERO, Collections.singletonMap("action", mockAction));
         LifecyclePolicy policy = newTestLifecyclePolicy(policyName, Collections.singletonMap(phase.getName(), phase));
         SortedMap<String, LifecyclePolicyMetadata> policyMap = new TreeMap<>();
-        policyMap.put(policyName, new LifecyclePolicyMetadata(policy, Collections.emptyMap(),
-            randomNonNegativeLong(), randomNonNegativeLong()));
+        policyMap.put(
+            policyName,
+            new LifecyclePolicyMetadata(policy, Collections.emptyMap(), randomNonNegativeLong(), randomNonNegativeLong())
+        );
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setPhase(mockShrinkStep.getPhase());
@@ -239,8 +266,10 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policyName))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata> builder()
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
             .fPut(index.getName(), indexMetadata);
         Metadata metadata = Metadata.builder()
             .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.STOPPING))
@@ -257,8 +286,8 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             changedOperationMode.set(true);
             return null;
-        }).when(clusterService).submitStateUpdateTask(eq("ilm_operation_mode_update {OperationMode STOPPED}"),
-            any(OperationModeUpdateTask.class));
+        }).when(clusterService)
+            .submitStateUpdateTask(eq("ilm_operation_mode_update {OperationMode STOPPED}"), any(OperationModeUpdateTask.class));
         indexLifecycleService.applyClusterState(event);
         indexLifecycleService.triggerPolicies(currentState, true);
         assertTrue(changedOperationMode.get());
@@ -267,14 +296,18 @@ public class IndexLifecycleServiceTests extends ESTestCase {
     public void testRequestedStopOnSafeAction() {
         String policyName = randomAlphaOfLengthBetween(1, 20);
         Step.StepKey currentStepKey = randomStepKey();
-        IndexLifecycleRunnerTests.MockClusterStateActionStep mockStep =
-            new IndexLifecycleRunnerTests.MockClusterStateActionStep(currentStepKey, randomStepKey());
+        IndexLifecycleRunnerTests.MockClusterStateActionStep mockStep = new IndexLifecycleRunnerTests.MockClusterStateActionStep(
+            currentStepKey,
+            randomStepKey()
+        );
         MockAction mockAction = new MockAction(Collections.singletonList(mockStep));
         Phase phase = new Phase("phase", TimeValue.ZERO, Collections.singletonMap("action", mockAction));
         LifecyclePolicy policy = newTestLifecyclePolicy(policyName, Collections.singletonMap(phase.getName(), phase));
         SortedMap<String, LifecyclePolicyMetadata> policyMap = new TreeMap<>();
-        policyMap.put(policyName, new LifecyclePolicyMetadata(policy, Collections.emptyMap(),
-            randomNonNegativeLong(), randomNonNegativeLong()));
+        policyMap.put(
+            policyName,
+            new LifecyclePolicyMetadata(policy, Collections.emptyMap(), randomNonNegativeLong(), randomNonNegativeLong())
+        );
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setPhase(currentStepKey.getPhase());
@@ -283,8 +316,10 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policyName))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata> builder()
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
             .fPut(index.getName(), indexMetadata);
         Metadata metadata = Metadata.builder()
             .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.STOPPING))
@@ -310,8 +345,8 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             assertThat(task.getILMOperationMode(), equalTo(OperationMode.STOPPED));
             moveToMaintenance.set(true);
             return null;
-        }).when(clusterService).submitStateUpdateTask(eq("ilm_operation_mode_update {OperationMode STOPPED}"),
-            any(OperationModeUpdateTask.class));
+        }).when(clusterService)
+            .submitStateUpdateTask(eq("ilm_operation_mode_update {OperationMode STOPPED}"), any(OperationModeUpdateTask.class));
 
         indexLifecycleService.applyClusterState(event);
         indexLifecycleService.triggerPolicies(currentState, randomBoolean());
@@ -338,7 +373,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
     private void verifyOperationModeUpdateTaskPriority(OperationMode mode, Priority expectedPriority) {
         verify(clusterService).submitStateUpdateTask(
-            Mockito.eq("ilm_operation_mode_update {OperationMode " + mode.name() +"}"),
+            Mockito.eq("ilm_operation_mode_update {OperationMode " + mode.name() + "}"),
             argThat(new ArgumentMatcher<OperationModeUpdateTask>() {
 
                 Priority actualPriority = null;
@@ -392,35 +427,47 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         boolean failStep1 = randomBoolean();
         if (useOnMaster) {
             ((IndexLifecycleRunnerTests.MockAsyncActionStep) i1mockStep).setLatch(stepLatch);
-            ((IndexLifecycleRunnerTests.MockAsyncActionStep) i1mockStep)
-                .setException(failStep1 ? new IllegalArgumentException("forcing a failure for index 1") : null);
+            ((IndexLifecycleRunnerTests.MockAsyncActionStep) i1mockStep).setException(
+                failStep1 ? new IllegalArgumentException("forcing a failure for index 1") : null
+            );
             ((IndexLifecycleRunnerTests.MockAsyncActionStep) i2mockStep).setLatch(stepLatch);
-            ((IndexLifecycleRunnerTests.MockAsyncActionStep) i2mockStep)
-                .setException(failStep1 ? null : new IllegalArgumentException("forcing a failure for index 2"));
+            ((IndexLifecycleRunnerTests.MockAsyncActionStep) i2mockStep).setException(
+                failStep1 ? null : new IllegalArgumentException("forcing a failure for index 2")
+            );
         } else {
             ((IndexLifecycleRunnerTests.MockClusterStateActionStep) i1mockStep).setLatch(stepLatch);
-            ((IndexLifecycleRunnerTests.MockClusterStateActionStep) i1mockStep)
-                .setException(failStep1 ? new IllegalArgumentException("forcing a failure for index 1") : null);
+            ((IndexLifecycleRunnerTests.MockClusterStateActionStep) i1mockStep).setException(
+                failStep1 ? new IllegalArgumentException("forcing a failure for index 1") : null
+            );
             ((IndexLifecycleRunnerTests.MockClusterStateActionStep) i1mockStep).setLatch(stepLatch);
-            ((IndexLifecycleRunnerTests.MockClusterStateActionStep) i1mockStep)
-                .setException(failStep1 ? null : new IllegalArgumentException("forcing a failure for index 2"));
+            ((IndexLifecycleRunnerTests.MockClusterStateActionStep) i1mockStep).setException(
+                failStep1 ? null : new IllegalArgumentException("forcing a failure for index 2")
+            );
         }
 
         SortedMap<String, LifecyclePolicyMetadata> policyMap = new TreeMap<>();
-        policyMap.put(policy1, new LifecyclePolicyMetadata(i1policy, Collections.emptyMap(),
-            randomNonNegativeLong(), randomNonNegativeLong()));
-        policyMap.put(policy2, new LifecyclePolicyMetadata(i2policy, Collections.emptyMap(),
-            randomNonNegativeLong(), randomNonNegativeLong()));
+        policyMap.put(
+            policy1,
+            new LifecyclePolicyMetadata(i1policy, Collections.emptyMap(), randomNonNegativeLong(), randomNonNegativeLong())
+        );
+        policyMap.put(
+            policy2,
+            new LifecyclePolicyMetadata(i2policy, Collections.emptyMap(), randomNonNegativeLong(), randomNonNegativeLong())
+        );
 
         IndexMetadata i1indexMetadata = IndexMetadata.builder(index1.getName())
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policy1))
             .putCustom(ILM_CUSTOM_METADATA_KEY, i1lifecycleState.build().asMap())
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
         IndexMetadata i2indexMetadata = IndexMetadata.builder(index2.getName())
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policy1))
             .putCustom(ILM_CUSTOM_METADATA_KEY, i2lifecycleState.build().asMap())
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata> builder()
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
             .fPut(index1.getName(), i1indexMetadata)
             .fPut(index2.getName(), i2indexMetadata);
 
@@ -450,8 +497,17 @@ public class IndexLifecycleServiceTests extends ESTestCase {
     }
 
     public void testClusterChangedWaitsForTheStateToBeRecovered() {
-        IndexLifecycleService ilmService = new IndexLifecycleService(Settings.EMPTY, mock(Client.class), clusterService, threadPool,
-            systemUTC(), () -> now, null, null, null) {
+        IndexLifecycleService ilmService = new IndexLifecycleService(
+            Settings.EMPTY,
+            mock(Client.class),
+            clusterService,
+            threadPool,
+            systemUTC(),
+            () -> now,
+            null,
+            null,
+            null
+        ) {
 
             @Override
             void onMaster(ClusterState clusterState) {
@@ -480,9 +536,11 @@ public class IndexLifecycleServiceTests extends ESTestCase {
     public void testParsingOriginationDateBeforeIndexCreation() {
         Settings indexSettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true).build();
         Index index = new Index("invalid_index_name", UUID.randomUUID().toString());
-        expectThrows(IllegalArgumentException.class,
-            "The parse origination date setting was configured for index " + index.getName() +
-                " but the index name did not match the expected format",
+        expectThrows(
+            IllegalArgumentException.class,
+            "The parse origination date setting was configured for index "
+                + index.getName()
+                + " but the index name did not match the expected format",
             () -> indexLifecycleService.beforeIndexAddedToCluster(index, indexSettings)
         );
 
@@ -496,31 +554,51 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
     public void testIndicesOnShuttingDownNodesInDangerousStep() {
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
-        assertThat(IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "regular_node"),
-            equalTo(Collections.emptySet()));
-        assertThat(IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "shutdown_node"),
-            equalTo(Collections.emptySet()));
+        assertThat(IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "regular_node"), equalTo(Collections.emptySet()));
+        assertThat(
+            IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "shutdown_node"),
+            equalTo(Collections.emptySet())
+        );
 
         IndexMetadata nonDangerousIndex = IndexMetadata.builder("no_danger")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), "mypolicy"))
-            .putCustom(ILM_CUSTOM_METADATA_KEY, LifecycleExecutionState.builder()
-                .setPhase("warm")
-                .setAction("shrink")
-                .setStep(GenerateUniqueIndexNameStep.NAME)
-                .build().asMap())
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+            .putCustom(
+                ILM_CUSTOM_METADATA_KEY,
+                LifecycleExecutionState.builder()
+                    .setPhase("warm")
+                    .setAction("shrink")
+                    .setStep(GenerateUniqueIndexNameStep.NAME)
+                    .build()
+                    .asMap()
+            )
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
         IndexMetadata dangerousIndex = IndexMetadata.builder("danger")
-            .settings(settings(Version.CURRENT)
-                .put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), "mypolicy")
-                .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", "shutdown_node"))
-            .putCustom(ILM_CUSTOM_METADATA_KEY, LifecycleExecutionState.builder()
-                .setPhase("warm")
-                .setAction("shrink")
-                .setStep(randomFrom(SetSingleNodeAllocateStep.NAME, CheckShrinkReadyStep.NAME,
-                    ShrinkStep.NAME, ShrunkShardsAllocatedStep.NAME))
-                .build().asMap())
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata> builder()
+            .settings(
+                settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), "mypolicy")
+                    .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", "shutdown_node")
+            )
+            .putCustom(
+                ILM_CUSTOM_METADATA_KEY,
+                LifecycleExecutionState.builder()
+                    .setPhase("warm")
+                    .setAction("shrink")
+                    .setStep(
+                        randomFrom(
+                            SetSingleNodeAllocateStep.NAME,
+                            CheckShrinkReadyStep.NAME,
+                            ShrinkStep.NAME,
+                            ShrunkShardsAllocatedStep.NAME
+                        )
+                    )
+                    .build()
+                    .asMap()
+            )
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
             .fPut("no_danger", nonDangerousIndex)
             .fPut("danger", dangerousIndex);
 
@@ -532,43 +610,64 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
         state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
-            .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId)
-                .add(masterNode)
-                .add(DiscoveryNode.createLocal(
-                    NodeRoles.masterNode(settings(Version.CURRENT).build()),
-                    new TransportAddress(TransportAddress.META_ADDRESS, 9301),
-                    "regular_node"))
-                .add(DiscoveryNode.createLocal(
-                    NodeRoles.masterNode(settings(Version.CURRENT).build()),
-                    new TransportAddress(TransportAddress.META_ADDRESS, 9302),
-                    "shutdown_node"))
-                .build())
+            .nodes(
+                DiscoveryNodes.builder()
+                    .localNodeId(nodeId)
+                    .masterNodeId(nodeId)
+                    .add(masterNode)
+                    .add(
+                        DiscoveryNode.createLocal(
+                            NodeRoles.masterNode(settings(Version.CURRENT).build()),
+                            new TransportAddress(TransportAddress.META_ADDRESS, 9301),
+                            "regular_node"
+                        )
+                    )
+                    .add(
+                        DiscoveryNode.createLocal(
+                            NodeRoles.masterNode(settings(Version.CURRENT).build()),
+                            new TransportAddress(TransportAddress.META_ADDRESS, 9302),
+                            "shutdown_node"
+                        )
+                    )
+                    .build()
+            )
             .build();
 
         // No danger yet, because no node is shutting down
-        assertThat(IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "regular_node"),
-            equalTo(Collections.emptySet()));
-        assertThat(IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "shutdown_node"),
-            equalTo(Collections.emptySet()));
+        assertThat(IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "regular_node"), equalTo(Collections.emptySet()));
+        assertThat(
+            IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "shutdown_node"),
+            equalTo(Collections.emptySet())
+        );
 
         state = ClusterState.builder(state)
-            .metadata(Metadata.builder(state.metadata())
-                .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(Collections.singletonMap("shutdown_node",
-                    SingleNodeShutdownMetadata.builder()
-                        .setNodeId("shutdown_node")
-                        .setReason("shut down for test")
-                        .setStartedAtMillis(randomNonNegativeLong())
-                        .setType(SingleNodeShutdownMetadata.Type.RESTART)
-                        .build())))
-                .build())
+            .metadata(
+                Metadata.builder(state.metadata())
+                    .putCustom(
+                        NodesShutdownMetadata.TYPE,
+                        new NodesShutdownMetadata(
+                            Collections.singletonMap(
+                                "shutdown_node",
+                                SingleNodeShutdownMetadata.builder()
+                                    .setNodeId("shutdown_node")
+                                    .setReason("shut down for test")
+                                    .setStartedAtMillis(randomNonNegativeLong())
+                                    .setType(SingleNodeShutdownMetadata.Type.RESTART)
+                                    .build()
+                            )
+                        )
+                    )
+                    .build()
+            )
             .build();
 
-        assertThat(IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "regular_node"),
-            equalTo(Collections.emptySet()));
+        assertThat(IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "regular_node"), equalTo(Collections.emptySet()));
         // No danger, because this is a "RESTART" type shutdown
-        assertThat("restart type shutdowns are not considered dangerous",
+        assertThat(
+            "restart type shutdowns are not considered dangerous",
             IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "shutdown_node"),
-            equalTo(Collections.emptySet()));
+            equalTo(Collections.emptySet())
+        );
 
         final SingleNodeShutdownMetadata.Type type = randomFrom(
             SingleNodeShutdownMetadata.Type.REMOVE,
@@ -576,20 +675,31 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         );
         final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
         state = ClusterState.builder(state)
-            .metadata(Metadata.builder(state.metadata())
-                .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(Collections.singletonMap("shutdown_node",
-                    SingleNodeShutdownMetadata.builder()
-                        .setNodeId("shutdown_node")
-                        .setReason("shut down for test")
-                        .setStartedAtMillis(randomNonNegativeLong())
-                        .setType(type)
-                        .setTargetNodeName(targetNodeName)
-                        .build())))
-                .build())
+            .metadata(
+                Metadata.builder(state.metadata())
+                    .putCustom(
+                        NodesShutdownMetadata.TYPE,
+                        new NodesShutdownMetadata(
+                            Collections.singletonMap(
+                                "shutdown_node",
+                                SingleNodeShutdownMetadata.builder()
+                                    .setNodeId("shutdown_node")
+                                    .setReason("shut down for test")
+                                    .setStartedAtMillis(randomNonNegativeLong())
+                                    .setType(type)
+                                    .setTargetNodeName(targetNodeName)
+                                    .build()
+                            )
+                        )
+                    )
+                    .build()
+            )
             .build();
 
         // The dangerous index should be calculated as being in danger now
-        assertThat(IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "shutdown_node"),
-            equalTo(Collections.singleton("danger")));
+        assertThat(
+            IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "shutdown_node"),
+            equalTo(Collections.singleton("danger"))
+        );
     }
 }

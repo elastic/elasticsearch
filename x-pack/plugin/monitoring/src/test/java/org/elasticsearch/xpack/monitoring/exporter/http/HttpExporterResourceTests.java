@@ -46,8 +46,8 @@ import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResource
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.argThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -76,11 +76,13 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     private final List<String> templateNames = new ArrayList<>(EXPECTED_TEMPLATES);
     private final List<String> watchNames = new ArrayList<>(EXPECTED_WATCHES);
 
-    private final Settings exporterSettings = Settings.builder().build();
+    private final Settings exporterSettings = Settings.builder()
+        .put("xpack.monitoring.exporters._http.cluster_alerts.management.enabled", true)
+        .build();
 
-    private final MultiHttpResource resources =
-            HttpExporter.createResources(
-                    new Exporter.Config("_http", "http", exporterSettings, clusterService, licenseState)).allResources;
+    private final MultiHttpResource resources = HttpExporter.createResources(
+        new Exporter.Config("_http", "http", exporterSettings, clusterService, licenseState)
+    ).allResources;
 
     @Before
     public void setupResources() {
@@ -111,8 +113,14 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         whenPerformRequestAsyncWith(client, new RequestMatcher(is("GET"), is("/")), versionResponse);
 
         assertTrue(resources.isDirty());
-        awaitCheckAndPublish(resources, new ResourcePublishResult(false,
-            "version [3.0.0] < [7.0.0] and NOT supported for [xpack.monitoring.exporters._http]", HttpResource.State.DIRTY));
+        awaitCheckAndPublish(
+            resources,
+            new ResourcePublishResult(
+                false,
+                "version [3.0.0] < [7.0.0] and NOT supported for [xpack.monitoring.exporters._http]",
+                HttpResource.State.DIRTY
+            )
+        );
         // ensure it didn't magically become clean
         assertTrue(resources.isDirty());
 
@@ -148,8 +156,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
             final List<Response> otherResponses = getTemplateResponses(1, successful, unsuccessful);
 
             // last check fails implies that N - 2 publishes succeeded!
-            whenPerformRequestAsyncWith(client, new RequestMatcher(is("GET"), startsWith("/_template/")),
-                                        first, otherResponses, exception);
+            whenPerformRequestAsyncWith(client, new RequestMatcher(is("GET"), startsWith("/_template/")), first, otherResponses, exception);
 
             // Since we return a "Not Ready" response on any templates that are not available (instead
             // of trying to publish them), we set the expected number of gets to be the first run of successful responses
@@ -164,8 +171,14 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
             } else {
                 // The first bad response will be either a 404 or a template with an old version
                 String missingTemplateName = TEMPLATE_NAMES[expectedGets - 1];
-                expectedResult = new ResourcePublishResult(false, "waiting for remote monitoring cluster to install " +
-                    "appropriate template [" + missingTemplateName + "] (version mismatch or missing)", HttpResource.State.DIRTY);
+                expectedResult = new ResourcePublishResult(
+                    false,
+                    "waiting for remote monitoring cluster to install "
+                        + "appropriate template ["
+                        + missingTemplateName
+                        + "] (version mismatch or missing)",
+                    HttpResource.State.DIRTY
+                );
             }
         } else {
             whenPerformRequestAsyncWith(client, new RequestMatcher(is("GET"), startsWith("/_template/")), exception);
@@ -229,8 +242,13 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
                 final List<Response> otherResponses = getWatcherResponses(1, successful, unsuccessful);
 
                 // last check fails implies that N - 2 publishes succeeded!
-                whenPerformRequestAsyncWith(client, new RequestMatcher(is("GET"), startsWith("/_watcher/watch/")),
-                                            first, otherResponses, exception);
+                whenPerformRequestAsyncWith(
+                    client,
+                    new RequestMatcher(is("GET"), startsWith("/_watcher/watch/")),
+                    first,
+                    otherResponses,
+                    exception
+                );
                 whenSuccessfulPutWatches(otherResponses.size() + 1);
 
                 // +1 for the "first"
@@ -244,8 +262,13 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
                 // there is no form of an unsuccessful delete; only success or error
                 final List<Response> responses = successfulDeleteResponses(successful);
 
-                whenPerformRequestAsyncWith(client, new RequestMatcher(is("DELETE"), startsWith("/_watcher/watch/")),
-                                            responses.get(0), responses.subList(1, responses.size()), exception);
+                whenPerformRequestAsyncWith(
+                    client,
+                    new RequestMatcher(is("DELETE"), startsWith("/_watcher/watch/")),
+                    responses.get(0),
+                    responses.subList(1, responses.size()),
+                    exception
+                );
 
                 expectedGets += successful;
             }
@@ -297,8 +320,13 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
             whenGetWatches(successful, unsuccessful + 2);
 
             // previous publishes must have succeeded
-            whenPerformRequestAsyncWith(client, new RequestMatcher(is("PUT"), startsWith("/_watcher/watch/")),
-                                        firstSuccess, otherResponses, exception);
+            whenPerformRequestAsyncWith(
+                client,
+                new RequestMatcher(is("PUT"), startsWith("/_watcher/watch/")),
+                firstSuccess,
+                otherResponses,
+                exception
+            );
 
             // GETs required for each PUT attempt (first is guaranteed "unsuccessful")
             expectedGets += successful + unsuccessful + 1;
@@ -339,8 +367,11 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         // Instead it tries to DELETE the watches ignoring them not existing.
         whenGetWatches(existingWatches, EXPECTED_WATCHES - existingWatches);
         whenPerformRequestAsyncWith(client, new RequestMatcher(is("PUT"), startsWith("/_watcher/watch/")), exception);
-        whenPerformRequestAsyncWith(client, new RequestMatcher(is("DELETE"), startsWith("/_watcher/watch/")),
-            successfulDeleteResponses(EXPECTED_WATCHES));
+        whenPerformRequestAsyncWith(
+            client,
+            new RequestMatcher(is("DELETE"), startsWith("/_watcher/watch/")),
+            successfulDeleteResponses(EXPECTED_WATCHES)
+        );
 
         // Create resources that are configured to remove all watches
         Settings removalExporterSettings = Settings.builder()
@@ -348,7 +379,8 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
             .put("xpack.monitoring.migration.decommission_alerts", true)
             .build();
         MultiHttpResource overrideResource = HttpExporter.createResources(
-            new Exporter.Config("_http", "http", removalExporterSettings, clusterService, licenseState)).allResources;
+            new Exporter.Config("_http", "http", removalExporterSettings, clusterService, licenseState)
+        ).allResources;
 
         assertTrue(overrideResource.isDirty());
         awaitCheckAndPublish(overrideResource, true);
@@ -363,8 +395,12 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         verifyDeleteWatches(EXPECTED_WATCHES);
         verifyNoMoreInteractions(client);
 
-        assertWarnings("[xpack.monitoring.migration.decommission_alerts] setting was deprecated in Elasticsearch and will be " +
-            "removed in a future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(
+            "[xpack.monitoring.migration.decommission_alerts] setting was deprecated in Elasticsearch and will be "
+                + "removed in a future release! See the breaking changes documentation for the next major version.",
+            "[xpack.monitoring.exporters._http.cluster_alerts.management.enabled] setting was deprecated in Elasticsearch and "
+                + "will be removed in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testSuccessfulChecksOnElectedMasterNode() {
@@ -412,10 +448,9 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         final ClusterState state = mockClusterState(false);
         final ClusterService clusterService = mockClusterService(state);
 
-        final MultiHttpResource resources =
-                HttpExporter.createResources(
-                        new Exporter.Config("_http", "http", exporterSettings, clusterService, licenseState)).allResources;
-
+        final MultiHttpResource resources = HttpExporter.createResources(
+            new Exporter.Config("_http", "http", exporterSettings, clusterService, licenseState)
+        ).allResources;
 
         whenValidVersionResponse();
         whenGetTemplates(EXPECTED_TEMPLATES);
@@ -431,6 +466,11 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         verifyVersionCheck();
         verifyGetTemplates(EXPECTED_TEMPLATES);
         verifyNoMoreInteractions(client);
+
+        assertWarnings(
+            "[xpack.monitoring.exporters._http.cluster_alerts.management.enabled] setting was deprecated in Elasticsearch "
+                + "and will be removed in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     private Exception failureGetException() {
@@ -460,6 +500,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
         return response("GET", "/_watcher/watch/" + watchId, successfulCheckStatus(), goodEntity);
     }
+
     private Response unsuccessfulGetWatchResponse(final String watchId) {
         if (randomBoolean()) {
             final HttpEntity badEntity = entityForClusterAlert(false, ClusterAlertsUtil.LAST_UPDATED_VERSION);
@@ -500,8 +541,13 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         return unsuccessfulGetResponse();
     }
 
-    private List<Response> getResourceResponses(final String resourcePath, final List<String> resourceNames,
-                                                final int skip, final int successful, final int unsuccessful) {
+    private List<Response> getResourceResponses(
+        final String resourcePath,
+        final List<String> resourceNames,
+        final int skip,
+        final int successful,
+        final int unsuccessful
+    ) {
         final List<Response> responses = new ArrayList<>(successful + unsuccessful);
 
         for (int i = 0; i < successful; ++i) {
@@ -590,8 +636,10 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
         when(licenseState.isAllowed(Monitoring.MONITORING_CLUSTER_ALERTS_FEATURE)).thenReturn(validLicense);
 
-        final HttpEntity entity =
-                new StringEntity("{\"features\":{\"watcher\":{\"enabled\":true,\"available\":true}}}", ContentType.APPLICATION_JSON);
+        final HttpEntity entity = new StringEntity(
+            "{\"features\":{\"watcher\":{\"enabled\":true,\"available\":true}}}",
+            ContentType.APPLICATION_JSON
+        );
         final Response successfulGet = response("GET", "_xpack", successfulCheckStatus(), entity);
 
         whenPerformRequestAsyncWith(client, new RequestMatcher(is("GET"), is("/_xpack")), successfulGet);
@@ -639,13 +687,17 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     }
 
     private void verifyGetTemplates(final int called) {
-        verify(client, times(called))
-            .performRequestAsync(argThat(new RequestMatcher(is("GET"), startsWith("/_template/"))::matches), any(ResponseListener.class));
+        verify(client, times(called)).performRequestAsync(
+            argThat(new RequestMatcher(is("GET"), startsWith("/_template/"))::matches),
+            any(ResponseListener.class)
+        );
     }
 
     private void verifyPutTemplates(final int called) {
-        verify(client, times(called))
-            .performRequestAsync(argThat(new RequestMatcher(is("PUT"), startsWith("/_template/"))::matches), any(ResponseListener.class));
+        verify(client, times(called)).performRequestAsync(
+            argThat(new RequestMatcher(is("PUT"), startsWith("/_template/"))::matches),
+            any(ResponseListener.class)
+        );
     }
 
     private void verifyWatcherCheck() {
@@ -653,21 +705,24 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     }
 
     private void verifyDeleteWatches(final int called) {
-        verify(client, times(called))
-            .performRequestAsync(argThat(new RequestMatcher(is("DELETE"), startsWith("/_watcher/watch/"))::matches),
-                                 any(ResponseListener.class));
+        verify(client, times(called)).performRequestAsync(
+            argThat(new RequestMatcher(is("DELETE"), startsWith("/_watcher/watch/"))::matches),
+            any(ResponseListener.class)
+        );
     }
 
     private void verifyGetWatches(final int called) {
-        verify(client, times(called))
-            .performRequestAsync(argThat(new RequestMatcher(is("GET"), startsWith("/_watcher/watch/"))::matches),
-                any(ResponseListener.class));
+        verify(client, times(called)).performRequestAsync(
+            argThat(new RequestMatcher(is("GET"), startsWith("/_watcher/watch/"))::matches),
+            any(ResponseListener.class)
+        );
     }
 
     private void verifyPutWatches(final int called) {
-        verify(client, times(called))
-            .performRequestAsync(argThat(new RequestMatcher(is("PUT"), startsWith("/_watcher/watch/"))::matches),
-                any(ResponseListener.class));
+        verify(client, times(called)).performRequestAsync(
+            argThat(new RequestMatcher(is("PUT"), startsWith("/_watcher/watch/"))::matches),
+            any(ResponseListener.class)
+        );
     }
 
     private ClusterService mockClusterService(final ClusterState state) {

@@ -13,10 +13,10 @@ import java.util.Locale;
 public class IndexNameResolver {
 
     public enum Rollover {
-        HOURLY  ("-yyyy.MM.dd.HH"),
-        DAILY   ("-yyyy.MM.dd"),
-        WEEKLY  ("-yyyy.w"),
-        MONTHLY ("-yyyy.MM");
+        HOURLY("-yyyy.MM.dd.HH"),
+        DAILY("-yyyy.MM.dd"),
+        WEEKLY("-yyyy.w"),
+        MONTHLY("-yyyy.MM");
 
         private final DateTimeFormatter formatter;
 

@@ -50,8 +50,8 @@ public final class DiffableTestUtils {
     /**
      * Simulates sending diffs over the wire
      */
-    public static <T extends Writeable> T copyInstance(T diffs, NamedWriteableRegistry namedWriteableRegistry,
-                                                                  Reader<T> reader) throws IOException {
+    public static <T extends Writeable> T copyInstance(T diffs, NamedWriteableRegistry namedWriteableRegistry, Reader<T> reader)
+        throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             diffs.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
@@ -64,11 +64,13 @@ public final class DiffableTestUtils {
      * Tests making random changes to an object, calculating diffs for these changes, sending this
      * diffs over the wire and appling these diffs on the other side.
      */
-    public static <T extends Diffable<T>> void testDiffableSerialization(Supplier<T> testInstance,
-                                                                         Function<T, T> modifier,
-                                                                         NamedWriteableRegistry namedWriteableRegistry,
-                                                                         Reader<T> reader,
-                                                                         Reader<Diff<T>> diffReader) throws IOException {
+    public static <T extends Diffable<T>> void testDiffableSerialization(
+        Supplier<T> testInstance,
+        Function<T, T> modifier,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Reader<T> reader,
+        Reader<Diff<T>> diffReader
+    ) throws IOException {
         T remoteInstance = testInstance.get();
         T localInstance = assertSerialization(remoteInstance, namedWriteableRegistry, reader);
         for (int runs = 0; runs < NUMBER_OF_DIFF_TEST_RUNS; runs++) {
@@ -83,8 +85,11 @@ public final class DiffableTestUtils {
     /**
      * Asserts that testInstance can be correctly.
      */
-    public static  <T extends Writeable> T assertSerialization(T testInstance, NamedWriteableRegistry namedWriteableRegistry,
-                                                          Reader<T> reader) throws IOException {
+    public static <T extends Writeable> T assertSerialization(
+        T testInstance,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Reader<T> reader
+    ) throws IOException {
         T deserializedInstance = copyInstance(testInstance, namedWriteableRegistry, reader);
         assertEquals(testInstance, deserializedInstance);
         assertEquals(testInstance.hashCode(), deserializedInstance.hashCode());

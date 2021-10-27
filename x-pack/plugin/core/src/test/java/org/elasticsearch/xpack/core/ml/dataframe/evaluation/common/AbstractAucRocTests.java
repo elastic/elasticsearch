@@ -76,8 +76,8 @@ public class AbstractAucRocTests extends ESTestCase {
         double[] tpPercentiles = new double[99];
         double[] fpPercentiles = new double[99];
 
-        double[] tpSimplified = new double[] { 0.3, 0.6, 0.5 , 0.8 };
-        double[] fpSimplified = new double[] { 0.1, 0.3, 0.5 , 0.5 };
+        double[] tpSimplified = new double[] { 0.3, 0.6, 0.5, 0.8 };
+        double[] fpSimplified = new double[] { 0.1, 0.3, 0.5, 0.5 };
 
         for (int i = 0; i < tpPercentiles.length; i++) {
             int simplifiedIndex = i / 25;

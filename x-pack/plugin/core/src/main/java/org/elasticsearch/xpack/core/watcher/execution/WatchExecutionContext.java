@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.watcher.execution;
 
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
@@ -149,7 +149,9 @@ public abstract class WatchExecutionContext {
     /**
      * @return The user that executes the watch, which will be stored in the watch history
      */
-    public String getUser() { return user; }
+    public String getUser() {
+        return user;
+    }
 
     public void start() {
         assert phase == ExecutionPhase.AWAITS_EXECUTION;

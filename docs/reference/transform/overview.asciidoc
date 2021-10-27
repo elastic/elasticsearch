@@ -8,8 +8,14 @@
 You can choose either of the following methods to transform your data:
 <<pivot-transform-overview,pivot>> or <<latest-transform-overview,latest>>.
 
-IMPORTANT: All {transforms} leave your source index intact. They create a new
-index that is dedicated to the transformed data.
+[IMPORTANT]
+====
+* All {transforms} leave your source index intact. They create a new
+  index that is dedicated to the transformed data.
+* {transforms-cap} might have more configuration options provided by the APIs 
+  than the options available in {kib}. For all the {transform} configuration 
+  options, refer to the <<transform-apis,API documentation>>.
+====
 
 {transforms-cap} are persistent tasks; they are stored in cluster state which 
 makes them resilient for node failures. Refer to <<transform-checkpoints>> and 
